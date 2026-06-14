@@ -100,6 +100,7 @@ def id_fingerprint_pg(pg_conn, table: str) -> str | None:
         ids = ",".join(str(r[0]) for r in rows)
         return hashlib.md5(ids.encode()).hexdigest()
     except Exception:
+        pg_conn.rollback()
         return None
 
 
@@ -118,6 +119,7 @@ def sample_rows_pg(pg_conn, table: str, ids: list[Any]) -> list[dict]:
             cur.execute(f"SELECT * FROM {table} WHERE id IN ({placeholders})", ids)
             return [dict(r) for r in cur.fetchall()]
         except Exception:
+            pg_conn.rollback()
             return []
 
 
@@ -171,6 +173,7 @@ def main() -> None:
         try:
             pc = count_pg(pg_conn, table)
         except Exception as e:
+            pg_conn.rollback()
             print(f"  {table:<45} {'ERR':>8} {str(e)[:20]:>8}")
             fail_count += 1
             continue
