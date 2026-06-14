@@ -26,6 +26,19 @@ from database import init_db
 init_db()
 print("Schema created.\n")
 
+# Step 1b: Clear any data seeded by init_db() so migration inserts real SQLite data
+print("Clearing seeded data...")
+import psycopg2
+pg = psycopg2.connect(SHADOW_PG_URL)
+pg.autocommit = True
+with pg.cursor() as cur:
+    cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+    tables = [r[0] for r in cur.fetchall()]
+    for t in tables:
+        cur.execute(f"TRUNCATE {t} CASCADE")
+pg.close()
+print(f"Cleared {len(tables)} tables.\n")
+
 # Step 2: Run data migration
 print("=" * 60)
 print("Step 2: Migrating SQLite data to shadow PG...")
