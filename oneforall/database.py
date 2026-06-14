@@ -2398,9 +2398,7 @@ _SENTINEL_TABLES_PG = _to_pg_schema(_SENTINEL_TABLES)
 _ERM_ORM_TABLES_PG  = _to_pg_schema(_ERM_ORM_TABLES)
 
 
-def _run_sqlite_alters(conn):
-    """SQLite-only: ALTER TABLE ADD COLUMN for schema evolution and UNIQUE index creation."""
-    migrations = [
+_COLUMN_MIGRATIONS = [
         # (table, column, definition)
         ("aria_frameworks", "is_active", "INTEGER DEFAULT 1"),
         ("aria_frameworks", "relevant_modules", "TEXT DEFAULT ''"),
@@ -2597,8 +2595,12 @@ def _run_sqlite_alters(conn):
         # ── Sentinel vendor extra fields in _VENDOR_FIELDS ────────────────────
         ("sentinel_vendors", "website",    "TEXT"),
         ("sentinel_vendors", "regulation", "TEXT DEFAULT 'GDPR'"),
-    ]
-    for table, column, definition in migrations:
+]
+
+
+def _run_sqlite_alters(conn):
+    """SQLite-only: ALTER TABLE ADD COLUMN for schema evolution and UNIQUE index creation."""
+    for table, column, definition in _COLUMN_MIGRATIONS:
         try:
             conn.execute(f"SELECT {column} FROM {table} LIMIT 1")
         except OperationalError:
@@ -3303,6 +3305,16 @@ def _seed_baseline_data(conn):
         pass
 
 
+def _run_pg_alters(conn) -> None:
+    """PG equivalent of _run_sqlite_alters: adds schema-evolution columns using ADD COLUMN IF NOT EXISTS."""
+    for table, column, definition in _COLUMN_MIGRATIONS:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
+        except Exception:
+            pass
+    conn.commit()
+
+
 def init_db():
     """Create all tables if they don't exist, then run migrations and seed data."""
     _ensure_dir()
@@ -3323,7 +3335,9 @@ def init_db():
             conn.executescript(_SENTINEL_TABLES)
             conn.executescript(_ERM_ORM_TABLES)
         conn.commit()
-        if not settings.is_postgres():
+        if settings.is_postgres():
+            _run_pg_alters(conn)
+        else:
             _run_sqlite_alters(conn)
         _seed_baseline_data(conn)
     finally:
