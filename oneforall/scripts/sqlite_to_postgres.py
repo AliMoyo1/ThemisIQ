@@ -247,6 +247,8 @@ def main() -> None:
         t0 = time.monotonic()
         try:
             sc, ic = migrate_table(table, cols, sqlite_conn, pg_conn, apply=args.apply)
+            if args.apply:
+                pg_conn.commit()
             elapsed = time.monotonic() - t0
             status = "DRY" if not args.apply else "OK"
             print(f"  [{status}] {table:<45} {sc:>7} rows  ({elapsed:.1f}s)")
@@ -259,7 +261,6 @@ def main() -> None:
             print(f"  [ERR] {table}: {exc}", file=sys.stderr)
 
     if args.apply:
-        pg_conn.commit()
         reset_sequences(sorted_tables, columns_map, pg_conn)
         pg_conn.commit()
 
