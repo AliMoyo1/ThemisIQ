@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARIA — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --olive:      #7E8062;
+  --cream-50:   #F7F1E3;
+  --cream-100:  #F3ECDB;
+  --cream-200:  #EAE1CC;
+  --cream-300:  #DDD2B8;
+  --ink:        #1D1E15;
+  --ink-soft:   #2E2F22;
+  --text:       #24251A;
+  --muted:      #6E6B54;
+  --border:     #D8CDB2;
+  --border-soft:#E6DCC2;
+  --primary:    #5C5F3D;
+  --bad:        #A5503C;
+  --bad-soft:   #EEC9BE;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--olive);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+.bg-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(30,28,10,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30,28,10,0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 900px 600px at 50% 40%, #000 50%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse 900px 600px at 50% 40%, #000 50%, transparent 85%);
+}
+.bg-glow {
+  position: absolute; width: 640px; height: 640px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(247,241,227,0.3) 0%, transparent 70%);
+  top: -220px; right: -220px; pointer-events: none;
+}
+.bg-glow2 {
+  position: absolute; width: 460px; height: 460px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(92,95,61,0.4) 0%, transparent 70%);
+  bottom: -140px; left: -120px; pointer-events: none;
+}
+.login-wrap { position: relative; z-index: 10; width: 440px; max-width: 95vw; }
+
+.brand { text-align: center; margin-bottom: 32px; }
+.logo-mark {
+  display: inline-flex; align-items: center; gap: 12px;
+  margin-bottom: 8px;
+}
+.logo-icon {
+  width: 48px; height: 48px; border-radius: 14px;
+  background: var(--ink); color: var(--cream-50);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 10px 24px rgba(30,28,10,0.25);
+}
+.logo-text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 30px; font-weight: 700;
+  color: var(--cream-50);
+  letter-spacing: -1px; line-height: 1;
+}
+.logo-text span { color: var(--cream-300); }
+.brand-sub {
+  font-size: 13px;
+  color: var(--cream-100);
+  opacity: 0.85;
+  margin-top: 6px;
+  letter-spacing: 0.3px;
+}
+
+.card {
+  background: var(--cream-50);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 34px;
+  box-shadow: 0 28px 64px rgba(20,18,10,0.22);
+}
+h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 22px; font-weight: 700;
+  color: var(--ink); margin-bottom: 6px;
+  letter-spacing: -0.3px;
+}
+.subtitle { font-size: 13.5px; color: var(--muted); margin-bottom: 26px; }
+.form-group { margin-bottom: 18px; }
+label {
+  display: block; font-size: 10.5px; font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 7px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+input {
+  width: 100%;
+  background: #FBF6E8;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px; font-size: 14px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(92,95,61,0.18);
+}
+input::placeholder { color: #9A957A; }
+
+.btn {
+  width: 100%;
+  background: var(--ink);
+  color: var(--cream-50);
+  border: none; border-radius: 11px;
+  padding: 13px;
+  font-size: 14px; font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer; transition: all 0.2s;
+  letter-spacing: 0.3px; margin-top: 10px;
+}
+.btn:hover {
+  background: var(--ink-soft);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(30,28,10,0.28);
+}
+.btn:active { transform: translateY(0); }
+
+.error-msg {
+  background: var(--bad-soft);
+  border: 1px solid rgba(165,80,60,0.35);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13px;
+  color: var(--bad);
+  margin-bottom: 18px;
+  font-weight: 500;
+}
+.divider { border: none; border-top: 1px solid var(--border-soft); margin: 22px 0; }
+
+.demo-creds {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 16px;
+}
+.demo-title {
+  font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--primary); margin-bottom: 12px;
+}
+.demo-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12.5px; margin-bottom: 7px;
+}
+.demo-row:last-child { margin-bottom: 0; }
+.demo-label { color: var(--muted); font-weight: 500; }
+.demo-val {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--ink); font-size: 11.5px;
+  cursor: pointer;
+  padding: 4px 10px;
+  background: var(--cream-200);
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  transition: all 0.15s;
+}
+.demo-val:hover {
+  background: var(--ink); color: var(--cream-50); border-color: var(--ink);
+}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="bg-glow2"></div>
+<div class="login-wrap">
+  <div class="brand">
+    <div class="logo-mark">
+      <div class="logo-icon">🛡️</div>
+      <div style="text-align:left;">
+        <span class="logo-text">AR<span>IA</span></span>
+        <div style="font-size:10px;font-weight:500;color:var(--cream-200);letter-spacing:0.9px;margin-top:2px;opacity:0.85;">by Ali Moyo</div>
+      </div>
+    </div>
+    <div class="brand-sub">Multi-Framework GRC Platform</div>
+  </div>
+  <div class="card">
+    <h2>Welcome back</h2>
+    <p class="subtitle">Sign in to your compliance workspace</p>
+    {% if error %}
+    <div class="error-msg">⚠️ {{ error }}</div>
+    {% endif %}
+    <form method="post" action="/login">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="Enter your username" autofocus required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="Enter your password" required>
+      </div>
+      <button type="submit" class="btn">Sign In →</button>
+    </form>
+    <hr class="divider">
+    <div class="demo-creds">
+      <div class="demo-title">🔑 Demo Credentials</div>
+      <div class="demo-row">
+        <span class="demo-label">Admin</span>
+        <span class="demo-val" onclick="fill('admin','Admin@123!')">admin / Admin@123!</span>
+      </div>
+      <div class="demo-row">
+        <span class="demo-label">Auditor</span>
+        <span class="demo-val" onclick="fill('auditor','Audit@123!')">auditor / Audit@123!</span>
+      </div>
+      <div class="demo-row">
+        <span class="demo-label">Viewer</span>
+        <span class="demo-val" onclick="fill('viewer','View@123!')">viewer / View@123!</span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function fill(u, p) {
+  document.querySelector('[name=username]').value = u;
+  document.querySelector('[name=password]').value = p;
+}
+</script>
+</body>
+</html>

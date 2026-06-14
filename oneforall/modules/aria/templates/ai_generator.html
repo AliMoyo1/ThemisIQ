@@ -1,0 +1,831 @@
+{% extends "base.html" %}
+{% block title %}AI Policy Generator — ARIA{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+/* ── Stats strip ─────────────────────────────────────────────────────────── */
+.ag-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+@media(max-width:800px){.ag-stats{grid-template-columns:repeat(2,1fr)}}
+.ag-stat{background:var(--surface);border:1px solid var(--border);
+         border-radius:var(--radius);padding:14px 16px}
+.ag-stat-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+               letter-spacing:0.4px;margin-bottom:5px;display:flex;align-items:center;gap:5px}
+.ag-stat-val{font-size:24px;font-weight:800;color:var(--text);line-height:1}
+.ag-stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+/* ── Main layout ────────────────────────────────────────────────────────── */
+.gen-layout{display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start}
+@media(max-width:960px){.gen-layout{grid-template-columns:1fr}}
+/* ── Left panel ─────────────────────────────────────────────────────────── */
+.gen-panel{background:var(--surface);border:1px solid var(--border);
+           border-radius:var(--radius-lg);padding:20px;
+           position:sticky;top:74px;box-shadow:var(--shadow-sm)}
+.gen-panel-title{font-size:14px;font-weight:700;color:var(--text);
+                 margin-bottom:16px;display:flex;align-items:center;gap:7px}
+.btn-generate{width:100%;padding:12px;background:var(--accent);border:none;
+              border-radius:var(--radius);color:#fff;font-size:14px;font-weight:700;
+              cursor:pointer;transition:all 0.18s;display:flex;align-items:center;
+              justify-content:center;gap:8px;box-shadow:var(--shadow-sm)}
+.btn-generate:hover{opacity:0.9;box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.btn-generate:disabled{opacity:0.4;cursor:not-allowed;transform:none;box-shadow:none}
+/* ── Control search dropdown ────────────────────────────────────────────── */
+.ctrl-search-wrap{position:relative}
+.ctrl-search-results{position:absolute;top:100%;left:0;right:0;z-index:60;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  max-height:260px;overflow-y:auto;box-shadow:var(--shadow-md);margin-top:4px}
+.ctrl-result{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.12s}
+.ctrl-result:last-child{border-bottom:none}
+.ctrl-result:hover{background:var(--surface2)}
+.ctrl-result-top{display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap}
+.ctrl-ref{font-family:var(--mono);font-size:10.5px;color:var(--accent);font-weight:700}
+.ctrl-status{font-size:10px;padding:1px 6px;border-radius:999px;font-weight:600}
+.ctrl-status-warn{background:var(--warn-soft,rgba(217,119,6,.1));color:var(--warn,#d97706)}
+.ctrl-status-info{background:var(--info-soft,rgba(37,99,235,.1));color:var(--info,#2563eb)}
+.ctrl-status-good{background:var(--good-soft,rgba(22,163,74,.1));color:var(--good,#16a34a)}
+.ctrl-status-neutral{background:var(--surface2);color:var(--muted)}
+.ctrl-has-doc{font-size:11px;margin-left:auto}
+.ctrl-result-name{font-size:12.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ── Selected control card ──────────────────────────────────────────────── */
+.sel-ctrl{margin-top:8px;background:var(--surface2);border:1px solid var(--border);
+          border-radius:var(--radius);padding:10px 12px}
+.sel-ctrl .ref{font-size:10.5px;color:var(--accent);font-family:var(--mono);font-weight:700}
+.sel-ctrl .name{font-size:13px;font-weight:600;margin-top:2px;color:var(--text)}
+.sel-ctrl .desc{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.45;
+                max-height:48px;overflow:hidden}
+/* ── Recent documents ───────────────────────────────────────────────────── */
+.recent-section{margin-top:16px;border-top:1px solid var(--border);padding-top:14px}
+.recent-header{display:flex;align-items:center;gap:6px;cursor:pointer;
+               font-size:12.5px;font-weight:700;color:var(--muted);
+               user-select:none;margin-bottom:0}
+.recent-header:hover{color:var(--text)}
+.recent-count{background:var(--surface2);border:1px solid var(--border);
+              font-size:10.5px;padding:0 5px;border-radius:999px;font-weight:700;color:var(--muted)}
+.recent-chevron{margin-left:auto;transition:transform 0.2s}
+.recent-chevron.open{transform:rotate(180deg)}
+.recent-list{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.recent-item{display:flex;align-items:center;gap:8px;padding:8px 10px;
+             background:var(--surface2);border:1px solid var(--border);
+             border-radius:var(--radius);font-size:12px}
+.recent-item-info{flex:1;min-width:0}
+.recent-item-title{font-weight:600;color:var(--text);font-size:11.5px;
+                   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent-item-fw{font-size:10.5px;color:var(--muted);margin-top:1px}
+.recent-item-open{font-size:11px;font-weight:600;color:var(--accent);
+                  text-decoration:none;white-space:nowrap;flex-shrink:0}
+.recent-item-open:hover{text-decoration:underline}
+/* ── Right panel / tabs ─────────────────────────────────────────────────── */
+.output-panel{background:var(--surface);border:1px solid var(--border);
+              border-radius:var(--radius-lg);min-height:560px;
+              display:flex;flex-direction:column;box-shadow:var(--shadow-sm)}
+.gen-tabs{display:flex;gap:4px;padding:14px 16px 0;border-bottom:1px solid var(--border)}
+.gen-tab{padding:7px 16px;border-radius:var(--radius) var(--radius) 0 0;
+         font-size:13px;font-weight:600;color:var(--muted);border:none;
+         background:transparent;cursor:pointer;transition:all 0.15s;
+         border-bottom:2px solid transparent;margin-bottom:-1px}
+.gen-tab:hover{color:var(--text)}
+.gen-tab.active{color:var(--accent);border-bottom-color:var(--accent);
+                background:var(--surface)}
+.tab-content{display:none;flex:1;flex-direction:column}
+.tab-content.active{display:flex}
+/* ── Output header & actions ─────────────────────────────────────────────── */
+.output-header{padding:14px 20px;border-bottom:1px solid var(--border);
+               display:flex;align-items:center;justify-content:space-between;
+               gap:10px;flex-wrap:wrap;flex-shrink:0}
+.output-title{font-size:13.5px;font-weight:700;color:var(--text);min-width:0;
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.output-actions{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.output-body{padding:26px 30px;flex:1;overflow-y:auto}
+/* ── Empty state ────────────────────────────────────────────────────────── */
+.gen-empty{display:flex;flex-direction:column;align-items:center;
+           justify-content:center;height:440px;gap:14px;padding:24px;text-align:center}
+.gen-empty-icon{width:56px;height:56px;background:var(--surface2);
+                border-radius:50%;display:flex;align-items:center;justify-content:center}
+.gen-empty-text{font-size:14px;color:var(--muted);max-width:360px;line-height:1.6}
+.gen-empty-hint{font-size:12px;color:var(--dim);line-height:1.5}
+/* ── Loading state ──────────────────────────────────────────────────────── */
+.typing-indicator{display:none;flex-direction:column;align-items:center;
+                  justify-content:center;height:440px;gap:18px}
+.typing-indicator.active{display:flex}
+.ai-spinner{width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;
+            display:flex;align-items:center;justify-content:center;
+            animation:pulse-glow 1.6s ease-in-out infinite}
+.ai-spinner svg{width:22px;height:22px}
+@keyframes pulse-glow{
+  0%,100%{box-shadow:0 0 0 0 rgba(var(--accent-rgb,100,100,100),.35);transform:scale(1)}
+  50%{box-shadow:0 0 0 14px rgba(var(--accent-rgb,100,100,100),0);transform:scale(1.04)}
+}
+.typing-text{font-size:13.5px;color:var(--muted)}
+.typing-dots span{display:inline-block;width:6px;height:6px;border-radius:50%;
+                  background:var(--accent);margin:0 2px;
+                  animation:bounce 1.2s ease-in-out infinite}
+.typing-dots span:nth-child(2){animation-delay:.2s}
+.typing-dots span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
+/* ── Markdown document ──────────────────────────────────────────────────── */
+.policy-output{font-size:14.5px;line-height:1.8;color:var(--text)}
+.policy-output h1{font-size:21px;font-weight:800;margin-bottom:8px;color:var(--text);letter-spacing:-.3px}
+.policy-output h2{font-size:16px;font-weight:700;margin:24px 0 9px;color:var(--accent);
+                  border-bottom:1px solid var(--border);padding-bottom:6px}
+.policy-output h3{font-size:13.5px;font-weight:700;margin:16px 0 5px;color:var(--text-mid)}
+.policy-output p{margin-bottom:11px;color:var(--text-mid)}
+.policy-output ul,.policy-output ol{margin:8px 0 12px 20px;color:var(--text-mid)}
+.policy-output li{margin-bottom:4px}
+.policy-output strong{color:var(--text)}
+.policy-output hr{border:none;border-top:1px solid var(--border);margin:18px 0}
+.policy-output code{background:var(--surface2);padding:2px 6px;border-radius:4px;
+                    font-family:var(--mono);font-size:12px;color:var(--accent)}
+.policy-output blockquote{border-left:3px solid var(--accent);padding:9px 15px;
+  background:var(--surface2);border-radius:0 var(--radius) var(--radius) 0;
+  margin:12px 0;color:var(--muted);font-style:italic}
+/* ── Meta bar ───────────────────────────────────────────────────────────── */
+.meta-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+          padding:9px 20px;border-top:1px solid var(--border);
+          font-size:11px;color:var(--muted);flex-shrink:0}
+/* ── Gap analysis tab ───────────────────────────────────────────────────── */
+.gap-form-area{padding:24px;border-bottom:1px solid var(--border);flex-shrink:0}
+.gap-output-area{padding:24px 30px;flex:1;overflow-y:auto}
+/* ── Cost note ──────────────────────────────────────────────────────────── */
+.cost-note{margin-top:10px;padding:8px 11px;background:var(--surface2);
+           border:1px solid var(--border);border-radius:var(--radius);
+           font-size:11px;color:var(--muted);line-height:1.5}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="/aria/" style="color:var(--muted);text-decoration:none;font-weight:500">ARIA</a>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">AI Policy Generator</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <div class="page-title">AI Policy Generator</div>
+    <div class="page-subtitle">Generate professional, audit-ready compliance documents for any control — powered by {{ ai_provider_label }}.</div>
+  </div>
+</div>
+
+{% if not api_configured %}
+<div class="card" style="padding:13px 17px;margin-bottom:18px;border-left:3px solid var(--amber,#d97706);display:flex;align-items:center;gap:10px">
+  <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber,#d97706)" stroke-width="2" style="width:17px;height:17px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <span style="font-size:13px;color:var(--text-mid)"><strong>AI provider not configured.</strong> Set <code>AI_PROVIDER</code> and the matching API key in your <code>.env</code> file and restart.</span>
+</div>
+{% endif %}
+
+{# ── Stats strip ──────────────────────────────────────────────────────────── #}
+{% set covered_pct = ((controls_with_docs / total_controls * 100) | int) if total_controls > 0 else 0 %}
+<div class="ag-stats">
+  <div class="ag-stat stat-card">
+    <div class="ag-stat-label">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Documents Generated
+    </div>
+    <div class="ag-stat-val">{{ total_docs }}</div>
+    <div class="ag-stat-sub">in document library</div>
+  </div>
+  <div class="ag-stat stat-card">
+    <div class="ag-stat-label">Controls Covered</div>
+    <div class="ag-stat-val" style="color:{% if covered_pct >= 50 %}var(--good){% else %}var(--amber){% endif %}">
+      {{ controls_with_docs }}<span style="font-size:14px;font-weight:600;color:var(--muted)"> / {{ total_controls }}</span>
+    </div>
+    <div class="ag-stat-sub">{{ covered_pct }}% have documents</div>
+  </div>
+  <div class="ag-stat stat-card">
+    <div class="ag-stat-label">Frameworks Active</div>
+    <div class="ag-stat-val">{{ frameworks|length }}</div>
+    <div class="ag-stat-sub">across all modules</div>
+  </div>
+  <div class="ag-stat stat-card">
+    <div class="ag-stat-label">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      AI Provider
+    </div>
+    <div class="ag-stat-val" style="font-size:16px;font-weight:700;">{{ ai_provider_label }}</div>
+    <div class="ag-stat-sub">active model</div>
+  </div>
+</div>
+
+<div class="gen-layout">
+  {# ── Left panel ── #}
+  <div>
+    <div class="gen-panel">
+      <div class="gen-panel-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:15px;height:15px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Generation Settings
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Organisation Name</label>
+        <input type="text" id="orgName" placeholder="e.g. Acme Corp" value="Your Organisation">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Framework</label>
+        <select id="fwSelect" onchange="loadControls()">
+          <option value="">— Select Framework —</option>
+          {% for fw in frameworks %}
+          <option value="{{ fw.id }}" data-name="{{ fw.name }}">
+            {{ fw.name }}{% if docs_by_fw_map.get(fw.name, 0) > 0 %} · {{ docs_by_fw_map.get(fw.name, 0) }} docs{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Document Type</label>
+        <select id="docTypeOverride">
+          <option value="">Use control's default</option>
+          <option value="Policy">Policy</option>
+          <option value="Procedure">Procedure</option>
+          <option value="Standard">Standard</option>
+          <option value="Guideline">Guideline</option>
+          <option value="Checklist">Checklist</option>
+          <option value="Framework">Framework</option>
+        </select>
+      </div>
+
+      <!-- IMS: Integrated Policy option -->
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="imsToggle" onchange="toggleIms()" style="width:14px;height:14px;cursor:pointer;">
+          Integrated Policy (IMS)
+          <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:2px;">— covers multiple frameworks</span>
+        </label>
+        <div id="imsPanel" style="display:none;margin-top:8px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Select additional framework(s) to include. Only frameworks with mapped controls for the selected control will contribute content.</div>
+          <select id="imsFramework" class="form-select" style="width:100%;">
+            <option value="">— Select additional framework —</option>
+            {% for fw in active_frameworks %}
+            <option value="{{ fw.id }}">{{ fw.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group ctrl-search-wrap">
+        <label class="form-label">Control / Requirement</label>
+        <input type="text" id="ctrlSearch" placeholder="Select a framework first..."
+               oninput="filterControls()" autocomplete="off" disabled>
+        <div id="ctrlResults" class="ctrl-search-results" style="display:none"></div>
+        <input type="hidden" id="ctrlId">
+        <div id="selectedCtrl" class="sel-ctrl" style="display:none">
+          <div class="ref" id="selRef"></div>
+          <div class="name" id="selName"></div>
+          <div class="desc" id="selDesc"></div>
+          <div id="selImsStatus" style="display:none;"></div>
+        </div>
+      </div>
+
+      <button class="btn-generate" id="generateBtn" onclick="generatePolicy()" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span id="genBtnText">Generate Policy Document</span>
+      </button>
+
+      <div class="cost-note">
+        ⏱ Generation takes 10–20 seconds. Each generation costs approx. $0.01–0.02 (Anthropic).
+      </div>
+
+      {# ── Recent Documents ── #}
+      {% if recent_docs %}
+      <div class="recent-section">
+        <div class="recent-header" id="recentHeader" onclick="toggleRecent()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Recent Documents
+          <span class="recent-count">{{ recent_docs|length }}</span>
+          <svg class="recent-chevron open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+        </div>
+        <div class="recent-list" id="recentList">
+          {% for doc in recent_docs %}
+          <div class="recent-item">
+            <div class="recent-item-info">
+              <div class="recent-item-title" title="{{ doc.title }}">
+                {{ doc.control_ref }} — {{ doc.doc_type }}
+              </div>
+              <div class="recent-item-fw">{{ doc.framework }}</div>
+            </div>
+            <a href="/aria/documents" class="recent-item-open">Open →</a>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Right panel ── #}
+  <div>
+    <div class="output-panel">
+      {# Tab bar #}
+      <div class="gen-tabs">
+        <button class="gen-tab active" data-tab="policy" onclick="switchTab('policy')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Policy Generator
+        </button>
+        <button class="gen-tab" data-tab="gap" onclick="switchTab('gap')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Gap Analysis
+        </button>
+      </div>
+
+      {# ── Policy Generator tab ── #}
+      <div class="tab-content active" id="tab-policy">
+        <div class="output-header">
+          <span class="output-title" id="outputTitle">Generated Document</span>
+          <div class="output-actions" id="outputActions" style="display:none">
+            <button class="btn btn-ghost" onclick="generatePolicy()" style="font-size:12px;padding:5px 10px" title="Regenerate this document">↻ Regenerate</button>
+            <button class="btn btn-ghost" onclick="copyToClipboard()" style="font-size:12px;padding:5px 10px">Copy</button>
+            <button class="btn btn-ghost" onclick="downloadMd()" style="font-size:12px;padding:5px 10px">Markdown</button>
+            <button class="btn btn-primary" onclick="downloadWord()" style="font-size:12px;padding:5px 10px">Word (.docx)</button>
+            <button class="btn btn-ghost" onclick="printPolicy()" style="font-size:12px;padding:5px 10px">Print</button>
+            <a href="/aria/documents" class="btn btn-ghost" style="font-size:12px;padding:5px 10px;text-decoration:none">Library →</a>
+          </div>
+        </div>
+
+        {# Empty state #}
+        <div class="gen-empty" id="emptyState">
+          <div class="gen-empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:26px;height:26px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <div class="gen-empty-text">
+            Select a <strong>framework</strong> and <strong>control</strong> on the left, then click
+            <strong>Generate Policy Document</strong>.
+          </div>
+          <div class="gen-empty-hint">
+            Optionally override the document type before generating.<br>
+            Generated documents are automatically saved to the Document Library.
+          </div>
+          <div style="font-size:11px;color:var(--dim);margin-top:4px;letter-spacing:.3px">
+            Powered by {{ ai_provider_label }}
+          </div>
+        </div>
+
+        {# Loading state #}
+        <div class="typing-indicator" id="loadingState">
+          <div class="ai-spinner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div>
+            <div class="typing-text" id="loadingMsg">Generating your policy document...</div>
+            <div class="typing-dots" style="text-align:center;margin-top:8px">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+
+        {# Document output #}
+        <div class="output-body" id="outputBody" style="display:none">
+          <div class="policy-output" id="policyContent"></div>
+        </div>
+
+        {# Meta bar #}
+        <div class="meta-bar" id="metaBar" style="display:none">
+          <span id="metaModel" style="font-weight:600;color:var(--text-mid)">—</span>
+          <span><span id="metaIn">—</span> tokens in</span>
+          <span><span id="metaOut">—</span> tokens out</span>
+          <span id="metaTime">—</span>
+          <span id="metaSaved" style="margin-left:auto;color:var(--good);font-weight:600"></span>
+        </div>
+      </div>
+
+      {# ── Gap Analysis tab ── #}
+      <div class="tab-content" id="tab-gap">
+        <div class="gap-form-area">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+            Generate an AI gap analysis for an entire framework based on your current control statuses.
+            Produces an executive summary, key findings, recommendations, and a 30/60/90-day roadmap.
+          </p>
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">Framework</label>
+            <select id="gapFwSelect">
+              <option value="">— Select Framework —</option>
+              {% for fw in frameworks %}
+              <option value="{{ fw.id }}">{{ fw.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button class="btn btn-primary" style="gap:7px;display:inline-flex;align-items:center" onclick="generateGapAnalysis()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span id="gapBtnText">Run Gap Analysis</span>
+          </button>
+        </div>
+        <div class="gap-output-area" id="gapOutputArea">
+          <div id="gapLoading" style="display:none;text-align:center;padding:40px">
+            <div class="ai-spinner" style="margin:0 auto 16px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <div class="typing-text">Analysing compliance gaps...</div>
+            <div class="typing-dots" style="text-align:center;margin-top:8px"><span></span><span></span><span></span></div>
+          </div>
+          <div class="policy-output" id="gapContent" style="display:none"></div>
+          <div style="color:var(--muted);font-size:13px;line-height:1.7" id="gapEmpty">
+            Select a framework above and click <strong>Run Gap Analysis</strong>.
+          </div>
+        </div>
+      </div>
+
+    </div>{# /output-panel #}
+  </div>
+</div>
+
+<div id="rawContent" style="display:none"></div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ super() }}
+<script>
+/* ── Init data from server ─────────────────────────────────────────────── */
+var allControls     = [];
+var selectedControl = null;
+var lastGenerated   = '';
+var currentFwName   = '';
+var docCtrlRefs     = new Set({{ doc_ctrl_refs_json | safe }});
+var controlsByFw    = {{ controls_by_fw_json | safe }};
+
+/* ── Org name persistence ──────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function () {
+  var stored = localStorage.getItem('aria_org_name');
+  if (stored) document.getElementById('orgName').value = stored;
+  document.getElementById('orgName').addEventListener('input', function () {
+    localStorage.setItem('aria_org_name', this.value);
+  });
+});
+
+/* ── Tab switching ─────────────────────────────────────────────────────── */
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(function (el) {
+    el.classList.remove('active');
+  });
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelectorAll('.gen-tab').forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+}
+
+/* ── Recent documents toggle ───────────────────────────────────────────── */
+function toggleRecent() {
+  var list    = document.getElementById('recentList');
+  var chevron = document.querySelector('.recent-chevron');
+  var hidden  = list.style.display === 'none';
+  list.style.display = hidden ? 'flex' : 'none';
+  if (chevron) chevron.classList.toggle('open', hidden);
+}
+
+/* ── Controls loading ──────────────────────────────────────────────────── */
+function esc(s) {
+  if (!s && s !== 0) return '';
+  var d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+async function loadControls() {
+  var sel   = document.getElementById('fwSelect');
+  var fwId  = sel.value;
+  currentFwName = sel.options[sel.selectedIndex]
+    ? (sel.options[sel.selectedIndex].dataset.name || '') : '';
+
+  var search = document.getElementById('ctrlSearch');
+  search.disabled = !fwId;
+  search.value = '';
+  document.getElementById('selectedCtrl').style.display = 'none';
+  document.getElementById('ctrlId').value = '';
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('ctrlResults').style.display = 'none';
+  selectedControl = null;
+  if (!fwId) { allControls = []; return; }
+
+  /* Use pre-loaded controls from page context first */
+  allControls = controlsByFw[fwId] || [];
+
+  if (allControls.length === 0) {
+    search.placeholder = 'Seeding controls...';
+    try {
+      var seedResp = await fetch('/aria/api/force-seed-controls/' + fwId, { method: 'POST' });
+      var seedData = await seedResp.json();
+      if ((seedData.seeded || 0) + (seedData.existing || 0) > 0) {
+        var r2 = await fetch('/aria/api/controls/' + fwId);
+        allControls = await r2.json();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  search.placeholder = allControls.length > 0
+    ? 'Search ' + allControls.length + ' controls...'
+    : 'No controls available';
+
+  // Enrich with IMS status if multiple active frameworks are loaded
+  // (non-blocking — runs in background)
+  _enrichImsStatus(fwId);
+}
+
+var _imsStatusCache = {};  // fwId → {ctrl_id: {status, mapped_fw_names}}
+
+async function _enrichImsStatus(currentFwId) {
+  try {
+    // Collect all currently active framework IDs from the page context
+    var allFwIds = Object.keys(controlsByFw || {}).filter(id => (controlsByFw[id]||[]).length > 0);
+    if (allFwIds.length < 2) return;
+    var cacheKey = allFwIds.sort().join(',');
+    if (_imsStatusCache[cacheKey]) {
+      _applyImsStatus(_imsStatusCache[cacheKey]);
+      return;
+    }
+    var res = await fetch('/aria/api/control-mappings/ims-status?fw_ids=' + allFwIds.join(','));
+    if (!res.ok) return;
+    var data = await res.json();
+    var map = {};
+    ['integrated','partial','unique'].forEach(function(st){
+      (data[st]||[]).forEach(function(c){ map[c.id] = {status: st, mapped_fw_names: c.mapped_fw_names||[]}; });
+    });
+    _imsStatusCache[cacheKey] = map;
+    _applyImsStatus(map);
+  } catch(e) { /* non-critical */ }
+}
+
+function _applyImsStatus(map) {
+  if (!allControls || !allControls.length) return;
+  allControls.forEach(function(c) {
+    var s = map[c.id];
+    if (s) { c.ims_status = s.status; c.mapped_fw_names = s.mapped_fw_names; }
+  });
+}
+
+/* ── Control search / filter ───────────────────────────────────────────── */
+function statusClass(status) {
+  var s = (status || '').toLowerCase();
+  if (s === 'not started')  return 'warn';
+  if (s === 'in progress')  return 'info';
+  if (s === 'implemented')  return 'good';
+  return 'neutral';
+}
+
+/* ── IMS toggle ──────────────────────────────────────────────────────────── */
+function toggleIms() {
+  var on = document.getElementById('imsToggle').checked;
+  document.getElementById('imsPanel').style.display = on ? 'block' : 'none';
+  // Update generate button label
+  var btnText = document.getElementById('genBtnText');
+  if (btnText) btnText.textContent = on ? 'Generate Integrated IMS Policy' : 'Generate Policy Document';
+}
+
+function filterControls() {
+  var q       = document.getElementById('ctrlSearch').value.toLowerCase();
+  var results = document.getElementById('ctrlResults');
+  if (!allControls.length) { results.style.display = 'none'; return; }
+
+  var filtered = q
+    ? allControls.filter(function (c) {
+        return c.ref.toLowerCase().includes(q) ||
+               c.name.toLowerCase().includes(q) ||
+               (c.description || '').toLowerCase().includes(q);
+      }).slice(0, 20)
+    : allControls.slice(0, 20);
+
+  if (!filtered.length) {
+    results.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--muted)">No matching controls</div>';
+    results.style.display = 'block';
+    return;
+  }
+
+  results.innerHTML = filtered.map(function (c, idx) {
+    var sClass  = statusClass(c.status);
+    var hasDoc  = docCtrlRefs.has(currentFwName + '|' + c.ref);
+    var docBadge = hasDoc ? '<span class="ctrl-has-doc" title="Document exists in library">📄</span>' : '';
+    var statusLabel = c.status ? ('<span class="ctrl-status ctrl-status-' + sClass + '">' + esc(c.status) + '</span>') : '';
+    // IMS badge
+    var imsBadgeHtml = '';
+    if (c.ims_status === 'integrated') {
+      imsBadgeHtml = '<span style="background:#16a34a;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">INT</span>';
+    } else if (c.ims_status === 'partial') {
+      imsBadgeHtml = '<span style="background:#d97706;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">PARTIAL</span>';
+    } else if (c.ims_status === 'unique') {
+      imsBadgeHtml = '<span style="background:#dc2626;color:#fff;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.5px;vertical-align:middle;">UNIQUE</span>';
+    }
+    return '<div class="ctrl-result" data-idx="' + idx + '">' +
+      '<div class="ctrl-result-top">' +
+        '<span class="ctrl-ref">' + esc(c.ref) + '</span>' +
+        statusLabel + docBadge + (imsBadgeHtml ? ' ' + imsBadgeHtml : '') +
+      '</div>' +
+      '<div class="ctrl-result-name">' + esc(c.name) + '</div>' +
+    '</div>';
+  }).join('');
+
+  results._filtered = filtered;
+  results.querySelectorAll('.ctrl-result').forEach(function (el) {
+    el.addEventListener('click', function () {
+      var ctrl = results._filtered[parseInt(el.dataset.idx, 10)];
+      selectControl(ctrl.id, ctrl.ref, ctrl.name, ctrl.description || '');
+    });
+  });
+  results.style.display = 'block';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var el = document.getElementById('ctrlSearch');
+  if (el) {
+    el.addEventListener('focus', filterControls);
+    el.addEventListener('click', filterControls);
+  }
+});
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('#ctrlSearch') && !e.target.closest('#ctrlResults')) {
+    document.getElementById('ctrlResults').style.display = 'none';
+  }
+});
+
+function selectControl(id, ref, name, desc) {
+  document.getElementById('ctrlId').value = id;
+  document.getElementById('ctrlSearch').value = ref + ' — ' + name;
+  document.getElementById('ctrlResults').style.display = 'none';
+  document.getElementById('selectedCtrl').style.display = 'block';
+  document.getElementById('selRef').textContent  = ref;
+  document.getElementById('selName').textContent = name;
+  document.getElementById('selDesc').textContent = desc;
+  document.getElementById('generateBtn').disabled = false;
+  selectedControl = { id: id, ref: ref, name: name };
+
+  // IMS status indicator
+  var ctrl = (allControls||[]).find(function(c){ return c.id == id; });
+  var imsEl = document.getElementById('selImsStatus');
+  if (imsEl && ctrl && ctrl.ims_status) {
+    var badges = {
+      integrated: { bg:'#16a34a', label:'✓ Integrated Control', msg:'Can generate one document covering all mapped frameworks' },
+      partial:    { bg:'#d97706', label:'⚠ Partial Match', msg:'Mapped to some but not all selected frameworks' },
+      unique:     { bg:'#dc2626', label:'✕ Framework-Specific', msg:'Unique to this framework — document will not be integrated' },
+    };
+    var b = badges[ctrl.ims_status];
+    if (b) {
+      imsEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:' + b.bg + '22;border:1px solid ' + b.bg + '44;border-radius:6px;margin-top:8px;">' +
+        '<span style="background:'+b.bg+';color:#fff;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.5px;">'+b.label+'</span>' +
+        '<span style="font-size:11px;color:var(--text-mid);">'+b.msg+'</span>' +
+        (ctrl.mapped_fw_names && ctrl.mapped_fw_names.length ? ' <span style="font-size:10px;color:var(--muted);">↔ ' + ctrl.mapped_fw_names.join(', ') + '</span>' : '') +
+        '</div>';
+      imsEl.style.display = 'block';
+      // Show/hide IMS toggle based on status
+      var imsToggleWrap = document.getElementById('imsToggle') ? document.getElementById('imsToggle').closest('.form-group') : null;
+      if (imsToggleWrap) {
+        imsToggleWrap.style.display = ctrl.ims_status !== 'unique' ? 'block' : 'none';
+      }
+    } else {
+      imsEl.style.display = 'none';
+    }
+  }
+}
+
+/* ── Policy generation ─────────────────────────────────────────────────── */
+function setPolicyLoading(on, msg) {
+  document.getElementById('emptyState').style.display   = on ? 'none'  : 'none';
+  document.getElementById('outputBody').style.display   = on ? 'none'  : 'none';
+  document.getElementById('metaBar').style.display      = on ? 'none'  : 'none';
+  document.getElementById('outputActions').style.display = on ? 'none' : 'none';
+  document.getElementById('loadingState').classList.toggle('active', on);
+  if (on && msg) document.getElementById('loadingMsg').textContent = msg;
+}
+
+async function generatePolicy() {
+  var ctrlId  = document.getElementById('ctrlId').value;
+  var orgName = document.getElementById('orgName').value || 'Your Organisation';
+  var docType = document.getElementById('docTypeOverride').value;
+  if (!ctrlId) { if (typeof showToast === 'function') showToast('Select a control first.', 'warn'); return; }
+
+  switchTab('policy');
+  setPolicyLoading(true, 'Generating your ' + (selectedControl ? selectedControl.ref : '') + ' policy document...');
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('genBtnText').textContent = 'Generating...';
+
+  var form = new FormData();
+  form.append('control_id', ctrlId);
+  form.append('org_name', orgName);
+  if (docType) form.append('doc_type_override', docType);
+
+  // IMS: pass additional framework if integrated mode is enabled
+  var imsEnabled = document.getElementById('imsToggle') && document.getElementById('imsToggle').checked;
+  var imsFwId    = imsEnabled && document.getElementById('imsFramework') ? document.getElementById('imsFramework').value : '';
+  if (imsFwId) form.append('integrated_framework_id', imsFwId);
+
+  if (imsEnabled && imsFwId) {
+    var imsName = document.getElementById('imsFramework').options[document.getElementById('imsFramework').selectedIndex].text;
+    setPolicyLoading(true, 'Generating integrated IMS policy covering ' + (selectedControl ? selectedControl.ref : '') + ' across multiple frameworks…');
+  }
+
+  var start = Date.now();
+  try {
+    var resp = await fetch('/aria/api/generate-policy', { method: 'POST', body: form });
+    var data = await resp.json();
+    var elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+    document.getElementById('loadingState').classList.remove('active');
+
+    if (data.success) {
+      lastGenerated = data.content;
+      document.getElementById('rawContent').textContent = data.content;
+      document.getElementById('policyContent').innerHTML = marked.parse(data.content);
+      document.getElementById('outputBody').style.display   = 'block';
+      document.getElementById('outputActions').style.display = 'flex';
+      document.getElementById('metaBar').style.display      = 'flex';
+      document.getElementById('outputTitle').textContent    =
+        (selectedControl ? selectedControl.ref + ' — ' + selectedControl.name : 'Generated Document');
+      document.getElementById('metaModel').textContent = data.model || '—';
+      document.getElementById('metaIn').textContent    = data.input_tokens || '—';
+      document.getElementById('metaOut').textContent   = data.output_tokens || '—';
+      document.getElementById('metaTime').textContent  = 'Generated in ' + elapsed + 's';
+      document.getElementById('metaSaved').textContent = '✓ Saved to library';
+      if (typeof showToast === 'function') showToast('Policy document generated and saved!');
+    } else {
+      document.getElementById('emptyState').style.display = 'flex';
+      if (typeof showToast === 'function') showToast(data.error || 'Generation failed', 'error');
+    }
+  } catch (e) {
+    document.getElementById('loadingState').classList.remove('active');
+    document.getElementById('emptyState').style.display = 'flex';
+    if (typeof showToast === 'function') showToast('Network error. Is the server running?', 'error');
+  }
+  document.getElementById('generateBtn').disabled = false;
+  document.getElementById('genBtnText').textContent = 'Generate Policy Document';
+}
+
+/* ── Gap analysis ──────────────────────────────────────────────────────── */
+async function generateGapAnalysis() {
+  var fwId = document.getElementById('gapFwSelect').value;
+  if (!fwId) { if (typeof showToast === 'function') showToast('Select a framework first.', 'warn'); return; }
+
+  document.getElementById('gapEmpty').style.display   = 'none';
+  document.getElementById('gapContent').style.display = 'none';
+  document.getElementById('gapLoading').style.display = 'block';
+  document.getElementById('gapBtnText').textContent   = 'Analysing...';
+
+  var form = new FormData();
+  form.append('framework_id', fwId);
+
+  try {
+    var resp = await fetch('/aria/api/generate-gap-analysis', { method: 'POST', body: form });
+    var data = await resp.json();
+    document.getElementById('gapLoading').style.display = 'none';
+    document.getElementById('gapBtnText').textContent   = 'Run Gap Analysis';
+
+    if (data.success) {
+      document.getElementById('gapContent').innerHTML    = marked.parse(data.content);
+      document.getElementById('gapContent').style.display = 'block';
+      if (typeof showToast === 'function') showToast('Gap analysis complete!');
+    } else {
+      document.getElementById('gapEmpty').style.display = 'block';
+      document.getElementById('gapEmpty').textContent   = data.error || 'Analysis failed.';
+      if (typeof showToast === 'function') showToast(data.error || 'Error', 'error');
+    }
+  } catch (e) {
+    document.getElementById('gapLoading').style.display = 'none';
+    document.getElementById('gapBtnText').textContent   = 'Run Gap Analysis';
+    document.getElementById('gapEmpty').style.display   = 'block';
+    if (typeof showToast === 'function') showToast('Network error', 'error');
+  }
+}
+
+/* ── Export functions ──────────────────────────────────────────────────── */
+function copyToClipboard() {
+  navigator.clipboard.writeText(lastGenerated)
+    .then(function () { if (typeof showToast === 'function') showToast('Copied to clipboard!'); });
+}
+
+async function downloadWord() {
+  var ctrlId  = document.getElementById('ctrlId').value;
+  var orgName = document.getElementById('orgName').value || 'Your Organisation';
+  if (!lastGenerated) { if (typeof showToast === 'function') showToast('Generate a policy first.', 'warn'); return; }
+  if (typeof showToast === 'function') showToast('Building Word document...');
+  var form = new FormData();
+  form.append('control_id', ctrlId || '1');
+  form.append('content', lastGenerated);
+  form.append('org_name', orgName);
+  try {
+    var resp = await fetch('/aria/api/export-word', { method: 'POST', body: form });
+    if (!resp.ok) { var err = await resp.json(); if (typeof showToast === 'function') showToast(err.error || 'Export failed', 'error'); return; }
+    var blob = await resp.blob();
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ARIA_' + ((selectedControl ? selectedControl.ref : 'policy').replace(/\./g, '_')) + '_Policy.docx';
+    a.click();
+    if (typeof showToast === 'function') showToast('Word document downloaded!');
+  } catch (e) { if (typeof showToast === 'function') showToast('Download failed: ' + e.message, 'error'); }
+}
+
+function downloadMd() {
+  var blob = new Blob([lastGenerated], { type: 'text/markdown' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ARIA_' + ((selectedControl ? selectedControl.ref : 'policy').replace(/\./g, '_')) + '_Policy.md';
+  a.click();
+}
+
+function printPolicy() {
+  var content = document.getElementById('outputBody').innerHTML;
+  var w = window.open('', '_blank');
+  w.document.write('<html><head><title>Policy Document</title>' +
+    '<style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;color:#1a1a2e;line-height:1.7}' +
+    'h1{font-size:22px}h2{font-size:16px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px;color:#1E3A5F}' +
+    'p{margin-bottom:10px}ul,ol{margin:8px 0 12px 20px}li{margin-bottom:4px}' +
+    'code{background:#f4f4f4;padding:2px 6px;border-radius:3px;font-size:12px}' +
+    '@media print{body{margin:20px}}</style></head>' +
+    '<body>' + content + '</body></html>');
+  w.document.close();
+  w.print();
+}
+</script>
+{% endblock extra_scripts %}

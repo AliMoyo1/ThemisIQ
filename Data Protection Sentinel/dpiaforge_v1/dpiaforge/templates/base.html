@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}DPIAforge{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+/* ═══ DESIGN TOKENS ═══════════════════════════════════════════════════════ */
+:root {
+  /* Core UI palette */
+  --c-primary:    #1E3A8A;
+  --c-primary-l:  #2B4EAE;
+  --c-primary-d:  #162C6B;
+  --c-secondary:  #334155;
+  --c-accent:     #22D3EE;
+  --c-accent-d:   #0EA5C9;
+  --c-bg:         #F8FAFC;
+  --c-surface:    #FFFFFF;
+  --c-border:     #E2E8F0;
+  --c-text:       #0F172A;
+  --c-muted:      #64748B;
+  --c-subtle:     #94A3B8;
+
+  /* AI palette */
+  --ai-indigo:    #4F46E5;
+  --ai-navy:      #0F172A;
+  --ai-purple:    #A78BFA;
+  --ai-blue:      #38BDF8;
+  --ai-grad:      linear-gradient(135deg, #4F46E5 0%, #7C3AED 60%, #A78BFA 100%);
+  --ai-grad-glow: 0 4px 32px rgba(79,70,229,.35);
+
+  /* Status */
+  --s-draft:    #94A3B8; --s-draft-bg:    #F1F5F9;
+  --s-review:   #D97706; --s-review-bg:   #FFFBEB;
+  --s-approved: #059669; --s-approved-bg: #ECFDF5;
+  --s-rejected: #DC2626; --s-rejected-bg: #FEF2F2;
+
+  /* Risk */
+  --r-low:  #059669; --r-low-bg:  #ECFDF5;
+  --r-med:  #D97706; --r-med-bg:  #FFFBEB;
+  --r-high: #DC2626; --r-high-bg: #FEF2F2;
+  --r-vhigh:#7C3AED; --r-vhigh-bg:#F5F3FF;
+
+  /* Misc */
+  --radius:    12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow:    0 4px 16px rgba(30,58,138,.08);
+  --shadow-lg: 0 8px 32px rgba(30,58,138,.14);
+  --tx: all .18s cubic-bezier(.4,0,.2,1);
+}
+
+/* ═══ RESET + BASE ════════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{
+  font-family:'Outfit',sans-serif;font-size:14px;line-height:1.6;
+  color:var(--c-text);background:var(--c-bg);
+  display:flex;min-height:100vh;
+}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;font-family:inherit}
+ul,ol{list-style:none}
+
+/* ═══ SIDEBAR ═════════════════════════════════════════════════════════════ */
+.sidebar{
+  width:248px;flex-shrink:0;
+  background:var(--c-primary-d);
+  display:flex;flex-direction:column;
+  position:fixed;inset:0 auto 0 0;
+  z-index:200;overflow-y:auto;overflow-x:hidden;
+  border-right:1px solid rgba(255,255,255,.06);
+}
+
+.sidebar-logo{
+  padding:22px 20px 18px;
+  border-bottom:1px solid rgba(255,255,255,.07);
+  flex-shrink:0;
+}
+.logo-mark{
+  display:flex;align-items:baseline;gap:1px;
+  font-size:26px;font-weight:800;letter-spacing:-0.5px;
+  line-height:1;
+}
+.logo-dpia{color:#fff}
+.logo-forge{
+  background:linear-gradient(135deg,var(--c-accent),var(--ai-blue));
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.logo-byline{
+  font-size:10px;font-weight:400;letter-spacing:1.5px;
+  color:rgba(255,255,255,.3);margin-top:4px;
+  text-transform:uppercase;
+}
+
+.nav-section-label{
+  padding:14px 20px 5px;
+  font-size:10px;font-weight:700;letter-spacing:1.8px;
+  text-transform:uppercase;color:rgba(255,255,255,.22);
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 16px;margin:1px 8px;border-radius:var(--radius-sm);
+  color:rgba(255,255,255,.55);font-size:13.5px;font-weight:500;
+  transition:var(--tx);
+}
+.nav-item:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85)}
+.nav-item.active{
+  background:rgba(34,211,238,.12);
+  color:var(--c-accent);
+  font-weight:600;
+}
+.nav-item i{width:18px;text-align:center;font-size:14px;opacity:.8}
+
+.sidebar-footer{
+  margin-top:auto;padding:14px 16px;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.ai-pill{
+  background:linear-gradient(135deg,rgba(79,70,229,.25),rgba(124,58,237,.2));
+  border:1px solid rgba(167,139,250,.25);
+  border-radius:var(--radius-sm);padding:11px 13px;
+  display:flex;align-items:center;gap:10px;
+}
+.ai-pill-icon{
+  width:28px;height:28px;background:var(--ai-grad);
+  border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-size:13px;flex-shrink:0;box-shadow:var(--ai-grad-glow);
+}
+.ai-pill-text{font-size:11.5px;font-weight:600;color:var(--ai-purple);line-height:1.3}
+.ai-pill-sub{font-size:10px;color:rgba(167,139,250,.5)}
+
+/* ═══ MAIN WRAPPER ════════════════════════════════════════════════════════ */
+.main-wrap{
+  margin-left:248px;flex:1;display:flex;flex-direction:column;min-height:100vh;
+}
+
+/* ═══ TOPBAR ══════════════════════════════════════════════════════════════ */
+.topbar{
+  height:56px;background:var(--c-surface);
+  border-bottom:1px solid var(--c-border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;position:sticky;top:0;z-index:100;
+  box-shadow:var(--shadow-sm);
+}
+.breadcrumb{
+  display:flex;align-items:center;gap:6px;
+  font-size:13px;color:var(--c-muted);
+}
+.breadcrumb a{transition:var(--tx)}
+.breadcrumb a:hover{color:var(--c-primary)}
+.breadcrumb-sep{color:var(--c-subtle)}
+.breadcrumb strong{color:var(--c-text);font-weight:600}
+
+/* ═══ PAGE BODY ═══════════════════════════════════════════════════════════ */
+.page-body{flex:1;padding:28px 32px;max-width:1320px;margin:0 auto;width:100%}
+
+/* ═══ BUTTONS ═════════════════════════════════════════════════════════════ */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 16px;border-radius:var(--radius-sm);
+  font-size:13.5px;font-weight:600;border:none;
+  transition:var(--tx);font-family:'Outfit',sans-serif;
+  white-space:nowrap;
+}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-primary:hover{background:var(--c-primary-l);transform:translateY(-1px);box-shadow:var(--shadow)}
+.btn-accent{background:var(--c-accent);color:var(--c-primary-d);font-weight:700}
+.btn-accent:hover{background:var(--c-accent-d);transform:translateY(-1px)}
+.btn-outline{background:transparent;border:1.5px solid var(--c-border);color:var(--c-secondary)}
+.btn-outline:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.btn-ghost{background:transparent;color:var(--c-muted)}
+.btn-ghost:hover{background:var(--c-bg);color:var(--c-text)}
+.btn-danger{background:#FEF2F2;color:#DC2626;border:1px solid #FECACA}
+.btn-danger:hover{background:#DC2626;color:#fff}
+.btn-ai{
+  background:var(--ai-grad);color:#fff;
+  box-shadow:var(--ai-grad-glow);
+}
+.btn-ai:hover{transform:translateY(-1px);box-shadow:0 6px 40px rgba(79,70,229,.5)}
+.btn-sm{padding:6px 12px;font-size:12.5px}
+.btn-lg{padding:11px 22px;font-size:15px}
+.btn-icon{padding:8px;gap:0}
+
+/* ═══ CARDS ═══════════════════════════════════════════════════════════════ */
+.card{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;
+}
+.card-header{
+  padding:16px 20px;border-bottom:1px solid var(--c-border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(180deg,#fff 0%,var(--c-bg) 100%);
+}
+.card-title{
+  font-size:14px;font-weight:700;color:var(--c-text);
+  display:flex;align-items:center;gap:8px;
+}
+.card-title i{color:var(--c-accent)}
+.card-body{padding:20px}
+.card-footer{
+  padding:14px 20px;border-top:1px solid var(--c-border);
+  background:var(--c-bg);
+}
+
+/* ═══ BADGES ══════════════════════════════════════════════════════════════ */
+.badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:20px;
+  font-size:11.5px;font-weight:700;
+}
+.badge-draft    {background:var(--s-draft-bg);color:var(--s-draft)}
+.badge-in_review{background:var(--s-review-bg);color:var(--s-review)}
+.badge-approved {background:var(--s-approved-bg);color:var(--s-approved)}
+.badge-rejected {background:var(--s-rejected-bg);color:var(--s-rejected)}
+
+.reg-badge{
+  display:inline-flex;align-items:center;
+  padding:3px 9px;border-radius:6px;
+  font-size:11px;font-weight:700;letter-spacing:.3px;
+}
+.reg-gdpr       {background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE}
+.reg-zimbabwe   {background:#FFF7ED;color:#C2410C;border:1px solid #FED7AA}
+.reg-south-africa{background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0}
+.reg-uae        {background:#F5F3FF;color:#5B21B6;border:1px solid #DDD6FE}
+.reg-saudi      {background:#FFF1F2;color:#9F1239;border:1px solid #FECDD3}
+.reg-qatar      {background:#F0FDFA;color:#134E4A;border:1px solid #99F6E4}
+.reg-default    {background:#F1F5F9;color:#475569;border:1px solid #E2E8F0}
+
+.risk-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:20px;
+  font-size:11.5px;font-weight:700;
+}
+.risk-Low     {background:var(--r-low-bg);color:var(--r-low)}
+.risk-Medium  {background:var(--r-med-bg);color:var(--r-med)}
+.risk-High    {background:var(--r-high-bg);color:var(--r-high)}
+.risk-Very-High{background:var(--r-vhigh-bg);color:var(--r-vhigh)}
+
+/* ═══ FORMS ═══════════════════════════════════════════════════════════════ */
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-label{font-size:12.5px;font-weight:700;color:var(--c-secondary);letter-spacing:.2px}
+.form-label .req{color:#DC2626}
+.form-control{
+  width:100%;padding:9px 13px;
+  border:1.5px solid var(--c-border);border-radius:var(--radius-sm);
+  font-size:13.5px;font-family:'Outfit',sans-serif;
+  color:var(--c-text);background:#fff;
+  transition:var(--tx);
+}
+.form-control:focus{
+  outline:none;border-color:var(--c-accent);
+  box-shadow:0 0 0 3px rgba(34,211,238,.18);
+}
+.form-control::placeholder{color:var(--c-subtle)}
+select.form-control{cursor:pointer}
+textarea.form-control{resize:vertical;min-height:88px}
+.form-hint{font-size:11.5px;color:var(--c-subtle)}
+
+/* ═══ ALERTS ══════════════════════════════════════════════════════════════ */
+.flash-zone{position:fixed;top:68px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.flash{
+  padding:11px 16px;border-radius:var(--radius-sm);
+  font-size:13.5px;font-weight:500;
+  display:flex;align-items:center;gap:9px;
+  box-shadow:var(--shadow-lg);min-width:260px;max-width:420px;
+  animation:slideIn .25s ease;
+}
+.flash-success{background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0}
+.flash-error  {background:#FEF2F2;color:#991B1B;border:1px solid #FECACA}
+.flash-info   {background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ═══ AI PANELS ═══════════════════════════════════════════════════════════ */
+.ai-card{
+  background:linear-gradient(135deg,var(--ai-navy) 0%,#1E1B4B 100%);
+  border:1px solid rgba(167,139,250,.2);border-radius:var(--radius);overflow:hidden;
+}
+.ai-card-header{
+  padding:14px 18px;border-bottom:1px solid rgba(167,139,250,.15);
+  display:flex;align-items:center;gap:12px;
+  background:rgba(79,70,229,.12);
+}
+.ai-card-icon{
+  width:32px;height:32px;background:var(--ai-grad);
+  border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:14px;flex-shrink:0;box-shadow:var(--ai-grad-glow);
+}
+.ai-card-title{font-size:13.5px;font-weight:700;color:var(--ai-purple)}
+.ai-card-sub{font-size:11px;color:rgba(167,139,250,.5)}
+.ai-card-body{padding:18px}
+.ai-output{
+  background:rgba(0,0,0,.25);border:1px solid rgba(167,139,250,.15);
+  border-radius:var(--radius-sm);padding:14px;
+  font-size:13px;line-height:1.7;color:rgba(255,255,255,.8);
+  max-height:380px;overflow-y:auto;white-space:pre-wrap;
+}
+
+/* ═══ SPINNER OVERLAY ═════════════════════════════════════════════════════ */
+.spinner-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(15,23,42,.72);z-index:9999;
+  align-items:center;justify-content:center;flex-direction:column;gap:14px;
+}
+.spinner-overlay.on{display:flex}
+.spinner{
+  width:44px;height:44px;border:3px solid rgba(167,139,250,.2);
+  border-top-color:var(--ai-purple);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+.spinner-text{color:var(--ai-purple);font-weight:600;font-size:14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ═══ UTILITIES ═══════════════════════════════════════════════════════════ */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.flex{display:flex}.flex-center{display:flex;align-items:center}
+.flex-between{display:flex;align-items:center;justify-content:space-between}
+.gap-2{gap:8px}.gap-3{gap:12px}.gap-4{gap:16px}
+.mt-4{margin-top:16px}.mt-6{margin-top:24px}.mb-4{margin-bottom:16px}.mb-6{margin-bottom:24px}
+.text-muted{color:var(--c-muted)}.text-sm{font-size:12.5px}
+.w-full{width:100%}
+.divider{height:1px;background:var(--c-border);margin:18px 0}
+/* scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--c-border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--c-muted)}
+</style>
+{% block head_extra %}{% endblock %}
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark"><span class="logo-dpia">DPIA</span><span class="logo-forge">forge</span></div>
+    <div class="logo-byline">by ALI MOYO</div>
+  </div>
+
+  <nav style="padding:8px 0 12px">
+    <div class="nav-section-label">Workspace</div>
+    <a href="{{ url_for('dashboard') }}"
+       class="nav-item{% if request.endpoint=='dashboard' %} active{% endif %}">
+      <i class="fa-solid fa-table-columns"></i> Dashboard
+    </a>
+    <a href="{{ url_for('dpia_list') }}"
+       class="nav-item{% if request.endpoint in ('dpia_list','dpia_detail','dpia_edit') %} active{% endif %}">
+      <i class="fa-solid fa-shield-halved"></i> All DPIAs
+    </a>
+    <a href="{{ url_for('dpia_new') }}"
+       class="nav-item{% if request.endpoint=='dpia_new' %} active{% endif %}">
+      <i class="fa-solid fa-circle-plus"></i> New DPIA
+    </a>
+
+    <div class="nav-section-label" style="margin-top:6px">Filter by Regulation</div>
+    {% set reg_map = [
+      ('GDPR','GDPR','fa-landmark'),
+      ('Zimbabwe CDPA','Zimbabwe CDPA','fa-flag'),
+      ('South Africa POPIA','SA POPIA','fa-flag'),
+      ('UAE PDPL','UAE PDPL','fa-flag'),
+      ('Saudi PDPL','Saudi PDPL','fa-flag'),
+      ('Qatar DPL','Qatar DPL','fa-flag'),
+    ] %}
+    {% for val,lbl,ico in reg_map %}
+    <a href="{{ url_for('dpia_list', regulation=val) }}" class="nav-item">
+      <i class="fa-solid {{ ico }}"></i> {{ lbl }}
+    </a>
+    {% endfor %}
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="ai-pill">
+      <div class="ai-pill-icon">✦</div>
+      <div>
+        <div class="ai-pill-text">AI-Powered Research</div>
+        <div class="ai-pill-sub">Research · Generate · Export</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══════════════════════════════════════════════════════════════ -->
+<div class="main-wrap">
+  <header class="topbar">
+    <nav class="breadcrumb">{% block breadcrumb %}<strong>DPIAforge</strong>{% endblock %}</nav>
+    <div class="flex-center gap-3">
+      <a href="{{ url_for('dpia_new') }}" class="btn btn-primary btn-sm">
+        <i class="fa-solid fa-plus"></i> New DPIA
+      </a>
+    </div>
+  </header>
+
+  <main class="page-body">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<!-- Flash messages -->
+<div class="flash-zone" id="flashZone">
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% for cat, msg in messages %}
+<div class="flash flash-{{ cat }}">
+  <i class="fa-solid {% if cat=='success' %}fa-circle-check{% elif cat=='error' %}fa-circle-xmark{% else %}fa-circle-info{% endif %}"></i>
+  {{ msg }}
+</div>
+{% endfor %}
+{% endwith %}
+</div>
+
+<!-- Spinner overlay -->
+<div class="spinner-overlay" id="spinnerOverlay">
+  <div class="spinner"></div>
+  <div class="spinner-text" id="spinnerText">Processing…</div>
+</div>
+
+<script>
+// Flash auto-dismiss
+setTimeout(()=>{
+  document.querySelectorAll('.flash').forEach(el=>{
+    el.style.transition='opacity .4s';el.style.opacity='0';
+    setTimeout(()=>el.remove(),400);
+  });
+},4500);
+
+// Spinner helpers
+function showSpinner(msg='Processing with AI…'){
+  document.getElementById('spinnerText').textContent=msg;
+  document.getElementById('spinnerOverlay').classList.add('on');
+}
+function hideSpinner(){document.getElementById('spinnerOverlay').classList.remove('on')}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

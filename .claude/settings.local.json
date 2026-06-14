@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Projects\\\\One For All\\\\One For All\" -Recurse | Where-Object { $_.FullName -notmatch \"node_modules\" -and -not $_.PSIsContainer } | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\Projects\\\\One For All\\\\One For All\\\\\", \"\"\\) })",
+      "Bash(python -c \"from seeds.control_mappings import CONTROL_MAPPINGS; print\\(f'✓ Loaded {len\\(CONTROL_MAPPINGS\\)} pre-researched control mappings'\\)\")",
+      "Bash(python -c \"from seeds.control_mappings import CONTROL_MAPPINGS; print\\('Loaded', len\\(CONTROL_MAPPINGS\\), 'pre-researched control mappings'\\)\")",
+      "Read(//c/Users/isadmin/Desktop/Data Labeling Unit/**)",
+      "Bash(dir)",
+      "Bash(dir database *)",
+      "Bash(python -c \"from docx import Document; doc = Document\\(r'C:\\\\Users\\\\isadmin\\\\Desktop\\\\Data Labeling Unit\\\\DLU Trainer and QA Operations Manual.docx'\\); [print\\(p.text\\) for p in doc.paragraphs]\")",
+      "Bash(Get-ChildItem -Force)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\isadmin\\\\Desktop\\\\Data Labeling Unit\\\\DLU-Training-App\\\\templates\" -Recurse -File)"
+    ]
+  }
+}

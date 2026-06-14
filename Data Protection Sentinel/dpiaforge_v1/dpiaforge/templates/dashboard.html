@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — DPIAforge{% endblock %}
+{% block breadcrumb %}<strong>Dashboard</strong>{% endblock %}
+
+{% block head_extra %}
+<style>
+.hero{
+  background:linear-gradient(135deg,var(--c-primary) 0%,var(--c-primary-l) 55%,#1D4ED8 100%);
+  border-radius:var(--radius);padding:32px 36px;color:#fff;
+  position:relative;overflow:hidden;margin-bottom:28px;
+}
+.hero::before{
+  content:'';position:absolute;right:-40px;top:-40px;
+  width:220px;height:220px;border-radius:50%;
+  background:rgba(34,211,238,.1);
+}
+.hero::after{
+  content:'';position:absolute;right:80px;bottom:-80px;
+  width:160px;height:160px;border-radius:50%;
+  background:rgba(34,211,238,.06);
+}
+.hero-title{font-size:22px;font-weight:800;letter-spacing:-.3px}
+.hero-sub{font-size:13.5px;opacity:.75;margin-top:5px}
+.hero-actions{display:flex;gap:10px;margin-top:22px;position:relative;z-index:1}
+
+.stat-card{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);padding:20px;
+  position:relative;overflow:hidden;box-shadow:var(--shadow-sm);
+}
+.stat-card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+  border-radius:2px 0 0 2px;
+}
+.stat-card.blue::before{background:var(--c-primary)}
+.stat-card.cyan::before{background:var(--c-accent)}
+.stat-card.green::before{background:#059669}
+.stat-card.amber::before{background:#D97706}
+.stat-num{font-size:34px;font-weight:800;letter-spacing:-1px;color:var(--c-text)}
+.stat-label{font-size:12.5px;color:var(--c-muted);margin-top:3px;font-weight:500}
+.stat-icon{
+  position:absolute;right:16px;top:50%;transform:translateY(-50%);
+  font-size:28px;opacity:.07;color:var(--c-primary);
+}
+
+.quick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.quick-link{
+  display:flex;align-items:center;gap:12px;
+  padding:14px;border:1.5px solid var(--c-border);border-radius:var(--radius-sm);
+  transition:var(--tx);background:var(--c-surface);
+}
+.quick-link:hover{border-color:var(--c-accent);transform:translateY(-1px);box-shadow:var(--shadow)}
+.ql-icon{
+  width:36px;height:36px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;
+}
+.ql-title{font-size:12.5px;font-weight:700;color:var(--c-text)}
+.ql-sub  {font-size:11px;color:var(--c-muted)}
+
+table.recent-tbl{width:100%;border-collapse:collapse}
+table.recent-tbl th{
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+  color:var(--c-muted);padding:9px 14px;text-align:left;
+  border-bottom:1px solid var(--c-border);background:var(--c-bg);
+}
+table.recent-tbl td{
+  padding:13px 14px;border-bottom:1px solid var(--c-border);
+  font-size:13.5px;vertical-align:middle;
+}
+table.recent-tbl tr:last-child td{border-bottom:none}
+table.recent-tbl tr:hover td{background:var(--c-bg)}
+
+.empty-block{text-align:center;padding:48px 24px;color:var(--c-muted)}
+.empty-block i{font-size:36px;opacity:.2;margin-bottom:10px;display:block}
+
+.reg-bar{margin-bottom:28px}
+.reg-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.reg-row-label{font-size:12px;color:var(--c-secondary);width:160px;flex-shrink:0;font-weight:600}
+.reg-track{flex:1;height:8px;background:var(--c-border);border-radius:4px;overflow:hidden}
+.reg-fill{height:100%;background:linear-gradient(90deg,var(--c-primary),var(--c-accent));border-radius:4px;transition:width .5s ease}
+.reg-count{font-size:11.5px;font-weight:700;color:var(--c-muted);width:24px;text-align:right}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-title">Welcome to DPIAforge</div>
+  <div class="hero-sub">Create, manage and export Data Protection Impact Assessments with AI assistance</div>
+  <div class="hero-actions">
+    <a href="{{ url_for('dpia_new') }}" class="btn btn-accent btn-lg">
+      <i class="fa-solid fa-plus"></i> Create New DPIA
+    </a>
+    <a href="{{ url_for('dpia_list') }}" class="btn btn-lg" style="background:rgba(255,255,255,.15);color:#fff">
+      <i class="fa-solid fa-list"></i> View All DPIAs
+    </a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="grid-4 mb-6">
+  <div class="stat-card blue">
+    <div class="stat-num">{{ stats.total }}</div>
+    <div class="stat-label">Total DPIAs</div>
+    <i class="fa-solid fa-shield-halved stat-icon"></i>
+  </div>
+  <div class="stat-card amber">
+    <div class="stat-num">{{ stats.drafts }}</div>
+    <div class="stat-label">Drafts</div>
+    <i class="fa-solid fa-pencil stat-icon"></i>
+  </div>
+  <div class="stat-card cyan">
+    <div class="stat-num">{{ stats.in_review }}</div>
+    <div class="stat-label">In Review</div>
+    <i class="fa-solid fa-magnifying-glass stat-icon"></i>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-num">{{ stats.approved }}</div>
+    <div class="stat-label">Approved</div>
+    <i class="fa-solid fa-circle-check stat-icon"></i>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start">
+  <!-- Recent DPIAs -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><i class="fa-solid fa-clock-rotate-left"></i> Recent DPIAs</div>
+      <a href="{{ url_for('dpia_list') }}" class="btn btn-outline btn-sm">View All</a>
+    </div>
+    {% if recent %}
+    <table class="recent-tbl">
+      <thead>
+        <tr>
+          <th>Title</th><th>Regulation</th><th>Status</th><th>Updated</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for d in recent %}
+      <tr>
+        <td>
+          <div style="font-weight:600;font-size:13px">{{ d.title }}</div>
+          <div style="font-size:11px;color:var(--c-subtle)">{{ d.ref_number }}</div>
+        </td>
+        <td>
+          {% set rk = d.regulation.split()[0].lower() %}
+          <span class="reg-badge reg-{{ rk }}">{{ d.regulation.split()[0] }}</span>
+        </td>
+        <td><span class="badge badge-{{ d.status }}">{{ d.status|status_label }}</span></td>
+        <td style="color:var(--c-muted);font-size:12px">{{ d.updated_at|fmt_date }}</td>
+        <td>
+          <a href="{{ url_for('dpia_detail', dpia_id=d.id) }}" class="btn btn-ghost btn-sm btn-icon">
+            <i class="fa-solid fa-arrow-right"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-block">
+      <i class="fa-solid fa-shield-halved"></i>
+      <p>No DPIAs yet.</p>
+      <a href="{{ url_for('dpia_new') }}" class="btn btn-primary btn-sm" style="margin-top:12px">Create your first DPIA</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right sidebar -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <!-- Quick actions -->
+    <div class="card">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-bolt"></i> Quick Actions</div></div>
+      <div class="card-body" style="padding:12px">
+        <div class="quick-grid">
+          <a href="{{ url_for('dpia_new') }}" class="quick-link">
+            <div class="ql-icon" style="background:#EFF6FF;color:var(--c-primary)"><i class="fa-solid fa-plus"></i></div>
+            <div><div class="ql-title">New DPIA</div><div class="ql-sub">Start fresh</div></div>
+          </a>
+          <a href="{{ url_for('dpia_list', status='draft') }}" class="quick-link">
+            <div class="ql-icon" style="background:#FFFBEB;color:#D97706"><i class="fa-solid fa-pencil"></i></div>
+            <div><div class="ql-title">Drafts</div><div class="ql-sub">{{ stats.drafts }} pending</div></div>
+          </a>
+          <a href="{{ url_for('dpia_list', status='in_review') }}" class="quick-link">
+            <div class="ql-icon" style="background:#F0FDFA;color:#0D9488"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div><div class="ql-title">In Review</div><div class="ql-sub">{{ stats.in_review }} DPIAs</div></div>
+          </a>
+          <a href="{{ url_for('dpia_list', status='approved') }}" class="quick-link">
+            <div class="ql-icon" style="background:#ECFDF5;color:#059669"><i class="fa-solid fa-check"></i></div>
+            <div><div class="ql-title">Approved</div><div class="ql-sub">{{ stats.approved }} done</div></div>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- By regulation -->
+    {% if stats.by_regulation %}
+    <div class="card">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-scale-balanced"></i> By Regulation</div></div>
+      <div class="card-body">
+        {% set max_count = stats.by_regulation.values()|list|max if stats.by_regulation else 1 %}
+        {% for reg, cnt in stats.by_regulation.items() %}
+        <div class="reg-row">
+          <div class="reg-row-label">{{ reg.split()[0] if ' ' in reg else reg }}</div>
+          <div class="reg-track"><div class="reg-fill" style="width:{{ (cnt/max_count*100)|int }}%"></div></div>
+          <div class="reg-count">{{ cnt }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Supported regs -->
+    <div class="card">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-globe"></i> Supported Regulations</div></div>
+      <div class="card-body" style="display:flex;flex-wrap:wrap;gap:7px">
+        <span class="reg-badge reg-gdpr">GDPR</span>
+        <span class="reg-badge reg-zimbabwe">Zimbabwe CDPA</span>
+        <span class="reg-badge reg-south-africa">SA POPIA</span>
+        <span class="reg-badge reg-uae">UAE PDPL</span>
+        <span class="reg-badge reg-saudi">Saudi PDPL</span>
+        <span class="reg-badge reg-qatar">Qatar DPL</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

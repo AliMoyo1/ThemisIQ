@@ -1,0 +1,678 @@
+{% extends "base.html" %}
+{% block title %}Ask ARIA — Policy Assistant{% endblock %}
+{% block head %}
+<style>
+/* ── Stats strip ─────────────────────────────────────────────────────────── */
+.ask-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:760px){.ask-stats{grid-template-columns:repeat(2,1fr)}}
+.ask-stat{background:var(--surface);border:1px solid var(--border);
+          border-radius:var(--radius);padding:13px 15px}
+.ask-stat-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;
+              letter-spacing:.45px;color:var(--muted);margin-bottom:4px}
+.ask-stat-val{font-size:22px;font-weight:800;color:var(--text);line-height:1}
+.ask-stat-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.ask-wrap{display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:start}
+@media(max-width:900px){.ask-wrap{grid-template-columns:1fr}.ask-side{display:none}}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.ask-side{background:var(--surface);border:1px solid var(--border);
+          border-radius:var(--radius-lg);padding:14px;
+          position:sticky;top:80px;max-height:calc(100vh - 140px);
+          overflow-y:auto}
+.side-section-lbl{font-size:10px;font-weight:700;text-transform:uppercase;
+                  letter-spacing:1px;color:var(--muted);margin:12px 0 6px}
+.side-section-lbl:first-child{margin-top:0}
+.side-btn-new{width:100%;padding:8px 12px;background:var(--accent);border:none;
+              border-radius:var(--radius);color:#fff;font-size:12.5px;font-weight:600;
+              cursor:pointer;display:flex;align-items:center;justify-content:center;
+              gap:6px;margin-bottom:12px;transition:opacity .15s}
+.side-btn-new:hover{opacity:.9}
+.side-date-group{font-size:10px;font-weight:700;text-transform:uppercase;
+                 letter-spacing:.6px;color:var(--dim);margin:8px 0 4px}
+.history-item{font-size:12px;color:var(--text-mid);padding:7px 9px;
+              border-radius:var(--radius);cursor:pointer;margin-bottom:2px;
+              border:1px solid transparent;transition:background .12s,border-color .12s;
+              display:flex;align-items:flex-start;gap:6px}
+.history-item:hover{background:var(--surface2);border-color:var(--border)}
+.hi-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.hi-dot-covered{background:var(--good,#16a34a)}
+.hi-dot-nc{background:var(--amber,#d97706)}
+.hi-text{flex:1;min-width:0}
+.hi-q{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.hi-ts{font-size:10px;color:var(--dim);margin-top:1px}
+
+/* ── Framework filter ────────────────────────────────────────────────────── */
+.fw-filter-select{width:100%;padding:7px 10px;font-size:12.5px;
+                  border:1.5px solid var(--border2);border-radius:var(--radius);
+                  background:var(--surface2);color:var(--text);
+                  font-family:inherit;outline:none;margin-bottom:4px}
+.fw-filter-select:focus{border-color:var(--accent)}
+
+/* ── Chat panel ──────────────────────────────────────────────────────────── */
+.ask-chat{background:var(--surface);border:1px solid var(--border);
+          border-radius:var(--radius-lg);box-shadow:var(--shadow-md);
+          overflow:hidden;display:flex;flex-direction:column;min-height:600px}
+.chat-header{padding:16px 20px 12px;border-bottom:1px solid var(--border);
+             background:var(--surface2);display:flex;align-items:center;
+             justify-content:space-between;gap:10px;flex-wrap:wrap}
+.chat-header-left{min-width:0}
+.chat-header-title{font-size:17px;font-weight:700;color:var(--text);
+                   letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+.chat-provider-badge{font-size:10px;font-weight:700;letter-spacing:.5px;
+                     background:var(--accent);color:#fff;
+                     padding:2px 7px;border-radius:5px;text-transform:uppercase}
+.chat-header p{font-size:12px;color:var(--muted);margin-top:3px}
+.chat-header-actions{display:flex;gap:7px;flex-shrink:0}
+
+/* ── Active framework filter badge ──────────────────────────────────────── */
+.fw-active-badge{display:none;align-items:center;gap:5px;
+                 font-size:11.5px;font-weight:600;color:var(--accent);
+                 background:var(--accent-pale,#eff6ff);
+                 border:1px solid var(--accent);border-radius:999px;
+                 padding:2px 8px;margin-bottom:6px}
+.fw-active-badge button{background:none;border:none;cursor:pointer;
+                         color:var(--accent);padding:0 1px;font-size:13px;line-height:1}
+
+/* ── Chat body ───────────────────────────────────────────────────────────── */
+.chat-body{flex:1;padding:20px;overflow-y:auto;
+           min-height:380px;max-height:calc(100vh - 340px)}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.chat-empty{text-align:center;padding:32px 20px 20px;color:var(--muted)}
+.chat-empty-icon{width:52px;height:52px;background:var(--surface2);border-radius:50%;
+                 display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
+.chat-empty h3{font-size:18px;color:var(--text);margin-bottom:5px;font-weight:700}
+.chat-empty p{font-size:13px;margin-bottom:16px;color:var(--muted)}
+.sug-cats{display:flex;flex-direction:column;gap:10px;max-width:560px;margin:0 auto;text-align:left}
+.sug-cat-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+             color:var(--muted);margin-bottom:5px}
+.sug-chips{display:flex;flex-wrap:wrap;gap:7px}
+.sug-chip{background:var(--surface2);border:1px solid var(--border);
+          border-radius:999px;padding:7px 13px;font-size:12.5px;
+          color:var(--text-mid);cursor:pointer;transition:all .15s}
+.sug-chip:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── Messages ────────────────────────────────────────────────────────────── */
+.msg{margin-bottom:16px;display:flex;gap:10px;animation:msgIn .2s ease both}
+@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg-avatar{width:30px;height:30px;flex-shrink:0;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+            font-size:11px;font-weight:700;margin-top:2px}
+.msg-user .msg-avatar{background:var(--accent);color:#fff}
+.msg-bot  .msg-avatar{background:var(--text);color:var(--surface)}
+.msg-content{flex:1;min-width:0}
+.msg-meta{font-size:11px;color:var(--dim);margin-bottom:4px;letter-spacing:.1px}
+.msg-bubble{font-size:13.5px;line-height:1.65;color:var(--text)}
+.msg-bubble p{margin-bottom:8px}.msg-bubble p:last-child{margin-bottom:0}
+.msg-bubble ul,.msg-bubble ol{margin:6px 0 9px 20px}
+.msg-bubble li{margin-bottom:3px}
+.msg-bubble strong{color:var(--text);font-weight:700}
+.msg-bubble code{font-family:var(--mono);font-size:12px;background:var(--surface2);
+                 padding:1px 5px;border-radius:4px;color:var(--accent)}
+.msg-not-covered .msg-bubble{background:var(--warn-soft,rgba(217,119,6,.08));
+                              border:1px solid rgba(217,119,6,.25);
+                              border-radius:var(--radius);padding:11px 14px}
+.nc-label{font-size:11px;font-weight:700;color:var(--amber,#d97706);
+          text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;
+          display:flex;align-items:center;gap:5px}
+
+/* ── Citation cards ──────────────────────────────────────────────────────── */
+.citations{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.cit-card{display:flex;flex-direction:column;gap:2px;padding:8px 10px;
+          background:var(--surface2);border:1px solid var(--border);
+          border-radius:var(--radius);font-size:12px;flex:1;
+          min-width:160px;max-width:220px;text-decoration:none;
+          transition:all .15s;color:var(--text)}
+.cit-card:hover{border-color:var(--accent);background:var(--accent-pale,#eff6ff)}
+.cit-type-badge{font-size:9.5px;font-weight:700;text-transform:uppercase;
+                letter-spacing:.5px;padding:1px 5px;border-radius:4px;
+                display:inline-block;width:fit-content;margin-bottom:3px}
+.cit-type-document{background:var(--info-soft,rgba(37,99,235,.1));color:var(--info,#2563eb)}
+.cit-type-control {background:var(--good-soft,rgba(22,163,74,.1));color:var(--good,#16a34a)}
+.cit-type-risk    {background:var(--warn-soft,rgba(217,119,6,.1));color:var(--warn,#d97706)}
+.cit-title{font-weight:600;color:var(--text);overflow:hidden;
+           white-space:nowrap;text-overflow:ellipsis;font-size:11.5px}
+.cit-section{color:var(--muted);font-size:11px;overflow:hidden;
+             white-space:nowrap;text-overflow:ellipsis}
+.cit-open{font-size:10.5px;font-weight:600;color:var(--accent);margin-top:3px}
+
+/* ── Message actions (feedback + copy) ───────────────────────────────────── */
+.msg-actions{display:flex;align-items:center;gap:8px;margin-top:8px}
+.msg-action-btn{background:none;border:none;cursor:pointer;
+                font-size:13px;padding:2px 3px;opacity:.45;
+                transition:opacity .15s;line-height:1;border-radius:4px}
+.msg-action-btn:hover{opacity:.85}
+.msg-action-btn.thumbed-up{opacity:1;color:var(--good,#16a34a)}
+.msg-action-btn.thumbed-down{opacity:1;color:var(--bad,#dc2626)}
+.msg-latency{font-size:10.5px;color:var(--dim);margin-right:4px}
+
+/* ── Typing indicator ─────────────────────────────────────────────────────── */
+.typing{display:inline-flex;gap:3px;padding:3px 0}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--muted);
+             animation:bounce 1.2s infinite}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
+
+/* ── Input area ───────────────────────────────────────────────────────────── */
+.chat-input-wrap{padding:14px 18px;border-top:1px solid var(--border);background:var(--surface2)}
+.chat-input-box{background:var(--surface);border:1.5px solid var(--border2);
+                border-radius:var(--radius-lg);padding:6px 6px 6px 13px;
+                display:flex;flex-direction:column;gap:4px;
+                transition:border-color .15s,box-shadow .15s}
+.chat-input-box:focus-within{border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-shadow,rgba(100,100,100,.1))}
+.chat-input{width:100%;background:transparent;border:none;outline:none;resize:none;
+            font-family:var(--font);font-size:13.5px;color:var(--text);
+            line-height:1.5;padding:6px 0;max-height:120px}
+.chat-input-footer{display:flex;align-items:center;gap:8px}
+.char-counter{font-size:10.5px;color:var(--dim);margin-right:auto}
+.char-counter.warn{color:var(--amber)}
+.char-counter.over{color:var(--bad)}
+.chat-send{background:var(--accent);color:#fff;border:none;border-radius:var(--radius);
+           padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;
+           transition:opacity .15s,transform .1s;display:flex;align-items:center;gap:5px}
+.chat-send:hover:not(:disabled){opacity:.9}
+.chat-send:active:not(:disabled){transform:translateY(1px)}
+.chat-send:disabled{opacity:.4;cursor:not-allowed}
+.input-hint{font-size:10px;color:var(--dim);margin-top:5px;text-align:center}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="/aria/" style="color:var(--muted);text-decoration:none;font-weight:500">ARIA</a>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">Ask ARIA</span>
+{% endblock %}
+
+{% block content %}
+{# ── Page header ── #}
+<div class="page-header">
+  <div class="page-header-left">
+    <div class="page-title">Ask ARIA</div>
+    <div class="page-subtitle">AI policy assistant grounded in your organisation's published compliance documents, controls, and risk register</div>
+  </div>
+  <div class="page-actions">
+    {% if is_admin %}
+    <button class="btn btn-ghost" id="rebuildBtn" title="Rebuild search index">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+      Rebuild Index
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Stats strip ── #}
+<div class="ask-stats">
+  <div class="ask-stat stat-card">
+    <div class="ask-stat-lbl">Chunks Indexed</div>
+    <div class="ask-stat-val">{{ total_indexed }}</div>
+    <div class="ask-stat-sub">policies, controls &amp; risks</div>
+  </div>
+  <div class="ask-stat stat-card">
+    <div class="ask-stat-lbl">Your Questions</div>
+    <div class="ask-stat-val">{{ total_asked }}</div>
+    <div class="ask-stat-sub">asked so far</div>
+  </div>
+  <div class="ask-stat stat-card">
+    <div class="ask-stat-lbl">Answered Rate</div>
+    <div class="ask-stat-val" style="color:{% if covered_pct >= 80 %}var(--good){% else %}var(--amber){% endif %}">
+      {{ covered_pct }}%
+    </div>
+    <div class="ask-stat-sub">covered by policy</div>
+  </div>
+  <div class="ask-stat stat-card">
+    <div class="ask-stat-lbl">AI Provider</div>
+    <div class="ask-stat-val" style="font-size:16px;font-weight:700">{{ ai_provider_label }}</div>
+    <div class="ask-stat-sub">
+      {% if helpful_pct is not none %}{{ helpful_pct }}% rated helpful{% else %}no ratings yet{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="ask-wrap">
+  {# ── Sidebar ── #}
+  <aside class="ask-side">
+    <button class="side-btn-new" id="newChatBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Chat
+    </button>
+
+    <div class="side-section-lbl">Filter by Framework</div>
+    <select id="fwFilter" class="fw-filter-select" onchange="updateFwBadge()">
+      <option value="">All Frameworks</option>
+      {% for fw in frameworks_list %}
+      <option value="{{ fw }}">{{ fw }}</option>
+      {% endfor %}
+    </select>
+
+    <div class="side-section-lbl" style="margin-top:14px">Recent Questions</div>
+    <div id="historyList">
+      {% if recent %}
+        {% set ns = namespace(last_date='') %}
+        {% for h in recent %}
+          {% set d = h.created_at[:10] %}
+          {% if d != ns.last_date %}
+            {% set ns.last_date = d %}
+            <div class="side-date-group">{{ d }}</div>
+          {% endif %}
+          <div class="history-item" data-q="{{ h.question|e }}">
+            <span class="hi-dot {% if h.covered %}hi-dot-covered{% else %}hi-dot-nc{% endif %}"></span>
+            <span class="hi-text">
+              <span class="hi-q">{{ h.question }}</span>
+              <span class="hi-ts">{{ h.created_at[11:16] }}</span>
+            </span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 6px">
+          Nothing yet — ask your first question.
+        </div>
+      {% endif %}
+    </div>
+  </aside>
+
+  {# ── Main chat ── #}
+  <div class="ask-chat">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <div class="chat-header-title">
+          Ask about our policies
+          <span class="chat-provider-badge">{{ ai_provider_label }}</span>
+        </div>
+        <p>Answers are grounded in published policies only. If there's no policy, I'll say so and suggest who to ask.</p>
+      </div>
+      <div class="chat-header-actions">
+        <button class="btn btn-ghost" onclick="exportChat()" title="Export conversation as Markdown" style="font-size:12px;padding:5px 10px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-right:3px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
+      </div>
+    </div>
+
+    <div class="chat-body" id="chatBody">
+      <div class="chat-empty" id="chatEmpty">
+        <div class="chat-empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:24px;height:24px"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
+        <h3>Ask me anything about our policies</h3>
+        <p>Try one of these, or type your own question below.</p>
+        <div class="sug-cats">
+          <div>
+            <div class="sug-cat-lbl">Security &amp; Access</div>
+            <div class="sug-chips">
+              <div class="sug-chip" data-q="What is our acceptable use policy for IT systems?">Acceptable Use</div>
+              <div class="sug-chip" data-q="How do I report a security incident?">Report an Incident</div>
+              <div class="sug-chip" data-q="What counts as confidential information?">Confidential Data</div>
+            </div>
+          </div>
+          <div>
+            <div class="sug-cat-lbl">Data &amp; Privacy</div>
+            <div class="sug-chips">
+              <div class="sug-chip" data-q="How long do we keep customer data?">Data Retention</div>
+              <div class="sug-chip" data-q="What are our obligations under GDPR?">GDPR Obligations</div>
+              <div class="sug-chip" data-q="How do we handle a subject access request?">Subject Access</div>
+            </div>
+          </div>
+          <div>
+            <div class="sug-cat-lbl">From Your Documents</div>
+            <div class="sug-chips" id="docSuggestions">
+              {% for s in suggestions %}
+              <div class="sug-chip" data-q="{{ s|e }}">{{ s[:55] }}{% if s|length > 55 %}…{% endif %}</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input-wrap">
+      {# Active framework badge #}
+      <div class="fw-active-badge" id="fwActiveBadge">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span id="fwBadgeText"></span>
+        <button onclick="clearFwFilter()" title="Remove filter">×</button>
+      </div>
+      <form id="askForm" autocomplete="off">
+        <div class="chat-input-box">
+          <textarea id="chatInput" class="chat-input" rows="1"
+                    placeholder="Ask about a policy, control, or risk…" required></textarea>
+          <div class="chat-input-footer">
+            <span class="char-counter" id="charCounter">0 / 2000</span>
+            <button type="submit" class="chat-send" id="chatSend">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Ask
+            </button>
+          </div>
+        </div>
+        <div class="input-hint">Enter to send · Shift+Enter for new line · Answers grounded in published policies only</div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  /* ── State ───────────────────────────────────────────────────────────── */
+  var body      = document.getElementById('chatBody');
+  var empty     = document.getElementById('chatEmpty');
+  var inputEl   = document.getElementById('chatInput');
+  var sendBtn   = document.getElementById('chatSend');
+  var form      = document.getElementById('askForm');
+  var counter   = document.getElementById('charCounter');
+  var USER_INI  = {{ ((user.full_name or user.username or '?')[:2])|upper|tojson }};
+  var exportLog = [];   // [{role:'user'|'aria', text:'...', ts:'...'}]
+
+  /* ── Textarea auto-grow + char count ────────────────────────────────── */
+  inputEl.addEventListener('input', function () {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    var n = this.value.length;
+    counter.textContent = n + ' / 2000';
+    counter.className = 'char-counter' + (n > 1900 ? ' over' : n > 1500 ? ' warn' : '');
+    sendBtn.disabled = n === 0 || n > 2000;
+  });
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  /* ── Framework filter badge ──────────────────────────────────────────── */
+  function updateFwBadge() {
+    var val  = document.getElementById('fwFilter').value;
+    var badge = document.getElementById('fwActiveBadge');
+    badge.style.display = val ? 'flex' : 'none';
+    if (val) document.getElementById('fwBadgeText').textContent = val;
+  }
+  window.updateFwBadge = updateFwBadge;
+  window.clearFwFilter = function () {
+    document.getElementById('fwFilter').value = '';
+    updateFwBadge();
+  };
+
+  /* ── Suggestion chips + history items ───────────────────────────────── */
+  document.querySelectorAll('.sug-chip, .history-item').forEach(function (el) {
+    el.addEventListener('click', function () {
+      var q = el.dataset.q;
+      if (!q) return;
+      inputEl.value = q;
+      inputEl.dispatchEvent(new Event('input'));
+      inputEl.focus();
+      form.requestSubmit();
+    });
+  });
+
+  /* ── New chat ────────────────────────────────────────────────────────── */
+  document.getElementById('newChatBtn').addEventListener('click', function () {
+    // Remove all messages except the empty state
+    var msgs = body.querySelectorAll('.msg');
+    msgs.forEach(function (m) { m.remove(); });
+    empty.style.display = 'block';
+    exportLog = [];
+  });
+
+  /* ── Rebuild index ───────────────────────────────────────────────────── */
+  var rebuildBtn = document.getElementById('rebuildBtn');
+  if (rebuildBtn) {
+    rebuildBtn.addEventListener('click', async function () {
+      rebuildBtn.disabled = true;
+      rebuildBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Rebuilding…';
+      try {
+        var r = await fetch('/aria/api/ask/rebuild', { method: 'POST' });
+        var j = await r.json();
+        if (j.success) { if (typeof showToast === 'function') showToast('Indexed ' + j.chunks_indexed + ' chunks'); }
+        else           { if (typeof showToast === 'function') showToast(j.error || 'Rebuild failed', 'error'); }
+      } catch (e) { if (typeof showToast === 'function') showToast(e.message, 'error'); }
+      rebuildBtn.disabled = false;
+      rebuildBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Rebuild Index';
+    });
+  }
+
+  /* ── Helpers ─────────────────────────────────────────────────────────── */
+  function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, function (m) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+    });
+  }
+
+  function mdToHtml(md) {
+    var lines = (md || '').split('\n');
+    var html = '', listType = null, buf = [];
+    function flushPara() {
+      if (buf.length) {
+        var text = buf.join(' ')
+          .replace(/`([^`]+)`/g, function (_, c) { return '<code>' + esc(c) + '</code>'; })
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>');
+        html += '<p>' + text + '</p>';
+        buf = [];
+      }
+    }
+    function closeList() { if (listType) { html += '</' + listType + '>'; listType = null; } }
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trimEnd();
+      if (!line.trim()) { flushPara(); closeList(); continue; }
+      var bullet   = line.match(/^\s*[-*]\s+(.*)/);
+      var numbered = line.match(/^\s*\d+\.\s+(.*)/);
+      if (bullet || numbered) {
+        flushPara();
+        var want = bullet ? 'ul' : 'ol';
+        if (listType !== want) { closeList(); html += '<' + want + '>'; listType = want; }
+        var content = (bullet || numbered)[1]
+          .replace(/`([^`]+)`/g, function (_, c) { return '<code>' + esc(c) + '</code>'; })
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html += '<li>' + content + '</li>';
+      } else {
+        closeList();
+        buf.push(esc(line));
+      }
+    }
+    flushPara(); closeList();
+    return html;
+  }
+
+  function citTypeClass(t) {
+    var m = {'document':'document','control':'control','risk':'risk'};
+    return 'cit-type-' + (m[(t||'').toLowerCase()] || 'document');
+  }
+
+  function renderCitations(cits) {
+    if (!cits || !cits.length) return '';
+    var cards = cits.map(function (c) {
+      var type    = (c.content_type || 'source').toLowerCase();
+      var typeLabel = type.toUpperCase();
+      var href    = esc(c.url_path || '#');
+      return '<a class="cit-card" href="' + href + '">' +
+        '<span class="cit-type-badge ' + citTypeClass(type) + '">' + esc(typeLabel) + '</span>' +
+        '<span class="cit-title" title="' + esc(c.title) + '">' + esc(c.title || 'Source') + '</span>' +
+        (c.section ? '<span class="cit-section">' + esc(c.section) + '</span>' : '') +
+        '<span class="cit-open">Open →</span>' +
+        '</a>';
+    }).join('');
+    return '<div class="citations">' + cards + '</div>';
+  }
+
+  /* ── Add user message ────────────────────────────────────────────────── */
+  function addUserMsg(q) {
+    if (empty) empty.style.display = 'none';
+    var el = document.createElement('div');
+    el.className = 'msg msg-user';
+    el.innerHTML = '<div class="msg-avatar">' + esc(USER_INI) + '</div>' +
+      '<div class="msg-content">' +
+        '<div class="msg-meta">You</div>' +
+        '<div class="msg-bubble"><p>' + esc(q) + '</p></div>' +
+      '</div>';
+    body.appendChild(el);
+    body.scrollTop = body.scrollHeight;
+    exportLog.push({ role: 'user', text: q, ts: new Date().toISOString() });
+  }
+
+  /* ── Typing indicator ────────────────────────────────────────────────── */
+  function addTyping() {
+    var el = document.createElement('div');
+    el.className = 'msg msg-bot';
+    el.innerHTML = '<div class="msg-avatar">A</div>' +
+      '<div class="msg-content"><div class="msg-meta">ARIA · thinking…</div>' +
+      '<div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>' +
+      '</div>';
+    body.appendChild(el);
+    body.scrollTop = body.scrollHeight;
+    return el;
+  }
+
+  /* ── Render ARIA response ────────────────────────────────────────────── */
+  function renderBotMsg(result) {
+    var el = document.createElement('div');
+    var covered = result.covered;
+    el.className = 'msg msg-bot' + (covered ? '' : ' msg-not-covered');
+    var logId = result.log_id || 0;
+    var chunks = result.chunks_retrieved || 0;
+    var latency = result.latency_ms || 0;
+
+    var contentHtml;
+    if (covered) {
+      contentHtml =
+        '<div class="msg-meta">ARIA · ' + chunks + ' source' + (chunks !== 1 ? 's' : '') + '</div>' +
+        '<div class="msg-bubble">' +
+          mdToHtml(result.answer || '') +
+          renderCitations(result.citations) +
+        '</div>';
+    } else {
+      var owner = result.nearest_owner ? ' Try asking <strong>' + esc(result.nearest_owner) + '</strong>.' : '';
+      contentHtml =
+        '<div class="msg-meta">ARIA · no matching policy</div>' +
+        '<div class="msg-bubble">' +
+          '<div class="nc-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Not in our policy library</div>' +
+          '<p>' + mdToHtml(result.answer || '') + owner + '</p>' +
+        '</div>';
+    }
+
+    contentHtml +=
+      '<div class="msg-actions">' +
+        '<span class="msg-latency">' + latency + 'ms</span>' +
+        '<button class="msg-action-btn" title="Copy response" onclick="copyMsg(this)">⧉</button>' +
+        (logId ? '<button class="msg-action-btn" title="Helpful" onclick="sendFeedback(' + logId + ',1,this)">👍</button>' +
+                 '<button class="msg-action-btn" title="Not helpful" onclick="sendFeedback(' + logId + ',-1,this)">👎</button>' : '') +
+      '</div>';
+
+    el.innerHTML = '<div class="msg-avatar">A</div>' +
+      '<div class="msg-content">' + contentHtml + '</div>';
+
+    exportLog.push({
+      role: 'aria',
+      text: (result.answer || ''),
+      covered: covered,
+      ts: new Date().toISOString(),
+    });
+    return el;
+  }
+
+  /* ── Send feedback ───────────────────────────────────────────────────── */
+  window.sendFeedback = async function (logId, value, btn) {
+    var f = new FormData();
+    f.append('log_id', logId);
+    f.append('feedback', value);
+    try {
+      await fetch('/aria/api/ask/feedback', { method: 'POST', body: f });
+      // Mark thumb active, deactivate sibling
+      var actions = btn.closest('.msg-actions');
+      actions.querySelectorAll('.msg-action-btn').forEach(function (b) {
+        b.classList.remove('thumbed-up', 'thumbed-down');
+      });
+      btn.classList.add(value === 1 ? 'thumbed-up' : 'thumbed-down');
+    } catch (e) { /* silent */ }
+  };
+
+  /* ── Copy response ───────────────────────────────────────────────────── */
+  window.copyMsg = function (btn) {
+    var bubble = btn.closest('.msg-content').querySelector('.msg-bubble');
+    var text   = bubble ? bubble.innerText : '';
+    navigator.clipboard.writeText(text).then(function () {
+      if (typeof showToast === 'function') showToast('Copied to clipboard');
+    });
+  };
+
+  /* ── Export chat ─────────────────────────────────────────────────────── */
+  window.exportChat = function () {
+    if (!exportLog.length) {
+      if (typeof showToast === 'function') showToast('No conversation to export yet.', 'warn');
+      return;
+    }
+    var lines = ['# Ask ARIA — Conversation Export', ''];
+    exportLog.forEach(function (m) {
+      if (m.role === 'user') {
+        lines.push('## Question');
+        lines.push(m.text);
+      } else {
+        lines.push('**ARIA:**');
+        lines.push(m.text);
+        lines.push('');
+        lines.push('---');
+      }
+      lines.push('');
+    });
+    var blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    var a    = document.createElement('a');
+    a.href   = URL.createObjectURL(blob);
+    a.download = 'aria-conversation-' + new Date().toISOString().slice(0, 10) + '.md';
+    a.click();
+  };
+
+  /* ── Ask ─────────────────────────────────────────────────────────────── */
+  async function doAsk(question) {
+    addUserMsg(question);
+    var typing = addTyping();
+    sendBtn.disabled = true;
+
+    var fwFilter = document.getElementById('fwFilter').value;
+    var fd = new FormData();
+    fd.append('question', question);
+    if (fwFilter) fd.append('framework_filter', fwFilter);
+
+    try {
+      var resp = await fetch('/aria/api/ask', { method: 'POST', body: fd });
+      var data = await resp.json();
+      typing.remove();
+
+      if (!resp.ok || !data.success) {
+        var errEl = document.createElement('div');
+        errEl.className = 'msg msg-bot';
+        errEl.innerHTML = '<div class="msg-avatar">A</div>' +
+          '<div class="msg-content"><div class="msg-meta">ARIA · error</div>' +
+          '<div class="msg-bubble"><p>' + esc(data.error || 'Something went wrong. Please try again.') + '</p></div>' +
+          '</div>';
+        body.appendChild(errEl);
+      } else {
+        body.appendChild(renderBotMsg(data));
+      }
+      body.scrollTop = body.scrollHeight;
+    } catch (e) {
+      typing.remove();
+      if (typeof showToast === 'function') showToast('Network error: ' + e.message, 'error');
+    }
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var q = inputEl.value.trim();
+    if (!q || q.length > 2000) return;
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    counter.textContent = '0 / 2000';
+    counter.className = 'char-counter';
+    sendBtn.disabled = true;
+    doAsk(q);
+  });
+
+  /* ── Initial send button state ───────────────────────────────────────── */
+  sendBtn.disabled = true;
+  inputEl.addEventListener('input', function () {
+    var n = this.value.trim().length;
+    sendBtn.disabled = n === 0 || n > 2000;
+  });
+}());
+</script>
+{% endblock %}

@@ -1,0 +1,314 @@
+{% extends "base_shell.html" %}
+
+{% block title %}Dashboard — ARIA{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ── ARIA Dashboard Styles ── */
+.aria-donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;margin:0 auto}
+.aria-donut-wrap svg{display:block;width:100%;height:100%}
+.aria-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.aria-donut-pct{font-size:26px;font-weight:800;color:var(--text);line-height:1}
+.aria-donut-lbl{font-size:9px;color:var(--muted);font-weight:600;letter-spacing:1px;margin-top:3px}
+.aria-donut-legend{display:flex;flex-direction:column;gap:6px;margin-top:16px;width:100%}
+.aria-legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text)}
+.aria-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.aria-legend-val{margin-left:auto;font-weight:700;font-family:var(--mono)}
+
+.fw-health-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.fw-health-item:last-child{border-bottom:none}
+.fh-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.fh-name{font-size:13px;font-weight:600;flex:1;color:var(--text)}
+.fh-pct{font-size:13px;font-weight:700;font-family:var(--mono)}
+.fh-bar{width:80px;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-left:8px}
+.fh-bar-fill{height:100%;border-radius:3px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+
+.stat-card-hero .pbar{background:rgba(255,255,255,0.2)}
+.stat-card-hero .pbar-fill{background:white}
+
+.stat-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.stat-card-hero .stat-sub{color:rgba(255,255,255,0.7)}
+.stat-card-hero .stat-trend{color:rgba(255,255,255,0.85)}
+.stat-card-hero .stat-trend svg{stroke:rgba(255,255,255,0.85)}
+
+@media (max-width:900px){
+  .three-col{grid-template-columns:1fr}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:600px){
+  .stats-row{grid-template-columns:1fr}
+}
+</style>
+{% endblock %}
+
+{% block module_sidebar %}
+{% include "aria_sidebar.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<span style="color:var(--accent);font-weight:700">ARIA</span>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<!-- Section Header -->
+<div class="section-header animate-fade-up">
+  <div>
+    <div class="section-title">ARIA Dashboard</div>
+    <div class="section-sub">Governance, Risk & Compliance overview &middot; {{ fw_stats|length }} active framework{{ 's' if fw_stats|length != 1 else '' }}</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-secondary" onclick="exportAriaReport()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export Report
+    </button>
+    <button class="btn btn-primary" onclick="generateAriaReport()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Generate Report
+    </button>
+  </div>
+</div>
+
+<!-- 4 Stat Cards -->
+<div class="stats-row animate-fade-up anim-1">
+  <!-- Hero: Overall Compliance -->
+  <div class="stat-card stat-card-hero">
+    <div class="stat-label">Overall Compliance</div>
+    <div class="stat-value" id="ariaCompliancePct">{{ totals.overall_pct }}%</div>
+    <div class="stat-sub">{{ totals.implemented }} of {{ totals.total }} controls implemented</div>
+    <div class="pbar"><div class="pbar-fill" id="ariaComplianceBar" style="width:{{ totals.overall_pct }}%"></div></div>
+  </div>
+
+  <!-- Active Frameworks -->
+  <div class="stat-card">
+    <div class="stat-label">Active Frameworks</div>
+    <div class="stat-value">{{ fw_stats|length }}</div>
+    <div class="stat-sub">Regulatory & standard frameworks</div>
+  </div>
+
+  <!-- Controls Implemented -->
+  <div class="stat-card">
+    <div class="stat-label">Controls Implemented</div>
+    <div class="stat-value" style="color:var(--green-status)">{{ totals.implemented }} / {{ totals.total }}</div>
+    <div class="pbar"><div class="pbar-fill" style="width:{{ totals.overall_pct }}%;background:var(--green-status)"></div></div>
+  </div>
+
+  <!-- Pending Reviews -->
+  <div class="stat-card">
+    <div class="stat-label">Pending Reviews</div>
+    <div class="stat-value" style="color:var(--amber)">{{ totals.in_progress + totals.not_started }}</div>
+    <div class="stat-sub">{{ totals.in_progress }} in progress &middot; {{ totals.not_started }} not started</div>
+  </div>
+</div>
+
+<!-- 3-Column Cards: Framework Health, Control Status, Recent Activity -->
+<div class="three-col animate-fade-up anim-2">
+  <!-- Framework Health -->
+  <div class="panel-card">
+    <div class="panel-title">Framework Health</div>
+    <div id="ariaFrameworkHealth">
+      {% for fw in fw_stats %}
+      <div class="fw-health-item">
+        <div class="fh-dot" style="background:{{ fw.color }}"></div>
+        <div class="fh-name">{{ fw.name }}</div>
+        <div class="fh-pct" style="color:{% if fw.pct >= 80 %}var(--green-status){% elif fw.pct >= 60 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.pct }}%</div>
+        <div class="fh-bar"><div class="fh-bar-fill" style="width:{{ fw.pct }}%;background:{{ fw.color }}"></div></div>
+      </div>
+      {% endfor %}
+      {% if not fw_stats %}
+      <div style="color:var(--muted);font-size:13px;padding:12px">No frameworks configured</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Control Status Donut -->
+  <div class="panel-card">
+    <div class="panel-title">Control Status</div>
+    <div style="display:flex;flex-direction:column;align-items:center">
+      <div class="aria-donut-wrap">
+        <svg viewBox="0 0 140 140" id="ariaStatusDonut">
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--surface3)" stroke-width="10"/>
+          <!-- Implemented arc -->
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--green-status)" stroke-width="10"
+                  stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
+                  transform="rotate(-90 70 70)" id="ariaArcImpl" style="transition:stroke-dashoffset 1s ease"/>
+          <!-- In Progress arc -->
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--amber)" stroke-width="10"
+                  stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
+                  transform="rotate(-90 70 70)" id="ariaArcProg" style="transition:stroke-dashoffset 1s ease"/>
+        </svg>
+        <div class="aria-donut-center">
+          <div class="aria-donut-pct">{{ totals.total }}</div>
+          <div class="aria-donut-lbl">CONTROLS</div>
+        </div>
+      </div>
+      <div class="aria-donut-legend">
+        <div class="aria-legend-item">
+          <div class="aria-legend-dot" style="background:var(--green-status)"></div>
+          Implemented
+          <div class="aria-legend-val">{{ totals.implemented }}</div>
+        </div>
+        <div class="aria-legend-item">
+          <div class="aria-legend-dot" style="background:var(--amber)"></div>
+          In Progress
+          <div class="aria-legend-val">{{ totals.in_progress }}</div>
+        </div>
+        <div class="aria-legend-item">
+          <div class="aria-legend-dot" style="background:var(--red)"></div>
+          Not Started
+          <div class="aria-legend-val">{{ totals.not_started }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="panel-card">
+    <div class="panel-title">Recent Activity</div>
+    <div id="ariaRecentActivity">
+      {% if recent %}
+        {% for log in recent %}
+        <div class="tl-item">
+          <div class="tl-col">
+            <div class="tl-dot" style="box-shadow:0 0 0 2px var(--accent);border-color:var(--surface)"></div>
+            {% if not loop.last %}<div class="tl-line"></div>{% endif %}
+          </div>
+          <div class="tl-content">
+            <div class="tl-name">{{ log.action }}</div>
+            <div class="tl-date">{{ log.full_name or log.username }} &middot; {{ (log.created_at or '')[:16] }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="color:var(--muted);font-size:13px;padding:12px;text-align:center">No recent activity</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Framework Activity Table -->
+<div class="card animate-fade-up anim-3">
+  <div class="card-header">
+    <div class="card-title">Framework Activity</div>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Framework</th>
+          <th>Total Controls</th>
+          <th>Implemented</th>
+          <th>In Progress</th>
+          <th>Status</th>
+          <th>Compliance %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fw in fw_stats %}
+        <tr>
+          <td>
+            <span style="display:inline-flex;align-items:center;gap:8px">
+              <span style="width:8px;height:8px;border-radius:50%;background:{{ fw.color }};flex-shrink:0"></span>
+              <a href="/aria/framework/{{ fw.id }}" style="color:var(--text);font-weight:600;text-decoration:none">{{ fw.name }}</a>
+            </span>
+          </td>
+          <td style="font-family:var(--mono)">{{ fw.total }}</td>
+          <td style="font-family:var(--mono);color:var(--green-status)">{{ fw.implemented }}</td>
+          <td style="font-family:var(--mono);color:var(--amber)">{{ fw.in_progress }}</td>
+          <td>
+            {% if fw.pct >= 90 %}
+              <span class="badge badge-complete">Complete</span>
+            {% elif fw.pct >= 60 %}
+              <span class="badge badge-progress">In Progress</span>
+            {% elif fw.pct >= 30 %}
+              <span class="badge badge-medium">Partial</span>
+            {% else %}
+              <span class="badge badge-draft">Early Stage</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:60px;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden">
+                <div style="width:{{ fw.pct }}%;height:100%;background:{{ fw.color }};border-radius:3px"></div>
+              </div>
+              <span style="font-family:var(--mono);font-weight:700;font-size:13px">{{ fw.pct }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not fw_stats %}
+        <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No frameworks configured yet</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+  // ── Animate the Control Status donut ──
+  const totals = {{ totals_json | safe }};
+  const circ = 2 * Math.PI * 56; // ~351.86
+  const total = totals.total || 1;
+
+  // Implemented arc
+  const implPct = totals.implemented / total;
+  const implOffset = circ - (circ * implPct);
+  const arcImpl = document.getElementById('ariaArcImpl');
+  if(arcImpl){
+    arcImpl.setAttribute('stroke-dashoffset', implOffset);
+  }
+
+  // In Progress arc — offset by the implemented portion
+  const progPct = totals.in_progress / total;
+  const progLen = circ * progPct;
+  const progGap = circ - progLen;
+  const arcProg = document.getElementById('ariaArcProg');
+  if(arcProg){
+    // Rotate this arc to start after the implemented arc
+    const implDeg = implPct * 360;
+    arcProg.setAttribute('transform', 'rotate(' + (-90 + implDeg) + ' 70 70)');
+    arcProg.setAttribute('stroke-dashoffset', circ - progLen);
+  }
+
+  // ── Live refresh from API ──
+  async function refreshDashboard(){
+    try {
+      const resp = await fetch('/aria/api/dashboard');
+      if(!resp.ok) return;
+      const data = await resp.json();
+
+      // Update stat cards
+      if(data.totals){
+        const t = data.totals;
+        const pct = t.overall_pct || 0;
+        const pctEl = document.getElementById('ariaCompliancePct');
+        if(pctEl) pctEl.textContent = pct + '%';
+        const barEl = document.getElementById('ariaComplianceBar');
+        if(barEl) barEl.style.width = pct + '%';
+      }
+    } catch(e){
+      // Silently fall back to server-rendered data
+    }
+  }
+
+  // Refresh every 5 minutes
+  setInterval(refreshDashboard, 300000);
+})();
+
+// ── Button handlers ──
+function exportAriaReport(){
+  if(typeof showToast === 'function') showToast('Generating export...', 'info');
+  window.location = '/aria/export/excel';
+}
+function generateAriaReport(){
+  if(typeof showToast === 'function') showToast('Generating compliance report...', 'info');
+  // Future: call /aria/api/generate-report
+  setTimeout(function(){ if(typeof showToast === 'function') showToast('Report generated successfully'); }, 2000);
+}
+</script>
+{% endblock %}

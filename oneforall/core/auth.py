@@ -1,0 +1,179 @@
+"""
+One For All — authentication & session management.
+
+- bcrypt for password hashing (cost 12)
+- Cryptographically random session tokens stored as SHA-256 hashes in DB
+- httponly, samesite=strict cookies
+"""
+import hashlib
+import secrets
+from datetime import datetime, timedelta
+from core.timeutils import utcnow, to_dt
+from typing import Optional
+
+import bcrypt
+
+from database import get_db
+from config import settings
+
+
+# ── Password hashing ─────────────────────────────────────────────────────────
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+
+# ── Session token hashing ───────────────────────────────────────────────────
+
+def _hash_token(token: str) -> str:
+    """SHA-256 hash of a session token for DB storage."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+# ── Session management ───────────────────────────────────────────────────────
+
+def create_session(user_id: int, ip: str = "", user_agent: str = "") -> str:
+    """Create a session and return the raw token (only the hash is stored)."""
+    token = secrets.token_urlsafe(48)
+    token_hash = _hash_token(token)
+    expires = (utcnow() + timedelta(seconds=settings.SESSION_MAX_AGE)).isoformat()
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO sessions (token, user_id, ip_address, user_agent, expires_at) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (token_hash, user_id, ip, user_agent[:500] if user_agent else "", expires),
+        )
+        db.execute(
+            "UPDATE users SET last_login = %s WHERE id = %s",
+            (utcnow().isoformat(), user_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+    return token
+
+
+def get_session_user(token: str) -> Optional[dict]:
+    """Look up a session token and return the user dict (with roles), or None."""
+    if not token:
+        return None
+    token_hash = _hash_token(token)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT s.user_id, s.expires_at FROM sessions s WHERE s.token = %s",
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            return None
+        if to_dt(row["expires_at"]) < utcnow():
+            db.execute("DELETE FROM sessions WHERE token = %s", (token_hash,))
+            db.commit()
+            return None
+
+        user = db.execute(
+            "SELECT id, username, email, full_name, is_active, must_change_password, "
+            "avatar_initials FROM users WHERE id = %s",
+            (row["user_id"],),
+        ).fetchone()
+        if not user or not user["is_active"]:
+            return None
+
+        roles = [
+            r["role_key"]
+            for r in db.execute(
+                "SELECT role_key FROM user_roles WHERE user_id = %s",
+                (user["id"],),
+            ).fetchall()
+        ]
+
+        return {
+            "id": user["id"],
+            "username": user["username"],
+            "email": user["email"],
+            "full_name": user["full_name"],
+            "avatar_initials": user["avatar_initials"] or _initials(user["full_name"]),
+            "must_change_password": bool(user["must_change_password"]),
+            "roles": roles,
+        }
+    finally:
+        db.close()
+
+
+def destroy_session(token: str):
+    """Delete a session by its raw token."""
+    if not token:
+        return
+    token_hash = _hash_token(token)
+    db = get_db()
+    try:
+        db.execute("DELETE FROM sessions WHERE token = %s", (token_hash,))
+        db.commit()
+    finally:
+        db.close()
+
+
+def cleanup_expired_sessions():
+    """Remove expired sessions from the DB."""
+    db = get_db()
+    try:
+        db.execute("DELETE FROM sessions WHERE expires_at < %s", (utcnow().isoformat(),))
+        db.commit()
+    finally:
+        db.close()
+
+
+# ── User lookup ──────────────────────────────────────────────────────────────
+
+def authenticate_user(username: str, password: str) -> Optional[dict]:
+    """Verify credentials and return user dict if valid."""
+    db = get_db()
+    try:
+        user = db.execute(
+            "SELECT id, username, email, full_name, password_hash, is_active, "
+            "must_change_password, avatar_initials FROM users WHERE username = %s",
+            (username,),
+        ).fetchone()
+        if not user:
+            # Constant-time comparison to prevent timing attacks
+            bcrypt.checkpw(b"dummy", bcrypt.gensalt())
+            return None
+        if not user["is_active"]:
+            return None
+        if not verify_password(password, user["password_hash"]):
+            return None
+
+        roles = [
+            r["role_key"]
+            for r in db.execute(
+                "SELECT role_key FROM user_roles WHERE user_id = %s",
+                (user["id"],),
+            ).fetchall()
+        ]
+
+        return {
+            "id": user["id"],
+            "username": user["username"],
+            "email": user["email"],
+            "full_name": user["full_name"],
+            "avatar_initials": user["avatar_initials"] or _initials(user["full_name"]),
+            "must_change_password": bool(user["must_change_password"]),
+            "roles": roles,
+        }
+    finally:
+        db.close()
+
+
+def _initials(name: str) -> str:
+    parts = name.strip().split()
+    if len(parts) >= 2:
+        return (parts[0][0] + parts[-1][0]).upper()
+    return name[:2].upper() if name else "??"

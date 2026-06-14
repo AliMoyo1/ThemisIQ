@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>G.R.I.D AI — Shared Audit View</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--green:#1a6b3a;--green-pale:#e8f5ee;--green-bg:#f0faf4;--bg:#f5f6fa;--surface:#fff;--border:rgba(0,0,0,0.07);--text:#111827;--muted:#6b7280;--red:#dc2626;--amber:#d97706;--blue:#2563eb;--font:'Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+.topbar{background:var(--green);padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:18px;font-weight:800;color:white;letter-spacing:-0.01em}
+.logo-sub{font-size:10px;color:rgba(255,255,255,0.7);font-family:var(--mono)}
+.badge{background:rgba(255,255,255,0.15);color:white;font-size:11px;padding:4px 12px;border-radius:20px;font-family:var(--mono)}
+.main{max-width:960px;margin:32px auto;padding:0 20px}
+.card{background:white;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.07);border:1px solid var(--border);overflow:hidden;margin-bottom:20px}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:14px;font-weight:700}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat{background:white;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);border:1px solid var(--border);text-align:center}
+.stat-value{font-size:28px;font-weight:800;margin-bottom:4px}
+.stat-label{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.1em}
+.pbar{height:6px;background:#f0f1f6;border-radius:3px;overflow:hidden;margin-top:10px}
+.pbar-fill{height:100%;border-radius:3px;background:var(--green);transition:width 0.8s ease}
+.ctrl-table{width:100%;border-collapse:collapse}
+.ctrl-table th{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;padding:10px 14px;background:#f8f9fc;border-bottom:1px solid var(--border)}
+.ctrl-table td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px}
+.ctrl-table tr:last-child td{border-bottom:none}
+.risk-badge{font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block}
+.risk-Critical{background:#fee2e2;color:#991b1b}.risk-High{background:#fef3c7;color:#92400e}
+.risk-Medium{background:#dbeafe;color:#1e40af}.risk-Low{background:#d1fae5;color:#065f46}
+.status-complete{background:#d1fae5;color:#065f46;font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block}
+.status-pending{background:#fef3c7;color:#92400e;font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block}
+.status-missing{background:#fee2e2;color:#991b1b;font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block}
+.loading{text-align:center;padding:80px 20px;color:var(--muted)}
+.error-box{background:#fee2e2;border:1px solid rgba(220,38,38,0.2);border-radius:12px;padding:24px;text-align:center;margin:40px auto;max-width:400px}
+footer{text-align:center;padding:24px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+@media(max-width:600px){.stat-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div>
+    <div class="logo">G·R·I·D AI</div>
+    <div class="logo-sub">Governance · Risk · IT · Data · Read-Only View</div>
+  </div>
+  <div class="badge">🔒 Read Only</div>
+</div>
+<div class="main" id="main">
+  <div class="loading">Loading audit data...</div>
+</div>
+<footer>G.R.I.D AI Compliance Management · Shared read-only view · Powered by Claude AI</footer>
+<script>
+async function load() {
+  const token = location.pathname.split('/').pop();
+  const main  = document.getElementById('main');
+  try {
+    const r = await fetch(`/api/share-links/validate/${token}`);
+    if (!r.ok) {
+      const e = await r.json();
+      main.innerHTML = `<div class="error-box"><div style="font-size:32px;margin-bottom:12px">🔒</div><div style="font-size:16px;font-weight:700;color:#dc2626;margin-bottom:8px">Access Denied</div><div style="font-size:13px;color:#374151">${e.error||'Invalid or expired link'}</div></div>`;
+      return;
+    }
+    const data  = await r.json();
+    const audit = data.audit;
+    const link  = data.link;
+    const pct   = audit.completion_pct || 0;
+    const pctColor = pct>=80?'#1a6b3a':pct>=40?'#d97706':'#dc2626';
+    const today = new Date().toISOString().slice(0,10);
+
+    document.title = `${audit.name} — G.R.I.D AI Shared View`;
+
+    main.innerHTML = `
+      <div style="margin-bottom:20px;padding:16px 20px;background:white;border-radius:14px;border:1px solid rgba(0,0,0,0.07);box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+        <div style="font-size:22px;font-weight:800;margin-bottom:4px">${audit.name}</div>
+        <div style="font-size:13px;color:#6b7280;font-family:'JetBrains Mono',monospace">${audit.framework_name} · ${audit.audit_type} · ${link.label} · Created by ${link.created_by}</div>
+        ${link.expires_at ? `<div style="font-size:11px;color:#d97706;margin-top:6px;font-family:'JetBrains Mono',monospace">Access expires: ${link.expires_at}</div>` : ''}
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-value" style="color:${pctColor}">${pct}%</div>
+          <div class="stat-label">Completion</div>
+          <div class="pbar"><div class="pbar-fill" style="width:${pct}%;background:${pctColor}"></div></div>
+        </div>
+        <div class="stat"><div class="stat-value" style="color:#111827">${audit.total_controls}</div><div class="stat-label">Total Controls</div></div>
+        <div class="stat"><div class="stat-value" style="color:#1a6b3a">${audit.complete_controls}</div><div class="stat-label">Complete</div></div>
+        <div class="stat"><div class="stat-value" style="color:#dc2626">${(audit.controls||[]).filter(c=>c.status!=='complete'&&c.due_date&&c.due_date<today).length}</div><div class="stat-label">Overdue</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Controls Checklist</div>
+          <div style="font-size:11px;color:#6b7280;font-family:'JetBrains Mono',monospace">${audit.total_controls} controls</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="ctrl-table">
+            <thead><tr>
+              <th>Control ID</th><th>Control Name</th><th>Risk</th><th>Due Date</th>
+              <th>Evidence</th><th>Status</th>
+            </tr></thead>
+            <tbody>
+              ${(audit.controls||[]).map(c => {
+                const overdue = c.status!=='complete' && c.due_date && c.due_date < today;
+                const evRatio = `${c.evidence_count||0}/${c.evidence_required||1}`;
+                const evFull  = (c.evidence_count||0) >= (c.evidence_required||1);
+                let stBadge;
+                if (c.status==='complete') stBadge='<span class="status-complete">Complete</span>';
+                else if (overdue) stBadge='<span class="status-missing">Overdue</span>';
+                else if (c.status==='in_progress') stBadge='<span class="status-pending">In Progress</span>';
+                else stBadge='<span class="status-missing">Not Started</span>';
+                return `<tr>
+                  <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#1a6b3a;font-weight:700">${c.control_id||'—'}</td>
+                  <td style="max-width:280px">${c.name}</td>
+                  <td><span class="risk-badge risk-${c.risk_level}">${c.risk_level}</span></td>
+                  <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${overdue?'#dc2626':'#6b7280'}">${c.due_date||'—'}</td>
+                  <td style="font-family:'JetBrains Mono',monospace;font-size:11px;text-align:center;color:${evFull?'#1a6b3a':(c.evidence_count||0)>0?'#d97706':'#dc2626'}">${evRatio}</td>
+                  <td>${stBadge}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch(e) {
+    main.innerHTML = `<div class="error-box"><div style="font-size:32px;margin-bottom:12px">❌</div><div style="font-size:13px;color:#374151">${e.message}</div></div>`;
+  }
+}
+load();
+</script>
+</body>
+</html>

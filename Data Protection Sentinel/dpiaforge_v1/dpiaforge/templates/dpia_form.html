@@ -1,0 +1,766 @@
+{% extends "base.html" %}
+{% block title %}{% if mode=='edit' %}Edit DPIA{% else %}New DPIA{% endif %} — DPIAforge{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('dpia_list') }}">All DPIAs</a>
+<span class="breadcrumb-sep">/</span>
+<strong>{% if mode=='edit' %}Edit DPIA{% else %}New DPIA{% endif %}</strong>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+/* Steps nav */
+.steps-bar{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);padding:0;
+  display:flex;overflow:hidden;margin-bottom:22px;
+  box-shadow:var(--shadow-sm);
+}
+.step-btn{
+  flex:1;display:flex;align-items:center;gap:8px;
+  padding:12px 14px;border:none;background:transparent;
+  cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:600;
+  color:var(--c-muted);border-right:1px solid var(--c-border);
+  transition:var(--tx);position:relative;
+}
+.step-btn:last-child{border-right:none}
+.step-btn:hover{background:var(--c-bg)}
+.step-btn.active{background:#EFF6FF;color:var(--c-primary)}
+.step-btn.done{color:var(--s-approved)}
+.step-num{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;
+  background:var(--c-border);color:var(--c-muted);
+  transition:var(--tx);
+}
+.step-btn.active .step-num{background:var(--c-primary);color:#fff}
+.step-btn.done .step-num{background:var(--s-approved);color:#fff}
+
+/* Form layout */
+.form-layout{display:grid;grid-template-columns:1fr 296px;gap:22px;align-items:start}
+.form-sidebar{position:sticky;top:76px;display:flex;flex-direction:column;gap:14px}
+
+/* Form sections */
+.form-panel{display:none}
+.form-panel.active{display:block}
+
+.f-card{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);margin-bottom:16px;
+  overflow:hidden;box-shadow:var(--shadow-sm);
+}
+.f-card-head{
+  padding:13px 18px;border-bottom:1px solid var(--c-border);
+  background:linear-gradient(90deg,var(--c-bg),#fff);
+  display:flex;align-items:center;gap:10px;
+}
+.f-card-icon{
+  width:26px;height:26px;border-radius:7px;
+  background:var(--c-primary);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;flex-shrink:0;
+}
+.f-card-title{font-size:13.5px;font-weight:700;color:var(--c-text)}
+.f-card-body{padding:18px 20px}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.c1{grid-template-columns:1fr}
+.form-row.c3{grid-template-columns:1fr 1fr 1fr}
+
+/* Checkboxes */
+.check-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:7px}
+.check-item{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 11px;border:1.5px solid var(--c-border);
+  border-radius:var(--radius-sm);cursor:pointer;
+  font-size:12.5px;transition:var(--tx);
+}
+.check-item:hover{border-color:var(--c-accent);background:#F0FDFF}
+.check-item.checked{border-color:var(--c-primary);background:#EFF6FF;color:var(--c-primary);font-weight:600}
+.check-item.checked-sp{border-color:#C2410C;background:#FFF7ED;color:#C2410C;font-weight:600}
+.check-item input{accent-color:var(--c-primary);width:14px;height:14px;flex-shrink:0}
+
+/* Nav row */
+.form-nav{display:flex;justify-content:space-between;align-items:center;padding:14px 0 4px}
+
+/* Progress */
+.prog-track{height:6px;background:var(--c-border);border-radius:3px;overflow:hidden;margin:10px 0 5px}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--c-primary),var(--c-accent));border-radius:3px;transition:width .4s ease}
+
+/* AI sidebar panel */
+.ai-sidebar{
+  background:linear-gradient(135deg,var(--ai-navy),#1E1B4B);
+  border:1px solid rgba(167,139,250,.2);border-radius:var(--radius);overflow:hidden;
+}
+.ai-sb-head{
+  padding:12px 15px;border-bottom:1px solid rgba(167,139,250,.15);
+  background:rgba(79,70,229,.15);
+  display:flex;align-items:center;gap:9px;
+}
+.ai-sb-icon{
+  width:26px;height:26px;background:var(--ai-grad);
+  border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-size:12px;flex-shrink:0;
+}
+.ai-sb-title{font-size:13px;font-weight:700;color:var(--ai-purple)}
+.ai-sb-body{padding:14px}
+.ai-mini-out{
+  background:rgba(0,0,0,.25);border:1px solid rgba(167,139,250,.15);
+  border-radius:var(--radius-xs);padding:11px;
+  font-size:12px;line-height:1.6;color:rgba(255,255,255,.72);
+  max-height:260px;overflow-y:auto;white-space:pre-wrap;
+  display:none;margin-top:10px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% if mode=='edit' %}
+<form method="post" action="{{ url_for('dpia_edit', dpia_id=dpia.id) }}" id="dpiaForm">
+{% else %}
+<form method="post" action="{{ url_for('dpia_new') }}" id="dpiaForm">
+{% endif %}
+
+<!-- Top bar -->
+<div class="flex-between mb-4">
+  <div>
+    <h1 style="font-size:21px;font-weight:800;letter-spacing:-.3px">
+      {% if mode=='edit' %}Edit DPIA{% else %}Create New DPIA{% endif %}
+    </h1>
+    <p style="font-size:12.5px;color:var(--c-muted);margin-top:3px">Complete all sections for a thorough assessment</p>
+  </div>
+  <div class="flex-center gap-3">
+    <a href="{{ url_for('dpia_list') }}" class="btn btn-outline btn-sm">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save DPIA</button>
+  </div>
+</div>
+
+<!-- Step indicators -->
+<div class="steps-bar" id="stepsBar">
+  {% set step_labels = [
+    (1,'fa-file-lines','Basic Info'),
+    (2,'fa-gears','Processing'),
+    (3,'fa-database','Data'),
+    (4,'fa-server','Systems'),
+    (5,'fa-triangle-exclamation','Risk'),
+    (6,'fa-comments','Consultation'),
+  ] %}
+  {% for n,ico,lbl in step_labels %}
+  <button type="button" class="step-btn {% if n==1 %}active{% endif %}" onclick="goStep({{ n }})" id="stepBtn{{ n }}">
+    <span class="step-num" id="stepNum{{ n }}">{{ n }}</span>
+    <i class="fa-solid {{ ico }}"></i> {{ lbl }}
+  </button>
+  {% endfor %}
+</div>
+
+<div class="form-layout">
+  <!-- ═══ MAIN FORM ═══════════════════════════════════════════════════════ -->
+  <div>
+
+    <!-- STEP 1 — Basic Info -->
+    <div class="form-panel active" id="panel-1">
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon"><i class="fa-solid fa-file-lines"></i></div>
+          <div class="f-card-title">DPIA Identification</div>
+        </div>
+        <div class="f-card-body">
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">DPIA Title <span class="req">*</span></label>
+              <input name="title" class="form-control" required placeholder="e.g. Employee Monitoring System DPIA"
+                     value="{{ dpia.get('title','') }}">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Applicable Regulation <span class="req">*</span></label>
+              <select name="regulation" id="regSelect" class="form-control" required onchange="updateLegalBases();updateRegInfo()">
+                <option value="">— Select Regulation —</option>
+                {% for val,lbl in regulations %}
+                <option value="{{ val }}" {% if dpia.get('regulation')==val %}selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-control">
+                {% for val,lbl in statuses %}
+                <option value="{{ val }}" {% if dpia.get('status','')==val or (not dpia.get('status') and val=='draft') %}selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon"><i class="fa-solid fa-building"></i></div>
+          <div class="f-card-title">Organisation & Controller</div>
+        </div>
+        <div class="f-card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Organisation Name</label>
+              <input name="org_name" class="form-control" placeholder="Your organisation"
+                     value="{{ dpia.get('org_name','') }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Department</label>
+              <select name="department" class="form-control">
+                <option value="">— Select —</option>
+                {% for d in departments %}
+                <option value="{{ d }}" {% if dpia.get('department')==d %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Data Controller</label>
+              <input name="controller_name" class="form-control" placeholder="Responsible entity"
+                     value="{{ dpia.get('controller_name','') }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">DPO / Privacy Officer</label>
+              <input name="dpo_name" class="form-control" placeholder="Full name"
+                     value="{{ dpia.get('dpo_name','') }}">
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">DPO Email</label>
+              <input name="dpo_email" type="email" class="form-control" placeholder="dpo@organisation.com"
+                     value="{{ dpia.get('dpo_email','') }}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-nav">
+        <div></div>
+        <button type="button" class="btn btn-primary" onclick="goStep(2)">
+          Next: Processing <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- STEP 2 — Processing Activity -->
+    <div class="form-panel" id="panel-2">
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon"><i class="fa-solid fa-gears"></i></div>
+          <div class="f-card-title">Processing Activity</div>
+        </div>
+        <div class="f-card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Activity Type <span class="req">*</span></label>
+              <select name="activity_type" id="activitySelect" class="form-control" required>
+                <option value="">— Select Activity —</option>
+                {% for a in activity_types %}
+                <option value="{{ a }}" {% if dpia.get('activity_type')==a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Legal Basis <span class="req">*</span></label>
+              <select name="legal_basis" id="legalBasisSelect" class="form-control" required>
+                <option value="">— Select Legal Basis —</option>
+                {% set cur_reg = dpia.get('regulation','GDPR') %}
+                {% set bases = legal_bases.get(cur_reg, legal_bases.GDPR) %}
+                {% for b in bases %}
+                <option value="{{ b }}" {% if dpia.get('legal_basis')==b %}selected{% endif %}>{{ b }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-hint">Options update based on selected regulation</div>
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Activity Description</label>
+              <textarea name="activity_desc" class="form-control" rows="2"
+                        placeholder="Brief description of what this processing involves">{{ dpia.get('activity_desc','') }}</textarea>
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Purpose(s) of Processing <span class="req">*</span></label>
+              <textarea name="purpose" class="form-control" rows="3" required
+                        placeholder="Describe the specific purpose(s) for which personal data is processed…">{{ dpia.get('purpose','') }}</textarea>
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Necessity Assessment</label>
+              <textarea name="necessity" class="form-control" rows="3"
+                        placeholder="Is this processing necessary to achieve the stated purpose? Could it be achieved with less data?">{{ dpia.get('necessity','') }}</textarea>
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Proportionality Assessment</label>
+              <textarea name="proportionality" class="form-control" rows="3"
+                        placeholder="Is the processing proportionate? Are data subjects' interests adequately considered?">{{ dpia.get('proportionality','') }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-nav">
+        <button type="button" class="btn btn-outline" onclick="goStep(1)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-primary" onclick="goStep(3)">Next: Data <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <!-- STEP 3 — Data Details -->
+    <div class="form-panel" id="panel-3">
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon" style="background:#0E7490"><i class="fa-solid fa-users"></i></div>
+          <div class="f-card-title">Data Subjects</div>
+        </div>
+        <div class="f-card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Type of Data Subjects</label>
+              <select name="data_subjects" class="form-control">
+                <option value="">— Select —</option>
+                {% for ds in data_subjects %}
+                <option value="{{ ds }}" {% if dpia.get('data_subjects')==ds %}selected{% endif %}>{{ ds }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Estimated Volume</label>
+              <select name="subject_count" class="form-control">
+                <option value="">— Select Range —</option>
+                {% for sc in subject_counts %}
+                <option value="{{ sc }}" {% if dpia.get('subject_count')==sc %}selected{% endif %}>{{ sc }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Retention Period</label>
+              <select name="retention" class="form-control">
+                <option value="">— Select —</option>
+                {% for r in retention_options %}
+                <option value="{{ r }}" {% if dpia.get('retention')==r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon" style="background:#0E7490"><i class="fa-solid fa-database"></i></div>
+          <div class="f-card-title">Personal Data Categories</div>
+        </div>
+        <div class="f-card-body">
+          <p style="font-size:12px;color:var(--c-muted);margin-bottom:12px">Select all categories that apply:</p>
+          <div class="check-grid">
+            {% for cat in data_categories %}
+            <label class="check-item {% if dpia.get('data_categories') and cat in dpia.data_categories %}checked{% endif %}">
+              <input type="checkbox" name="data_categories" value="{{ cat }}"
+                     {% if dpia.get('data_categories') and cat in dpia.data_categories %}checked{% endif %}
+                     onchange="toggleCheck(this,'checked')">
+              {{ cat }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="f-card" style="border-color:#FED7AA">
+        <div class="f-card-head" style="background:#FFF7ED">
+          <div class="f-card-icon" style="background:#C2410C"><i class="fa-solid fa-shield-exclamation"></i></div>
+          <div>
+            <div class="f-card-title" style="color:#C2410C">Special Categories</div>
+            <div style="font-size:11px;color:#9A3412;margin-top:1px">Require heightened justification and safeguards</div>
+          </div>
+        </div>
+        <div class="f-card-body">
+          <div class="check-grid">
+            {% set special_cats_list = ['Racial or ethnic origin','Political opinions','Religious beliefs',
+              'Trade union membership','Genetic data','Biometric data (identification)',
+              'Health data','Sexual orientation / sex life','Criminal convictions'] %}
+            {% for cat in special_cats_list %}
+            <label class="check-item {% if dpia.get('special_cats') and cat in dpia.special_cats %}checked-sp{% endif %}">
+              <input type="checkbox" name="special_cats" value="{{ cat }}"
+                     {% if dpia.get('special_cats') and cat in dpia.special_cats %}checked{% endif %}
+                     onchange="toggleCheck(this,'checked-sp')">
+              {{ cat }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="form-nav">
+        <button type="button" class="btn btn-outline" onclick="goStep(2)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-primary" onclick="goStep(4)">Next: Systems <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <!-- STEP 4 — Systems & Transfers -->
+    <div class="form-panel" id="panel-4">
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon" style="background:#7C3AED"><i class="fa-solid fa-server"></i></div>
+          <div class="f-card-title">Processing Systems & Processors</div>
+        </div>
+        <div class="f-card-body">
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Processing Systems / Platforms</label>
+              <textarea name="systems" class="form-control" rows="2"
+                        placeholder="e.g. Salesforce CRM, Azure SQL, internal HR platform, AWS S3">{{ dpia.get('systems','') }}</textarea>
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Third-party Data Processors</label>
+              <textarea name="processors" class="form-control" rows="2"
+                        placeholder="List processor name, role, and country (e.g. Mailchimp — email marketing, USA)">{{ dpia.get('processors','') }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon" style="background:#0D9488"><i class="fa-solid fa-earth-americas"></i></div>
+          <div class="f-card-title">International Transfers</div>
+        </div>
+        <div class="f-card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">International Transfers?</label>
+              <select name="intl_transfer" class="form-control">
+                <option value="">— Select —</option>
+                {% for y in yes_no_na %}
+                <option value="{{ y }}" {% if dpia.get('intl_transfer')==y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Destination Countries</label>
+              <input name="transfer_dest" class="form-control" placeholder="e.g. USA, India, UK"
+                     value="{{ dpia.get('transfer_dest','') }}">
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Transfer Mechanism / Safeguards</label>
+              <textarea name="transfer_mech" class="form-control" rows="2"
+                        placeholder="e.g. Standard Contractual Clauses (SCCs), Adequacy Decision, Binding Corporate Rules">{{ dpia.get('transfer_mech','') }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-nav">
+        <button type="button" class="btn btn-outline" onclick="goStep(3)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-primary" onclick="goStep(5)">Next: Risk <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <!-- STEP 5 — Risk Assessment -->
+    <div class="form-panel" id="panel-5">
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon" style="background:#DC2626"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div class="f-card-title">Risk Assessment</div>
+        </div>
+        <div class="f-card-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Overall Risk Level</label>
+              <select name="overall_risk" class="form-control">
+                <option value="">— Select —</option>
+                {% for r in risk_levels %}
+                <option value="{{ r }}" {% if dpia.get('overall_risk')==r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Residual Risk (after mitigations)</label>
+              <select name="residual_risk" class="form-control">
+                <option value="">— Select —</option>
+                {% for r in risk_levels %}
+                <option value="{{ r }}" {% if dpia.get('residual_risk')==r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <!-- AI Risk Suggester -->
+          <div class="ai-card" style="margin-bottom:16px">
+            <div class="ai-card-header">
+              <div class="ai-card-icon">⚡</div>
+              <div>
+                <div class="ai-card-title">AI Risk Identifier</div>
+                <div class="ai-card-sub">Let AI suggest common risks for this processing activity</div>
+              </div>
+              <button type="button" class="btn btn-ai btn-sm" style="margin-left:auto" onclick="fetchAIRisks()">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Suggest Risks
+              </button>
+            </div>
+            <div class="ai-card-body" id="riskSuggestArea" style="display:none">
+              <div id="riskCards"></div>
+            </div>
+          </div>
+
+          <!-- Risks hidden JSON -->
+          <input type="hidden" name="risks_json" id="risksJson" value="{{ dpia.get('risks',[])|tojson }}">
+        </div>
+      </div>
+
+      <div class="form-nav">
+        <button type="button" class="btn btn-outline" onclick="goStep(4)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+        <button type="button" class="btn btn-primary" onclick="goStep(6)">Next: Consultation <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <!-- STEP 6 — Consultation -->
+    <div class="form-panel" id="panel-6">
+      <div class="f-card">
+        <div class="f-card-head">
+          <div class="f-card-icon" style="background:#0D9488"><i class="fa-solid fa-comments"></i></div>
+          <div class="f-card-title">Consultation Record</div>
+        </div>
+        <div class="f-card-body">
+          <div class="form-row c3">
+            <div class="form-group">
+              <label class="form-label">DPO Consulted?</label>
+              <select name="dpo_consulted" class="form-control">
+                <option value="">—</option>
+                {% for y in yes_no_na %}
+                <option value="{{ y }}" {% if dpia.get('dpo_consulted')==y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Supervisory Authority?</label>
+              <select name="auth_consulted" class="form-control">
+                <option value="">—</option>
+                {% for y in yes_no_na %}
+                <option value="{{ y }}" {% if dpia.get('auth_consulted')==y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Data Subjects Consulted?</label>
+              <select name="subjects_consulted" class="form-control">
+                <option value="">—</option>
+                {% for y in yes_no_na %}
+                <option value="{{ y }}" {% if dpia.get('subjects_consulted')==y %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-row c1">
+            <div class="form-group">
+              <label class="form-label">Consultation Notes</label>
+              <textarea name="consult_notes" class="form-control" rows="4"
+                        placeholder="Dates, outcomes, recommendations received, any conditions imposed…">{{ dpia.get('consult_notes','') }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI hint -->
+      <div class="ai-card">
+        <div class="ai-card-header">
+          <div class="ai-card-icon">✦</div>
+          <div>
+            <div class="ai-card-title">After Saving — Use AI</div>
+            <div class="ai-card-sub">Save, then open the DPIA to run AI research & generate the full document</div>
+          </div>
+        </div>
+        <div class="ai-card-body" style="color:rgba(255,255,255,.7);font-size:13px;line-height:1.65">
+          After saving you can:<br>
+          🔬 <strong style="color:var(--ai-blue)">AI Research</strong> — research the activity under the selected regulation<br>
+          ✦ <strong style="color:var(--ai-purple)">Generate Full DPIA</strong> — produce a complete, legally rigorous DPIA document<br>
+          📄 <strong style="color:#6EE7B7">Download Word</strong> — export a professional .docx file
+        </div>
+      </div>
+
+      <div class="form-nav">
+        <button type="button" class="btn btn-outline" onclick="goStep(5)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+        <button type="submit" class="btn btn-primary btn-lg">
+          <i class="fa-solid fa-floppy-disk"></i> Save DPIA
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
+  <div class="form-sidebar">
+    <!-- Progress -->
+    <div class="card">
+      <div class="card-body" style="padding:16px">
+        <div style="font-size:12.5px;font-weight:700;color:var(--c-text)">Progress</div>
+        <div class="prog-track"><div class="prog-fill" id="progFill" style="width:16.66%"></div></div>
+        <div style="font-size:11.5px;color:var(--c-muted)" id="progLabel">Step 1 of 6</div>
+      </div>
+    </div>
+
+    <!-- AI Quick Research -->
+    <div class="ai-sidebar">
+      <div class="ai-sb-head">
+        <div class="ai-sb-icon">✦</div>
+        <div class="ai-sb-title">AI Quick Research</div>
+      </div>
+      <div class="ai-sb-body">
+        <p style="font-size:11.5px;color:rgba(255,255,255,.45);margin-bottom:10px;line-height:1.5">
+          Select activity &amp; regulation first, then run AI research inline.
+        </p>
+        <button type="button" class="btn btn-ai w-full" style="justify-content:center" onclick="quickResearch()">
+          <i class="fa-solid fa-magnifying-glass-chart"></i> Quick Research
+        </button>
+        <div class="ai-mini-out" id="quickResOut"></div>
+      </div>
+    </div>
+
+    <!-- Regulation info -->
+    <div class="card" id="regInfoCard" style="display:none">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-scale-balanced"></i> Regulation</div></div>
+      <div class="card-body" style="font-size:12.5px;color:var(--c-muted);line-height:1.6" id="regInfoBody"></div>
+    </div>
+
+    <!-- Save reminder -->
+    <div class="card">
+      <div class="card-body" style="padding:14px;font-size:12px;color:var(--c-muted);line-height:1.6">
+        <i class="fa-solid fa-circle-info" style="color:var(--c-accent)"></i>
+        Use dropdowns where available for consistency. Add details in text areas. Click <strong>Save DPIA</strong> to store your progress.
+      </div>
+    </div>
+  </div>
+</div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LEGAL_BASES = {{ legal_bases|tojson }};
+const REG_INFO = {
+  'GDPR':{'authority':'EU DPAs','provisions':'Arts. 35–36 GDPR','jurisdiction':'EU'},
+  'Zimbabwe CDPA':{'authority':'POTRAZ','provisions':'Cyber & Data Protection Act','jurisdiction':'Zimbabwe'},
+  'South Africa POPIA':{'authority':'Information Regulator','provisions':'POPIA s.22','jurisdiction':'South Africa'},
+  'UAE PDPL':{'authority':'UAE Data Office','provisions':'DL No.45/2021 Art.16','jurisdiction':'UAE'},
+  'Saudi PDPL':{'authority':'NDMO / SDAIA','provisions':'PDPL Art.29','jurisdiction':'Saudi Arabia'},
+  'Qatar DPL':{'authority':'MOTC','provisions':'Law No.13/2016','jurisdiction':'Qatar'},
+};
+
+let currentStep=1;
+
+function goStep(n){
+  document.querySelectorAll('.form-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+n).classList.add('active');
+  document.querySelectorAll('.step-btn').forEach((b,i)=>{
+    b.classList.remove('active','done');
+    const num=document.getElementById('stepNum'+(i+1));
+    if(i+1<n){b.classList.add('done');num.innerHTML='<i class="fa-solid fa-check" style="font-size:9px"></i>';}
+    else if(i+1===n){b.classList.add('active');num.textContent=i+1;}
+    else{num.textContent=i+1;}
+  });
+  currentStep=n;
+  const pct=(n/6*100).toFixed(1);
+  document.getElementById('progFill').style.width=pct+'%';
+  document.getElementById('progLabel').textContent='Step '+n+' of 6';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function updateLegalBases(){
+  const reg=document.getElementById('regSelect').value;
+  const sel=document.getElementById('legalBasisSelect');
+  const prev=sel.value;
+  const bases=LEGAL_BASES[reg]||LEGAL_BASES['GDPR'];
+  sel.innerHTML='<option value="">— Select Legal Basis —</option>';
+  bases.forEach(b=>{
+    const o=document.createElement('option');
+    o.value=b;o.textContent=b;
+    if(b===prev)o.selected=true;
+    sel.appendChild(o);
+  });
+}
+
+function updateRegInfo(){
+  const reg=document.getElementById('regSelect').value;
+  const info=REG_INFO[reg];
+  if(info){
+    document.getElementById('regInfoCard').style.display='block';
+    document.getElementById('regInfoBody').innerHTML=
+      `<b>Jurisdiction:</b> ${info.jurisdiction}<br><b>Authority:</b> ${info.authority}<br><b>Key Provisions:</b> ${info.provisions}`;
+  }
+}
+
+function toggleCheck(cb,cls){
+  cb.parentElement.classList.toggle(cls,cb.checked);
+}
+
+async function quickResearch(){
+  const activity=document.getElementById('activitySelect').value;
+  const regulation=document.getElementById('regSelect').value;
+  if(!activity||!regulation){
+    alert('Select an activity type and regulation first (Steps 1 & 2).');return;
+  }
+  showSpinner('AI is researching…');
+  try{
+    const r=await fetch('/api/ai/research',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({activity_type:activity,regulation})
+    });
+    const d=await r.json();
+    hideSpinner();
+    const out=document.getElementById('quickResOut');
+    out.style.display='block';
+    out.textContent=d.error?'⚠ '+d.error:d.research;
+  }catch(e){hideSpinner();alert('Error: '+e.message)}
+}
+
+async function fetchAIRisks(){
+  const activity=document.getElementById('activitySelect').value;
+  const regulation=document.getElementById('regSelect').value;
+  if(!activity){alert('Select an activity type first (Step 2).');return;}
+  const cats=Array.from(document.querySelectorAll('[name="data_categories"]:checked')).map(c=>c.value);
+  showSpinner('AI identifying risks…');
+  try{
+    const r=await fetch('/api/ai/risks',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({activity_type:activity,regulation,data_categories:cats})
+    });
+    const d=await r.json();
+    hideSpinner();
+    if(d.error){alert('AI error: '+d.error);return;}
+    const risks=d.risks||[];
+    document.getElementById('risksJson').value=JSON.stringify(risks);
+    const area=document.getElementById('riskSuggestArea');
+    const cards=document.getElementById('riskCards');
+    area.style.display='block';
+    const COLORS={High:'#FEF2F2',Medium:'#FFFBEB',Low:'#ECFDF5'};
+    const TC={High:'#DC2626',Medium:'#D97706',Low:'#059669'};
+    cards.innerHTML=risks.map(r=>`
+      <div style="border:1px solid ${TC[r.likelihood]||'#ccc'}30;background:${COLORS[r.likelihood]||'#f9f9f9'};border-radius:8px;padding:11px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:3px">${r.desc}</div>
+        <div style="font-size:11.5px;color:rgba(255,255,255,.5);margin-bottom:6px">${r.mitigation}</div>
+        <div style="display:flex;gap:7px">
+          <span style="font-size:11px;background:${COLORS[r.likelihood||'Medium']};color:${TC[r.likelihood||'Medium']};padding:2px 8px;border-radius:10px;font-weight:700">L: ${r.likelihood}</span>
+          <span style="font-size:11px;background:${COLORS[r.impact||'Medium']};color:${TC[r.impact||'Medium']};padding:2px 8px;border-radius:10px;font-weight:700">I: ${r.impact}</span>
+        </div>
+      </div>`).join('');
+  }catch(e){hideSpinner();alert('Error: '+e.message)}
+}
+
+// Initialise
+updateLegalBases();
+updateRegInfo();
+</script>
+{% endblock %}

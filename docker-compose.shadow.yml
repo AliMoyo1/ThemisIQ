@@ -1,0 +1,42 @@
+# Shadow-mode PostgreSQL — Phase M
+# A standalone PG instance for validating prod data before cutover.
+# The production SQLite app runs unchanged alongside this container.
+# This container is NEVER used as the production DB.
+#
+# Usage:
+#   docker compose -f docker-compose.shadow.yml up -d
+#   python oneforall/scripts/shadow_mode_loop.py \
+#       --sqlite oneforall/data/oneforall.db \
+#       --postgres postgresql://themisiq:shadow_pass@localhost:5433/themisiq_shadow \
+#       --hours 48 --interval-hours 6
+#   docker compose -f docker-compose.shadow.yml down -v   # teardown when done
+
+services:
+  shadow-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: themisiq_shadow
+      POSTGRES_USER: themisiq
+      # Plain password is fine — this DB is local-only (127.0.0.1), never exposed,
+      # contains only a copy of prod data, and is deleted when shadow mode ends.
+      POSTGRES_PASSWORD: shadow_pass
+    volumes:
+      - pgdata_shadow:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U themisiq -d themisiq_shadow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Expose on 5433 (prod PG is 5432) — loopback only, never public.
+    ports:
+      - "127.0.0.1:5433:5432"
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pgdata_shadow:

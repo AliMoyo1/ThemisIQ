@@ -1,0 +1,302 @@
+{% extends "platform_base.html" %}
+{% block title %}Reports — ThemisIQ{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <span class="page-title">📈 Reporting Engine</span>
+  <div class="topbar-actions">
+    <button class="btn btn-secondary" onclick="showTab('runs')">Recent Runs</button>
+    <button class="btn btn-secondary" onclick="showTab('definitions')">Definitions</button>
+    <button class="btn btn-primary" onclick="openNewReport()">+ New Report</button>
+  </div>
+</div>
+
+<div class="content">
+  <!-- Stats -->
+  <div id="reportStats" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px;"></div>
+
+  <!-- Quick Run Buttons -->
+  <div class="card" style="padding:16px; margin-bottom:16px;">
+    <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:12px;">Quick Generate</div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      <button class="btn btn-secondary" onclick="quickRun('compliance_summary')">Compliance Summary</button>
+      <button class="btn btn-secondary" onclick="quickRun('risk_report')">Risk Report</button>
+      <button class="btn btn-secondary" onclick="quickRun('audit_status')">Audit Status</button>
+      <button class="btn btn-secondary" onclick="quickRun('privacy_overview')">Privacy Overview</button>
+      <button class="btn btn-secondary" onclick="quickRun('bcm_readiness')">BCM Readiness</button>
+      <button class="btn btn-secondary" onclick="quickRun('sla_performance')">SLA Performance</button>
+      <button class="btn btn-secondary" onclick="quickRun('executive_brief')">Executive Brief</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div id="tabRuns">
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Report</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Type</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Generated</th>
+            <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
+            <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="runsBody">
+          <tr><td colspan="5" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tabDefinitions" style="display:none;">
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Name</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Type</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Schedule</th>
+            <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
+            <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="defsBody">
+          <tr><td colspan="5" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Report Viewer -->
+  <div id="reportViewer" class="card" style="padding:20px; margin-top:16px; display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div>
+        <div id="viewerTitle" style="font-size:16px; font-weight:600;"></div>
+        <div id="viewerMeta" style="font-size:11px; color:var(--muted); margin-top:2px;"></div>
+      </div>
+      <button class="btn btn-secondary" onclick="document.getElementById('reportViewer').style.display='none'">Close</button>
+    </div>
+    <div id="viewerContent"></div>
+  </div>
+</div>
+
+<!-- New Report Modal -->
+<div class="modal" id="newReportModal">
+  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h3 style="margin:0; font-size:16px;">Create Report Definition</h3>
+      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px;">
+      <form id="reportForm" onsubmit="createReport(event)">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Name</label>
+          <input type="text" id="rptName" required style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Description</label>
+          <textarea id="rptDesc" rows="2" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px; resize:vertical;"></textarea>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Report Type</label>
+            <select id="rptType" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+              {% for key, label in report_types.items() %}
+              <option value="{{ key }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Schedule</label>
+            <select id="rptSchedule" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+              <option value="">Manual Only</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Modules (comma-separated)</label>
+          <input type="text" id="rptModules" placeholder="aria,grid,bcm,sentinel" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Create Report</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const typeLabels = {{ report_types | tojson }};
+
+function showTab(tab) {
+  document.getElementById('tabRuns').style.display = tab === 'runs' ? 'block' : 'none';
+  document.getElementById('tabDefinitions').style.display = tab === 'definitions' ? 'block' : 'none';
+  if (tab === 'definitions') loadDefinitions();
+  else loadRuns();
+}
+
+async function loadDefinitions() {
+  const resp = await fetch('/api/reports/definitions');
+  const defs = await resp.json();
+  const tbody = document.getElementById('defsBody');
+  if (!defs.length) { tbody.innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--muted);">No report definitions</td></tr>'; return; }
+  tbody.innerHTML = defs.map(d => `
+    <tr style="border-bottom:1px solid var(--border-soft);">
+      <td style="padding:10px 14px;"><div style="font-weight:500;font-size:13px;">${esc(d.name)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(d.description||'')}</div></td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${typeLabels[d.report_type]||d.report_type}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${d.schedule||'Manual'}</td>
+      <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${d.is_active?'var(--good-soft)':'var(--surface3)'};color:${d.is_active?'var(--good)':'var(--muted)'};">${d.is_active?'Active':'Disabled'}</span></td>
+      <td style="padding:10px 14px;text-align:center;"><button class="btn btn-primary" style="font-size:11px;padding:3px 10px;" onclick="runReport(${d.id})">Run Now</button></td>
+    </tr>
+  `).join('');
+}
+
+async function loadRuns() {
+  const resp = await fetch('/api/reports/runs');
+  const runs = await resp.json();
+  const tbody = document.getElementById('runsBody');
+  if (!runs.length) { tbody.innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--muted);">No reports generated yet. Use Quick Generate above.</td></tr>'; return; }
+  tbody.innerHTML = runs.map(r => `
+    <tr style="border-bottom:1px solid var(--border-soft);">
+      <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(r.report_name||'Ad-hoc')}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${typeLabels[r.report_type]||esc(r.report_type)||'—'}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${timeAgo(r.started_at)}</td>
+      <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${r.status==='completed'?'var(--good-soft)':'var(--warn-soft)'};color:${r.status==='completed'?'var(--good)':'var(--warn)'};">${esc(r.status)}</span></td>
+      <td style="padding:10px 14px;text-align:center;"><button class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" onclick="viewRun(${r.id})">View</button></td>
+    </tr>
+  `).join('');
+}
+
+async function loadStats() {
+  const [dResp, rResp] = await Promise.all([
+    fetch('/api/reports/definitions'),
+    fetch('/api/reports/runs')
+  ]);
+  const defs = await dResp.json();
+  const runs = await rResp.json();
+  const scheduled = defs.filter(d => d.schedule && d.is_active).length;
+  document.getElementById('reportStats').innerHTML = `
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Definitions</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${defs.length}</div></div>
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Scheduled</div><div style="font-size:22px;font-weight:700;color:var(--info);margin-top:2px;">${scheduled}</div></div>
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Total Runs</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${runs.length}</div></div>
+  `;
+}
+
+function openNewReport() { document.getElementById('newReportModal').classList.add('open'); }
+
+async function createReport(e) {
+  e.preventDefault();
+  const body = {
+    name: document.getElementById('rptName').value,
+    description: document.getElementById('rptDesc').value,
+    report_type: document.getElementById('rptType').value,
+    schedule: document.getElementById('rptSchedule').value,
+    modules: document.getElementById('rptModules').value,
+  };
+  const resp = await fetch('/api/reports/definitions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (resp.ok) {
+    document.getElementById('newReportModal').classList.remove('open');
+    document.getElementById('reportForm').reset();
+    loadDefinitions(); loadStats();
+    showTab('definitions');
+  }
+}
+
+async function runReport(defId) {
+  const resp = await fetch(`/api/reports/${defId}/run`, { method:'POST', headers:{'Content-Type':'application/json'} });
+  if (resp.ok) {
+    const data = await resp.json();
+    loadRuns(); loadStats();
+    viewRunData(data);
+  }
+}
+
+async function quickRun(type) {
+  // Create a temporary definition and run it
+  const cResp = await fetch('/api/reports/definitions', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name: typeLabels[type] + ' — ' + new Date().toLocaleDateString(), report_type: type })
+  });
+  if (cResp.ok) {
+    const { id } = await cResp.json();
+    await runReport(id);
+  }
+}
+
+async function viewRun(runId) {
+  const resp = await fetch(`/api/reports/runs/${runId}`);
+  const data = await resp.json();
+  viewRunData(data);
+}
+
+function viewRunData(data) {
+  const viewer = document.getElementById('reportViewer');
+  viewer.style.display = 'block';
+  document.getElementById('viewerTitle').textContent = data.report_name || 'Report';
+  document.getElementById('viewerMeta').textContent = `${typeLabels[data.report_type]||data.report_type} • Generated ${data.completed_at||data.started_at||'just now'}`;
+
+  const result = data.result || {};
+  const content = document.getElementById('viewerContent');
+
+  if (data.report_type === 'compliance_summary') {
+    const pct = result.total_controls ? Math.round((result.compliant / result.total_controls) * 100) : 0;
+    content.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+        <div style="padding:12px;border-radius:8px;background:var(--surface2);text-align:center;"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;">Total</div><div style="font-size:20px;font-weight:700;margin-top:4px;">${result.total_controls}</div></div>
+        <div style="padding:12px;border-radius:8px;background:var(--good-soft);text-align:center;"><div style="font-size:10px;color:var(--good);text-transform:uppercase;">Compliant</div><div style="font-size:20px;font-weight:700;color:var(--good);margin-top:4px;">${result.compliant}</div></div>
+        <div style="padding:12px;border-radius:8px;background:var(--warn-soft);text-align:center;"><div style="font-size:10px;color:var(--warn);text-transform:uppercase;">Partial</div><div style="font-size:20px;font-weight:700;color:var(--warn);margin-top:4px;">${result.partial}</div></div>
+        <div style="padding:12px;border-radius:8px;background:var(--bad-soft);text-align:center;"><div style="font-size:10px;color:var(--bad);text-transform:uppercase;">Non-Compliant</div><div style="font-size:20px;font-weight:700;color:var(--bad);margin-top:4px;">${result.non_compliant}</div></div>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;">Overall: ${pct}% Compliant</div>
+      ${(result.by_framework||[]).map(f => {
+        const fp = f.total ? Math.round((f.ok/f.total)*100) : 0;
+        return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="min-width:140px;font-size:12px;">${esc(f.name)}</span>
+          <div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;"><div style="height:100%;width:${fp}%;background:var(--good);border-radius:3px;"></div></div>
+          <span style="font-size:11px;color:var(--muted);min-width:40px;text-align:right;">${fp}%</span>
+        </div>`;
+      }).join('')}`;
+  } else if (data.report_type === 'risk_report') {
+    content.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+        <div style="padding:12px;border-radius:8px;background:var(--surface2);text-align:center;"><div style="font-size:10px;color:var(--muted);">OPEN RISKS</div><div style="font-size:20px;font-weight:700;margin-top:4px;">${result.total_open||0}</div></div>
+        <div style="padding:12px;border-radius:8px;background:var(--bad-soft);text-align:center;"><div style="font-size:10px;color:var(--bad);">CRITICAL</div><div style="font-size:20px;font-weight:700;color:var(--bad);margin-top:4px;">${(result.by_level||{}).critical||0}</div></div>
+        <div style="padding:12px;border-radius:8px;background:rgba(249,115,22,0.12);text-align:center;"><div style="font-size:10px;color:#f97316;">HIGH</div><div style="font-size:20px;font-weight:700;color:#f97316;margin-top:4px;">${(result.by_level||{}).high||0}</div></div>
+        <div style="padding:12px;border-radius:8px;background:var(--warn-soft);text-align:center;"><div style="font-size:10px;color:var(--warn);">MEDIUM</div><div style="font-size:20px;font-weight:700;color:var(--warn);margin-top:4px;">${(result.by_level||{}).medium||0}</div></div>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;">Top Risks</div>
+      ${(result.top_risks||[]).map(r => `<div style="display:flex;justify-content:space-between;padding:6px 10px;border-radius:4px;background:var(--surface2);margin-bottom:4px;">
+        <span style="font-size:12px;">${esc(r.title)}</span>
+        <span style="font-size:11px;color:var(--muted);">${esc(r.risk_level)} • ${esc(r.source_module||'—')}</span>
+      </div>`).join('')}`;
+  } else {
+    // Generic key-value display
+    content.innerHTML = Object.entries(result).map(([k,v]) => `
+      <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border-soft);">
+        <span style="font-size:13px;color:var(--text);">${k.replace(/_/g,' ')}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--text);">${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</span>
+      </div>
+    `).join('');
+  }
+  viewer.scrollIntoView({ behavior:'smooth' });
+}
+
+function timeAgo(dt) {
+  if (!dt) return '—';
+  const diff = (Date.now() - new Date(dt+'Z').getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+document.addEventListener('DOMContentLoaded', () => { loadStats(); loadRuns(); });
+</script>
+
+{% endblock %}

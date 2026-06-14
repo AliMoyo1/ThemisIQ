@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ThemisIQ — Platform Overview</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  width:3840px; height:2160px; overflow:hidden;
+  background:#060E1C;
+  font-family:"Segoe UI",-apple-system,"Helvetica Neue",Arial,sans-serif;
+  color:#F0F4FF;
+  position:relative;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     BACKGROUND
+════════════════════════════════════════════════ -->
+<svg style="position:absolute;inset:0;width:3840px;height:2160px;pointer-events:none;z-index:0;" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#0D1E35"/>
+      <stop offset="100%" stop-color="#030A14"/>
+    </radialGradient>
+    <!-- subtle grid lines -->
+    <pattern id="grid" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M 80 0 L 0 0 0 80" fill="none" stroke="rgba(201,168,76,0.055)" stroke-width="0.5"/>
+    </pattern>
+    <!-- glow filters -->
+    <filter id="glow-gold">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-soft">
+      <feGaussianBlur stdDeviation="18" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="3840" height="2160" fill="url(#bg)"/>
+  <rect width="3840" height="2160" fill="url(#grid)"/>
+  <!-- soft ambient glows -->
+  <ellipse cx="960" cy="600" rx="600" ry="380" fill="rgba(59,130,246,0.04)"/>
+  <ellipse cx="1920" cy="1080" rx="900" ry="500" fill="rgba(201,168,76,0.03)"/>
+  <ellipse cx="2880" cy="600" rx="600" ry="380" fill="rgba(139,92,246,0.04)"/>
+  <ellipse cx="960" cy="1600" rx="550" ry="350" fill="rgba(249,115,22,0.035)"/>
+  <ellipse cx="2880" cy="1600" rx="550" ry="350" fill="rgba(52,211,153,0.035)"/>
+</svg>
+
+<!-- ══════════════════════════════════════════════
+     MAIN CANVAS
+════════════════════════════════════════════════ -->
+<div style="position:relative;z-index:1;width:3840px;height:2160px;padding:56px 72px 48px 72px;display:flex;flex-direction:column;gap:0;">
+
+  <!-- ─────────────────────────────────────────
+       HEADER
+  ───────────────────────────────────────────── -->
+  <div style="display:flex;align-items:center;justify-content:space-between;height:96px;flex-shrink:0;">
+
+    <!-- Logo + wordmark -->
+    <div style="display:flex;align-items:center;gap:20px;">
+      <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="rl" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#1D4ED8"/><stop offset="100%" stop-color="#0D1B2A"/>
+          </linearGradient>
+          <linearGradient id="rr" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#E8C57A"/><stop offset="100%" stop-color="#C9A84C"/>
+          </linearGradient>
+        </defs>
+        <!-- ring left half -->
+        <path d="M32 6 A26 26 0 0 0 32 58" fill="none" stroke="url(#rl)" stroke-width="5" stroke-linecap="round"/>
+        <!-- ring right half -->
+        <path d="M32 6 A26 26 0 0 1 32 58" fill="none" stroke="url(#rr)" stroke-width="5" stroke-linecap="round"/>
+        <!-- head circle -->
+        <circle cx="28" cy="22" r="7" fill="none" stroke="#C9A84C" stroke-width="2"/>
+        <!-- shoulders/robe suggestion -->
+        <path d="M21 30 Q24 38 28 40 Q32 42 35 38" fill="none" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/>
+        <!-- circuit traces -->
+        <path d="M38 21 L46 21 M46 21 L51 16 M46 21 L51 26" fill="none" stroke="#C9A84C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="51" cy="16" r="2.5" fill="#C9A84C"/>
+        <circle cx="51" cy="26" r="2.5" fill="#C9A84C"/>
+        <!-- laurel -->
+        <path d="M22 18 Q24 15 27 17 M29 16 Q32 13 35 16" fill="none" stroke="#C9A84C" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div style="font-size:42px;font-weight:800;letter-spacing:-1.5px;line-height:1;">
+          <span style="color:#FFFFFF;">Themis</span><span style="color:#C9A84C;">IQ</span>
+        </div>
+        <div style="font-size:13px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:rgba(240,244,255,0.4);margin-top:3px;">Intelligent GRC Platform</div>
+      </div>
+    </div>
+
+    <!-- Center: platform descriptor -->
+    <div style="text-align:center;">
+      <div style="font-size:18px;font-weight:600;color:rgba(240,244,255,0.55);letter-spacing:0.3px;">Enterprise Governance · Risk · Compliance · Privacy</div>
+    </div>
+
+    <!-- Right: author -->
+    <div style="text-align:right;">
+      <div style="font-size:22px;font-weight:800;color:#C9A84C;letter-spacing:-0.3px;">Ali Moyo</div>
+      <div style="font-size:13px;color:rgba(240,244,255,0.45);margin-top:5px;letter-spacing:0.2px;">Governance, Risk, Privacy &amp; AI Solutions Architect</div>
+    </div>
+  </div>
+
+  <!-- gold rule -->
+  <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(201,168,76,0.7) 30%,rgba(201,168,76,0.9) 50%,rgba(201,168,76,0.7) 70%,transparent);margin:16px 0 28px;flex-shrink:0;"></div>
+
+  <!-- ─────────────────────────────────────────
+       HERO TAGLINE
+  ───────────────────────────────────────────── -->
+  <div style="text-align:center;flex-shrink:0;margin-bottom:32px;">
+    <div style="font-size:52px;font-weight:800;letter-spacing:-2px;line-height:1.1;color:#FFFFFF;">
+      Every governance activity connected.<br/>
+      <span style="color:#C9A84C;">Every risk visible. Every decision informed.</span>
+    </div>
+    <div style="font-size:18px;color:rgba(240,244,255,0.45);margin-top:18px;letter-spacing:0.3px;">
+      Six integrated modules. One unified intelligence platform. Real-time compliance across your entire organisation.
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────
+       MODULE GRID  (2 rows × 3 cols)
+  ───────────────────────────────────────────── -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:20px;flex:1;min-height:0;">
+
+    <!-- ══ GOVERNANCE ══ -->
+    <div style="position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(145deg,rgba(13,27,60,0.9),rgba(10,20,45,0.95));border:1px solid rgba(59,130,246,0.25);padding:44px 48px;display:flex;flex-direction:column;justify-content:space-between;">
+      <!-- top glow bar -->
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#3B82F6,#1D4ED8,transparent);"></div>
+      <!-- ambient glow -->
+      <div style="position:absolute;top:-60px;left:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(59,130,246,0.1),transparent 70%);pointer-events:none;"></div>
+      <div>
+        <!-- Icon -->
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin-bottom:22px;">
+          <rect width="64" height="64" rx="16" fill="rgba(59,130,246,0.12)"/>
+          <path d="M32 12 L44 20 L44 48 L20 48 L20 20 Z" stroke="#3B82F6" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+          <line x1="26" y1="30" x2="38" y2="30" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"/>
+          <line x1="26" y1="37" x2="38" y2="37" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"/>
+          <line x1="26" y1="23" x2="35" y2="23" stroke="#93C5FD" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <div style="font-size:34px;font-weight:800;color:#FFFFFF;letter-spacing:-0.8px;margin-bottom:10px;">Governance</div>
+        <div style="font-size:17px;color:rgba(240,244,255,0.55);line-height:1.5;margin-bottom:28px;">Policies, controls and compliance frameworks in one place</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span style="padding:8px 18px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:30px;font-size:14px;font-weight:600;color:#93C5FD;">Policy Management</span>
+        <span style="padding:8px 18px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#93C5FD;">Control Tracking</span>
+        <span style="padding:8px 18px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#93C5FD;">Framework Mapping</span>
+        <span style="padding:8px 18px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#93C5FD;">AI Policy Assistant</span>
+      </div>
+    </div>
+
+    <!-- ══ AUDIT ══ -->
+    <div style="position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(145deg,rgba(25,12,60,0.9),rgba(18,8,45,0.95));border:1px solid rgba(139,92,246,0.25);padding:44px 48px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#8B5CF6,#5B21B6,transparent);"></div>
+      <div style="position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(139,92,246,0.1),transparent 70%);pointer-events:none;"></div>
+      <div>
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin-bottom:22px;">
+          <rect width="64" height="64" rx="16" fill="rgba(139,92,246,0.12)"/>
+          <circle cx="30" cy="30" r="13" stroke="#8B5CF6" stroke-width="2.5" fill="none"/>
+          <path d="M40 40 L50 50" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round"/>
+          <path d="M25 30 L28 34 L36 26" stroke="#C4B5FD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div style="font-size:34px;font-weight:800;color:#FFFFFF;letter-spacing:-0.8px;margin-bottom:10px;">Audit</div>
+        <div style="font-size:17px;color:rgba(240,244,255,0.55);line-height:1.5;margin-bottom:28px;">Plan, conduct and close audits with full evidence trails</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span style="padding:8px 18px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:30px;font-size:14px;font-weight:600;color:#C4B5FD;">Audit Planning</span>
+        <span style="padding:8px 18px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#C4B5FD;">Evidence Management</span>
+        <span style="padding:8px 18px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#C4B5FD;">Findings &amp; CAPA</span>
+        <span style="padding:8px 18px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#C4B5FD;">Remote Audits</span>
+      </div>
+    </div>
+
+    <!-- ══ ENTERPRISE RISK ══ -->
+    <div style="position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(145deg,rgba(40,8,8,0.9),rgba(28,5,5,0.95));border:1px solid rgba(239,68,68,0.25);padding:44px 48px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#EF4444,#991B1B,transparent);"></div>
+      <div style="position:absolute;top:-60px;left:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(239,68,68,0.08),transparent 70%);pointer-events:none;"></div>
+      <div>
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin-bottom:22px;">
+          <rect width="64" height="64" rx="16" fill="rgba(239,68,68,0.12)"/>
+          <path d="M12 52 L12 34 L22 34 L22 24 L32 24 L32 14 L42 14 L42 34 L52 34 L52 52 Z" stroke="#EF4444" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+          <path d="M46 18 L54 10 M52 10 L54 10 L54 12" stroke="#FCA5A5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div style="font-size:34px;font-weight:800;color:#FFFFFF;letter-spacing:-0.8px;margin-bottom:10px;">Enterprise Risk</div>
+        <div style="font-size:17px;color:rgba(240,244,255,0.55);line-height:1.5;margin-bottom:28px;">Strategic risk register with board-level visibility and appetite monitoring</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span style="padding:8px 18px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:30px;font-size:14px;font-weight:600;color:#FCA5A5;">Risk Register</span>
+        <span style="padding:8px 18px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#FCA5A5;">Risk Appetite</span>
+        <span style="padding:8px 18px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#FCA5A5;">Obligations Tracking</span>
+        <span style="padding:8px 18px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#FCA5A5;">Board Reporting</span>
+      </div>
+    </div>
+
+    <!-- ══ OPERATIONS RISK ══ -->
+    <div style="position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(145deg,rgba(38,18,4,0.9),rgba(28,12,2,0.95));border:1px solid rgba(249,115,22,0.25);padding:44px 48px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#F97316,#9A3412,transparent);"></div>
+      <div style="position:absolute;bottom:-60px;left:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(249,115,22,0.08),transparent 70%);pointer-events:none;"></div>
+      <div>
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin-bottom:22px;">
+          <rect width="64" height="64" rx="16" fill="rgba(249,115,22,0.12)"/>
+          <circle cx="32" cy="32" r="16" stroke="#F97316" stroke-width="2.5" fill="none"/>
+          <path d="M32 18 L32 32 L42 32" stroke="#FDBA74" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="32" cy="32" r="3" fill="#F97316"/>
+        </svg>
+        <div style="font-size:34px;font-weight:800;color:#FFFFFF;letter-spacing:-0.8px;margin-bottom:10px;">Operations Risk</div>
+        <div style="font-size:17px;color:rgba(240,244,255,0.55);line-height:1.5;margin-bottom:28px;">Log, track and analyse operational events, losses and KRI thresholds</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span style="padding:8px 18px;background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.3);border-radius:30px;font-size:14px;font-weight:600;color:#FDBA74;">Event Logging</span>
+        <span style="padding:8px 18px;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#FDBA74;">Loss Tracking</span>
+        <span style="padding:8px 18px;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#FDBA74;">KRI Monitoring</span>
+        <span style="padding:8px 18px;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#FDBA74;">Root Cause Analysis</span>
+      </div>
+    </div>
+
+    <!-- ══ PRIVACY ══ -->
+    <div style="position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(145deg,rgba(22,8,48,0.9),rgba(16,5,36,0.95));border:1px solid rgba(167,139,250,0.25);padding:44px 48px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#A78BFA,#4C1D95,transparent);"></div>
+      <div style="position:absolute;bottom:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(167,139,250,0.08),transparent 70%);pointer-events:none;"></div>
+      <div>
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin-bottom:22px;">
+          <rect width="64" height="64" rx="16" fill="rgba(167,139,250,0.12)"/>
+          <rect x="18" y="30" width="28" height="22" rx="5" stroke="#A78BFA" stroke-width="2.5" fill="none"/>
+          <path d="M24 30 L24 23 Q24 13 32 13 Q40 13 40 23 L40 30" stroke="#A78BFA" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <circle cx="32" cy="41" r="3.5" fill="#A78BFA"/>
+        </svg>
+        <div style="font-size:34px;font-weight:800;color:#FFFFFF;letter-spacing:-0.8px;margin-bottom:10px;">Privacy</div>
+        <div style="font-size:17px;color:rgba(240,244,255,0.55);line-height:1.5;margin-bottom:28px;">Complete data protection and privacy compliance across jurisdictions</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span style="padding:8px 18px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.3);border-radius:30px;font-size:14px;font-weight:600;color:#DDD6FE;">RoPA &amp; DPIA</span>
+        <span style="padding:8px 18px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#DDD6FE;">Breach Management</span>
+        <span style="padding:8px 18px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#DDD6FE;">DSR Handling</span>
+        <span style="padding:8px 18px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#DDD6FE;">Consent Management</span>
+      </div>
+    </div>
+
+    <!-- ══ RESILIENCE ══ -->
+    <div style="position:relative;border-radius:20px;overflow:hidden;background:linear-gradient(145deg,rgba(4,28,20,0.9),rgba(2,18,12,0.95));border:1px solid rgba(52,211,153,0.25);padding:44px 48px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#34D399,#064E3B,transparent);"></div>
+      <div style="position:absolute;bottom:-60px;left:50%;width:300px;height:300px;background:radial-gradient(circle,rgba(52,211,153,0.08),transparent 70%);pointer-events:none;"></div>
+      <div>
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin-bottom:22px;">
+          <rect width="64" height="64" rx="16" fill="rgba(52,211,153,0.12)"/>
+          <path d="M32 10 Q46 16 46 32 Q46 48 32 54 Q18 48 18 32 Q18 16 32 10Z" stroke="#34D399" stroke-width="2.5" fill="none"/>
+          <path d="M24 32 L29 37 L40 26" stroke="#6EE7B7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div style="font-size:34px;font-weight:800;color:#FFFFFF;letter-spacing:-0.8px;margin-bottom:10px;">Resilience</div>
+        <div style="font-size:17px;color:rgba(240,244,255,0.55);line-height:1.5;margin-bottom:28px;">Business continuity, incident management and recovery planning</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span style="padding:8px 18px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);border-radius:30px;font-size:14px;font-weight:600;color:#6EE7B7;">BIA &amp; Recovery Plans</span>
+        <span style="padding:8px 18px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#6EE7B7;">Crisis Management</span>
+        <span style="padding:8px 18px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#6EE7B7;">Exercises &amp; Testing</span>
+        <span style="padding:8px 18px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.25);border-radius:30px;font-size:14px;font-weight:600;color:#6EE7B7;">Dependency Mapping</span>
+      </div>
+    </div>
+
+  </div><!-- /module grid -->
+
+  <div style="height:22px;flex-shrink:0;"></div>
+
+  <!-- ─────────────────────────────────────────
+       AI + COMMAND CENTRE BAR
+  ───────────────────────────────────────────── -->
+  <div style="flex-shrink:0;background:linear-gradient(135deg,rgba(18,30,50,0.95),rgba(12,22,38,0.98));border:1px solid rgba(201,168,76,0.3);border-radius:20px;padding:28px 48px;display:flex;align-items:center;gap:0;">
+
+    <!-- AI section -->
+    <div style="flex:1;padding-right:48px;border-right:1px solid rgba(201,168,76,0.2);">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="17" stroke="#C9A84C" stroke-width="1.5" stroke-dasharray="4 2"/>
+          <circle cx="18" cy="18" r="10" fill="rgba(201,168,76,0.15)" stroke="#C9A84C" stroke-width="1.5"/>
+          <path d="M14 18 Q18 10 22 18 Q26 26 22 22" fill="none" stroke="#C9A84C" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="14" cy="18" r="2" fill="#C9A84C"/>
+        </svg>
+        <div>
+          <div style="font-size:15px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#C9A84C;">ThemisIQ Intelligence</div>
+          <div style="font-size:13px;color:rgba(240,244,255,0.4);margin-top:2px;">AI-powered insights across every module</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span style="padding:8px 20px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.28);border-radius:30px;font-size:13px;font-weight:600;color:#E8C57A;">Policy Generation</span>
+        <span style="padding:8px 20px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.22);border-radius:30px;font-size:13px;font-weight:600;color:#E8C57A;">Risk Scoring</span>
+        <span style="padding:8px 20px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.22);border-radius:30px;font-size:13px;font-weight:600;color:#E8C57A;">Predictive Risk Advisory</span>
+        <span style="padding:8px 20px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.22);border-radius:30px;font-size:13px;font-weight:600;color:#E8C57A;">Breach Analysis</span>
+        <span style="padding:8px 20px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.22);border-radius:30px;font-size:13px;font-weight:600;color:#E8C57A;">Root Cause Analysis</span>
+        <span style="padding:8px 20px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.22);border-radius:30px;font-size:13px;font-weight:600;color:#E8C57A;">Board Narrative</span>
+        <span style="padding:8px 20px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.22);border-radius:30px;font-size:13px;font-weight:600;color:#E8C57A;">Recovery Plan Review</span>
+        <span style="padding:6px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:30px;font-size:12px;color:rgba(240,244,255,0.4);">Claude · GPT-4o · Gemini · Ollama</span>
+      </div>
+    </div>
+
+    <!-- Command Centre section -->
+    <div style="flex:0 0 560px;padding-left:48px;">
+      <div style="font-size:15px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#C9A84C;margin-bottom:8px;">Command Centre</div>
+      <div style="font-size:16px;color:rgba(240,244,255,0.65);margin-bottom:18px;line-height:1.5;">Unified executive dashboard — real-time compliance status, risk exposure, and platform-wide intelligence</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span style="padding:7px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.65);">Board Reports</span>
+        <span style="padding:7px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.65);">Risk Dashboards</span>
+        <span style="padding:7px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.65);">Compliance Status</span>
+        <span style="padding:7px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.65);">KPI Tracking</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:18px;flex-shrink:0;"></div>
+
+  <!-- ─────────────────────────────────────────
+       PLATFORM SERVICES  (minimal)
+  ───────────────────────────────────────────── -->
+  <div style="flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 4px;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(240,244,255,0.3);white-space:nowrap;margin-right:8px;">Shared Services</div>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Evidence Vault</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Workflow Engine</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Role-Based Access Control</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">SLA Engine</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Audit Trail</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Notifications</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Webhook &amp; API</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Reporting Engine</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Cross-Module Event Bus</span>
+    <span style="padding:7px 18px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:30px;font-size:13px;color:rgba(240,244,255,0.5);">Task Board</span>
+  </div>
+
+  <div style="height:16px;flex-shrink:0;"></div>
+
+  <!-- ─────────────────────────────────────────
+       FOOTER
+  ───────────────────────────────────────────── -->
+  <div style="flex-shrink:0;height:1px;background:linear-gradient(90deg,transparent,rgba(201,168,76,0.35) 30%,rgba(201,168,76,0.5) 50%,rgba(201,168,76,0.35) 70%,transparent);margin-bottom:14px;"></div>
+  <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 4px;">
+    <div style="font-size:12px;color:rgba(240,244,255,0.25);font-family:'Consolas','SF Mono',monospace;">Python 3.11 · FastAPI · SQLite WAL · Anthropic Claude · Multi-Provider AI</div>
+    <div style="font-size:16px;font-weight:800;color:rgba(201,168,76,0.6);letter-spacing:-0.3px;"><span style="color:rgba(255,255,255,0.4);">Themis</span><span style="color:rgba(201,168,76,0.6);">IQ</span></div>
+    <div style="font-size:12px;color:rgba(240,244,255,0.25);">Ali Moyo · Governance, Risk, Privacy &amp; AI Solutions Architect · 2026</div>
+  </div>
+
+</div><!-- /canvas -->
+</body>
+</html>

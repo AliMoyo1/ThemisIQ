@@ -1,0 +1,94 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: themisiq
+      POSTGRES_USER: themisiq
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    secrets:
+      - pg_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U themisiq"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Bind to loopback only — 5432 must never be reachable from outside the VPS.
+    ports:
+      - "127.0.0.1:5432:5432"
+    mem_limit: 1g
+    cpus: 1.5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  pgbouncer:
+    image: edoburu/pgbouncer:1.21.0
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_USER: themisiq
+      DB_PASSWORD_FILE: /run/secrets/pg_password
+      DB_NAME: themisiq
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 25
+    secrets:
+      - pg_password
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      # No password in the URL — app reads PGPASSWORD_FILE at startup.
+      DATABASE_URL: postgresql://themisiq@pgbouncer:5432/themisiq
+      PGPASSWORD_FILE: /run/secrets/pg_password
+      # Conservative start: 2 workers × 10-conn pool = 20 backend conns.
+      # Raise WORKERS to 4 only after observed p95 latency or queue buildup.
+      WORKERS: "2"
+    env_file:
+      - oneforall/.env
+    secrets:
+      - pg_password
+    depends_on:
+      pgbouncer:
+        condition: service_started
+    volumes:
+      - ./data/backups:/app/data/backups
+      - ./data/grid_uploads:/app/data/grid_uploads
+      - ./data/evidence:/app/data/evidence
+    mem_limit: 1g
+    cpus: 2
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+secrets:
+  pg_password:
+    # Create this file on the VPS before first run:
+    #   mkdir -p secrets && openssl rand -base64 32 > secrets/pg_password.txt && chmod 600 secrets/pg_password.txt
+    # NEVER commit secrets/pg_password.txt to version control.
+    file: ./secrets/pg_password.txt
+
+volumes:
+  pgdata:

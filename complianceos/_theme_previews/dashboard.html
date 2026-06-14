@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — ARIA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* =====================================================================
+   ARIA — olive/cream theme (inspired by the reference dashboard)
+   ===================================================================== */
+:root {
+  /* Surfaces */
+  --olive:        #7E8062;   /* main app background (sage/khaki) */
+  --olive-deep:   #666950;
+  --cream-50:     #F7F1E3;   /* sidebar background */
+  --cream-100:    #F3ECDB;   /* card background */
+  --cream-200:    #EAE1CC;   /* subtle fill, table stripe, pill bg */
+  --cream-300:    #DDD2B8;   /* stronger fill, hover */
+  --cream-400:    #C9BC9E;   /* avatar ring, progress track */
+
+  /* Text */
+  --ink:          #1D1E15;   /* active nav fill, primary button fill */
+  --ink-soft:     #2E2F22;
+  --text:         #24251A;   /* body text on cream */
+  --text-on-olive:#F5EFDE;   /* body text on olive */
+  --muted:        #6E6B54;   /* secondary text */
+  --muted-2:      #6D6B55;
+
+  /* Lines */
+  --border:       #D8CDB2;
+  --border-soft:  #E6DCC2;
+
+  /* Brand + status (muted, earthy, works on cream) */
+  --primary:      #5C5F3D;   /* deep olive, primary CTA text color */
+  --primary-dark: #464831;
+  --accent-blue:  #2F62D8;   /* the "Pro" blue from the reference */
+  --good:         #4E6A2E;   /* implemented / approved */
+  --good-soft:    #D9E2C2;
+  --warn:         #846416;   /* draft / medium */
+  --warn-soft:    #EFE1B3;
+  --bad:          #A5503C;   /* critical / not started / retired */
+  --bad-soft:     #EEC9BE;
+  --info:         #2F5CC1;   /* under review / in progress */
+  --info-soft:    #D3DEF4;
+  --purple:       #7A5A8A;
+  --purple-soft:  #E3D6EA;
+
+  /* Shadows */
+  --shadow-sm:    0 1px 2px rgba(40,38,22,0.05);
+  --shadow:       0 6px 18px rgba(40,38,22,0.08), 0 1px 2px rgba(40,38,22,0.05);
+  --shadow-lg:    0 20px 48px rgba(30,28,10,0.18);
+
+  /* Radii */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+
+  /* Fonts */
+  --font:    'DM Sans', sans-serif;
+  --mono:    'JetBrains Mono', monospace;
+  --display: 'Space Grotesk', sans-serif;
+
+  /* Back-compat aliases for legacy inline styles */
+  --navy:    var(--olive);
+  --navy2:   var(--cream-100);
+  --navy3:   var(--cream-200);
+  --accent:  var(--primary);
+  --accent2: var(--accent-blue);
+  --surface: var(--cream-100);
+  --surface2:var(--cream-200);
+  --surface3:var(--cream-300);
+  --green:   var(--good);
+  --amber:   var(--warn);
+  --red:     var(--bad);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: var(--olive);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'ss01','cv11';
+}
+
+/* =========================
+   Sidebar — cream panel
+   ========================= */
+.sidebar {
+  width: 260px; min-width: 260px;
+  background: var(--cream-50);
+  border-right: 1px solid var(--border-soft);
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; bottom: 0;
+  z-index: 100;
+  transition: transform 0.3s ease;
+  padding: 18px 14px;
+  border-radius: 0;
+}
+.sidebar-logo {
+  padding: 10px 8px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 14px;
+}
+.logo-mark { display: flex; align-items: center; gap: 10px; }
+.logo-icon {
+  width: 34px; height: 34px;
+  background: var(--ink);
+  color: var(--cream-50);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.logo-text {
+  font-family: var(--display);
+  font-size: 20px; font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+.logo-text span { color: var(--primary); }
+
+.sidebar-nav { flex: 1; padding: 4px 2px 12px; overflow-y: auto; }
+.nav-section-label {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--muted-2); padding: 14px 10px 8px;
+}
+.nav-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 12px; border-radius: 10px;
+  text-decoration: none; color: var(--ink-soft);
+  font-size: 13.5px; font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease;
+  margin-bottom: 2px;
+}
+.nav-link:hover { background: var(--cream-200); color: var(--ink); }
+.nav-link.active {
+  background: var(--ink);
+  color: var(--cream-50);
+  box-shadow: var(--shadow-sm);
+}
+.nav-link.active .icon { filter: grayscale(0) brightness(1.05); }
+.nav-link .icon { width: 18px; text-align: center; font-size: 14px; opacity: 0.9; }
+
+.nav-fw {
+  padding: 7px 12px; border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; color: var(--muted);
+  transition: background 0.15s, color 0.15s; margin-bottom: 1px;
+}
+.nav-fw:hover { background: var(--cream-200); color: var(--ink); }
+.fw-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12); }
+
+.sidebar-footer {
+  padding: 12px 4px 2px;
+  border-top: 1px solid var(--border-soft);
+  margin-top: 10px;
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px; border-radius: var(--r-md);
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--ink);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; color: var(--cream-50); flex-shrink: 0;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-role { font-size: 11px; color: var(--muted); text-transform: capitalize; }
+
+/* =========================
+   Main + topbar
+   ========================= */
+.main { margin-left: 260px; flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+.topbar {
+  background: transparent;
+  padding: 18px 28px 12px;
+  min-height: 62px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+  gap: 12px;
+}
+.topbar::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, var(--olive) 60%, rgba(126,128,98,0));
+  pointer-events: none; z-index: -1;
+}
+.page-title {
+  font-family: var(--display);
+  font-size: 20px; font-weight: 700;
+  color: var(--text-on-olive);
+  letter-spacing: -0.3px;
+}
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+/* =========================
+   Buttons
+   ========================= */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 15px; border-radius: 10px; font-size: 13px;
+  font-weight: 600; cursor: pointer; border: 1px solid transparent;
+  transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  text-decoration: none; font-family: var(--font); line-height: 1;
+  white-space: nowrap;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--ink);
+  color: var(--cream-50);
+  box-shadow: var(--shadow-sm);
+}
+.btn-primary:hover { background: var(--ink-soft); box-shadow: var(--shadow); }
+.btn-ghost {
+  background: var(--cream-100);
+  color: var(--ink);
+  border-color: var(--border);
+}
+.btn-ghost:hover { background: var(--cream-200); border-color: var(--cream-400); }
+.btn-olive {
+  background: var(--primary);
+  color: var(--cream-50);
+}
+.btn-olive:hover { background: var(--primary-dark); }
+.btn-danger {
+  background: var(--bad-soft);
+  color: var(--bad);
+  border-color: rgba(165,80,60,0.35);
+}
+.btn-danger:hover { background: #e7b9ac; }
+
+.content { padding: 6px 28px 32px; flex: 1; }
+
+/* =========================
+   Cards + grids
+   ========================= */
+.card {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+.card-sm { padding: 16px; }
+.grid { display: grid; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.grid-3 { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.grid-4 { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.grid-fw { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+
+/* =========================
+   Status badges — earthy palette
+   ========================= */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.15px;
+  border: 1px solid transparent;
+}
+.badge-implemented,
+.badge-approved   { background: var(--good-soft); color: var(--good); border-color: rgba(94,122,58,0.25); }
+.badge-in-progress,
+.badge-under-review { background: var(--info-soft); color: var(--info); border-color: rgba(59,107,209,0.25); }
+.badge-not-started,
+.badge-critical   { background: var(--bad-soft);  color: var(--bad);  border-color: rgba(165,80,60,0.3); }
+.badge-high       { background: #F1D2B8; color: #8D4620; border-color: rgba(141,70,32,0.25); }
+.badge-medium,
+.badge-draft,
+.badge-needs-update { background: var(--warn-soft); color: var(--warn); border-color: rgba(168,129,31,0.3); }
+.badge-low        { background: var(--good-soft); color: var(--good); border-color: rgba(94,122,58,0.25); }
+
+/* =========================
+   Progress bar
+   ========================= */
+.progress-bar { height: 6px; background: var(--cream-300); border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; background: var(--primary); }
+
+/* =========================
+   Tables
+   ========================= */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  padding: 12px 14px; text-align: left;
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--cream-100);
+  white-space: nowrap;
+}
+td {
+  padding: 12px 14px; font-size: 13px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle;
+}
+tbody tr { transition: background 0.12s ease; }
+tbody tr:hover td { background: rgba(192, 180, 148, 0.15); }
+
+/* =========================
+   Inputs
+   ========================= */
+select, input, textarea {
+  background: #FBF6E8;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+select { cursor: pointer; padding: 7px 12px; }
+select:focus, input:focus, textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(92,95,61,0.15);
+}
+input::placeholder, textarea::placeholder { color: var(--muted-2); }
+
+/* =========================
+   Toast
+   ========================= */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--cream-50);
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 18px;
+  font-size: 13px; color: var(--text);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(80px); opacity: 0;
+  transition: all 0.3s ease; z-index: 1000;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-left: 3px solid var(--good); }
+.toast.error   { border-left: 3px solid var(--bad); }
+
+/* =========================
+   Stat card
+   ========================= */
+.stat-card {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  position: relative; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.stat-value {
+  font-family: var(--display);
+  font-size: 30px; font-weight: 700; line-height: 1;
+  color: var(--ink);
+}
+.stat-label {
+  font-size: 11px; color: var(--muted);
+  margin-top: 4px; text-transform: uppercase;
+  letter-spacing: 0.7px; font-weight: 600;
+}
+.stat-icon { position: absolute; top: 16px; right: 16px; font-size: 26px; opacity: 0.18; }
+
+/* =========================
+   Scrollbar
+   ========================= */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(30, 28, 10, 0.18); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(30, 28, 10, 0.3); background-clip: padding-box; }
+
+/* =========================
+   Modal
+   ========================= */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(30, 28, 10, 0.45);
+  z-index: 200; display: none; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--cream-50);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 28px; width: 560px; max-width: 95vw;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+.modal-title {
+  font-family: var(--display); font-size: 18px; font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 20px;
+}
+
+/* =========================
+   Forms
+   ========================= */
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block;
+  font-size: 10.5px; font-weight: 700;
+  color: var(--muted); margin-bottom: 6px;
+  letter-spacing: 0.7px; text-transform: uppercase;
+}
+
+/* =========================
+   Utility / compat for inline styles
+   ========================= */
+a { color: var(--primary); }
+hr { border: none; border-top: 1px solid var(--border-soft); }
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  background: var(--cream-200); color: var(--ink);
+}
+
+/* =========================
+   Responsive
+   ========================= */
+@media (max-width: 1024px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-260px); }
+  .main { margin-left: 0; }
+}
+</style>
+
+<style>
+.overall-score {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: 24px 28px;
+  display: flex; align-items: center; gap: 28px;
+  margin-bottom: 20px;
+  position: relative; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.overall-score::before {
+  content: ''; position: absolute; top: -60px; right: -60px;
+  width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(92,95,61,0.12), transparent 70%);
+}
+.score-ring-wrap { position: relative; width: 112px; height: 112px; flex-shrink: 0; }
+.score-ring-wrap canvas { width: 112px !important; height: 112px !important; }
+.score-center {
+  position: absolute; inset: 0; display: flex;
+  flex-direction: column; align-items: center; justify-content: center;
+}
+.score-pct {
+  font-family: var(--display); font-size: 28px; font-weight: 700;
+  color: var(--ink); line-height: 1;
+}
+.score-pct-label {
+  font-size: 9px; color: var(--muted);
+  letter-spacing: 1.2px; margin-top: 4px;
+  font-weight: 700;
+}
+.score-info h2 {
+  font-family: var(--display); font-size: 22px; font-weight: 700;
+  color: var(--ink); margin-bottom: 6px; letter-spacing: -0.3px;
+}
+.score-info p { font-size: 13.5px; color: var(--muted); max-width: 560px; }
+.score-pills { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+.section-label {
+  font-size: 11px; font-weight: 700;
+  color: var(--text-on-olive);
+  text-transform: uppercase; letter-spacing: 1.2px;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+
+.fw-card {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  cursor: pointer; text-decoration: none; display: block;
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  position: relative; overflow: hidden;
+}
+.fw-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  border-color: var(--cream-400);
+}
+.fw-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 10px; }
+.fw-name { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--ink); }
+.fw-desc { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+.fw-badge {
+  padding: 4px 11px; border-radius: 999px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+}
+.fw-stats { display: flex; gap: 14px; margin-bottom: 14px; }
+.fw-stat { text-align: center; flex: 1; }
+.fw-stat-val { font-family: var(--display); font-size: 18px; font-weight: 700; color: var(--ink); }
+.fw-stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; letter-spacing: 0.3px; }
+
+.recent-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.recent-item:last-child { border-bottom: none; }
+.recent-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: var(--cream-200);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.recent-text { font-size: 13px; color: var(--text); font-weight: 500; }
+.recent-meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+.chart-card-title {
+  font-size: 11px; font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.9px;
+  margin-bottom: 14px;
+}
+</style>
+
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <div class="logo-icon">🛡️</div>
+      <div>
+        <span class="logo-text">AR<span>IA</span></span>
+        <div style="font-size:10px;font-weight:500;color:var(--muted);letter-spacing:0.8px;margin-top:2px;">by Ali Moyo</div>
+      </div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <a href="/dashboard" class="nav-link active">
+      <span class="icon">📊</span> Dashboard
+    </a>
+    <a href="/ai-generator" class="nav-link ">
+      <span class="icon">🤖</span> AI Policy Generator
+    </a>
+    <a href="/mapping" class="nav-link ">
+      <span class="icon">🔗</span> Control Mapping
+    </a>
+    <a href="/documents" class="nav-link ">
+      <span class="icon">📁</span> Documents
+    </a>
+    <a href="/risks" class="nav-link ">
+      <span class="icon">⚠️</span> Risk Register
+    </a>
+    <a href="/audit-log" class="nav-link ">
+      <span class="icon">📋</span> Audit Log
+    </a>
+    <div class="nav-section-label">Frameworks</div>
+    
+    
+    <div class="nav-fw" onclick="window.location='/framework/1'">
+      <div class="fw-dot" style="background:#2F4458;"></div>
+      ISO 27001
+    </div>
+    
+    <div class="nav-fw" onclick="window.location='/framework/2'">
+      <div class="fw-dot" style="background:#6B3F6B;"></div>
+      ISO 42001
+    </div>
+    
+    <div class="nav-fw" onclick="window.location='/framework/3'">
+      <div class="fw-dot" style="background:#2E5B4A;"></div>
+      SOC 2 Type II
+    </div>
+    
+    <div class="nav-fw" onclick="window.location='/framework/4'">
+      <div class="fw-dot" style="background:#7D6608;"></div>
+      PCI DSS
+    </div>
+    
+    <div class="nav-fw" onclick="window.location='/framework/5'">
+      <div class="fw-dot" style="background:#2A4B6F;"></div>
+      GDPR
+    </div>
+    
+    <div class="nav-fw" onclick="window.location='/framework/6'">
+      <div class="fw-dot" style="background:#2E5A36;"></div>
+      Zimbabwe CDPA
+    </div>
+    
+    <div class="nav-fw" onclick="window.location='/framework/7'">
+      <div class="fw-dot" style="background:#6E3F1F;"></div>
+      HIPAA
+    </div>
+    
+    <div class="nav-section-label">Export</div>
+    <a href="/export/excel" class="nav-link">
+      <span class="icon">⬇️</span> Export to Excel
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-card">
+      <div class="user-avatar">A</div>
+      <div class="user-info">
+        <div class="user-name">Ali Moyo</div>
+        <div class="user-role">admin</div>
+      </div>
+      <a href="/logout" style="color:var(--muted);font-size:16px;text-decoration:none;padding:4px 6px;border-radius:6px;" title="Logout">↗</a>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+  
+<div class="topbar">
+  <span class="page-title">Compliance Dashboard</span>
+  <div class="topbar-actions">
+    <a href="/export/excel" class="btn btn-ghost">⬇️ Export Excel</a>
+  </div>
+</div>
+<div class="content">
+
+  <!-- Overall score banner -->
+  <div class="overall-score">
+    <div class="score-ring-wrap">
+      <canvas id="overallRing"></canvas>
+      <div class="score-center">
+        <span class="score-pct">62<span style="font-size:16px;color:var(--muted);">%</span></span>
+        <span class="score-pct-label">COMPLETE</span>
+      </div>
+    </div>
+    <div class="score-info">
+      <h2>Overall Compliance: 62%</h2>
+      <p>148 of 239 controls implemented across 7 frameworks</p>
+      <div class="score-pills">
+        <span class="pill" style="background:var(--good-soft);color:var(--good);">✅ 148 Implemented</span>
+        <span class="pill" style="background:var(--info-soft);color:var(--info);">⚡ 53 In Progress</span>
+        <span class="pill" style="background:var(--bad-soft);color:var(--bad);">⭕ 38 Not Started</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="grid grid-2" style="margin-bottom:20px;">
+    <div class="card">
+      <div class="chart-card-title">Framework Completion</div>
+      <canvas id="barChart" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="chart-card-title">Status Distribution</div>
+      <canvas id="doughnut" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Framework cards -->
+  <div class="section-label">Frameworks</div>
+  <div class="grid grid-fw" style="margin-bottom:24px;">
+    
+    <a href="/framework/1" class="fw-card" style="border-top: 3px solid #2F4458;">
+      <div class="fw-header">
+        <div>
+          <div class="fw-name">ISO 27001</div>
+          <div class="fw-desc">Information security management</div>
+        </div>
+        <span class="fw-badge" style="background:#2F44581f;color:#2F4458;border:1px solid #2F445844;">75%</span>
+      </div>
+      <div class="fw-stats">
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--good);">70</div>
+          <div class="fw-stat-label">Done</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--info);">15</div>
+          <div class="fw-stat-label">In Progress</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--bad);">8</div>
+          <div class="fw-stat-label">Not Started</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--muted);">93</div>
+          <div class="fw-stat-label">Total</div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:75%;background:#2F4458;"></div>
+      </div>
+    </a>
+    
+    <a href="/framework/2" class="fw-card" style="border-top: 3px solid #6B3F6B;">
+      <div class="fw-header">
+        <div>
+          <div class="fw-name">ISO 42001</div>
+          <div class="fw-desc">AI management system</div>
+        </div>
+        <span class="fw-badge" style="background:#6B3F6B1f;color:#6B3F6B;border:1px solid #6B3F6B44;">58%</span>
+      </div>
+      <div class="fw-stats">
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--good);">22</div>
+          <div class="fw-stat-label">Done</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--info);">10</div>
+          <div class="fw-stat-label">In Progress</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--bad);">6</div>
+          <div class="fw-stat-label">Not Started</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--muted);">38</div>
+          <div class="fw-stat-label">Total</div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:58%;background:#6B3F6B;"></div>
+      </div>
+    </a>
+    
+    <a href="/framework/3" class="fw-card" style="border-top: 3px solid #2E5B4A;">
+      <div class="fw-header">
+        <div>
+          <div class="fw-name">SOC 2 Type II</div>
+          <div class="fw-desc">Trust services criteria</div>
+        </div>
+        <span class="fw-badge" style="background:#2E5B4A1f;color:#2E5B4A;border:1px solid #2E5B4A44;">74%</span>
+      </div>
+      <div class="fw-stats">
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--good);">45</div>
+          <div class="fw-stat-label">Done</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--info);">9</div>
+          <div class="fw-stat-label">In Progress</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--bad);">7</div>
+          <div class="fw-stat-label">Not Started</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--muted);">61</div>
+          <div class="fw-stat-label">Total</div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:74%;background:#2E5B4A;"></div>
+      </div>
+    </a>
+    
+    <a href="/framework/4" class="fw-card" style="border-top: 3px solid #7D6608;">
+      <div class="fw-header">
+        <div>
+          <div class="fw-name">PCI DSS</div>
+          <div class="fw-desc">Payment card data security</div>
+        </div>
+        <span class="fw-badge" style="background:#7D66081f;color:#7D6608;border:1px solid #7D660844;">51%</span>
+      </div>
+      <div class="fw-stats">
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--good);">40</div>
+          <div class="fw-stat-label">Done</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--info);">20</div>
+          <div class="fw-stat-label">In Progress</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--bad);">18</div>
+          <div class="fw-stat-label">Not Started</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--muted);">78</div>
+          <div class="fw-stat-label">Total</div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:51%;background:#7D6608;"></div>
+      </div>
+    </a>
+    
+    <a href="/framework/5" class="fw-card" style="border-top: 3px solid #2A4B6F;">
+      <div class="fw-header">
+        <div>
+          <div class="fw-name">GDPR</div>
+          <div class="fw-desc">EU data protection regulation</div>
+        </div>
+        <span class="fw-badge" style="background:#2A4B6F1f;color:#2A4B6F;border:1px solid #2A4B6F44;">50%</span>
+      </div>
+      <div class="fw-stats">
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--good);">18</div>
+          <div class="fw-stat-label">Done</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--info);">9</div>
+          <div class="fw-stat-label">In Progress</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--bad);">9</div>
+          <div class="fw-stat-label">Not Started</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--muted);">36</div>
+          <div class="fw-stat-label">Total</div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:50%;background:#2A4B6F;"></div>
+      </div>
+    </a>
+    
+    <a href="/framework/6" class="fw-card" style="border-top: 3px solid #2E5A36;">
+      <div class="fw-header">
+        <div>
+          <div class="fw-name">Zimbabwe CDPA</div>
+          <div class="fw-desc">Cyber &amp; Data Protection Act</div>
+        </div>
+        <span class="fw-badge" style="background:#2E5A361f;color:#2E5A36;border:1px solid #2E5A3644;">41%</span>
+      </div>
+      <div class="fw-stats">
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--good);">12</div>
+          <div class="fw-stat-label">Done</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--info);">8</div>
+          <div class="fw-stat-label">In Progress</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--bad);">9</div>
+          <div class="fw-stat-label">Not Started</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--muted);">29</div>
+          <div class="fw-stat-label">Total</div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:41%;background:#2E5A36;"></div>
+      </div>
+    </a>
+    
+    <a href="/framework/7" class="fw-card" style="border-top: 3px solid #6E3F1F;">
+      <div class="fw-header">
+        <div>
+          <div class="fw-name">HIPAA</div>
+          <div class="fw-desc">US healthcare privacy</div>
+        </div>
+        <span class="fw-badge" style="background:#6E3F1F1f;color:#6E3F1F;border:1px solid #6E3F1F44;">52%</span>
+      </div>
+      <div class="fw-stats">
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--good);">22</div>
+          <div class="fw-stat-label">Done</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--info);">12</div>
+          <div class="fw-stat-label">In Progress</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--bad);">8</div>
+          <div class="fw-stat-label">Not Started</div>
+        </div>
+        <div class="fw-stat">
+          <div class="fw-stat-val" style="color:var(--muted);">42</div>
+          <div class="fw-stat-label">Total</div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width:52%;background:#6E3F1F;"></div>
+      </div>
+    </a>
+    
+  </div>
+
+  <!-- Recent activity -->
+  <div class="card">
+    <div class="chart-card-title">Recent Activity</div>
+    
+      
+      <div class="recent-item">
+        <div class="recent-icon">📝</div>
+        <div>
+          <div class="recent-text">Status updated: A.5.1 — Policies for information security</div>
+          <div class="recent-meta">Ali Moyo · 2026-04-21T09:32</div>
+        </div>
+      </div>
+      
+      <div class="recent-item">
+        <div class="recent-icon">📝</div>
+        <div>
+          <div class="recent-text">Policy generated: Access Control Policy v1.0</div>
+          <div class="recent-meta">Jane Doe · 2026-04-20T17:14</div>
+        </div>
+      </div>
+      
+      <div class="recent-item">
+        <div class="recent-icon">📝</div>
+        <div>
+          <div class="recent-text">Risk added: R-0012 — Unencrypted backups</div>
+          <div class="recent-meta">Ali Moyo · 2026-04-20T15:02</div>
+        </div>
+      </div>
+      
+      <div class="recent-item">
+        <div class="recent-icon">📝</div>
+        <div>
+          <div class="recent-text">Document approved: Incident Response Procedure</div>
+          <div class="recent-meta">Jane Doe · 2026-04-19T11:48</div>
+        </div>
+      </div>
+      
+    
+  </div>
+</div>
+
+</div>
+<div class="toast" id="toast"></div>
+<script>
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+/* Chart.js global defaults — earthy olive/cream palette */
+if (typeof Chart !== 'undefined') {
+  const ink = '#24251A', muted = '#6E6B54', grid = 'rgba(30,28,10,0.08)';
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
+  Chart.defaults.color = muted;
+  Chart.defaults.borderColor = grid;
+  Chart.defaults.plugins.legend.labels.color = ink;
+}
+</script>
+
+<script>
+function initCharts() {
+  if (typeof Chart === 'undefined') {
+    setTimeout(initCharts, 100);
+    return;
+  }
+
+  // ARIA chart palette (olive/cream)
+  const PALETTE = {
+    ink:    '#24251A',
+    muted:  '#6E6B54',
+    grid:   'rgba(30,28,10,0.08)',
+    good:   '#4E6A2E',
+    info:   '#2F5CC1',
+    bad:    '#A5503C',
+    warn:   '#846416',
+    purple: '#7A5A8A',
+    olive:  '#5C5F3D',
+    track:  '#DDD2B8',
+    cream:  '#F3ECDB',
+  };
+
+  const fwData = [{"id": 1, "name": "ISO 27001", "color": "#2F4458", "description": "Information security management", "total": 93, "implemented": 70, "in_progress": 15, "not_started": 8, "approved": 66, "draft": 3, "needs_update": 2, "pct": 75}, {"id": 2, "name": "ISO 42001", "color": "#6B3F6B", "description": "AI management system", "total": 38, "implemented": 22, "in_progress": 10, "not_started": 6, "approved": 18, "draft": 3, "needs_update": 2, "pct": 58}, {"id": 3, "name": "SOC 2 Type II", "color": "#2E5B4A", "description": "Trust services criteria", "total": 61, "implemented": 45, "in_progress": 9, "not_started": 7, "approved": 41, "draft": 3, "needs_update": 2, "pct": 74}, {"id": 4, "name": "PCI DSS", "color": "#7D6608", "description": "Payment card data security", "total": 78, "implemented": 40, "in_progress": 20, "not_started": 18, "approved": 36, "draft": 3, "needs_update": 2, "pct": 51}, {"id": 5, "name": "GDPR", "color": "#2A4B6F", "description": "EU data protection regulation", "total": 36, "implemented": 18, "in_progress": 9, "not_started": 9, "approved": 14, "draft": 3, "needs_update": 2, "pct": 50}, {"id": 6, "name": "Zimbabwe CDPA", "color": "#2E5A36", "description": "Cyber & Data Protection Act", "total": 29, "implemented": 12, "in_progress": 8, "not_started": 9, "approved": 8, "draft": 3, "needs_update": 2, "pct": 41}, {"id": 7, "name": "HIPAA", "color": "#6E3F1F", "description": "US healthcare privacy", "total": 42, "implemented": 22, "in_progress": 12, "not_started": 8, "approved": 18, "draft": 3, "needs_update": 2, "pct": 52}];
+  const totals = {"overall_pct": 62, "implemented": 148, "in_progress": 53, "not_started": 38, "total": 239};
+
+  // Overall ring
+  const ringCtx = document.getElementById('overallRing');
+  if (ringCtx) {
+    new Chart(ringCtx.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [totals.overall_pct, 100 - totals.overall_pct],
+          backgroundColor: [PALETTE.olive, PALETTE.track],
+          borderWidth: 0, cutout: '78%'
+        }]
+      },
+      options: { plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 1200 } }
+    });
+  }
+
+  // Bar chart
+  const barCtx = document.getElementById('barChart');
+  if (barCtx) {
+    new Chart(barCtx.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: fwData.map(f => f.name.replace(' Type II','').replace('Zimbabwe ','ZW ')),
+        datasets: [
+          { label: 'Implemented', data: fwData.map(f => f.implemented), backgroundColor: PALETTE.good, borderRadius: 6, stack: 'a' },
+          { label: 'In Progress', data: fwData.map(f => f.in_progress), backgroundColor: PALETTE.info, borderRadius: 6, stack: 'a' },
+          { label: 'Not Started', data: fwData.map(f => f.not_started), backgroundColor: PALETTE.bad,  borderRadius: 6, stack: 'a' },
+        ]
+      },
+      options: {
+        plugins: {
+          legend: { labels: { color: PALETTE.ink, font: { size: 11, weight: '600' }, boxWidth: 10, boxHeight: 10 } },
+          tooltip: { backgroundColor: PALETTE.ink, titleColor: '#fff', bodyColor: '#fff', cornerRadius: 8, padding: 10, displayColors: true }
+        },
+        scales: {
+          x: { stacked: true, grid: { color: PALETTE.grid, drawBorder: false }, ticks: { color: PALETTE.muted, font: { size: 10.5 } } },
+          y: { stacked: true, grid: { color: PALETTE.grid, drawBorder: false }, ticks: { color: PALETTE.muted, font: { size: 10.5 } } }
+        }
+      }
+    });
+  }
+
+  // Doughnut
+  const allStatuses = {
+    'Implemented': fwData.reduce((s,f) => s+f.implemented, 0),
+    'In Progress':  fwData.reduce((s,f) => s+f.in_progress, 0),
+    'Not Started':  fwData.reduce((s,f) => s+f.not_started, 0),
+    'Approved':     fwData.reduce((s,f) => s+f.approved, 0),
+    'Draft':        fwData.reduce((s,f) => s+f.draft, 0),
+    'Needs Update': fwData.reduce((s,f) => s+f.needs_update, 0),
+  };
+  const dCtx = document.getElementById('doughnut');
+  if (dCtx) {
+    new Chart(dCtx.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(allStatuses),
+        datasets: [{
+          data: Object.values(allStatuses),
+          backgroundColor: [PALETTE.good, PALETTE.info, PALETTE.bad, '#7E9B5B', PALETTE.warn, PALETTE.purple],
+          borderWidth: 2, borderColor: PALETTE.cream, cutout: '62%'
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: 'right', labels: { color: PALETTE.ink, font: { size: 11 }, padding: 12, boxWidth: 10, boxHeight: 10 } },
+          tooltip: { backgroundColor: PALETTE.ink, titleColor: '#fff', bodyColor: '#fff', cornerRadius: 8, padding: 10 }
+        }
+      }
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+
+</body>
+</html>

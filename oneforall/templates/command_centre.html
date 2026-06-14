@@ -1,0 +1,1045 @@
+{% extends "base_shell.html" %}
+
+{% block title %}Command Centre — ThemisIQ{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ── Command Centre Dashboard Styles ── */
+.cc-donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;margin:0 auto}
+.cc-donut-wrap svg{display:block;width:100%;height:100%}
+.cc-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.cc-donut-pct{font-size:26px;font-weight:800;color:var(--text);line-height:1}
+.cc-donut-lbl{font-size:9px;color:var(--muted);font-weight:600;letter-spacing:1px;margin-top:3px}
+.cc-sla-stats{display:flex;gap:24px;margin-top:18px;justify-content:center}
+.cc-sla-stat{text-align:center}
+.cc-sla-num{font-size:20px;font-weight:800;line-height:1}
+.cc-sla-label{font-size:10px;color:var(--muted);font-weight:600;margin-top:3px}
+
+.module-health-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.module-health-item:last-child{border-bottom:none}
+.mh-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.mh-name{font-size:13px;font-weight:600;flex:1;color:var(--text)}
+.mh-pct{font-size:13px;font-weight:700;font-family:var(--mono)}
+.mh-bar{width:80px;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-left:8px}
+.mh-bar-fill{height:100%;border-radius:3px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+
+.stat-card-hero .pbar{background:rgba(255,255,255,0.2)}
+.stat-card-hero .pbar-fill{background:white}
+
+.stat-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.stat-card-hero .stat-sub{color:rgba(255,255,255,0.7)}
+.stat-card-hero .stat-trend{color:rgba(255,255,255,0.85)}
+.stat-card-hero .stat-trend svg{stroke:rgba(255,255,255,0.85)}
+
+@media (max-width:900px){
+  .three-col{grid-template-columns:1fr}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:600px){
+  .stats-row{grid-template-columns:1fr}
+}
+</style>
+{% endblock %}
+
+{% block module_sidebar %}
+<div class="module-sidebar-header">
+  <div class="module-name">Command Centre</div>
+  <div class="module-desc">Cross-module compliance overview</div>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Navigation</div>
+  <a href="/" class="nav-item{% if active_section == 'overview' or not active_section %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Overview
+  </a>
+  <a href="/projects" class="nav-item{% if active_section == 'projects' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    Compliance Projects
+    <span class="nav-count" id="sideNavProjects">3</span>
+  </a>
+  <a href="/evidence/" class="nav-item{% if active_section == 'evidence' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    Evidence Repository
+    <span class="nav-count" id="sideNavEvidence">—</span>
+  </a>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Tools</div>
+  <a href="/workflows" class="nav-item{% if active_section == 'workflows' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/></svg>
+    Workflows
+  </a>
+  <a href="/tasks" class="nav-item{% if active_section == 'tasks' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+    Task Board
+  </a>
+  <a href="/reports" class="nav-item{% if active_section == 'reports' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Reports
+  </a>
+  <a href="/calendar" class="nav-item{% if active_section == 'calendar' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Calendar
+  </a>
+  <a href="/analytics" class="nav-item{% if active_section == 'analytics' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+    Analytics
+  </a>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Data</div>
+  <a href="/admin/frameworks" class="nav-item{% if active_section == 'frameworks' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    Frameworks
+  </a>
+  <a href="/risk-register" class="nav-item{% if active_section == 'risk-register' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    Risk Register
+  </a>
+  <a href="/vendors" class="nav-item{% if active_section == 'vendors' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+    Vendor Directory
+  </a>
+  {% if is_admin %}
+  <a href="/admin/users" class="nav-item{% if active_section == 'users' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    User Management
+  </a>
+  <a href="/admin/api-keys" class="nav-item{% if active_section == 'api-keys' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.78 7.78 5.5 5.5 0 017.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+    API Keys
+  </a>
+  <a href="/admin/webhooks" class="nav-item{% if active_section == 'webhooks' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+    Webhooks
+  </a>
+  <a href="/admin/logs" class="nav-item{% if active_section == 'logs' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+    Audit Log
+  </a>
+  {% endif %}
+</div>
+
+<!-- AI Chat Card -->
+<div class="sidebar-bottom">
+  <div style="background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden" onclick="document.getElementById('trainerBubble')?.click()">
+    <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+    </div>
+    <div style="font-size:24px;margin-bottom:8px">✦</div>
+    <div style="font-size:14px;font-weight:700">Ask ThemisIQ AI…</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block breadcrumb %}
+<span style="font-weight:700"><span style="color:var(--accent)">Themis</span><span style="color:#C9A84C">IQ</span></span>
+<span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">Command Centre</span>
+{% endblock %}
+
+{% block content %}
+<!-- Section Header -->
+<div class="section-header animate-fade-up">
+  <div>
+    <div class="section-title">Command Centre</div>
+    <div class="section-sub">Cross-module compliance overview · Last updated <span id="ccLastUpdated">—</span></div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-secondary" onclick="exportReport()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export Report
+    </button>
+    <button class="btn btn-primary" onclick="generateBoardReport()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Generate Board Report
+    </button>
+  </div>
+</div>
+
+<!-- Module Tiles Grid -->
+{% if modules %}
+<div class="animate-fade-up" style="margin-bottom:24px">
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px">Your Modules</div>
+  <div style="display:grid;grid-template-columns:repeat({{ modules|length }},1fr);gap:10px">
+    {% for mod in modules %}
+    {% set mod_urls = {'aria':'/aria/','grid':'/grid/','bcm':'/bcm/','sentinel':'/sentinel/','erm':'/erm/','orm':'/orm/'} %}
+    <a href="{{ mod_urls.get(mod.key, '/' + mod.key + '/') }}" class="glass-module" data-glass-tilt style="text-decoration:none">
+      <div style="background:{{ mod.gradient or 'var(--surface2)' }};padding:14px 16px;position:relative;overflow:hidden">
+        <!-- Corner radial highlight -->
+        <div style="position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.13;background:radial-gradient(circle at 15% 20%,rgba(255,255,255,.95),transparent 52%)"></div>
+        <!-- Glass reflection -->
+        <div style="position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,.06) 25%,transparent 55%)"></div>
+        <!-- Top-edge glint -->
+        <div style="position:absolute;top:0;left:0;right:0;height:1px;z-index:4;pointer-events:none;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.55) 50%,transparent 100%)"></div>
+        <!-- Bottom shimmer -->
+        <div style="position:absolute;bottom:0;left:0;right:0;height:38%;z-index:1;pointer-events:none;opacity:.09;background:linear-gradient(to top,rgba(255,255,255,.3),transparent)"></div>
+        <!-- Content -->
+        <div style="position:relative;z-index:5">
+          <div style="font-size:13px;font-weight:800;color:white;margin-bottom:2px;text-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ mod.name }}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.72);font-weight:500;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ mod.subtitle }}</div>
+          <div style="margin-top:8px;display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:rgba(255,255,255,.65)">Open <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><path d="M3 8h10M9 4l4 4-4 4"/></svg></div>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Predictive Risk Intelligence Panel (collapsible) ── -->
+<div id="prPanel" class="card animate-fade-up" style="margin-bottom:16px;display:none;border-left:3px solid var(--pr-color,var(--muted));overflow:hidden">
+  <!-- Collapsed bar — always visible once loaded -->
+  <div id="prBar" onclick="togglePredictiveRisk()" style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+    <span style="font-size:15px;flex-shrink:0">&#128302;</span>
+    <span style="font-size:13px;font-weight:700;color:var(--text)">Predictive Risk Intelligence</span>
+    <span id="prBadge" class="badge" style="display:none;flex-shrink:0"></span>
+    <!-- Inline summary (shown when collapsed) -->
+    <div id="prSummary" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;overflow:hidden">
+      <span id="prSumDelta" style="font-size:13px;font-weight:800;color:var(--pr-color,var(--muted));flex-shrink:0"></span>
+      <span id="prSumDomains" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    </div>
+    <!-- Right actions -->
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0" onclick="event.stopPropagation()">
+      <span id="prAge" style="font-size:11px;color:var(--muted)"></span>
+      <span id="prErmBadge" style="display:none;font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-pale);padding:2px 7px;border-radius:100px;border:1px solid var(--accent-shadow)">&#8593; ERM</span>
+      <button class="btn btn-sm btn-secondary" onclick="loadPredictiveRisk(true)" id="prRefreshBtn" style="padding:3px 8px;font-size:11px">&#8635;</button>
+      <button class="btn btn-sm btn-secondary" id="prAckBtn" onclick="acknowledgePrediction()" style="display:none;padding:3px 8px;font-size:11px">&#10003;</button>
+    </div>
+    <svg id="prChevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="color:var(--muted);flex-shrink:0;transition:transform .25s"><path d="M4 6l4 4 4-4"/></svg>
+  </div>
+  <!-- Expanded body — hidden by default -->
+  <div id="prBody" style="display:none;padding:20px;border-top:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:8px;color:var(--muted)">
+      <div class="spinner" style="width:16px;height:16px;border-width:2px"></div>
+      <span style="font-size:13px">Analysing platform telemetry…</span>
+    </div>
+  </div>
+</div>
+
+<!-- 4 Stat Cards -->
+<div class="stats-row animate-fade-up anim-1">
+  <!-- Hero: Overall Compliance — click to open ARIA -->
+  <div class="stat-card stat-card-hero" onclick="window.location.href='/aria/'" style="cursor:pointer" title="Open ARIA GRC module">
+    <div class="stat-label">Overall Compliance</div>
+    <div class="stat-value" id="ccCompliancePct">—</div>
+    <div class="stat-trend up" id="ccComplianceTrend">
+      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
+      <span>—</span>
+    </div>
+    <div class="pbar"><div class="pbar-fill" id="ccComplianceBar" style="width:0;background:white"></div></div>
+  </div>
+
+  <!-- Active Projects — click to open Compliance Projects page -->
+  <div class="stat-card" onclick="window.location.href='/projects'" style="cursor:pointer" title="View Compliance Projects">
+    <div class="stat-label">Active Projects</div>
+    <div class="stat-value" id="ccActiveProjects">—</div>
+    <div class="stat-sub" id="ccProjectsList">—</div>
+  </div>
+
+  <!-- Overdue Actions — click to scroll to table -->
+  <div class="stat-card" onclick="document.getElementById('ccOverdueTable').scrollIntoView({behavior:'smooth'})" style="cursor:pointer" title="Jump to overdue items">
+    <div class="stat-label">Overdue Actions</div>
+    <div class="stat-value" id="ccOverdueCount" style="color:var(--red)">—</div>
+    <div class="stat-trend down" id="ccOverdueTrend" style="color:var(--red)">
+      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v6M3 7l3 3 3-3"/></svg>
+      <span>—</span>
+    </div>
+  </div>
+
+  <!-- Evidence Collected — click to open Evidence vault -->
+  <div class="stat-card" onclick="window.location.href='/evidence/'" style="cursor:pointer" title="Open Evidence Repository">
+    <div class="stat-label">Evidence Collected</div>
+    <div class="stat-value" id="ccEvidenceCount">—</div>
+    <div class="stat-trend up" id="ccEvidenceTrend" style="color:var(--green-status)">
+      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
+      <span>—</span>
+    </div>
+    <div class="pbar"><div class="pbar-fill" id="ccEvidenceBar" style="width:0;background:var(--green-status)"></div></div>
+    <div id="ccEvidenceExpiry" style="display:none;font-size:10px;font-weight:600;color:var(--amber);margin-top:6px"></div>
+  </div>
+</div>
+
+<!-- Row 2: Module-specific headline stats -->
+<div class="stats-row animate-fade-up anim-1" style="margin-top:0">
+  <!-- Sentinel: Open Breaches -->
+  <div class="stat-card" id="ccSentinelCard" onclick="window.location.href='/sentinel/'" style="cursor:pointer" title="Open Data Protection Sentinel">
+    <div class="stat-label">🛡 Open Breaches</div>
+    <div class="stat-value" id="ccSentinelBreaches" style="color:var(--muted)">—</div>
+    <div class="stat-sub" id="ccSentinelSub">Sentinel</div>
+  </div>
+
+  <!-- ERM: Appetite Breaches -->
+  <div class="stat-card" id="ccErmCard" onclick="window.location.href='/erm/'" style="cursor:pointer" title="Open Enterprise Risk Management">
+    <div class="stat-label">⚖ Appetite Breaches</div>
+    <div class="stat-value" id="ccErmBreaches" style="color:var(--muted)">—</div>
+    <div class="stat-sub">ERM</div>
+  </div>
+
+  <!-- ORM: Open Events (30d) -->
+  <div class="stat-card" id="ccOrmCard" onclick="window.location.href='/orm/'" style="cursor:pointer" title="Open Operational Risk Management">
+    <div class="stat-label">⚠ Open Events (30d)</div>
+    <div class="stat-value" id="ccOrmEvents" style="color:var(--muted)">—</div>
+    <div class="stat-sub">ORM</div>
+  </div>
+
+  <!-- BCM: Active Incidents -->
+  <div class="stat-card" id="ccBcmCard" onclick="window.location.href='/bcm/'" style="cursor:pointer" title="Open Business Continuity">
+    <div class="stat-label">🚨 Active Incidents</div>
+    <div class="stat-value" id="ccBcmIncidents" style="color:var(--muted)">—</div>
+    <div class="stat-sub">BCM</div>
+  </div>
+</div>
+
+<!-- IMS Stats strip — hidden until data loaded -->
+<div id="ccImsStrip" style="display:none;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;"
+     class="animate-fade-up anim-2">
+  <div class="stat-card" onclick="window.location.href='/aria/mapping'" style="cursor:pointer;border-top:3px solid var(--green-status);" title="View IMS Control Mapping">
+    <div class="stat-label">🔗 Integrated Controls</div>
+    <div class="stat-value" id="imsIntCtrl" style="color:var(--green-status)">—</div>
+    <div class="stat-sub">Mapped across frameworks</div>
+  </div>
+  <div class="stat-card" onclick="window.location.href='/aria/mapping'" style="cursor:pointer;" title="View IMS Control Mapping">
+    <div class="stat-label">⬡ Unique Controls</div>
+    <div class="stat-value" id="imsUniqCtrl" style="color:var(--muted)">—</div>
+    <div class="stat-sub">Framework-specific only</div>
+  </div>
+  <div class="stat-card" style="cursor:default;">
+    <div class="stat-label">📋 Active Frameworks</div>
+    <div class="stat-value" id="imsFws" style="color:var(--accent)">—</div>
+    <div class="stat-sub">Compliance frameworks</div>
+  </div>
+  <div class="stat-card" onclick="window.location.href='/aria/mapping'" style="cursor:pointer;border-top:3px solid var(--accent);" title="Testing effort saved via IMS">
+    <div class="stat-label">⚡ Testing Effort Saved</div>
+    <div class="stat-value" id="imsEffort" style="color:var(--accent)">—</div>
+    <div class="stat-sub">Via integrated controls</div>
+  </div>
+</div>
+
+<!-- 3-Column Cards: Module Health, SLA Performance, Recent Activity -->
+<div class="three-col animate-fade-up anim-2">
+  <!-- Module Health -->
+  <div class="panel-card">
+    <div class="panel-title">Module Health</div>
+    <div id="ccModuleHealth">
+      <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+  </div>
+
+  <!-- SLA Performance -->
+  <div class="panel-card">
+    <div class="panel-title">SLA Performance</div>
+    <div style="display:flex;flex-direction:column;align-items:center">
+      <div class="cc-donut-wrap">
+        <svg viewBox="0 0 140 140" id="ccSlaDonut">
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--surface3)" stroke-width="10"/>
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--accent)" stroke-width="10"
+                  stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
+                  transform="rotate(-90 70 70)" id="ccSlaArc" style="transition:stroke-dashoffset 1s ease"/>
+        </svg>
+        <div class="cc-donut-center">
+          <div class="cc-donut-pct" id="ccSlaPct">—</div>
+          <div class="cc-donut-lbl">ON TIME</div>
+        </div>
+      </div>
+      <div class="cc-sla-stats" id="ccSlaStats">
+        <div class="cc-sla-stat">
+          <div class="cc-sla-num" id="ccSlaMet" style="color:var(--green-status)">—</div>
+          <div class="cc-sla-label">Met SLA</div>
+        </div>
+        <div class="cc-sla-stat">
+          <div class="cc-sla-num" id="ccSlaRisk" style="color:var(--amber)">—</div>
+          <div class="cc-sla-label">At Risk</div>
+        </div>
+        <div class="cc-sla-stat">
+          <div class="cc-sla-num" id="ccSlaBreach" style="color:var(--red)">—</div>
+          <div class="cc-sla-label">Breached</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="panel-card">
+    <div class="panel-title">Recent Activity</div>
+    <div id="ccRecentActivity">
+      <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Risk Register + Workflow strip -->
+<div class="two-col animate-fade-up anim-3" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
+  <!-- Open Risks -->
+  <div class="panel-card" style="cursor:pointer" onclick="window.location.href='/risk-register'" title="Open Risk Register">
+    <div class="panel-title">Open Risks
+      <span style="font-size:9px;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px">↗ Risk Register</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span id="ccRiskCrit" style="display:inline-flex;align-items:center;gap:4px;background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.2);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700">0 Critical</span>
+      <span id="ccRiskHigh" style="display:inline-flex;align-items:center;gap:4px;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.2);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700">0 High</span>
+      <span id="ccRiskMed"  style="display:inline-flex;align-items:center;gap:4px;background:var(--blue-bg);color:var(--blue);border:1px solid rgba(37,99,235,0.2);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700">0 Medium</span>
+    </div>
+  </div>
+  <!-- Active Workflows -->
+  <div class="panel-card" style="cursor:pointer" onclick="window.location.href='/workflows'" title="Open Workflows">
+    <div class="panel-title">Active Workflows
+      <span style="font-size:9px;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px">↗</span>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:6px">
+      <span id="ccWorkflowActive" style="font-size:32px;font-weight:800;color:var(--text);line-height:1">0</span>
+      <span style="font-size:11px;color:var(--muted);font-weight:600">in progress</span>
+    </div>
+  </div>
+</div>
+
+<!-- Overdue Action Items Table -->
+<div class="card animate-fade-up anim-4">
+  <div class="card-header">
+    <div class="card-title">Overdue Action Items</div>
+  </div>
+  <div class="card-body" style="padding:12px 20px 6px">
+    <div class="filter-bar" id="ccModuleFilters">
+      <span class="filter-chip active" data-mod="all" onclick="filterOverdue('all',this)">All</span>
+      {% if 'aria' in user_modules %}
+      <span class="filter-chip" data-mod="aria" onclick="filterOverdue('aria',this)">ARIA</span>
+      {% endif %}
+      {% if 'grid' in user_modules %}
+      <span class="filter-chip" data-mod="grid" onclick="filterOverdue('grid',this)">GRID</span>
+      {% endif %}
+      {% if 'bcm' in user_modules %}
+      <span class="filter-chip" data-mod="bcm" onclick="filterOverdue('bcm',this)">BCM</span>
+      {% endif %}
+      {% if 'sentinel' in user_modules %}
+      <span class="filter-chip" data-mod="sentinel" onclick="filterOverdue('sentinel',this)">Sentinel</span>
+      {% endif %}
+      {% if 'erm' in user_modules %}
+      <span class="filter-chip" data-mod="erm" onclick="filterOverdue('erm',this)">ERM</span>
+      {% endif %}
+      {% if 'orm' in user_modules %}
+      <span class="filter-chip" data-mod="orm" onclick="filterOverdue('orm',this)">ORM</span>
+      {% endif %}
+    </div>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="data-table" id="ccOverdueTable">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Module</th>
+          <th>Assigned To</th>
+          <th>Due Date</th>
+          <th>SLA Status</th>
+          <th>Priority</th>
+        </tr>
+      </thead>
+      <tbody id="ccOverdueBody">
+        <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+  // ── Helpers ──
+  const modColors = {aria:'#7c3aed',grid:'#1a6b3a',bcm:'#d97706',sentinel:'#0891b2',erm:'#dc3c50',orm:'#e67828'};
+  const modNames  = {aria:'Governance',grid:'Audit',bcm:'Resilience',sentinel:'Privacy',erm:'Enterprise Risk',orm:'Operations Risk'};
+
+  // XSS-safe text escaping for any data injected via innerHTML
+  const _escEl = document.createElement('div');
+  function esc(s){ _escEl.textContent = s || ''; return _escEl.innerHTML; }
+
+  function timeAgoShort(ts){
+    if(!ts) return '';
+    const d=new Date(ts.includes('T')?ts:ts+'Z');
+    const s=Math.floor((Date.now()-d.getTime())/1000);
+    if(s<60) return 'just now';
+    if(s<3600) return Math.floor(s/60)+' min ago';
+    if(s<86400) return Math.floor(s/3600)+' hour'+(Math.floor(s/3600)>1?'s':'')+' ago';
+    if(s<172800) return 'Yesterday';
+    return Math.floor(s/86400)+' days ago';
+  }
+
+  function fmtDate(ts){
+    if(!ts) return '—';
+    const d=new Date(ts.includes('T')?ts:ts+'Z');
+    return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  }
+
+  // ── "Last updated" tracker ──
+  function setLastUpdated(isoTs){
+    const el = document.getElementById('ccLastUpdated');
+    if(!el) return;
+    el.textContent = isoTs ? 'Updated ' + timeAgoShort(isoTs) : 'just now';
+  }
+
+  // ── Placeholder / fallback data (shown until real API endpoints are created) ──
+  const fallback = {
+    compliance_pct: 78,
+    compliance_trend: '+6% from last quarter',
+    active_projects: 3,
+    projects_list: 'ISO 27001 · ISO 9001 · PCI DSS',
+    overdue_count: 7,
+    overdue_trend: '▲ 2 since last week',
+    evidence_count: 156,
+    evidence_trend: '▲ 12 this week',
+    evidence_target: 200,
+    module_health: [
+      {key:'aria', name:'ARIA',     pct:82, color:modColors.aria},
+      {key:'grid', name:'GRID',     pct:64, color:modColors.grid},
+      {key:'bcm',  name:'BCM',      pct:91, color:modColors.bcm},
+      {key:'sentinel', name:'Sentinel', pct:45, color:modColors.sentinel}
+    ],
+    sla: {pct:87, met:142, at_risk:14, breached:7},
+    activity: [
+      {text:'Policy approved',   time:'10 min ago',   module:'aria'},
+      {text:'Evidence uploaded',  time:'1 hour ago',   module:'grid'},
+      {text:'Incident resolved',  time:'3 hours ago',  module:'bcm'},
+      {text:'DPIA submitted',     time:'Yesterday',    module:'sentinel'}
+    ],
+    overdue_items: [
+      {id:'ACT-001',item:'Update access control policy',    module:'aria',     assigned:'Sarah Chen',    due:'2026-05-12', sla:'breached',  priority:'critical'},
+      {id:'ACT-002',item:'Complete SOC 2 evidence upload',  module:'grid',     assigned:'James Wilson',  due:'2026-05-14', sla:'breached',  priority:'high'},
+      {id:'ACT-003',item:'Review BCP for HQ',               module:'bcm',      assigned:'Maria Lopez',   due:'2026-05-15', sla:'at_risk',   priority:'high'},
+      {id:'ACT-004',item:'Vendor DPA renewal — Acme Corp',  module:'sentinel', assigned:'Tom Harris',    due:'2026-05-16', sla:'at_risk',   priority:'medium'},
+      {id:'ACT-005',item:'Patch management evidence',       module:'grid',     assigned:'Sarah Chen',    due:'2026-05-10', sla:'breached',  priority:'critical'},
+      {id:'ACT-006',item:'Annual DPIA — Marketing platform',module:'sentinel', assigned:'Amy Nguyen',    due:'2026-05-17', sla:'at_risk',   priority:'medium'},
+      {id:'ACT-007',item:'Risk register quarterly review',   module:'aria',     assigned:'James Wilson',  due:'2026-05-13', sla:'breached',  priority:'high'}
+    ]
+  };
+
+  // ── Populate stats ──
+  function populateStats(d){
+    document.getElementById('ccCompliancePct').textContent = d.compliance_pct + '%';
+    document.getElementById('ccComplianceTrend').querySelector('span').textContent = d.compliance_trend;
+    document.getElementById('ccComplianceBar').style.width = d.compliance_pct + '%';
+
+    document.getElementById('ccActiveProjects').textContent = d.active_projects;
+    document.getElementById('ccProjectsList').textContent = d.projects_list;
+    const navProj = document.getElementById('sideNavProjects');
+    if(navProj) navProj.textContent = d.active_projects;
+
+    document.getElementById('ccOverdueCount').textContent = d.overdue_count;
+    document.getElementById('ccOverdueTrend').querySelector('span').textContent = d.overdue_trend;
+
+    document.getElementById('ccEvidenceCount').textContent = d.evidence_count;
+    document.getElementById('ccEvidenceTrend').querySelector('span').textContent = d.evidence_trend;
+    const evPct = d.evidence_target ? Math.round((d.evidence_count / d.evidence_target)*100) : 78;
+    document.getElementById('ccEvidenceBar').style.width = evPct + '%';
+
+    // Sidebar evidence count
+    const navEv = document.getElementById('sideNavEvidence');
+    if(navEv) navEv.textContent = d.evidence_count;
+    // Evidence expiry warning
+    const expiryEl = document.getElementById('ccEvidenceExpiry');
+    if(expiryEl && d.evidence_expiring > 0) {
+      expiryEl.textContent = '⚠ ' + d.evidence_expiring + ' item' + (d.evidence_expiring > 1 ? 's' : '') + ' expiring soon';
+      expiryEl.style.display = 'block';
+    }
+
+    // ── Module headline stats (row 2) ──
+    // Sentinel open breaches
+    var sentBreaches = d.sentinel_open_breaches || 0;
+    var sentEl = document.getElementById('ccSentinelBreaches');
+    var sentCard = document.getElementById('ccSentinelCard');
+    if(sentEl){
+      sentEl.textContent = sentBreaches;
+      var sentSub = document.getElementById('ccSentinelSub');
+      if(sentBreaches > 0){
+        sentEl.style.color = d.sentinel_breach_severity === 'critical' ? 'var(--red)' : 'var(--amber)';
+        if(sentSub) sentSub.textContent = sentBreaches === 1 ? '1 active breach' : sentBreaches + ' active breaches';
+        if(sentCard) sentCard.style.borderTop = '3px solid ' + (d.sentinel_breach_severity === 'critical' ? 'var(--red)' : 'var(--amber)');
+      } else {
+        sentEl.style.color = 'var(--green-status)';
+        if(sentSub) sentSub.textContent = 'No active breaches';
+        if(sentCard) sentCard.style.borderTop = '3px solid var(--green-status)';
+      }
+    }
+
+    // ERM appetite breaches
+    var ermB = d.erm_appetite_breaches || 0;
+    var ermEl = document.getElementById('ccErmBreaches');
+    var ermCard = document.getElementById('ccErmCard');
+    if(ermEl){
+      ermEl.textContent = ermB;
+      ermEl.style.color = ermB > 0 ? 'var(--red)' : 'var(--green-status)';
+      if(ermCard) ermCard.style.borderTop = '3px solid ' + (ermB > 0 ? 'var(--red)' : 'var(--green-status)');
+    }
+
+    // ORM open events
+    var ormEvts = d.orm_open_events || 0;
+    var ormEl = document.getElementById('ccOrmEvents');
+    var ormCard = document.getElementById('ccOrmCard');
+    if(ormEl){
+      ormEl.textContent = ormEvts;
+      ormEl.style.color = ormEvts > 5 ? 'var(--amber)' : ormEvts > 0 ? 'var(--muted)' : 'var(--green-status)';
+      if(ormCard) ormCard.style.borderTop = '3px solid ' + (ormEvts > 5 ? 'var(--amber)' : 'var(--surface3)');
+    }
+
+    // BCM active incidents
+    var bcmInc = d.bcm_active_incidents || 0;
+    var bcmEl = document.getElementById('ccBcmIncidents');
+    var bcmCard = document.getElementById('ccBcmCard');
+    if(bcmEl){
+      bcmEl.textContent = bcmInc;
+      bcmEl.style.color = bcmInc > 0 ? 'var(--red)' : 'var(--green-status)';
+      if(bcmCard) bcmCard.style.borderTop = '3px solid ' + (bcmInc > 0 ? 'var(--red)' : 'var(--green-status)');
+    }
+
+    // IMS stats strip
+    var ims = d.ims || {};
+    var imsStrip = document.getElementById('ccImsStrip');
+    if(imsStrip && (ims.integrated_controls > 0 || ims.active_frameworks > 1)){
+      imsStrip.style.display = 'grid';
+      var el = function(id){ return document.getElementById(id); };
+      if(el('imsIntCtrl'))  el('imsIntCtrl').textContent  = ims.integrated_controls || 0;
+      if(el('imsUniqCtrl')) el('imsUniqCtrl').textContent = ims.unique_controls     || 0;
+      if(el('imsFws'))      el('imsFws').textContent      = ims.active_frameworks   || 0;
+      if(el('imsEffort'))   el('imsEffort').textContent   = (ims.effort_saved_pct   || 0) + '%';
+    }
+  }
+
+  // ── Module Health ──
+  const MODULE_LINKS = {aria:'/aria/',grid:'/grid/',bcm:'/bcm/',sentinel:'/sentinel/',erm:'/erm/',orm:'/orm/'};
+  function populateModuleHealth(items){
+    const el = document.getElementById('ccModuleHealth');
+    if(!items || !items.length){
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">No module data</div>';
+      return;
+    }
+    el.innerHTML = items.map(m => {
+      const pct = parseInt(m.pct, 10) || 0;
+      const pctColor = pct >= 80 ? 'var(--green-status)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+      const safeColor = modColors[m.key] || 'var(--muted)';
+      const link = MODULE_LINKS[m.key] || '#';
+      return `<div class="module-health-item" style="cursor:pointer" title="Open ${esc(m.name)}"
+                   onclick="window.location.href='${link}'">
+        <div class="mh-dot" style="background:${safeColor}"></div>
+        <div class="mh-name">${esc(m.name)}</div>
+        <div class="mh-pct" style="color:${pctColor}">${pct}%</div>
+        <div class="mh-bar"><div class="mh-bar-fill" style="width:${pct}%;background:${safeColor}"></div></div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Risk Register Widget ──
+  function populateRiskWidget(risk_counts, workflow_active){
+    const crit = risk_counts && risk_counts['critical'] ? risk_counts['critical'] : 0;
+    const high = risk_counts && risk_counts['high']     ? risk_counts['high']     : 0;
+    const med  = risk_counts && risk_counts['medium']   ? risk_counts['medium']   : 0;
+    const rEl = document.getElementById('ccRiskCrit'); if(rEl) rEl.textContent = crit + ' Critical';
+    const hEl = document.getElementById('ccRiskHigh'); if(hEl) hEl.textContent = high + ' High';
+    const mEl = document.getElementById('ccRiskMed');  if(mEl) mEl.textContent = med  + ' Medium';
+    const wEl = document.getElementById('ccWorkflowActive'); if(wEl) wEl.textContent = workflow_active || 0;
+  }
+
+  // ── SLA Donut ──
+  function populateSLA(sla){
+    const circ = 2 * Math.PI * 56; // ~351.86
+    const offset = circ - (circ * sla.pct / 100);
+    document.getElementById('ccSlaArc').setAttribute('stroke-dashoffset', offset);
+    document.getElementById('ccSlaPct').textContent = sla.pct + '%';
+    document.getElementById('ccSlaMet').textContent = sla.met;
+    document.getElementById('ccSlaRisk').textContent = sla.at_risk;
+    document.getElementById('ccSlaBreach').textContent = sla.breached;
+  }
+
+  // ── Recent Activity Timeline ──
+  function populateActivity(items){
+    const el = document.getElementById('ccRecentActivity');
+    if(!items || !items.length){
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';
+      return;
+    }
+    el.innerHTML = items.map((a, i) => {
+      const color = modColors[a.module] || 'var(--muted)';
+      const isLast = i === items.length - 1;
+      return `<div class="tl-item">
+        <div class="tl-col">
+          <div class="tl-dot" style="box-shadow:0 0 0 2px ${color};border-color:var(--surface)"></div>
+          ${isLast ? '' : '<div class="tl-line"></div>'}
+        </div>
+        <div class="tl-content">
+          <div class="tl-name">${esc(a.text)}</div>
+          <div class="tl-date">${esc(a.time || timeAgoShort(a.created_at))} · ${esc(modNames[a.module] || a.module)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Overdue Table ──
+  let allOverdueItems = [];
+
+  function renderOverdueTable(items){
+    const body = document.getElementById('ccOverdueBody');
+    if(!items || !items.length){
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No overdue items</td></tr>';
+      return;
+    }
+    body.innerHTML = items.map(row => {
+      const slaBadge = row.sla === 'breached' ? 'badge-critical' : row.sla === 'at_risk' ? 'badge-high' : 'badge-low';
+      const slaLabel = row.sla === 'breached' ? 'BREACHED' : row.sla === 'at_risk' ? 'AT RISK' : 'ON TIME';
+      const priBadge = row.priority === 'critical' ? 'badge-critical' : row.priority === 'high' ? 'badge-high' : row.priority === 'medium' ? 'badge-medium' : 'badge-low';
+      return `<tr>
+        <td><span class="item-id">${esc(row.id)}</span> ${esc(row.item)}</td>
+        <td><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${modColors[row.module]||'var(--muted)'}"></span>${esc(modNames[row.module]||row.module)}</span></td>
+        <td>${esc(row.assigned || '—')}</td>
+        <td style="font-family:var(--mono);font-size:12px">${fmtDate(row.due)}</td>
+        <td><span class="badge ${slaBadge}">${slaLabel}</span></td>
+        <td><span class="badge ${priBadge}">${esc((row.priority||'').toUpperCase())}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  window.filterOverdue = function(mod, chip){
+    document.querySelectorAll('#ccModuleFilters .filter-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    if(mod === 'all'){
+      renderOverdueTable(allOverdueItems);
+    } else {
+      renderOverdueTable(allOverdueItems.filter(r=>r.module===mod));
+    }
+  };
+
+  // ── Fetch data from API or fall back to static ──
+  async function loadDashboard(){
+    let data = null;
+    try {
+      const resp = await fetch('/api/command-centre/stats');
+      if(resp.ok) data = await resp.json();
+    } catch(e){}
+
+    // Use real data if available, otherwise fallback
+    const d = data || fallback;
+
+    populateStats(d);
+    populateModuleHealth(d.module_health);
+    populateSLA(d.sla);
+    populateActivity(d.activity);
+    populateRiskWidget(d.risk_counts, d.workflow_active);
+    allOverdueItems = d.overdue_items || [];
+    renderOverdueTable(allOverdueItems);
+    setLastUpdated(d.fetched_at);
+  }
+
+  // ── Init ──
+  loadDashboard();
+  loadPredictiveRisk();
+
+  // Refresh dashboard every 5 minutes, predictions every 30 minutes
+  setInterval(loadDashboard, 300000);
+  setInterval(loadPredictiveRisk, 1800000);
+})();
+
+// ── Predictive Risk Intelligence ──────────────────────────────────────────────
+var _prData = null;
+
+var PR_COLORS = {
+  low:      {hex:'#16a34a', css:'var(--good,#16a34a)',  badge:'badge-complete'},
+  medium:   {hex:'#d97706', css:'var(--amber,#d97706)', badge:'badge-high'},
+  high:     {hex:'#dc2626', css:'var(--red,#dc2626)',   badge:'badge-critical'},
+  critical: {hex:'#7c1220', css:'#7c1220',              badge:'badge-critical'},
+};
+
+var _prExpanded = false;
+
+function togglePredictiveRisk() {
+  _prExpanded = !_prExpanded;
+  var body = document.getElementById('prBody');
+  var chevron = document.getElementById('prChevron');
+  var summary = document.getElementById('prSummary');
+  if(body) body.style.display = _prExpanded ? 'block' : 'none';
+  if(chevron) chevron.style.transform = _prExpanded ? 'rotate(180deg)' : '';
+  // Render body content on first expand
+  if(_prExpanded && _prData && body && body.innerHTML.includes('spinner')) {
+    var col = PR_COLORS[_prData.risk_level] || PR_COLORS.low;
+    body.innerHTML = _renderPredictivePanel(_prData, col);
+  }
+}
+
+async function loadPredictiveRisk(force) {
+  var panel = document.getElementById('prPanel');
+  var body  = document.getElementById('prBody');
+  var btn   = document.getElementById('prRefreshBtn');
+  if(!panel) return;
+
+  if(force && btn) { btn.innerHTML = '…'; btn.disabled = true; }
+
+  try {
+    var url = '/api/predictive-risk' + (force ? '?force=1' : '');
+    var resp = await fetch(url);
+    if(!resp.ok) throw new Error('API ' + resp.status);
+    var d = await resp.json();
+    _prData = d;
+
+    var col = PR_COLORS[d.risk_level] || PR_COLORS.low;
+
+    // Show panel, apply colour to left border
+    panel.style.display = 'block';
+    panel.style.borderLeftColor = col.hex;
+    panel.style.setProperty('--pr-color', col.hex);
+
+    // Badge in bar
+    var badge = document.getElementById('prBadge');
+    if(badge){ badge.className='badge '+col.badge; badge.textContent=(d.risk_level||'low').toUpperCase(); badge.style.display='inline-block'; }
+
+    // Inline summary (collapsed view)
+    var sumDelta = document.getElementById('prSumDelta');
+    if(sumDelta) sumDelta.textContent = '+' + (d.delta_p||0) + '%';
+    var sumDomains = document.getElementById('prSumDomains');
+    if(sumDomains) sumDomains.textContent =
+      'Cyber ' + (d.delta_cyber||0) + '%  ·  Operational ' + (d.delta_operational||0) + '%  ·  Compliance ' + (d.delta_compliance||0) + '%';
+
+    // ERM chip
+    var ermBadge = document.getElementById('prErmBadge');
+    if(ermBadge) ermBadge.style.display = d.erm_risk_id ? 'inline-block' : 'none';
+
+    // Age
+    var age = document.getElementById('prAge');
+    if(age) age.textContent = d.cached ? _prTimeAgo(d.computed_at) : 'just now';
+
+    // Acknowledge button
+    var ackBtn = document.getElementById('prAckBtn');
+    if(ackBtn) ackBtn.style.display = (d.risk_level==='high'||d.risk_level==='critical')&&!d.acknowledged_at ? 'inline-flex' : 'none';
+
+    // If already expanded (e.g. forced refresh), re-render body
+    if(_prExpanded && body) body.innerHTML = _renderPredictivePanel(d, col);
+
+    // Auto-expand if high or critical
+    if(!_prExpanded && (d.risk_level==='high'||d.risk_level==='critical')) togglePredictiveRisk();
+
+  } catch(e) {
+    if(panel) panel.style.display = 'block';
+    console.error('Predictive risk error', e);
+  } finally {
+    if(btn){ btn.innerHTML = '&#8635;'; btn.disabled = false; }
+  }
+}
+
+function _renderPredictivePanel(d, col) {
+  var dp = d.delta_p || 0;
+  var hist = d.history || [];
+  var contribs = d.signal_contributions || {};
+  var tel = d.telemetry || {};
+
+  var sigLabels = {
+    breaches:          'Sentinel Breaches',
+    non_conformances:  'GRID NCs',
+    bcm_staleness:     'BCM Staleness',
+    orm_recurring:     'ORM Recurring Events',
+    compliance_gap:    'ARIA Compliance Gap',
+    appetite_breaches: 'ERM Appetite Breaches',
+  };
+
+  // ── Gauge arc (SVG) ──
+  var circ = 251.2; // 2π×40
+  var arc  = (dp / 100) * circ;
+  var gaugeColor = col.hex;
+  var gaugeSvg =
+    '<svg viewBox="0 0 100 60" style="width:120px;height:72px;display:block;margin:0 auto">' +
+    '<circle cx="50" cy="50" r="40" fill="none" stroke="var(--surface3)" stroke-width="10" ' +
+    'stroke-dasharray="' + (circ*0.5).toFixed(1) + ' ' + circ + '" transform="rotate(180 50 50)"/>' +
+    '<circle cx="50" cy="50" r="40" fill="none" stroke="' + gaugeColor + '" stroke-width="10" ' +
+    'stroke-linecap="round" ' +
+    'stroke-dasharray="' + (arc*0.5).toFixed(1) + ' ' + circ + '" transform="rotate(180 50 50)" ' +
+    'style="transition:stroke-dasharray 1s ease"/>' +
+    '<text x="50" y="46" text-anchor="middle" fill="' + gaugeColor + '" font-size="16" font-weight="800" font-family="Inter,sans-serif">+' + dp + '%</text>' +
+    '<text x="50" y="56" text-anchor="middle" fill="var(--muted)" font-size="7" font-family="Inter,sans-serif">ΔP RISK</text>' +
+    '</svg>';
+
+  // ── Domain bars ──
+  var domains = [
+    {label:'Cyber',       val:d.delta_cyber||0,       color:'var(--red,#dc2626)'},
+    {label:'Operational', val:d.delta_operational||0,  color:'var(--amber,#d97706)'},
+    {label:'Compliance',  val:d.delta_compliance||0,   color:'var(--accent)'},
+  ];
+  var domainHtml = domains.map(function(dm){
+    return '<div style="margin-bottom:8px">' +
+      '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">' +
+        '<span style="color:var(--muted)">' + dm.label + '</span>' +
+        '<span style="font-weight:700;color:' + dm.color + '">' + dm.val + '%</span>' +
+      '</div>' +
+      '<div style="height:5px;background:var(--surface3);border-radius:100px">' +
+        '<div style="height:100%;width:' + dm.val + '%;background:' + dm.color + ';border-radius:100px;transition:width 1s ease"></div>' +
+      '</div></div>';
+  }).join('');
+
+  // ── Signal contributions ──
+  var sigEntries = Object.entries(contribs).sort(function(a,b){return b[1]-a[1];});
+  var sigHtml = sigEntries.map(function(kv){
+    var lbl = sigLabels[kv[0]] || kv[0];
+    var pct = kv[1];
+    return '<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px">' +
+      '<span style="flex:1;color:var(--muted)">' + lbl + '</span>' +
+      '<div style="width:80px;height:4px;background:var(--surface3);border-radius:100px">' +
+        '<div style="height:100%;width:' + pct + '%;background:' + col.hex + ';border-radius:100px;opacity:.7;transition:width 1s ease"></div>' +
+      '</div>' +
+      '<span style="width:30px;text-align:right;font-weight:700;color:var(--text)">' + pct + '%</span>' +
+    '</div>';
+  }).join('');
+
+  // ── 7-day sparkline ──
+  var sparkHtml = '';
+  if(hist.length > 1){
+    var maxV = Math.max.apply(null, hist.map(function(h){return h.delta_p||0;}).concat([1]));
+    var W=200, H=32, pts = hist.map(function(h,i){
+      var x = i * (W/(hist.length-1));
+      var y = H - ((h.delta_p||0)/maxV)*H;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    sparkHtml =
+      '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">' +
+      '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">7-Day Trend</div>' +
+      '<svg viewBox="0 0 200 32" style="width:100%;height:32px;display:block">' +
+        '<polyline points="' + pts + '" fill="none" stroke="' + col.hex + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>' +
+        '<polyline points="0,' + H + ' ' + pts + ' ' + W + ',' + H + '" fill="' + col.hex + '" opacity=".08"/>' +
+      '</svg></div>';
+  }
+
+  // ── Telemetry snapshot chips ──
+  var telChips = [
+    {icon:'&#128737;', label:'Breaches',    val:tel.breach_raw_count||0, link:'/sentinel/'},
+    {icon:'&#9881;',   label:'Open NCs',    val:tel.nc_count||0,         link:'/grid/'},
+    {icon:'&#9200;',   label:'BCM (days)',  val:Math.round(tel.days_since_exercise||0), link:'/bcm/'},
+    {icon:'&#9888;',   label:'Recurring Ops',val:tel.orm_recurring||0,   link:'/orm/'},
+    {icon:'&#128202;', label:'ARIA %',      val:(tel.compliance_pct||100).toFixed(0)+'%', link:'/aria/'},
+    {icon:'&#128308;', label:'Appetite',    val:tel.appetite_breaches||0, link:'/erm/'},
+  ];
+  var chipHtml = telChips.map(function(c){
+    return '<a href="' + c.link + '" style="display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:100px;background:var(--surface2);border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text);text-decoration:none;transition:all .15s" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">' +
+      c.icon + ' ' + c.label + ': <span style="margin-left:2px;color:var(--accent)">' + c.val + '</span></a>';
+  }).join('');
+
+  // ── Advisory block ──
+  var advHtml = '';
+  if(d.advisory_text){
+    // Convert simple markdown to HTML
+    var adv = d.advisory_text
+      .replace(/### (.*)/g, '<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">$1</div>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/^(\d+\.) (.+)$/gm, '<div style="display:flex;gap:8px;margin-bottom:4px"><span style="color:' + col.hex + ';font-weight:700;flex-shrink:0">$1</span><span>$2</span></div>')
+      .replace(/\n\n/g, '<br>')
+      .replace(/\n/g, '<br>');
+    advHtml =
+      '<div style="background:rgba(' + _hexToRgb(col.hex) + ',.06);border:1px solid rgba(' + _hexToRgb(col.hex) + ',.2);border-radius:var(--radius);padding:14px 16px;margin-top:16px">' +
+      '<div style="font-size:10px;font-weight:700;color:' + col.hex + ';text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">&#129504; AI Advisory</div>' +
+      '<div style="font-size:13px;line-height:1.7;color:var(--text)">' + adv + '</div>' +
+      '</div>';
+  }
+
+  // ── Confidence badge ──
+  var conf = Math.round((d.confidence||0)*100);
+  var confColor = conf >= 70 ? 'var(--good,#16a34a)' : conf >= 40 ? 'var(--amber)' : 'var(--muted)';
+
+  return '<div style="display:grid;grid-template-columns:140px 1fr;gap:20px;align-items:start">' +
+    // Left: gauge
+    '<div style="text-align:center">' +
+      gaugeSvg +
+      '<div style="font-size:10px;color:' + confColor + ';font-weight:700;margin-top:4px">Confidence: ' + conf + '%</div>' +
+    '</div>' +
+    // Right: domains + signals
+    '<div>' +
+      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Domain Breakdown</div>' +
+      domainHtml +
+      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:12px;margin-bottom:8px">Signal Contributions</div>' +
+      sigHtml +
+    '</div>' +
+  '</div>' +
+  // Telemetry chips row
+  '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">' +
+    '<span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;align-self:center;margin-right:4px">Live Telemetry</span>' +
+    chipHtml +
+  '</div>' +
+  sparkHtml +
+  advHtml;
+}
+
+function _hexToRgb(hex) {
+  // Converts #rrggbb to "r,g,b" for use in rgba()
+  var r = parseInt(hex.slice(1,3),16)||0;
+  var g = parseInt(hex.slice(3,5),16)||0;
+  var b = parseInt(hex.slice(5,7),16)||0;
+  return r + ',' + g + ',' + b;
+}
+
+function _prTimeAgo(ts) {
+  if(!ts) return '';
+  var s = Math.floor((Date.now() - new Date(ts.includes('T')?ts:ts+'Z').getTime()) / 1000);
+  if(s < 60) return 'just now';
+  if(s < 3600) return Math.floor(s/60) + 'm ago';
+  return Math.floor(s/3600) + 'h ago';
+}
+
+async function acknowledgePrediction() {
+  try {
+    var resp = await fetch('/api/predictive-risk/acknowledge', {method:'POST'});
+    if(resp.ok){
+      var btn = document.getElementById('prAckBtn');
+      if(btn) btn.style.display = 'none';
+      showToast('Risk alert acknowledged');
+    }
+  } catch(e){}
+}
+
+// ── Button handlers ──
+async function exportReport(){
+  {% if is_admin %}
+  showToast('Generating compliance export…', 'info');
+  try {
+    const def = await fetch('/api/reports/definitions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        name: 'Compliance Export ' + new Date().toLocaleDateString('en-GB'),
+        description: 'Auto-generated full compliance export',
+        report_type: 'compliance_summary',
+        modules: 'aria,grid,bcm,sentinel',
+        parameters: {}
+      })
+    });
+    if(!def.ok) throw new Error('Definition failed');
+    const {id} = await def.json();
+    const run = await fetch('/api/reports/' + id + '/run', {method: 'POST'});
+    if(!run.ok) throw new Error('Run failed');
+    showToast('Export ready — opening Reports', 'success');
+    setTimeout(() => window.location.href = '/reports', 1500);
+  } catch(e) {
+    showToast('Export failed — try again', 'error');
+  }
+  {% else %}
+  showToast('Export requires admin access', 'info');
+  {% endif %}
+}
+
+async function generateBoardReport(){
+  showToast('Generating executive brief…', 'info');
+  try {
+    const defResp = await fetch('/api/reports/definitions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        name: 'Board Report ' + new Date().toLocaleDateString('en-GB'),
+        description: 'Auto-generated executive compliance brief',
+        report_type: 'executive_brief',
+        modules: 'aria,grid,bcm,sentinel',
+        parameters: {}
+      })
+    });
+    if(!defResp.ok) throw new Error('Definition failed: ' + defResp.status);
+    const defData = await defResp.json();
+    const runResp = await fetch('/api/reports/' + defData.id + '/run', {method: 'POST'});
+    if(!runResp.ok) throw new Error('Run failed: ' + runResp.status);
+    showToast('Board report ready — opening Reports', 'success');
+    setTimeout(() => window.location.href = '/reports', 1500);
+  } catch(e) {
+    console.error('Board report error:', e);
+    showToast('Failed to generate board report', 'error');
+  }
+}
+</script>
+{% endblock %}

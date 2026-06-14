@@ -1,0 +1,69 @@
+<div class="page-head">
+  <div>
+    <h1>Audit log</h1>
+    <p>Tamper-evident trail of tenant-scoped activity — useful for SOC 2 / ISO evidence.</p>
+  </div>
+  <div class="actions">
+    <% if (user.role === 'admin' || user.role === 'manager') { %>
+      <a class="btn primary" href="/audit/export.csv?<%= new URLSearchParams(filter).toString() %>">Export CSV</a>
+    <% } %>
+  </div>
+</div>
+
+<form method="GET" action="/audit" class="card stack-10" style="margin-bottom:16px;">
+  <div class="form-row cols-5">
+    <div><label>Action</label>
+      <select name="action">
+        <option value="">All</option>
+        <% actions.forEach(a => { %>
+          <option value="<%= a %>" <%= filter.action === a ? 'selected' : '' %>><%= a %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>Entity</label>
+      <select name="entity">
+        <option value="">All</option>
+        <% entities.forEach(e => { %>
+          <option value="<%= e %>" <%= filter.entity === e ? 'selected' : '' %>><%= e %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>User</label>
+      <select name="user">
+        <option value="">All</option>
+        <% users.forEach(u => { %>
+          <option value="<%= u %>" <%= filter.user === u ? 'selected' : '' %>><%= u %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>From</label><input type="datetime-local" name="from" value="<%= filter.from %>"/></div>
+    <div><label>To</label><input type="datetime-local" name="to" value="<%= filter.to %>"/></div>
+  </div>
+  <div style="display:flex; gap:10px;">
+    <button class="btn primary" type="submit">Filter</button>
+    <a class="btn ghost" href="/audit">Reset</a>
+  </div>
+</form>
+
+<div class="card">
+  <% if (rows.length === 0) { %>
+    <p class="muted">No events match this filter.</p>
+  <% } else { %>
+    <table class="table">
+      <thead><tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>Summary</th><th>IP</th></tr></thead>
+      <tbody>
+        <% rows.forEach(r => { %>
+          <tr>
+            <td><%= r.created_at %></td>
+            <td><%= r.user_email || '—' %></td>
+            <td><span class="badge info"><%= r.action %></span></td>
+            <td><%= r.entity || '—' %><% if (r.entity_id) { %> · #<%= r.entity_id %><% } %></td>
+            <td><%= r.summary || '—' %></td>
+            <td class="muted" style="font-size:12px;"><%= r.ip || '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <p class="muted" style="margin-top:10px; font-size:12px;">Showing up to 500 most recent entries. Use the CSV export for the full trail.</p>
+  <% } %>
+</div>

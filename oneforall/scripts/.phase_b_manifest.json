@@ -1,0 +1,58 @@
+[
+  {
+    "file": "core/event_handlers.py",
+    "changes": 10
+  },
+  {
+    "file": "core/events.py",
+    "changes": 1
+  },
+  {
+    "file": "core/framework_service.py",
+    "changes": 2
+  },
+  {
+    "file": "core/links.py",
+    "changes": 1
+  },
+  {
+    "file": "core/vendor_link.py",
+    "changes": 1
+  },
+  {
+    "file": "modules/aria/ask_service.py",
+    "changes": 1
+  },
+  {
+    "file": "modules/aria/routes.py",
+    "changes": 4
+  },
+  {
+    "file": "modules/bcm/data_service.py",
+    "changes": 25
+  },
+  {
+    "file": "modules/erm/data_service.py",
+    "changes": 9
+  },
+  {
+    "file": "modules/grid/data_service.py",
+    "changes": 22
+  },
+  {
+    "file": "modules/launcher/routes_admin.py",
+    "changes": 1
+  },
+  {
+    "file": "modules/launcher/routes_dashboard.py",
+    "changes": 1
+  },
+  {
+    "file": "modules/orm/data_service.py",
+    "changes": 7
+  },
+  {
+    "file": "modules/sentinel/data_service.py",
+    "changes": 1
+  }
+]

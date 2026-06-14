@@ -1,0 +1,68 @@
+<div class="page-head">
+  <div>
+    <h1><%= exercise ? 'Edit exercise' : 'Schedule exercise' %></h1>
+    <p>Tabletops, walkthroughs, and simulations tied to your continuity plans.</p>
+  </div>
+</div>
+
+<form method="POST" action="<%= exercise ? '/exercises/' + exercise.id : '/exercises' %>" class="card stack-16">
+  <div class="form-row cols-2">
+    <div><label>Title *</label><input name="title" required value="<%= exercise?.title || '' %>"/></div>
+    <div><label>Type</label>
+      <select name="type">
+        <% ['tabletop','walkthrough','simulation','full'].forEach(t => { %>
+          <option value="<%= t %>" <%= (exercise?.type || 'tabletop') === t ? 'selected' : '' %>><%= t %></option>
+        <% }) %>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row cols-2">
+    <div><label>Linked plan</label>
+      <select name="plan_id">
+        <option value="">— none —</option>
+        <% plans.forEach(p => { %>
+          <option value="<%= p.id %>" <%= exercise?.plan_id === p.id ? 'selected' : '' %>><%= p.title %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>Status</label>
+      <select name="status">
+        <% ['planned','in_progress','completed','cancelled'].forEach(s => { %>
+          <option value="<%= s %>" <%= (exercise?.status || 'planned') === s ? 'selected' : '' %>><%= s %></option>
+        <% }) %>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row cols-3">
+    <div><label>Scheduled date</label><input type="date" name="scheduled_date" value="<%= exercise?.scheduled_date || '' %>"/></div>
+    <div><label>Duration (minutes)</label><input type="number" min="0" name="duration_minutes" value="<%= exercise?.duration_minutes || '' %>"/></div>
+    <div><label>Facilitator</label><input name="facilitator" value="<%= exercise?.facilitator || '' %>"/></div>
+  </div>
+
+  <div><label>Scenario</label><textarea name="scenario" rows="3" placeholder="What situation are you simulating?"><%= exercise?.scenario || '' %></textarea></div>
+  <div><label>Objectives</label><textarea name="objectives" rows="3" placeholder="What does success look like?"><%= exercise?.objectives || '' %></textarea></div>
+  <div><label>Participants</label><textarea name="participants" rows="2" placeholder="Names or roles"><%= exercise?.participants || '' %></textarea></div>
+
+  <div class="card-title">After-action report</div>
+  <div class="form-row cols-2">
+    <div><label>Outcome</label>
+      <select name="outcome">
+        <option value="">—</option>
+        <% ['pass','partial','fail'].forEach(o => { %>
+          <option value="<%= o %>" <%= exercise?.outcome === o ? 'selected' : '' %>><%= o %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>Summary</label><input name="aar_summary" value="<%= exercise?.aar_summary || '' %>"/></div>
+  </div>
+  <div><label>Strengths</label><textarea name="aar_strengths" rows="3"><%= exercise?.aar_strengths || '' %></textarea></div>
+  <div><label>Gaps</label><textarea name="aar_gaps" rows="3"><%= exercise?.aar_gaps || '' %></textarea></div>
+  <div><label>Follow-up actions</label><textarea name="aar_actions" rows="3" placeholder="Corrective actions, owners, due dates..."><%= exercise?.aar_actions || '' %></textarea></div>
+
+  <div style="display:flex; gap:10px;">
+    <button class="btn primary" type="submit"><%= exercise ? 'Save changes' : 'Schedule' %></button>
+    <a class="btn ghost" href="/exercises">Cancel</a>
+  </div>
+</form>

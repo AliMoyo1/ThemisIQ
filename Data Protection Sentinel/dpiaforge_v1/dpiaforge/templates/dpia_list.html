@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}All DPIAs — DPIAforge{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<strong>All DPIAs</strong>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+.filter-bar{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);padding:14px 18px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  box-shadow:var(--shadow-sm);margin-bottom:20px;
+}
+.filter-bar input,.filter-bar select{
+  padding:8px 12px;border:1.5px solid var(--c-border);
+  border-radius:var(--radius-sm);font-size:13px;font-family:'Outfit',sans-serif;
+  color:var(--c-text);background:#fff;transition:var(--tx);
+}
+.filter-bar input:focus,.filter-bar select:focus{
+  outline:none;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(34,211,238,.15);
+}
+input[name="q"]{min-width:200px;flex:1}
+
+.dpia-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.dpia-card{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);padding:18px;
+  transition:var(--tx);position:relative;overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.dpia-card:hover{border-color:var(--c-accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+.dpia-card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+}
+.dpia-card.s-draft::before{background:var(--s-draft)}
+.dpia-card.s-in_review::before{background:var(--s-review)}
+.dpia-card.s-approved::before{background:var(--s-approved)}
+.dpia-card.s-rejected::before{background:var(--s-rejected)}
+
+.dpia-card-title{font-weight:700;font-size:14px;color:var(--c-text);margin-bottom:3px;padding-left:2px}
+.dpia-card-ref{font-size:10.5px;color:var(--c-subtle);margin-bottom:10px;padding-left:2px;font-weight:500}
+.dpia-card-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dpia-card-info{font-size:12px;color:var(--c-muted);display:flex;align-items:center;gap:4px;margin-top:8px}
+.dpia-card-actions{
+  display:flex;gap:6px;margin-top:14px;padding-top:12px;
+  border-top:1px solid var(--c-border);
+}
+.ai-chip{
+  font-size:10px;font-weight:700;letter-spacing:.3px;
+  background:var(--ai-grad);color:#fff;
+  padding:2px 8px;border-radius:10px;display:inline-flex;align-items:center;gap:3px;
+}
+
+.empty-state{
+  text-align:center;padding:72px 32px;color:var(--c-muted);
+}
+.empty-icon{
+  width:64px;height:64px;background:var(--c-bg);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;margin:0 auto 14px;border:2px solid var(--c-border);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-6">
+  <div>
+    <h1 style="font-size:22px;font-weight:800;letter-spacing:-.3px">All DPIAs</h1>
+    <p style="font-size:13px;color:var(--c-muted);margin-top:3px">Manage your data protection impact assessments</p>
+  </div>
+  <a href="{{ url_for('dpia_new') }}" class="btn btn-primary">
+    <i class="fa-solid fa-plus"></i> New DPIA
+  </a>
+</div>
+
+<!-- Filters -->
+<form method="get" action="{{ url_for('dpia_list') }}">
+<div class="filter-bar">
+  <i class="fa-solid fa-magnifying-glass" style="color:var(--c-muted)"></i>
+  <input type="search" name="q" placeholder="Search title, organisation, activity…" value="{{ search }}">
+  <select name="regulation">
+    <option value="">All Regulations</option>
+    {% for val,lbl in regulations %}
+    <option value="{{ val }}" {% if regulation==val %}selected{% endif %}>{{ lbl }}</option>
+    {% endfor %}
+  </select>
+  <select name="status">
+    <option value="">All Statuses</option>
+    {% for val,lbl in statuses %}
+    <option value="{{ val }}" {% if status==val %}selected{% endif %}>{{ lbl }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter"></i> Filter</button>
+  {% if search or regulation or status %}
+  <a href="{{ url_for('dpia_list') }}" class="btn btn-outline btn-sm"><i class="fa-solid fa-xmark"></i> Clear</a>
+  {% endif %}
+</div>
+</form>
+
+{% if dpias %}
+<div class="dpia-grid">
+{% for d in dpias %}
+<div class="dpia-card s-{{ d.status }}">
+  <div class="dpia-card-title">{{ d.title }}</div>
+  <div class="dpia-card-ref">{{ d.ref_number }}</div>
+  <div class="dpia-card-meta">
+    {% set rk = d.regulation.split()[0].lower() %}
+    <span class="reg-badge reg-{{ rk }}">{{ d.regulation.split()[0] }}</span>
+    <span class="badge badge-{{ d.status }}">{{ d.status|status_label }}</span>
+    {% if d.ai_full_dpia %}<span class="ai-chip">✦ AI</span>{% endif %}
+  </div>
+  <div class="dpia-card-info"><i class="fa-solid fa-building"></i> {{ d.org_name or '—' }}</div>
+  {% if d.activity_type %}
+  <div class="dpia-card-info"><i class="fa-solid fa-gears"></i> {{ d.activity_type[:44] }}{% if d.activity_type|length>44 %}…{% endif %}</div>
+  {% endif %}
+  <div class="dpia-card-info"><i class="fa-solid fa-calendar"></i> {{ d.updated_at|fmt_date }}</div>
+  <div class="dpia-card-actions">
+    <a href="{{ url_for('dpia_detail', dpia_id=d.id) }}" class="btn btn-outline btn-sm" style="flex:1;justify-content:center">
+      <i class="fa-solid fa-eye"></i> View
+    </a>
+    <a href="{{ url_for('dpia_edit', dpia_id=d.id) }}" class="btn btn-outline btn-sm">
+      <i class="fa-solid fa-pen"></i>
+    </a>
+    <a href="{{ url_for('dpia_download', dpia_id=d.id) }}" class="btn btn-outline btn-sm" title="Download Word">
+      <i class="fa-solid fa-file-word" style="color:#1D6CB2"></i>
+    </a>
+    <form method="post" action="{{ url_for('dpia_delete', dpia_id=d.id) }}"
+          onsubmit="return confirm('Delete this DPIA? This cannot be undone.')">
+      <button type="submit" class="btn btn-danger btn-sm btn-icon"><i class="fa-solid fa-trash"></i></button>
+    </form>
+  </div>
+</div>
+{% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <div class="empty-icon"><i class="fa-solid fa-shield-halved"></i></div>
+    <div style="font-weight:700;font-size:16px;margin-bottom:6px">No DPIAs Found</div>
+    <p>{% if search or regulation or status %}No results match your filters.{% else %}Get started by creating your first DPIA.{% endif %}</p>
+    {% if not search and not regulation and not status %}
+    <a href="{{ url_for('dpia_new') }}" class="btn btn-primary" style="margin-top:16px">
+      <i class="fa-solid fa-plus"></i> Create First DPIA
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

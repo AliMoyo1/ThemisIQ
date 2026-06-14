@@ -1,0 +1,299 @@
+{% extends "platform_base.html" %}
+{% block title %}Vendor Directory — ThemisIQ{% endblock %}
+{% block head %}
+<style>
+/* ── Vendor Directory ───────────────────────────────────────────────────── */
+.vd-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.vd-title{font-size:22px;font-weight:700;color:var(--text)}
+.vd-subtitle{font-size:13px;color:var(--muted);margin-top:2px}
+.vd-stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.vd-stat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:110px;text-align:center}
+.vd-stat-val{font-size:24px;font-weight:800;color:var(--text)}
+.vd-stat-lbl{font-size:11px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.vd-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.vd-search{flex:1;min-width:180px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;outline:none}
+.vd-search:focus{border-color:var(--accent)}
+.vd-chip{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;border:1.5px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--muted);transition:all .15s}
+.vd-chip.active{border-color:var(--accent);color:var(--accent);background:rgba(var(--accent-rgb),.08)}
+.vd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.vd-card{background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative;overflow:hidden}
+.vd-card:hover{border-color:var(--accent);box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.vd-card.flag-critical{border-left:4px solid var(--red,#dc2626)}
+.vd-card.flag-high{border-left:4px solid #f97316}
+.vd-card-name{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vd-card-services{font-size:12px;color:var(--muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vd-coverage{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.vd-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600}
+.vd-badge.present{background:rgba(22,163,74,.12);color:#16a34a;border:1px solid rgba(22,163,74,.25)}
+.vd-badge.absent{background:var(--surface);color:var(--muted);border:1px solid var(--border);opacity:.6}
+.vd-badge.warn{background:rgba(249,115,22,.12);color:#f97316;border:1px solid rgba(249,115,22,.3)}
+.vd-badge.danger{background:rgba(220,38,38,.12);color:#dc2626;border:1px solid rgba(220,38,38,.3)}
+.vd-flag-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.vd-flag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+.vd-flag.critical{background:rgba(220,38,38,.1);color:#dc2626}
+.vd-flag.high{background:rgba(249,115,22,.1);color:#f97316}
+.vd-flag.medium{background:rgba(217,119,6,.1);color:#d97706}
+.vd-coverage-bar{height:3px;border-radius:2px;background:var(--border);overflow:hidden;margin-bottom:8px}
+.vd-coverage-fill{height:100%;border-radius:2px;background:var(--accent);transition:width .4s}
+/* Drawer / profile panel */
+.vd-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:flex-start;justify-content:flex-end}
+.vd-drawer-overlay.open{display:flex}
+.vd-drawer{width:480px;max-width:95vw;background:var(--surface);border-left:1px solid var(--border);height:100vh;overflow-y:auto;padding:24px;position:relative}
+.vd-drawer-close{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted)}
+.vd-drawer-title{font-size:18px;font-weight:700;margin-bottom:4px;padding-right:40px}
+.vd-drawer-sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+.vd-module-section{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px}
+.vd-module-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px;font-weight:700}
+.vd-module-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.vd-module-icon.sentinel{background:rgba(99,102,241,.15);color:#6366f1}
+.vd-module-icon.grid{background:rgba(14,165,233,.15);color:#0ea5e9}
+.vd-module-icon.bcm{background:rgba(34,197,94,.15);color:#22c55e}
+.vd-kv{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px}
+.vd-kv:last-child{border-bottom:none}
+.vd-kv-k{color:var(--muted)}
+.vd-kv-v{font-weight:600;color:var(--text)}
+.vd-go-btn{display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;border:1px solid var(--accent);color:var(--accent);background:transparent;cursor:pointer;text-decoration:none;transition:background .15s}
+.vd-go-btn:hover{background:rgba(var(--accent-rgb),.08)}
+.vd-add-btn{display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;border:1px dashed var(--border);color:var(--muted);background:transparent;cursor:pointer;transition:all .15s}
+.vd-add-btn:hover{border-color:var(--accent);color:var(--accent)}
+.vd-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--muted);text-align:center}
+.vd-empty-icon{font-size:48px;margin-bottom:12px}
+.vd-empty-title{font-size:16px;font-weight:700;margin-bottom:6px;color:var(--text)}
+</style>
+{% endblock %}
+{% block content %}
+<div class="vd-header">
+  <div>
+    <div class="vd-title">Vendor Directory</div>
+    <div class="vd-subtitle">Unified view of all third-party vendors across Privacy, Audit &amp; Resilience</div>
+  </div>
+  <button class="btn btn-primary" onclick="vdOpenAddModal()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Vendor
+  </button>
+</div>
+
+<div class="vd-stats" id="vdStats">
+  <div class="vd-stat"><div class="vd-stat-val" id="vdStatTotal">—</div><div class="vd-stat-lbl">Total</div></div>
+  <div class="vd-stat"><div class="vd-stat-val" id="vdStatCovered" style="color:var(--green-status,#16a34a)">—</div><div class="vd-stat-lbl">Full Coverage</div></div>
+  <div class="vd-stat"><div class="vd-stat-val" id="vdStatGaps" style="color:#f97316">—</div><div class="vd-stat-lbl">With Gaps</div></div>
+  <div class="vd-stat"><div class="vd-stat-val" id="vdStatFlags" style="color:var(--red,#dc2626)">—</div><div class="vd-stat-lbl">Risk Flags</div></div>
+</div>
+
+<div class="vd-filters">
+  <input class="vd-search" id="vdSearch" placeholder="Search vendors..." oninput="vdFilter()">
+  <button class="vd-chip active" data-f="all" onclick="vdSetFilter(this,'all')">All</button>
+  <button class="vd-chip" data-f="gaps" onclick="vdSetFilter(this,'gaps')">Has Gaps</button>
+  <button class="vd-chip" data-f="flags" onclick="vdSetFilter(this,'flags')">Risk Flags</button>
+  <button class="vd-chip" data-f="sentinel" onclick="vdSetFilter(this,'sentinel')">Privacy Only</button>
+  <button class="vd-chip" data-f="bcm" onclick="vdSetFilter(this,'bcm')">Resilience Only</button>
+</div>
+
+<div id="vdGrid" class="vd-grid"></div>
+
+<!-- Drawer -->
+<div class="vd-drawer-overlay" id="vdDrawerOverlay" onclick="if(event.target===this)vdCloseDrawer()">
+  <div class="vd-drawer" id="vdDrawer"></div>
+</div>
+
+<!-- Add modal root -->
+<div id="vdModalRoot"></div>
+
+<script>
+var _vdAll=[], _vdFilter='all';
+
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function rb(v){var m={critical:'rgba(220,38,38,.12)',high:'rgba(249,115,22,.12)',medium:'rgba(217,119,6,.12)',low:'rgba(22,163,74,.12)'};var t={critical:'#dc2626',high:'#f97316',medium:'#d97706',low:'#16a34a'};var k=(v||'medium').toLowerCase();return '<span style="background:'+(m[k]||m.medium)+';color:'+(t[k]||t.medium)+';padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;text-transform:capitalize">'+esc(k)+'</span>';}
+function dpaBadge(s){var c=s==='signed'?'present':s==='expired'?'danger':'warn';var ico=s==='signed'?'✓':s==='expired'?'✗':'⏳';return '<span class="vd-badge '+c+'">'+ico+' DPA '+(s||'pending')+'</span>';}
+
+async function vdLoad(){
+  document.getElementById('vdGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Loading vendor directory...</div>';
+  try{
+    var d=await fetch('/api/vendors/directory').then(r=>r.json());
+    _vdAll=d.items||[];
+    vdRenderStats();
+    vdRender();
+  }catch(e){
+    document.getElementById('vdGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Failed to load vendor directory.</div>';
+  }
+}
+
+function vdRenderStats(){
+  var total=_vdAll.length;
+  var covered=_vdAll.filter(v=>v.coverage===3).length;
+  var gaps=_vdAll.filter(v=>v.coverage<3).length;
+  var flags=_vdAll.filter(v=>v.risk_flag).length;
+  document.getElementById('vdStatTotal').textContent=total;
+  document.getElementById('vdStatCovered').textContent=covered;
+  document.getElementById('vdStatGaps').textContent=gaps;
+  document.getElementById('vdStatFlags').textContent=flags;
+}
+
+function vdSetFilter(el, f){
+  document.querySelectorAll('.vd-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  _vdFilter=f;
+  vdRender();
+}
+
+function vdFilter(){vdRender();}
+
+function vdRender(){
+  var q=(document.getElementById('vdSearch').value||'').toLowerCase();
+  var items=_vdAll.filter(function(v){
+    if(q && !(v.name||'').toLowerCase().includes(q) && !(v.services||'').toLowerCase().includes(q)) return false;
+    if(_vdFilter==='gaps') return v.coverage < 3;
+    if(_vdFilter==='flags') return !!v.risk_flag;
+    if(_vdFilter==='sentinel') return v.sentinel&&v.sentinel.id&&!v.grid.id&&!v.bcm.id;
+    if(_vdFilter==='bcm') return v.bcm&&v.bcm.id&&!v.sentinel.id&&!v.grid.id;
+    return true;
+  });
+  if(!items.length){
+    document.getElementById('vdGrid').innerHTML='<div class="vd-empty" style="grid-column:1/-1"><div class="vd-empty-icon">🏢</div><div class="vd-empty-title">No vendors found</div><div>Try adjusting your search or filters</div></div>';
+    return;
+  }
+  document.getElementById('vdGrid').innerHTML=items.map(function(v){
+    var flagClass=v.risk_flag?'flag-'+v.risk_flag:'';
+    var pct=Math.round((v.coverage/3)*100);
+    var senBadge=v.sentinel&&v.sentinel.id
+      ? '<span class="vd-badge present">🔒 Privacy</span>'+(v.sentinel.dpa_status==='expired'?'<span class="vd-badge danger">DPA Expired</span>':v.sentinel.dpa_status==='signed'?'':'<span class="vd-badge warn">No DPA</span>')
+      : '<span class="vd-badge absent">🔒 Privacy</span>';
+    var gridBadge=v.grid&&v.grid.id
+      ? '<span class="vd-badge present">📋 Audit</span>'
+      : '<span class="vd-badge absent">📋 Audit</span>';
+    var bcmBadge=v.bcm&&v.bcm.id
+      ? '<span class="vd-badge present">🛡 Resilience</span>'+(v.bcm.tier?'<span class="vd-badge present">Tier '+v.bcm.tier+'</span>':'')
+      : '<span class="vd-badge absent">🛡 Resilience</span>';
+    return '<div class="vd-card '+flagClass+'" onclick="vdOpenDrawer('+v.id+')">'+
+      '<div class="vd-card-name">'+esc(v.name)+'</div>'+
+      '<div class="vd-card-services">'+esc(v.services||v.country||'No description')+'</div>'+
+      '<div class="vd-coverage-bar"><div class="vd-coverage-fill" style="width:'+pct+'%"></div></div>'+
+      '<div class="vd-coverage">'+senBadge+gridBadge+bcmBadge+'</div>'+
+      (v.risk_flag?'<div class="vd-flag-row"><span class="vd-flag '+v.risk_flag+'">⚠ Risk flag — click to view</span></div>':'')+
+    '</div>';
+  }).join('');
+}
+
+async function vdOpenDrawer(canonicalId){
+  var overlay=document.getElementById('vdDrawerOverlay');
+  var drawer=document.getElementById('vdDrawer');
+  drawer.innerHTML='<button class="vd-drawer-close" onclick="vdCloseDrawer()">×</button><div style="padding:40px;text-align:center;color:var(--muted)">Loading...</div>';
+  overlay.classList.add('open');
+  try{
+    var p=await fetch('/api/vendors/'+canonicalId+'/profile').then(r=>r.json());
+    var c=p.canonical||{};
+    var sen=p.modules&&p.modules.sentinel||null;
+    var grid=p.modules&&p.modules.grid||null;
+    var bcm=p.modules&&p.modules.bcm||null;
+    var flags=p.flags||[];
+    var html='<button class="vd-drawer-close" onclick="vdCloseDrawer()">×</button>'+
+      '<div class="vd-drawer-title">'+esc(c.name||'Vendor')+'</div>'+
+      '<div class="vd-drawer-sub">'+esc(c.services||c.country||'')+(c.contact_email?' &middot; '+esc(c.contact_email):'')+'</div>';
+    // Flags
+    if(flags.length){
+      html+='<div style="margin-bottom:14px">'+flags.map(function(f){
+        return '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:7px;margin-bottom:5px;font-size:12px;font-weight:600;color:#dc2626"><span>⚠</span>'+esc(f.msg)+'</div>';
+      }).join('')+'</div>';
+    }
+    // Privacy / Sentinel
+    html+='<div class="vd-module-section">'+
+      '<div class="vd-module-head"><div class="vd-module-icon sentinel">🔒</div><span>Privacy (Sentinel)</span></div>';
+    if(sen){
+      html+='<div class="vd-kv"><span class="vd-kv-k">DPA Status</span><span class="vd-kv-v">'+dpaBadge(sen.dpa_status)+'</span></div>'+
+        '<div class="vd-kv"><span class="vd-kv-k">Type</span><span class="vd-kv-v">'+esc(sen.type||'—')+'</span></div>'+
+        '<div class="vd-kv"><span class="vd-kv-k">Risk Level</span><span class="vd-kv-v">'+rb(sen.risk_level)+'</span></div>'+
+        '<div class="vd-kv"><span class="vd-kv-k">Regulation</span><span class="vd-kv-v">'+esc(sen.regulation||'—')+'</span></div>'+
+        (sen.ai_assessment?'<div class="vd-kv"><span class="vd-kv-k">AI Assessment</span><span class="vd-kv-v" style="font-size:11px;max-width:220px;text-align:right">'+esc((sen.ai_assessment||'').substring(0,80)+(sen.ai_assessment&&sen.ai_assessment.length>80?'…':''))+'</span></div>':'')+
+        '<a class="vd-go-btn" href="/sentinel/#vendors">→ Open in Privacy</a>';
+    } else {
+      html+='<div style="color:var(--muted);font-size:12px;margin-bottom:8px">Not registered in Privacy</div>'+
+        '<button class="vd-add-btn" onclick="vdPromptAddModule('+canonicalId+',\'sentinel\')">+ Register in Privacy</button>';
+    }
+    html+='</div>';
+    // Audit / GRID
+    html+='<div class="vd-module-section">'+
+      '<div class="vd-module-head"><div class="vd-module-icon grid">📋</div><span>Audit (GRID)</span></div>';
+    if(grid){
+      var ass=grid.latest_assessment;
+      html+='<div class="vd-kv"><span class="vd-kv-k">Risk Level</span><span class="vd-kv-v">'+rb(grid.risk_level)+'</span></div>'+
+        '<div class="vd-kv"><span class="vd-kv-k">Status</span><span class="vd-kv-v">'+esc(grid.status||'active')+'</span></div>'+
+        '<div class="vd-kv"><span class="vd-kv-k">Frameworks</span><span class="vd-kv-v">'+esc(grid.frameworks||'—')+'</span></div>'+
+        (grid.contract_expiry?'<div class="vd-kv"><span class="vd-kv-k">Contract Expiry</span><span class="vd-kv-v">'+esc(grid.contract_expiry)+'</span></div>':'')+
+        (ass?'<div class="vd-kv"><span class="vd-kv-k">Last Score</span><span class="vd-kv-v" style="color:'+(ass.score>=70?'#16a34a':ass.score>=50?'#d97706':'#dc2626')+'">'+ass.score+'%  ('+esc(ass.assessment_date)+')</span></div>':'<div class="vd-kv"><span class="vd-kv-k">Last Score</span><span class="vd-kv-v" style="color:var(--muted)">Not yet assessed</span></div>')+
+        '<a class="vd-go-btn" href="/grid/#vendors">→ Open in Audit</a>';
+    } else {
+      html+='<div style="color:var(--muted);font-size:12px;margin-bottom:8px">Not registered in Audit</div>'+
+        '<button class="vd-add-btn" onclick="vdPromptAddModule('+canonicalId+',\'grid\')">+ Register in Audit</button>';
+    }
+    html+='</div>';
+    // Resilience / BCM
+    html+='<div class="vd-module-section">'+
+      '<div class="vd-module-head"><div class="vd-module-icon bcm">🛡</div><span>Resilience (BCM)</span></div>';
+    if(bcm){
+      html+='<div class="vd-kv"><span class="vd-kv-k">Criticality</span><span class="vd-kv-v">'+rb(bcm.criticality||'medium')+'</span></div>'+
+        '<div class="vd-kv"><span class="vd-kv-k">Tier</span><span class="vd-kv-v">Tier '+esc(String(bcm.tier||3))+'</span></div>'+
+        (bcm.sla?'<div class="vd-kv"><span class="vd-kv-k">SLA</span><span class="vd-kv-v">'+esc(bcm.sla)+'</span></div>':'')+
+        (bcm.contract_renewal?'<div class="vd-kv"><span class="vd-kv-k">Contract Renewal</span><span class="vd-kv-v">'+esc(bcm.contract_renewal)+'</span></div>':'')+
+        (bcm.data_sensitivity?'<div class="vd-kv"><span class="vd-kv-k">Data Sensitivity</span><span class="vd-kv-v">'+esc(bcm.data_sensitivity)+'</span></div>':'')+
+        '<a class="vd-go-btn" href="/bcm/#vendors">→ Open in Resilience</a>';
+    } else {
+      html+='<div style="color:var(--muted);font-size:12px;margin-bottom:8px">Not registered in Resilience</div>'+
+        '<button class="vd-add-btn" onclick="vdPromptAddModule('+canonicalId+',\'bcm\')">+ Register in Resilience</button>';
+    }
+    html+='</div>';
+    drawer.innerHTML=html;
+  }catch(e){
+    drawer.innerHTML='<button class="vd-drawer-close" onclick="vdCloseDrawer()">×</button><div style="padding:40px;text-align:center;color:var(--muted)">Failed to load vendor profile.</div>';
+  }
+}
+
+function vdCloseDrawer(){document.getElementById('vdDrawerOverlay').classList.remove('open');}
+
+function vdPromptAddModule(canonicalId, module){
+  var urls={sentinel:'/sentinel/#vendors',grid:'/grid/#vendors',bcm:'/bcm/#vendors'};
+  var names={sentinel:'Privacy (Sentinel)',grid:'Audit (GRID)',bcm:'Resilience (BCM)'};
+  if(confirm('Navigate to '+names[module]+' to register this vendor there?\n\nThe vendor name will be pre-filled from the directory.')){
+    window.location.href=urls[module];
+  }
+}
+
+function vdOpenAddModal(){
+  document.getElementById('vdModalRoot').innerHTML=
+    '<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)document.getElementById(\'vdModalRoot\').innerHTML=\'\'">'+
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:440px;max-width:95vw">'+
+    '<div style="font-size:17px;font-weight:700;margin-bottom:14px">Add to Vendor Directory</div>'+
+    '<form onsubmit="return vdCreateCanonical(event)">'+
+    '<div style="margin-bottom:10px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Vendor Name *</label><input name="name" required placeholder="Company name" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box"></div>'+
+    '<div style="margin-bottom:10px"><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Services</label><input name="services" placeholder="What do they provide?" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box"></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+
+    '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Contact Name</label><input name="contact_name" placeholder="Contact" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box"></div>'+
+    '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Contact Email</label><input name="contact_email" type="email" placeholder="email@co.com" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box"></div>'+
+    '</div>'+
+    '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">'+
+    '<button type="button" class="btn btn-secondary" onclick="document.getElementById(\'vdModalRoot\').innerHTML=\'\'">Cancel</button>'+
+    '<button type="submit" class="btn btn-primary">Add Vendor</button></div>'+
+    '</form></div></div>';
+}
+
+async function vdCreateCanonical(e){
+  e.preventDefault();
+  var f=e.target;
+  var body={name:f.name.value,services:f.services.value,contact_name:f.contact_name.value,contact_email:f.contact_email.value};
+  try{
+    var r=await fetch('/api/vendors/directory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.ok){
+      document.getElementById('vdModalRoot').innerHTML='';
+      if(typeof showToast==='function') showToast('Vendor added to directory','success');
+      vdLoad();
+    } else {
+      if(typeof showToast==='function') showToast('Failed to add vendor','error');
+    }
+  }catch(ex){if(typeof showToast==='function') showToast('Error: '+ex.message,'error');}
+  return false;
+}
+
+function dpaBadge(s){var c=s==='signed'?'present':s==='expired'?'danger':'warn';var ico=s==='signed'?'✓':s==='expired'?'✗':'⏳';return '<span class="vd-badge '+c+'">'+ico+' '+(s||'pending')+'</span>';}
+
+vdLoad();
+</script>
+{% endblock %}

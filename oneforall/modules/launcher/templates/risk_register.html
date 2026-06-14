@@ -1,0 +1,215 @@
+{% extends "platform_base.html" %}
+{% block title %}Risk Register — ThemisIQ{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <span class="page-title">⚠️ Cross-Module Risk Register</span>
+  <div class="topbar-actions">
+    <select id="filterModule" onchange="loadRisks()" style="padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:12px;">
+      <option value="">All Modules</option>
+      <option value="aria">ARIA</option>
+      <option value="sentinel">Sentinel</option>
+      <option value="grid">GRID</option>
+      <option value="bcm">BCM</option>
+    </select>
+    <select id="filterStatus" onchange="loadRisks()" style="padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:12px;">
+      <option value="">All Status</option>
+      <option value="open">Open</option>
+      <option value="mitigating">Mitigating</option>
+      <option value="monitoring">Monitoring</option>
+      <option value="closed">Closed</option>
+    </select>
+    <button class="btn btn-primary" onclick="openNewRisk()">+ New Risk</button>
+  </div>
+</div>
+
+<div class="content">
+  <!-- Stats -->
+  <div id="riskStats" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px;"></div>
+
+  <!-- Heat Map & Table -->
+  <div style="display:grid; grid-template-columns:280px 1fr; gap:16px;">
+    <!-- Heat Map -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:12px;">Risk Heat Map</div>
+      <div id="heatMap" style="display:grid; grid-template-columns:repeat(5,1fr); gap:3px;"></div>
+      <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:10px; color:var(--muted);">
+        <span>← Low Impact</span><span>High Impact →</span>
+      </div>
+    </div>
+
+    <!-- Risk Table -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Risk</th>
+            <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Score</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Module</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Treatment</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Owner</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
+          </tr>
+        </thead>
+        <tbody id="riskBody">
+          <tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- New Risk Modal -->
+<div class="modal" id="newRiskModal">
+  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
+  <div class="modal-content" style="max-width:550px;">
+    <div class="modal-header">
+      <h3 style="margin:0; font-size:16px;">Register New Risk</h3>
+      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px;">
+      <form id="riskForm" onsubmit="createRisk(event)">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Title</label>
+          <input type="text" id="rTitle" required style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Description</label>
+          <textarea id="rDesc" rows="3" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px; resize:vertical;"></textarea>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Likelihood (1-5)</label>
+            <input type="number" id="rLikelihood" min="1" max="5" value="3" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+          </div>
+          <div>
+            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Impact (1-5)</label>
+            <input type="number" id="rImpact" min="1" max="5" value="3" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Source Module</label>
+            <select id="rModule" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+              <option value="">None</option>
+              <option value="aria">ARIA</option>
+              <option value="sentinel">Sentinel</option>
+              <option value="grid">GRID</option>
+              <option value="bcm">BCM</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Treatment</label>
+            <select id="rTreatment" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+              <option value="mitigate">Mitigate</option>
+              <option value="accept">Accept</option>
+              <option value="transfer">Transfer</option>
+              <option value="avoid">Avoid</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Category</label>
+          <select id="rCategory" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+            <option value="operational">Operational</option>
+            <option value="strategic">Strategic</option>
+            <option value="compliance">Compliance</option>
+            <option value="financial">Financial</option>
+            <option value="security">Security</option>
+            <option value="privacy">Privacy</option>
+            <option value="continuity">Business Continuity</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Register Risk</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const levelColors = { critical: 'var(--bad)', high: '#f97316', medium: 'var(--warn)', low: 'var(--good)' };
+const levelBg = { critical: 'var(--bad-soft)', high: 'rgba(249,115,22,0.12)', medium: 'var(--warn-soft)', low: 'var(--good-soft)' };
+
+async function loadStats() {
+  const resp = await fetch('/api/risks/stats');
+  const s = await resp.json();
+  document.getElementById('riskStats').innerHTML = `
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Total Open</div><div style="font-size:22px;font-weight:700;color:var(--text);margin-top:2px;">${s.total}</div></div>
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Critical</div><div style="font-size:22px;font-weight:700;color:var(--bad);margin-top:2px;">${s.by_level.critical||0}</div></div>
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">High</div><div style="font-size:22px;font-weight:700;color:#f97316;margin-top:2px;">${s.by_level.high||0}</div></div>
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Medium</div><div style="font-size:22px;font-weight:700;color:var(--warn);margin-top:2px;">${s.by_level.medium||0}</div></div>
+    <div class="card" style="padding:12px 16px;"><div style="font-size:10px;text-transform:uppercase;color:var(--muted);">Low</div><div style="font-size:22px;font-weight:700;color:var(--good);margin-top:2px;">${s.by_level.low||0}</div></div>
+  `;
+  renderHeatMap(s.heat_map);
+}
+
+function renderHeatMap(data) {
+  const grid = document.getElementById('heatMap');
+  let html = '';
+  for (let l = 5; l >= 1; l--) {
+    for (let i = 1; i <= 5; i++) {
+      const cell = data.find(d => d.likelihood === l && d.impact === i);
+      const count = cell ? cell.count : 0;
+      const score = l * i;
+      const bg = score >= 20 ? 'rgba(248,113,113,0.6)' : score >= 12 ? 'rgba(249,115,22,0.5)' : score >= 6 ? 'rgba(251,191,36,0.4)' : 'rgba(74,222,128,0.3)';
+      html += '<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:4px;background:' + bg + ';font-size:11px;font-weight:600;color:var(--text);">' + (count || '') + '</div>';
+    }
+  }
+  grid.innerHTML = html;
+}
+
+async function loadRisks() {
+  const module = document.getElementById('filterModule').value;
+  const status = document.getElementById('filterStatus').value;
+  const params = new URLSearchParams();
+  if (module) params.set('module', module);
+  if (status) params.set('status', status);
+  const resp = await fetch('/api/risks?' + params.toString());
+  const risks = await resp.json();
+
+  const tbody = document.getElementById('riskBody');
+  if (!risks.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:40px;text-align:center;color:var(--muted);">No risks found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = risks.map(r => `
+    <tr style="border-bottom:1px solid var(--border-soft);">
+      <td style="padding:10px 14px;"><div style="font-weight:500;font-size:13px;color:var(--text);">${esc(r.title)}</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(r.category)}</div></td>
+      <td style="padding:10px 14px;text-align:center;"><span style="display:inline-block;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:700;background:${levelBg[r.risk_level]||'var(--surface3)'};color:${levelColors[r.risk_level]||'var(--muted)'};">${esc(r.risk_score)}</span></td>
+      <td style="padding:10px 14px;font-size:12px;text-transform:uppercase;color:var(--muted);">${esc(r.source_module||'—')}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--text);">${esc(r.treatment)}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--text);">${esc(r.owner_name||'Unassigned')}</td>
+      <td style="padding:10px 14px;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:var(--surface3);color:var(--muted);">${esc(r.status)}</span></td>
+    </tr>
+  `).join('');
+}
+
+function openNewRisk() { document.getElementById('newRiskModal').classList.add('open'); }
+
+async function createRisk(e) {
+  e.preventDefault();
+  const body = {
+    title: document.getElementById('rTitle').value,
+    description: document.getElementById('rDesc').value,
+    likelihood: parseInt(document.getElementById('rLikelihood').value),
+    impact: parseInt(document.getElementById('rImpact').value),
+    source_module: document.getElementById('rModule').value,
+    treatment: document.getElementById('rTreatment').value,
+    category: document.getElementById('rCategory').value,
+  };
+  const resp = await fetch('/api/risks', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (resp.ok) {
+    document.getElementById('newRiskModal').classList.remove('open');
+    document.getElementById('riskForm').reset();
+    loadRisks();
+    loadStats();
+  }
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+document.addEventListener('DOMContentLoaded', () => { loadStats(); loadRisks(); });
+</script>
+
+{% endblock %}

@@ -1,0 +1,129 @@
+{% extends "platform_base.html" %}
+{% block title %}API Keys — ThemisIQ{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <span class="page-title">API Key Management</span>
+  <div class="topbar-actions">
+    <button class="btn btn-primary" onclick="openNewKey()">+ Generate Key</button>
+  </div>
+</div>
+
+<div class="content">
+  <div class="card" style="padding:16px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
+    <div style="font-size:12px; color:var(--muted);">API keys enable external systems to authenticate with the ThemisIQ platform. Keys are shown only once on creation — store them securely. Include the key in requests as: <code style="padding:2px 6px; border-radius:4px; background:var(--surface3); font-size:11px;">Authorization: Bearer ofa_...</code></div>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Name</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Key Prefix</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Scopes</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Last Used</th>
+          <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
+          <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="keysBody">
+        <tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- New Key Modal -->
+<div class="modal" id="newKeyModal">
+  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
+  <div class="modal-content" style="max-width:420px;">
+    <div class="modal-header">
+      <h3 style="margin:0; font-size:16px;">Generate API Key</h3>
+      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px;">
+      <form id="keyForm" onsubmit="generateKey(event)">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Name</label>
+          <input type="text" id="keyName" required placeholder="e.g. SIEM Integration" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Scopes</label>
+          <select id="keyScopes" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+            <option value="read">Read Only</option>
+            <option value="read,write">Read + Write</option>
+            <option value="read,write,admin">Full Access</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Generate</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Key Reveal Modal -->
+<div class="modal" id="revealModal">
+  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h3 style="margin:0; font-size:16px;">Your API Key</h3>
+      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px;">
+      <div style="padding:12px; border-radius:6px; background:var(--surface3); border:1px solid var(--border); font-family:monospace; font-size:12px; word-break:break-all; margin-bottom:12px;" id="revealKey"></div>
+      <div style="font-size:11px; color:var(--bad); margin-bottom:12px;">⚠️ This key will not be shown again. Copy it now and store it securely.</div>
+      <button class="btn btn-secondary" onclick="copyKey()" style="width:100%;">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadKeys() {
+  const resp = await fetch('/api/admin/api-keys');
+  const keys = await resp.json();
+  const tbody = document.getElementById('keysBody');
+  if (!keys.length) { tbody.innerHTML = '<tr><td colspan="6" style="padding:40px;text-align:center;color:var(--muted);">No API keys. Generate one to enable external integrations.</td></tr>'; return; }
+  tbody.innerHTML = keys.map(k => `
+    <tr style="border-bottom:1px solid var(--border-soft);">
+      <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(k.name)}</td>
+      <td style="padding:10px 14px;font-family:monospace;font-size:12px;color:var(--muted);">${esc(k.key_prefix)}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.scopes)}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);">${esc(k.last_used_at||'Never')}</td>
+      <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${k.is_active?'var(--good-soft)':'var(--bad-soft)'};color:${k.is_active?'var(--good)':'var(--bad)'};">${k.is_active?'Active':'Revoked'}</span></td>
+      <td style="padding:10px 14px;text-align:center;">${k.is_active?'<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:var(--bad);" onclick="revokeKey('+parseInt(k.id,10)+')">Revoke</button>':'—'}</td>
+    </tr>
+  `).join('');
+}
+
+function openNewKey() { document.getElementById('newKeyModal').classList.add('open'); }
+
+async function generateKey(e) {
+  e.preventDefault();
+  const body = { name: document.getElementById('keyName').value, scopes: document.getElementById('keyScopes').value };
+  const resp = await fetch('/api/admin/api-keys', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (resp.ok) {
+    const data = await resp.json();
+    document.getElementById('newKeyModal').classList.remove('open');
+    document.getElementById('keyForm').reset();
+    document.getElementById('revealKey').textContent = data.key;
+    document.getElementById('revealModal').classList.add('open');
+    loadKeys();
+  }
+}
+
+function copyKey() {
+  const key = document.getElementById('revealKey').textContent;
+  navigator.clipboard.writeText(key).then(() => { alert('Copied!'); });
+}
+
+async function revokeKey(id) {
+  if (!confirm('Revoke this API key? This cannot be undone.')) return;
+  await fetch(`/api/admin/api-keys/${id}`, { method:'DELETE' });
+  loadKeys();
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+document.addEventListener('DOMContentLoaded', loadKeys);
+</script>
+
+{% endblock %}

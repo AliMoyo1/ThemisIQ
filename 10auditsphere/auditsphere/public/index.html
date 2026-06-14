@@ -1,0 +1,3408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>G.R.I.D AI — Governance, Risk, IT &amp; Data</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ============================================================
+   GRID AI — LIGHT THEME (Donezo-inspired)
+   Clean white, forest green accents, smooth animations
+   ============================================================ */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  /* Core palette */
+  --green:       #1a6b3a;
+  --green-mid:   #2d8653;
+  --green-light: #3fa96b;
+  --green-pale:  #e8f5ee;
+  --green-bg:    #f0faf4;
+  --green-dark:  #0f4424;
+
+  /* Surfaces */
+  --bg:          #f5f6fa;
+  --surface:     #ffffff;
+  --surface2:    #f8f9fc;
+  --surface3:    #f0f1f6;
+
+  /* Text */
+  --text:        #111827;
+  --text-mid:    #374151;
+  --muted:       #6b7280;
+  --dim:         #9ca3af;
+
+  /* Borders */
+  --border:      rgba(0,0,0,0.06);
+  --border2:     rgba(0,0,0,0.1);
+
+  /* Status */
+  --amber:       #d97706;
+  --amber-bg:    #fffbeb;
+  --red:         #dc2626;
+  --red-bg:      #fef2f2;
+  --blue:        #2563eb;
+  --blue-bg:     #eff6ff;
+
+  /* Shadows */
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-green:0 8px 24px rgba(26,107,58,0.25);
+
+  /* Layout */
+  --radius:      10px;
+  --radius-lg:   16px;
+  --radius-xl:   22px;
+  --sidebar-w:   240px;
+  --topbar-h:    64px;
+
+  --font:  'Plus Jakarta Sans', sans-serif;
+  --mono:  'JetBrains Mono', monospace;
+}
+
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+a{color:var(--green);text-decoration:none}
+button{cursor:pointer;font-family:var(--font)}
+input,select,textarea{font-family:var(--font)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:var(--dim)}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideInLeft{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes progressFill{from{width:0}to{width:var(--target-w,100%)}}
+@keyframes dotBlink{0%,80%,100%{opacity:0.2}40%{opacity:1}}
+@keyframes toastSlide{from{opacity:0;transform:translateX(120%)}to{opacity:1;transform:translateX(0)}}
+@keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes logoWave{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+
+.animate-fade-up{animation:fadeUp 0.4s ease both}
+.animate-fade{animation:fadeIn 0.3s ease both}
+.anim-1{animation-delay:0.05s}
+.anim-2{animation-delay:0.10s}
+.anim-3{animation-delay:0.15s}
+.anim-4{animation-delay:0.20s}
+.anim-5{animation-delay:0.25s}
+
+/* ── LOGIN ── */
+#login-screen{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;background:var(--bg);
+  position:relative;overflow:hidden;
+}
+#login-screen::before{
+  content:'';position:absolute;width:700px;height:700px;border-radius:50%;
+  background:radial-gradient(circle,rgba(26,107,58,0.10) 0%,transparent 70%);
+  top:-200px;right:-200px;animation:pulse 6s ease-in-out infinite;
+}
+#login-screen::after{
+  content:'';position:absolute;width:400px;height:400px;border-radius:50%;
+  background:radial-gradient(circle,rgba(26,107,58,0.06) 0%,transparent 70%);
+  bottom:-100px;left:-100px;animation:pulse 8s ease-in-out infinite reverse;
+}
+.login-card{
+  background:var(--surface);border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-lg);padding:44px;width:420px;
+  position:relative;z-index:1;animation:fadeUp 0.5s ease;
+}
+.login-brand{display:flex;align-items:center;gap:12px;margin-bottom:32px}
+.login-brand-icon{
+  width:48px;height:48px;background:var(--green);border-radius:14px;
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  box-shadow:var(--shadow-green);animation:logoWave 4s ease-in-out infinite;
+}
+.login-brand-text{flex:1}
+.login-brand-name{font-size:22px;font-weight:800;color:var(--green);letter-spacing:-0.02em}
+.login-brand-sub{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.login-title{font-size:26px;font-weight:800;color:var(--text);margin-bottom:6px}
+.login-desc{font-size:13px;color:var(--muted);margin-bottom:28px}
+.login-error{
+  background:var(--red-bg);border:1px solid rgba(220,38,38,0.2);color:var(--red);
+  padding:10px 14px;border-radius:var(--radius);font-size:12px;margin-bottom:14px;display:none;
+}
+
+/* ── APP SHELL ── */
+#app{display:none;height:100vh;flex-direction:column}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;box-shadow:var(--shadow-sm);
+}
+.topbar-left{display:flex;align-items:center;gap:20px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-icon{
+  width:36px;height:36px;background:var(--green);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;color:white;font-size:16px;
+  box-shadow:0 4px 12px rgba(26,107,58,0.3);transition:transform 0.2s;flex-shrink:0;
+}
+.logo:hover .logo-icon{transform:scale(1.08) rotate(-3deg)}
+.logo-text{line-height:1}
+.logo-name{font-size:16px;font-weight:800;color:var(--green);letter-spacing:-0.01em}
+.logo-by{font-size:9px;color:var(--muted);font-family:var(--mono);letter-spacing:0.05em;margin-top:1px}
+.topbar-search{
+  display:flex;align-items:center;gap:8px;background:var(--surface2);
+  border:1px solid var(--border2);border-radius:var(--radius);padding:8px 14px;
+  width:280px;color:var(--muted);font-size:13px;transition:all 0.2s;cursor:pointer;
+}
+.topbar-search:hover{border-color:var(--green);background:var(--green-bg)}
+.topbar-search svg{flex-shrink:0;opacity:0.5}
+.topbar-search span{flex:1}
+.topbar-kbd{
+  background:var(--surface3);border:1px solid var(--border2);border-radius:5px;
+  padding:2px 6px;font-size:10px;font-family:var(--mono);color:var(--dim);
+}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.topbar-audit-wrap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.topbar-audit-select{
+  background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+  padding:7px 12px;border-radius:var(--radius);font-size:12px;font-family:var(--mono);
+  outline:none;cursor:pointer;transition:border-color 0.2s;max-width:200px;
+}
+.topbar-audit-select:focus,.topbar-audit-select:hover{border-color:var(--green)}
+.topbar-icon-btn{
+  width:38px;height:38px;border-radius:var(--radius);background:var(--surface2);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  color:var(--muted);cursor:pointer;transition:all 0.2s;position:relative;
+}
+.topbar-icon-btn:hover{background:var(--green-pale);color:var(--green);border-color:var(--green)}
+.notif-dot{
+  position:absolute;top:7px;right:7px;width:7px;height:7px;border-radius:50%;
+  background:var(--red);border:2px solid white;
+}
+.topbar-user{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 10px;border-radius:var(--radius);transition:background 0.2s}
+.topbar-user:hover{background:var(--green-pale)}
+.user-av{
+  width:36px;height:36px;border-radius:50%;background:var(--green);
+  color:white;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 8px rgba(26,107,58,0.3);flex-shrink:0;
+}
+.user-name{font-size:13px;font-weight:600;color:var(--text)}
+.user-email{font-size:11px;color:var(--muted);font-family:var(--mono)}
+
+/* ── SHELL ── */
+.shell{display:flex;flex:1;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;
+  animation:slideInLeft 0.4s ease;
+}
+.sidebar-section{padding:20px 12px 8px}
+.sidebar-label{
+  font-size:10px;font-weight:700;letter-spacing:0.12em;color:var(--dim);
+  text-transform:uppercase;padding:0 8px 8px;font-family:var(--mono);
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border-radius:var(--radius);color:var(--muted);cursor:pointer;
+  font-size:13px;font-weight:500;margin-bottom:2px;transition:all 0.18s;position:relative;
+  user-select:none;
+}
+.nav-item:hover{background:var(--green-pale);color:var(--green-mid)}
+.nav-item.active{background:var(--green);color:white;box-shadow:0 4px 12px rgba(26,107,58,0.25)}
+.nav-item.active svg{opacity:1}
+.nav-item svg{opacity:0.6;flex-shrink:0;transition:opacity 0.2s}
+.nav-item:hover svg{opacity:1}
+.nav-badge{
+  margin-left:auto;background:var(--red);color:white;font-size:9px;
+  font-weight:700;padding:2px 6px;border-radius:10px;font-family:var(--mono);
+}
+.nav-item.active .nav-badge{background:rgba(255,255,255,0.25);color:white}
+.nav-count{
+  margin-left:auto;background:var(--green-pale);color:var(--green);font-size:10px;
+  font-weight:600;padding:2px 8px;border-radius:10px;font-family:var(--mono);
+}
+.nav-item.active .nav-count{background:rgba(255,255,255,0.2);color:white}
+
+/* Framework items */
+.fw-section{padding:8px 12px 12px}
+.fw-item{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--radius);
+  cursor:pointer;font-size:12px;color:var(--muted);transition:all 0.18s;margin-bottom:2px;
+}
+.fw-item:hover{background:var(--surface2);color:var(--text)}
+.fw-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fw-add{color:var(--green);font-weight:600;margin-top:4px}
+.fw-add:hover{background:var(--green-pale)}
+
+/* Sidebar bottom */
+.sidebar-bottom{margin-top:auto;padding:12px}
+.ai-chat-btn{
+  width:100%;background:var(--green);color:white;border:none;
+  padding:11px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:8px;cursor:pointer;
+  box-shadow:var(--shadow-green);transition:all 0.2s;font-family:var(--font);
+}
+.ai-chat-btn:hover{background:var(--green-mid);transform:translateY(-1px);box-shadow:0 6px 20px rgba(26,107,58,0.3)}
+.ai-chat-btn:active{transform:translateY(0)}
+
+/* ── MAIN ── */
+.main{flex:1;overflow-y:auto;background:var(--bg)}
+.page{display:none;padding:28px;animation:fadeUp 0.35s ease}
+.page.active{display:block}
+
+/* ── SECTION HEADER ── */
+.section-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap}
+.section-title{font-size:26px;font-weight:800;color:var(--text);letter-spacing:-0.02em;margin-bottom:4px}
+.section-sub{font-size:13px;color:var(--muted)}
+.header-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ── BUTTONS ── */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:9px 18px;
+  border-radius:var(--radius);font-size:13px;font-weight:600;border:none;
+  cursor:pointer;transition:all 0.18s;font-family:var(--font);white-space:nowrap;
+}
+.btn-primary{background:var(--green);color:white;box-shadow:0 2px 8px rgba(26,107,58,0.25)}
+.btn-primary:hover{background:var(--green-mid);transform:translateY(-1px);box-shadow:var(--shadow-green)}
+.btn-primary:active{transform:translateY(0)}
+.btn-secondary{background:var(--surface);color:var(--text-mid);border:1.5px solid var(--border2)}
+.btn-secondary:hover{border-color:var(--green);color:var(--green);background:var(--green-pale)}
+.btn-ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--border2)}
+.btn-danger{background:var(--red-bg);color:var(--red);border:1.5px solid rgba(220,38,38,0.2)}
+.btn-danger:hover{background:rgba(220,38,38,0.12)}
+.btn-ai{background:linear-gradient(135deg,var(--green),var(--green-light));color:white;box-shadow:var(--shadow-green)}
+.btn-ai:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(26,107,58,0.35)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-icon{padding:9px;width:38px;height:38px;justify-content:center}
+
+/* ── STAT CARDS ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-card{
+  background:var(--surface);border-radius:var(--radius-lg);padding:20px;
+  box-shadow:var(--shadow-sm);border:1px solid var(--border);
+  transition:all 0.2s;position:relative;overflow:hidden;
+}
+.stat-card::after{
+  content:'';position:absolute;top:0;right:0;width:80px;height:80px;
+  border-radius:50%;opacity:0.06;transform:translate(20px,-20px);
+}
+.stat-card.green::after{background:var(--green)}
+.stat-card.amber::after{background:var(--amber)}
+.stat-card.red::after{background:var(--red)}
+.stat-card.blue::after{background:var(--blue)}
+.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.stat-card-hero{
+  background:var(--green);color:white;box-shadow:var(--shadow-green);
+  background-image:radial-gradient(ellipse at top right,rgba(255,255,255,0.12) 0%,transparent 60%);
+}
+.stat-card-hero:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(26,107,58,0.35)}
+.stat-card-hero::after{background:white;opacity:0.08}
+.stat-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.stat-card-hero .stat-label{color:rgba(255,255,255,0.75)}
+.stat-arrow{
+  width:28px;height:28px;border-radius:50%;border:1.5px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all 0.2s;cursor:pointer;
+}
+.stat-arrow:hover{border-color:var(--green);color:var(--green);background:var(--green-pale)}
+.stat-card-hero .stat-arrow{border-color:rgba(255,255,255,0.3);color:white}
+.stat-card-hero .stat-arrow:hover{background:rgba(255,255,255,0.15)}
+.stat-value{font-size:36px;font-weight:800;line-height:1;margin-bottom:8px;letter-spacing:-0.02em;animation:countUp 0.5s ease}
+.stat-card-hero .stat-value{color:white}
+.stat-trend{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600}
+.stat-trend.up{color:var(--green)}
+.stat-trend.down{color:var(--red)}
+.stat-card-hero .stat-trend{color:rgba(255,255,255,0.85)}
+.pbar{height:4px;background:var(--surface3);border-radius:2px;margin-top:10px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:2px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+
+/* ── CARDS ── */
+.card{
+  background:var(--surface);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-sm);border:1px solid var(--border);overflow:hidden;
+}
+.card-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border);
+}
+.card-title{font-size:14px;font-weight:700;color:var(--text)}
+.card-body{padding:18px 20px}
+
+/* ── TWO/THREE COL ── */
+.two-col{display:grid;grid-template-columns:1fr 300px;gap:20px}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+
+/* ── CONTROLS TABLE ── */
+.ctrl-table{width:100%;border-collapse:collapse}
+.ctrl-table th{
+  font-size:10px;font-family:var(--mono);color:var(--muted);
+  text-transform:uppercase;letter-spacing:0.1em;padding:10px 14px;
+  background:var(--surface2);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;
+}
+.ctrl-table td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.ctrl-table tr:last-child td{border-bottom:none}
+.ctrl-table tbody tr{cursor:pointer;transition:background 0.15s}
+.ctrl-table tbody tr:hover{background:var(--green-bg)}
+.ctrl-id{font-family:var(--mono);font-size:10px;color:var(--green);font-weight:600;display:block;margin-bottom:2px}
+.ctrl-name{font-size:13px;color:var(--text);font-weight:500;max-width:240px}
+
+/* ── BADGES ── */
+.risk-badge{font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block;white-space:nowrap}
+.risk-Critical{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
+.risk-High{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.risk-Medium{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(37,99,235,0.15)}
+.risk-Low{background:var(--green-pale);color:var(--green);border:1px solid rgba(26,107,58,0.15)}
+.status-badge{font-size:10px;font-family:var(--mono);font-weight:600;padding:3px 8px;border-radius:6px;display:inline-block;white-space:nowrap}
+.status-complete{background:var(--green-pale);color:var(--green);border:1px solid rgba(26,107,58,0.15)}
+.status-in_progress{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.status-not_started{background:var(--surface3);color:var(--muted);border:1px solid var(--border)}
+.status-overdue{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
+.pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+.pill-active{background:var(--green-pale);color:var(--green)}
+.pill-prep{background:var(--amber-bg);color:var(--amber)}
+.pill-planning{background:var(--blue-bg);color:var(--blue)}
+
+/* ── ASSIGNEE ── */
+.assignee-pill{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.av{
+  width:24px;height:24px;border-radius:50%;font-size:9px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background:var(--green-pale);color:var(--green);
+}
+.ev-ratio{font-family:var(--mono);font-size:11px;font-weight:600}
+.ev-full{color:var(--green)}.ev-partial{color:var(--amber)}.ev-zero{color:var(--red)}
+
+/* ── RIGHT PANEL ── */
+.panel-card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);padding:18px;margin-bottom:16px;transition:box-shadow 0.2s}
+.panel-card:hover{box-shadow:var(--shadow-md)}
+.panel-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;font-family:var(--mono);margin-bottom:14px}
+
+/* Ring chart */
+.ring-wrap{display:flex;align-items:center;gap:16px}
+.ring-legend{font-size:12px;flex:1}
+.ring-item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ring-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ring-lbl{color:var(--muted);flex:1}
+.ring-val{font-family:var(--mono);font-weight:700;color:var(--text)}
+
+/* Timeline */
+.tl-item{display:flex;gap:12px;margin-bottom:14px}
+.tl-col{display:flex;flex-direction:column;align-items:center}
+.tl-dot{width:10px;height:10px;border-radius:50%;margin-top:2px;flex-shrink:0;border:2px solid white;box-shadow:0 0 0 2px currentColor}
+.tl-line{width:1px;background:var(--border);flex:1;margin-top:6px;min-height:14px}
+.tl-content{flex:1;padding-bottom:2px}
+.tl-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.tl-date{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.tl-done{color:var(--green)}.tl-warn{color:var(--amber)}.tl-over{color:var(--red)}
+
+/* Upload zone */
+.upload-zone{
+  border:2px dashed var(--border2);border-radius:var(--radius);padding:24px;
+  text-align:center;cursor:pointer;transition:all 0.2s;
+}
+.upload-zone:hover{border-color:var(--green);background:var(--green-bg)}
+.upload-icon{font-size:28px;margin-bottom:8px}
+.upload-text{font-size:12px;color:var(--muted);line-height:1.6}
+.upload-text strong{color:var(--green)}
+
+/* ── FORMS ── */
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:6px}
+.form-input,.form-select,.form-textarea{
+  width:100%;padding:10px 13px;background:var(--surface2);
+  border:1.5px solid var(--border2);border-radius:var(--radius);color:var(--text);
+  font-size:13px;font-family:var(--font);outline:none;transition:all 0.18s;
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{
+  border-color:var(--green);background:white;box-shadow:0 0 0 3px rgba(26,107,58,0.1);
+}
+.form-select option{background:white}
+.form-textarea{resize:vertical;min-height:80px;line-height:1.6}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-hint{font-size:11px;color:var(--muted);margin-top:5px;font-family:var(--mono)}
+
+/* ── MODAL ── */
+.modal-backdrop{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);
+  z-index:500;align-items:center;justify-content:center;padding:20px;
+  backdrop-filter:blur(4px);
+}
+.modal-backdrop.open{display:flex}
+.modal{
+  background:white;border-radius:var(--radius-xl);width:100%;
+  max-height:90vh;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,0.2);
+  animation:modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.modal-sm{max-width:440px}.modal-md{max-width:560px}.modal-lg{max-width:720px}
+.modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 24px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.modal-title{font-size:17px;font-weight:800;color:var(--text)}
+.modal-close{
+  width:32px;height:32px;border-radius:8px;background:var(--surface2);
+  border:none;color:var(--muted);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all 0.15s;
+}
+.modal-close:hover{background:var(--red-bg);color:var(--red)}
+.modal-body{padding:24px;overflow-y:auto;flex:1}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:18px 24px;border-top:1px solid var(--border);flex-shrink:0}
+
+/* ── EVIDENCE ITEMS ── */
+.ev-item{
+  display:flex;align-items:center;gap:12px;padding:12px;
+  background:var(--surface2);border-radius:var(--radius);margin-bottom:8px;
+  border:1px solid var(--border);transition:all 0.15s;
+}
+.ev-item:hover{border-color:var(--green);background:var(--green-bg)}
+.ev-icon{font-size:22px;flex-shrink:0}
+.ev-info{flex:1;min-width:0}
+.ev-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-meta{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+.ev-status{font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px}
+.ev-pending{color:var(--amber);background:var(--amber-bg);border:1px solid rgba(217,119,6,0.15)}
+.ev-approved{color:var(--green);background:var(--green-pale);border:1px solid rgba(26,107,58,0.15)}
+.ev-rejected{color:var(--red);background:var(--red-bg);border:1px solid rgba(220,38,38,0.15)}
+
+/* ── COMMENTS ── */
+.comment-item{padding:12px;border-left:3px solid var(--green-pale);border-radius:0 8px 8px 0;margin-bottom:10px;background:var(--surface2)}
+.comment-author{font-size:12px;font-weight:700;color:var(--green);margin-bottom:4px}
+.comment-text{font-size:13px;color:var(--text-mid);line-height:1.5}
+.comment-date{font-size:10px;color:var(--dim);font-family:var(--mono);margin-top:4px}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:4px;margin-bottom:20px}
+.tab{flex:1;text-align:center;padding:8px;font-size:12px;font-weight:600;border-radius:7px;cursor:pointer;color:var(--muted);transition:all 0.18s;border:none;background:transparent}
+.tab.active{background:white;color:var(--green);box-shadow:var(--shadow-sm)}
+.tab:hover:not(.active){color:var(--text)}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-chip{
+  font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;
+  cursor:pointer;border:1.5px solid var(--border);background:white;
+  color:var(--muted);transition:all 0.18s;
+}
+.filter-chip.active{background:var(--green);color:white;border-color:var(--green);box-shadow:0 2px 8px rgba(26,107,58,0.2)}
+.filter-chip:hover:not(.active){border-color:var(--green);color:var(--green)}
+.search-input{
+  background:white;border:1.5px solid var(--border2);color:var(--text);
+  padding:7px 14px;border-radius:var(--radius);font-size:13px;outline:none;
+  transition:all 0.18s;width:220px;
+}
+.search-input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(26,107,58,0.1)}
+
+/* ── AI SPINNER ── */
+.ai-spinner{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);font-family:var(--mono)}
+.spinner-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:dotBlink 1.4s infinite}
+.spinner-dot:nth-child(2){animation-delay:0.2s}.spinner-dot:nth-child(3){animation-delay:0.4s}
+
+/* ── EMPTY STATE ── */
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{font-size:48px;margin-bottom:14px;opacity:0.5}
+.empty-text{font-size:15px;font-weight:600;color:var(--text-mid);margin-bottom:6px}
+.empty-sub{font-size:13px;font-family:var(--mono)}
+
+/* ── USERS ── */
+.user-item{display:flex;align-items:center;gap:14px;padding:16px;background:white;border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:10px;box-shadow:var(--shadow-sm);transition:all 0.2s}
+.user-item:hover{border-color:var(--green);box-shadow:var(--shadow-md)}
+.user-av-lg{width:44px;height:44px;border-radius:12px;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.user-info{flex:1}
+.user-name{font-size:14px;font-weight:700;margin-bottom:2px}
+.user-email{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.role-badge{font-size:10px;font-family:var(--mono);font-weight:700;padding:4px 10px;border-radius:8px}
+.role-admin{background:var(--green-pale);color:var(--green)}
+.role-member{background:var(--blue-bg);color:var(--blue)}
+.role-auditor{background:var(--amber-bg);color:var(--amber)}
+
+/* ── REPORTS ── */
+.report-item{
+  display:flex;align-items:center;justify-content:space-between;padding:18px 20px;
+  background:white;border:1px solid var(--border);border-radius:var(--radius-lg);
+  margin-bottom:12px;box-shadow:var(--shadow-sm);transition:all 0.2s;
+}
+.report-item:hover{border-color:var(--green);box-shadow:var(--shadow-md)}
+.report-icon{
+  width:46px;height:46px;border-radius:12px;background:var(--green-pale);
+  display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;
+}
+.report-info{display:flex;align-items:center;gap:14px;flex:1;min-width:0}
+.report-name{font-size:14px;font-weight:700;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.report-date{font-size:11px;color:var(--muted);font-family:var(--mono)}
+
+/* ── NARRATIVE BOX ── */
+.narrative-box{
+  background:var(--green-bg);border-left:4px solid var(--green);
+  border-radius:0 var(--radius) var(--radius) 0;padding:16px 18px;
+  font-size:13px;line-height:1.7;color:var(--text-mid);margin-bottom:14px;
+}
+.finding-item{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:13px}
+.finding-dot{width:7px;height:7px;border-radius:50%;background:var(--green);margin-top:4px;flex-shrink:0}
+
+/* ── GAP ANALYSIS ── */
+.gap-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px;transition:all 0.2s}
+.gap-card:hover{border-color:var(--green);background:var(--green-bg)}
+.gap-priority{font-size:10px;font-family:var(--mono);font-weight:700;margin-bottom:6px}
+.gap-action{font-size:14px;font-weight:600;margin-bottom:4px}
+.gap-impact{font-size:12px;color:var(--muted)}
+
+/* ── CHAT ── */
+.chat-messages{
+  height:340px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;
+  gap:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:14px;
+  border:1px solid var(--border);
+}
+.chat-msg{max-width:82%;padding:11px 15px;border-radius:14px;font-size:13px;line-height:1.6}
+.chat-user{background:var(--green);color:white;align-self:flex-end;border-bottom-right-radius:4px}
+.chat-ai{background:white;color:var(--text);align-self:flex-start;border-bottom-left-radius:4px;border:1px solid var(--border);box-shadow:var(--shadow-sm)}
+.chat-input-row{display:flex;gap:10px}
+
+/* ── HISTORY ── */
+.history-card{
+  background:white;border:1px solid var(--border);border-radius:var(--radius-lg);
+  margin-bottom:14px;box-shadow:var(--shadow-sm);overflow:hidden;transition:all 0.2s;
+}
+.history-card:hover{border-color:var(--green);box-shadow:var(--shadow-md)}
+.history-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px}
+.history-icon{
+  width:46px;height:46px;border-radius:12px;display:flex;align-items:center;
+  justify-content:center;font-size:20px;flex-shrink:0;background:var(--green-pale);
+}
+.history-actions{display:flex;gap:8px}
+.history-bar{height:5px;background:var(--surface3)}
+.history-bar-fill{height:100%;border-radius:0;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+.history-footer{padding:10px 20px;background:var(--surface2);display:flex;align-items:center;gap:16px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:24px;right:24px;background:white;border-radius:12px;
+  padding:14px 18px;font-size:13px;font-weight:500;z-index:9999;
+  box-shadow:var(--shadow-lg);border-left:4px solid var(--green);
+  transform:translateX(120%);opacity:0;transition:all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  max-width:340px;display:flex;align-items:center;gap:10px;
+}
+.toast.show{transform:translateX(0);opacity:1}
+.toast.error{border-left-color:var(--red)}
+.toast.info{border-left-color:var(--blue)}
+.toast-icon{font-size:18px;flex-shrink:0}
+.toast-text{color:var(--text)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .two-col{grid-template-columns:1fr}
+  :root{--sidebar-w:56px}
+  .sidebar .sidebar-label,.sidebar .nav-item span,.sidebar .fw-item span,.sidebar .ai-chat-btn span{display:none}
+  .sidebar .nav-item{justify-content:center;padding:12px}
+  .sidebar .fw-item{justify-content:center}
+  .logo-text{display:none}
+  .topbar-search{display:none}
+}
+@media(max-width:600px){
+  .stats-row{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .three-col{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-icon">🛡️</div>
+      <div class="login-brand-text">
+        <div class="login-brand-name">G·R·I·D AI</div>
+        <div class="login-brand-sub">Governance · Risk · IT · Data &nbsp;·&nbsp; by Ali Moyo</div>
+      </div>
+    </div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-desc">Sign in to your compliance workspace</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="form-group">
+      <label class="form-label">Email address</label>
+      <input class="form-input" type="email" id="login-email" value="admin@auditsphere.local" placeholder="you@organisation.com" autocomplete="email"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="login-pass" value="admin123" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:14px;margin-top:4px" onclick="doLogin()">
+      Sign In →
+    </button>
+    <div style="margin-top:16px;font-size:11px;color:var(--dim);text-align:center;font-family:var(--mono)">admin@auditsphere.local · admin123</div>
+  </div>
+</div>
+
+<!-- ══════════════ APP ══════════════ -->
+<div id="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="logo" href="#" onclick="navTo('dashboard')">
+        <div class="logo-icon">🛡️</div>
+        <div class="logo-text">
+          <div class="logo-name">G·R·I·D AI</div>
+          <div class="logo-by">by Ali Moyo</div>
+        </div>
+      </a>
+      <div class="topbar-search" onclick="document.getElementById('controls-search')?.focus()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="6.5" cy="6.5" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m10.5 10.5 3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span>Search controls, audits...</span>
+        <span class="topbar-kbd">⌘ F</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-audit-wrap">
+        <span>Audit:</span>
+        <select class="topbar-audit-select" id="active-audit-select" onchange="onAuditChange(this.value)">
+          <option value="">— select audit —</option>
+        </select>
+      </div>
+      <div class="topbar-icon-btn" title="Notifications">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a5 5 0 0 0-5 5v2.4L1.5 10v.5h13V10L13 8.4V6a5 5 0 0 0-5-5zm0 14a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2z"/></svg>
+        <div class="notif-dot"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openModal('newAudit')">+ New Audit</button>
+      <div class="topbar-user" onclick="navTo('users')" id="topbar-user-btn">
+        <div class="user-av" id="user-avatar">AU</div>
+        <div>
+          <div class="user-name" id="user-name-display">Admin</div>
+          <div class="user-email" id="user-email-display">admin@auditsphere.local</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Menu</div>
+        <div class="nav-item active" onclick="navTo('dashboard')" data-page="dashboard">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
+          <span>Dashboard</span>
+        </div>
+        <div class="nav-item" onclick="navTo('controls')" data-page="controls">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+          <span>Controls</span>
+          <span class="nav-count" id="nav-controls-count">0</span>
+        </div>
+        <div class="nav-item" onclick="navTo('evidence')" data-page="evidence">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 1H4zm5 1.5L12.5 5H9V2.5z"/></svg>
+          <span>Evidence</span>
+        </div>
+        <div class="nav-item" onclick="navTo('gap')" data-page="gap">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2a5 5 0 110 10A5 5 0 018 3zm-1 2v4l3 1.5-.5.87L6 9.5V5h1z"/></svg>
+          <span>Gap Analysis</span>
+        </div>
+        <div class="nav-item" onclick="navTo('reports')" data-page="reports">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 1h9l3 3v11H2V1zm9 0v3h3"/></svg>
+          <span>Reports</span>
+        </div>
+        <div class="nav-item" onclick="navTo('history')" data-page="history">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2a5 5 0 110 10A5 5 0 018 3zM7 5v3.41l2.29 2.3 1.42-1.42L9 7.58V5H7z"/></svg>
+          <span>Audit History</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section" style="padding-top:8px">
+        <div class="sidebar-label">General</div>
+        <div class="nav-item" onclick="navTo('users')" data-page="users">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="5" r="3"/><path d="M1 13c0-3 2-5 5-5s5 2 5 5"/><circle cx="12" cy="5" r="2.5"/><path d="M12 9c1.5 0 3 1 3 3"/></svg>
+          <span>Team</span>
+        </div>
+        <div class="nav-item" onclick="navTo('vendors')" data-page="vendors">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm1 3h10v8H3zm2 2v4h2V8zm4 0v4h2V8z"/></svg>
+          <span>Vendors</span>
+        </div>
+        <div class="nav-item" onclick="navTo('nc')" data-page="nc">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1L1 14h14L8 1zm0 4v4m0 2v1.5"/></svg>
+          <span>Non-Conformances</span>
+          <span class="nav-badge" id="nav-nc-badge" style="display:none">0</span>
+        </div>
+        <div class="nav-item" onclick="navTo('activity')" data-page="activity">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 8h2l2-5 2 10 2-7 2 4 1-2h3"/></svg>
+          <span>Activity Log</span>
+        </div>
+        <div class="nav-item" onclick="navTo('settings')" data-page="settings">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6.5 1.5A1 1 0 017.5 1h1a1 1 0 011 1v.8a5 5 0 011.2.7l.7-.4a1 1 0 011.3.4l.5.9a1 1 0 01-.4 1.3l-.7.4a5 5 0 010 1.4l.7.4a1 1 0 01.4 1.3l-.5.9a1 1 0 01-1.3.4l-.7-.4a5 5 0 01-1.2.7v.8a1 1 0 01-1 1h-1a1 1 0 01-1-1v-.8a5 5 0 01-1.2-.7l-.7.4a1 1 0 01-1.3-.4l-.5-.9a1 1 0 01.4-1.3l.7-.4a5 5 0 010-1.4l-.7-.4a1 1 0 01-.4-1.3l.5-.9a1 1 0 011.3-.4l.7.4a5 5 0 011.2-.7V2.5a1 1 0 011-1zM8 10a2 2 0 100-4 2 2 0 000 4z"/></svg>
+          <span>Settings</span>
+        </div>
+      </div>
+
+      <div class="fw-section">
+        <div class="sidebar-label">Frameworks</div>
+        <div id="fw-list"></div>
+        <div class="fw-item fw-add" onclick="openModal('newFramework')">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M6 1v10M1 6h10"/></svg>
+          <span>Add framework</span>
+        </div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <button class="ai-chat-btn" onclick="openAIChat()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM5.5 6.5a1 1 0 112 0 1 1 0 01-2 0zm3 0a1 1 0 112 0 1 1 0 01-2 0zM8 11c-1.7 0-3-1-3-1h6s-1.3 1-3 1z"/></svg>
+          <span>AI Compliance Chat</span>
+        </button>
+      </div>
+    </div><!-- /sidebar -->
+
+    <!-- MAIN -->
+    <div class="main">
+
+      <!-- ── DASHBOARD ── -->
+      <div class="page active" id="page-dashboard">
+        <div class="section-header animate-fade-up">
+          <div>
+            <div class="section-title" id="dash-title">Select an audit</div>
+            <div class="section-sub" id="dash-sub">Choose an audit from the top selector or create a new one</div>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-ghost" onclick="exportReport()">📄 Export Report</button>
+            <button class="btn btn-secondary" onclick="openModal('uploadChecklist')">📊 Import Checklist</button>
+            <button class="btn btn-primary" onclick="openModal('addControl')">+ Add Control</button>
+          </div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="stats-row">
+          <div class="stat-card stat-card-hero animate-fade-up anim-1">
+            <div class="stat-label">Total Controls <div class="stat-arrow" onclick="navTo('controls')"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2 10L10 2M10 2H4M10 2v6"/></svg></div></div>
+            <div class="stat-value" id="stat-total">—</div>
+            <div class="pbar"><div class="pbar-fill" id="stat-pbar" style="background:rgba(255,255,255,0.5);width:0%"></div></div>
+            <div class="stat-trend up" id="stat-pct-sub" style="margin-top:8px;color:rgba(255,255,255,0.8)">No audit selected</div>
+          </div>
+          <div class="stat-card green animate-fade-up anim-2">
+            <div class="stat-label">Completed <div class="stat-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2 10L10 2M10 2H4M10 2v6"/></svg></div></div>
+            <div class="stat-value" style="color:var(--green)" id="stat-complete">—</div>
+            <div class="stat-trend up" id="stat-complete-sub">Controls done</div>
+          </div>
+          <div class="stat-card amber animate-fade-up anim-3">
+            <div class="stat-label">Pending Evidence <div class="stat-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2 10L10 2M10 2H4M10 2v6"/></svg></div></div>
+            <div class="stat-value" style="color:var(--amber)" id="stat-pending">—</div>
+            <div class="stat-trend" style="color:var(--amber)">Awaiting upload</div>
+          </div>
+          <div class="stat-card red animate-fade-up anim-4">
+            <div class="stat-label">Overdue <div class="stat-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2 10L10 2M10 2H4M10 2v6"/></svg></div></div>
+            <div class="stat-value" style="color:var(--red)" id="stat-overdue">—</div>
+            <div class="stat-trend" style="color:var(--red)" id="stat-days-sub">No audit date set</div>
+          </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="two-col">
+          <!-- Controls table -->
+          <div class="card animate-fade-up anim-2">
+            <div class="card-header">
+              <div class="card-title">Controls Checklist</div>
+              <div class="filter-bar" style="margin:0;gap:6px">
+                <button class="filter-chip active" onclick="filterControls(this,'all')">All</button>
+                <button class="filter-chip" onclick="filterControls(this,'not_started')">Not started</button>
+                <button class="filter-chip" onclick="filterControls(this,'in_progress')">In progress</button>
+                <button class="filter-chip" onclick="filterControls(this,'complete')">Done</button>
+                <button class="filter-chip" onclick="filterControls(this,'overdue')">Overdue</button>
+              </div>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="ctrl-table" id="controls-table">
+                <thead><tr>
+                  <th style="width:28px"></th>
+                  <th>Control</th><th>Risk</th><th>Assigned</th><th>Due</th><th>Evidence</th><th>Status</th>
+                </tr></thead>
+                <tbody id="controls-tbody"></tbody>
+              </table>
+              <div id="controls-empty" class="empty-state" style="display:none">
+                <div class="empty-icon">📋</div>
+                <div class="empty-text">No controls yet</div>
+                <div class="empty-sub">Import a checklist or add controls manually</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right panel -->
+          <div>
+            <div class="panel-card animate-fade-up anim-3">
+              <div class="panel-title">Evidence Status</div>
+              <div class="ring-wrap">
+                <svg width="96" height="96" viewBox="0 0 96 96" style="flex-shrink:0">
+                  <circle cx="48" cy="48" r="38" fill="none" stroke="#f0f1f6" stroke-width="10"/>
+                  <circle cx="48" cy="48" r="38" fill="none" id="ring-complete" stroke="var(--green)" stroke-width="10" stroke-dasharray="239" stroke-dashoffset="239" stroke-linecap="round" transform="rotate(-90 48 48)" style="transition:stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"/>
+                  <circle cx="48" cy="48" r="38" fill="none" id="ring-inprog" stroke="var(--amber)" stroke-width="10" stroke-dasharray="239" stroke-dashoffset="239" stroke-linecap="round" transform="rotate(-90 48 48)" style="transition:stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"/>
+                  <text x="48" y="52" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="800" font-family="Plus Jakarta Sans,sans-serif" id="ring-text">—</text>
+                </svg>
+                <div class="ring-legend">
+                  <div class="ring-item"><div class="ring-dot" style="background:var(--green)"></div><div class="ring-lbl">Complete</div><div class="ring-val" id="ring-c">0</div></div>
+                  <div class="ring-item"><div class="ring-dot" style="background:var(--amber)"></div><div class="ring-lbl">In progress</div><div class="ring-val" id="ring-p">0</div></div>
+                  <div class="ring-item"><div class="ring-dot" style="background:var(--red)"></div><div class="ring-lbl">Not started</div><div class="ring-val" id="ring-n">0</div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-card animate-fade-up anim-4">
+              <div class="panel-title">Audit Timeline</div>
+              <div id="timeline-list"><div style="color:var(--dim);font-size:13px">No audit selected</div></div>
+            </div>
+
+            <div class="panel-card animate-fade-up anim-5">
+              <div class="panel-title">Quick Upload Evidence</div>
+              <div class="upload-zone" onclick="document.getElementById('quick-upload-input').click()">
+                <div class="upload-icon">📎</div>
+                <div class="upload-text"><strong>Drop files</strong> or click to browse<br>PDF, Excel, PNG, DOCX — max 50MB</div>
+              </div>
+              <input type="file" id="quick-upload-input" style="display:none" multiple onchange="handleQuickUpload(this)"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CONTROLS PAGE ── -->
+      <div class="page" id="page-controls">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Controls &amp; Checklist</div><div class="section-sub" id="controls-page-sub">All controls</div></div>
+          <div class="header-actions">
+            <button class="btn btn-secondary" onclick="openModal('uploadChecklist')">📊 Import Excel/PDF</button>
+            <button class="btn btn-primary" onclick="openModal('addControl')">+ Add Control</button>
+          </div>
+        </div>
+        <div class="filter-bar animate-fade-up anim-1">
+          <input class="search-input" placeholder="🔍 Search controls..." oninput="searchControls(this.value)" id="controls-search"/>
+          <button class="filter-chip active" onclick="filterControlsPage(this,'all')">All</button>
+          <button class="filter-chip" onclick="filterControlsPage(this,'not_started')">Not started</button>
+          <button class="filter-chip" onclick="filterControlsPage(this,'in_progress')">In progress</button>
+          <button class="filter-chip" onclick="filterControlsPage(this,'complete')">Complete</button>
+          <button class="filter-chip" onclick="filterControlsPage(this,'Critical')">🔴 Critical</button>
+          <button class="filter-chip" onclick="filterControlsPage(this,'High')">🟡 High risk</button>
+        </div>
+        <div class="card animate-fade-up anim-2">
+          <div style="overflow-x:auto">
+            <table class="ctrl-table">
+              <thead><tr>
+                <th style="width:28px"></th>
+                <th>Control</th><th>Risk</th><th>Assigned</th><th>Due Date</th><th>Evidence</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="controls-page-tbody"></tbody>
+            </table>
+            <div id="controls-page-empty" class="empty-state" style="display:none">
+              <div class="empty-icon">📋</div><div class="empty-text">No controls found</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── EVIDENCE PAGE ── -->
+      <div class="page" id="page-evidence">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Evidence Repository</div><div class="section-sub" id="evidence-page-sub">All evidence files</div></div>
+          <div class="header-actions">
+            <button class="btn btn-primary" onclick="openModal('uploadEvidenceModal')">+ Upload Evidence</button>
+          </div>
+        </div>
+        <div id="evidence-by-control"></div>
+      </div>
+
+      <!-- ── GAP ANALYSIS ── -->
+      <div class="page" id="page-gap">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">AI Gap Analysis</div><div class="section-sub">Powered by Claude · Identifies risks and quick wins</div></div>
+          <div class="header-actions">
+            <button class="btn btn-ai" onclick="runGapAnalysis()">✨ Run Analysis</button>
+          </div>
+        </div>
+        <div id="gap-loading" style="display:none;text-align:center;padding:60px">
+          <div class="ai-spinner"><div class="spinner-dot"></div><div class="spinner-dot"></div><div class="spinner-dot"></div><span style="margin-left:10px">Analysing controls with G.R.I.D AI...</span></div>
+        </div>
+        <div id="gap-results" style="display:none">
+          <div class="three-col" style="margin-bottom:24px">
+            <div class="stat-card blue animate-fade-up anim-1"><div class="stat-label">Readiness Score</div><div class="stat-value" style="color:var(--blue)" id="gap-score">—</div></div>
+            <div class="stat-card red animate-fade-up anim-2"><div class="stat-label">Critical Gaps</div><div class="stat-value" style="color:var(--red)" id="gap-critical-count">—</div></div>
+            <div class="stat-card green animate-fade-up anim-3"><div class="stat-label">Est. Completion</div><div class="stat-value" style="color:var(--green);font-size:18px;padding-top:8px" id="gap-eta">—</div></div>
+          </div>
+          <div class="two-col">
+            <div>
+              <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><div class="card-title">Risk Summary</div></div>
+                <div class="card-body"><div class="narrative-box" id="gap-summary"></div></div>
+              </div>
+              <div class="card">
+                <div class="card-header"><div class="card-title">Prioritised Recommendations</div></div>
+                <div class="card-body" id="gap-recommendations"></div>
+              </div>
+            </div>
+            <div>
+              <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><div class="card-title">🔴 Critical Gaps</div></div>
+                <div class="card-body" id="gap-critical-list"></div>
+              </div>
+              <div class="card">
+                <div class="card-header"><div class="card-title">✅ Quick Wins</div></div>
+                <div class="card-body" id="gap-wins"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="gap-empty" class="empty-state animate-fade-up">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-text">No analysis yet</div>
+          <div class="empty-sub">Select an audit and click "Run Analysis"</div>
+        </div>
+      </div>
+
+      <!-- ── REPORTS ── -->
+      <div class="page" id="page-reports">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Audit Reports</div><div class="section-sub">AI-generated · Exportable as Word &amp; PDF per framework</div></div>
+          <div class="header-actions">
+            <button class="btn btn-ai" onclick="generateReport()">✨ Generate AI Report</button>
+          </div>
+        </div>
+        <div id="reports-loading" style="display:none;text-align:center;padding:40px">
+          <div class="ai-spinner"><div class="spinner-dot"></div><div class="spinner-dot"></div><div class="spinner-dot"></div><span style="margin-left:10px">Generating report with G.R.I.D AI...</span></div>
+        </div>
+        <div id="report-narrative" style="display:none;margin-bottom:24px">
+          <div class="card animate-fade-up">
+            <div class="card-header"><div class="card-title">Executive Summary</div><span class="pill pill-active">✨ AI Generated</span></div>
+            <div class="card-body">
+              <div class="narrative-box" id="report-summary-text"></div>
+              <div id="report-findings"></div>
+              <div style="font-size:13px;color:var(--muted);margin-top:12px;font-style:italic" id="report-conclusion"></div>
+            </div>
+          </div>
+        </div>
+        <div id="reports-list"></div>
+        <div id="reports-empty" class="empty-state animate-fade-up">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">No reports generated yet</div>
+          <div class="empty-sub">Select an audit and click "Generate AI Report"</div>
+        </div>
+      </div>
+
+      <!-- ── AUDIT HISTORY ── -->
+      <div class="page" id="page-history">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Audit History</div><div class="section-sub">All audits — view dashboard, export reports or delete</div></div>
+          <div class="header-actions">
+            <button class="btn btn-primary" onclick="openModal('newAudit')">+ New Audit</button>
+          </div>
+        </div>
+        <div id="history-list">
+          <div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text">No audits yet</div><div class="empty-sub">Create your first audit to get started</div></div>
+        </div>
+      </div>
+
+      <!-- ── USERS ── -->
+      <div class="page" id="page-users">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Team &amp; Users</div><div class="section-sub">Manage team access and roles</div></div>
+          <div class="header-actions">
+            <button class="btn btn-primary" onclick="openModal('newUser')">+ Add Member</button>
+          </div>
+        </div>
+        <div id="users-list"></div>
+      </div>
+
+
+      <!-- ── VENDORS ── -->
+      <div class="page" id="page-vendors">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Vendor / Third-Party Tracking</div><div class="section-sub">Manage supplier compliance assessments and certifications</div></div>
+          <div class="header-actions">
+            <button class="btn btn-primary" onclick="openVendorModal()">+ Add Vendor</button>
+          </div>
+        </div>
+        <div class="filter-bar animate-fade-up anim-1">
+          <button class="filter-chip active" onclick="filterVendors(this,'all')">All</button>
+          <button class="filter-chip" onclick="filterVendors(this,'Critical')">🔴 Critical</button>
+          <button class="filter-chip" onclick="filterVendors(this,'High')">🟡 High</button>
+          <button class="filter-chip" onclick="filterVendors(this,'Medium')">🔵 Medium</button>
+          <button class="filter-chip" onclick="filterVendors(this,'Low')">🟢 Low</button>
+        </div>
+        <div id="vendors-list"></div>
+      </div>
+
+      <!-- ── NON-CONFORMANCES ── -->
+      <div class="page" id="page-nc">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Non-Conformance Register</div><div class="section-sub">Track audit findings, corrective actions and closures</div></div>
+          <div class="header-actions">
+            <button class="btn btn-primary" onclick="openNcModal()">+ Raise NC</button>
+          </div>
+        </div>
+        <div class="filter-bar animate-fade-up anim-1">
+          <button class="filter-chip active" onclick="filterNc(this,'all')">All</button>
+          <button class="filter-chip" onclick="filterNc(this,'open')">Open</button>
+          <button class="filter-chip" onclick="filterNc(this,'in_progress')">In Progress</button>
+          <button class="filter-chip" onclick="filterNc(this,'closed')">Closed</button>
+        </div>
+        <div id="nc-list"></div>
+      </div>
+
+      <!-- ── ACTIVITY LOG ── -->
+      <div class="page" id="page-activity">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Activity Log</div><div class="section-sub">Immutable audit trail of all system actions</div></div>
+          <div class="header-actions">
+            <button class="btn btn-ghost" onclick="exportActivityLog()">⬇ Export CSV</button>
+          </div>
+        </div>
+        <div class="card animate-fade-up anim-1">
+          <div class="card-header">
+            <div class="card-title">All Activity</div>
+            <input class="search-input" style="width:200px" placeholder="Filter by user or action..." oninput="filterActivity(this.value)" id="activity-search"/>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="ctrl-table" id="activity-table">
+              <thead><tr>
+                <th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th>
+              </tr></thead>
+              <tbody id="activity-tbody"></tbody>
+            </table>
+            <div id="activity-empty" class="empty-state" style="display:none">
+              <div class="empty-icon">📋</div><div class="empty-text">No activity yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SETTINGS ── -->
+      <div class="page" id="page-settings">
+        <div class="section-header animate-fade-up">
+          <div><div class="section-title">Settings</div><div class="section-sub">Notifications, integrations, API keys, backups</div></div>
+        </div>
+        <div class="three-col" style="align-items:start">
+
+          <!-- Notifications -->
+          <div class="card animate-fade-up anim-1" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">📧 Email Digest</div></div>
+            <div class="card-body">
+              <div id="digest-subs-list" style="margin-bottom:12px"></div>
+              <div class="form-group"><label class="form-label">Subscribe Email</label><input class="form-input" id="digest-email" placeholder="email@company.com"/></div>
+              <div class="form-group"><label class="form-label">Your Name</label><input class="form-input" id="digest-name" placeholder="Jane Smith"/></div>
+              <div class="form-group"><label class="form-label">Frequency</label>
+                <select class="form-select" id="digest-freq"><option value="weekly">Weekly (Monday)</option><option value="monthly">Monthly</option></select>
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="addDigestSub()">Subscribe</button>
+              <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="testEmailNow()" style="width:100%;justify-content:center">📧 Send Test Email Now</button>
+                <button class="btn btn-secondary btn-sm" onclick="sendDigestNow()" style="width:100%;justify-content:center">📤 Send Digest to All Subscribers</button>
+              </div>
+              <div style="margin-top:10px;font-size:11px;color:var(--muted);font-family:var(--mono);line-height:1.6;background:var(--surface2);padding:10px;border-radius:var(--radius)">
+                <strong style="color:var(--text-mid)">Email setup:</strong><br>
+                Option A: Add MS_CLIENT_ID to .env (Outlook)<br>
+                Option B: Add SMTP_USER + SMTP_PASS (Gmail)<br>
+                No setup: emails print to server console
+              </div>
+            </div>
+          </div>
+
+          <!-- Teams -->
+          <div class="card animate-fade-up anim-2" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">💬 Microsoft Teams</div></div>
+            <div class="card-body">
+              <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Receive compliance alerts directly in a Teams channel via Incoming Webhook.</p>
+              <div class="form-group"><label class="form-label">Webhook URL</label>
+                <input class="form-input" id="teams-webhook" placeholder="https://outlook.office.com/webhook/..." value="${process.env.MS_TEAMS_WEBHOOK||''}"/>
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="saveTeamsWebhook()">Save Webhook</button>
+              <button class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;margin-top:8px" onclick="testTeams()">🔔 Send Test Notification</button>
+              <div style="margin-top:12px;font-size:11px;color:var(--muted);font-family:var(--mono)">
+                Teams → Channel → ··· → Connectors → Incoming Webhook → Create
+              </div>
+            </div>
+          </div>
+
+          <!-- OneDrive -->
+          <div class="card animate-fade-up anim-3" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">☁️ OneDrive Sync</div></div>
+            <div class="card-body">
+              <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Evidence files are saved locally. Enable OneDrive to also back them up to your Microsoft account.</p>
+              <div id="onedrive-status" style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-bottom:12px;font-size:12px;font-family:var(--mono)">
+                Status: Checking...
+              </div>
+              <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center" onclick="syncAllToOneDrive()">☁️ Sync All Evidence to OneDrive</button>
+              <div style="margin-top:8px;font-size:11px;color:var(--muted);font-family:var(--mono)">Folder: OneDrive → GRID-AI-Evidence/</div>
+            </div>
+          </div>
+
+          <!-- API Keys -->
+          <div class="card animate-fade-up anim-1" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">🔑 API Keys</div></div>
+            <div class="card-body">
+              <div id="api-keys-list" style="margin-bottom:12px"></div>
+              <div class="form-group"><label class="form-label">Key Name</label><input class="form-input" id="new-api-key-name" placeholder="e.g. External Integration"/></div>
+              <div class="form-group"><label class="form-label">Permissions</label>
+                <select class="form-select" id="new-api-key-perms"><option value="read">Read only</option><option value="write">Read + Write</option></select>
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="createApiKey()">Generate API Key</button>
+            </div>
+          </div>
+
+          <!-- Backup -->
+          <div class="card animate-fade-up anim-2" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">💾 Backup</div></div>
+            <div class="card-body">
+              <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Automatic nightly backups run at 02:00 CAT. Backups are stored in <code style="background:var(--surface2);padding:2px 5px;border-radius:4px">data/backups/</code></p>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="backupNow()">💾 Backup Now</button>
+            </div>
+          </div>
+
+          <!-- Scheduled Reports -->
+          <div class="card animate-fade-up anim-3" style="margin-bottom:16px">
+            <div class="card-header"><div class="card-title">📅 Scheduled Reports</div></div>
+            <div class="card-body">
+              <div id="sched-reports-list" style="margin-bottom:12px"></div>
+              <div class="form-group"><label class="form-label">Audit</label>
+                <select class="form-select" id="sched-audit-select"><option value="">— select —</option></select>
+              </div>
+              <div class="form-group"><label class="form-label">Send To</label><input class="form-input" id="sched-email" placeholder="email@company.com"/></div>
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">Frequency</label>
+                  <select class="form-select" id="sched-freq"><option value="monthly">Monthly</option><option value="weekly">Weekly</option></select>
+                </div>
+                <div class="form-group"><label class="form-label">Format</label>
+                  <select class="form-select" id="sched-fmt"><option value="both">Word + PDF</option><option value="docx">Word only</option><option value="pdf">PDF only</option></select>
+                </div>
+              </div>
+              <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="addSchedReport()">Schedule Report</button>
+            </div>
+          </div>
+
+        </div><!-- /three-col -->
+
+        <!-- Share Links & Cross-mapping full width -->
+        <div class="two-col" style="margin-top:4px">
+          <div class="card animate-fade-up anim-4">
+            <div class="card-header">
+              <div class="card-title">🔗 Auditor Share Links</div>
+              <button class="btn btn-primary btn-sm" onclick="openShareLinkModal()">+ Create Link</button>
+            </div>
+            <div class="card-body" id="share-links-list"><div style="color:var(--muted);font-size:13px">No share links yet</div></div>
+          </div>
+          <div class="card animate-fade-up anim-5">
+            <div class="card-header">
+              <div class="card-title">🗺 Control Cross-Mapping</div>
+              <button class="btn btn-ai btn-sm" onclick="openCrossMappingModal()">✨ AI Suggest Mappings</button>
+            </div>
+            <div class="card-body" id="cross-mapping-list"><div style="color:var(--muted);font-size:13px">Select two audits to find overlapping controls</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /main -->
+  </div><!-- /shell -->
+</div><!-- /app -->
+
+<!-- ══════════════ MODALS ══════════════ -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="closeModalOutside(event)">
+  <div class="modal modal-md" id="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Modal</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-save-btn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI CHAT -->
+<div class="modal-backdrop" id="chat-backdrop" onclick="closeChatOutside(event)">
+  <div class="modal modal-md">
+    <div class="modal-header" style="background:var(--green);color:white;border-radius:var(--radius-xl) var(--radius-xl) 0 0">
+      <div class="modal-title" style="color:white">✨ G.R.I.D AI — Compliance Assistant</div>
+      <button class="modal-close" style="background:rgba(255,255,255,0.15);color:white" onclick="document.getElementById('chat-backdrop').classList.remove('open')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-msg chat-ai">Hi! I'm your G.R.I.D AI compliance assistant powered by Claude. Ask me anything about ISO 27001, SOC 2, GDPR, PCI DSS, HIPAA, Zimbabwe CDPA, ISO 42001 — or how to collect evidence for any control.</div>
+      </div>
+      <div class="chat-input-row">
+        <input class="form-input" style="flex:1" id="chat-input" placeholder="Ask a compliance question..." onkeydown="if(event.key==='Enter')sendChat()"/>
+        <button class="btn btn-primary" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-start;background:var(--surface2)">
+      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">G.R.I.D AI · Powered by Claude Sonnet · Uses your Anthropic API credits</span>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toast-icon">✅</div>
+  <div class="toast-text" id="toast-text"></div>
+</div>
+
+<script>
+
+// ======= STATE =======
+let state = {
+  user: null,
+  audits: [],
+  frameworks: [],
+  users: [],
+  activeAuditId: null,
+  activeAudit: null,
+  controls: [],
+  controlFilter: 'all',
+  reports: []
+};
+
+// ======= API HELPER =======
+async function api(method, path, body, isFormData) {
+  const opts = { method, credentials: 'include' };
+  if (body && !isFormData) {
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(body);
+  } else if (body && isFormData) {
+    opts.body = body;
+  }
+  const r = await fetch('/api' + path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ======= AUTH =======
+async function doLogin() {
+  const email = document.getElementById('login-email').value;
+  const pass = document.getElementById('login-pass').value;
+  try {
+    const data = await api('POST', '/auth/login', { email, password: pass });
+    state.user = data.user;
+    document.getElementById('user-avatar').textContent = data.user.initials || data.user.name[0];
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    await bootstrap();
+  } catch(e) {
+    const el = document.getElementById('login-error');
+    el.textContent = e.message;
+    el.style.display = 'block';
+  }
+}
+
+document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
+
+async function bootstrap() {
+  await loadFrameworks();
+  await loadAudits();
+  await loadUsers();
+  navTo('dashboard');
+}
+
+// ======= FRAMEWORKS =======
+async function loadFrameworks() {
+  state.frameworks = await api('GET', '/frameworks');
+  renderSidebarFrameworks();
+  // Populate framework select in modals
+}
+
+function renderSidebarFrameworks() {
+  const colors = { 'fw-iso27001':'#4f8ef7','fw-iso42001':'#b06ef5','fw-soc2':'#3ecf84','fw-pcidss':'#f5a623','fw-gdpr':'#2dcdc8','fw-zcdpa':'#3ecf84','fw-hipaa':'#f25c5c' };
+  document.getElementById('fw-list').innerHTML = state.frameworks.map(f => `
+    <div class="fw-item" onclick="filterByFramework('${f.id}')" style="color:${f.color||'#4f8ef7'}">
+      <div class="fw-dot" style="background:${f.color||'#4f8ef7'}"></div>
+      <span>${f.name}</span>
+    </div>`).join('');
+}
+
+function filterByFramework(fwId) {
+  // Filter audits by framework
+  const fw = state.frameworks.find(f => f.id === fwId);
+  if (fw) toast(`Filtered to ${fw.name}`, 'info');
+}
+
+// ======= AUDITS =======
+async function loadAudits() {
+  state.audits = await api('GET', '/audits');
+  const sel = document.getElementById('active-audit-select');
+  sel.innerHTML = '<option value="">— select audit —</option>' +
+    state.audits.map(a => `<option value="${a.id}">${a.name} (${a.framework_name})</option>`).join('');
+  
+  if (state.audits.length > 0 && !state.activeAuditId) {
+    sel.value = state.audits[0].id;
+    await onAuditChange(state.audits[0].id);
+  }
+}
+
+async function onAuditChange(auditId) {
+  state.activeAuditId = auditId;
+  if (!auditId) return;
+  await loadActiveAudit();
+}
+
+async function loadActiveAudit() {
+  if (!state.activeAuditId) return;
+  try {
+    state.activeAudit = await api('GET', `/audits/${state.activeAuditId}`);
+    state.controls = state.activeAudit.controls || [];
+    updateDashboard();
+    renderControlsTable();
+    renderControlsPage();
+  } catch(e) { toast('Failed to load audit: ' + e.message, 'error'); }
+}
+
+function updateDashboard() {
+  const a = state.activeAudit;
+  if (!a) return;
+  document.getElementById('dash-title').textContent = a.name;
+  document.getElementById('dash-sub').textContent = `Framework: ${a.framework_name} · Type: ${a.audit_type} · Auditor: ${a.auditor || 'Not set'}`;
+
+  const pct = a.completion_pct || 0;
+  document.getElementById('stat-pct').textContent = pct + '%';
+  document.getElementById('stat-pbar').style.width = pct + '%';
+  document.getElementById('stat-pct-sub').textContent = `${a.complete_controls||0} of ${a.total_controls||0} controls`;
+  document.getElementById('stat-pending').textContent = a.pending_controls ?? '—';
+  document.getElementById('stat-overdue').textContent = a.overdue_controls ?? '—';
+  document.getElementById('nav-controls-count').textContent = a.total_controls || 0;
+
+  // Days to audit
+  if (a.audit_date) {
+    const days = Math.ceil((new Date(a.audit_date) - new Date()) / 86400000);
+    document.getElementById('stat-days').textContent = Math.max(0, days);
+    document.getElementById('stat-days-sub').textContent = `Audit: ${a.audit_date}`;
+  }
+
+  // Ring chart
+  const total = a.total_controls || 1;
+  const complete = a.complete_controls || 0;
+  const inprog = (a.controls||[]).filter(c=>c.status==='in_progress').length;
+  const circumference = 213;
+  const completeFill = circumference - (complete / total) * circumference;
+  const inprogFill = circumference - (inprog / total) * circumference;
+  document.getElementById('ring-complete').setAttribute('stroke-dashoffset', completeFill);
+  document.getElementById('ring-text').textContent = pct + '%';
+  document.getElementById('ring-c').textContent = complete;
+  document.getElementById('ring-p').textContent = inprog;
+  document.getElementById('ring-n').textContent = (a.total_controls||0) - complete - inprog;
+
+  // Timeline
+  renderTimeline(a);
+}
+
+function renderTimeline(a) {
+  const items = [
+    { name: 'Audit created', date: a.created_at?.slice(0,10), done: true },
+    { name: 'Evidence collection', date: a.start_date, done: a.start_date && a.start_date <= new Date().toISOString().slice(0,10) },
+    { name: 'Internal review deadline', date: null, warn: a.overdue_controls > 0 },
+    { name: 'External audit date', date: a.audit_date, done: false },
+  ].filter(i => i.date || i.warn);
+
+  document.getElementById('timeline-list').innerHTML = items.map((item, i) => `
+    <div class="tl-item">
+      <div class="tl-col">
+        <div class="tl-dot" style="background:${item.done?'var(--green)':item.warn?'var(--amber)':'var(--border2)'}"></div>
+        ${i < items.length-1 ? '<div class="tl-line"></div>' : ''}
+      </div>
+      <div class="tl-content">
+        <div class="tl-name">${item.name}</div>
+        <div class="tl-date ${item.done?'tl-done':item.warn?'tl-warn':''}">${item.done?'✓ ':item.warn?'⚠ ':''}${item.date||'Pending'}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ======= CONTROLS =======
+function getStatusBadge(ctrl) {
+  const today = new Date().toISOString().slice(0,10);
+  if (ctrl.status === 'complete') return '<span class="status-badge status-complete">complete</span>';
+  if (ctrl.due_date && ctrl.due_date < today && ctrl.status !== 'complete') return '<span class="status-badge status-overdue">overdue</span>';
+  if (ctrl.status === 'in_progress') return '<span class="status-badge status-in_progress">in progress</span>';
+  return '<span class="status-badge status-not_started">not started</span>';
+}
+
+function renderControlsTable() {
+  const tbody = document.getElementById('controls-tbody');
+  let filtered = state.controls;
+  const today = new Date().toISOString().slice(0,10);
+  if (state.controlFilter !== 'all') {
+    if (state.controlFilter === 'overdue') filtered = filtered.filter(c => c.status !== 'complete' && c.due_date && c.due_date < today);
+    else filtered = filtered.filter(c => c.status === state.controlFilter);
+  }
+  document.getElementById('controls-empty').style.display = filtered.length === 0 ? 'block' : 'none';
+  tbody.innerHTML = filtered.map(c => {
+    const evRatio = `${c.evidence_count||0}/${c.evidence_required||1}`;
+    const evClass = c.evidence_count >= c.evidence_required ? 'ev-full' : c.evidence_count > 0 ? 'ev-partial' : 'ev-zero';
+    const checkIcon = c.status==='complete' ? '✓' : c.evidence_count > 0 ? '~' : '';
+    const checkBg = c.status==='complete' ? 'var(--green)' : c.evidence_count > 0 ? 'var(--amber)' : 'transparent';
+    return `<tr onclick="openControlDetail('${c.id}')">
+      <td><div style="width:16px;height:16px;border-radius:4px;background:${checkBg};border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;color:white">${checkIcon}</div></td>
+      <td><span class="ctrl-id">${c.control_id||''}</span><div class="ctrl-name">${c.name}</div></td>
+      <td><span class="risk-badge risk-${c.risk_level}">${c.risk_level}</span></td>
+      <td><div class="assignee-pill"><div class="av" style="background:rgba(79,142,247,0.15);color:var(--accent)">${(c.avatar_initials||c.assigned_name||'??').slice(0,2)}</div>${c.assigned_name||'Unassigned'}</div></td>
+      <td style="font-size:11px;font-family:var(--mono);color:${c.due_date&&c.due_date<today&&c.status!=='complete'?'var(--red)':'var(--muted)'}">${c.due_date||'—'}</td>
+      <td><span class="ev-ratio ${evClass}">${evRatio}</span></td>
+      <td>${getStatusBadge(c)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterControls(btn, filter) {
+  state.controlFilter = filter;
+  document.querySelectorAll('#page-dashboard .filter-chip').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderControlsTable();
+}
+
+function renderControlsPage() {
+  const tbody = document.getElementById('controls-page-tbody');
+  const today = new Date().toISOString().slice(0,10);
+  const c_sub = document.getElementById('controls-page-sub');
+  c_sub.textContent = `${state.controls.length} controls · ${state.activeAudit?.framework_name||''}`;
+
+  tbody.innerHTML = state.controls.map(c => {
+    const evRatio = `${c.evidence_count||0}/${c.evidence_required||1}`;
+    const evClass = c.evidence_count >= c.evidence_required ? 'ev-full' : c.evidence_count > 0 ? 'ev-partial' : 'ev-zero';
+    return `<tr onclick="openControlDetail('${c.id}')">
+      <td><div style="width:14px;height:14px;border-radius:3px;background:${c.status==='complete'?'var(--green)':c.evidence_count>0?'var(--amber)':'transparent'};border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:8px;color:white">${c.status==='complete'?'✓':c.evidence_count>0?'~':''}</div></td>
+      <td><span class="ctrl-id">${c.control_id||''}</span><div class="ctrl-name">${c.name}</div></td>
+      <td><span class="risk-badge risk-${c.risk_level}">${c.risk_level}</span></td>
+      <td><div class="assignee-pill"><div class="av" style="background:rgba(79,142,247,0.15);color:var(--accent)">${(c.avatar_initials||c.assigned_name||'?').slice(0,2)}</div>${c.assigned_name||'Unassigned'}</div></td>
+      <td style="font-size:11px;font-family:var(--mono);color:${c.due_date&&c.due_date<today&&c.status!=='complete'?'var(--red)':'var(--muted)'}">${c.due_date||'—'}</td>
+      <td><span class="ev-ratio ${evClass}">${evRatio}</span></td>
+      <td>${getStatusBadge(c)}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openControlDetail('${c.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteControl('${c.id}')">Del</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('controls-page-empty').style.display = state.controls.length === 0 ? 'block' : 'none';
+}
+
+let pageControlFilter = 'all';
+function filterControlsPage(btn, filter) {
+  pageControlFilter = filter;
+  document.querySelectorAll('#page-controls .filter-chip').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const today = new Date().toISOString().slice(0,10);
+  const rows = document.querySelectorAll('#controls-page-tbody tr');
+  rows.forEach(r => {
+    const ctrl = state.controls.find(c => r.innerHTML.includes(c.id));
+    if (!ctrl) return;
+    let show = filter === 'all' || ctrl.status === filter || ctrl.risk_level === filter || (filter==='overdue'&&ctrl.due_date&&ctrl.due_date<today&&ctrl.status!=='complete');
+    r.style.display = show ? '' : 'none';
+  });
+}
+
+function searchControls(q) {
+  const rows = document.querySelectorAll('#controls-page-tbody tr');
+  rows.forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+async function deleteControl(id) {
+  if (!confirm('Delete this control and all its evidence?')) return;
+  await api('DELETE', `/controls/${id}`);
+  toast('Control deleted');
+  await loadActiveAudit();
+}
+
+// ======= CONTROL DETAIL MODAL =======
+async function openControlDetail(controlId) {
+  const ctrl = await api('GET', `/controls/${controlId}`);
+  const users = state.users;
+  
+  openModal('_custom', 'Control: ' + ctrl.name, `
+    <div class="tabs" style="margin-bottom:16px">
+      <button class="tab active" onclick="switchDetailTab(this,'tab-details')">Details</button>
+      <button class="tab" onclick="switchDetailTab(this,'tab-evidence')">Evidence (${ctrl.evidence?.length||0})</button>
+      <button class="tab" onclick="switchDetailTab(this,'tab-comments')">Comments (${ctrl.comments?.length||0})</button>
+      <button class="tab" onclick="switchDetailTab(this,'tab-reminders')">Reminders</button>
+    </div>
+
+    <div id="tab-details">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Control ID</label><input class="form-input" id="cd-ctrl-id" value="${ctrl.control_id||''}"/></div>
+        <div class="form-group"><label class="form-label">Risk Level</label>
+          <select class="form-select" id="cd-risk"><option ${ctrl.risk_level==='Critical'?'selected':''}>Critical</option><option ${ctrl.risk_level==='High'?'selected':''}>High</option><option ${ctrl.risk_level==='Medium'?'selected':''}>Medium</option><option ${ctrl.risk_level==='Low'?'selected':''}>Low</option></select>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="cd-name" value="${ctrl.name}"/></div>
+      <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="cd-desc">${ctrl.description||''}</textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Assigned To</label>
+          <select class="form-select" id="cd-assignee">
+            <option value="">Unassigned</option>
+            ${users.map(u=>`<option value="${u.id}" ${ctrl.assigned_to===u.id?'selected':''}>${u.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Due Date</label><input class="form-input" type="date" id="cd-due" value="${ctrl.due_date||''}"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Status</label>
+          <select class="form-select" id="cd-status">
+            <option value="not_started" ${ctrl.status==='not_started'?'selected':''}>Not started</option>
+            <option value="in_progress" ${ctrl.status==='in_progress'?'selected':''}>In progress</option>
+            <option value="complete" ${ctrl.status==='complete'?'selected':''}>Complete</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Evidence Required (#)</label><input class="form-input" type="number" id="cd-ev-req" value="${ctrl.evidence_required||1}" min="1"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes / Evidence Items Required</label><textarea class="form-textarea" id="cd-notes" style="min-height:60px">${ctrl.notes||''}</textarea></div>
+      <button class="btn btn-ai btn-sm" onclick="aiSuggestControl('${ctrl.control_id}','${ctrl.name}','${ctrl.framework_name}')">✨ AI Suggest Details</button>
+    </div>
+
+    <div id="tab-evidence" style="display:none">
+      <div id="evidence-detail-list">
+        ${ctrl.evidence?.length ? ctrl.evidence.map(e=>`
+          <div class="ev-item">
+            <div class="ev-icon">${fileIcon(e.file_name)}</div>
+            <div class="ev-info">
+              <div class="ev-name">${e.name}</div>
+              <div class="ev-meta">v${e.version} · ${formatBytes(e.file_size)} · ${e.created_at?.slice(0,10)||''}</div>
+            </div>
+            <span class="ev-status ev-${e.status}">${e.status}</span>
+            <div style="display:flex;gap:4px;margin-left:8px">
+              <button class="btn btn-ghost btn-sm" onclick="window.open('/api/evidence/${e.id}/download')">⬇</button>
+              ${e.status==='pending'?`<button class="btn btn-sm" style="background:rgba(62,207,132,0.1);color:var(--green);border:1px solid rgba(62,207,132,0.2)" onclick="approveEvidence('${e.id}','${controlId}')">✓ Approve</button>`:''}
+              <button class="btn btn-danger btn-sm" onclick="deleteEvidence('${e.id}','${controlId}')">✕</button>
+            </div>
+          </div>`).join('') : '<div class="empty-state" style="padding:20px"><div class="empty-icon">📎</div><div class="empty-text">No evidence uploaded</div></div>'}
+      </div>
+      <div style="margin-top:12px">
+        <div class="upload-zone" onclick="document.getElementById('ev-upload-${controlId}').click()">
+          <div class="upload-text"><strong>Upload evidence file</strong> — PDF, Excel, PNG, DOCX</div>
+        </div>
+        <input type="file" id="ev-upload-${controlId}" style="display:none" multiple onchange="uploadEvidenceForControl('${controlId}',this)"/>
+      </div>
+    </div>
+
+    <div id="tab-comments" style="display:none">
+      <div id="comments-list">
+        ${ctrl.comments?.length ? ctrl.comments.map(c=>`
+          <div class="comment-item">
+            <div class="comment-author">${c.user_name||'Anonymous'}</div>
+            <div class="comment-text">${c.content}</div>
+            <div class="comment-date">${c.created_at?.slice(0,16)||''}</div>
+          </div>`).join('') : '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">No comments yet</div>'}
+      </div>
+      <div class="form-group" style="margin-top:12px"><textarea class="form-textarea" id="new-comment" placeholder="Add a comment..."></textarea></div>
+      <button class="btn btn-secondary btn-sm" onclick="addComment('${controlId}')">Post Comment</button>
+    </div>
+
+    <div id="tab-reminders" style="display:none">
+      <div style="margin-bottom:14px">
+        ${ctrl.reminders?.length ? ctrl.reminders.map(r=>`<div class="ev-item"><div class="ev-info"><div class="ev-name">📧 ${r.user_email}</div><div class="ev-meta">${r.frequency} reminders · last sent: ${r.last_sent?.slice(0,10)||'never'}</div></div></div>`).join('') : '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">No reminders set</div>'}
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="reminder-email" placeholder="name@company.com" value="${state.user?.email||''}"/></div>
+        <div class="form-group"><label class="form-label">Frequency</label>
+          <select class="form-select" id="reminder-freq"><option value="daily">Daily</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option></select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="setReminder('${controlId}')">Set Reminder</button>
+    </div>
+  `, async () => {
+    await api('PATCH', `/controls/${controlId}`, {
+      name: document.getElementById('cd-name').value,
+      description: document.getElementById('cd-desc').value,
+      risk_level: document.getElementById('cd-risk').value,
+      status: document.getElementById('cd-status').value,
+      assigned_to: document.getElementById('cd-assignee').value || null,
+      due_date: document.getElementById('cd-due').value || null,
+      evidence_required: parseInt(document.getElementById('cd-ev-req').value) || 1,
+      notes: document.getElementById('cd-notes').value,
+      control_id: document.getElementById('cd-ctrl-id').value
+    });
+    toast('Control updated');
+    await loadActiveAudit();
+  }, 'modal-lg');
+}
+
+function switchDetailTab(btn, tabId) {
+  document.querySelectorAll('.modal .tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ['tab-details','tab-evidence','tab-comments','tab-reminders'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = id === tabId ? 'block' : 'none';
+  });
+}
+
+async function uploadEvidenceForControl(controlId, input) {
+  for (const file of input.files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('name', file.name);
+    fd.append('uploaded_by', state.user?.name || 'Unknown');
+    await api('POST', `/controls/${controlId}/evidence`, fd, true);
+    toast('Evidence uploaded: ' + file.name);
+  }
+  await loadActiveAudit();
+  closeModal();
+}
+
+async function approveEvidence(evId, controlId) {
+  await api('PATCH', `/evidence/${evId}`, { status: 'approved', approved_by: state.user?.name });
+  toast('Evidence approved ✓');
+  await loadActiveAudit();
+  openControlDetail(controlId);
+}
+
+async function deleteEvidence(evId, controlId) {
+  if (!confirm('Delete this evidence file?')) return;
+  await api('DELETE', `/evidence/${evId}`);
+  toast('Evidence deleted');
+  await loadActiveAudit();
+  openControlDetail(controlId);
+}
+
+async function addComment(controlId) {
+  const content = document.getElementById('new-comment').value.trim();
+  if (!content) return;
+  await api('POST', `/controls/${controlId}/comments`, { content, user_name: state.user?.name });
+  toast('Comment added');
+  openControlDetail(controlId);
+}
+
+async function setReminder(controlId) {
+  const email = document.getElementById('reminder-email').value.trim();
+  const freq = document.getElementById('reminder-freq').value;
+  if (!email) return toast('Enter an email address', 'error');
+  await api('POST', `/controls/${controlId}/reminders`, { email, frequency: freq });
+  toast(`📧 Reminder set (${freq}) for ${email}`);
+  openControlDetail(controlId);
+}
+
+async function aiSuggestControl(ctrlId, name, framework) {
+  toast('✨ AI analyzing control...', 'info');
+  try {
+    const data = await api('POST', '/ai/suggest-control', { control_id: ctrlId, name, framework });
+    const s = data.suggestion;
+    document.getElementById('cd-desc').value = s.description || '';
+    document.getElementById('cd-risk').value = s.risk_level || 'Medium';
+    if (s.evidence_items?.length) {
+      document.getElementById('cd-notes').value = s.evidence_items.join('\n');
+      document.getElementById('cd-ev-req').value = s.evidence_items.length;
+    }
+    toast('✨ AI suggestions applied!');
+  } catch(e) { toast('AI error: ' + e.message, 'error'); }
+}
+
+// ======= QUICK UPLOAD =======
+async function handleQuickUpload(input) {
+  if (!state.activeAuditId) return toast('Select an audit first', 'error');
+  if (state.controls.length === 0) return toast('No controls found. Add controls first.', 'error');
+  const file = input.files[0];
+  if (!file) return;
+  // Use first incomplete control as default
+  const ctrl = state.controls.find(c => c.status !== 'complete') || state.controls[0];
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('name', file.name);
+  fd.append('uploaded_by', state.user?.name || 'Unknown');
+  await api('POST', `/controls/${ctrl.id}/evidence`, fd, true);
+  toast(`Evidence uploaded to "${ctrl.name}"`);
+  await loadActiveAudit();
+  input.value = '';
+}
+
+// ======= EVIDENCE PAGE =======
+async function loadEvidencePage() {
+  if (!state.activeAuditId) return;
+  document.getElementById('evidence-page-sub').textContent = `${state.activeAudit?.framework_name} · ${state.activeAudit?.name}`;
+  const container = document.getElementById('evidence-by-control');
+  const controls = state.controls;
+
+  let html = '';
+  for (const ctrl of controls) {
+    const evs = await api('GET', `/controls/${ctrl.id}/evidence`);
+    if (evs.length === 0 && ctrl.status === 'complete') continue;
+    html += `<div class="card" style="margin-bottom:14px">
+      <div class="card-header">
+        <div><span class="ctrl-id" style="display:inline;margin-right:8px">${ctrl.control_id||''}</span><span style="font-size:13px;font-weight:600">${ctrl.name}</span></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="risk-badge risk-${ctrl.risk_level}">${ctrl.risk_level}</span>
+          <span class="ev-ratio ${evs.length>=ctrl.evidence_required?'ev-full':evs.length>0?'ev-partial':'ev-zero'}">${evs.length}/${ctrl.evidence_required||1}</span>
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ev-page-${ctrl.id}').click()">+ Upload</button>
+          <input type="file" id="ev-page-${ctrl.id}" style="display:none" multiple onchange="uploadEvidenceForControlPage('${ctrl.id}',this)"/>
+        </div>
+      </div>
+      <div class="card-body">
+        ${evs.length ? evs.map(e=>`
+          <div class="ev-item">
+            <div class="ev-icon">${fileIcon(e.file_name)}</div>
+            <div class="ev-info">
+              <div class="ev-name">${e.name}</div>
+              <div class="ev-meta">v${e.version} · ${formatBytes(e.file_size)} · Uploaded ${e.created_at?.slice(0,10)||''} by ${e.uploaded_by||'unknown'} ${e.expiry_date?'· Expires: '+e.expiry_date:''}</div>
+            </div>
+            <span class="ev-status ev-${e.status}">${e.status}</span>
+            <div style="display:flex;gap:4px;margin-left:8px">
+              <button class="btn btn-ghost btn-sm" onclick="window.open('/api/evidence/${e.id}/download')">⬇ Download</button>
+              ${e.status==='pending'?`<button class="btn btn-sm" style="background:rgba(62,207,132,0.1);color:var(--green);border:1px solid rgba(62,207,132,0.2)" onclick="approveEvidencePage('${e.id}')">✓ Approve</button>`:''}
+              <button class="btn btn-danger btn-sm" onclick="deleteEvidencePage('${e.id}')">✕</button>
+            </div>
+          </div>`).join('') : '<div style="color:var(--muted);font-size:13px;font-family:var(--mono)">No evidence uploaded yet</div>'}
+      </div>
+    </div>`;
+  }
+  container.innerHTML = html || '<div class="empty-state"><div class="empty-icon">📎</div><div class="empty-text">No controls found for this audit</div></div>';
+}
+
+async function uploadEvidenceForControlPage(ctrlId, input) {
+  for (const file of input.files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('name', file.name);
+    fd.append('uploaded_by', state.user?.name || 'Unknown');
+    await api('POST', `/controls/${ctrlId}/evidence`, fd, true);
+    toast('Evidence uploaded: ' + file.name);
+  }
+  await loadActiveAudit();
+  await loadEvidencePage();
+}
+
+async function approveEvidencePage(evId) {
+  await api('PATCH', `/evidence/${evId}`, { status: 'approved', approved_by: state.user?.name });
+  toast('Evidence approved ✓');
+  await loadEvidencePage();
+}
+
+async function deleteEvidencePage(evId) {
+  if (!confirm('Delete this evidence?')) return;
+  await api('DELETE', `/evidence/${evId}`);
+  toast('Deleted');
+  await loadEvidencePage();
+}
+
+// ======= GAP ANALYSIS =======
+async function runGapAnalysis() {
+  if (!state.activeAuditId) return toast('Select an audit first', 'error');
+  document.getElementById('gap-empty').style.display = 'none';
+  document.getElementById('gap-loading').style.display = 'block';
+  document.getElementById('gap-results').style.display = 'none';
+  try {
+    const data = await api('GET', `/ai/gap-analysis/${state.activeAuditId}`);
+    const a = data.analysis;
+    document.getElementById('gap-loading').style.display = 'none';
+    document.getElementById('gap-results').style.display = 'block';
+    document.getElementById('gap-score').textContent = (a.readiness_score||0) + '%';
+    document.getElementById('gap-critical-count').textContent = a.critical_gaps?.length || 0;
+    document.getElementById('gap-eta').textContent = a.estimated_completion || '—';
+    document.getElementById('gap-summary').textContent = a.risk_summary || '';
+    
+    document.getElementById('gap-critical-list').innerHTML = (a.critical_gaps||[]).map(g=>
+      `<div class="finding-item"><div class="finding-dot" style="background:var(--red)"></div><div style="font-size:13px">${g}</div></div>`).join('') || '<div style="color:var(--green);font-size:13px">No critical gaps found!</div>';
+    
+    document.getElementById('gap-wins').innerHTML = (a.quick_wins||[]).map(w=>
+      `<div class="finding-item"><div class="finding-dot" style="background:var(--green)"></div><div style="font-size:13px">${w}</div></div>`).join('') || '<div style="color:var(--muted);font-size:13px">No quick wins identified</div>';
+
+    document.getElementById('gap-recommendations').innerHTML = (a.recommendations||[]).map(r=>`
+      <div class="gap-card">
+        <div class="gap-priority" style="color:${r.priority==='High'?'var(--red)':r.priority==='Medium'?'var(--amber)':'var(--green)'}">● ${r.priority} Priority</div>
+        <div class="gap-action">${r.action}</div>
+        <div class="gap-impact">${r.impact}</div>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('gap-loading').style.display = 'none';
+    document.getElementById('gap-empty').style.display = 'block';
+    const msg = e.message || 'Unknown error';
+    const isApiKey = msg.toLowerCase().includes('api key') || msg.includes('sk-ant') || msg.includes('authentication');
+    document.getElementById('gap-empty').innerHTML = `
+      <div class="empty-icon">${isApiKey ? '🔑' : '⚠️'}</div>
+      <div class="empty-text">${isApiKey ? 'API Key Required' : 'Analysis Failed'}</div>
+      <div class="empty-sub" style="max-width:400px;margin:8px auto;line-height:1.6">${msg}</div>
+      ${isApiKey ? '<div style="margin-top:12px;font-size:12px;color:var(--muted)">Open your .env file and set ANTHROPIC_API_KEY=sk-ant-... then restart the server</div>' : ''}`;
+    toast(isApiKey ? '🔑 API key not set — check your .env file' : 'Gap analysis error: ' + msg.slice(0,80), 'error');
+  }
+}
+
+// ======= REPORTS =======
+async function generateReport() {
+  if (!state.activeAuditId) return toast('Select an audit first', 'error');
+  document.getElementById('reports-loading').style.display = 'block';
+  document.getElementById('report-narrative').style.display = 'none';
+  try {
+    const data = await api('POST', `/ai/generate-report/${state.activeAuditId}`);
+    const n = data.narrative;
+    document.getElementById('reports-loading').style.display = 'none';
+    document.getElementById('report-narrative').style.display = 'block';
+    document.getElementById('report-summary-text').textContent = n.executive_summary || '';
+    document.getElementById('report-findings').innerHTML = (n.key_findings||[]).map(f=>`
+      <div class="finding-item"><div class="finding-dot"></div><div style="font-size:13px">${f}</div></div>`).join('');
+    document.getElementById('report-conclusion').textContent = n.conclusion || '';
+
+    const repItem = document.createElement('div');
+    repItem.className = 'report-item';
+    repItem.innerHTML = `
+      <div class="report-info">
+        <div class="report-icon">📋</div>
+        <div class="report-meta">
+          <div class="report-name">${state.activeAudit?.name} — Audit Report</div>
+          <div class="report-date">Generated ${new Date().toLocaleDateString()} · ${n.overall_status||'In Progress'}</div>
+        </div>
+      </div>
+      <div class="report-actions">
+        <a href="${data.downloadPdfUrl}" target="_blank" class="btn btn-secondary btn-sm">⬇ PDF</a>
+        <a href="${data.downloadDocxUrl}" target="_blank" class="btn btn-primary btn-sm">⬇ Word (.docx)</a>
+      </div>`;
+    document.getElementById('reports-list').prepend(repItem);
+
+    // Also refresh history page
+    await loadHistory();
+    toast('✨ Report ready — PDF and Word download available!');
+  } catch(e) {
+    document.getElementById('reports-loading').style.display = 'none';
+    toast('Report error: ' + e.message, 'error');
+  }
+}
+
+// ======= USERS =======
+async function loadUsers() {
+  state.users = await api('GET', '/auth/users');
+  const colors = ['#4f8ef7','#b06ef5','#3ecf84','#f5a623','#2dcdc8','#f25c5c'];
+  document.getElementById('users-list').innerHTML = state.users.map((u,i)=>`
+    <div class="user-item">
+      <div class="user-av" style="background:${colors[i%colors.length]}22;color:${colors[i%colors.length]}">${u.avatar_initials||u.name[0]}</div>
+      <div class="user-info">
+        <div class="user-name">${u.name}</div>
+        <div class="user-email">${u.email}</div>
+      </div>
+      <span class="role-badge role-${u.role}">${u.role}</span>
+    </div>`).join('');
+}
+
+// ======= MODALS =======
+let modalSaveCallback = null;
+function openModal(type, title, bodyHtml, saveCallback, sizeClass) {
+  const box = document.getElementById('modal-box');
+  box.className = 'modal ' + (sizeClass || 'modal-md');
+  
+  if (type === '_custom') {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').innerHTML = bodyHtml;
+    document.getElementById('modal-footer').style.display = 'flex';
+    modalSaveCallback = saveCallback;
+    document.getElementById('modal-save-btn').onclick = async () => { if(modalSaveCallback) await modalSaveCallback(); closeModal(); };
+    document.getElementById('modal-backdrop').classList.add('open');
+    return;
+  }
+
+  const configs = {
+    newAudit: {
+      title: 'Create New Audit',
+      body: `
+        <div class="form-group"><label class="form-label">Audit Name</label><input class="form-input" id="na-name" placeholder="e.g. ISO 27001 Annual Audit 2025"/></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Framework</label>
+            <select class="form-select" id="na-fw">${state.frameworks.map(f=>`<option value="${f.id}">${f.name}</option>`).join('')}</select>
+          </div>
+          <div class="form-group"><label class="form-label">Audit Type</label>
+            <select class="form-select" id="na-type"><option>External</option><option>Internal</option><option>System Audit</option><option>Gap Analysis</option></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Start Date</label><input class="form-input" type="date" id="na-start"/></div>
+          <div class="form-group"><label class="form-label">Audit Date</label><input class="form-input" type="date" id="na-date"/></div>
+        </div>
+        <div class="form-group"><label class="form-label">Auditor / Firm</label><input class="form-input" id="na-auditor" placeholder="e.g. KPMG, Deloitte, Internal"/></div>
+        <div class="form-group"><label class="form-label">Audit Lead</label>
+          <select class="form-select" id="na-lead"><option value="">— select —</option>${state.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('')}</select>
+        </div>`,
+      save: async () => {
+        const name = document.getElementById('na-name').value.trim();
+        if (!name) return toast('Name required', 'error');
+        await api('POST', '/audits', { name, framework_id: document.getElementById('na-fw').value, audit_type: document.getElementById('na-type').value, auditor: document.getElementById('na-auditor').value, lead_id: document.getElementById('na-lead').value||null, start_date: document.getElementById('na-start').value||null, audit_date: document.getElementById('na-date').value||null });
+        toast('Audit created!');
+        await loadAudits();
+      }
+    },
+    newFramework: {
+      title: 'Add Framework',
+      body: `
+        <div class="form-group"><label class="form-label">Framework Name</label><input class="form-input" id="nfw-name" placeholder="e.g. NIST CSF, COBIT, Custom"/></div>
+        <div class="form-group"><label class="form-label">Description</label><input class="form-input" id="nfw-desc" placeholder="Short description"/></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Color</label><input class="form-input" type="color" id="nfw-color" value="#4f8ef7" style="height:42px;cursor:pointer"/></div>
+          <div class="form-group"><label class="form-label">Type</label>
+            <select class="form-select" id="nfw-type"><option>Security</option><option>Privacy</option><option>AI Governance</option><option>Financial</option><option>Healthcare</option><option>Custom</option></select>
+          </div>
+        </div>`,
+      save: async () => {
+        const name = document.getElementById('nfw-name').value.trim();
+        if (!name) return toast('Name required', 'error');
+        await api('POST', '/frameworks', { name, description: document.getElementById('nfw-desc').value, color: document.getElementById('nfw-color').value, type: document.getElementById('nfw-type').value });
+        toast('Framework added!');
+        await loadFrameworks();
+      }
+    },
+    addControl: {
+      title: 'Add Control',
+      size: 'modal-lg',
+      body: `
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Control ID</label><input class="form-input" id="ac-cid" placeholder="e.g. A.5.1"/></div>
+          <div class="form-group"><label class="form-label">Risk Level</label>
+            <select class="form-select" id="ac-risk"><option>Critical</option><option selected>High</option><option>Medium</option><option>Low</option></select>
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">Control Name *</label><input class="form-input" id="ac-name" placeholder="e.g. Information security policies"/></div>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px">
+          <button class="btn btn-ai btn-sm" onclick="aiSuggestNewControl()">✨ AI Auto-fill from ID + Name</button>
+        </div>
+        <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="ac-desc" placeholder="What this control requires..."></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Assigned To</label>
+            <select class="form-select" id="ac-assign"><option value="">Unassigned</option>${state.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('')}</select>
+          </div>
+          <div class="form-group"><label class="form-label">Due Date</label><input class="form-input" type="date" id="ac-due"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Evidence Required (#)</label><input class="form-input" type="number" id="ac-evreq" value="1" min="1"/></div>
+          <div class="form-group"><label class="form-label">Evidence Items (one per line)</label><textarea class="form-textarea" id="ac-evitems" style="min-height:60px" placeholder="Policy document&#10;RACI matrix&#10;Approval email"></textarea></div>
+        </div>`,
+      save: async () => {
+        if (!state.activeAuditId) return toast('Select an audit first', 'error');
+        const name = document.getElementById('ac-name').value.trim();
+        if (!name) return toast('Name required', 'error');
+        await api('POST', `/audits/${state.activeAuditId}/controls`, {
+          control_id: document.getElementById('ac-cid').value,
+          name, description: document.getElementById('ac-desc').value,
+          risk_level: document.getElementById('ac-risk').value,
+          assigned_to: document.getElementById('ac-assign').value || null,
+          due_date: document.getElementById('ac-due').value || null,
+          evidence_required: parseInt(document.getElementById('ac-evreq').value) || 1,
+          notes: document.getElementById('ac-evitems').value
+        });
+        toast('Control added!');
+        await loadActiveAudit();
+      }
+    },
+    uploadChecklist: {
+      title: 'Import Checklist with AI',
+      body: `
+        <div class="form-group"><label class="form-label">Target Audit</label>
+          <select class="form-select" id="uc-audit">${state.audits.map(a=>`<option value="${a.id}" ${a.id===state.activeAuditId?'selected':''}>${a.name}</option>`).join('')}</select>
+        </div>
+        <div class="form-group"><label class="form-label">Framework (for AI context)</label>
+          <select class="form-select" id="uc-fw">${state.frameworks.map(f=>`<option value="${f.name}">${f.name}</option>`).join('')}</select>
+        </div>
+        <div class="upload-zone" onclick="document.getElementById('uc-file').click()" id="uc-dropzone" style="cursor:pointer">
+          <div class="upload-icon">📊</div>
+          <div class="upload-text">
+            <strong>Drop your auditor's Excel or CSV</strong><br>
+            All rows extracted first · AI then scores risks in batches<br>
+            <span style="color:var(--green);font-weight:600">Works with large checklists (100+ controls)</span><br>
+            <span style="font-size:10px;color:var(--dim)">Supported: .xlsx, .xls, .csv, .txt</span>
+          </div>
+        </div>
+        <input type="file" id="uc-file" style="display:none" accept=".xlsx,.xls,.csv,.txt" onchange="handleChecklistUpload(this)"/>
+        <div id="uc-progress" style="display:none;margin-top:14px"></div>
+        <div id="uc-preview" style="display:none;margin-top:12px"></div>`,
+      save: async () => { /* handled inline */ },
+      noFooter: true
+    },
+    newUser: {
+      title: 'Add Team Member',
+      body: `
+        <div class="form-group"><label class="form-label">Full Name</label><input class="form-input" id="nu-name" placeholder="Jane Smith"/></div>
+        <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="nu-email" placeholder="jane@company.com"/></div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="nu-pass" placeholder="Temporary password"/></div>
+          <div class="form-group"><label class="form-label">Role</label>
+            <select class="form-select" id="nu-role"><option value="member">Member</option><option value="auditor">Auditor</option><option value="admin">Admin</option></select>
+          </div>
+        </div>`,
+      save: async () => {
+        const name = document.getElementById('nu-name').value.trim();
+        const email = document.getElementById('nu-email').value.trim();
+        const pass = document.getElementById('nu-pass').value;
+        if (!name||!email||!pass) return toast('All fields required', 'error');
+        await api('POST', '/auth/register', { name, email, password: pass, role: document.getElementById('nu-role').value });
+        toast('User added!');
+        await loadUsers();
+      }
+    }
+  };
+
+  const cfg = configs[type];
+  if (!cfg) return;
+
+  box.className = 'modal ' + (cfg.size || 'modal-md');
+  document.getElementById('modal-title').textContent = cfg.title;
+  document.getElementById('modal-body').innerHTML = cfg.body;
+  
+  if (cfg.noFooter) {
+    document.getElementById('modal-footer').style.display = 'none';
+  } else {
+    document.getElementById('modal-footer').style.display = 'flex';
+    document.getElementById('modal-save-btn').onclick = async () => { await cfg.save(); closeModal(); };
+  }
+
+  document.getElementById('modal-backdrop').classList.add('open');
+}
+
+async function aiSuggestNewControl() {
+  const id = document.getElementById('ac-cid').value;
+  const name = document.getElementById('ac-name').value;
+  const fw = state.activeAudit?.framework_name || 'ISO 27001';
+  if (!name) return toast('Enter a control name first', 'error');
+  toast('✨ AI thinking...', 'info');
+  try {
+    const data = await api('POST', '/ai/suggest-control', { control_id: id, name, framework: fw });
+    const s = data.suggestion;
+    document.getElementById('ac-desc').value = s.description || '';
+    document.getElementById('ac-risk').value = s.risk_level || 'Medium';
+    if (s.evidence_items?.length) {
+      document.getElementById('ac-evitems').value = s.evidence_items.join('\n');
+      document.getElementById('ac-evreq').value = s.evidence_items.length;
+    }
+    toast('✨ AI suggestions applied!');
+  } catch(e) { toast('AI error: ' + e.message, 'error'); }
+}
+
+async function handleChecklistUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const auditId   = document.getElementById('uc-audit').value;
+  const framework = document.getElementById('uc-fw').value;
+  if (!auditId) return toast('Select an audit first', 'error');
+
+  const preview  = document.getElementById('uc-preview');
+  const progress = document.getElementById('uc-progress');
+
+  document.getElementById('uc-dropzone').innerHTML = `
+    <div style="font-size:20px;margin-bottom:6px">📄</div>
+    <div class="upload-text"><strong>${file.name}</strong></div>`;
+  progress.style.display = 'block';
+  progress.innerHTML = `
+    <div class="ai-spinner" style="justify-content:center;padding:8px 0">
+      <div class="spinner-dot"></div><div class="spinner-dot"></div><div class="spinner-dot"></div>
+      <span style="margin-left:10px;color:var(--text-mid)">
+        Step 1 of 2: Extracting all rows from Excel...
+      </span>
+    </div>`;
+  preview.style.display = 'none';
+  preview.innerHTML = '';
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('framework_name', framework);
+
+  // First try with AI scoring
+  try {
+    // Update progress message after 2s (AI batch scoring takes time)
+    const progressTimer = setTimeout(() => {
+      progress.innerHTML = `
+        <div class="ai-spinner" style="justify-content:center;padding:8px 0">
+          <div class="spinner-dot"></div><div class="spinner-dot"></div><div class="spinner-dot"></div>
+          <span style="margin-left:10px;color:var(--text-mid)">
+            Step 2 of 2: AI is scoring risk levels in batches... (may take 30–60s for large checklists)
+          </span>
+        </div>`;
+    }, 2000);
+
+    const data = await api('POST', '/ai/parse-checklist', fd, true);
+    clearTimeout(progressTimer);
+    progress.style.display = 'none';
+    showImportPreview(data, auditId, framework);
+
+  } catch(e) {
+    progress.style.display = 'none';
+    const msg = e.message || 'Unknown error';
+    const isApiKey = msg.toLowerCase().includes('api key') || msg.includes('sk-ant') || msg.includes('authentication') || msg.includes('401');
+
+    if (isApiKey) {
+      // API key issue — offer to import without AI scoring
+      preview.style.display = 'block';
+      preview.innerHTML = `
+        <div style="background:var(--amber-bg);border:1.5px solid rgba(217,119,6,0.25);border-radius:var(--radius);padding:16px;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--amber);margin-bottom:8px">⚠️ AI scoring unavailable — API key not configured</div>
+          <div style="font-size:13px;color:var(--text-mid);line-height:1.6;margin-bottom:12px">${msg}</div>
+          <div style="font-size:12px;color:var(--muted);font-family:var(--mono);line-height:1.8;background:white;border-radius:var(--radius);padding:10px;border:1px solid var(--border);margin-bottom:12px">
+            Fix: Open .env → set ANTHROPIC_API_KEY=sk-ant-... → restart server
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="handleChecklistUploadNoAI(event,'${auditId}','${framework}')">
+            📊 Import anyway (extract all controls, assign Medium risk)
+          </button>
+        </div>`;
+    } else {
+      // Other error
+      preview.style.display = 'block';
+      preview.innerHTML = `
+        <div style="background:var(--red-bg);border:1.5px solid rgba(220,38,38,0.25);border-radius:var(--radius);padding:16px;">
+          <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px">❌ Import Failed</div>
+          <div style="font-size:13px;color:var(--text-mid);line-height:1.6">${msg}</div>
+        </div>`;
+      toast('Import failed: ' + msg.slice(0, 80), 'error');
+    }
+  }
+}
+
+async function handleChecklistUploadNoAI(event, auditId, framework) {
+  event.target.disabled = true;
+  event.target.textContent = 'Extracting...';
+  
+  const fileInput = document.getElementById('uc-file');
+  if (!fileInput.files[0]) return toast('Please re-select the file', 'error');
+  
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('framework_name', framework);
+  fd.append('skip_ai', 'true');
+  
+  try {
+    const data = await api('POST', '/ai/parse-checklist', fd, true);
+    document.getElementById('uc-preview').innerHTML = '';
+    showImportPreview(data, auditId, framework);
+  } catch(e) {
+    toast('Extraction failed: ' + (e.message||''), 'error');
+  }
+}
+
+function showImportPreview(data, auditId, framework) {
+  const preview = document.getElementById('uc-preview');
+  preview.style.display = 'block';
+  
+  const scored     = data.ai_scored;
+  const countText  = `${data.count} controls`;
+  const scoreText  = scored ? ' · AI risk-scored' : ' · Medium risk assigned (no AI key)';
+  
+  // Risk distribution
+  const riskCounts = { Critical:0, High:0, Medium:0, Low:0 };
+  data.controls.forEach(c => { if(riskCounts[c.risk_level]!==undefined) riskCounts[c.risk_level]++; });
+  
+  preview.innerHTML = `
+    <div style="background:var(--green-bg);border:1.5px solid rgba(26,107,58,0.2);border-radius:var(--radius);padding:14px;margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:6px">✅ Ready to import ${countText}${scoreText}</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <span class="risk-badge risk-Critical">🔴 ${riskCounts.Critical} Critical</span>
+        <span class="risk-badge risk-High">🟡 ${riskCounts.High} High</span>
+        <span class="risk-badge risk-Medium">🔵 ${riskCounts.Medium} Medium</span>
+        <span class="risk-badge risk-Low">🟢 ${riskCounts.Low} Low</span>
+      </div>
+    </div>
+    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:var(--surface2);position:sticky;top:0">
+            <th style="padding:8px 10px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap">#</th>
+            <th style="padding:8px 10px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted)">Evidence / Control Name</th>
+            <th style="padding:8px 10px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted)">Risk</th>
+            <th style="padding:8px 10px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--muted)">Evidence #</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.controls.map((c,i) => `
+            <tr style="border-bottom:1px solid var(--border);${i%2===0?'':'background:var(--surface2)'}">
+              <td style="padding:7px 10px;color:var(--green);font-family:var(--mono);font-weight:700">${c.control_id}</td>
+              <td style="padding:7px 10px;color:var(--text)">${c.name.slice(0,70)}${c.name.length>70?'…':''}</td>
+              <td style="padding:7px 10px"><span class="risk-badge risk-${c.risk_level}">${c.risk_level}</span></td>
+              <td style="padding:7px 10px;text-align:center;font-family:var(--mono)">${c.evidence_required||1}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:14px" 
+      onclick="confirmChecklistImport('${auditId}',${JSON.stringify(JSON.stringify(data.controls)).replace(/"/g,'&quot;')})">
+      ✅ Import all ${data.count} controls into audit
+    </button>`;
+}
+
+async function confirmChecklistImport(auditId, controlsJson) {
+  const controls = JSON.parse(controlsJson);
+  await api('POST', `/audits/${auditId}/controls/bulk`, { controls });
+  toast(`✓ Imported ${controls.length} controls!`);
+  closeModal();
+  state.activeAuditId = auditId;
+  document.getElementById('active-audit-select').value = auditId;
+  await loadActiveAudit();
+}
+
+function closeModal() { document.getElementById('modal-backdrop').classList.remove('open'); document.getElementById('modal-footer').style.display = 'flex'; }
+function closeModalOutside(e) { if (e.target === document.getElementById('modal-backdrop')) closeModal(); }
+
+// ======= AI CHAT =======
+function openAIChat() { document.getElementById('chat-backdrop').classList.add('open'); }
+function closeChatOutside(e) { if (e.target === document.getElementById('chat-backdrop')) document.getElementById('chat-backdrop').classList.remove('open'); }
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  const messages = document.getElementById('chat-messages');
+  messages.innerHTML += `<div class="chat-msg chat-user">${msg}</div>`;
+  messages.innerHTML += `<div class="chat-thinking ai-spinner"><div class="spinner-dot"></div><div class="spinner-dot"></div><div class="spinner-dot"></div></div>`;
+  messages.scrollTop = messages.scrollHeight;
+
+  try {
+    const data = await api('POST', '/ai/chat', { message: msg, audit_id: state.activeAuditId });
+    document.querySelector('.chat-thinking')?.remove();
+    messages.innerHTML += `<div class="chat-msg chat-ai">${data.answer.replace(/\n/g,'<br>')}</div>`;
+  } catch(e) {
+    document.querySelector('.chat-thinking')?.remove();
+    const chatErr = e.message || 'Unknown error';
+    const isKey = chatErr.toLowerCase().includes('api key') || chatErr.includes('authentication');
+    messages.innerHTML += `<div class="chat-msg chat-ai" style="border-color:rgba(220,38,38,0.3);background:var(--red-bg)">
+      <strong style="color:var(--red)">${isKey ? '🔑 API Key Error' : '❌ Error'}</strong><br>
+      <span style="color:var(--text-mid);font-size:12px">${chatErr}</span>
+      ${isKey ? '<br><span style="color:var(--muted);font-size:11px;font-family:var(--mono)">Fix: add your key to .env and restart the server</span>' : ''}
+    </div>`;
+  }
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// ======= EXPORT =======
+async function exportReport() {
+  if (!state.activeAuditId) return toast('Select an audit first', 'error');
+  toast('✨ Generating report...', 'info');
+  try {
+    const data = await api('POST', `/ai/generate-report/${state.activeAuditId}`);
+    window.open(data.downloadDocxUrl, '_blank');
+    toast('Word report downloading! PDF also available in Reports tab.');
+    await loadHistory();
+  } catch(e) { toast('Export error: ' + e.message, 'error'); }
+}
+
+// ======= NAVIGATION =======
+function navTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page)?.classList.add('active');
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+
+  if (page === 'evidence') loadEvidencePage();
+  if (page === 'users') loadUsers();
+  if (page === 'controls') renderControlsPage();
+  if (page === 'history') loadHistory();
+}
+
+async function loadHistory() {
+  const audits = await api('GET', '/audits');
+  state.audits = audits;
+  const container = document.getElementById('history-list');
+  if (!container) return;
+
+  if (audits.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text">No audits yet</div><div class="empty-sub">Create your first audit to get started</div></div>';
+    return;
+  }
+
+  const statusColor = (pct) => pct >= 80 ? 'var(--green)' : pct >= 40 ? 'var(--amber)' : 'var(--red)';
+  const today = new Date().toISOString().slice(0,10);
+
+  container.innerHTML = audits.map(a => {
+    const pct = a.completion_pct || 0;
+    const daysLeft = a.audit_date ? Math.ceil((new Date(a.audit_date) - new Date()) / 86400000) : null;
+    const daysLabel = daysLeft === null ? '—' : daysLeft < 0 ? 'Past due' : daysLeft === 0 ? 'Today' : daysLeft + 'd left';
+    const daysColor = daysLeft !== null && daysLeft < 7 ? 'var(--red)' : 'var(--muted)';
+    return `
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0">
+          <div style="width:44px;height:44px;border-radius:10px;background:rgba(79,142,247,0.12);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📋</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.name}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${a.framework_name} · ${a.audit_type} · Auditor: ${a.auditor||'Not set'}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:24px;flex-shrink:0;margin-left:16px">
+          <div style="text-align:center">
+            <div style="font-size:18px;font-weight:800;color:${statusColor(pct)}">${pct}%</div>
+            <div style="font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase">Complete</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:14px;font-weight:700;color:var(--muted)">${a.total_controls||0}</div>
+            <div style="font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase">Controls</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:14px;font-weight:700;color:${daysColor}">${daysLabel}</div>
+            <div style="font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase">Audit date</div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:10px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="flex:1">
+          <div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;max-width:300px">
+            <div style="height:100%;border-radius:2px;background:${statusColor(pct)};width:${pct}%;transition:width 0.6s ease"></div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:4px">${a.complete_controls||0}/${a.total_controls||0} controls · ${a.overdue_controls||0} overdue</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="selectAndViewAudit('${a.id}')">View Dashboard</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportHistoryReport('${a.id}','${a.name.replace(/'/g,"\\'")}')">✨ Export Report</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAuditFromHistory('${a.id}','${a.name.replace(/'/g,"\\'")}')">🗑 Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function selectAndViewAudit(auditId) {
+  document.getElementById('active-audit-select').value = auditId;
+  await onAuditChange(auditId);
+  navTo('dashboard');
+}
+
+async function exportHistoryReport(auditId, auditName) {
+  toast('✨ Generating report for ' + auditName + '...', 'info');
+  try {
+    const data = await api('POST', `/ai/generate-report/${auditId}`);
+    // Show download options in a mini modal
+    openModal('_custom', 'Download Report — ' + auditName, `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:32px;margin-bottom:16px">📋</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:8px">${auditName}</div>
+        <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:24px">Report generated by G.R.I.D AI · ${new Date().toLocaleDateString()}</div>
+        <div style="display:flex;gap:12px;justify-content:center">
+          <a href="${data.downloadDocxUrl}" target="_blank" class="btn btn-primary" style="text-decoration:none">⬇ Download Word (.docx)</a>
+          <a href="${data.downloadPdfUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">⬇ Download PDF</a>
+        </div>
+        <div style="margin-top:20px;padding:14px;background:var(--surface2);border-radius:var(--radius);text-align:left">
+          <div style="font-size:11px;color:var(--accent);font-family:var(--mono);margin-bottom:6px">AI STATUS: ${data.narrative?.overall_status||'—'}</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">${(data.narrative?.executive_summary||'').slice(0,200)}...</div>
+        </div>
+      </div>
+    `, null, 'modal-md');
+    document.getElementById('modal-footer').style.display = 'none';
+  } catch(e) { toast('Report error: ' + e.message, 'error'); }
+}
+
+async function deleteAuditFromHistory(auditId, auditName) {
+  if (!confirm('Delete audit "' + auditName + '" and ALL its controls and evidence?\n\nThis cannot be undone.')) return;
+  await api('DELETE', `/audits/${auditId}`);
+  if (state.activeAuditId === auditId) {
+    state.activeAuditId = null;
+    state.activeAudit = null;
+    state.controls = [];
+    document.getElementById('active-audit-select').value = '';
+  }
+  toast('Audit deleted');
+  await loadAudits();
+  await loadHistory();
+}
+
+// ======= UTILS =======
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+function fileIcon(name) {
+  if (!name) return '📄';
+  const ext = name.split('.').pop()?.toLowerCase();
+  return {pdf:'📕',xlsx:'📊',xls:'📊',csv:'📊',png:'🖼️',jpg:'🖼️',jpeg:'🖼️',docx:'📝',doc:'📝',txt:'📄',zip:'📦'}[ext] || '📄';
+}
+
+function formatBytes(b) {
+  if (!b) return '—';
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/1024/1024).toFixed(1) + ' MB';
+}
+
+// Init: check session
+(async () => {
+  try {
+    const user = await api('GET', '/auth/me');
+    state.user = user;
+    document.getElementById('user-avatar').textContent = user.initials || user.name[0];
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    await bootstrap();
+  } catch(e) {
+    // Not logged in, show login screen
+  }
+})();
+
+// ======= NEW THEME — OVERRIDES / ADDITIONS =======
+
+// Update user display in topbar
+const _origBootstrap = bootstrap;
+async function bootstrap() {
+  await loadFrameworks();
+  await loadAudits();
+  await loadUsers();
+  if (state.user) {
+    document.getElementById('user-name-display').textContent = state.user.name || 'Admin';
+    document.getElementById('user-email-display').textContent = state.user.email || '';
+  }
+  navTo('dashboard');
+}
+
+// Animate stat values counting up
+function animateValue(id, target, suffix = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = 0;
+  const dur = 600;
+  const startTime = performance.now();
+  function update(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / dur, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(start + (target - start) * ease) + suffix;
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+// Override updateDashboard to use animateValue
+const _origUpdateDashboard = updateDashboard;
+function updateDashboard() {
+  const a = state.activeAudit;
+  if (!a) return;
+  document.getElementById('dash-title').textContent = a.name;
+  document.getElementById('dash-sub').textContent = `Framework: ${a.framework_name} · Type: ${a.audit_type} · Auditor: ${a.auditor || 'Not set'}`;
+
+  const pct = a.completion_pct || 0;
+  animateValue('stat-total', a.total_controls || 0);
+  animateValue('stat-complete', a.complete_controls || 0);
+  animateValue('stat-pending', a.pending_controls || 0);
+  animateValue('stat-overdue', a.overdue_controls || 0);
+
+  document.getElementById('stat-pbar').style.width = pct + '%';
+  document.getElementById('stat-pct-sub').textContent = `${a.complete_controls||0} of ${a.total_controls||0} controls · ${pct}%`;
+  document.getElementById('stat-complete-sub').textContent = `${pct}% completion rate`;
+  document.getElementById('nav-controls-count').textContent = a.total_controls || 0;
+
+  if (a.audit_date) {
+    const days = Math.ceil((new Date(a.audit_date) - new Date()) / 86400000);
+    const daysText = days < 0 ? 'Audit date passed' : days === 0 ? 'Audit today!' : `${days} days to audit`;
+    document.getElementById('stat-days-sub').textContent = daysText;
+    document.getElementById('stat-days-sub').style.color = days < 7 ? 'var(--red)' : 'var(--amber)';
+  }
+
+  // Ring chart
+  const total = a.total_controls || 1;
+  const complete = a.complete_controls || 0;
+  const inprog = (a.controls||[]).filter(c=>c.status==='in_progress').length;
+  const circumference = 239;
+  document.getElementById('ring-complete').setAttribute('stroke-dashoffset', circumference - (complete / total) * circumference);
+  document.getElementById('ring-text').textContent = pct + '%';
+  document.getElementById('ring-c').textContent = complete;
+  document.getElementById('ring-p').textContent = inprog;
+  document.getElementById('ring-n').textContent = (a.total_controls||0) - complete - inprog;
+
+  renderTimeline(a);
+}
+
+// Override toast to use new styled toast
+function toast(msg, type) {
+  const el    = document.getElementById('toast');
+  const icon  = document.getElementById('toast-icon');
+  const text  = document.getElementById('toast-text');
+  const icons = { error: '❌', info: 'ℹ️', '': '✅' };
+  text.textContent = msg;
+  icon.textContent = icons[type||''] || '✅';
+  el.className = `toast show${type ? ' ' + type : ''}`;
+  el.style.borderLeftColor = type === 'error' ? 'var(--red)' : type === 'info' ? 'var(--blue)' : 'var(--green)';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+// Override renderSidebarFrameworks for light theme
+function renderSidebarFrameworks() {
+  document.getElementById('fw-list').innerHTML = state.frameworks.map(f => `
+    <div class="fw-item" onclick="filterByFramework('${f.id}')">
+      <div class="fw-dot" style="background:${f.color||'var(--green)'}"></div>
+      <span>${f.name}</span>
+    </div>`).join('');
+}
+
+// Audit history for new theme
+async function loadHistory() {
+  const audits = await api('GET', '/audits');
+  state.audits = audits;
+  // Refresh selector too
+  const sel = document.getElementById('active-audit-select');
+  const curVal = sel.value;
+  sel.innerHTML = '<option value="">— select audit —</option>' +
+    audits.map(a => `<option value="${a.id}"${a.id===state.activeAuditId?' selected':''}>${a.name} (${a.framework_name})</option>`).join('');
+  if (curVal) sel.value = curVal;
+
+  const container = document.getElementById('history-list');
+  if (!container) return;
+
+  if (audits.length === 0) {
+    container.innerHTML = '<div class="empty-state animate-fade-up"><div class="empty-icon">📂</div><div class="empty-text">No audits yet</div><div class="empty-sub">Create your first audit to get started</div></div>';
+    return;
+  }
+
+  const statusColor = pct => pct >= 80 ? 'var(--green)' : pct >= 40 ? 'var(--amber)' : 'var(--red)';
+  container.innerHTML = audits.map((a, idx) => {
+    const pct = a.completion_pct || 0;
+    const daysLeft = a.audit_date ? Math.ceil((new Date(a.audit_date) - new Date()) / 86400000) : null;
+    const daysLabel = daysLeft === null ? 'No date set' : daysLeft < 0 ? 'Past due' : daysLeft === 0 ? 'Today!' : `${daysLeft}d left`;
+    const daysColor = daysLeft !== null && daysLeft < 7 ? 'var(--red)' : daysLeft !== null && daysLeft < 30 ? 'var(--amber)' : 'var(--muted)';
+    return `
+    <div class="history-card animate-fade-up" style="animation-delay:${idx * 0.05}s">
+      <div class="history-head">
+        <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0">
+          <div class="history-icon">📋</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.name}</div>
+            <div style="font-size:12px;color:var(--muted);font-family:var(--mono)">${a.framework_name} · ${a.audit_type} · ${a.auditor||'No auditor set'}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:28px;flex-shrink:0;margin-left:16px">
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:800;color:${statusColor(pct)}">${pct}%</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em">Complete</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">${a.total_controls||0}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em">Controls</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:15px;font-weight:700;color:${daysColor}">${daysLabel}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em">Audit date</div>
+          </div>
+        </div>
+      </div>
+      <div class="history-bar">
+        <div class="history-bar-fill" style="width:${pct}%;background:${statusColor(pct)}"></div>
+      </div>
+      <div class="history-footer">
+        <span>${a.complete_controls||0}/${a.total_controls||0} controls complete · ${a.overdue_controls||0} overdue</span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="selectAndViewAudit('${a.id}')">View Dashboard</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportHistoryReport('${a.id}','${a.name.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">✨ Export Report</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAuditFromHistory('${a.id}','${a.name.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">🗑 Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function selectAndViewAudit(auditId) {
+  document.getElementById('active-audit-select').value = auditId;
+  await onAuditChange(auditId);
+  navTo('dashboard');
+}
+
+async function exportHistoryReport(auditId, auditName) {
+  toast('✨ Generating report for ' + auditName + '...', 'info');
+  try {
+    const data = await api('POST', `/ai/generate-report/${auditId}`);
+    openModal('_custom', '📋 Download Report', `
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:48px;margin-bottom:14px">📋</div>
+        <div style="font-size:16px;font-weight:800;margin-bottom:6px">${auditName}</div>
+        <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:28px">Generated by G.R.I.D AI · ${new Date().toLocaleDateString('en-GB')}</div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-bottom:24px">
+          <a href="${data.downloadDocxUrl}" target="_blank" class="btn btn-primary" style="text-decoration:none;font-size:14px;padding:12px 24px">⬇ Word Document (.docx)</a>
+          <a href="${data.downloadPdfUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none;font-size:14px;padding:12px 24px">⬇ PDF Report</a>
+        </div>
+        <div style="background:var(--green-bg);border:1px solid rgba(26,107,58,0.15);border-radius:var(--radius);padding:16px;text-align:left">
+          <div style="font-size:11px;font-weight:700;color:var(--green);font-family:var(--mono);margin-bottom:8px">AI STATUS: ${data.narrative?.overall_status||'—'}</div>
+          <div style="font-size:13px;color:var(--text-mid);line-height:1.6">${(data.narrative?.executive_summary||'').slice(0,220)}...</div>
+        </div>
+      </div>
+    `, null, 'modal-md');
+    document.getElementById('modal-footer').style.display = 'none';
+  } catch(e) { toast('Report error: ' + e.message, 'error'); }
+}
+
+async function deleteAuditFromHistory(auditId, auditName) {
+  if (!confirm(`Delete "${auditName}" and ALL its controls and evidence?\n\nThis cannot be undone.`)) return;
+  await api('DELETE', `/audits/${auditId}`);
+  if (state.activeAuditId === auditId) {
+    state.activeAuditId = null; state.activeAudit = null; state.controls = [];
+    document.getElementById('active-audit-select').value = '';
+  }
+  toast('Audit deleted');
+  await loadAudits();
+  await loadHistory();
+}
+
+// Override navTo for new pages
+function navTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const pg = document.getElementById('page-' + page);
+  if (pg) pg.classList.add('active');
+  const nav = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (nav) nav.classList.add('active');
+
+  if (page === 'evidence') loadEvidencePage();
+  if (page === 'users') loadUsers();
+  if (page === 'controls') renderControlsPage();
+  if (page === 'history') loadHistory();
+}
+
+// Override loadUsers for new light theme
+async function loadUsers() {
+  state.users = await api('GET', '/auth/users');
+  const colors = [['var(--green-pale)','var(--green)'],['var(--blue-bg)','var(--blue)'],['var(--amber-bg)','var(--amber)'],['var(--red-bg)','var(--red)']];
+  document.getElementById('users-list').innerHTML = state.users.map((u,i) => {
+    const [bg,fg] = colors[i % colors.length];
+    return `
+    <div class="user-item animate-fade-up" style="animation-delay:${i*0.05}s">
+      <div class="user-av-lg" style="background:${bg};color:${fg}">${u.avatar_initials||u.name[0]}</div>
+      <div class="user-info">
+        <div class="user-name">${u.name}</div>
+        <div class="user-email">${u.email}</div>
+      </div>
+      <span class="role-badge role-${u.role}">${u.role}</span>
+    </div>`;
+  }).join('');
+}
+
+// Reports empty state management
+const _origGenerateReport = generateReport;
+async function generateReport() {
+  document.getElementById('reports-empty').style.display = 'none';
+  await _origGenerateReport();
+}
+
+// Init: override user display update
+const _origDoLogin = doLogin;
+async function doLogin() {
+  const email = document.getElementById('login-email').value;
+  const pass  = document.getElementById('login-pass').value;
+  try {
+    const data = await api('POST', '/auth/login', { email, password: pass });
+    state.user = data.user;
+    document.getElementById('user-avatar').textContent   = data.user.initials || data.user.name[0];
+    document.getElementById('user-name-display').textContent  = data.user.name || 'Admin';
+    document.getElementById('user-email-display').textContent = data.user.email || '';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    await bootstrap();
+  } catch(e) {
+    const el = document.getElementById('login-error');
+    el.textContent = e.message; el.style.display = 'block';
+  }
+}
+document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// Check session on load
+(async () => {
+  try {
+    const user = await api('GET', '/auth/me');
+    state.user = user;
+    document.getElementById('user-avatar').textContent        = user.initials || user.name[0];
+    document.getElementById('user-name-display').textContent  = user.name || 'Admin';
+    document.getElementById('user-email-display').textContent = user.email || '';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    await bootstrap();
+  } catch(e) {}
+})();
+</script>
+</body>
+</html>
+<script>
+// ══════════════════════════════════════════════════════════
+//  G.R.I.D AI — New Features JavaScript
+//  Vendors · Non-Conformances · Activity Log · Settings
+//  Share Links · Approvals · Cross-Mapping · OneDrive
+// ══════════════════════════════════════════════════════════
+
+// ── Extend navTo to handle new pages ──────────────────────
+const _navToBase = navTo;
+function navTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const pg = document.getElementById('page-' + page);
+  if (pg) pg.classList.add('active');
+  const nav = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (nav) nav.classList.add('active');
+
+  if (page === 'evidence')  loadEvidencePage();
+  if (page === 'users')     loadUsers();
+  if (page === 'controls')  renderControlsPage();
+  if (page === 'history')   loadHistory();
+  if (page === 'vendors')   loadVendors();
+  if (page === 'nc')        loadNonConformances();
+  if (page === 'activity')  loadActivityLog();
+  if (page === 'settings')  loadSettings();
+}
+
+// ══ VENDORS ══════════════════════════════════════════════
+
+let allVendors = [], vendorFilter = 'all';
+
+async function loadVendors() {
+  allVendors = await api('GET', '/vendors');
+  renderVendors();
+}
+
+function renderVendors() {
+  const container = document.getElementById('vendors-list');
+  if (!container) return;
+  const list = vendorFilter === 'all' ? allVendors : allVendors.filter(v => v.risk_level === vendorFilter);
+
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state animate-fade-up"><div class="empty-icon">🏢</div><div class="empty-text">No vendors yet</div><div class="empty-sub">Add your third-party suppliers to track compliance</div></div>';
+    return;
+  }
+
+  const riskColor = r => ({ Critical:'var(--red)', High:'var(--amber)', Medium:'var(--blue)', Low:'var(--green)' }[r] || 'var(--muted)');
+
+  container.innerHTML = list.map((v, i) => {
+    const la = v.last_assessed ? `Last assessed: ${v.last_assessed}` : 'Not yet assessed';
+    const ce = v.certificate_expiry;
+    const certExpired = ce && ce < new Date().toISOString().slice(0,10);
+    const certSoon = ce && !certExpired && ce < new Date(Date.now() + 30*864e5).toISOString().slice(0,10);
+    return `
+    <div class="card animate-fade-up" style="margin-bottom:12px;animation-delay:${i*0.04}s">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px">
+        <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--green-pale);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🏢</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px;font-weight:800;margin-bottom:3px">${v.name}</div>
+            <div style="font-size:12px;color:var(--muted);font-family:var(--mono)">${v.category||'General'} · ${v.contact_name||''} ${v.contact_email?'<'+v.contact_email+'>':''}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;margin-left:12px">
+          <div style="text-align:center">
+            <div style="font-size:13px;font-weight:700;color:${riskColor(v.risk_level)}">${v.risk_level}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase">Risk</div>
+          </div>
+          ${v.latest_assessment ? `<div style="text-align:center">
+            <div style="font-size:18px;font-weight:800;color:var(--green)">${v.latest_assessment.score}%</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase">Score</div>
+          </div>` : ''}
+          ${ce ? `<div style="text-align:center">
+            <div style="font-size:12px;font-weight:700;color:${certExpired?'var(--red)':certSoon?'var(--amber)':'var(--green)'}">${certExpired?'EXPIRED':certSoon?'Expiring soon':ce}</div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase">Certificate</div>
+          </div>` : ''}
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="openVendorAssessModal('${v.id}','${v.name.replace(/'/g,"\\'")}')">Assess</button>
+            <button class="btn btn-ghost btn-sm" onclick="editVendor('${v.id}')">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteVendor('${v.id}','${v.name.replace(/'/g,"\\'")}')">🗑</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding:0 20px 14px;font-size:12px;color:var(--muted);font-family:var(--mono)">${la} · Frameworks: ${v.compliance_frameworks||'—'}</div>
+    </div>`;
+  }).join('');
+}
+
+function filterVendors(btn, f) {
+  vendorFilter = f;
+  document.querySelectorAll('#page-vendors .filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderVendors();
+}
+
+function openVendorModal(vendorData) {
+  const d = vendorData || {};
+  openModal('_custom', d.id ? 'Edit Vendor' : 'Add Vendor', `
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Company Name *</label><input class="form-input" id="v-name" value="${d.name||''}"/></div>
+      <div class="form-group"><label class="form-label">Category</label><input class="form-input" id="v-cat" value="${d.category||''}" placeholder="e.g. Cloud Provider, Payment Processor"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Contact Name</label><input class="form-input" id="v-cname" value="${d.contact_name||''}"/></div>
+      <div class="form-group"><label class="form-label">Contact Email</label><input class="form-input" type="email" id="v-cemail" value="${d.contact_email||''}"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Risk Level</label>
+        <select class="form-select" id="v-risk">
+          ${['Critical','High','Medium','Low'].map(r=>`<option ${d.risk_level===r?'selected':''}>${r}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Compliance Frameworks</label><input class="form-input" id="v-fw" value="${d.compliance_frameworks||''}" placeholder="ISO 27001, SOC 2"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Next Assessment</label><input class="form-input" type="date" id="v-next" value="${d.next_assessment||''}"/></div>
+      <div class="form-group"><label class="form-label">Certificate Expiry</label><input class="form-input" type="date" id="v-cert" value="${d.certificate_expiry||''}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="v-notes" style="min-height:60px">${d.notes||''}</textarea></div>
+  `, async () => {
+    const payload = {
+      name: document.getElementById('v-name').value.trim(),
+      category: document.getElementById('v-cat').value,
+      contact_name: document.getElementById('v-cname').value,
+      contact_email: document.getElementById('v-cemail').value,
+      risk_level: document.getElementById('v-risk').value,
+      compliance_frameworks: document.getElementById('v-fw').value,
+      next_assessment: document.getElementById('v-next').value || null,
+      certificate_expiry: document.getElementById('v-cert').value || null,
+      notes: document.getElementById('v-notes').value,
+    };
+    if (!payload.name) return toast('Name required', 'error');
+    if (d.id) await api('PATCH', `/vendors/${d.id}`, payload);
+    else await api('POST', '/vendors', payload);
+    toast(d.id ? 'Vendor updated' : 'Vendor added');
+    await loadVendors();
+  }, 'modal-lg');
+}
+
+async function editVendor(id) {
+  const v = await api('GET', `/vendors/${id}`);
+  openVendorModal(v);
+}
+
+function openVendorAssessModal(vendorId, vendorName) {
+  openModal('_custom', `Assess: ${vendorName}`, `
+    <div class="form-group"><label class="form-label">Compliance Score (0-100)</label>
+      <input class="form-input" type="number" id="va-score" min="0" max="100" value="75"/>
+    </div>
+    <div class="form-group"><label class="form-label">Findings</label><textarea class="form-textarea" id="va-findings" placeholder="What did you find?"></textarea></div>
+    <div class="form-group"><label class="form-label">Required Actions</label><textarea class="form-textarea" id="va-actions" placeholder="What must the vendor fix?"></textarea></div>
+    <div class="form-group"><label class="form-label">Next Assessment Due</label><input class="form-input" type="date" id="va-next"/></div>
+  `, async () => {
+    await api('POST', `/vendors/${vendorId}/assessments`, {
+      score: parseInt(document.getElementById('va-score').value) || 0,
+      findings: document.getElementById('va-findings').value,
+      action_required: document.getElementById('va-actions').value,
+      next_due: document.getElementById('va-next').value || null,
+    });
+    toast('Assessment saved');
+    await loadVendors();
+  }, 'modal-md');
+}
+
+async function deleteVendor(id, name) {
+  if (!confirm(`Delete vendor "${name}"?`)) return;
+  await api('DELETE', `/vendors/${id}`);
+  toast('Vendor deleted');
+  await loadVendors();
+}
+
+// ══ NON-CONFORMANCES ═══════════════════════════════════════
+
+let allNCs = [], ncFilter = 'all';
+
+async function loadNonConformances() {
+  const q = state.activeAuditId ? `?audit_id=${state.activeAuditId}` : '';
+  allNCs = await api('GET', `/non-conformances${q}`);
+  renderNCs();
+  // Update badge
+  const open = allNCs.filter(n => n.status === 'open').length;
+  const badge = document.getElementById('nav-nc-badge');
+  if (badge) { badge.style.display = open > 0 ? 'inline-flex' : 'none'; badge.textContent = open; }
+}
+
+function renderNCs() {
+  const container = document.getElementById('nc-list');
+  if (!container) return;
+  const list = ncFilter === 'all' ? allNCs : allNCs.filter(n => n.status === ncFilter);
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state animate-fade-up"><div class="empty-icon">✅</div><div class="empty-text">No non-conformances</div><div class="empty-sub">All audit findings have been resolved</div></div>';
+    return;
+  }
+  const sevColor = s => ({ Critical:'var(--red)', Major:'var(--amber)', Minor:'var(--blue)' }[s] || 'var(--muted)');
+  const stColor  = s => ({ open:'var(--red)', in_progress:'var(--amber)', closed:'var(--green)' }[s] || 'var(--muted)');
+
+  container.innerHTML = list.map((nc, i) => `
+    <div class="card animate-fade-up" style="margin-bottom:12px;animation-delay:${i*0.04}s">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:16px 20px;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;background:${sevColor(nc.severity)}22;color:${sevColor(nc.severity)};font-family:var(--mono)">${nc.severity}</span>
+            <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;background:${stColor(nc.status)}22;color:${stColor(nc.status)};font-family:var(--mono)">${nc.status.replace('_',' ')}</span>
+            <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">${nc.audit_name}</span>
+          </div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:6px">${nc.title}</div>
+          ${nc.description ? `<div style="font-size:13px;color:var(--muted);line-height:1.5">${nc.description}</div>` : ''}
+          ${nc.corrective_action ? `<div style="font-size:12px;color:var(--green);margin-top:6px">✅ Action: ${nc.corrective_action}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;align-items:flex-end">
+          <div style="font-size:11px;color:var(--muted);text-align:right">
+            ${nc.owner_name ? `Owner: ${nc.owner_name}<br>` : ''}
+            ${nc.due_date ? `Due: <span style="color:${nc.due_date < new Date().toISOString().slice(0,10)?'var(--red)':'var(--muted)'}">${nc.due_date}</span>` : ''}
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-secondary btn-sm" onclick="editNc('${nc.id}')">Edit</button>
+            ${nc.status !== 'closed' ? `<button class="btn btn-primary btn-sm" onclick="closeNc('${nc.id}')">Close</button>` : ''}
+            <button class="btn btn-danger btn-sm" onclick="deleteNc('${nc.id}','${nc.title.replace(/'/g,"\\'")}')">🗑</button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function filterNc(btn, f) {
+  ncFilter = f;
+  document.querySelectorAll('#page-nc .filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderNCs();
+}
+
+function openNcModal(data) {
+  const d = data || {};
+  openModal('_custom', d.id ? 'Edit Non-Conformance' : 'Raise Non-Conformance', `
+    <div class="form-group"><label class="form-label">Audit</label>
+      <select class="form-select" id="nc-audit">
+        ${state.audits.map(a=>`<option value="${a.id}" ${(d.audit_id||state.activeAuditId)===a.id?'selected':''}>${a.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Title *</label><input class="form-input" id="nc-title" value="${d.title||''}" placeholder="e.g. Missing firewall documentation"/></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Severity</label>
+        <select class="form-select" id="nc-sev">
+          ${['Critical','Major','Minor'].map(s=>`<option ${d.severity===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Due Date</label><input class="form-input" type="date" id="nc-due" value="${d.due_date||''}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="nc-desc">${d.description||''}</textarea></div>
+    <div class="form-group"><label class="form-label">Root Cause</label><textarea class="form-textarea" id="nc-root" style="min-height:60px">${d.root_cause||''}</textarea></div>
+    <div class="form-group"><label class="form-label">Corrective Action</label><textarea class="form-textarea" id="nc-action" style="min-height:60px">${d.corrective_action||''}</textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Owner</label>
+        <select class="form-select" id="nc-owner">
+          <option value="">— Unassigned —</option>
+          ${state.users.map(u=>`<option value="${u.id}" data-email="${u.email}" ${d.owner_id===u.id?'selected':''}>${u.name}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `, async () => {
+    const ownerEl = document.getElementById('nc-owner');
+    const ownerOpt = ownerEl.options[ownerEl.selectedIndex];
+    const payload = {
+      audit_id: document.getElementById('nc-audit').value,
+      title: document.getElementById('nc-title').value.trim(),
+      severity: document.getElementById('nc-sev').value,
+      description: document.getElementById('nc-desc').value,
+      root_cause: document.getElementById('nc-root').value,
+      corrective_action: document.getElementById('nc-action').value,
+      due_date: document.getElementById('nc-due').value || null,
+      owner_id: ownerEl.value || null,
+      owner_email: ownerOpt?.dataset?.email || '',
+      owner_name: ownerOpt?.text || '',
+    };
+    if (!payload.title) return toast('Title required', 'error');
+    if (d.id) await api('PATCH', `/non-conformances/${d.id}`, payload);
+    else await api('POST', '/non-conformances', payload);
+    toast(d.id ? 'NC updated' : 'NC raised');
+    await loadNonConformances();
+  }, 'modal-lg');
+}
+
+async function editNc(id) {
+  const nc = await api('GET', `/non-conformances/${id}`);
+  openNcModal(nc);
+}
+
+async function closeNc(id) {
+  await api('PATCH', `/non-conformances/${id}`, { status: 'closed' });
+  toast('Non-conformance closed ✅');
+  await loadNonConformances();
+}
+
+async function deleteNc(id, title) {
+  if (!confirm(`Delete "${title}"?`)) return;
+  await api('DELETE', `/non-conformances/${id}`);
+  toast('NC deleted');
+  await loadNonConformances();
+}
+
+// ══ ACTIVITY LOG ═══════════════════════════════════════════
+
+let activityData = [];
+
+async function loadActivityLog() {
+  activityData = await api('GET', '/activity?limit=200');
+  renderActivity(activityData);
+}
+
+function renderActivity(data) {
+  const tbody = document.getElementById('activity-tbody');
+  const empty = document.getElementById('activity-empty');
+  if (!tbody) return;
+  if (data.length === 0) { tbody.innerHTML = ''; if(empty) empty.style.display='block'; return; }
+  if(empty) empty.style.display='none';
+  const actionIcon = a => ({
+    'evidence_approved':'✅','evidence_rejected':'❌','control_updated':'✏️',
+    'share_link_created':'🔗','nc_raised':'⚠️','vendor_created':'🏢',
+    'onedrive_upload':'☁️','approval_requested':'📋',
+  }[a] || '📌');
+  tbody.innerHTML = data.map(r => `
+    <tr>
+      <td style="font-size:11px;font-family:var(--mono);color:var(--muted);white-space:nowrap">${r.created_at?.replace('T',' ').slice(0,19)||''}</td>
+      <td><div class="assignee-pill"><div class="av">${(r.user_name||'?').slice(0,2)}</div>${r.user_name||'System'}</div></td>
+      <td><span style="font-size:12px">${actionIcon(r.action)} ${r.action.replace(/_/g,' ')}</span></td>
+      <td style="font-size:12px"><span style="color:var(--muted);font-family:var(--mono);font-size:10px">${r.entity_type}</span> ${r.entity_name||r.entity_id?.slice(0,8)||''}</td>
+      <td style="font-size:11px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.details||''}</td>
+    </tr>`).join('');
+}
+
+function filterActivity(q) {
+  const filtered = q ? activityData.filter(r =>
+    (r.user_name||'').toLowerCase().includes(q.toLowerCase()) ||
+    (r.action||'').toLowerCase().includes(q.toLowerCase()) ||
+    (r.entity_name||'').toLowerCase().includes(q.toLowerCase())
+  ) : activityData;
+  renderActivity(filtered);
+}
+
+function exportActivityLog() {
+  const rows = [['Timestamp','User','Action','Entity Type','Entity Name','Details']];
+  activityData.forEach(r => rows.push([r.created_at,r.user_name,r.action,r.entity_type,r.entity_name,r.details]));
+  const csv = rows.map(r => r.map(c => `"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv,' + encodeURIComponent(csv);
+  a.download = `grid-ai-activity-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('Activity log exported');
+}
+
+// ══ SETTINGS ═══════════════════════════════════════════════
+
+async function loadSettings() {
+  await Promise.all([loadDigestSubs(), loadApiKeys(), loadSchedReports(), loadShareLinks(), checkOneDriveStatus()]);
+  // Populate scheduled report audit selector
+  const sel = document.getElementById('sched-audit-select');
+  if (sel) {
+    sel.innerHTML = '<option value="">— select audit —</option>' +
+      state.audits.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  }
+}
+
+async function loadDigestSubs() {
+  const subs = await api('GET', '/digest/subscriptions');
+  const el   = document.getElementById('digest-subs-list');
+  if (!el) return;
+  el.innerHTML = subs.length === 0
+    ? '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">No subscribers yet</div>'
+    : subs.map(s => `<div class="ev-item" style="margin-bottom:6px">
+        <div class="ev-icon">📧</div>
+        <div class="ev-info"><div class="ev-name">${s.email}</div><div class="ev-meta">${s.frequency} digest · ${s.name||''}</div></div>
+        <button class="btn btn-danger btn-sm" onclick="removeDigestSub('${s.id}')">✕</button>
+      </div>`).join('');
+}
+
+async function addDigestSub() {
+  const email = document.getElementById('digest-email').value.trim();
+  const name  = document.getElementById('digest-name').value.trim();
+  const freq  = document.getElementById('digest-freq').value;
+  if (!email) return toast('Email required','error');
+  await api('POST', '/digest/subscriptions', { email, name, frequency: freq });
+  toast(`📧 ${email} subscribed to ${freq} digest`);
+  document.getElementById('digest-email').value = '';
+  document.getElementById('digest-name').value  = '';
+  await loadDigestSubs();
+}
+
+async function removeDigestSub(id) {
+  await api('DELETE', `/digest/subscriptions/${id}`);
+  toast('Unsubscribed');
+  await loadDigestSubs();
+}
+
+async function testEmailNow() {
+  const to = prompt('Send test email to (leave blank for alimoyo@outlook.com):', 'alimoyo@outlook.com') || 'alimoyo@outlook.com';
+  toast('Sending test email — please wait up to 10 seconds...', 'info');
+  try {
+    const r = await api('POST', '/digest/test-email', { to });
+    if (r.provider === 'ethereal') {
+      toast('No email provider configured yet. Check server console window for a preview link.', 'info');
+    } else {
+      toast('✅ ' + (r.message || 'Test email sent!'));
+    }
+  } catch(e) {
+    const msg = e.message || 'Unknown error';
+    const isSetup = msg.includes('MS_CLIENT_ID') || msg.includes('not set') || msg.includes('not configured');
+    if (isSetup) {
+      toast('Email not configured yet — see .env file for setup options', 'error');
+    } else {
+      toast('Email failed: ' + msg.slice(0, 100), 'error');
+    }
+  }
+}
+
+async function sendDigestNow() {
+  toast('Sending digest...','info');
+  const r = await api('POST', '/digest/send-digest-now', {}).catch(e => ({error:e.message}));
+  toast(r.error ? '❌ ' + r.error : '📧 Digest sent!', r.error ? 'error' : '');
+}
+
+async function backupNow() {
+  toast('Creating backup...','info');
+  const r = await api('POST', '/digest/backup-now', {}).catch(e => ({error:e.message}));
+  toast(r.error ? '❌ ' + r.error : '💾 Backup created!', r.error ? 'error' : '');
+}
+
+async function loadApiKeys() {
+  const keys = await api('GET', '/api-keys');
+  const el   = document.getElementById('api-keys-list');
+  if (!el) return;
+  el.innerHTML = keys.length === 0
+    ? '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">No API keys yet</div>'
+    : keys.map(k => `<div class="ev-item" style="margin-bottom:6px">
+        <div class="ev-icon">🔑</div>
+        <div class="ev-info"><div class="ev-name">${k.name}</div><div class="ev-meta">${k.key_prefix} · ${k.permissions} · ${k.last_used?'Used '+k.last_used.slice(0,10):'Never used'}</div></div>
+        <button class="btn btn-danger btn-sm" onclick="revokeApiKey('${k.id}','${k.name}')">Revoke</button>
+      </div>`).join('');
+}
+
+async function createApiKey() {
+  const name  = document.getElementById('new-api-key-name').value.trim();
+  const perms = document.getElementById('new-api-key-perms').value;
+  if (!name) return toast('Key name required','error');
+  const r = await api('POST', '/api-keys', { name, permissions: perms });
+  openModal('_custom','🔑 API Key Created',`
+    <div style="background:var(--green-bg);border:1.5px solid rgba(26,107,58,0.2);border-radius:var(--radius);padding:16px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:8px">Save this key — it will NOT be shown again</div>
+      <div style="font-size:13px;font-family:var(--mono);word-break:break-all;background:white;padding:12px;border-radius:var(--radius);border:1px solid var(--border)">${r.key}</div>
+    </div>
+    <p style="font-size:13px;color:var(--muted)">Use as HTTP header: <code style="background:var(--surface2);padding:2px 5px;border-radius:4px">X-API-Key: ${r.key}</code></p>
+  `, null, 'modal-md');
+  document.getElementById('modal-footer').style.display='none';
+  document.getElementById('new-api-key-name').value='';
+  await loadApiKeys();
+}
+
+async function revokeApiKey(id, name) {
+  if (!confirm(`Revoke API key "${name}"? Any integrations using it will stop working.`)) return;
+  await api('DELETE', `/api-keys/${id}`);
+  toast('API key revoked');
+  await loadApiKeys();
+}
+
+async function loadSchedReports() {
+  const reps = await api('GET', '/digest/scheduled-reports');
+  const el   = document.getElementById('sched-reports-list');
+  if (!el) return;
+  el.innerHTML = reps.length === 0
+    ? '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">No scheduled reports</div>'
+    : reps.map(r => {
+        const audit = state.audits.find(a => a.id === r.audit_id);
+        return `<div class="ev-item" style="margin-bottom:6px">
+          <div class="ev-icon">📋</div>
+          <div class="ev-info"><div class="ev-name">${r.email}</div><div class="ev-meta">${r.frequency} · ${r.format} · ${audit?.name||''}</div></div>
+          <button class="btn btn-danger btn-sm" onclick="removeSchedReport('${r.id}')">✕</button>
+        </div>`;
+      }).join('');
+}
+
+async function addSchedReport() {
+  const audit_id = document.getElementById('sched-audit-select').value;
+  const email    = document.getElementById('sched-email').value.trim();
+  const freq     = document.getElementById('sched-freq').value;
+  const format   = document.getElementById('sched-fmt').value;
+  if (!audit_id || !email) return toast('Select audit and enter email','error');
+  await api('POST', '/digest/scheduled-reports', { audit_id, email, frequency: freq, format });
+  toast('Scheduled report created 📅');
+  document.getElementById('sched-email').value='';
+  await loadSchedReports();
+}
+
+async function removeSchedReport(id) {
+  await api('DELETE', `/digest/scheduled-reports/${id}`);
+  toast('Removed');
+  await loadSchedReports();
+}
+
+async function saveTeamsWebhook() {
+  const url = document.getElementById('teams-webhook')?.value?.trim();
+  toast('Teams webhook saved (restart server to apply)','info');
+}
+
+async function testTeams() {
+  toast('Sending test notification...','info');
+  try {
+    await api('POST', '/ai/chat', { message: 'ping' }); // just a test
+    toast('Check your Teams channel!');
+  } catch(e) { toast('Teams: configure webhook URL first','error'); }
+}
+
+async function checkOneDriveStatus() {
+  const el = document.getElementById('onedrive-status');
+  if (!el) return;
+  el.textContent = 'Status: Files saved locally. OneDrive sync available when MS_CLIENT_ID is configured.';
+}
+
+async function syncAllToOneDrive() {
+  if (!state.activeAuditId) return toast('Select an audit first','error');
+  toast('Syncing to OneDrive...','info');
+  const r = await api('POST', `/onedrive/sync-audit/${state.activeAuditId}`, {}).catch(e=>({error:e.message}));
+  if (r.error) toast('OneDrive: '+r.error,'error');
+  else toast(`☁️ Synced ${r.synced} files (${r.failed} failed)`);
+}
+
+// ══ SHARE LINKS ═══════════════════════════════════════════
+
+async function loadShareLinks() {
+  if (!state.activeAuditId) return;
+  const links = await api('GET', `/share-links/audit/${state.activeAuditId}`);
+  const el    = document.getElementById('share-links-list');
+  if (!el) return;
+  if (links.length === 0) { el.innerHTML='<div style="color:var(--muted);font-size:13px">No share links yet</div>'; return; }
+  el.innerHTML = links.map(l => {
+    const url     = `${window.location.origin}/shared/${l.token}`;
+    const expired = l.expires_at && l.expires_at < new Date().toISOString().slice(0,10);
+    return `<div class="ev-item" style="margin-bottom:8px">
+      <div class="ev-icon">${expired?'🔴':'🔗'}</div>
+      <div class="ev-info">
+        <div class="ev-name">${l.label||'Auditor Link'} ${expired?'<span style="color:var(--red);font-size:10px">EXPIRED</span>':''}</div>
+        <div class="ev-meta">${url.slice(0,50)}... · Accessed ${l.access_count||0}× · Expires ${l.expires_at||'never'}</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${url}');toast('Link copied!')">Copy</button>
+      ${l.active && !expired ? `<button class="btn btn-danger btn-sm" onclick="revokeShareLink('${l.id}')">Revoke</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function openShareLinkModal() {
+  if (!state.activeAuditId) return toast('Select an audit first','error');
+  openModal('_custom','Create Auditor Share Link',`
+    <div class="form-group"><label class="form-label">Label / Auditor Firm</label><input class="form-input" id="sl-label" placeholder="e.g. KPMG Q2 2025 Review"/></div>
+    <div class="form-group"><label class="form-label">Auditor Email (optional — sends them the link)</label><input class="form-input" type="email" id="sl-email" placeholder="auditor@kpmg.com"/></div>
+    <div class="form-group"><label class="form-label">Auditor Name</label><input class="form-input" id="sl-name" placeholder="John Smith"/></div>
+    <div class="form-group"><label class="form-label">Expires In</label>
+      <select class="form-select" id="sl-days">
+        <option value="7">7 days</option><option value="14">14 days</option>
+        <option value="30" selected>30 days</option><option value="60">60 days</option><option value="">Never</option>
+      </select>
+    </div>
+  `, async () => {
+    const r = await api('POST', '/share-links', {
+      audit_id: state.activeAuditId,
+      label: document.getElementById('sl-label').value || 'Auditor Access',
+      auditor_email: document.getElementById('sl-email').value || null,
+      auditor_name: document.getElementById('sl-name').value || null,
+      expires_days: document.getElementById('sl-days').value || null,
+    });
+    const shareUrl = `${window.location.origin}/shared/${r.token}`;
+    navigator.clipboard.writeText(shareUrl).catch(()=>{});
+    toast('🔗 Link created and copied to clipboard!');
+    await loadShareLinks();
+  }, 'modal-md');
+}
+
+async function revokeShareLink(id) {
+  if (!confirm('Revoke this link? The auditor will lose access.')) return;
+  await api('DELETE', `/share-links/${id}`);
+  toast('Link revoked');
+  await loadShareLinks();
+}
+
+// ══ CROSS-MAPPING ══════════════════════════════════════════
+
+function openCrossMappingModal() {
+  if (state.audits.length < 2) return toast('Need at least 2 audits to find mappings','error');
+  openModal('_custom','✨ AI Cross-Framework Mapping',`
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Find controls that satisfy requirements in multiple frameworks — reducing duplicate evidence collection.</p>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Framework A</label>
+        <select class="form-select" id="cm-a">
+          ${state.audits.map(a=>`<option value="${a.id}">${a.name} (${a.framework_name})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Framework B</label>
+        <select class="form-select" id="cm-b">
+          ${state.audits.map((a,i)=>`<option value="${a.id}" ${i===1?'selected':''}>${a.name} (${a.framework_name})</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div id="cm-loading" style="display:none;text-align:center;padding:20px">
+      <div class="ai-spinner"><div class="spinner-dot"></div><div class="spinner-dot"></div><div class="spinner-dot"></div><span style="margin-left:8px">AI finding overlapping controls...</span></div>
+    </div>
+    <div id="cm-results"></div>
+  `, null, 'modal-lg');
+
+  document.getElementById('modal-save-btn').textContent = '✨ Find Mappings';
+  document.getElementById('modal-save-btn').onclick = async () => {
+    const a = document.getElementById('cm-a').value;
+    const b = document.getElementById('cm-b').value;
+    if (a === b) return toast('Select two different audits','error');
+    document.getElementById('cm-loading').style.display = 'block';
+    document.getElementById('cm-results').innerHTML = '';
+    try {
+      const r = await api('POST', '/cross-mappings/suggest', { audit_id_a: a, audit_id_b: b });
+      document.getElementById('cm-loading').style.display = 'none';
+      if (r.count === 0) { document.getElementById('cm-results').innerHTML = '<div style="color:var(--muted);font-size:13px">No overlapping controls found</div>'; return; }
+      document.getElementById('cm-results').innerHTML = `
+        <div style="background:var(--green-bg);border-radius:var(--radius);padding:12px;margin-bottom:12px;font-size:13px;color:var(--green);font-weight:700">
+          ✅ Found ${r.count} overlapping controls
+        </div>
+        <div style="max-height:240px;overflow-y:auto">
+          ${r.suggestions.map(s=>`<div class="ev-item" style="margin-bottom:6px">
+            <div class="ev-info"><div class="ev-name" style="font-size:12px">${s.notes||'Overlapping requirement'}</div>
+            <div class="ev-meta">${s.mapping_type}</div></div>
+          </div>`).join('')}
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px" onclick="saveCrossMappings(${JSON.stringify(JSON.stringify(r.suggestions)).replace(/"/g,'&quot;')})">
+          Save ${r.count} Mappings
+        </button>`;
+    } catch(e) {
+      document.getElementById('cm-loading').style.display = 'none';
+      document.getElementById('cm-results').innerHTML = `<div style="color:var(--red);font-size:13px">Error: ${e.message}</div>`;
+    }
+  };
+}
+
+async function saveCrossMappings(mappingsJson) {
+  const mappings = JSON.parse(mappingsJson);
+  const r = await api('POST', '/cross-mappings/save', { mappings });
+  toast(`✅ Saved ${r.saved} cross-framework mappings`);
+  closeModal();
+}
+
+// ══ APPROVAL WORKFLOW ════════════════════════════════════
+
+async function requestApproval(evidenceId, evidenceName, controlName) {
+  openModal('_custom','Request Evidence Approval',`
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Request a manager or auditor to review and approve this evidence.</p>
+    <div class="form-group"><label class="form-label">Evidence</label>
+      <div style="font-size:13px;font-weight:600;padding:10px;background:var(--surface2);border-radius:var(--radius)">${evidenceName}</div>
+    </div>
+    <div class="form-group"><label class="form-label">Approver</label>
+      <select class="form-select" id="apr-user">
+        <option value="">— Select approver —</option>
+        ${state.users.map(u=>`<option value="${u.id}" data-email="${u.email}" data-name="${u.name}">${u.name} (${u.email})</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Or Enter Email Manually</label>
+      <input class="form-input" id="apr-email" placeholder="approver@company.com"/>
+    </div>
+    <div class="form-group"><label class="form-label">Stage</label>
+      <select class="form-select" id="apr-stage">
+        <option value="manager_review">Manager Review</option>
+        <option value="auditor_review">Auditor Review</option>
+        <option value="final_approval">Final Approval</option>
+      </select>
+    </div>
+  `, async () => {
+    const userSel = document.getElementById('apr-user');
+    const selOpt  = userSel.options[userSel.selectedIndex];
+    const email   = document.getElementById('apr-email').value || selOpt?.dataset?.email;
+    const name    = selOpt?.dataset?.name || email;
+    if (!email) return toast('Select or enter an approver email','error');
+    await api('POST', '/approvals/request', {
+      evidence_id: evidenceId,
+      approver_email: email,
+      approver_name: name,
+      stage: document.getElementById('apr-stage').value,
+    });
+    toast(`📋 Approval request sent to ${email}`);
+    await loadActiveAudit();
+  }, 'modal-md');
+}
+
+// ══ BOOTSTRAP EXTENSION ═══════════════════════════════════
+
+// Extend bootstrap to load NC badge count
+const _origBootstrapFeat = bootstrap;
+async function bootstrap() {
+  await loadFrameworks();
+  await loadAudits();
+  await loadUsers();
+  if (state.user) {
+    const nameEl  = document.getElementById('user-name-display');
+    const emailEl = document.getElementById('user-email-display');
+    if (nameEl)  nameEl.textContent  = state.user.name  || 'Admin';
+    if (emailEl) emailEl.textContent = state.user.email || '';
+  }
+  // Load NC count for badge
+  try {
+    const ncs  = await api('GET', '/non-conformances?status=open');
+    const badge = document.getElementById('nav-nc-badge');
+    if (badge && ncs.length > 0) { badge.style.display='inline-flex'; badge.textContent=ncs.length; }
+  } catch(_) {}
+  navTo('dashboard');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1371 @@
+{
+  "timestamptz": [
+    {
+      "table": "ai_risk_predictions",
+      "column": "computed_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "ai_risk_predictions",
+      "column": "acknowledged_at",
+      "default": null
+    },
+    {
+      "table": "analytics_snapshots",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "api_keys",
+      "column": "last_used_at",
+      "default": null
+    },
+    {
+      "table": "api_keys",
+      "column": "expires_at",
+      "default": null
+    },
+    {
+      "table": "api_keys",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "aria_ask_log",
+      "column": "created_at",
+      "default": "CURRENT_TIMESTAMP"
+    },
+    {
+      "table": "aria_control_mappings",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "aria_doc_revisions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "aria_doc_templates",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "aria_documents",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "aria_documents",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "aria_documents",
+      "column": "reviewed_at",
+      "default": null
+    },
+    {
+      "table": "aria_evidence",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "aria_risks",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "aria_risks",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "audit_log",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_bia_plan_links",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_bia_records",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_bia_records",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_chat_messages",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_comm_templates",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_comm_templates",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_compliance_controls",
+      "column": "last_reviewed",
+      "default": null
+    },
+    {
+      "table": "bcm_compliance_controls",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_compliance_controls",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_compliance_evidence",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_contact_nodes",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_contact_nodes",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_dependency_edges",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_dependency_nodes",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_dependency_nodes",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_document_queries",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_documents",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_exercises",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_exercises",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incident_actions",
+      "column": "due_at",
+      "default": null
+    },
+    {
+      "table": "bcm_incident_actions",
+      "column": "completed_at",
+      "default": null
+    },
+    {
+      "table": "bcm_incident_actions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incident_actions",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incident_decisions",
+      "column": "decided_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incident_plan_links",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incident_stakeholders",
+      "column": "notified_at",
+      "default": null
+    },
+    {
+      "table": "bcm_incident_stakeholders",
+      "column": "ack_at",
+      "default": null
+    },
+    {
+      "table": "bcm_incident_stakeholders",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incident_updates",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incidents",
+      "column": "started_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incidents",
+      "column": "resolved_at",
+      "default": null
+    },
+    {
+      "table": "bcm_incidents",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_incidents",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_plan_activations",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_plan_reviews",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_plans",
+      "column": "last_reviewed",
+      "default": null
+    },
+    {
+      "table": "bcm_plans",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_plans",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_plans",
+      "column": "activated_at",
+      "default": null
+    },
+    {
+      "table": "bcm_reminders",
+      "column": "send_at",
+      "default": null
+    },
+    {
+      "table": "bcm_reminders",
+      "column": "sent_at",
+      "default": null
+    },
+    {
+      "table": "bcm_reminders",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_risks",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_risks",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_scenario_library",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_training_attestations",
+      "column": "attested_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_training_attestations",
+      "column": "expires_at",
+      "default": null
+    },
+    {
+      "table": "bcm_training_modules",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_training_modules",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_vendor_assessments",
+      "column": "assessed_on",
+      "default": "date('now')"
+    },
+    {
+      "table": "bcm_vendor_assessments",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_vendors",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "bcm_vendors",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "calendar_events",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "canonical_vendors",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "canonical_vendors",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "comm_templates",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "comm_templates",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "controls",
+      "column": "last_updated",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "cross_module_links",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "email_reminders",
+      "column": "remind_at",
+      "default": null
+    },
+    {
+      "table": "email_reminders",
+      "column": "sent_at",
+      "default": null
+    },
+    {
+      "table": "email_reminders",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_assessment_responses",
+      "column": "submitted_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_assessments",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_assessments",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_chat_messages",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_enterprise_risks",
+      "column": "last_reviewed",
+      "default": null
+    },
+    {
+      "table": "erm_enterprise_risks",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_enterprise_risks",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_kri_history",
+      "column": "recorded_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_kris",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_kris",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_regulatory_obligations",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_regulatory_obligations",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_risk_appetite",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_risk_appetite",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_risk_library",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_risk_statements",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "erm_risk_workflow_history",
+      "column": "changed_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "events",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "events",
+      "column": "processed_at",
+      "default": null
+    },
+    {
+      "table": "evidence_items",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "evidence_items",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "evidence_links",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "evidence_links",
+      "column": "deleted_at",
+      "default": null
+    },
+    {
+      "table": "frameworks",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "frameworks",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_ai_suggestions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_approvals",
+      "column": "decided_at",
+      "default": null
+    },
+    {
+      "table": "grid_approvals",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_audit_signoffs",
+      "column": "signed_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_audits",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_audits",
+      "column": "locked_at",
+      "default": null
+    },
+    {
+      "table": "grid_compliance_scores",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_control_comments",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_control_mappings",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_controls",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_digest_subscriptions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_evidence_files",
+      "column": "approved_at",
+      "default": null
+    },
+    {
+      "table": "grid_evidence_files",
+      "column": "expires_at",
+      "default": null
+    },
+    {
+      "table": "grid_evidence_files",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_evidence_versions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_frameworks",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_nc_evidence",
+      "column": "linked_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_non_conformances",
+      "column": "closed_at",
+      "default": null
+    },
+    {
+      "table": "grid_non_conformances",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_non_conformances",
+      "column": "verified_at",
+      "default": null
+    },
+    {
+      "table": "grid_non_conformances",
+      "column": "mgmt_response_at",
+      "default": null
+    },
+    {
+      "table": "grid_policy_requests",
+      "column": "resolved_at",
+      "default": null
+    },
+    {
+      "table": "grid_policy_requests",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_remote_findings",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_remote_notes",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_remote_participants",
+      "column": "joined_at",
+      "default": null
+    },
+    {
+      "table": "grid_remote_participants",
+      "column": "left_at",
+      "default": null
+    },
+    {
+      "table": "grid_remote_sessions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_remote_sessions",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_reports",
+      "column": "generated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_share_links",
+      "column": "expires_at",
+      "default": null
+    },
+    {
+      "table": "grid_share_links",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_timeline",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_vendor_assessments",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "grid_vendors",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "notifications",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_chat_messages",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_event_templates",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_event_workflow_history",
+      "column": "changed_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_events",
+      "column": "detected_at",
+      "default": null
+    },
+    {
+      "table": "orm_events",
+      "column": "resolved_at",
+      "default": null
+    },
+    {
+      "table": "orm_events",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_events",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_events",
+      "column": "response_due_at",
+      "default": "NULL"
+    },
+    {
+      "table": "orm_events",
+      "column": "resolution_due_at",
+      "default": "NULL"
+    },
+    {
+      "table": "orm_kri_history",
+      "column": "recorded_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_kris",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_kris",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_rcsa_actions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_rcsa_actions",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_rcsa_assessments",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_rcsa_assessments",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_rcsa_controls",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "orm_rcsa_risks",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "report_definitions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "report_runs",
+      "column": "started_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "report_runs",
+      "column": "completed_at",
+      "default": null
+    },
+    {
+      "table": "risk_register",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "risk_register",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_breaches",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_breaches",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_consent",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_consent",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_controllers",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_controllers",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_data_flows",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_data_flows",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_dpias",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_dpias",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_dsr",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_dsr",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_jurisdiction_config",
+      "column": "activated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_lia",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_lia",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_policies",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_policies",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_privacy_notices",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_privacy_notices",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_retention",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_retention",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_ropa",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_ropa",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_security_measures",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_security_measures",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_training",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_training",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_transfers",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_transfers",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_vendors",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sentinel_vendors",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sessions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sessions",
+      "column": "expires_at",
+      "default": null
+    },
+    {
+      "table": "settings",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sla_definitions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sla_instances",
+      "column": "started_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "sla_instances",
+      "column": "responded_at",
+      "default": null
+    },
+    {
+      "table": "sla_instances",
+      "column": "resolved_at",
+      "default": null
+    },
+    {
+      "table": "sla_instances",
+      "column": "escalated_at",
+      "default": null
+    },
+    {
+      "table": "task_board",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "task_board",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "user_preferences",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "user_roles",
+      "column": "granted_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "users",
+      "column": "last_login",
+      "default": null
+    },
+    {
+      "table": "users",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "users",
+      "column": "updated_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "webhook_logs",
+      "column": "attempted_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "webhooks",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "workflow_actions",
+      "column": "acted_at",
+      "default": null
+    },
+    {
+      "table": "workflow_actions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "workflow_definitions",
+      "column": "created_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "workflow_instances",
+      "column": "started_at",
+      "default": "datetime('now')"
+    },
+    {
+      "table": "workflow_instances",
+      "column": "completed_at",
+      "default": null
+    }
+  ],
+  "date": [
+    {
+      "table": "analytics_snapshots",
+      "column": "snapshot_date",
+      "default": null
+    },
+    {
+      "table": "aria_controls",
+      "column": "target_date",
+      "default": null
+    },
+    {
+      "table": "aria_controls",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "aria_documents",
+      "column": "effective_date",
+      "default": null
+    },
+    {
+      "table": "aria_documents",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "aria_evidence",
+      "column": "collection_date",
+      "default": null
+    },
+    {
+      "table": "aria_evidence",
+      "column": "expiry_date",
+      "default": null
+    },
+    {
+      "table": "bcm_exercises",
+      "column": "scheduled_date",
+      "default": null
+    },
+    {
+      "table": "bcm_risks",
+      "column": "due_date",
+      "default": null
+    },
+    {
+      "table": "calendar_events",
+      "column": "start_date",
+      "default": null
+    },
+    {
+      "table": "calendar_events",
+      "column": "end_date",
+      "default": null
+    },
+    {
+      "table": "controls",
+      "column": "target_date",
+      "default": null
+    },
+    {
+      "table": "controls",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "erm_assessments",
+      "column": "due_date",
+      "default": null
+    },
+    {
+      "table": "erm_enterprise_risks",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "erm_enterprise_risks",
+      "column": "response_deadline",
+      "default": "NULL"
+    },
+    {
+      "table": "erm_regulatory_obligations",
+      "column": "due_date",
+      "default": null
+    },
+    {
+      "table": "erm_risk_appetite",
+      "column": "effective_date",
+      "default": null
+    },
+    {
+      "table": "erm_risk_appetite",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "evidence_items",
+      "column": "expiry_date",
+      "default": null
+    },
+    {
+      "table": "grid_audits",
+      "column": "start_date",
+      "default": null
+    },
+    {
+      "table": "grid_audits",
+      "column": "audit_date",
+      "default": null
+    },
+    {
+      "table": "grid_audits",
+      "column": "end_date",
+      "default": null
+    },
+    {
+      "table": "grid_controls",
+      "column": "due_date",
+      "default": null
+    },
+    {
+      "table": "grid_non_conformances",
+      "column": "due_date",
+      "default": null
+    },
+    {
+      "table": "grid_non_conformances",
+      "column": "target_date",
+      "default": null
+    },
+    {
+      "table": "grid_non_conformances",
+      "column": "response_deadline",
+      "default": null
+    },
+    {
+      "table": "grid_vendor_assessments",
+      "column": "assessment_date",
+      "default": "date('now')"
+    },
+    {
+      "table": "orm_rcsa_actions",
+      "column": "due_date",
+      "default": null
+    },
+    {
+      "table": "orm_rcsa_assessments",
+      "column": "due_date",
+      "default": null
+    },
+    {
+      "table": "orm_rcsa_controls",
+      "column": "test_date",
+      "default": null
+    },
+    {
+      "table": "risk_register",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_breaches",
+      "column": "discovery_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_breaches",
+      "column": "incident_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_breaches",
+      "column": "authority_notify_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_breaches",
+      "column": "subjects_notify_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_breaches",
+      "column": "notify_deadline",
+      "default": null
+    },
+    {
+      "table": "sentinel_consent",
+      "column": "consent_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_consent",
+      "column": "expiry_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_consent",
+      "column": "withdrawal_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_dsr",
+      "column": "received_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_dsr",
+      "column": "deadline_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_policies",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_policies",
+      "column": "expiry_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_policies",
+      "column": "approved_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_privacy_notices",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_privacy_notices",
+      "column": "published_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_retention",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_ropa",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_security_measures",
+      "column": "implementation_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_security_measures",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_training",
+      "column": "completion_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_training",
+      "column": "expiry_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_transfers",
+      "column": "review_date",
+      "default": null
+    },
+    {
+      "table": "sentinel_vendors",
+      "column": "dpa_date",
+      "default": null
+    },
+    {
+      "table": "task_board",
+      "column": "due_date",
+      "default": null
+    }
+  ]
+}

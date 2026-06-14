@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+{% block title %}{{ dpia.title }} — DPIAforge{% endblock %}
+{% block breadcrumb %}
+<a href="{{ url_for('dashboard') }}">Dashboard</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{{ url_for('dpia_list') }}">All DPIAs</a>
+<span class="breadcrumb-sep">/</span>
+<strong>{{ dpia.title }}</strong>
+{% endblock %}
+
+{% block head_extra %}
+<style>
+.detail-header{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);padding:24px 28px;
+  margin-bottom:20px;box-shadow:var(--shadow-sm);
+  position:relative;overflow:hidden;
+}
+.detail-header::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:5px;
+  background:var(--c-primary);
+}
+.dh-ref{font-size:11px;color:var(--c-subtle);font-weight:700;letter-spacing:.5px;margin-bottom:5px}
+.dh-title{font-size:22px;font-weight:800;letter-spacing:-.3px;margin-bottom:10px}
+.dh-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+.action-strip{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);padding:12px 16px;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  box-shadow:var(--shadow-sm);margin-bottom:20px;
+}
+
+.info-tbl{width:100%;border-collapse:collapse}
+.info-tbl tr{border-bottom:1px solid var(--c-border)}
+.info-tbl tr:last-child{border-bottom:none}
+.info-tbl td.k{
+  width:160px;padding:11px 14px;
+  font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--c-muted);background:var(--c-bg);vertical-align:top;
+}
+.info-tbl td.v{
+  padding:11px 14px;font-size:13.5px;color:var(--c-text);
+}
+
+.sec-card{
+  background:var(--c-surface);border:1px solid var(--c-border);
+  border-radius:var(--radius);margin-bottom:18px;
+  overflow:hidden;box-shadow:var(--shadow-sm);
+}
+.sec-header{
+  padding:13px 18px;border-bottom:1px solid var(--c-border);
+  background:linear-gradient(90deg,var(--c-bg),#fff);
+  display:flex;align-items:center;gap:10px;
+}
+.sec-icon{
+  width:28px;height:28px;border-radius:7px;
+  background:var(--c-primary);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;
+}
+.sec-title{font-size:13.5px;font-weight:700;color:var(--c-text)}
+
+.tag-list{display:flex;flex-wrap:wrap;gap:6px;padding:14px 18px}
+.tag{
+  padding:3px 10px;border-radius:20px;
+  font-size:12px;font-weight:500;
+  background:#EFF6FF;color:var(--c-primary);border:1px solid #BFDBFE;
+}
+.tag.special{background:#FFF7ED;color:#C2410C;border-color:#FED7AA}
+
+.risk-tbl{width:100%;border-collapse:collapse}
+.risk-tbl th{
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+  color:var(--c-muted);padding:9px 12px;text-align:left;
+  background:var(--c-bg);border-bottom:1px solid var(--c-border);
+}
+.risk-tbl td{padding:11px 12px;border-bottom:1px solid var(--c-border);font-size:13px;vertical-align:middle}
+
+.ai-content-body{
+  padding:20px;color:rgba(255,255,255,.82);
+  font-size:13.5px;line-height:1.75;
+}
+.ai-content-body h1,.ai-content-body h2,.ai-content-body h3{
+  font-family:'Outfit',sans-serif;margin:16px 0 6px;
+}
+.ai-content-body h1{font-size:16px;color:var(--ai-purple);border-bottom:1px solid rgba(167,139,250,.2);padding-bottom:6px}
+.ai-content-body h2{font-size:14.5px;color:var(--ai-blue)}
+.ai-content-body h3{font-size:13.5px;color:rgba(255,255,255,.7);font-weight:600}
+.ai-content-body p{margin-bottom:10px}
+.ai-content-body ul{padding-left:18px;margin-bottom:10px}
+.ai-content-body li{margin-bottom:4px}
+.ai-content-body strong{color:rgba(255,255,255,.95)}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Action strip -->
+<div class="action-strip">
+  <a href="{{ url_for('dpia_edit', dpia_id=dpia.id) }}" class="btn btn-outline btn-sm">
+    <i class="fa-solid fa-pen"></i> Edit
+  </a>
+  <a href="{{ url_for('dpia_download', dpia_id=dpia.id) }}" class="btn btn-primary btn-sm">
+    <i class="fa-solid fa-file-word"></i> Download Word
+  </a>
+  <button class="btn btn-ai btn-sm" onclick="doAIResearch()">
+    <i class="fa-solid fa-magnifying-glass-chart"></i> AI Research
+  </button>
+  <button class="btn btn-ai btn-sm" onclick="doAIGenerate()" style="background:linear-gradient(135deg,#4F46E5,#A78BFA)">
+    <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Full DPIA
+  </button>
+  <div style="flex:1"></div>
+  <form method="post" action="{{ url_for('dpia_delete', dpia_id=dpia.id) }}"
+        onsubmit="return confirm('Permanently delete this DPIA?')">
+    <button type="submit" class="btn btn-danger btn-sm"><i class="fa-solid fa-trash"></i> Delete</button>
+  </form>
+</div>
+
+<!-- Header card -->
+<div class="detail-header">
+  <div class="dh-ref">{{ dpia.ref_number }}</div>
+  <div class="dh-title">{{ dpia.title }}</div>
+  <div class="dh-meta">
+    {% set rk = dpia.regulation.split()[0].lower() %}
+    <span class="reg-badge reg-{{ rk }}">{{ dpia.regulation }}</span>
+    <span class="badge badge-{{ dpia.status }}">{{ dpia.status|status_label }}</span>
+    {% if dpia.ai_full_dpia %}<span style="font-size:11px;background:var(--ai-grad);color:#fff;padding:2px 9px;border-radius:10px;font-weight:700">✦ AI Generated</span>{% endif %}
+    <span style="font-size:12px;color:var(--c-muted);display:flex;align-items:center;gap:4px"><i class="fa-solid fa-building"></i> {{ dpia.org_name or '—' }}</span>
+    <span style="font-size:12px;color:var(--c-muted);display:flex;align-items:center;gap:4px"><i class="fa-solid fa-calendar"></i> {{ dpia.created_at|fmt_date }}</span>
+  </div>
+</div>
+
+<!-- Two-column layout -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+  <!-- LEFT -->
+  <div>
+    <!-- Organisation -->
+    <div class="sec-card">
+      <div class="sec-header">
+        <div class="sec-icon"><i class="fa-solid fa-building"></i></div>
+        <div class="sec-title">Organisation Details</div>
+      </div>
+      <table class="info-tbl">
+        {% for k,v in [
+          ('Organisation',dpia.org_name),
+          ('Department',dpia.department),
+          ('Controller',dpia.controller_name),
+          ('DPO Name',dpia.dpo_name),
+          ('DPO Email',dpia.dpo_email),
+        ] %}
+        <tr><td class="k">{{ k }}</td><td class="v">{{ v or '—' }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <!-- Processing -->
+    <div class="sec-card">
+      <div class="sec-header">
+        <div class="sec-icon"><i class="fa-solid fa-gears"></i></div>
+        <div class="sec-title">Processing Activity</div>
+      </div>
+      <table class="info-tbl">
+        {% for k,v in [
+          ('Activity',dpia.activity_type),
+          ('Legal Basis',dpia.legal_basis),
+          ('Data Subjects',dpia.data_subjects),
+          ('Volume',dpia.subject_count),
+          ('Retention',dpia.retention),
+        ] %}
+        <tr><td class="k">{{ k }}</td><td class="v">{{ v or '—' }}</td></tr>
+        {% endfor %}
+        {% if dpia.purpose %}
+        <tr>
+          <td class="k">Purpose</td>
+          <td class="v" style="white-space:pre-wrap">{{ dpia.purpose }}</td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+
+    <!-- Data categories -->
+    <div class="sec-card">
+      <div class="sec-header">
+        <div class="sec-icon" style="background:#0E7490"><i class="fa-solid fa-database"></i></div>
+        <div class="sec-title">Data Categories</div>
+      </div>
+      <div class="tag-list">
+        {% for c in dpia.data_categories %}<span class="tag">{{ c }}</span>{% endfor %}
+        {% if not dpia.data_categories %}<span style="color:var(--c-muted);font-size:13px">None specified</span>{% endif %}
+      </div>
+      {% if dpia.special_cats %}
+      <div style="padding:0 18px 6px;font-size:11.5px;font-weight:700;color:#C2410C;text-transform:uppercase;letter-spacing:.5px">Special Categories</div>
+      <div class="tag-list" style="padding-top:0">
+        {% for c in dpia.special_cats %}<span class="tag special">{{ c }}</span>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div>
+    <!-- Systems & transfers -->
+    <div class="sec-card">
+      <div class="sec-header">
+        <div class="sec-icon" style="background:#7C3AED"><i class="fa-solid fa-server"></i></div>
+        <div class="sec-title">Systems & Transfers</div>
+      </div>
+      <table class="info-tbl">
+        {% for k,v in [
+          ('Systems',dpia.systems),
+          ('Third-party Processors',dpia.processors),
+          ('Intl. Transfer?',dpia.intl_transfer),
+          ('Destinations',dpia.transfer_dest),
+          ('Mechanism',dpia.transfer_mech),
+        ] %}
+        <tr><td class="k">{{ k }}</td><td class="v">{{ v or '—' }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <!-- Risk assessment -->
+    <div class="sec-card">
+      <div class="sec-header">
+        <div class="sec-icon" style="background:#DC2626"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="sec-title">Risk Assessment</div>
+      </div>
+      <table class="info-tbl">
+        <tr>
+          <td class="k">Overall Risk</td>
+          <td class="v">
+            {% if dpia.overall_risk %}
+            <span class="risk-chip risk-{{ dpia.overall_risk.replace(' ','-') }}">{{ dpia.overall_risk }}</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td class="k">Residual Risk</td>
+          <td class="v">
+            {% if dpia.residual_risk %}
+            <span class="risk-chip risk-{{ dpia.residual_risk.replace(' ','-') }}">{{ dpia.residual_risk }}</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+      </table>
+      {% if dpia.risks %}
+      <div style="padding:14px 18px 4px">
+        <table class="risk-tbl">
+          <thead><tr><th>Risk</th><th>Likelihood</th><th>Impact</th></tr></thead>
+          <tbody>
+          {% for r in dpia.risks %}
+          <tr>
+            <td>
+              <div style="font-weight:600">{{ r.desc or r.get('description','') }}</div>
+              {% if r.mitigation %}<div style="font-size:11.5px;color:var(--c-muted);margin-top:2px">→ {{ r.mitigation }}</div>{% endif %}
+            </td>
+            <td><span class="risk-chip risk-{{ (r.likelihood or 'Medium').replace(' ','-') }}">{{ r.likelihood }}</span></td>
+            <td><span class="risk-chip risk-{{ (r.impact or r.get('severity','Medium')).replace(' ','-') }}">{{ r.impact or r.get('severity','—') }}</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      <div style="height:14px"></div>
+    </div>
+
+    <!-- Consultation -->
+    <div class="sec-card">
+      <div class="sec-header">
+        <div class="sec-icon" style="background:#0D9488"><i class="fa-solid fa-comments"></i></div>
+        <div class="sec-title">Consultation</div>
+      </div>
+      <table class="info-tbl">
+        {% for k,v in [
+          ('DPO Consulted',dpia.dpo_consulted),
+          ('Authority',dpia.auth_consulted),
+          ('Data Subjects',dpia.subjects_consulted),
+        ] %}
+        <tr><td class="k">{{ k }}</td><td class="v">{{ v or '—' }}</td></tr>
+        {% endfor %}
+        {% if dpia.consult_notes %}
+        <tr><td class="k">Notes</td><td class="v" style="white-space:pre-wrap">{{ dpia.consult_notes }}</td></tr>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- AI Research -->
+{% if dpia.ai_research %}
+<div class="ai-card" style="margin-top:20px">
+  <div class="ai-card-header">
+    <div class="ai-card-icon">🔬</div>
+    <div>
+      <div class="ai-card-title">AI Research Summary</div>
+      <div class="ai-card-sub">Automated research on {{ dpia.activity_type }}</div>
+    </div>
+    <a href="{{ url_for('dpia_download', dpia_id=dpia.id) }}"
+       class="btn btn-sm" style="margin-left:auto;background:rgba(167,139,250,.2);color:var(--ai-purple);border:1px solid rgba(167,139,250,.3)">
+      <i class="fa-solid fa-download"></i> Export
+    </a>
+  </div>
+  <div class="ai-content-body" id="aiResearchContent">{{ dpia.ai_research }}</div>
+</div>
+{% endif %}
+
+<!-- Full AI DPIA -->
+{% if dpia.ai_full_dpia %}
+<div class="ai-card" style="margin-top:18px">
+  <div class="ai-card-header">
+    <div class="ai-card-icon">✦</div>
+    <div>
+      <div class="ai-card-title">Full AI-Generated DPIA</div>
+      <div class="ai-card-sub">Complete analysis — review before regulatory submission</div>
+    </div>
+    <a href="{{ url_for('dpia_download', dpia_id=dpia.id) }}"
+       class="btn btn-sm" style="margin-left:auto;background:rgba(167,139,250,.2);color:var(--ai-purple);border:1px solid rgba(167,139,250,.3)">
+      <i class="fa-solid fa-file-word"></i> Download
+    </a>
+  </div>
+  <div class="ai-content-body" id="aiFullContent">{{ dpia.ai_full_dpia }}</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DPIA_ID = {{ dpia.id }};
+const ACTIVITY = {{ dpia.activity_type|tojson }};
+const REGULATION = {{ dpia.regulation|tojson }};
+
+function renderMarkdown(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  let t=el.innerText||'';
+  t=t.replace(/^# (.+)$/gm,'<h1>$1</h1>');
+  t=t.replace(/^## (.+)$/gm,'<h2>$1</h2>');
+  t=t.replace(/^### (.+)$/gm,'<h3>$1</h3>');
+  t=t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  t=t.replace(/^- (.+)$/gm,'<li>$1</li>');
+  t=t.replace(/(<li>.*<\/li>\n?)+/g,'<ul>$&</ul>');
+  t=t.split('\n\n').map(p=>{
+    if(p.startsWith('<h')||p.startsWith('<ul'))return p;
+    return `<p>${p}</p>`;
+  }).join('');
+  el.innerHTML=t;
+}
+renderMarkdown('aiResearchContent');
+renderMarkdown('aiFullContent');
+
+async function doAIResearch(){
+  showSpinner('AI is researching the activity…');
+  try{
+    const r=await fetch('/api/ai/research',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({activity_type:ACTIVITY,regulation:REGULATION})
+    });
+    const d=await r.json();
+    if(d.error){hideSpinner();alert('AI error: '+d.error);return;}
+    // Save
+    await fetch('/api/ai/research/save/'+DPIA_ID,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({research:d.research})
+    });
+    hideSpinner();
+    location.reload();
+  }catch(e){hideSpinner();alert('Error: '+e.message)}
+}
+
+async function doAIGenerate(){
+  if(!confirm('Generate a full DPIA document with AI? This will overwrite any existing AI content.'))return;
+  showSpinner('Generating full DPIA with AI — this may take a minute…');
+  try{
+    const r=await fetch('/api/ai/generate/'+DPIA_ID,{method:'POST'});
+    const d=await r.json();
+    hideSpinner();
+    if(d.error){alert('AI error: '+d.error);return;}
+    location.reload();
+  }catch(e){hideSpinner();alert('Error: '+e.message)}
+}
+</script>
+{% endblock %}

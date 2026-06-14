@@ -1,0 +1,108 @@
+<div class="page-head">
+  <div>
+    <h1>Coverage map</h1>
+    <p>Do our BIA processes have a continuity plan behind them? And do any plans exist without a linked process?</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/bia">BIA</a>
+    <a class="btn" href="/bcp">Plans</a>
+  </div>
+</div>
+
+<%
+  const pct = summary.total ? Math.round((summary.green / summary.total) * 100) : 0;
+%>
+<div class="grid grid-4" style="margin-bottom:16px;">
+  <div class="kpi">
+    <div class="k-label">Overall coverage</div>
+    <div class="k-value"><%= pct %>%</div>
+    <div class="k-delta"><%= summary.green %>/<%= summary.total %> processes have a primary plan</div>
+  </div>
+  <div class="kpi">
+    <div class="k-label">Covered</div>
+    <div class="k-value"><span class="badge success" style="font-size:14px; padding:6px 14px;"><%= summary.green %></span></div>
+    <div class="k-delta">Primary plan assigned</div>
+  </div>
+  <div class="kpi">
+    <div class="k-label">Partial</div>
+    <div class="k-value"><span class="badge warn" style="font-size:14px; padding:6px 14px;"><%= summary.amber %></span></div>
+    <div class="k-delta">Only secondary / partial links</div>
+  </div>
+  <div class="kpi">
+    <div class="k-label">No plan</div>
+    <div class="k-value"><span class="badge danger" style="font-size:14px; padding:6px 14px;"><%= summary.red %></span></div>
+    <div class="k-delta"><%= summary.criticalRed %> of those are Critical/High</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-head"><div class="card-title">Processes and their plans</div></div>
+  <% if (!rows.length) { %>
+    <p class="muted">No BIA records yet.</p>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr><th>Process</th><th>Criticality</th><th>RTO</th><th>Coverage</th><th>Plans</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(r => {
+             const crit = r.criticality || '—';
+             const critCls = crit === 'Critical' ? 'danger' : (crit === 'High' ? 'warn' : (crit === 'Medium' ? 'info' : 'muted'));
+             const stateCls = r.state === 'green' ? 'success' : r.state === 'amber' ? 'warn' : 'danger';
+             const stateLabel = r.state === 'green' ? 'Covered' : r.state === 'amber' ? 'Partial' : 'No plan';
+        %>
+          <tr>
+            <td><strong><%= r.process_name %></strong><% if (r.department) { %><div class="muted" style="font-size:12px;"><%= r.department %></div><% } %></td>
+            <td><span class="badge <%= critCls %>"><%= crit %></span></td>
+            <td><%= r.rto_hours != null ? r.rto_hours + ' hrs' : '—' %></td>
+            <td><span class="badge <%= stateCls %>"><%= stateLabel %></span></td>
+            <td>
+              <% if (!r.plans.length) { %>
+                <span class="muted" style="font-size:13px;">—</span>
+              <% } else {
+                   r.plans.forEach((p, i) => {
+                     const ct = p.coverage_type || 'primary';
+                     const ccls = ct === 'primary' ? 'success' : ct === 'secondary' ? 'info' : ct === 'partial' ? 'warn' : 'muted';
+              %>
+                <a href="/bcp/<%= p.plan_id %>" style="display:inline-flex; gap:4px; align-items:center; margin-right:6px; font-size:13px;">
+                  <%= p.title %> <span class="badge <%= ccls %>" style="font-size:11px; padding:2px 6px;"><%= ct %></span>
+                </a>
+              <% }) } %>
+            </td>
+            <td class="right"><a href="/bia/<%= r.id %>">Open</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Orphan plans</div>
+  </div>
+  <p class="muted" style="font-size:13px; margin-top:-4px;">Plans that aren't linked to any BIA process. Either they cover a process we haven't documented yet, or they shouldn't exist.</p>
+  <% if (!orphanPlans.length) { %>
+    <p class="muted">No orphan plans — every plan is linked to at least one process.</p>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr><th>Title</th><th>Scope</th><th>Owner</th><th>Version</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% orphanPlans.forEach(p => {
+             const scls = p.status === 'approved' ? 'success' : (p.status === 'draft' ? 'info' : 'muted');
+        %>
+          <tr>
+            <td><strong><%= p.title %></strong></td>
+            <td><%= p.scope || '—' %></td>
+            <td><%= p.owner || '—' %></td>
+            <td>v<%= p.version %></td>
+            <td><span class="badge <%= scls %>"><%= p.status %></span></td>
+            <td class="right"><a href="/bcp/<%= p.id %>/edit">Link it</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

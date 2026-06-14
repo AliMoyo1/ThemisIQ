@@ -1,0 +1,801 @@
+{% extends "base_shell.html" %}
+{% block title %}Evidence Repository — ThemisIQ{% endblock %}
+
+{% block module_sidebar %}
+<div class="module-sidebar-header">
+  <div class="module-name">Evidence Vault</div>
+  <div class="module-desc">Cross-module evidence repository</div>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Views</div>
+  <a href="#" class="nav-item active" id="nav-all" onclick="switchView('all',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+    All Evidence <span id="badge-all" class="nav-badge"></span>
+  </a>
+  <a href="#" class="nav-item" id="nav-expiring" onclick="switchView('expiring',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    Expiring Soon <span id="badge-expiring" class="nav-badge" style="background:var(--warn-soft,#fef3c7);color:var(--warn,#d97706)"></span>
+  </a>
+  <a href="#" class="nav-item" id="nav-unlinked" onclick="switchView('unlinked',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    Unlinked <span id="badge-unlinked" class="nav-badge" style="background:var(--bad-soft,#fee2e2);color:var(--bad,#dc2626)"></span>
+  </a>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Modules</div>
+  <a href="#" class="nav-item" onclick="filterModule('',this)">All Modules</a>
+  <a href="#" class="nav-item" onclick="filterModule('aria',this)">
+    <span style="width:8px;height:8px;border-radius:50%;background:#4f8ef7;display:inline-block"></span> ARIA
+    <span id="badge-aria" class="nav-badge" style="background:#4f8ef722;color:#4f8ef7"></span>
+  </a>
+  <a href="#" class="nav-item" onclick="filterModule('grid',this)">
+    <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></span> GRID
+    <span id="badge-grid" class="nav-badge" style="background:#16a34a22;color:#16a34a"></span>
+  </a>
+  <a href="#" class="nav-item" onclick="filterModule('bcm',this)">
+    <span style="width:8px;height:8px;border-radius:50%;background:#d97706;display:inline-block"></span> BCM
+    <span id="badge-bcm" class="nav-badge" style="background:#d9770622;color:#d97706"></span>
+  </a>
+  <a href="#" class="nav-item" onclick="filterModule('sentinel',this)">
+    <span style="width:8px;height:8px;border-radius:50%;background:#7c3aed;display:inline-block"></span> Sentinel
+    <span id="badge-sentinel" class="nav-badge" style="background:#7c3aed22;color:#7c3aed"></span>
+  </a>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Categories</div>
+  <a href="#" class="nav-item" onclick="filterCategory('')">All</a>
+  <a href="#" class="nav-item" onclick="filterCategory('policy')">Policies</a>
+  <a href="#" class="nav-item" onclick="filterCategory('certificate')">Certificates</a>
+  <a href="#" class="nav-item" onclick="filterCategory('screenshot')">Screenshots</a>
+  <a href="#" class="nav-item" onclick="filterCategory('report')">Reports</a>
+  <a href="#" class="nav-item" onclick="filterCategory('general')">General</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+.nav-badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:auto}
+.ev-detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;opacity:0;pointer-events:none;transition:opacity .2s}
+.ev-detail-overlay.open{opacity:1;pointer-events:auto}
+.ev-detail-panel{position:fixed;top:0;right:-500px;width:500px;max-width:92vw;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:501;transition:right .3s;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.15);pointer-events:none}
+.ev-detail-panel.open{right:0;pointer-events:auto}
+.ev-section{padding:14px 20px;border-bottom:1px solid var(--border)}
+.ev-section-title{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;letter-spacing:.5px}
+.ev-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--surface2);color:var(--muted);margin:2px}
+.ev-link-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px}
+.ev-link-row a{color:var(--accent);text-decoration:none;font-weight:600}
+.ev-link-row a:hover{text-decoration:underline}
+.coverage-bar{height:6px;border-radius:3px;background:var(--surface3,rgba(255,255,255,.06));overflow:hidden;margin-top:4px}
+.coverage-fill{height:100%;border-radius:3px;transition:width .5s}
+/* ── Table view ── */
+.ev-table{width:100%;border-collapse:collapse;font-size:13px}
+.ev-table th{text-align:left;padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:2px solid var(--border);white-space:nowrap}
+.ev-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text)}
+.ev-table tr:hover td{background:var(--surface2);cursor:pointer}
+.ev-mod-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+/* ── Recently Added strip ── */
+.ev-recent-strip{display:flex;gap:10px;overflow-x:auto;padding:4px 0 10px;scrollbar-width:none}
+.ev-recent-strip::-webkit-scrollbar{display:none}
+.ev-recent-card{flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;cursor:pointer;transition:border-color .15s,transform .15s;min-width:180px;max-width:200px}
+.ev-recent-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+/* ── Drag-drop ── */
+.ev-drop-zone{border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;color:var(--muted);font-size:13px;transition:border-color .15s,background .15s;margin-bottom:14px}
+.ev-drop-zone.dragover{border-color:var(--accent);background:var(--accent-pale)}
+/* ── Inline edit ── */
+.ev-editable{display:flex;align-items:center;gap:6px}
+.ev-edit-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:2px 4px;border-radius:4px;font-size:11px;opacity:0;transition:opacity .15s}
+.ev-editable:hover .ev-edit-btn{opacity:1}
+.ev-inline-input{border:1px solid var(--accent);border-radius:6px;padding:4px 8px;font-size:13px;background:var(--surface2);color:var(--text);width:100%}
+/* ── Activity timeline ── */
+.ev-activity-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.ev-activity-row:last-child{border-bottom:none}
+.ev-act-dot{width:8px;height:8px;border-radius:50%;margin-top:3px;flex-shrink:0}
+/* ── Tab bar in detail ── */
+.ev-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);padding:0 20px}
+.ev-tab{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s}
+.ev-tab.active{color:var(--accent);border-color:var(--accent)}
+</style>
+
+<div class="topbar">
+  <span class="page-title">Evidence Repository</span>
+  <div class="topbar-actions">
+    <input type="text" id="searchInput" placeholder="Search evidence..." onkeyup="debounceSearch()" style="padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;width:220px">
+    <!-- Cards / Table toggle -->
+    <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+      <button id="btnCards" onclick="setViewMode('cards')" title="Card view" style="padding:7px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button id="btnTable" onclick="setViewMode('table')" title="Table view" style="padding:7px 10px;border:none;background:var(--surface2);color:var(--muted);cursor:pointer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </button>
+    </div>
+    <button class="btn btn-primary" onclick="document.getElementById('uploadModal').classList.add('open')">+ Upload</button>
+  </div>
+</div>
+
+<!-- Full-page drag-drop zone (catches drops anywhere) -->
+<div id="pageDropZone" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);align-items:center;justify-content:center;pointer-events:none">
+  <div style="background:var(--surface);border:3px dashed var(--accent);border-radius:20px;padding:40px 60px;text-align:center">
+    <div style="font-size:36px;margin-bottom:8px">📎</div>
+    <div style="font-size:16px;font-weight:700;color:var(--accent)">Drop to upload evidence</div>
+  </div>
+</div>
+
+<div class="content" style="padding:20px">
+  <!-- Stats Bar -->
+  <div id="statsBar" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px"></div>
+
+  <!-- Recently Added strip (hidden when filters active) -->
+  <div id="recentSection" style="margin-bottom:16px;display:none">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:8px">Recently Added</div>
+    <div class="ev-recent-strip" id="recentItems"></div>
+  </div>
+
+  <!-- Coverage Indicator -->
+  <div id="coverageBar" style="margin-bottom:16px"></div>
+
+  <!-- Evidence Grid (cards) -->
+  <div id="evidenceGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
+
+  <!-- Evidence Table (list view) -->
+  <div id="evidenceTable" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
+    <table class="ev-table">
+      <thead><tr>
+        <th>File</th><th>Category</th><th>Linked To</th><th>Expiry</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody id="evidenceTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Empty State -->
+  <div id="emptyState" style="display:none;text-align:center;padding:60px 20px;color:var(--muted)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;opacity:.4"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    <div style="font-size:15px;font-weight:500" id="emptyTitle">No evidence items found</div>
+    <div style="font-size:13px;margin-top:6px" id="emptySub">Upload files to build your evidence repository</div>
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="ev-detail-overlay" id="evDetailOverlay" onclick="closeDetail()"></div>
+<div class="ev-detail-panel" id="evDetailPanel">
+  <div id="evDetailContent"></div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal" id="uploadModal">
+  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
+  <div class="modal-content" style="max-width:500px">
+    <div class="modal-header">
+      <h3 style="margin:0;font-size:16px">Upload Evidence</h3>
+      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <form id="uploadForm" onsubmit="handleUpload(event)">
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">File</label>
+          <input type="file" id="uploadFile" required style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Title</label>
+          <input type="text" id="uploadTitle" placeholder="Evidence title..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Category</label>
+          <select id="uploadCategory" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+            <option value="general">General</option><option value="policy">Policy</option>
+            <option value="certificate">Certificate</option><option value="screenshot">Screenshot</option>
+            <option value="report">Report</option><option value="procedure">Procedure</option>
+            <option value="training">Training Record</option>
+          </select>
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Tags (comma-separated)</label>
+          <input type="text" id="uploadTags" placeholder="iso27001, access-control, ..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Expiry / Review Date <span style="font-weight:400;opacity:.7">(optional)</span></label>
+          <input type="date" id="uploadExpiry" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Description</label>
+          <textarea id="uploadDesc" rows="3" placeholder="Brief description..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical"></textarea>
+        </div>
+        <!-- Duplicate warning (shown on 409) -->
+        <div id="uploadDupeWarning" style="display:none;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Upload Evidence</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Link-to Modal -->
+<div class="modal" id="linkToModal">
+  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
+  <div class="modal-content" style="max-width:500px">
+    <div class="modal-header">
+      <h3 style="margin:0;font-size:16px">Link Evidence to Entity</h3>
+      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <input type="hidden" id="linkEvidenceId">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Module</label>
+          <select id="linkModule" onchange="loadEntityTypes()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+            <option value="">Select module</option>
+            <option value="aria">ARIA</option><option value="grid">GRID</option>
+            <option value="bcm">BCM</option><option value="sentinel">Sentinel</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Entity Type</label>
+          <select id="linkEntityType" onchange="searchEntities()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+            <option value="">Select type</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Search</label>
+        <input type="text" id="linkSearch" placeholder="Search entities..." onkeyup="debounceEntitySearch()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
+      </div>
+      <div id="linkEntityList" style="max-height:250px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+        <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type to search</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var currentView='all', currentModule='', currentCategory='', searchTimeout=null, entitySearchTimeout=null;
+var evViewMode = localStorage.getItem('ev-view-mode') || 'cards';
+var iconMap={policy:'📋',certificate:'🏅',screenshot:'🖼',report:'📊',
+  procedure:'📝',training:'🎓',general:'📄',policy_approval:'📋',
+  control_assessment:'📊',audit_finding:'⚠️',audit_completion:'✅',
+  non_conformance:'❌',risk_assessment:'🔴',incident_record:'🚨',breach_record:'🔓',
+  dpia_record:'🛡️',dsr_overdue:'⏰',plan_approval:'✅'};
+var modColors={aria:'#4f8ef7',grid:'#16a34a',bcm:'#d97706',sentinel:'#7c3aed',platform:'#6b7280'};
+var entityTypes={
+  aria:['control','document','risk','framework'],
+  grid:['audit','control','non_conformance'],
+  bcm:['plan','incident','risk','compliance_control'],
+  sentinel:['ropa','dpia','breach','dsr','vendor']
+};
+
+function escHtml(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function fmtSize(b){if(!b)return '0 B';var k=1024,s=['B','KB','MB','GB'],i=Math.floor(Math.log(b)/Math.log(k));return parseFloat((b/Math.pow(k,i)).toFixed(1))+' '+s[i];}
+function fmtDate(ts){if(!ts)return '—';try{var d=new Date(ts.includes('T')?ts:ts+'T00:00:00');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return ts;}}
+
+async function loadStats(){
+  var r=await fetch('/evidence/api/stats');var s=await r.json();
+  var bm=s.by_module||{};
+  var exp7=s.expiring_7_days||0;
+  document.getElementById('statsBar').innerHTML=
+    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'all\',document.getElementById(\'nav-all\'))">'+
+      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Total</div>'+
+      '<div style="font-size:24px;font-weight:700;color:var(--text);margin-top:4px">'+s.total+'</div></div>'+
+    '<div class="card" style="padding:14px 18px">'+
+      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Links</div>'+
+      '<div style="font-size:24px;font-weight:700;color:var(--info,#4f8ef7);margin-top:4px">'+s.total_links+'</div></div>'+
+    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'expiring\',document.getElementById(\'nav-expiring\'))">'+
+      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Expiring 30d</div>'+
+      '<div style="font-size:24px;font-weight:700;color:var(--warn,#d97706);margin-top:4px">'+s.expiring_soon+'</div>'+
+      (exp7?'<div style="font-size:10px;color:var(--bad,#dc2626);font-weight:600;margin-top:4px">⚠ '+exp7+' within 7 days</div>':'')+
+    '</div>'+
+    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'unlinked\',document.getElementById(\'nav-unlinked\'))">'+
+      '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Unlinked</div>'+
+      '<div style="font-size:24px;font-weight:700;color:var(--bad,#dc2626);margin-top:4px">'+s.unlinked+'</div></div>'+
+    Object.keys(bm).map(function(m){
+      var c=modColors[m]||'#6b7280';
+      return '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="filterModule(\''+m+'\',null)">'+
+        '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">'+m.toUpperCase()+'</div>'+
+        '<div style="font-size:24px;font-weight:700;color:'+c+';margin-top:4px">'+bm[m]+'</div></div>';
+    }).join('');
+  // Update sidebar badges
+  var be=document.getElementById('badge-all');if(be)be.textContent=s.total||'';
+  var bx=document.getElementById('badge-expiring');if(bx)bx.textContent=s.expiring_soon||'';
+  var bu=document.getElementById('badge-unlinked');if(bu)bu.textContent=s.unlinked||'';
+  Object.keys(bm).forEach(function(m){var b=document.getElementById('badge-'+m);if(b)b.textContent=bm[m]||'';});
+  // Recently added strip
+  var recent=s.recently_added||[];
+  var rs=document.getElementById('recentSection');
+  var ri=document.getElementById('recentItems');
+  var isFiltered=currentView!=='all'||currentModule||currentCategory||document.getElementById('searchInput').value;
+  if(recent.length&&!isFiltered){
+    rs.style.display='block';
+    ri.innerHTML=recent.map(function(r){
+      var icon=iconMap[r.category]||'📄';
+      var ago=timeAgo(r.created_at);
+      return '<div class="ev-recent-card" onclick="openDetail('+r.id+')">'+
+        '<div style="font-size:18px;margin-bottom:4px">'+icon+'</div>'+
+        '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(r.title)+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:3px">'+escHtml(r.category)+' · '+ago+'</div>'+
+      '</div>';
+    }).join('');
+  } else {
+    rs.style.display='none';
+  }
+}
+
+function timeAgo(ts){
+  if(!ts)return '';
+  var d=new Date(ts.includes('T')?ts:ts+'Z');
+  var diff=Math.round((Date.now()-d)/1000);
+  if(diff<60)return 'just now';
+  if(diff<3600)return Math.round(diff/60)+'m ago';
+  if(diff<86400)return Math.round(diff/3600)+'h ago';
+  return Math.round(diff/86400)+'d ago';
+}
+
+async function loadCoverage(){
+  try{
+    var r=await fetch('/evidence/api/coverage');var cov=await r.json();
+    var html='<div class="card" style="padding:16px 20px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">Evidence Coverage by Module</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">';
+    ['aria','grid','bcm','sentinel'].forEach(function(m){
+      var d=cov[m];if(!d)return;
+      var c=modColors[m]||'#6b7280';
+      html+='<div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="font-weight:600;color:'+c+'">'+m.toUpperCase()+'</span><span style="color:var(--muted)">'+d.with_evidence+'/'+d.total+' ('+d.pct+'%)</span></div>';
+      html+='<div class="coverage-bar"><div class="coverage-fill" style="width:'+d.pct+'%;background:'+c+'"></div></div>';
+      if(d.entities){d.entities.forEach(function(e){
+        html+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px"><span>'+e.type+'</span><span>'+e.with_evidence+'/'+e.total+'</span></div>';
+      });}
+      html+='</div>';
+    });
+    html+='</div></div>';
+    document.getElementById('coverageBar').innerHTML=html;
+  }catch(e){document.getElementById('coverageBar').innerHTML='';}
+}
+
+function expiryBadgeHtml(expiry_date){
+  if(!expiry_date)return '';
+  var days=Math.ceil((new Date(expiry_date)-new Date())/86400000);
+  if(days<=0)return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:#fee2e2;color:#dc2626;font-weight:600">expired</span>';
+  if(days<=7)return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:#fef2f2;color:#dc2626;font-weight:600">'+days+'d left</span>';
+  if(days<=30)return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:#fef3c7;color:#d97706;font-weight:600">'+days+'d left</span>';
+  return '';
+}
+
+async function loadEvidence(){
+  var params=new URLSearchParams();
+  if(currentCategory)params.set('category',currentCategory);
+  if(currentModule)params.set('module',currentModule);
+  if(currentView&&currentView!=='all')params.set('view',currentView);
+  var q=document.getElementById('searchInput').value;
+  if(q)params.set('q',q);
+  var r=await fetch('/evidence/api/items?'+params.toString());
+  var items=await r.json();
+  var grid=document.getElementById('evidenceGrid');
+  var tbl=document.getElementById('evidenceTable');
+  var body=document.getElementById('evidenceTableBody');
+  var empty=document.getElementById('emptyState');
+  if(!items.length){
+    grid.innerHTML='';tbl.style.display='none';empty.style.display='block';
+    var et=document.getElementById('emptyTitle'),es=document.getElementById('emptySub');
+    if(currentView==='expiring'){et.textContent='No expiring evidence';es.textContent='No items expire within the next 30 days.';}
+    else if(currentView==='unlinked'){et.textContent='No unlinked evidence';es.textContent='All evidence is linked to at least one entity.';}
+    else{et.textContent='No evidence items found';es.textContent='Upload files or drag & drop here to start';}
+    return;
+  }
+  empty.style.display='none';
+  if(evViewMode==='table'){
+    grid.style.display='none';tbl.style.display='block';
+    body.innerHTML=items.map(function(item){
+      var icon=iconMap[item.category]||'📄';
+      var linkBadge=item.link_count
+        ?'<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:var(--good-soft);color:var(--good)">'+item.link_count+' link'+(item.link_count>1?'s':'')+'</span>'
+        :'<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:var(--warn-soft);color:var(--warn)">unlinked</span>';
+      var expBadge=expiryBadgeHtml(item.expiry_date);
+      var expiryCell=item.expiry_date?(expBadge||fmtDate(item.expiry_date)):'<span style="color:var(--muted)">—</span>';
+      var statusDot=item.status==='current'?'<span style="color:var(--good)">●</span>':item.status==='archived'?'<span style="color:var(--muted)">●</span>':'<span style="color:var(--warn)">●</span>';
+      return '<tr onclick="openDetail('+item.id+')" style="cursor:pointer">'+
+        '<td><div style="display:flex;align-items:center;gap:8px"><span>'+icon+'</span>'+
+          '<div><div style="font-weight:600;font-size:13px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(item.title)+'</div>'+
+          '<div style="font-size:10px;color:var(--muted)">'+escHtml(item.file_name||'')+'</div></div></div></td>'+
+        '<td><span style="padding:2px 8px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span></td>'+
+        '<td>'+linkBadge+'</td>'+
+        '<td>'+expiryCell+'</td>'+
+        '<td>'+statusDot+' <span style="font-size:11px">'+escHtml(item.status)+'</span></td>'+
+        '<td onclick="event.stopPropagation()">'+
+          '<a href="/evidence/api/items/'+item.id+'/download" style="font-size:11px;color:var(--accent)" title="Download">⬇</a>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+  } else {
+    tbl.style.display='none';grid.style.display='grid';
+    grid.innerHTML=items.map(function(item){
+      var icon=iconMap[item.category]||'📄';
+      var linkBadge=item.link_count?'<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--good-soft);color:var(--good)">'+item.link_count+' link'+(item.link_count>1?'s':'')+'</span>':'<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--warn-soft);color:var(--warn)">unlinked</span>';
+      return '<div class="card" style="padding:16px;cursor:pointer" onclick="openDetail('+item.id+')">'+
+        '<div style="display:flex;align-items:flex-start;gap:12px">'+
+          '<span style="font-size:28px">'+icon+'</span>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-weight:600;font-size:13.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(item.title)+'</div>'+
+            '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+
+            '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
+              '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span>'+
+              linkBadge+expiryBadgeHtml(item.expiry_date)+
+            '</div>'+
+          '</div>'+
+        '</div></div>';
+    }).join('');
+  }
+}
+
+function setViewMode(mode){
+  evViewMode=mode;
+  localStorage.setItem('ev-view-mode',mode);
+  var bc=document.getElementById('btnCards'),bt=document.getElementById('btnTable');
+  if(mode==='cards'){bc.style.background='var(--accent)';bc.style.color='#fff';bt.style.background='var(--surface2)';bt.style.color='var(--muted)';}
+  else{bt.style.background='var(--accent)';bt.style.color='#fff';bc.style.background='var(--surface2)';bc.style.color='var(--muted)';}
+  loadEvidence();
+}
+
+/* ── Detail Panel ── */
+async function openDetail(eid){
+  var r=await fetch('/evidence/api/items/'+eid);var item=await r.json();
+  if(!item||item.error){return;}
+  var icon=iconMap[item.category]||'\u{1F4C4}';
+  var tags=(item.tags||'').split(',').filter(function(t){return t.trim();});
+  var links=item.links||[];
+
+  var html='<div class="ev-section" style="display:flex;justify-content:space-between;align-items:flex-start">'+
+    '<div><div style="font-size:18px;font-weight:700;color:var(--text)">'+icon+' '+escHtml(item.title)+'</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+escHtml(item.file_name||'')+' · '+fmtSize(item.file_size)+' · v'+escHtml(String(item.version||1))+'</div></div>'+
+    '<button onclick="closeDetail()" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:16px">✕</button></div>';
+
+  /* Actions */
+  html+='<div class="ev-section" style="display:flex;gap:8px;flex-wrap:wrap">'+
+    '<a href="/evidence/api/items/'+eid+'/download" class="btn btn-primary" style="font-size:12px;padding:6px 14px;text-decoration:none">Download</a>'+
+    '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="verifyIntegrity('+eid+')">Verify Integrity</button>'+
+    '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--accent);color:var(--accent)" onclick="openLinkToModal('+eid+')">Link to…</button>'+
+  '</div>';
+  html+='<div id="integrityResult"></div>';
+
+  /* Metadata */
+  html+='<div class="ev-section"><div class="ev-section-title">Details</div>'+
+    '<div style="display:grid;grid-template-columns:120px 1fr;gap:6px;font-size:12px">'+
+      '<span style="color:var(--muted)">Category</span><span style="color:var(--text)">'+escHtml(item.category)+'</span>'+
+      '<span style="color:var(--muted)">Status</span><span style="color:var(--text)">'+escHtml(item.status)+'</span>'+
+      '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'—')+'</span>'+
+      '<span style="color:var(--muted)">Created</span><span style="color:var(--text)">'+fmtDate(item.created_at)+'</span>'+
+      '<span style="color:var(--muted)">Updated</span><span style="color:var(--text)">'+fmtDate(item.updated_at)+'</span>'+
+      (item.expiry_date?'<span style="color:var(--muted)">Expires</span><span style="color:var(--warn,#d97706);font-weight:600">'+fmtDate(item.expiry_date)+'</span>':'')+
+      (item.file_hash?'<span style="color:var(--muted)">SHA-256</span><span style="color:var(--text);font-family:monospace;font-size:10px;word-break:break-all">'+escHtml(item.file_hash)+'</span>':'')+
+    '</div></div>';
+
+  /* Description */
+  if(item.description){
+    html+='<div class="ev-section"><div class="ev-section-title">Description</div>'+
+      '<div style="font-size:13px;color:var(--text);line-height:1.5">'+escHtml(item.description)+'</div></div>';
+  }
+
+  /* Tags */
+  if(tags.length){
+    html+='<div class="ev-section"><div class="ev-section-title">Tags</div>'+
+      tags.map(function(t){return '<span class="ev-tag">'+escHtml(t.trim())+'</span>';}).join('')+'</div>';
+  }
+
+  /* Linked Entities */
+  html+='<div class="ev-section"><div class="ev-section-title">Linked Entities ('+links.length+')</div>';
+  if(links.length){
+    // Resolve link names
+    var specs=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
+    var resolved=[];
+    try{var rr=await fetch('/evidence/api/resolve-links?links='+encodeURIComponent(JSON.stringify(specs)));resolved=await rr.json();}catch(e){}
+    html+=links.map(function(l,i){
+      var res=resolved[i]||{};
+      var mc=modColors[l.module]||'#6b7280';
+      return '<div class="ev-link-row">'+
+        '<span style="width:8px;height:8px;border-radius:50%;background:'+mc+';flex-shrink:0"></span>'+
+        '<span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;width:60px">'+escHtml(l.module)+'</span>'+
+        '<span style="font-size:11px;color:var(--muted)">'+escHtml(l.entity_type)+'</span>'+
+        (res.url?'<a href="'+escHtml(res.url)+'">'+escHtml(res.name||'#'+l.entity_id)+'</a>':'<span style="color:var(--text)">'+escHtml(res.name||'#'+l.entity_id)+'</span>')+
+        '<span style="margin-left:auto;font-size:10px;color:var(--muted)">'+fmtDate(l.created_at)+'</span>'+
+        '<button onclick="unlinkEvidence('+l.id+','+eid+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px" title="Unlink">✕</button>'+
+      '</div>';
+    }).join('');
+  }else{
+    html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to…" to connect this evidence.</div>';
+  }
+  html+='</div>';
+
+  /* Tabs: Details / History / Activity */
+  html+='<div class="ev-tabs">'+
+    '<div class="ev-tab active" id="tab-details" onclick="evShowTab(\'details\')">Details</div>'+
+    '<div class="ev-tab" id="tab-history" onclick="evShowTab(\'history\')">Versions</div>'+
+    '<div class="ev-tab" id="tab-activity" onclick="evShowTab(\'activity\')">Activity</div>'+
+  '</div>';
+
+  /* Details tab */
+  html+='<div id="tabpane-details">';
+  /* Inline-editable metadata */
+  html+='<div class="ev-section"><div class="ev-section-title">Details</div>'+
+    '<div style="display:grid;grid-template-columns:110px 1fr;gap:6px;font-size:12px;align-items:center">'+
+      '<span style="color:var(--muted)">Title</span>'+
+      '<div class="ev-editable" id="ev-field-title">'+
+        '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.title)+'</span>'+
+        '<button class="ev-edit-btn" onclick="evInlineEdit(\'title\','+eid+','+JSON.stringify(item.title)+')">✏️</button>'+
+      '</div>'+
+      '<span style="color:var(--muted)">Category</span><span style="color:var(--text)">'+escHtml(item.category)+'</span>'+
+      '<span style="color:var(--muted)">Status</span><span style="color:var(--text)">'+escHtml(item.status)+'</span>'+
+      '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'—')+'</span>'+
+      '<span style="color:var(--muted)">Created</span><span style="color:var(--text)">'+fmtDate(item.created_at)+'</span>'+
+      '<span style="color:var(--muted)">Expiry</span>'+
+      '<div class="ev-editable" id="ev-field-expiry_date">'+
+        '<span class="ev-field-val" style="color:'+(item.expiry_date?'var(--warn,#d97706)':'var(--muted)')+'">'+
+          (item.expiry_date?fmtDate(item.expiry_date)+'<span style="font-size:10px;margin-left:4px">'+expiryBadgeHtml(item.expiry_date)+'</span>':'Not set')+
+        '</span>'+
+        '<button class="ev-edit-btn" onclick="evInlineEdit(\'expiry_date\','+eid+','+JSON.stringify(item.expiry_date||'')+')" style="opacity:1">✏️</button>'+
+      '</div>'+
+      (item.file_hash?'<span style="color:var(--muted)">SHA-256</span><span style="color:var(--text);font-family:monospace;font-size:9px;word-break:break-all">'+escHtml(item.file_hash)+'</span>':'')+
+    '</div></div>';
+
+  /* Tags — editable */
+  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Tags '+
+    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evInlineEdit(\'tags\','+eid+','+JSON.stringify(item.tags||'')+')">✏️ edit</button></div>'+
+    (tags.length?tags.map(function(t){return '<span class="ev-tag">'+escHtml(t.trim())+'</span>';}).join(''):'<span style="font-size:12px;color:var(--muted)">No tags</span>')+
+  '</div>';
+
+  /* Description — editable */
+  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Description '+
+    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evInlineEdit(\'description\','+eid+','+JSON.stringify(item.description||'')+')" >✏️ edit</button></div>'+
+    (item.description?'<div style="font-size:13px;color:var(--text);line-height:1.5">'+escHtml(item.description)+'</div>':'<span style="font-size:12px;color:var(--muted)">No description</span>')+
+  '</div>';
+
+  /* Linked Entities */
+  html+='<div class="ev-section"><div class="ev-section-title">Linked Entities ('+links.length+')</div>';
+  if(links.length){
+    var specs=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
+    var resolved=[];
+    try{var rr=await fetch('/evidence/api/resolve-links?links='+encodeURIComponent(JSON.stringify(specs)));resolved=await rr.json();}catch(e){}
+    html+=links.map(function(l,i){
+      var res=resolved[i]||{};
+      var mc=modColors[l.module]||'#6b7280';
+      return '<div class="ev-link-row">'+
+        '<span class="ev-mod-dot" style="background:'+mc+'"></span>'+
+        '<span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;width:56px">'+escHtml(l.module)+'</span>'+
+        '<span style="font-size:10px;color:var(--muted)">'+escHtml(l.entity_type)+'</span>'+
+        (res.url?'<a href="'+escHtml(res.url)+'" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(res.name||'#'+l.entity_id)+'</a>':
+                 '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+escHtml(res.name||'#'+l.entity_id)+'</span>')+
+        '<span style="font-size:10px;color:var(--muted);white-space:nowrap">'+fmtDate(l.created_at)+'</span>'+
+        '<button onclick="unlinkEvidence('+l.id+','+eid+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px;padding:2px 4px" title="Unlink">✕</button>'+
+      '</div>';
+    }).join('');
+  }else{
+    html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to…" to connect this evidence.</div>';
+  }
+  html+='</div></div>';/* end tabpane-details */
+
+  /* History tab */
+  html+='<div id="tabpane-history" style="display:none">'+
+    '<div class="ev-section"><div id="evVersions"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px"></div></div></div></div>'+
+  '</div>';
+
+  /* Activity tab */
+  html+='<div id="tabpane-activity" style="display:none">'+
+    '<div class="ev-section"><div id="evActivity"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px"></div></div></div></div>'+
+  '</div>';
+
+  document.getElementById('evDetailContent').innerHTML=html;
+  document.getElementById('evDetailOverlay').classList.add('open');
+  document.getElementById('evDetailPanel').classList.add('open');
+  document.body.style.overflow='hidden';
+
+  // Load versions async
+  try{
+    var vr=await fetch('/evidence/api/items/'+eid+'/versions');var vd=await vr.json();
+    var vers=vd.versions||[];
+    document.getElementById('evVersions').innerHTML=vers.length?vers.map(function(v){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px">'+
+        '<span style="font-weight:700;color:var(--accent);font-family:monospace;min-width:28px">v'+v.version+'</span>'+
+        '<span style="color:var(--text);flex:1">'+escHtml(v.title)+'</span>'+
+        '<span style="color:var(--muted)">'+fmtDate(v.created_at)+'</span>'+
+        '<span class="ev-tag">'+escHtml(v.status)+'</span></div>';
+    }).join(''):'<div style="font-size:12px;color:var(--muted);padding:8px 0">Single version — no history</div>';
+  }catch(e){document.getElementById('evVersions').innerHTML='<div style="font-size:12px;color:var(--muted)">Could not load versions</div>';}
+
+  // Load activity (link/unlink history) async
+  try{
+    var ar=await fetch('/evidence/api/items/'+eid+'/audit');var arows=await ar.json();
+    document.getElementById('evActivity').innerHTML=arows.length?arows.map(function(a){
+      var isDeleted=!!a.deleted_at;
+      var mc=modColors[a.module]||'#6b7280';
+      return '<div class="ev-activity-row">'+
+        '<span class="ev-act-dot" style="background:'+(isDeleted?'#dc2626':mc)+'"></span>'+
+        '<div style="flex:1">'+
+          '<span style="font-weight:600">'+(isDeleted?'Unlinked':'Linked')+'</span>'+
+          ' <span style="color:var(--muted)">'+escHtml(a.module)+'/'+escHtml(a.entity_type)+' #'+escHtml(String(a.entity_id))+'</span>'+
+          '<div style="font-size:10px;color:var(--muted);margin-top:2px">'+
+            'by '+escHtml(isDeleted?a.deleted_by_name:a.linked_by_name||'system')+' · '+fmtDate(isDeleted?a.deleted_at:a.created_at)+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join(''):'<div style="font-size:12px;color:var(--muted);padding:8px 0">No link activity recorded</div>';
+  }catch(e){document.getElementById('evActivity').innerHTML='<div style="font-size:12px;color:var(--muted)">Could not load activity</div>';}
+}
+
+function evShowTab(tab){
+  ['details','history','activity'].forEach(function(t){
+    document.getElementById('tabpane-'+t).style.display=t===tab?'block':'none';
+    document.getElementById('tab-'+t).className='ev-tab'+(t===tab?' active':'');
+  });
+}
+
+function evInlineEdit(field,eid,current){
+  var container=document.getElementById('ev-field-'+field);
+  if(!container){
+    // For tags/description that don't have a dedicated container, use a prompt
+    var newVal=prompt('Edit '+field+':',current);
+    if(newVal===null)return;
+    var body={};body[field]=newVal;
+    fetch('/evidence/api/items/'+eid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(){openDetail(eid);});
+    return;
+  }
+  var inputType=field==='expiry_date'?'date':'text';
+  container.innerHTML=
+    '<input class="ev-inline-input" type="'+inputType+'" id="ev-input-'+field+'" value="'+escHtml(current)+'" style="flex:1">'+
+    '<button onclick="evSaveInline(\''+field+'\','+eid+')" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px">Save</button>'+
+    '<button onclick="openDetail('+eid+')" style="background:var(--surface2);border:none;border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>';
+  document.getElementById('ev-input-'+field).focus();
+}
+
+async function evSaveInline(field,eid){
+  var val=document.getElementById('ev-input-'+field).value;
+  var body={};body[field]=val;
+  await fetch('/evidence/api/items/'+eid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  openDetail(eid);loadStats();
+}
+
+function closeDetail(){
+  document.getElementById('evDetailOverlay').classList.remove('open');
+  document.getElementById('evDetailPanel').classList.remove('open');
+  document.body.style.overflow='';
+}
+
+async function verifyIntegrity(eid){
+  var el=document.getElementById('integrityResult');
+  el.innerHTML='<div class="ev-section" style="padding:8px 20px"><span style="color:var(--accent);font-size:12px">Verifying...</span></div>';
+  var r=await fetch('/evidence/api/items/'+eid+'/verify');var d=await r.json();
+  var col=d.verified?'var(--good,#16a34a)':'var(--bad,#dc2626)';
+  var icon=d.verified?'✅':'❌';
+  el.innerHTML='<div class="ev-section" style="padding:8px 20px;background:'+(d.verified?'#dcfce722':'#fee2e222')+'"><span style="color:'+col+';font-size:12px;font-weight:600">'+icon+' '+escHtml(d.message)+'</span></div>';
+}
+
+async function unlinkEvidence(linkId,eid){
+  if(!confirm('Remove this link?'))return;
+  await fetch('/evidence/api/links/'+linkId,{method:'DELETE'});
+  openDetail(eid);loadStats();
+}
+
+/* ── Link-to Modal ── */
+function openLinkToModal(eid){
+  document.getElementById('linkEvidenceId').value=eid;
+  document.getElementById('linkModule').value='';
+  document.getElementById('linkEntityType').innerHTML='<option value="">Select type</option>';
+  document.getElementById('linkSearch').value='';
+  document.getElementById('linkEntityList').innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type</div>';
+  document.getElementById('linkToModal').classList.add('open');
+}
+function loadEntityTypes(){
+  var mod=document.getElementById('linkModule').value;
+  var sel=document.getElementById('linkEntityType');
+  sel.innerHTML='<option value="">Select type</option>';
+  if(mod&&entityTypes[mod]){
+    entityTypes[mod].forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});
+  }
+}
+function debounceEntitySearch(){clearTimeout(entitySearchTimeout);entitySearchTimeout=setTimeout(searchEntities,300);}
+async function searchEntities(){
+  var mod=document.getElementById('linkModule').value;
+  var etype=document.getElementById('linkEntityType').value;
+  var q=document.getElementById('linkSearch').value;
+  var el=document.getElementById('linkEntityList');
+  if(!mod||!etype){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type</div>';return;}
+  var params='module='+mod+'&entity_type='+etype;if(q)params+='&q='+encodeURIComponent(q);
+  var r=await fetch('/evidence/api/search-entities?'+params);var items=await r.json();
+  if(!items.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No entities found</div>';return;}
+  var eid=document.getElementById('linkEvidenceId').value;
+  el.innerHTML=items.map(function(e){
+    return '<div style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px" onclick="createLink('+eid+',\''+mod+'\',\''+etype+'\','+e.id+')" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+
+      '<span style="font-weight:600;color:var(--text)">'+escHtml(e.name)+'</span>'+
+      '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+e.id+'</span></div>';
+  }).join('');
+}
+async function createLink(eid,mod,etype,entityId){
+  await fetch('/evidence/api/items/'+eid+'/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module:mod,entity_type:etype,entity_id:entityId})});
+  document.getElementById('linkToModal').classList.remove('open');
+  if(typeof showToast==='function')showToast('Evidence linked to '+mod+' '+etype);
+  openDetail(eid);loadStats();
+}
+
+/* ── View/Filter Switching ── */
+function switchView(v,el){
+  currentView=v;
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+  if(el)el.classList.add('active');
+  loadEvidence();
+}
+function filterModule(m,el){currentModule=m;loadEvidence();}
+function filterCategory(c){currentCategory=c;loadEvidence();}
+function debounceSearch(){clearTimeout(searchTimeout);searchTimeout=setTimeout(loadEvidence,300);}
+
+/* ── Upload ── */
+async function handleUpload(e){
+  e.preventDefault();
+  document.getElementById('uploadDupeWarning').style.display='none';
+  var form=new FormData();
+  var fileEl=document.getElementById('uploadFile');
+  if(!fileEl.files[0]){return;}
+  form.append('file',fileEl.files[0]);
+  form.append('title',document.getElementById('uploadTitle').value);
+  form.append('category',document.getElementById('uploadCategory').value);
+  form.append('tags',document.getElementById('uploadTags').value);
+  form.append('description',document.getElementById('uploadDesc').value);
+  var expiry=document.getElementById('uploadExpiry').value;
+  if(expiry)form.append('expiry_date',expiry);
+  var r=await fetch('/evidence/api/items',{method:'POST',body:form});
+  if(r.status===409){
+    var d=await r.json();
+    var warn=document.getElementById('uploadDupeWarning');
+    warn.innerHTML='⚠️ <strong>This file already exists:</strong> '+escHtml(d.existing_title||'#'+d.existing_id)+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+        '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" onclick="document.getElementById(\'uploadModal\').classList.remove(\'open\');openDetail('+d.existing_id+')">View Existing</button>'+
+        '<button class="btn btn-primary" style="font-size:12px;padding:5px 10px" onclick="document.getElementById(\'uploadModal\').classList.remove(\'open\');openLinkToModal('+d.existing_id+')">Link Existing</button>'+
+      '</div>';
+    warn.style.display='block';
+    return;
+  }
+  if(r.ok){
+    document.getElementById('uploadModal').classList.remove('open');
+    document.getElementById('uploadForm').reset();
+    document.getElementById('uploadExpiry').value='';
+    loadEvidence();loadStats();
+    if(typeof showToast==='function')showToast('Evidence uploaded','success');
+  }
+}
+
+/* ── Drag-drop ── */
+(function(){
+  var dragCounter=0;
+  var dropZone=document.getElementById('pageDropZone');
+
+  function showDropZone(){
+    if(dropZone){dropZone.style.display='flex';}
+  }
+  function hideDropZone(){
+    if(dropZone){dropZone.style.display='none';}
+  }
+
+  // dragenter fires when dragging enters the window or any child element;
+  // use a counter so dragleave from a child doesn't hide the overlay prematurely.
+  document.addEventListener('dragenter',function(e){
+    if(!e.dataTransfer||!e.dataTransfer.types||
+       !Array.prototype.includes.call(e.dataTransfer.types,'Files')) return;
+    dragCounter++;
+    showDropZone();
+  });
+
+  document.addEventListener('dragleave',function(e){
+    dragCounter--;
+    if(dragCounter<=0){dragCounter=0;hideDropZone();}
+  });
+
+  document.addEventListener('dragover',function(e){e.preventDefault();});
+
+  document.addEventListener('drop',function(e){
+    e.preventDefault();
+    dragCounter=0;
+    hideDropZone();
+    var files=e.dataTransfer&&e.dataTransfer.files;
+    if(!files||!files.length)return;
+    document.getElementById('uploadFile').files=files;
+    document.getElementById('uploadModal').classList.add('open');
+  });
+})();
+
+document.addEventListener('DOMContentLoaded',function(){
+  setViewMode(evViewMode);  // Apply saved view mode to toggle buttons
+  loadStats();loadEvidence();loadCoverage();
+});
+</script>
+{% endblock %}

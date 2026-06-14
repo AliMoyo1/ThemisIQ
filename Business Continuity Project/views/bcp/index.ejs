@@ -1,0 +1,37 @@
+<div class="page-head">
+  <div>
+    <h1>Continuity Plans</h1>
+    <p>BCPs and DR runbooks. Version, review, and approve.</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/plan-generator">AI draft a plan</a>
+    <a class="btn primary" href="/bcp/new">+ New plan</a>
+  </div>
+</div>
+
+<div class="card">
+  <% if (rows.length === 0) { %>
+    <p class="muted" style="padding:20px 0;">No plans yet. Start from scratch or use the AI plan generator.</p>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr><th>Title</th><th>Scope</th><th>Owner</th><th>Version</th><th>Status</th><th>Next review</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(p => {
+             const scls = p.status === 'approved' ? 'success' : (p.status === 'draft' ? 'info' : 'muted');
+        %>
+          <tr>
+            <td><strong><%= p.title %></strong></td>
+            <td><%= p.scope || '—' %></td>
+            <td><%= p.owner || '—' %></td>
+            <td>v<%= p.version %></td>
+            <td><span class="badge <%= scls %>"><%= p.status %></span></td>
+            <td><%= p.next_review || '—' %></td>
+            <td class="right"><a href="/bcp/<%= p.id %>">Open</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

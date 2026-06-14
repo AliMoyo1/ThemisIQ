@@ -1,0 +1,73 @@
+<div class="page-head">
+  <div>
+    <a href="/documents" class="muted">&larr; Documents</a>
+    <h1>Ask your documents</h1>
+    <p>Retrieval-augmented answers grounded in your uploaded plans and policies. Every answer includes citations.</p>
+  </div>
+</div>
+
+<form method="POST" action="/documents/ask/query" class="card stack-16" style="margin-bottom:16px;" data-ai="Searching your documents and composing an answer…">
+  <div>
+    <label>Question</label>
+    <textarea name="question" rows="3" required placeholder="e.g. What is the RTO for the payroll process? / What do we do in the first 30 minutes of a ransomware event?"><%= initial?.question || '' %></textarea>
+  </div>
+  <div class="form-row cols-2">
+    <div>
+      <label>Scope (optional — restrict to one document)</label>
+      <select name="document_id">
+        <option value="">All documents</option>
+        <% docs.forEach(d => { %>
+          <option value="<%= d.id %>" <%= initial?.documentId == d.id ? 'selected' : '' %>><%= d.title %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div style="display:flex; align-items:flex-end;">
+      <button class="btn primary" type="submit" style="width:100%;">Ask</button>
+    </div>
+  </div>
+</form>
+
+<% if (initial) { %>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <div class="card-title">Answer</div>
+      <span class="muted" style="font-size:12px;">via <%= initial.provider %></span>
+    </div>
+    <div style="white-space:pre-wrap; font-family:Inter, sans-serif; line-height:1.6; font-size:14px;"><%= initial.answer %></div>
+  </div>
+
+  <% if (initial.citations.length > 0) { %>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Citations <span class="count-chip"><%= initial.citations.length %></span></div></div>
+      <% initial.citations.forEach(c => { %>
+        <div class="list-row">
+          <div class="avatar"><%= c.label.replace('Source ', 'S') %></div>
+          <div class="body">
+            <div class="title"><a href="/documents/<%= c.document_id %>"><%= c.doc_title %></a> <span class="muted" style="font-size:12px;">— chunk <%= c.chunk_index %> · score <%= c.score %></span></div>
+            <div class="sub" style="font-size:13px; line-height:1.5;"><%= c.snippet %></div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <div class="card">
+      <p class="muted" style="padding:16px 0;">No citations — either the corpus was empty, or no chunks matched. Try uploading more documents or rephrasing.</p>
+    </div>
+  <% } %>
+<% } %>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-head"><div class="card-title">Recent history</div></div>
+  <% if (history.length === 0) { %>
+    <p class="muted" style="padding:16px 0;">No history yet.</p>
+  <% } %>
+  <% history.forEach(h => { %>
+    <div class="list-row">
+      <div class="avatar">H</div>
+      <div class="body">
+        <div class="title"><%= h.question.slice(0, 120) %><%= h.question.length > 120 ? '…' : '' %></div>
+        <div class="sub"><%= h.created_at %> · <%= h.provider %></div>
+      </div>
+    </div>
+  <% }) %>
+</div>

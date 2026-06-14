@@ -1,0 +1,2546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoPAforge</title>
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#03080f;--bg2:#060d18;--bg3:#091525;
+  --panel:#0a1a2e;--panel2:#0d2040;
+  --border:#0e3a60;--border2:#1a5280;
+  --accent:#00d4ff;--accent2:#00ff88;--accent3:#ff6b35;
+  --text:#c8e8ff;--text2:#6aa3cc;--text3:#3d6a8a;
+  --danger:#ff3d5a;--warn:#ffaa00;
+  --font:'Exo 2',sans-serif;--mono:'Share Tech Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+.scanline{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px)}
+.grid-bg{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.4;background-image:linear-gradient(rgba(0,212,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.07) 1px,transparent 1px);background-size:40px 40px}
+.app{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column}
+header{padding:.75rem 1.25rem;border-bottom:1px solid var(--border);background:rgba(10,26,46,.95);backdrop-filter:blur(10px);display:flex;align-items:center;gap:.85rem;position:sticky;top:0;z-index:100;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:.8rem}
+.logo-icon{width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;animation:logoPulse 3s infinite}
+.logo-icon svg{width:36px;height:36px}
+@keyframes logoPulse{0%,100%{filter:drop-shadow(0 0 0px rgba(0,212,255,.4))}50%{filter:drop-shadow(0 0 7px rgba(0,212,255,.7))}}
+.logo-wordmark{display:flex;align-items:baseline;gap:0;line-height:1}
+.logo-wm-ropa{font-size:1.1rem;font-weight:700;letter-spacing:.06em;color:var(--accent);text-transform:uppercase}
+.logo-wm-divider{width:1.5px;height:.85rem;background:var(--accent2);margin:0 .3rem;opacity:.7;align-self:center;flex-shrink:0}
+.logo-wm-forge{font-size:1.1rem;font-weight:300;letter-spacing:.04em;color:var(--text);text-transform:uppercase}
+.logo-text{display:flex;flex-direction:column;gap:.05rem}
+.logo-byline{font-size:.52rem;font-family:var(--mono);letter-spacing:.2em;color:var(--accent2);text-transform:uppercase;display:flex;align-items:center;gap:.3rem;margin-top:.08rem}
+.logo-byline::before{content:'';display:inline-block;width:10px;height:1px;background:var(--accent2);opacity:.5}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--accent2);box-shadow:0 0 5px var(--accent2);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.status-text{font-size:.65rem;font-family:var(--mono);color:var(--accent2);letter-spacing:.08em}
+.save-indicator{font-size:.63rem;font-family:var(--mono);color:var(--text3);letter-spacing:.06em;display:flex;align-items:center;gap:.35rem;transition:color .3s}
+.save-indicator.saving{color:var(--warn)}.save-indicator.saved{color:var(--accent2)}
+.save-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.user-chip{display:flex;align-items:center;gap:.4rem;background:rgba(0,212,255,.07);border:1px solid var(--border);border-radius:20px;padding:.22rem .65rem;font-size:.68rem;color:var(--text2);font-family:var(--mono)}
+.user-chip-dot{width:5px;height:5px;border-radius:50%;background:var(--accent2);flex-shrink:0}
+/* Global search */
+.global-search-wrap{position:relative}
+.global-search-wrap input{background:rgba(9,21,37,.85);border:1px solid var(--border);border-radius:20px;padding:.28rem .85rem .28rem 1.8rem;font-size:.74rem;color:var(--text);font-family:var(--font);outline:none;width:180px;transition:all .2s}
+.global-search-wrap input:focus{border-color:var(--accent);width:240px;background:var(--bg3)}
+.global-search-wrap input::placeholder{color:var(--text3)}
+.g-search-icon{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--text3);font-size:.75rem;pointer-events:none}
+.global-results{position:fixed;background:var(--panel2);border:1.5px solid var(--accent);border-radius:8px;z-index:9200;box-shadow:0 12px 40px rgba(0,0,0,.75);min-width:320px;max-height:360px;overflow-y:auto;display:none}
+.global-results.show{display:block}
+.gr-section{padding:.35rem .75rem .2rem;font-size:.58rem;font-family:var(--mono);color:var(--text3);letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid var(--border);background:rgba(0,0,0,.25)}
+.gr-item{padding:.52rem .85rem;cursor:pointer;border-bottom:1px solid rgba(14,58,96,.3);transition:background .12s}
+.gr-item:hover{background:rgba(0,212,255,.09)}
+.gr-name{font-size:.82rem;color:var(--accent);font-weight:600}
+.gr-meta{font-size:.7rem;color:var(--text3);margin-top:.08rem}
+.gr-empty{padding:1rem;text-align:center;font-size:.78rem;color:var(--text3);font-family:var(--mono)}
+/* Buttons */
+.btn{padding:.4rem .8rem;border:1px solid;border-radius:4px;cursor:pointer;font-family:var(--font);font-size:.72rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;transition:all .2s;white-space:nowrap}
+.btn-primary{background:rgba(0,212,255,.1);border-color:var(--accent);color:var(--accent)}
+.btn-primary:hover{background:rgba(0,212,255,.2);box-shadow:0 0 10px rgba(0,212,255,.25)}
+.btn-success{background:rgba(0,255,136,.1);border-color:var(--accent2);color:var(--accent2)}
+.btn-success:hover{background:rgba(0,255,136,.2)}
+.btn-danger{background:rgba(255,61,90,.1);border-color:var(--danger);color:var(--danger)}
+.btn-danger:hover{background:rgba(255,61,90,.2)}
+.btn-warn{background:rgba(255,170,0,.1);border-color:var(--warn);color:var(--warn)}
+.btn-warn:hover{background:rgba(255,170,0,.2)}
+.btn-clone{background:rgba(0,212,255,.05);border-color:var(--text3);color:var(--text2)}
+.btn-clone:hover{border-color:var(--accent);color:var(--accent)}
+.btn-logout{background:rgba(61,106,138,.1);border-color:var(--text3);color:var(--text2)}
+.btn-logout:hover{border-color:var(--danger);color:var(--danger)}
+.btn-sm{padding:.25rem .58rem;font-size:.65rem}
+/* Layout */
+.main{display:grid;grid-template-columns:215px 1fr;flex:1;min-height:0}
+nav{background:var(--panel);border-right:1px solid var(--border);padding:1rem 0;display:flex;flex-direction:column;gap:.15rem;overflow-y:auto}
+.nav-section{padding:.5rem 1rem .2rem;font-size:.56rem;color:var(--text3);font-family:var(--mono);letter-spacing:.2em;text-transform:uppercase}
+.nav-item{padding:.55rem 1rem;display:flex;align-items:center;gap:.55rem;cursor:pointer;font-size:.78rem;color:var(--text2);border-left:3px solid transparent;transition:all .2s;user-select:none}
+.nav-item:hover{background:rgba(0,212,255,.05);color:var(--text);border-left-color:rgba(0,212,255,.25)}
+.nav-item.active{background:rgba(0,212,255,.08);color:var(--accent);border-left-color:var(--accent)}
+.nav-icon{font-size:12px;width:16px;text-align:center;flex-shrink:0}
+.nav-badge{margin-left:auto;background:var(--danger);color:#fff;font-size:.56rem;font-family:var(--mono);border-radius:10px;padding:.04rem .32rem;min-width:15px;text-align:center}
+.cyber-line{height:1px;background:linear-gradient(90deg,transparent,var(--border2),transparent);margin:.5rem 1rem;opacity:.5}
+.content{padding:1.4rem;overflow-y:auto;max-height:calc(100vh - 65px)}
+.page{display:none}.page.active{display:block}
+/* Page headers */
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.4rem;gap:.75rem;flex-wrap:wrap}
+.page-title{font-size:1rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent)}
+.page-subtitle{font-size:.68rem;color:var(--text2);font-family:var(--mono);margin-top:.18rem}
+/* Stats grid */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.85rem;margin-bottom:1.2rem}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:.9rem;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.blue::before{background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.stat-card.green::before{background:linear-gradient(90deg,transparent,var(--accent2),transparent)}
+.stat-card.orange::before{background:linear-gradient(90deg,transparent,var(--accent3),transparent)}
+.stat-card.warn::before{background:linear-gradient(90deg,transparent,var(--warn),transparent)}
+.stat-card.red::before{background:linear-gradient(90deg,transparent,var(--danger),transparent)}
+.stat-num{font-size:1.8rem;font-weight:700;font-family:var(--mono);color:var(--accent);line-height:1}
+.stat-card.green .stat-num{color:var(--accent2)}.stat-card.orange .stat-num{color:var(--accent3)}.stat-card.warn .stat-num{color:var(--warn)}.stat-card.red .stat-num{color:var(--danger)}
+.stat-label{font-size:.65rem;color:var(--text2);margin-top:.28rem;letter-spacing:.05em;text-transform:uppercase}
+.progress-bar{height:3px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden;margin-top:.45rem}
+.progress-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .5s}
+/* Heatmap */
+.heatmap-grid{display:flex;flex-wrap:wrap;gap:.7rem;padding:.85rem}
+.heatmap-card{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:.7rem .9rem;min-width:160px;flex:1;position:relative;overflow:hidden}
+.heatmap-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.hm-critical::before{background:var(--danger)}.hm-high::before{background:var(--accent3)}.hm-medium::before{background:var(--warn)}.hm-low::before{background:var(--accent2)}
+.hm-dept{font-size:.85rem;font-weight:600;color:var(--text);margin-bottom:.2rem}
+.hm-meta{font-size:.68rem;color:var(--text3);font-family:var(--mono)}
+.hm-bar{height:4px;border-radius:2px;margin-top:.5rem}
+.hm-bar.hm-critical{background:var(--danger)}.hm-bar.hm-high{background:var(--accent3)}.hm-bar.hm-medium{background:var(--warn)}.hm-bar.hm-low{background:var(--accent2)}
+/* Tables */
+.table-wrap{background:var(--panel);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:1.3rem}
+.table-header{padding:.65rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.6rem;background:rgba(0,212,255,.03)}
+.table-title{font-size:.74rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;flex:1}
+table{width:100%;border-collapse:collapse}
+th{padding:.5rem .7rem;font-size:.6rem;color:var(--text3);font-family:var(--mono);letter-spacing:.13em;text-transform:uppercase;border-bottom:1px solid var(--border);text-align:left;background:rgba(0,0,0,.2);white-space:nowrap}
+td{padding:.58rem .7rem;font-size:.74rem;color:var(--text);border-bottom:1px solid rgba(14,58,96,.35);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(0,212,255,.025)}
+/* Badges */
+.badge{display:inline-block;padding:.11rem .42rem;border-radius:3px;font-size:.6rem;font-weight:600;font-family:var(--mono);letter-spacing:.04em;white-space:nowrap}
+.badge-blue{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--accent)}
+.badge-green{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);color:var(--accent2)}
+.badge-orange{background:rgba(255,107,53,.1);border:1px solid rgba(255,107,53,.3);color:var(--accent3)}
+.badge-red{background:rgba(255,61,90,.1);border:1px solid rgba(255,61,90,.3);color:var(--danger)}
+.badge-warn{background:rgba(255,170,0,.1);border:1px solid rgba(255,170,0,.3);color:var(--warn)}
+.badge-gray{background:rgba(61,106,138,.1);border:1px solid rgba(61,106,138,.3);color:var(--text2)}
+.badge-overdue{background:rgba(255,61,90,.15);border:1px solid rgba(255,61,90,.5);color:var(--danger);animation:ovFlash 2s infinite}
+@keyframes ovFlash{0%,100%{opacity:1}50%{opacity:.55}}
+/* Forms */
+.form-section{background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:1.3rem;overflow:visible}
+.form-section-header{padding:.65rem 1rem;border-bottom:1px solid var(--border);background:rgba(0,212,255,.03);font-size:.7rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;gap:.45rem;border-radius:6px 6px 0 0}
+.form-body{padding:.95rem}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+.form-full{grid-column:1/-1}
+.form-group{display:flex;flex-direction:column;gap:.32rem}
+label{font-size:.65rem;color:var(--text2);font-family:var(--mono);letter-spacing:.09em;text-transform:uppercase}
+input[type=text],input[type=email],input[type=date],select,textarea{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.45rem .7rem;font-family:var(--font);font-size:.8rem;color:var(--text);outline:none;width:100%;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,255,.1)}
+textarea{resize:vertical;min-height:76px}
+select option{background:var(--panel2);color:var(--text)}
+/* DPIA warning */
+.dpia-warning{display:none;background:rgba(255,61,90,.07);border:1.5px solid rgba(255,61,90,.5);border-radius:6px;padding:.7rem .9rem;margin-top:.7rem;font-size:.8rem;color:var(--danger)}
+.dpia-warning.show{display:flex;align-items:flex-start;gap:.55rem}
+.dpia-icon{font-size:1.1rem;flex-shrink:0;margin-top:.05rem}
+.dpia-warning b{display:block;margin-bottom:.18rem}
+.dpia-chk-row{display:flex;align-items:center;gap:.55rem;margin-top:.55rem;padding:.45rem .7rem;background:rgba(255,61,90,.05);border:1px solid rgba(255,61,90,.2);border-radius:4px}
+.dpia-chk-row input[type=checkbox]{accent-color:var(--danger);width:14px;height:14px}
+.dpia-chk-row label{font-size:.76rem;color:var(--text2);text-transform:none;letter-spacing:0;cursor:pointer}
+/* Art9 section */
+.art9-section{margin-top:.7rem;padding:.7rem;background:rgba(255,61,90,.04);border:1px solid rgba(255,61,90,.2);border-radius:5px}
+/* Completeness */
+.c-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.06);overflow:hidden;margin-top:.3rem}
+.c-fill{height:100%;border-radius:2px;transition:width .4s}
+.c-low{background:var(--danger)}.c-mid{background:var(--warn)}.c-high{background:var(--accent2)}
+/* Modals */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:1.5rem;backdrop-filter:blur(4px);overflow-y:auto}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;width:100%;max-width:860px;overflow:visible;margin:auto}
+.modal-header{padding:.9rem 1.2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.7rem;background:rgba(0,212,255,.04);position:sticky;top:0;z-index:10;backdrop-filter:blur(4px);border-radius:8px 8px 0 0}
+.modal-title{font-size:.9rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;flex:1}
+.modal-body{padding:1.1rem;overflow:visible}
+/* Data type buttons */
+.dt-section{border:1px solid var(--border);border-radius:5px;padding:.7rem;background:var(--bg3)}
+.dt-select{display:flex;flex-wrap:wrap;gap:.4rem}
+.dt-btn{padding:.25rem .58rem;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:.67rem;font-family:var(--mono);color:var(--text2);background:var(--bg3);transition:all .2s;white-space:nowrap}
+.dt-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,.07)}
+.dt-btn.selected{border-color:var(--accent2);color:var(--accent2);background:rgba(0,255,136,.08)}
+.owner-badge{display:inline-flex;align-items:center;gap:.35rem;background:rgba(0,255,136,.07);border:1px solid rgba(0,255,136,.2);border-radius:4px;padding:.22rem .5rem;font-size:.67rem;color:var(--accent2)}
+/* Entry cards */
+.ropa-entry{border:1px solid var(--border);border-radius:6px;margin-bottom:.9rem;overflow:hidden;transition:border-color .2s}
+.ropa-entry:hover{border-color:var(--border2)}
+.ropa-entry.is-overdue{border-color:rgba(255,61,90,.4)!important}
+.entry-hdr{padding:.65rem .95rem;background:rgba(0,212,255,.03);display:flex;align-items:center;gap:.6rem;cursor:pointer;flex-wrap:wrap;user-select:none}
+.entry-body{padding:.95rem;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:.65rem;font-size:.74rem;display:none}
+.ef-label{font-size:.58rem;color:var(--text3);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.15rem}
+.ef-val{color:var(--text)}
+/* Audit log */
+.al-wrap{max-height:400px;overflow-y:auto}
+.al-wrap::-webkit-scrollbar{width:4px}
+.al-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.al-item{display:flex;gap:.7rem;padding:.5rem 0;border-bottom:1px solid rgba(14,58,96,.25);font-size:.76rem}
+.al-item:last-child{border-bottom:none}
+.al-time{font-family:var(--mono);font-size:.62rem;color:var(--text3);white-space:nowrap;padding-top:.08rem;min-width:80px}
+.al-action{flex:1;color:var(--text2)}.al-action strong{color:var(--text)}
+.al-user{font-family:var(--mono);font-size:.62rem;color:var(--accent2);white-space:nowrap}
+/* Tags */
+.tag{display:inline-block;padding:.09rem .36rem;border-radius:3px;font-size:.6rem;margin:.1rem;background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.15);color:var(--text2)}
+/* Search & filters */
+.search-bar{display:flex;gap:.7rem;margin-bottom:.95rem;align-items:center}
+.search-bar input{flex:1}
+.filter-row{display:flex;gap:.4rem;margin-bottom:.95rem;flex-wrap:wrap;align-items:center}
+.filter-btn{padding:.25rem .65rem;border:1px solid var(--border);border-radius:20px;cursor:pointer;font-size:.67rem;font-family:var(--mono);color:var(--text2);background:transparent;transition:all .2s}
+.filter-btn:hover,.filter-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,.07)}
+.filter-btn.f-warn{border-color:var(--danger)!important;color:var(--danger)!important;background:rgba(255,61,90,.07)!important}
+/* SAR */
+.sar-item{background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:.7rem .9rem;margin-bottom:.7rem;display:flex;align-items:center;gap:.9rem;flex-wrap:wrap}
+.sar-deadline{font-family:var(--mono);font-size:.7rem;color:var(--warn)}
+.sar-deadline.urgent{color:var(--danger);font-weight:700}
+.sar-deadline.done{color:var(--accent2)}
+/* Smart dropdown */
+.sd-wrapper{position:relative;width:100%}
+.sd-trigger{background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:.48rem .8rem;cursor:pointer;display:flex;align-items:center;justify-content:space-between;min-height:38px;transition:border-color .2s;user-select:none;gap:.45rem}
+.sd-trigger:hover,.sd-trigger.open{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,255,.1)}
+.sd-trigger-label{font-size:.8rem;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sd-trigger-label.filled{color:var(--text)}
+.sd-arrow{font-size:.7rem;color:var(--text3);transition:transform .2s;flex-shrink:0}
+.sd-panel{position:fixed;background:var(--panel2);border:1.5px solid var(--accent);border-radius:8px;z-index:9000;box-shadow:0 12px 40px rgba(0,0,0,.7);display:flex;flex-direction:column}
+.sd-panel.hidden{display:none}
+.sd-search-row{display:flex;align-items:center;gap:.45rem;padding:.5rem .8rem;border-bottom:1px solid var(--border);background:rgba(0,0,0,.3);border-radius:8px 8px 0 0;flex-shrink:0}
+.sd-search-row input{flex:1;background:transparent;border:none;outline:none;font-size:.8rem;color:var(--text);font-family:var(--font)}
+.sd-search-row input::placeholder{color:var(--text3)}
+.sd-list{overflow-y:auto;flex:1;min-height:180px;max-height:250px}
+.sd-list::-webkit-scrollbar{width:4px}
+.sd-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.sd-item{padding:.54rem .8rem;cursor:pointer;display:flex;align-items:center;gap:.65rem;font-size:.8rem;color:var(--text2);transition:background .12s;border-bottom:1px solid rgba(14,58,96,.25)}
+.sd-item:last-child{border-bottom:none}
+.sd-item:hover{background:rgba(0,212,255,.08);color:var(--text)}
+.sd-item.selected{color:var(--accent2);background:rgba(0,255,136,.05)}
+.sd-check{width:14px;height:14px;border:1.5px solid var(--border2);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--accent2)}
+.sd-item.selected .sd-check{background:rgba(0,255,136,.15);border-color:var(--accent2)}
+.sd-item.selected .sd-check::after{content:'✓'}
+.sd-empty{padding:.9rem;text-align:center;font-size:.75rem;color:var(--text3);font-family:var(--mono)}
+.sd-add-row{display:flex;align-items:center;gap:.45rem;padding:.52rem .8rem;border-top:1.5px solid var(--border2);background:rgba(0,0,0,.3);border-radius:0 0 8px 8px;flex-shrink:0}
+.sd-add-row input{flex:1;background:rgba(0,212,255,.05);border:1px solid var(--border);border-radius:4px;padding:.3rem .55rem;font-size:.78rem;color:var(--text);font-family:var(--font);outline:none;transition:border-color .2s}
+.sd-add-row input:focus{border-color:var(--accent)}
+.sd-add-row input::placeholder{color:var(--text3)}
+.sd-add-btn{background:rgba(0,212,255,.15);border:1.5px solid var(--accent);border-radius:4px;color:var(--accent);font-size:.7rem;font-weight:600;padding:.3rem .6rem;cursor:pointer;font-family:var(--mono);letter-spacing:.04em;transition:all .2s;flex-shrink:0}
+.sd-add-btn:hover{background:rgba(0,212,255,.28)}
+.sd-chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.38rem}
+.sd-chip{display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.22);border-radius:4px;padding:.2rem .48rem;font-size:.67rem;color:var(--accent)}
+.sd-chip-x{cursor:pointer;opacity:.55;font-size:8px;transition:opacity .15s}
+.sd-chip-x:hover{opacity:1;color:var(--danger)}
+/* Org book */
+.org-picker-wrap{position:relative;margin-bottom:.55rem}
+.org-pick-lbl{font-size:.6rem;color:var(--text3);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.28rem;display:flex;align-items:center;gap:.4rem}
+.org-pick-lbl span{color:var(--accent2)}
+.org-search-row{position:relative;display:flex;align-items:center}
+.org-search-row input{flex:1;background:var(--bg3);border:1.5px solid var(--accent);border-radius:4px;padding:.44rem .7rem;font-family:var(--font);font-size:.8rem;color:var(--text);outline:none}
+.org-search-row input::placeholder{color:var(--text3)}
+.org-search-icon{position:absolute;right:.6rem;color:var(--accent);font-size:.75rem;pointer-events:none}
+.org-dd{position:fixed;background:var(--panel2);border:1.5px solid var(--accent);border-radius:8px;z-index:9100;box-shadow:0 12px 40px rgba(0,0,0,.7);max-height:260px;overflow-y:auto;min-width:300px}
+.org-dd.hidden{display:none}
+.org-dd::-webkit-scrollbar{width:4px}
+.org-dd::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.org-dd-item{padding:.55rem .8rem;cursor:pointer;border-bottom:1px solid rgba(14,58,96,.25);transition:background .12s}
+.org-dd-item:last-child{border-bottom:none}
+.org-dd-item:hover{background:rgba(0,212,255,.09)}
+.org-dd-name{font-size:.84rem;font-weight:600;color:var(--accent);margin-bottom:.12rem}
+.org-dd-meta{font-size:.7rem;color:var(--text3);font-family:var(--mono)}
+.org-dd-empty{padding:.8rem;text-align:center;font-size:.75rem;color:var(--text3);font-family:var(--mono)}
+.org-save-row{display:flex;align-items:center;gap:.45rem;margin-top:.45rem;padding:.38rem .6rem;background:rgba(0,255,136,.04);border:1px dashed rgba(0,255,136,.2);border-radius:4px;cursor:pointer;transition:background .2s}
+.org-save-row:hover{background:rgba(0,255,136,.08)}
+.org-save-row input[type=checkbox]{accent-color:var(--accent2);width:13px;height:13px;cursor:pointer}
+.org-save-row label{font-size:.7rem;color:var(--accent2);font-family:var(--mono);cursor:pointer}
+.org-filled-badge{display:inline-flex;align-items:center;gap:.38rem;background:rgba(0,212,255,.07);border:1px solid var(--border2);border-radius:20px;padding:.18rem .65rem;font-size:.68rem;color:var(--accent2);font-family:var(--mono);margin-top:.38rem}
+.org-filled-badge .clr{cursor:pointer;color:var(--text3);margin-left:.28rem;font-size:.62rem}
+.org-filled-badge .clr:hover{color:var(--danger)}
+/* Misc */
+.storage-banner{background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.15);border-radius:6px;padding:.5rem .85rem;margin-bottom:1.1rem;display:flex;align-items:center;gap:.65rem;font-size:.7rem;color:var(--accent2);font-family:var(--mono)}
+.storage-banner .sb-size{color:var(--text3);font-size:.62rem;margin-left:auto}
+.empty-state{text-align:center;padding:2rem;color:var(--text3);font-family:var(--mono);font-size:.75rem}
+.empty-icon{font-size:1.8rem;margin-bottom:.65rem;opacity:.35}
+.required{color:var(--danger);margin-left:.18rem}
+.col-actions{display:flex;gap:.3rem}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<div class="grid-bg"></div>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="18,1.5 33,10 33,26 18,34.5 3,26 3,10" fill="rgba(0,212,255,0.07)" stroke="#00d4ff" stroke-width="1.2"/>
+        <polygon points="18,6.5 28,12.5 28,23.5 18,29.5 8,23.5 8,12.5" fill="none" stroke="rgba(0,212,255,0.2)" stroke-width="0.6"/>
+        <text x="18" y="22" text-anchor="middle" font-family="'Exo 2',sans-serif" font-weight="700" font-size="10" fill="#00d4ff" letter-spacing="0.5">RF</text>
+        <circle cx="18" cy="1.5" r="1.2" fill="#00ff88" opacity="0.9"/>
+        <circle cx="33" cy="10" r="1.2" fill="#00d4ff" opacity="0.6"/>
+        <circle cx="18" cy="34.5" r="1.2" fill="#00ff88" opacity="0.9"/>
+        <circle cx="3" cy="26" r="1.2" fill="#00d4ff" opacity="0.6"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <div class="logo-wordmark" id="header-app-name">
+        <span class="logo-wm-ropa">RoPA</span>
+        <span class="logo-wm-divider"></span>
+        <span class="logo-wm-forge">forge</span>
+      </div>
+      <div class="logo-byline">by Ali Moyo</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="global-search-wrap">
+      <span class="g-search-icon">⌕</span>
+      <input type="text" id="g-search" placeholder="Search everything..." autocomplete="off"
+        oninput="globalSearch(this.value)" onblur="setTimeout(hideGlobalResults,200)" onfocus="if(this.value.length>1)globalSearch(this.value)">
+      <div class="global-results" id="global-results"></div>
+    </div>
+    <div class="save-indicator" id="save-indicator"><span class="save-dot"></span><span id="save-text">AUTO-SAVE ON</span></div>
+    <div class="status-dot"></div><div class="status-text">SECURE SESSION</div>
+    <div class="user-chip"><span class="user-chip-dot"></span><span id="user-display">—</span></div>
+    <button class="btn btn-warn btn-sm" onclick="confirmClearData()">⚠ Clear</button>
+    <button class="btn btn-success btn-sm" onclick="exportToExcel()">⬇ Excel</button>
+    <button class="btn btn-success btn-sm" onclick="exportToPDF()">⬇ PDF</button>
+    <button class="btn btn-primary btn-sm" onclick="openNewEntry()">＋ New Entry</button>
+    <button class="btn btn-logout btn-sm" onclick="logout()">⏻ Logout</button>
+  </div>
+</header>
+
+<div class="main">
+<nav>
+  <div class="nav-section">Navigation</div>
+  <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">◈</span>Dashboard</div>
+  <div class="nav-item" onclick="showPage('entries',this)"><span class="nav-icon">☰</span>RoPA Entries</div>
+  <div class="nav-item" onclick="showPage('dpia',this)"><span class="nav-icon">⚠</span>DPIA Register <span class="nav-badge" id="dpia-badge" style="display:none">0</span></div>
+  <div class="nav-item" onclick="showPage('controllers',this)"><span class="nav-icon">◎</span>Controllers &amp; DPO</div>
+  <div class="nav-item" onclick="showPage('recipients',this)"><span class="nav-icon">◆</span>Recipients</div>
+  <div class="nav-item" onclick="showPage('transfers',this)"><span class="nav-icon">⬡</span>Cross-Border Transfers</div>
+  <div class="nav-item" onclick="showPage('retention',this)"><span class="nav-icon">⏱</span>Retention Schedule</div>
+  <div class="nav-item" onclick="showPage('security',this)"><span class="nav-icon">⬗</span>Security Measures</div>
+  <div class="nav-item" onclick="showPage('sar',this)"><span class="nav-icon">◉</span>DSR Tracker <span class="nav-badge" id="sar-badge" style="display:none">0</span></div>
+  <div class="cyber-line"></div>
+  <div class="nav-section">Settings</div>
+  <div class="nav-item" onclick="showPage('owners',this)"><span class="nav-icon">◉</span>Data Owners</div>
+  <div class="nav-item" onclick="showPage('auditlog',this)"><span class="nav-icon">📋</span>Audit Log</div>
+</nav>
+
+<div class="content">
+
+<!-- DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="page-header"><div><div class="page-title">Operations Dashboard</div><div class="page-subtitle">// GDPR Art. 30 · Risk Heatmap · Compliance Monitor</div></div></div>
+  <div id="storage-banner-wrap"></div>
+  <div class="stats-row">
+    <div class="stat-card blue"><div class="stat-num" id="s-total">0</div><div class="stat-label">Total RoPA Entries</div><div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div></div>
+    <div class="stat-card green"><div class="stat-num" id="s-complete">0</div><div class="stat-label">Complete Records</div><div class="progress-bar"><div class="progress-fill" id="prog-complete" style="width:0%"></div></div></div>
+    <div class="stat-card red"><div class="stat-num" id="s-overdue">0</div><div class="stat-label">Reviews Overdue</div></div>
+    <div class="stat-card warn"><div class="stat-num" id="s-dpia">0</div><div class="stat-label">DPIA Required</div></div>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card orange"><div class="stat-num" id="s-special">0</div><div class="stat-label">Special Category</div></div>
+    <div class="stat-card warn"><div class="stat-num" id="s-xfer">0</div><div class="stat-label">Int'l Transfers</div></div>
+    <div class="stat-card red"><div class="stat-num" id="s-critical">0</div><div class="stat-label">Critical Risk</div></div>
+    <div class="stat-card blue"><div class="stat-num" id="s-sar">0</div><div class="stat-label">Open DSRs</div></div>
+  </div>
+  <div class="table-wrap">
+    <div class="table-header"><span class="table-title">⬗ Risk Heatmap by Department</span></div>
+    <div id="heatmap-wrap" style="padding:.75rem"><div class="empty-state" style="padding:1rem">No entries yet.</div></div>
+  </div>
+  <div class="table-wrap">
+    <div class="table-header"><span class="table-title">⬡ Recent Processing Activities</span></div>
+    <table><thead><tr><th>Name</th><th>Controller</th><th>Dept</th><th>Risk</th><th>Completeness</th><th>Review Due</th><th>Status</th></tr></thead>
+    <tbody id="dash-table"><tr><td colspan="7" class="empty-state">No entries yet.</td></tr></tbody></table>
+  </div>
+</div>
+
+<!-- ROPA ENTRIES -->
+<div class="page" id="page-entries">
+  <div class="page-header"><div><div class="page-title">RoPA Entries</div><div class="page-subtitle">// All Processing Activity Records</div></div>
+    <div style="display:flex;gap:.45rem"><button class="btn btn-success btn-sm" onclick="exportToExcel()">⬇ Export</button><button class="btn btn-primary btn-sm" onclick="openNewEntry()">＋ New Entry</button></div>
+  </div>
+  <div class="search-bar"><input type="text" id="search-input" placeholder="Search entries..." oninput="renderEntries()"></div>
+  <div class="filter-row">
+    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('complete',this)">Complete</button>
+    <button class="filter-btn" onclick="setFilter('incomplete',this)">Incomplete</button>
+    <button class="filter-btn" onclick="setFilter('special',this)">Special Category</button>
+    <button class="filter-btn" onclick="setFilter('transfer',this)">Cross-Border</button>
+    <button class="filter-btn" onclick="setFilter('dpia',this)">DPIA Required</button>
+    <button class="filter-btn" onclick="setFilter('overdue',this)">⚠ Overdue</button>
+    <button class="filter-btn" onclick="setFilter('critical',this)">Critical Risk</button>
+  </div>
+  <div id="entries-list"><div class="empty-state"><div class="empty-icon">◈</div>No entries yet.</div></div>
+</div>
+
+<!-- DPIA -->
+<div class="page" id="page-dpia">
+  <div class="page-header"><div><div class="page-title">DPIA Register</div><div class="page-subtitle">// Data Protection Impact Assessments — Required for High-Risk &amp; Special Category Processing</div></div></div>
+  <div class="table-wrap"><div class="table-header"><span class="table-title">⚠ DPIA-Required Entries</span></div>
+  <table><thead><tr><th>Entry</th><th>Department</th><th>Risk</th><th>Trigger</th><th>DPIA Status</th><th>Art. 9 Basis</th></tr></thead>
+  <tbody id="dpia-table"><tr><td colspan="6" class="empty-state">No DPIA-required entries.</td></tr></tbody></table></div>
+</div>
+
+<!-- CONTROLLERS -->
+<div class="page" id="page-controllers">
+  <div class="page-header"><div><div class="page-title">Controllers &amp; DPO</div><div class="page-subtitle">// Data Controllers, Representatives &amp; Protection Officers</div></div><button class="btn btn-primary btn-sm" onclick="openControllerForm()">＋ Add Controller</button></div>
+  <div class="table-wrap"><div class="table-header"><span class="table-title">◎ Registered Controllers</span></div>
+  <table><thead><tr><th>Organisation</th><th>Type</th><th>Contact</th><th>Email</th><th>Phone</th><th>DPO</th><th>Actions</th></tr></thead>
+  <tbody id="controllers-table"><tr><td colspan="7" class="empty-state">No controllers.</td></tr></tbody></table></div>
+</div>
+
+<!-- RECIPIENTS -->
+<div class="page" id="page-recipients">
+  <div class="page-header"><div><div class="page-title">Recipients Registry</div><div class="page-subtitle">// Third Parties, Processors &amp; Disclosure Partners</div></div><button class="btn btn-primary btn-sm" onclick="openRecipientForm()">＋ Add Recipient</button></div>
+  <div class="table-wrap"><div class="table-header"><span class="table-title">◆ Data Recipients</span></div>
+  <table><thead><tr><th>Recipient</th><th>Category</th><th>Country</th><th>Basis</th><th>Third Country</th><th>Safeguards</th><th>Actions</th></tr></thead>
+  <tbody id="recipients-table"><tr><td colspan="7" class="empty-state">No recipients.</td></tr></tbody></table></div>
+</div>
+
+<!-- TRANSFERS -->
+<div class="page" id="page-transfers">
+  <div class="page-header"><div><div class="page-title">Cross-Border Transfers</div><div class="page-subtitle">// International Data Transfer Documentation</div></div><button class="btn btn-primary btn-sm" onclick="openTransferForm()">＋ Log Transfer</button></div>
+  <div class="table-wrap"><div class="table-header"><span class="table-title">⬡ Transfer Records</span></div>
+  <table><thead><tr><th>ID</th><th>Destination</th><th>Recipient</th><th>Safeguard</th><th>Docs</th><th>Review</th><th>Status</th></tr></thead>
+  <tbody id="transfers-table"><tr><td colspan="7" class="empty-state">No transfers.</td></tr></tbody></table></div>
+</div>
+
+<!-- RETENTION -->
+<div class="page" id="page-retention">
+  <div class="page-header"><div><div class="page-title">Retention Schedule</div><div class="page-subtitle">// Data Category Retention Periods &amp; Deletion Policies</div></div><button class="btn btn-primary btn-sm" onclick="openRetentionForm()">＋ Add Schedule</button></div>
+  <div class="table-wrap"><div class="table-header"><span class="table-title">⏱ Retention Periods</span></div>
+  <table><thead><tr><th>Data Category</th><th>Retention Period</th><th>Legal Basis</th><th>Deletion Method</th><th>Owner</th><th>Review Date</th><th>Actions</th></tr></thead>
+  <tbody id="retention-table"><tr><td colspan="7" class="empty-state">No schedules.</td></tr></tbody></table></div>
+</div>
+
+<!-- SECURITY -->
+<div class="page" id="page-security">
+  <div class="page-header"><div><div class="page-title">Security Measures</div><div class="page-subtitle">// Technical &amp; Organizational Security Controls</div></div><button class="btn btn-primary btn-sm" onclick="openSecurityForm()">＋ Add Measure</button></div>
+  <div class="table-wrap"><div class="table-header"><span class="table-title">⬗ Security Controls Register</span></div>
+  <table><thead><tr><th>Measure</th><th>Type</th><th>Description</th><th>Applies To</th><th>Status</th><th>Last Audit</th><th>Actions</th></tr></thead>
+  <tbody id="security-table"><tr><td colspan="7" class="empty-state">No measures.</td></tr></tbody></table></div>
+</div>
+
+<!-- DSR TRACKER -->
+<div class="page" id="page-sar">
+  <div class="page-header"><div><div class="page-title">Data Subject Rights Tracker</div><div class="page-subtitle">// SAR · Erasure · Rectification · Portability — 30-Day GDPR Deadline</div></div>
+    <button class="btn btn-primary btn-sm" onclick="openSARForm()">＋ Log Request</button>
+  </div>
+  <div class="filter-row">
+    <button class="filter-btn active" onclick="setSARFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setSARFilter('open',this)">Open</button>
+    <button class="filter-btn" onclick="setSARFilter('urgent',this)">⚠ Due Soon</button>
+    <button class="filter-btn" onclick="setSARFilter('completed',this)">Completed</button>
+  </div>
+  <div id="sar-list"><div class="empty-state"><div class="empty-icon">◉</div>No requests logged yet.</div></div>
+</div>
+
+<!-- DATA OWNERS -->
+<div class="page" id="page-owners">
+  <div class="page-header"><div><div class="page-title">Data Owners</div><div class="page-subtitle">// Registered Data Owners &amp; Type Mappings</div></div><button class="btn btn-primary btn-sm" onclick="openOwnerForm()">＋ Add Owner</button></div>
+  <div class="table-wrap"><div class="table-header"><span class="table-title">◉ Data Owner Registry</span></div>
+  <table><thead><tr><th>Name</th><th>Department</th><th>Email</th><th>Data Types Owned</th><th>Actions</th></tr></thead>
+  <tbody id="owners-table"><tr><td colspan="5" class="empty-state">No owners.</td></tr></tbody></table></div>
+</div>
+
+<!-- AUDIT LOG -->
+<div class="page" id="page-auditlog">
+  <div class="page-header"><div><div class="page-title">Audit Log</div><div class="page-subtitle">// Full Change History — Who Changed What and When</div></div>
+    <button class="btn btn-danger btn-sm" onclick="if(confirm('Clear audit log?')){state.auditLog=[];persistSave();renderAuditLog();}">Clear Log</button>
+  </div>
+  <div class="table-wrap"><div class="table-header"><span class="table-title">📋 Change History</span></div>
+    <div class="al-wrap" id="audit-log-list"><div class="empty-state">No changes recorded yet.</div></div>
+  </div>
+</div>
+
+</div><!-- end content -->
+</div><!-- end main -->
+</div><!-- end app -->
+
+<!-- ═══════ ENTRY MODAL ═══════ -->
+<div class="modal-overlay hidden" id="entry-modal">
+<div class="modal">
+  <div class="modal-header"><div class="modal-title" id="entry-modal-title">New Processing Activity</div><button class="btn btn-danger btn-sm" onclick="closeModal('entry-modal')">✕ Close</button></div>
+  <div class="modal-body">
+    <div class="form-section">
+      <div class="form-section-header"><span>◎</span> Controller &amp; DPO Information</div>
+      <div class="form-body">
+        <div class="org-picker-wrap" id="ctrl-picker-wrap">
+          <div class="org-pick-lbl">◉ Select saved organisation <span>— or fill manually below</span></div>
+          <div class="org-search-row"><input type="text" id="ctrl-org-search" placeholder="Search saved controllers..." autocomplete="off" oninput="orgFilter('ctrl')" onfocus="orgOpen('ctrl')" onkeydown="orgKey(event,'ctrl')"><span class="org-search-icon">⌕</span></div>
+          <div class="org-dd hidden" id="ctrl-org-dd"></div>
+          <div id="ctrl-filled-badge"></div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Controller Name<span class="required">*</span></label><input type="text" id="e-ctrl" placeholder="Organisation name"></div>
+          <div class="form-group"><label>Controller Email<span class="required">*</span></label><input type="email" id="e-ctrl-email" placeholder="controller@org.com"></div>
+          <div class="form-group"><label>Controller Phone</label><input type="text" id="e-ctrl-phone" placeholder="+263 ..."></div>
+          <div class="form-group"><label>Representative Name</label><input type="text" id="e-rep" placeholder="EU Representative (if applicable)"></div>
+          <div class="form-group"><label>DPO Name</label><input type="text" id="e-dpo" placeholder="Data Protection Officer"></div>
+          <div class="form-group"><label>DPO Email</label><input type="email" id="e-dpo-email" placeholder="dpo@org.com"></div>
+        </div>
+        <div class="org-save-row" id="ctrl-save-row"><input type="checkbox" id="ctrl-save-chk"><label for="ctrl-save-chk">Save this organisation to address book for future use</label></div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-header"><span>◈</span> Processing Details</div>
+      <div class="form-body"><div class="form-grid">
+        <div class="form-group form-full"><label>Processing Activity Name<span class="required">*</span></label><div id="sd-activity" class="sd-wrapper"></div></div>
+        <div class="form-group form-full"><label>Purpose of Processing<span class="required">*</span></label><textarea id="e-purpose" placeholder="Describe the specific purpose(s)..."></textarea></div>
+        <div class="form-group form-full" id="legal-basis-group">
+          <label id="legal-basis-label">Legal Basis<span class="required">*</span></label>
+          <div id="sd-legal-basis" class="sd-wrapper"></div>
+          <div id="legal-basis-hint" style="font-size:.68rem;color:var(--text3);font-family:var(--mono);margin-top:.3rem;letter-spacing:.04em">
+            ← Select jurisdiction(s) above to see relevant legal bases
+          </div>
+        </div>
+        <div class="form-group"><label>Department / Business Unit</label><input type="text" id="e-dept" placeholder="e.g. Human Resources"></div>
+        <div class="form-group"><label>Review Date</label><input type="date" id="e-review"></div>
+        <div class="form-group"><label>Risk Level</label>
+          <select id="e-risk" onchange="checkDPIA()"><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select></div>
+        <div class="form-group form-full">
+          <label>Applicable Data Protection Law(s)<span class="required">*</span></label>
+          <div id="sd-jurisdictions" class="sd-wrapper"></div>
+          <div id="jurisdiction-info-wrap" style="margin-top:.55rem"></div>
+        </div>
+      </div></div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-header"><span>◆</span> Data Types &amp; Subjects</div>
+      <div class="form-body">
+        <div class="form-group" style="margin-bottom:.9rem">
+          <label>Type of Data Being Processed<span class="required">*</span></label>
+          <div class="dt-section" style="margin-top:.45rem">
+            <div style="font-size:.65rem;color:var(--text2);margin-bottom:.45rem;font-family:var(--mono)">STANDARD DATA TYPES</div>
+            <div class="dt-select" id="std-types">
+              <button class="dt-btn" onclick="toggleDT(this,'Contact Information')">Contact Info</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Financial Data')">Financial Data</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Employment Data')">Employment Data</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Identity Documents')">Identity Docs</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Location Data')">Location Data</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Behavioral Data')">Behavioral Data</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Transaction Records')">Transactions</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Communications')">Communications</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Device &amp; Technical Data')">Device/Technical</button>
+              <button class="dt-btn" onclick="toggleDT(this,'Preferences &amp; Profiles')">Preferences</button>
+            </div>
+            <div style="font-size:.65rem;color:var(--danger);margin:.7rem 0 .45rem;font-family:var(--mono)">SPECIAL CATEGORY DATA (Art. 9 GDPR)</div>
+            <div class="dt-select" id="special-types">
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Health Data ⚠')">Health Data ⚠</button>
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Racial/Ethnic Origin ⚠')">Race/Ethnic Origin ⚠</button>
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Political Opinions ⚠')">Political Opinions ⚠</button>
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Religious Beliefs ⚠')">Religious Beliefs ⚠</button>
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Trade Union Membership ⚠')">Trade Union ⚠</button>
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Genetic Data ⚠')">Genetic Data ⚠</button>
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Biometric Data ⚠')">Biometric Data ⚠</button>
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Sexual Orientation ⚠')">Sexual Orientation ⚠</button>
+              <button class="dt-btn" style="border-color:rgba(255,61,90,.3);color:var(--danger)" onclick="toggleDT(this,'Criminal Records ⚠')">Criminal Records ⚠</button>
+            </div>
+          </div>
+          <!-- Art. 9 basis -->
+          <div class="art9-section" id="art9-section" style="display:none;margin-top:.7rem">
+            <div class="form-group">
+              <label>Special Category Legal Basis (Art. 9)<span class="required">*</span></label>
+              <select id="e-art9">
+                <option value="">Select Art. 9 basis...</option>
+                <option>Art. 9(2)(a) — Explicit consent</option>
+                <option>Art. 9(2)(b) — Employment &amp; social protection obligations</option>
+                <option>Art. 9(2)(c) — Vital interests</option>
+                <option>Art. 9(2)(d) — Legitimate activities (non-profit)</option>
+                <option>Art. 9(2)(e) — Data manifestly made public</option>
+                <option>Art. 9(2)(f) — Legal claims</option>
+                <option>Art. 9(2)(g) — Substantial public interest</option>
+                <option>Art. 9(2)(h) — Occupational medicine / health assessment</option>
+                <option>Art. 9(2)(i) — Public health</option>
+                <option>Art. 9(2)(j) — Research / statistics / archiving</option>
+              </select>
+            </div>
+          </div>
+          <!-- DPIA warning -->
+          <div class="dpia-warning" id="dpia-warning">
+            <span class="dpia-icon">⚠</span>
+            <div>
+              <b>DPIA Required</b>
+              This activity requires a Data Protection Impact Assessment — it involves <span id="dpia-reason">high-risk processing</span>. A DPIA must be completed before processing begins.
+              <div class="dpia-chk-row" style="margin-top:.55rem">
+                <input type="checkbox" id="dpia-chk">
+                <label for="dpia-chk">I confirm a DPIA has been completed or is formally underway for this processing activity</label>
+              </div>
+            </div>
+          </div>
+          <div id="dt-display" style="margin-top:.7rem"></div>
+        </div>
+        <div class="form-group form-full"><label>Categories of Data Subjects<span class="required">*</span></label><div id="sd-subjects" class="sd-wrapper"></div></div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-header"><span>◆</span> Recipients &amp; Third Parties</div>
+      <div class="form-body"><div class="form-grid">
+        <div class="form-group form-full">
+          <label>Quick-fill from Saved Recipients</label>
+          <div class="org-picker-wrap" style="margin-bottom:0">
+            <div class="org-search-row"><input type="text" id="recip-org-search" placeholder="Search saved recipients..." autocomplete="off" oninput="orgFilter('recip')" onfocus="orgOpen('recip')" onkeydown="orgKey(event,'recip')"><span class="org-search-icon">⌕</span></div>
+            <div class="org-dd hidden" id="recip-org-dd"></div>
+            <div id="recip-filled-badge"></div>
+          </div>
+        </div>
+        <div class="form-group form-full"><label>Categories of Recipients</label><div id="sd-recipients" class="sd-wrapper"></div></div>
+        <div class="form-group form-full"><label>Third Country Transfers</label><div id="sd-countries" class="sd-wrapper"></div></div>
+        <div class="form-group form-full"><label>Transfer Safeguards</label>
+          <select id="e-safeguards"><option value="">None / N/A</option><option>Standard Contractual Clauses (SCCs)</option><option>Adequacy Decision</option><option>Binding Corporate Rules (BCRs)</option><option>Certification Mechanism</option><option>Explicit Consent</option></select></div>
+      </div></div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-header"><span>⏱</span> Retention</div>
+      <div class="form-body"><div class="form-grid">
+        <div class="form-group"><label>Retention Period<span class="required">*</span></label><input type="text" id="e-retention" placeholder="e.g. 6 years from termination"></div>
+        <div class="form-group"><label>Retention Legal Basis</label><input type="text" id="e-ret-basis" placeholder="e.g. Labour Act Cap 28:01"></div>
+        <div class="form-group form-full"><label>Deletion / Anonymisation Method</label><div id="sd-deletion" class="sd-wrapper"></div></div>
+      </div></div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-header"><span>⬗</span> Security Measures</div>
+      <div class="form-body">
+        <div class="form-group"><label>Technical Measures</label><div id="sd-tech" class="sd-wrapper"></div></div>
+        <div class="form-group" style="margin-top:.8rem"><label>Organisational Measures</label><div id="sd-org" class="sd-wrapper"></div></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:.85rem">
+      <button class="btn btn-danger" onclick="closeModal('entry-modal')">Cancel</button>
+      <button class="btn btn-success" onclick="saveEntry()">⬡ Save Entry</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- CONTROLLER MODAL -->
+<div class="modal-overlay hidden" id="controller-modal">
+<div class="modal"><div class="modal-header"><div class="modal-title">Add Controller / DPO</div><button class="btn btn-danger btn-sm" onclick="closeModal('controller-modal')">✕</button></div>
+<div class="modal-body"><div class="form-grid">
+  <div class="form-group"><label>Organisation<span class="required">*</span></label><input type="text" id="c-org"></div>
+  <div class="form-group"><label>Type</label><select id="c-type"><option>Data Controller</option><option>Joint Controller</option><option>Processor</option><option>Representative</option></select></div>
+  <div class="form-group"><label>Contact Name<span class="required">*</span></label><input type="text" id="c-name"></div>
+  <div class="form-group"><label>Email<span class="required">*</span></label><input type="email" id="c-email"></div>
+  <div class="form-group"><label>Phone</label><input type="text" id="c-phone"></div>
+  <div class="form-group"><label>Address</label><input type="text" id="c-address"></div>
+  <div class="form-group"><label>DPO Name</label><input type="text" id="c-dpo"></div>
+  <div class="form-group"><label>DPO Email</label><input type="email" id="c-dpo-email"></div>
+</div>
+<div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:.85rem">
+  <button class="btn btn-danger" onclick="closeModal('controller-modal')">Cancel</button>
+  <button class="btn btn-success" onclick="saveController()">Save</button>
+</div></div></div></div>
+
+<!-- RECIPIENT MODAL -->
+<div class="modal-overlay hidden" id="recipient-modal">
+<div class="modal"><div class="modal-header"><div class="modal-title">Add Recipient</div><button class="btn btn-danger btn-sm" onclick="closeModal('recipient-modal')">✕</button></div>
+<div class="modal-body"><div class="form-grid">
+  <div class="form-group"><label>Recipient Name<span class="required">*</span></label><input type="text" id="r-name"></div>
+  <div class="form-group"><label>Category</label><select id="r-cat"><option>Cloud Provider</option><option>Government Authority</option><option>Regulatory Body</option><option>Sub-processor</option><option>Business Partner</option><option>Group Company</option><option>Payment Processor</option><option>Analytics Provider</option><option>Other</option></select></div>
+  <div class="form-group"><label>Country<span class="required">*</span></label><input type="text" id="r-country"></div>
+  <div class="form-group"><label>Third Country?</label><select id="r-third"><option value="No">No</option><option value="Yes">Yes</option></select></div>
+  <div class="form-group"><label>Basis for Sharing</label><input type="text" id="r-basis"></div>
+  <div class="form-group"><label>Safeguards</label><select id="r-safeguards"><option value="N/A">N/A</option><option>SCCs</option><option>Adequacy Decision</option><option>BCRs</option><option>Consent</option></select></div>
+  <div class="form-group form-full"><label>Data Shared</label><textarea id="r-data"></textarea></div>
+</div>
+<div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:.85rem">
+  <button class="btn btn-danger" onclick="closeModal('recipient-modal')">Cancel</button>
+  <button class="btn btn-success" onclick="saveRecipient()">Save</button>
+</div></div></div></div>
+
+<!-- TRANSFER MODAL -->
+<div class="modal-overlay hidden" id="transfer-modal">
+<div class="modal"><div class="modal-header"><div class="modal-title">Log International Transfer</div><button class="btn btn-danger btn-sm" onclick="closeModal('transfer-modal')">✕</button></div>
+<div class="modal-body"><div class="form-grid">
+  <div class="form-group"><label>Destination Country<span class="required">*</span></label><input type="text" id="t-country"></div>
+  <div class="form-group"><label>Recipient Organisation</label><input type="text" id="t-recipient"></div>
+  <div class="form-group"><label>Safeguard Mechanism<span class="required">*</span></label><select id="t-safeguard"><option value="">Select...</option><option>Standard Contractual Clauses (SCCs)</option><option>Adequacy Decision</option><option>Binding Corporate Rules (BCRs)</option><option>Explicit Consent</option><option>Vital Interests</option><option>Important Public Interest</option><option>Legal Claims</option></select></div>
+  <div class="form-group"><label>Documentation Reference</label><input type="text" id="t-doc"></div>
+  <div class="form-group"><label>Review Date</label><input type="date" id="t-review"></div>
+  <div class="form-group"><label>Status</label><select id="t-status"><option>Active</option><option>Under Review</option><option>Suspended</option><option>Terminated</option></select></div>
+  <div class="form-group form-full"><label>Description</label><textarea id="t-desc"></textarea></div>
+</div>
+<div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:.85rem">
+  <button class="btn btn-danger" onclick="closeModal('transfer-modal')">Cancel</button>
+  <button class="btn btn-success" onclick="saveTransfer()">Save</button>
+</div></div></div></div>
+
+<!-- RETENTION MODAL -->
+<div class="modal-overlay hidden" id="retention-modal">
+<div class="modal"><div class="modal-header"><div class="modal-title">Add Retention Schedule</div><button class="btn btn-danger btn-sm" onclick="closeModal('retention-modal')">✕</button></div>
+<div class="modal-body"><div class="form-grid">
+  <div class="form-group"><label>Data Category<span class="required">*</span></label><input type="text" id="ret-cat"></div>
+  <div class="form-group"><label>Retention Period<span class="required">*</span></label><input type="text" id="ret-period"></div>
+  <div class="form-group"><label>Legal Basis</label><input type="text" id="ret-basis"></div>
+  <div class="form-group"><label>Deletion Method</label><select id="ret-method"><option>Secure Deletion</option><option>Physical Destruction</option><option>Anonymisation</option><option>Pseudonymisation</option><option>Archiving</option></select></div>
+  <div class="form-group"><label>Responsible Owner</label><select id="ret-owner"><option value="">Select owner...</option></select></div>
+  <div class="form-group"><label>Review Date</label><input type="date" id="ret-review"></div>
+</div>
+<div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:.85rem">
+  <button class="btn btn-danger" onclick="closeModal('retention-modal')">Cancel</button>
+  <button class="btn btn-success" onclick="saveRetention()">Save</button>
+</div></div></div></div>
+
+<!-- SECURITY MODAL -->
+<div class="modal-overlay hidden" id="security-modal">
+<div class="modal"><div class="modal-header"><div class="modal-title">Add Security Measure</div><button class="btn btn-danger btn-sm" onclick="closeModal('security-modal')">✕</button></div>
+<div class="modal-body"><div class="form-grid">
+  <div class="form-group"><label>Measure Name<span class="required">*</span></label><input type="text" id="sec-name"></div>
+  <div class="form-group"><label>Type</label><select id="sec-type"><option>Technical</option><option>Organizational</option><option>Physical</option></select></div>
+  <div class="form-group form-full"><label>Description<span class="required">*</span></label><textarea id="sec-desc"></textarea></div>
+  <div class="form-group"><label>Applies To</label><input type="text" id="sec-applies"></div>
+  <div class="form-group"><label>Status</label><select id="sec-status"><option>Active</option><option>In Progress</option><option>Planned</option><option>Retired</option></select></div>
+  <div class="form-group"><label>Last Audit Date</label><input type="date" id="sec-audit"></div>
+</div>
+<div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:.85rem">
+  <button class="btn btn-danger" onclick="closeModal('security-modal')">Cancel</button>
+  <button class="btn btn-success" onclick="saveSecurity()">Save</button>
+</div></div></div></div>
+
+<!-- OWNER MODAL -->
+<div class="modal-overlay hidden" id="owner-modal">
+<div class="modal"><div class="modal-header"><div class="modal-title">Add Data Owner</div><button class="btn btn-danger btn-sm" onclick="closeModal('owner-modal')">✕</button></div>
+<div class="modal-body"><div class="form-grid">
+  <div class="form-group"><label>Full Name<span class="required">*</span></label><input type="text" id="o-name"></div>
+  <div class="form-group"><label>Department<span class="required">*</span></label><input type="text" id="o-dept"></div>
+  <div class="form-group form-full"><label>Email<span class="required">*</span></label><input type="email" id="o-email"></div>
+  <div class="form-group form-full"><label>Data Types This Owner Is Responsible For</label>
+    <div class="dt-select" id="owner-type-select" style="margin-top:.45rem">
+      <button class="dt-btn" onclick="toggleOT(this,'Contact Information')">Contact Info</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Financial Data')">Financial Data</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Employment Data')">Employment Data</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Identity Documents')">Identity Docs</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Location Data')">Location Data</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Behavioral Data')">Behavioral Data</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Transaction Records')">Transactions</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Health Data ⚠')">Health Data ⚠</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Biometric Data ⚠')">Biometric Data ⚠</button>
+      <button class="dt-btn" onclick="toggleOT(this,'Device &amp; Technical Data')">Device/Technical</button>
+    </div>
+  </div>
+</div>
+<div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:.85rem">
+  <button class="btn btn-danger" onclick="closeModal('owner-modal')">Cancel</button>
+  <button class="btn btn-success" onclick="saveOwner()">Save</button>
+</div></div></div></div>
+
+<!-- SAR MODAL -->
+<div class="modal-overlay hidden" id="sar-modal">
+<div class="modal"><div class="modal-header"><div class="modal-title">Log Data Subject Request</div><button class="btn btn-danger btn-sm" onclick="closeModal('sar-modal')">✕</button></div>
+<div class="modal-body"><div class="form-grid">
+  <div class="form-group"><label>Request Type<span class="required">*</span></label>
+    <select id="sar-type"><option>Subject Access Request (SAR)</option><option>Right to Erasure</option><option>Right to Rectification</option><option>Right to Restriction</option><option>Right to Portability</option><option>Right to Object</option></select></div>
+  <div class="form-group"><label>Data Subject Name</label><input type="text" id="sar-name" placeholder="Full name (or Anonymous)"></div>
+  <div class="form-group"><label>Date Received<span class="required">*</span></label><input type="date" id="sar-received"></div>
+  <div class="form-group"><label>Deadline (auto: +30 days)</label><input type="date" id="sar-deadline"></div>
+  <div class="form-group"><label>Status</label><select id="sar-status"><option>Open</option><option>In Progress</option><option>Completed</option><option>Rejected</option></select></div>
+  <div class="form-group"><label>Assigned To</label><input type="text" id="sar-assigned" placeholder="Person responsible"></div>
+  <div class="form-group form-full"><label>Notes</label><textarea id="sar-notes" placeholder="Details of the request..."></textarea></div>
+</div>
+<div style="display:flex;gap:.65rem;justify-content:flex-end;margin-top:.85rem">
+  <button class="btn btn-danger" onclick="closeModal('sar-modal')">Cancel</button>
+  <button class="btn btn-success" onclick="saveSAR()">Save Request</button>
+</div></div></div></div>
+
+<script>
+/* ═══════════════════════════════ AUTH ═══════════════════════════════ */
+let currentUser='Unknown';
+(function authGuard(){
+  const s=sessionStorage.getItem('ropa_session');
+  if(!s){window.location.href='login.html';return;}
+  try{
+    const p=JSON.parse(s);currentUser=p.displayName||p.username||'Unknown';
+    document.getElementById('user-display').textContent=currentUser;
+    if(typeof ROPA_CONFIG!=='undefined'&&ROPA_CONFIG.orgName){
+      const h=document.getElementById('header-app-name');
+      if(h&&!h.querySelector('.org-suf')){const sf=document.createElement('span');sf.className='org-suf';sf.style.cssText='font-size:.52rem;color:var(--text3);font-family:var(--mono);margin-left:.45rem;letter-spacing:.1em;align-self:center;';sf.textContent='· '+ROPA_CONFIG.orgName;h.appendChild(sf);}
+    }
+  }catch(e){window.location.href='login.html';}
+})();
+function logout(){if(confirm('Log out of RoPAforge?')){sessionStorage.removeItem('ropa_session');window.location.href='login.html';}}
+
+/* ═══════════════════════════════ STATE ═══════════════════════════════ */
+const state={entries:[],controllers:[],recipients:[],transfers:[],retention:[],security:[],owners:[],sarList:[],auditLog:[],selDT:[],selOT:[],editIdx:null};
+let curFilter='all',sarFilter='all';
+
+/* ═══════════════════════════════ PERSIST ═══════════════════════════════ */
+const LS='ropa_data_v1';
+let saveTimer=null;
+function persistSave(){
+  const ind=document.getElementById('save-indicator'),txt=document.getElementById('save-text');
+  ind.className='save-indicator saving';txt.textContent='SAVING...';
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    try{
+      localStorage.setItem(LS,JSON.stringify({entries:state.entries,controllers:state.controllers,recipients:state.recipients,transfers:state.transfers,retention:state.retention,security:state.security,owners:state.owners,sarList:state.sarList,auditLog:state.auditLog,savedAt:new Date().toISOString()}));
+      ind.className='save-indicator saved';txt.textContent='ALL DATA SAVED';updateStorageBanner();
+    }catch(e){ind.className='save-indicator saving';txt.textContent='SAVE FAILED';}
+    setTimeout(()=>{ind.className='save-indicator';txt.textContent='AUTO-SAVE ON';},3000);
+  },600);
+}
+function persistLoad(){
+  try{
+    const raw=localStorage.getItem(LS);if(!raw)return false;
+    const p=JSON.parse(raw);
+    state.entries=p.entries||[];state.controllers=p.controllers||[];state.recipients=p.recipients||[];
+    state.transfers=p.transfers||[];state.retention=p.retention||[];state.security=p.security||[];
+    state.owners=p.owners||[];state.sarList=p.sarList||[];state.auditLog=p.auditLog||[];
+    return p.savedAt||true;
+  }catch(e){return false;}
+}
+function getStorageSize(){try{const b=new Blob([localStorage.getItem(LS)||'']).size;return b<1048576?(b/1024).toFixed(1)+'KB':(b/1048576).toFixed(2)+'MB';}catch(e){return'?';}}
+function updateStorageBanner(){
+  const w=document.getElementById('storage-banner-wrap');if(!w)return;
+  const t=state.entries.length+state.controllers.length+state.recipients.length+state.transfers.length+state.retention.length+state.security.length+state.owners.length;
+  if(!t){w.innerHTML='';return;}
+  let sa='';try{sa=JSON.parse(localStorage.getItem(LS)).savedAt;sa=sa?new Date(sa).toLocaleString():'';}catch(e){}
+  w.innerHTML=`<div class="storage-banner">💾 ${t} records · Last saved: ${sa||'just now'}<span class="sb-size">${getStorageSize()}</span></div>`;
+}
+function confirmClearData(){
+  if(confirm('⚠ Permanently delete ALL data?\n\nThis cannot be undone.')){
+    localStorage.removeItem(LS);
+    Object.assign(state,{entries:[],controllers:[],recipients:[],transfers:[],retention:[],security:[],owners:[],sarList:[],auditLog:[]});
+    updateStats();renderDashboard();renderEntries();updateStorageBanner();
+    document.getElementById('save-text').textContent='DATA CLEARED';
+  }
+}
+
+/* ═══════════════════════════════ AUDIT LOG ═══════════════════════════════ */
+function addAuditLog(action,detail){
+  state.auditLog.unshift({ts:new Date().toISOString(),action,detail,user:currentUser});
+  if(state.auditLog.length>500)state.auditLog.length=500;
+}
+function renderAuditLog(){
+  const el=document.getElementById('audit-log-list');if(!el)return;
+  if(!state.auditLog.length){el.innerHTML='<div class="empty-state">No changes recorded yet.</div>';return;}
+  el.innerHTML=state.auditLog.map(a=>{
+    const d=new Date(a.ts);
+    return`<div class="al-item"><div class="al-time">${d.toLocaleDateString()} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div><div class="al-action"><strong>${a.action}</strong> — ${a.detail}</div><div class="al-user">${a.user}</div></div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════ SMART DROPDOWN ═══════════════════════════════ */
+const SD={};let activeSD=null;
+function sdCreate(id,{opts,multi=true,ph='Select...'}){
+  const wrap=document.getElementById(id);if(!wrap)return;
+  SD[id]={opts:[...opts],sel:[],multi,id};
+  wrap.innerHTML=`<div class="sd-trigger" id="sdT-${id}" onclick="sdToggle('${id}')"><span class="sd-trigger-label" id="sdL-${id}">${ph}</span><span class="sd-arrow" id="sdA-${id}">▾</span></div><div class="sd-chips" id="sdC-${id}"></div>`;
+  const p=document.createElement('div');p.className='sd-panel hidden';p.id='sdP-'+id;
+  p.innerHTML=`<div class="sd-search-row"><span style="color:var(--text3);font-size:.78rem">🔍</span><input type="text" id="sdS-${id}" placeholder="Search..." oninput="sdFilter('${id}',this.value)" onkeydown="if(event.key==='Escape')sdClose('${id}')"></div><div class="sd-list" id="sdR-${id}"></div><div class="sd-add-row"><input type="text" id="sdO-${id}" placeholder="Type custom option..." onkeydown="if(event.key==='Enter'){event.preventDefault();sdAddCustom('${id}')}"><button class="sd-add-btn" onclick="sdAddCustom('${id}')">＋ Add</button></div>`;
+  document.body.appendChild(p);sdRenderList(id,'');
+}
+function sdToggle(id){
+  if(activeSD&&activeSD!==id)sdClose(activeSD);
+  const p=document.getElementById('sdP-'+id);if(!p)return;
+  if(!p.classList.contains('hidden')){sdClose(id);return;}
+  const t=document.getElementById('sdT-'+id);const r=t.getBoundingClientRect();
+  const pw=Math.max(r.width,320);let left=r.left;
+  if(left+pw>window.innerWidth-10)left=window.innerWidth-pw-10;if(left<6)left=6;
+  const spB=window.innerHeight-r.bottom-6;const ph=360;
+  const top=spB>=160?r.bottom+3:Math.max(6,r.top-ph-3);
+  p.style.cssText=`left:${left}px;top:${top}px;width:${pw}px;max-height:${Math.min(ph,window.innerHeight-top-6)}px`;
+  p.classList.remove('hidden');t.classList.add('open');
+  const a=document.getElementById('sdA-'+id);if(a){a.style.transform='rotate(180deg)';a.style.color='var(--accent)';}
+  activeSD=id;setTimeout(()=>document.getElementById('sdS-'+id)?.focus(),40);
+}
+function sdClose(id){
+  document.getElementById('sdP-'+id)?.classList.add('hidden');
+  const t=document.getElementById('sdT-'+id);if(t)t.classList.remove('open');
+  const a=document.getElementById('sdA-'+id);if(a){a.style.transform='';a.style.color='';}
+  const s=document.getElementById('sdS-'+id);if(s){s.value='';sdRenderList(id,'');}
+  if(activeSD===id)activeSD=null;
+}
+function sdFilter(id,q){sdRenderList(id,q.toLowerCase());}
+function sdRenderList(id,q){
+  const inst=SD[id];if(!inst)return;const r=document.getElementById('sdR-'+id);if(!r)return;
+  const f=inst.opts.filter(o=>o.v.toLowerCase().includes(q)||o.l.toLowerCase().includes(q));
+  if(!f.length){r.innerHTML=`<div class="sd-empty">No matches — use Add below</div>`;return;}
+  r.innerHTML=f.map(o=>{const sel=inst.sel.includes(o.v);return`<div class="sd-item${sel?' selected':''}" onclick="sdPick('${id}','${o.v.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')"><span class="sd-check"></span><span style="flex:1">${o.l}</span></div>`;}).join('');
+}
+function sdPick(id,val){
+  const inst=SD[id];if(!inst)return;
+  if(!inst.multi){inst.sel=[val];sdClose(id);}
+  else{const i=inst.sel.indexOf(val);if(i>-1)inst.sel.splice(i,1);else inst.sel.push(val);sdRenderList(id,document.getElementById('sdS-'+id)?.value.toLowerCase()||'');}
+  sdUpdateChips(id);sdUpdateTrigger(id);
+}
+function sdAddCustom(id){
+  const inp=document.getElementById('sdO-'+id);const v=inp.value.trim();if(!v)return;
+  const inst=SD[id];if(!inst.opts.find(o=>o.v===v))inst.opts.push({v,l:v});
+  if(!inst.sel.includes(v))inst.sel.push(v);inp.value='';
+  sdRenderList(id,'');sdUpdateChips(id);sdUpdateTrigger(id);if(!inst.multi)sdClose(id);
+}
+function sdRemove(id,val){const inst=SD[id];if(!inst)return;inst.sel=inst.sel.filter(v=>v!==val);sdUpdateChips(id);sdUpdateTrigger(id);sdRenderList(id,'');}
+function sdUpdateChips(id){
+  const inst=SD[id];const w=document.getElementById('sdC-'+id);if(!w)return;
+  w.innerHTML=inst.sel.map(v=>{const o=inst.opts.find(x=>x.v===v)||{v,l:v};return`<span class="sd-chip">${o.l}<span class="sd-chip-x" onclick="sdRemove('${id}','${v.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">✕</span></span>`;}).join('');
+}
+function sdUpdateTrigger(id){
+  const inst=SD[id];const lbl=document.getElementById('sdL-'+id);if(!lbl)return;
+  if(!inst.sel.length){lbl.textContent='Select...';lbl.classList.remove('filled');}
+  else if(!inst.multi){lbl.textContent=inst.sel[0];lbl.classList.add('filled');}
+  else{lbl.textContent=inst.sel.length===1?inst.sel[0]:`${inst.sel.length} selected`;lbl.classList.add('filled');}
+}
+function sdGet(id){const inst=SD[id];if(!inst)return inst?.multi?[]:'';return inst.multi?[...inst.sel]:(inst.sel[0]||'');}
+function sdSet(id,val){
+  const inst=SD[id];if(!inst)return;
+  const arr=Array.isArray(val)?val:(val?[val]:[]);
+  arr.forEach(v=>{if(v&&!inst.opts.find(o=>o.v===v))inst.opts.push({v,l:v});});
+  inst.sel=arr.filter(Boolean);sdUpdateChips(id);sdUpdateTrigger(id);sdRenderList(id,'');
+}
+document.addEventListener('click',e=>{
+  if(!activeSD)return;
+  const p=document.getElementById('sdP-'+activeSD);const t=document.getElementById('sdT-'+activeSD);
+  if(p&&!p.contains(e.target)&&t&&!t.contains(e.target))sdClose(activeSD);
+},{passive:true});
+
+/* ═══════════════════════════════ OPTION LIBRARIES ═══════════════════════════════ */
+const o=(v,l)=>({v,l:l||v});
+const ACTIVITIES=[o('Employee Payroll Processing'),o('Recruitment & Onboarding'),o('Customer Relationship Management (CRM)'),o('Marketing & Communications'),o('IT Systems Administration'),o('Access Control & Physical Security'),o('CCTV & Surveillance'),o('Employee Performance Management'),o('Finance & Accounting'),o('Contract Management'),o('Legal & Compliance'),o('Health & Safety Management'),o('Training & Development'),o('Customer Support & Helpdesk'),o('Website Analytics & Cookies'),o('E-commerce & Order Processing'),o('Fraud Detection & Prevention'),o('Supplier & Vendor Management'),o('Research & Development'),o('Data Subject Rights Handling'),o('Incident & Breach Management'),o('Employee Benefits Administration'),o('Background Checks & Vetting'),o('Email & Communication Monitoring'),o('Third-Party Due Diligence'),o('Occupational Health & Medical Records'),o('Customer Contact Centre Operations'),o('Quality Assurance & Call Monitoring'),o('Finance, Invoicing & Tax Reporting')];
+const SUBJECTS=[o('Employees'),o('Job Applicants / Candidates'),o('Contractors & Freelancers'),o('Customers / Clients'),o('Prospective Customers / Leads'),o('Website Visitors'),o('Suppliers & Vendors'),o('Business Partners'),o('Shareholders / Investors'),o('Students / Trainees'),o('Patients'),o('Children (under 18)'),o('Vulnerable Individuals'),o('Former Employees'),o('Emergency Contacts'),o('Public / General Members')];
+const RECIPIENTS=[o('Internal Teams / Departments'),o('Cloud Service Providers (e.g. AWS, Azure, GCP)'),o('Payroll Processors'),o('HR Software Providers'),o('Legal Advisors / Solicitors'),o('Accountants & Auditors'),o('Banks & Financial Institutions'),o('Payment Processors'),o('Marketing & Advertising Agencies'),o('Analytics Providers'),o('IT Support & Managed Services'),o('Government & Regulatory Bodies'),o('Tax Authorities (e.g. ZIMRA)'),o('Law Enforcement Agencies'),o('Healthcare Providers'),o('Insurance Companies'),o('Background Check Agencies'),o('Recruitment Agencies'),o('Group / Parent Companies'),o('Pension Providers'),o('Benefit Providers'),o('Occupational Health Providers'),o('Client Organisations')];
+const COUNTRIES=[o('Zimbabwe'),o('South Africa'),o('United Kingdom'),o('European Union (EEA)'),o('United States'),o('Canada'),o('Australia'),o('India'),o('China'),o('Brazil'),o('Singapore'),o('Japan'),o('Switzerland'),o('New Zealand'),o('United Arab Emirates'),o('Nigeria'),o('Kenya'),o('Zambia'),o('Botswana')];
+const DELETION=[o('Secure Electronic Deletion (DoD 5220.22-M)'),o('Physical Destruction (shredding / degaussing)'),o('Anonymisation (irreversible, GDPR recital 26)'),o('Pseudonymisation (key-separated)'),o('Archiving with Restricted Access'),o('Cryptographic Erasure (key deletion)'),o('Overwriting / Wiping (multiple passes)'),o('Cloud Provider Deletion API'),o('Automated Purge on Expiry'),o('Manual Deletion by Data Owner')];
+const TECH=[o('AES-256 Encryption at Rest'),o('TLS 1.2/1.3 Encryption in Transit'),o('Multi-Factor Authentication (MFA)'),o('Role-Based Access Control (RBAC)'),o('Firewall & Intrusion Detection (IDS/IPS)'),o('Data Loss Prevention (DLP) Tools'),o('Vulnerability Scanning & Patching'),o('Automated Backup & Recovery'),o('SIEM / Log Management'),o('Endpoint Detection & Response (EDR)'),o('Pseudonymisation of Records'),o('Database Activity Monitoring'),o('Network Segmentation & DMZ'),o('Penetration Testing (annual)'),o('Cloud Security Posture Management (CSPM)'),o('Zero Trust Architecture'),o('API Security Gateways'),o('Email Filtering & Anti-Phishing'),o('Mobile Device Management (MDM)'),o('Privacy-Enhancing Technologies (PETs)')];
+const ORG=[o('Data Protection Policy'),o('GDPR / Privacy Training for Staff'),o('Data Protection Impact Assessments (DPIA)'),o('Information Security Policy'),o('Acceptable Use Policy'),o('Data Retention & Disposal Policy'),o('Incident Response Plan'),o('Data Processing Agreements (DPAs) with processors'),o('Third-Party Due Diligence Process'),o('Clean Desk / Clear Screen Policy'),o('Background Checks for Staff'),o('NDA / Confidentiality Agreements'),o('Regular Privacy Audits'),o('Subject Access Request (SAR) Process'),o('ISO 27001 Certification'),o('Cyber Essentials / Plus Certification'),o('Business Continuity Plan (BCP)'),o('Segregation of Duties'),o('Least Privilege / Access Reviews (quarterly)'),o('Whistleblowing / Reporting Channel')];
+
+/* ─ Jurisdiction library ─ */
+const JURISDICTIONS=[
+  o('GDPR (EU/EEA) — Regulation (EU) 2016/679'),
+  o('UK GDPR — retained GDPR & Data Protection Act 2018'),
+  o('Zimbabwe — Cybersecurity & Data Protection Act 2021'),
+  o('South Africa — Protection of Personal Information Act (POPIA) 4 of 2013'),
+  o('Kenya — Data Protection Act 2019'),
+  o('Nigeria — Nigeria Data Protection Regulation (NDPR) 2019'),
+  o('Nigeria — Nigeria Data Protection Act (NDPA) 2023'),
+  o('Ghana — Data Protection Act 2012 (Act 843)'),
+  o('Uganda — Data Protection and Privacy Act 2019'),
+  o('Tanzania — Electronic and Postal Communications Act (EPOCA)'),
+  o('Botswana — Data Protection Act 2018'),
+  o('Mauritius — Data Protection Act 2017'),
+  o('Egypt — Personal Data Protection Law 2020'),
+  o('Morocco — Law 09-08 on Personal Data Protection'),
+  o('Rwanda — Law No. 058/2021 on Personal Data Protection'),
+  o('Ethiopia — Personal Data Protection Proclamation (draft)'),
+  o('Zambia — Electronic Communications and Transactions Act'),
+  o('Malawi — Electronic Transactions and Cyber Security Act 2016'),
+  o('Mozambique — Law 3/2017 on Electronic Transactions'),
+  o('United States — Various (CCPA, HIPAA, COPPA, GLBA)'),
+  o('California — CCPA / CPRA'),
+  o('Canada — PIPEDA (Personal Information Protection and Electronic Documents Act)'),
+  o('Canada — Bill C-27 / CPPA (proposed)'),
+  o('Australia — Privacy Act 1988 (amended 2022)'),
+  o('India — Digital Personal Data Protection Act 2023'),
+  o('China — Personal Information Protection Law (PIPL) 2021'),
+  o('Brazil — LGPD (Lei Geral de Proteção de Dados) 2020'),
+  o('Singapore — Personal Data Protection Act (PDPA) 2012'),
+  o('Japan — Act on Protection of Personal Information (APPI)'),
+  o('Switzerland — Federal Act on Data Protection (revFADP) 2023'),
+  o('UAE — Federal Decree-Law No. 45 of 2021'),
+  o('Saudi Arabia — Personal Data Protection Law (PDPL) 2021'),
+  o('New Zealand — Privacy Act 2020'),
+];
+
+/* Jurisdiction info cards — short descriptions shown when selected */
+const JURISDICTION_INFO={
+  'GDPR (EU/EEA) — Regulation (EU) 2016/679':{
+    short:'EU',flag:'🇪🇺',
+    authority:'Data Protection Authorities (each EU member state)',
+    keyObligation:'Art. 30 RoPA mandatory for controllers & processors with 250+ employees (exceptions apply)',
+    specialCategory:'Art. 9 — explicit additional basis required',
+    breach:'72 hours to supervisory authority (Art. 33)',
+    maxFine:'€20M or 4% global turnover',
+    color:'0070C0'
+  },
+  'UK GDPR — retained GDPR & Data Protection Act 2018':{
+    short:'UK',flag:'🇬🇧',
+    authority:'Information Commissioner\'s Office (ICO)',
+    keyObligation:'Art. 30 RoPA — same as EU GDPR (retained post-Brexit)',
+    specialCategory:'Same as EU GDPR Art. 9',
+    breach:'72 hours to ICO',
+    maxFine:'£17.5M or 4% global turnover',
+    color:'003366'
+  },
+  'Zimbabwe — Cybersecurity & Data Protection Act 2021':{
+    short:'ZW',flag:'🇿🇼',
+    authority:'Postal and Telecommunications Regulatory Authority (POTRAZ)',
+    keyObligation:'Registration of data controllers; data processing principles under Part III',
+    specialCategory:'Sensitive personal information defined in s.2 — requires explicit consent',
+    breach:'Must notify POTRAZ and data subjects without undue delay',
+    maxFine:'ZWL 5,000 / USD 2,000 (civil); criminal penalties apply',
+    color:'007A3D'
+  },
+  'South Africa — Protection of Personal Information Act (POPIA) 4 of 2013':{
+    short:'ZA',flag:'🇿🇦',
+    authority:'Information Regulator of South Africa',
+    keyObligation:'8 conditions for lawful processing; operator (processor) agreements mandatory',
+    specialCategory:'Special personal information (s.26) — health, race, belief, criminal, child data',
+    breach:'Notify Information Regulator & data subjects as soon as reasonably possible',
+    maxFine:'R10M (criminal); civil claims available',
+    color:'007A3D'
+  },
+  'Kenya — Data Protection Act 2019':{
+    short:'KE',flag:'🇰🇪',
+    authority:'Office of the Data Protection Commissioner (ODPC)',
+    keyObligation:'Registration of data controllers/processors; data protection impact assessments',
+    specialCategory:'Sensitive personal data — health, race, ethnic, political, religion, biometrics',
+    breach:'Notify ODPC within 72 hours; notify data subjects if high risk',
+    maxFine:'KES 5M or 1% annual turnover',
+    color:'006600'
+  },
+  'Nigeria — Nigeria Data Protection Act (NDPA) 2023':{
+    short:'NG',flag:'🇳🇬',
+    authority:'Nigeria Data Protection Commission (NDPC)',
+    keyObligation:'Data controllers of major importance must file compliance audit annually',
+    specialCategory:'Sensitive data — health, biometric, genetic, criminal, political, religious',
+    breach:'Notify NDPC within 72 hours; notify data subjects if high risk',
+    maxFine:'₦10M or 2% annual gross revenue',
+    color:'008751'
+  },
+  'Botswana — Data Protection Act 2018':{
+    short:'BW',flag:'🇧🇼',
+    authority:'Information and Data Protection Commissioner',
+    keyObligation:'Registration of data controllers; purpose limitation; data subject rights',
+    specialCategory:'Sensitive personal data requires explicit consent or specific lawful basis',
+    breach:'Notify Commissioner; notify data subjects if significant harm likely',
+    maxFine:'BWP 500,000 or 5 years imprisonment',
+    color:'75AADB'
+  },
+  'Zambia — Electronic Communications and Transactions Act':{
+    short:'ZM',flag:'🇿🇲',
+    authority:'Zambia Information and Communications Technology Authority (ZICTA)',
+    keyObligation:'Data collection with consent; security safeguards; limited cross-border transfers',
+    specialCategory:'Limited specific provisions — general data protection principles apply',
+    breach:'No prescribed notification window — notify promptly',
+    maxFine:'Fines prescribed under ZICTA Act',
+    color:'198A00'
+  },
+};
+
+/* ═══════════════════════════════ NAV ═══════════════════════════════ */
+function showPage(p,el){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');if(el)el.classList.add('active');
+  if(p==='dashboard'){renderDashboard();updateStorageBanner();}
+  else if(p==='entries')renderEntries();
+  else if(p==='dpia')renderDPIA();
+  else if(p==='controllers')renderControllers();
+  else if(p==='recipients')renderRecipients();
+  else if(p==='transfers')renderTransfers();
+  else if(p==='retention')renderRetentionTable();
+  else if(p==='security')renderSecurity();
+  else if(p==='sar')renderSAR();
+  else if(p==='owners')renderOwners();
+  else if(p==='auditlog')renderAuditLog();
+}
+function closeModal(id){document.getElementById(id).classList.add('hidden');if(activeSD)sdClose(activeSD);}
+function openModal(id){document.getElementById(id).classList.remove('hidden');}
+
+/* ═══════════════════════════════ HELPERS ═══════════════════════════════ */
+function isComplete(e){return!!(e.name&&e.controller&&e.purpose&&e.dataTypes?.length&&e.subjects?.length&&e.retention);}
+function dpiaRequired(e){return e.dataTypes?.some(d=>d.includes('⚠'))||e.risk==='High'||e.risk==='Critical';}
+function isOverdue(e){return e.reviewDate&&new Date(e.reviewDate)<new Date();}
+function riskBadge(r){const m={Low:'badge-green',Medium:'badge-warn',High:'badge-orange',Critical:'badge-red'};return`<span class="badge ${m[r]||'badge-gray'}">${r||'—'}</span>`;}
+function reviewBadge(e){
+  if(!e.reviewDate)return'<span style="color:var(--text3);font-size:.7rem">—</span>';
+  const d=new Date(e.reviewDate).toLocaleDateString();
+  return isOverdue(e)?`<span class="badge badge-overdue">⚠ OVERDUE ${d}</span>`:`<span style="font-size:.7rem;color:var(--text2)">${d}</span>`;
+}
+function cScore(e){
+  const fs=[e.name,e.controller,e.controllerEmail,e.purpose,e.legalBasis,e.department,e.dataTypes?.length,e.subjects?.length,e.retention,e.retentionBasis,e.deletion,e.techMeasures?.length,e.orgMeasures?.length,e.reviewDate];
+  return Math.round(fs.filter(f=>f&&f!==0&&f!=='').length/fs.length*100);
+}
+function cBar(sc){const cls=sc>=80?'c-high':sc>=50?'c-mid':'c-low';const col=sc>=80?'var(--accent2)':sc>=50?'var(--warn)':'var(--danger)';return`<div style="font-size:.68rem;color:${col};font-family:var(--mono)">${sc}%</div><div class="c-bar"><div class="c-fill ${cls}" style="width:${sc}%"></div></div>`;}
+
+/* ═══════════════════════════════ DPIA TRIGGER ═══════════════════════════════ */
+function checkDPIA(){
+  const hasSpecial=state.selDT.some(d=>d.includes('⚠'));
+  const risk=document.getElementById('e-risk')?.value;
+  const warn=document.getElementById('dpia-warning');if(!warn)return;
+  if(hasSpecial||risk==='High'||risk==='Critical'){
+    const rs=[];if(hasSpecial)rs.push('special category data (Art. 9)');if(risk==='High')rs.push('high risk level');if(risk==='Critical')rs.push('critical risk level');
+    document.getElementById('dpia-reason').textContent=rs.join(' and ');
+    warn.classList.add('show');
+  } else warn.classList.remove('show');
+}
+
+/* ═══════════════════════════════ DATA TYPES ═══════════════════════════════ */
+function toggleDT(btn,type){
+  btn.classList.toggle('selected');
+  if(btn.classList.contains('selected'))state.selDT.push(type);else state.selDT=state.selDT.filter(t=>t!==type);
+  document.getElementById('art9-section').style.display=state.selDT.some(d=>d.includes('⚠'))?'block':'none';
+  updateDTDisplay();checkDPIA();
+}
+function toggleOT(btn,type){btn.classList.toggle('selected');if(btn.classList.contains('selected'))state.selOT.push(type);else state.selOT=state.selOT.filter(t=>t!==type);}
+function updateDTDisplay(){
+  const d=document.getElementById('dt-display');if(!d||!state.selDT.length){if(d)d.innerHTML='';return;}
+  const om={};state.owners.forEach(ow=>(ow.types||[]).forEach(t=>{if(!om[t])om[t]=[];om[t].push(ow);}));
+  let h='<div style="font-size:.62rem;color:var(--text3);font-family:var(--mono);margin-bottom:.35rem">SELECTED TYPES & OWNERS</div>';
+  state.selDT.forEach(t=>{
+    const sp=t.includes('⚠');const ows=om[t]||[];
+    h+=`<div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.35rem;flex-wrap:wrap"><span class="badge ${sp?'badge-red':'badge-blue'}">${t}</span>`;
+    if(ows.length)ows.forEach(ow=>{h+=`<span class="owner-badge">◉ ${ow.name} · ${ow.dept}</span>`;});
+    else h+=`<span style="font-size:.63rem;color:var(--text3);font-family:var(--mono)">No owner assigned</span>`;
+    h+='</div>';
+  });
+  d.innerHTML=h;
+}
+
+/* ═══════════════════════════════ GLOBAL SEARCH ═══════════════════════════════ */
+function globalSearch(q){
+  const el=document.getElementById('global-results');
+  if(!q||q.length<2){el.classList.remove('show');return;}
+  const ql=q.toLowerCase();const secs=[];
+  const me=state.entries.filter(e=>e.name?.toLowerCase().includes(ql)||e.controller?.toLowerCase().includes(ql)||e.purpose?.toLowerCase().includes(ql)||e.department?.toLowerCase().includes(ql));
+  if(me.length){secs.push(`<div class="gr-section">RoPA Entries</div>`);me.slice(0,4).forEach(e=>{secs.push(`<div class="gr-item" onclick="goToEntry('${e.id}')"><div class="gr-name">${e.name}</div><div class="gr-meta">${e.controller} · ${e.department||'—'}</div></div>`);});}
+  const mc=state.controllers.filter(c=>c.org?.toLowerCase().includes(ql)||c.name?.toLowerCase().includes(ql)||c.email?.toLowerCase().includes(ql));
+  if(mc.length){secs.push(`<div class="gr-section">Controllers</div>`);mc.slice(0,3).forEach(c=>{secs.push(`<div class="gr-item" onclick="showPage('controllers',document.querySelector('[onclick*=controllers]'))"><div class="gr-name">${c.org}</div><div class="gr-meta">${c.name} · ${c.email}</div></div>`);});}
+  const mr=state.recipients.filter(r=>r.name?.toLowerCase().includes(ql)||r.country?.toLowerCase().includes(ql));
+  if(mr.length){secs.push(`<div class="gr-section">Recipients</div>`);mr.slice(0,3).forEach(r=>{secs.push(`<div class="gr-item" onclick="showPage('recipients',document.querySelector('[onclick*=recipients]'))"><div class="gr-name">${r.name}</div><div class="gr-meta">${r.category} · ${r.country}</div></div>`);});}
+  if(!secs.length)secs.push(`<div class="gr-empty">No results for "${q}"</div>`);
+  el.innerHTML=secs.join('');
+  const inp=document.getElementById('g-search');const r=inp.getBoundingClientRect();
+  el.style.left=r.left+'px';el.style.top=(r.bottom+4)+'px';el.style.minWidth=r.width+'px';
+  el.classList.add('show');
+}
+function hideGlobalResults(){document.getElementById('global-results').classList.remove('show');}
+function goToEntry(id){
+  hideGlobalResults();document.getElementById('g-search').value='';
+  showPage('entries',document.querySelector('.nav-item[onclick*="entries"]'));
+  setTimeout(()=>{const el=document.querySelector(`[data-eid="${id}"]`);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.borderColor='var(--accent)';setTimeout(()=>el.style.borderColor='',2000);}},100);
+}
+
+/* ═══════════════════════════════ STATS & DASHBOARD ═══════════════════════════════ */
+function updateStats(){
+  const t=state.entries.length,c=state.entries.filter(isComplete).length;
+  const ov=state.entries.filter(isOverdue).length,dp=state.entries.filter(dpiaRequired).length;
+  const sp=state.entries.filter(e=>e.dataTypes?.some(d=>d.includes('⚠'))).length;
+  const xf=state.entries.filter(e=>e.countries?.length).length;
+  const cr=state.entries.filter(e=>e.risk==='Critical').length;
+  const sar=state.sarList.filter(s=>s.status==='Open'||s.status==='In Progress').length;
+  document.getElementById('s-total').textContent=t;
+  document.getElementById('s-complete').textContent=c;
+  document.getElementById('s-overdue').textContent=ov;
+  document.getElementById('s-dpia').textContent=dp;
+  document.getElementById('s-special').textContent=sp;
+  document.getElementById('s-xfer').textContent=xf;
+  document.getElementById('s-critical').textContent=cr;
+  document.getElementById('s-sar').textContent=sar;
+  document.getElementById('prog-complete').style.width=(t?Math.round(c/t*100):0)+'%';
+  const db=document.getElementById('dpia-badge');if(db){db.textContent=dp;db.style.display=dp?'':'none';}
+  const sb=document.getElementById('sar-badge');if(sb){sb.textContent=sar;sb.style.display=sar?'':'none';}
+}
+function renderDashboard(){
+  // Heatmap
+  const dm={};
+  state.entries.forEach(e=>{const dept=e.department||'Unassigned';if(!dm[dept])dm[dept]={Low:0,Medium:0,High:0,Critical:0,total:0};dm[dept][e.risk||'Low']++;dm[dept].total++;});
+  const hw=document.getElementById('heatmap-wrap');
+  const ro=['Critical','High','Medium','Low'];
+  if(!Object.keys(dm).length){hw.innerHTML='<div class="empty-state" style="padding:1rem">No entries yet.</div>';}
+  else hw.innerHTML=`<div class="heatmap-grid">${Object.entries(dm).map(([dept,c])=>{const top=ro.find(r=>c[r]>0)||'Low';const pct=Math.round(c[top]/c.total*100);return`<div class="heatmap-card hm-${top.toLowerCase()}"><div class="hm-dept">${dept}</div><div class="hm-meta">${c.total} activit${c.total!==1?'ies':'y'} · ${c.Critical||0} critical · ${c.High||0} high</div><div class="hm-bar hm-${top.toLowerCase()}" style="width:${pct}%"></div></div>`;}).join('')}</div>`;
+  // Table
+  const tb=document.getElementById('dash-table');
+  if(!state.entries.length){tb.innerHTML='<tr><td colspan="7" class="empty-state">No entries yet.</td></tr>';return;}
+  tb.innerHTML=state.entries.slice(0,8).map(e=>`<tr>
+    <td><strong style="color:var(--accent)">${e.name}</strong><br><span style="font-size:.6rem;color:var(--text3);font-family:var(--mono)">${e.id}</span></td>
+    <td style="font-size:.73rem">${e.controller}</td>
+    <td><span class="badge badge-gray" style="font-size:.58rem">${e.department||'—'}</span></td>
+    <td>${riskBadge(e.risk)}</td>
+    <td>${cBar(cScore(e))}</td>
+    <td>${reviewBadge(e)}</td>
+    <td><span class="badge ${isComplete(e)?'badge-green':'badge-warn'}">${isComplete(e)?'✓ Complete':'Incomplete'}</span></td>
+  </tr>`).join('');
+}
+
+/* ═══════════════════════════════ ENTRIES ═══════════════════════════════ */
+function setFilter(f,btn){curFilter=f;document.querySelectorAll('#page-entries .filter-btn').forEach(b=>b.classList.remove('active','f-warn'));btn.classList.add(f==='overdue'?'f-warn':'active');renderEntries();}
+function renderEntries(){
+  const q=(document.getElementById('search-input')||{value:''}).value.toLowerCase();
+  const list=state.entries.filter(e=>{
+    if(q&&!e.name?.toLowerCase().includes(q)&&!e.controller?.toLowerCase().includes(q)&&!e.purpose?.toLowerCase().includes(q)&&!e.department?.toLowerCase().includes(q))return false;
+    if(curFilter==='complete')return isComplete(e);if(curFilter==='incomplete')return!isComplete(e);
+    if(curFilter==='special')return e.dataTypes?.some(d=>d.includes('⚠'));if(curFilter==='transfer')return e.countries?.length>0;
+    if(curFilter==='dpia')return dpiaRequired(e);if(curFilter==='overdue')return isOverdue(e);
+    if(curFilter==='critical')return e.risk==='Critical';return true;
+  });
+  const cont=document.getElementById('entries-list');
+  if(!list.length){cont.innerHTML='<div class="empty-state"><div class="empty-icon">◈</div>No entries match.</div>';return;}
+  cont.innerHTML=list.map(e=>{
+    const ri=state.entries.indexOf(e);const sc=cScore(e);const ov=isOverdue(e);
+    return`<div class="ropa-entry${ov?' is-overdue':''}" data-eid="${e.id}">
+      <div class="entry-hdr" onclick="toggleEntry(this)">
+        <span style="font-family:var(--mono);font-size:.65rem;color:var(--text3)">${e.id}</span>
+        <strong style="flex:1;color:var(--accent)">${e.name}</strong>
+        ${dpiaRequired(e)?`<span class="badge badge-warn" style="font-size:.55rem">DPIA</span>`:''}
+        ${ov?`<span class="badge badge-overdue" style="font-size:.55rem">⚠ OVERDUE</span>`:''}
+        <span class="badge badge-gray" style="font-size:.58rem;margin-right:.25rem">${e.department||'—'}</span>
+        <span class="badge ${isComplete(e)?'badge-green':'badge-warn'}" style="margin-right:.25rem">${isComplete(e)?'✓ Complete':'Incomplete'}</span>
+        ${riskBadge(e.risk)}
+        <div class="col-actions" style="margin-left:.65rem">
+          <button class="btn btn-clone btn-sm" onclick="event.stopPropagation();cloneEntry(${ri})" title="Clone">⧉</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();editEntry(${ri})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteEntry(${ri})">Del</button>
+        </div>
+        <span style="color:var(--text3);margin-left:.4rem;font-size:.75rem">▾</span>
+      </div>
+      <div class="entry-body">
+        <div><div class="ef-label">Controller</div><div class="ef-val">${e.controller}${e.controllerEmail?` · <span style="color:var(--accent2)">${e.controllerEmail}</span>`:''}</div></div>
+        <div><div class="ef-label">DPO</div><div class="ef-val">${e.dpo||'—'}</div></div>
+        <div style="grid-column:1/-1"><div class="ef-label">Purpose</div><div class="ef-val">${e.purpose}</div></div>
+        <div><div class="ef-label">Legal Basis</div><div class="ef-val">${e.legalBasis||'—'}</div></div>
+        <div style="grid-column:1/-1"><div class="ef-label">Applicable Jurisdiction(s)</div><div class="ef-val">${(e.jurisdictions||[]).map(j=>{const info=JURISDICTION_INFO[j];const col=info?info.color:'3d6a8a';const flag=info?info.flag:'⚖';return`<span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,212,255,.06);border:1px solid #${col}44;border-left:2.5px solid #${col};border-radius:4px;padding:.2rem .5rem;margin:.15rem;font-size:.7rem;color:var(--text2)">${flag} ${j}</span>`;}).join('')||'<span style="color:var(--text3)">—</span>'}</div></div>
+        ${e.art9Basis?`<div><div class="ef-label">Art. 9 Basis</div><div class="ef-val">${e.art9Basis}</div></div>`:''}
+        <div><div class="ef-label">Data Subjects</div><div class="ef-val">${(e.subjects||[]).map(s=>`<span class="tag">${s}</span>`).join('')||'—'}</div></div>
+        <div style="grid-column:1/-1"><div class="ef-label">Data Types</div><div class="ef-val">${(e.dataTypes||[]).map(d=>`<span class="badge ${d.includes('⚠')?'badge-red':'badge-blue'}" style="margin:.12rem">${d}</span>`).join('')||'—'}</div></div>
+        <div><div class="ef-label">Recipients</div><div class="ef-val">${(e.recipients||[]).map(r=>`<span class="tag">${r}</span>`).join('')||'—'}</div></div>
+        <div><div class="ef-label">Third Countries</div><div class="ef-val">${(e.countries||[]).map(c=>`<span class="tag">${c}</span>`).join('')||'None'}</div></div>
+        <div><div class="ef-label">Deletion Method</div><div class="ef-val">${e.deletion||'—'}</div></div>
+        <div><div class="ef-label">Retention</div><div class="ef-val">${e.retention||'—'}${e.retentionBasis?` <span style="color:var(--text3);font-size:.7rem">· ${e.retentionBasis}</span>`:''}</div></div>
+        <div><div class="ef-label">Review Date</div><div class="ef-val">${reviewBadge(e)}</div></div>
+        <div><div class="ef-label">Completeness</div><div class="ef-val">${cBar(sc)}</div></div>
+        <div style="grid-column:1/-1"><div class="ef-label">Technical Measures</div><div class="ef-val">${(e.techMeasures||[]).map(m=>`<span class="tag">${m}</span>`).join('')||'—'}</div></div>
+        <div style="grid-column:1/-1"><div class="ef-label">Org. Measures</div><div class="ef-val">${(e.orgMeasures||[]).join(', ')||'—'}</div></div>
+        ${dpiaRequired(e)?`<div style="grid-column:1/-1"><div class="ef-label">DPIA Status</div><div class="ef-val"><span class="badge ${e.dpiaConfirmed?'badge-green':'badge-warn'}">${e.dpiaConfirmed?'✓ DPIA Confirmed':'⚠ DPIA Required — Not Confirmed'}</span></div></div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleEntry(h){const b=h.nextElementSibling;b.style.display=b.style.display==='grid'?'none':'grid';}
+
+/* ═══════════════════════════════ ENTRY FORM ═══════════════════════════════ */
+function initDropdowns(){
+  sdCreate('sd-activity',{opts:ACTIVITIES,multi:false,ph:'Select or search activity name...'});
+  sdCreate('sd-subjects',{opts:SUBJECTS,multi:true,ph:'Select categories of data subjects...'});
+  sdCreate('sd-recipients',{opts:RECIPIENTS,multi:true,ph:'Select recipient categories...'});
+  sdCreate('sd-countries',{opts:COUNTRIES,multi:true,ph:'Select destination countries...'});
+  sdCreate('sd-deletion',{opts:DELETION,multi:false,ph:'Select deletion / anonymisation method...'});
+  sdCreate('sd-tech',{opts:TECH,multi:true,ph:'Select technical security measures...'});
+  sdCreate('sd-org',{opts:ORG,multi:true,ph:'Select organisational security measures...'});
+  sdCreate('sd-jurisdictions',{opts:JURISDICTIONS,multi:true,ph:'Select applicable data protection law(s)...'});
+  sdCreate('sd-legal-basis',{opts:DEFAULT_LEGAL_BASES.map(b=>o(b)),multi:false,ph:'Select legal basis...'});
+}
+function openNewEntry(){state.editIdx=null;document.getElementById('entry-modal-title').textContent='New Processing Activity';clearEntryForm();openModal('entry-modal');}
+function clearEntryForm(){
+  ['e-ctrl','e-ctrl-email','e-ctrl-phone','e-rep','e-dpo','e-dpo-email','e-purpose','e-dept','e-retention','e-ret-basis','e-review'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['e-legal','e-safeguards','e-risk'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
+  document.querySelectorAll('#std-types .dt-btn,#special-types .dt-btn').forEach(b=>b.classList.remove('selected'));
+  state.selDT=[];
+  document.getElementById('dt-display').innerHTML='';
+  document.getElementById('art9-section').style.display='none';
+  document.getElementById('dpia-warning').classList.remove('show');
+  const dchk=document.getElementById('dpia-chk');if(dchk)dchk.checked=false;
+  const a9=document.getElementById('e-art9');if(a9)a9.selectedIndex=0;
+  ['ctrl-filled-badge','recip-filled-badge'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  ['ctrl-org-search','recip-org-search'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const sr=document.getElementById('ctrl-save-row');if(sr)sr.style.display='';
+  const sc=document.getElementById('ctrl-save-chk');if(sc)sc.checked=false;
+  initDropdowns();
+  const jw=document.getElementById('jurisdiction-info-wrap');if(jw)jw.innerHTML='';
+  const lbl=document.getElementById('legal-basis-label');if(lbl)lbl.innerHTML='Legal Basis<span class="required">*</span>';
+  const hnt=document.getElementById('legal-basis-hint');if(hnt)hnt.textContent='← Select jurisdiction(s) above to see relevant legal bases';
+}
+function saveEntry(){
+  const name=sdGet('sd-activity'),ctrl=document.getElementById('e-ctrl').value.trim(),purpose=document.getElementById('e-purpose').value.trim();
+  if(!name||!ctrl||!purpose){alert('Please fill required fields (*)');return;}
+  const hasSpecial=state.selDT.some(d=>d.includes('⚠'));
+  const risk=document.getElementById('e-risk').value;
+  if((hasSpecial||risk==='High'||risk==='Critical')&&!document.getElementById('dpia-chk').checked){
+    if(!confirm('⚠ This entry requires a DPIA. You have not confirmed one is underway.\n\nSave anyway?'))return;
+  }
+  const orgChk=document.getElementById('ctrl-save-chk');
+  if(orgChk&&orgChk.checked&&ctrl&&!state.controllers.find(c=>c.org===ctrl)){
+    state.controllers.push({org:ctrl,type:'Data Controller',name:ctrl,email:document.getElementById('e-ctrl-email').value,phone:document.getElementById('e-ctrl-phone').value,address:document.getElementById('e-rep').value,dpo:document.getElementById('e-dpo').value,dpoEmail:document.getElementById('e-dpo-email').value});
+    renderControllers();
+  }
+  const isEdit=state.editIdx!==null;const ex=isEdit?state.entries[state.editIdx]:{};
+  const entry={
+    id:isEdit?ex.id:'RPA-'+String(Date.now()).slice(-6),
+    name,controller:ctrl,controllerEmail:document.getElementById('e-ctrl-email').value,
+    controllerPhone:document.getElementById('e-ctrl-phone').value,representative:document.getElementById('e-rep').value,
+    dpo:document.getElementById('e-dpo').value,dpoEmail:document.getElementById('e-dpo-email').value,
+    purpose,legalBasis:sdGet('sd-legal-basis'),
+    art9Basis:document.getElementById('e-art9')?.value||'',
+    department:document.getElementById('e-dept').value,reviewDate:document.getElementById('e-review').value,
+    dataTypes:[...state.selDT],subjects:sdGet('sd-subjects'),recipients:sdGet('sd-recipients'),
+    countries:sdGet('sd-countries'),safeguards:document.getElementById('e-safeguards').value,
+    retention:document.getElementById('e-retention').value,retentionBasis:document.getElementById('e-ret-basis').value,
+    deletion:sdGet('sd-deletion'),techMeasures:sdGet('sd-tech'),orgMeasures:sdGet('sd-org'),
+    risk,dpiaConfirmed:document.getElementById('dpia-chk').checked,
+    jurisdictions:sdGet('sd-jurisdictions'),
+    created:isEdit?ex.created:new Date().toLocaleDateString(),modified:new Date().toLocaleDateString()
+  };
+  if(isEdit){state.entries[state.editIdx]=entry;addAuditLog('Entry Updated',`"${entry.name}" modified`);}
+  else{state.entries.push(entry);addAuditLog('Entry Created',`"${entry.name}" added`);}
+  closeModal('entry-modal');updateStats();renderDashboard();renderEntries();renderDPIA();persistSave();
+}
+function editEntry(i){
+  state.editIdx=i;const e=state.entries[i];
+  document.getElementById('entry-modal-title').textContent='Edit: '+e.name;clearEntryForm();
+  const fmap={'e-ctrl':e.controller,'e-ctrl-email':e.controllerEmail,'e-ctrl-phone':e.controllerPhone,'e-rep':e.representative,'e-dpo':e.dpo,'e-dpo-email':e.dpoEmail,'e-purpose':e.purpose,'e-dept':e.department,'e-retention':e.retention,'e-ret-basis':e.retentionBasis,'e-review':e.reviewDate||''};
+  Object.entries(fmap).forEach(([k,v])=>{const el=document.getElementById(k);if(el&&v)el.value=v;});
+  document.getElementById('e-safeguards').value=e.safeguards||'';document.getElementById('e-risk').value=e.risk||'Low';
+  // Restore jurisdictions first so legal basis options are correct, then restore legal basis
+  if(e.jurisdictions&&e.jurisdictions.length){setTimeout(()=>{sdSet('sd-jurisdictions',e.jurisdictions||[]);renderJurisdictionInfo(e.jurisdictions||[]);updateLegalBasisDropdown();setTimeout(()=>{sdSet('sd-legal-basis',e.legalBasis||'');},80);},60);}
+  state.selDT=[...(e.dataTypes||[])];
+  document.querySelectorAll('#std-types .dt-btn,#special-types .dt-btn').forEach(b=>{const type=b.getAttribute('onclick').match(/'([^']+)'/)?.[1];if(type&&state.selDT.includes(type))b.classList.add('selected');});
+  const hasSpecial=state.selDT.some(d=>d.includes('⚠'));
+  document.getElementById('art9-section').style.display=hasSpecial?'block':'none';
+  if(hasSpecial&&e.art9Basis)document.getElementById('e-art9').value=e.art9Basis;
+  if(e.dpiaConfirmed)document.getElementById('dpia-chk').checked=true;
+  updateDTDisplay();checkDPIA();
+  setTimeout(()=>{sdSet('sd-activity',e.name);sdSet('sd-subjects',e.subjects||[]);sdSet('sd-recipients',e.recipients||[]);sdSet('sd-countries',e.countries||[]);sdSet('sd-deletion',e.deletion||'');sdSet('sd-tech',e.techMeasures||[]);sdSet('sd-org',e.orgMeasures||[]);},60);
+  openModal('entry-modal');
+}
+function cloneEntry(i){
+  const src=state.entries[i];
+  const clone={...src,id:'RPA-'+String(Date.now()).slice(-6),name:src.name+' (Copy)',created:new Date().toLocaleDateString(),modified:new Date().toLocaleDateString()};
+  state.entries.push(clone);addAuditLog('Entry Cloned',`"${src.name}" → "${clone.name}"`);
+  updateStats();renderEntries();renderDashboard();persistSave();
+}
+function deleteEntry(i){
+  if(confirm('Delete this entry?')){
+    addAuditLog('Entry Deleted',`"${state.entries[i].name}" deleted`);
+    state.entries.splice(i,1);updateStats();renderEntries();renderDashboard();renderDPIA();persistSave();
+  }
+}
+
+/* ═══════════════════════════════ DPIA REGISTER ═══════════════════════════════ */
+function renderDPIA(){
+  const tb=document.getElementById('dpia-table');
+  const list=state.entries.filter(dpiaRequired);
+  if(!list.length){tb.innerHTML='<tr><td colspan="6" class="empty-state">No DPIA-required entries.</td></tr>';return;}
+  tb.innerHTML=list.map(e=>{
+    const rs=[];if(e.dataTypes?.some(d=>d.includes('⚠')))rs.push('Special category data');if(e.risk==='High')rs.push('High risk');if(e.risk==='Critical')rs.push('Critical risk');
+    return`<tr><td><strong style="color:var(--accent)">${e.name}</strong><br><span style="font-size:.62rem;color:var(--text3);font-family:var(--mono)">${e.id}</span></td><td>${e.department||'—'}</td><td>${riskBadge(e.risk)}</td><td>${rs.map(r=>`<span class="badge badge-warn" style="margin:.1rem;font-size:.58rem">${r}</span>`).join('')}</td><td><span class="badge ${e.dpiaConfirmed?'badge-green':'badge-red'}">${e.dpiaConfirmed?'✓ Confirmed':'⚠ Pending'}</span></td><td style="font-size:.72rem;color:var(--text2)">${e.art9Basis||'—'}</td></tr>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════ LEGAL BASIS BY JURISDICTION ═══════════════════════════════ */
+
+/* Maps each jurisdiction key → array of legal basis options with article refs */
+const LEGAL_BASIS_MAP = {
+  'GDPR (EU/EEA) — Regulation (EU) 2016/679': [
+    'Consent — Art. 6(1)(a) GDPR',
+    'Contract performance — Art. 6(1)(b) GDPR',
+    'Legal obligation — Art. 6(1)(c) GDPR',
+    'Vital interests — Art. 6(1)(d) GDPR',
+    'Public task / official authority — Art. 6(1)(e) GDPR',
+    'Legitimate interests — Art. 6(1)(f) GDPR',
+  ],
+  'UK GDPR — retained GDPR & Data Protection Act 2018': [
+    'Consent — Art. 6(1)(a) UK GDPR',
+    'Contract performance — Art. 6(1)(b) UK GDPR',
+    'Legal obligation — Art. 6(1)(c) UK GDPR',
+    'Vital interests — Art. 6(1)(d) UK GDPR',
+    'Public task / official authority — Art. 6(1)(e) UK GDPR',
+    'Legitimate interests — Art. 6(1)(f) UK GDPR',
+    'DPA 2018 Schedule 1 — Special circumstances',
+  ],
+  'Zimbabwe — Cybersecurity & Data Protection Act 2021': [
+    'Consent — s.14(a) CDPA 2021',
+    'Contract performance — s.14(b) CDPA 2021',
+    'Legal obligation — s.14(c) CDPA 2021',
+    'Vital interests — s.14(d) CDPA 2021',
+    'Public interest / public function — s.14(e) CDPA 2021',
+    'Legitimate interests — s.14(f) CDPA 2021',
+  ],
+  'South Africa — Protection of Personal Information Act (POPIA) 4 of 2013': [
+    'Consent — s.11(1)(a) POPIA',
+    'Contractual necessity — s.11(1)(b) POPIA',
+    'Legal obligation — s.11(1)(c) POPIA',
+    'Legitimate interest — s.11(1)(d) POPIA',
+    'Necessary to protect interests of data subject — s.11(1)(e) POPIA',
+    'Public law duty / public interest — s.11(1)(f) POPIA',
+  ],
+  'Kenya — Data Protection Act 2019': [
+    'Consent — s.30(1)(a) Kenya DPA 2019',
+    'Contract performance — s.30(1)(b) Kenya DPA 2019',
+    'Legal obligation — s.30(1)(c) Kenya DPA 2019',
+    'Vital interests — s.30(1)(d) Kenya DPA 2019',
+    'Public interest / public function — s.30(1)(e) Kenya DPA 2019',
+    'Legitimate interests — s.30(1)(f) Kenya DPA 2019',
+  ],
+  'Nigeria — Nigeria Data Protection Regulation (NDPR) 2019': [
+    'Consent — Article 2.2(a) NDPR 2019',
+    'Contract performance — Article 2.2(b) NDPR 2019',
+    'Legal obligation — Article 2.2(c) NDPR 2019',
+    'Vital interests — Article 2.2(d) NDPR 2019',
+    'Legitimate interests — Article 2.2(e) NDPR 2019',
+    'Public interest — Article 2.2(f) NDPR 2019',
+  ],
+  'Nigeria — Nigeria Data Protection Act (NDPA) 2023': [
+    'Consent — s.25(1)(a) NDPA 2023',
+    'Contract performance — s.25(1)(b) NDPA 2023',
+    'Legal obligation — s.25(1)(c) NDPA 2023',
+    'Vital interests — s.25(1)(d) NDPA 2023',
+    'Public task / official authority — s.25(1)(e) NDPA 2023',
+    'Legitimate interests — s.25(1)(f) NDPA 2023',
+  ],
+  'Ghana — Data Protection Act 2012 (Act 843)': [
+    'Consent — s.17(a) DPA 2012 (Act 843)',
+    'Contract performance — s.17(b) DPA 2012 (Act 843)',
+    'Legal obligation — s.17(c) DPA 2012 (Act 843)',
+    'Vital interests — s.17(d) DPA 2012 (Act 843)',
+    'Public task / public interest — s.17(e) DPA 2012 (Act 843)',
+    'Legitimate interests — s.17(f) DPA 2012 (Act 843)',
+  ],
+  'Uganda — Data Protection and Privacy Act 2019': [
+    'Consent — s.14(1)(a) Uganda DPPA 2019',
+    'Contract performance — s.14(1)(b) Uganda DPPA 2019',
+    'Legal obligation — s.14(1)(c) Uganda DPPA 2019',
+    'Vital interests — s.14(1)(d) Uganda DPPA 2019',
+    'Public interest — s.14(1)(e) Uganda DPPA 2019',
+    'Legitimate interests — s.14(1)(f) Uganda DPPA 2019',
+  ],
+  'Botswana — Data Protection Act 2018': [
+    'Consent — s.20(a) Botswana DPA 2018',
+    'Contract performance — s.20(b) Botswana DPA 2018',
+    'Legal obligation — s.20(c) Botswana DPA 2018',
+    'Vital interests — s.20(d) Botswana DPA 2018',
+    'Legitimate interests — s.20(e) Botswana DPA 2018',
+    'Public interest — s.20(f) Botswana DPA 2018',
+  ],
+  'Mauritius — Data Protection Act 2017': [
+    'Consent — s.33(1)(a) Mauritius DPA 2017',
+    'Contract performance — s.33(1)(b) Mauritius DPA 2017',
+    'Legal obligation — s.33(1)(c) Mauritius DPA 2017',
+    'Vital interests — s.33(1)(d) Mauritius DPA 2017',
+    'Public interest — s.33(1)(e) Mauritius DPA 2017',
+    'Legitimate interests — s.33(1)(f) Mauritius DPA 2017',
+  ],
+  'Rwanda — Law No. 058/2021 on Personal Data Protection': [
+    'Consent — Art. 13(1) Rwanda Law 058/2021',
+    'Contract performance — Art. 13(2) Rwanda Law 058/2021',
+    'Legal obligation — Art. 13(3) Rwanda Law 058/2021',
+    'Vital interests — Art. 13(4) Rwanda Law 058/2021',
+    'Public interest — Art. 13(5) Rwanda Law 058/2021',
+    'Legitimate interests — Art. 13(6) Rwanda Law 058/2021',
+  ],
+  'Egypt — Personal Data Protection Law 2020': [
+    'Consent — Art. 4 Egypt PDPL 2020',
+    'Contract performance — Art. 4 Egypt PDPL 2020',
+    'Legal obligation — Art. 4 Egypt PDPL 2020',
+    'Legitimate interests — Art. 4 Egypt PDPL 2020',
+    'Vital interests — Art. 4 Egypt PDPL 2020',
+  ],
+  'Morocco — Law 09-08 on Personal Data Protection': [
+    'Consent — Art. 3 Morocco Law 09-08',
+    'Contract performance — Art. 3 Morocco Law 09-08',
+    'Legal obligation — Art. 3 Morocco Law 09-08',
+    'Public interest — Art. 3 Morocco Law 09-08',
+    'Legitimate interests — Art. 3 Morocco Law 09-08',
+  ],
+  'Zambia — Electronic Communications and Transactions Act': [
+    'Consent — s.69 Zambia ECTA',
+    'Contract performance — s.69 Zambia ECTA',
+    'Legal obligation — s.69 Zambia ECTA',
+    'Public interest — s.69 Zambia ECTA',
+  ],
+  'South Africa — Protection of Personal Information Act (POPIA) 4 of 2013': [
+    'Consent — s.11(1)(a) POPIA',
+    'Contractual necessity — s.11(1)(b) POPIA',
+    'Legal obligation — s.11(1)(c) POPIA',
+    'Legitimate interest — s.11(1)(d) POPIA',
+    'Necessary to protect interests of data subject — s.11(1)(e) POPIA',
+    'Public law duty / public interest — s.11(1)(f) POPIA',
+  ],
+  'Brazil — LGPD (Lei Geral de Proteção de Dados) 2020': [
+    'Consent — Art. 7(I) LGPD',
+    'Contract performance — Art. 7(V) LGPD',
+    'Legal obligation — Art. 7(II) LGPD',
+    'Vital interests — Art. 7(VI) LGPD',
+    'Legitimate interests — Art. 7(IX) LGPD',
+    'Exercise of rights in judicial / admin proceedings — Art. 7(VI) LGPD',
+    'Credit protection — Art. 7(X) LGPD',
+    'Public interest / public policy — Art. 7(III) LGPD',
+    'Research by public bodies — Art. 7(IV) LGPD',
+  ],
+  'California — CCPA / CPRA': [
+    'Business purpose — Cal. Civ. Code s.1798.140(e) CCPA',
+    'Commercial purpose — Cal. Civ. Code s.1798.140(k) CCPA',
+    'Opt-out right applies (sale / sharing of PI) — s.1798.120 CCPA',
+    'Sensitive PI — additional restrictions under CPRA s.1798.121',
+  ],
+  'Canada — PIPEDA (Personal Information Protection and Electronic Documents Act)': [
+    'Meaningful consent — Principle 3, Schedule 1 PIPEDA',
+    'Express consent — Principle 3.5 PIPEDA',
+    'Implied consent — Principle 3.5 PIPEDA',
+    'Without consent — s.7 exceptions (legal, journalistic, public interest) PIPEDA',
+  ],
+  'Australia — Privacy Act 1988 (amended 2022)': [
+    'Consent — APP 3.3 Australian Privacy Act',
+    'Contract / employment — APP 3.4 Australian Privacy Act',
+    'Legal obligation — APP 3.4 Australian Privacy Act',
+    'Serious threat to life, health or safety — APP 3.4 Australian Privacy Act',
+    'Reasonably necessary for agency functions — APP 3.2 Australian Privacy Act',
+  ],
+  'India — Digital Personal Data Protection Act 2023': [
+    'Consent — s.6 India DPDPA 2023',
+    'Legitimate uses (employer data) — s.7(a) India DPDPA 2023',
+    'State / public function — s.7(b) India DPDPA 2023',
+    'Medical emergency / safety — s.7(c)–(d) India DPDPA 2023',
+    'Employment purposes — s.7(f) India DPDPA 2023',
+  ],
+  'China — Personal Information Protection Law (PIPL) 2021': [
+    'Consent — Art. 13(1) China PIPL 2021',
+    'Contract / human resources — Art. 13(2) China PIPL 2021',
+    'Legal obligation — Art. 13(3) China PIPL 2021',
+    'Public health emergency — Art. 13(4) China PIPL 2021',
+    'News reporting / public interest — Art. 13(5) China PIPL 2021',
+    'Publicly disclosed PI — Art. 13(6) China PIPL 2021',
+    'Other circumstances under law — Art. 13(7) China PIPL 2021',
+  ],
+  'Singapore — Personal Data Protection Act (PDPA) 2012': [
+    'Consent — s.13 Singapore PDPA',
+    'Deemed consent (contractual necessity) — s.15A Singapore PDPA',
+    'Legitimate interests — s.17 Singapore PDPA',
+    'Business improvement — s.18 Singapore PDPA',
+    'Mandatory disclosure — s.16 Singapore PDPA',
+    'National interest — s.15B Singapore PDPA',
+  ],
+  'Japan — Act on Protection of Personal Information (APPI)': [
+    'Consent — Art. 17-18 Japan APPI',
+    'Necessary for contract performance — Art. 18(3)(ii) Japan APPI',
+    'Necessary for public health / child welfare — Art. 18(3)(iv) Japan APPI',
+    'Necessary for national institution functions — Art. 18(3)(v) Japan APPI',
+  ],
+  'New Zealand — Privacy Act 2020': [
+    'Consent — IPP1 / IPP2 New Zealand Privacy Act 2020',
+    'Directly related purpose — IPP2(1)(a) New Zealand Privacy Act 2020',
+    'Authorised by law — IPP2(1)(b) New Zealand Privacy Act 2020',
+    'Necessary to prevent serious threat — IPP2(1)(c) New Zealand Privacy Act 2020',
+  ],
+  'Switzerland — Federal Act on Data Protection (revFADP) 2023': [
+    'Consent — Art. 31(1) revFADP 2023',
+    'Contract performance — Art. 31(2)(a) revFADP 2023',
+    'Overriding private or public interest — Art. 31(2)(b)–(c) revFADP 2023',
+    'Legal obligation — Art. 31(2)(d) revFADP 2023',
+    'Legitimate interests (override test) — Art. 31(2)(e) revFADP 2023',
+  ],
+  'UAE — Federal Decree-Law No. 45 of 2021': [
+    'Consent — Art. 6(1) UAE DPL 2021',
+    'Contract performance — Art. 6(2) UAE DPL 2021',
+    'Legal obligation — Art. 6(3) UAE DPL 2021',
+    'Public interest / official authority — Art. 6(4) UAE DPL 2021',
+    'Vital interests — Art. 6(5) UAE DPL 2021',
+    'Legitimate interests — Art. 6(6) UAE DPL 2021',
+  ],
+  'Saudi Arabia — Personal Data Protection Law (PDPL) 2021': [
+    'Consent — Art. 5(1) Saudi PDPL 2021',
+    'Contractual necessity — Art. 5(2) Saudi PDPL 2021',
+    'Controller legal obligation — Art. 5(3) Saudi PDPL 2021',
+    'Vital interests — Art. 5(4) Saudi PDPL 2021',
+    'Public interest — Art. 5(5) Saudi PDPL 2021',
+    'Legitimate interests — Art. 5(6) Saudi PDPL 2021',
+  ],
+  'United States — Various (CCPA, HIPAA, COPPA, GLBA)': [
+    'Opt-in consent — COPPA (children under 13)',
+    'Opt-out consent — CCPA / most state privacy laws',
+    'Business purpose — CCPA s.1798.140',
+    'Treatment / payment / operations — HIPAA 45 CFR 164.506',
+    'Exceptions to notice / authorisation — HIPAA 45 CFR 164.512',
+    'Financial services purpose — GLBA s.6801',
+  ],
+};
+
+/* Default bases shown when no jurisdiction or unknown jurisdiction selected */
+const DEFAULT_LEGAL_BASES = [
+  'Consent',
+  'Contract performance',
+  'Legal obligation',
+  'Vital interests',
+  'Legitimate interests',
+  'Public interest / official authority',
+];
+
+/* Rebuild the legal basis smart dropdown based on currently selected jurisdictions */
+function updateLegalBasisDropdown(){
+  const selected = sdGet('sd-jurisdictions');
+  const hint = document.getElementById('legal-basis-hint');
+  const label = document.getElementById('legal-basis-label');
+
+  // Gather all unique bases from selected jurisdictions
+  let allBases = [];
+  const seenGroups = [];
+
+  if (!selected || !selected.length) {
+    // No jurisdiction selected — show generic options
+    allBases = DEFAULT_LEGAL_BASES.map(b => o(b));
+    if (hint) hint.textContent = '← Select jurisdiction(s) above to see relevant legal bases';
+    if (label) label.innerHTML = 'Legal Basis<span class="required">*</span>';
+  } else {
+    selected.forEach(jur => {
+      const bases = LEGAL_BASIS_MAP[jur];
+      if (bases) {
+        seenGroups.push(jur);
+        bases.forEach(b => { if (!allBases.find(x => x.v === b)) allBases.push(o(b)); });
+      }
+    });
+    // If none of the selected jurisdictions matched (e.g. custom), fall back to defaults
+    if (!allBases.length) allBases = DEFAULT_LEGAL_BASES.map(b => o(b));
+
+    // Update label to show jurisdiction count
+    const short = selected.map(j => {
+      const info = JURISDICTION_INFO[j];
+      return info ? info.flag + ' ' + info.short : j.split(' ')[0];
+    }).join('  ');
+    if (label) label.innerHTML = `Legal Basis <span style="font-size:.62rem;color:var(--text3);font-family:var(--mono);font-weight:400;letter-spacing:.06em">[${short}]</span><span class="required">*</span>`;
+    if (hint) hint.textContent = `${allBases.length} applicable basis options from ${seenGroups.length} jurisdiction(s)`;
+  }
+
+  // Preserve current selection if it still exists in new options
+  const currentVal = sdGet('sd-legal-basis');
+
+  // Destroy old panel if it exists
+  const oldPanel = document.getElementById('sdP-sd-legal-basis');
+  if (oldPanel) oldPanel.remove();
+
+  // Re-create dropdown with new options
+  sdCreate('sd-legal-basis', { opts: allBases, multi: false, ph: 'Select legal basis...' });
+
+  // Restore previous value if still valid
+  if (currentVal && allBases.find(b => b.v === currentVal)) {
+    sdSet('sd-legal-basis', currentVal);
+  }
+}
+
+/* ═══════════════════════════════ JURISDICTION INFO ═══════════════════════════════ */
+function renderJurisdictionInfo(selected){
+  const wrap=document.getElementById('jurisdiction-info-wrap');
+  if(!wrap)return;
+  const items=(selected||sdGet('sd-jurisdictions'));
+  if(!items||!items.length){wrap.innerHTML='';return;}
+  wrap.innerHTML=items.map(key=>{
+    const info=JURISDICTION_INFO[key];
+    if(!info)return`<div style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,212,255,.07);border:1px solid var(--border);border-radius:4px;padding:.25rem .6rem;margin:.2rem;font-size:.72rem;color:var(--text2);">${key}</div>`;
+    return`<div style="background:var(--panel2);border:1px solid #${info.color}33;border-left:3px solid #${info.color};border-radius:6px;padding:.65rem .85rem;margin-bottom:.55rem;font-size:.78rem;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;">
+        <span style="font-size:1.1rem">${info.flag}</span>
+        <strong style="color:#${info.color};font-size:.82rem">${key}</strong>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .75rem;font-size:.72rem;">
+        <div><span style="color:var(--text3);font-family:var(--mono);font-size:.62rem;letter-spacing:.08em">REGULATOR</span><br><span style="color:var(--text)">${info.authority}</span></div>
+        <div><span style="color:var(--text3);font-family:var(--mono);font-size:.62rem;letter-spacing:.08em">MAX FINE</span><br><span style="color:var(--danger);font-weight:600">${info.maxFine}</span></div>
+        <div><span style="color:var(--text3);font-family:var(--mono);font-size:.62rem;letter-spacing:.08em">RoPA / KEY OBLIGATION</span><br><span style="color:var(--text2)">${info.keyObligation}</span></div>
+        <div><span style="color:var(--text3);font-family:var(--mono);font-size:.62rem;letter-spacing:.08em">BREACH NOTIFICATION</span><br><span style="color:var(--warn)">${info.breach}</span></div>
+        <div style="grid-column:1/-1"><span style="color:var(--text3);font-family:var(--mono);font-size:.62rem;letter-spacing:.08em">SPECIAL CATEGORY DATA</span><br><span style="color:var(--text2)">${info.specialCategory}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* Hook into sdPick/sdRemove to update info cards AND legal basis when jurisdiction changes */
+const _origSdPick=sdPick;
+sdPick=function(id,val){
+  _origSdPick(id,val);
+  if(id==='sd-jurisdictions'){renderJurisdictionInfo();updateLegalBasisDropdown();}
+};
+const _origSdRemove=sdRemove;
+sdRemove=function(id,val){
+  _origSdRemove(id,val);
+  if(id==='sd-jurisdictions'){renderJurisdictionInfo();updateLegalBasisDropdown();}
+};
+
+/* ═══════════════════════════════ CONTROLLERS ═══════════════════════════════ */
+function openControllerForm(){['c-org','c-name','c-email','c-phone','c-address','c-dpo','c-dpo-email'].forEach(id=>document.getElementById(id).value='');openModal('controller-modal');}
+function saveController(){
+  const org=document.getElementById('c-org').value.trim(),name=document.getElementById('c-name').value.trim(),email=document.getElementById('c-email').value.trim();
+  if(!org||!name||!email){alert('Fill required fields');return;}
+  state.controllers.push({org,type:document.getElementById('c-type').value,name,email,phone:document.getElementById('c-phone').value,address:document.getElementById('c-address').value,dpo:document.getElementById('c-dpo').value,dpoEmail:document.getElementById('c-dpo-email').value});
+  addAuditLog('Controller Added',`"${org}" added`);closeModal('controller-modal');renderControllers();persistSave();
+}
+function renderControllers(){
+  const tb=document.getElementById('controllers-table');
+  if(!state.controllers.length){tb.innerHTML='<tr><td colspan="7" class="empty-state">No controllers.</td></tr>';return;}
+  tb.innerHTML=state.controllers.map((c,i)=>`<tr><td><strong>${c.org}</strong>${c.address?`<br><span style="font-size:.65rem;color:var(--text3)">${c.address}</span>`:''}</td><td><span class="badge badge-blue">${c.type}</span></td><td>${c.name}</td><td style="color:var(--accent2)">${c.email}</td><td>${c.phone||'—'}</td><td>${c.dpo||'—'}</td><td><button class="btn btn-danger btn-sm" onclick="if(confirm('Delete?')){addAuditLog('Controller Deleted',state.controllers[${i}].org);state.controllers.splice(${i},1);renderControllers();persistSave();}">Del</button></td></tr>`).join('');
+}
+
+/* RECIPIENTS */
+function openRecipientForm(){['r-name','r-country','r-basis','r-data'].forEach(id=>document.getElementById(id).value='');openModal('recipient-modal');}
+function saveRecipient(){
+  const name=document.getElementById('r-name').value.trim(),country=document.getElementById('r-country').value.trim();
+  if(!name||!country){alert('Fill required fields');return;}
+  state.recipients.push({name,category:document.getElementById('r-cat').value,country,thirdCountry:document.getElementById('r-third').value,basis:document.getElementById('r-basis').value,safeguards:document.getElementById('r-safeguards').value,data:document.getElementById('r-data').value});
+  addAuditLog('Recipient Added',`"${name}" added`);closeModal('recipient-modal');renderRecipients();persistSave();
+}
+function renderRecipients(){
+  const tb=document.getElementById('recipients-table');
+  if(!state.recipients.length){tb.innerHTML='<tr><td colspan="7" class="empty-state">No recipients.</td></tr>';return;}
+  tb.innerHTML=state.recipients.map((r,i)=>`<tr><td><strong>${r.name}</strong></td><td><span class="badge badge-blue">${r.category}</span></td><td>${r.country}</td><td>${r.basis||'—'}</td><td><span class="badge ${r.thirdCountry==='Yes'?'badge-red':'badge-green'}">${r.thirdCountry}</span></td><td>${r.safeguards||'—'}</td><td><button class="btn btn-danger btn-sm" onclick="if(confirm('Delete?')){state.recipients.splice(${i},1);renderRecipients();persistSave();}">Del</button></td></tr>`).join('');
+}
+
+/* TRANSFERS */
+function openTransferForm(){['t-country','t-recipient','t-doc','t-desc'].forEach(id=>document.getElementById(id).value='');openModal('transfer-modal');}
+function saveTransfer(){
+  const country=document.getElementById('t-country').value.trim(),sf=document.getElementById('t-safeguard').value;
+  if(!country||!sf){alert('Fill required fields');return;}
+  state.transfers.push({id:'TRF-'+String(Date.now()).slice(-5),country,recipient:document.getElementById('t-recipient').value,safeguard:sf,doc:document.getElementById('t-doc').value,review:document.getElementById('t-review').value,status:document.getElementById('t-status').value,desc:document.getElementById('t-desc').value});
+  addAuditLog('Transfer Logged',`Transfer to ${country}`);closeModal('transfer-modal');renderTransfers();persistSave();
+}
+function renderTransfers(){
+  const tb=document.getElementById('transfers-table');
+  if(!state.transfers.length){tb.innerHTML='<tr><td colspan="7" class="empty-state">No transfers.</td></tr>';return;}
+  const sc={Active:'badge-green','Under Review':'badge-warn',Suspended:'badge-orange',Terminated:'badge-red'};
+  tb.innerHTML=state.transfers.map(t=>`<tr><td style="font-family:var(--mono);color:var(--accent)">${t.id}</td><td><strong>${t.country}</strong></td><td>${t.recipient||'—'}</td><td><span class="badge badge-blue">${t.safeguard}</span></td><td>${t.doc||'—'}</td><td>${t.review||'—'}</td><td><span class="badge ${sc[t.status]||'badge-gray'}">${t.status}</span></td></tr>`).join('');
+}
+
+/* RETENTION */
+function openRetentionForm(){
+  ['ret-cat','ret-period','ret-basis','ret-review'].forEach(id=>document.getElementById(id).value='');
+  const s=document.getElementById('ret-owner');s.innerHTML='<option value="">Select owner...</option>'+state.owners.map(ow=>`<option>${ow.name} (${ow.dept})</option>`).join('');
+  openModal('retention-modal');
+}
+function saveRetention(){
+  const cat=document.getElementById('ret-cat').value.trim(),period=document.getElementById('ret-period').value.trim();
+  if(!cat||!period){alert('Fill required fields');return;}
+  state.retention.push({cat,period,basis:document.getElementById('ret-basis').value,method:document.getElementById('ret-method').value,owner:document.getElementById('ret-owner').value,review:document.getElementById('ret-review').value});
+  addAuditLog('Retention Schedule Added',`"${cat}" — ${period}`);closeModal('retention-modal');renderRetentionTable();persistSave();
+}
+function renderRetentionTable(){
+  const tb=document.getElementById('retention-table');
+  if(!state.retention.length){tb.innerHTML='<tr><td colspan="7" class="empty-state">No schedules.</td></tr>';return;}
+  tb.innerHTML=state.retention.map((r,i)=>`<tr><td><strong>${r.cat}</strong></td><td style="color:var(--accent2)">${r.period}</td><td>${r.basis||'—'}</td><td><span class="badge badge-blue">${r.method}</span></td><td>${r.owner||'—'}</td><td>${r.review||'—'}</td><td><button class="btn btn-danger btn-sm" onclick="if(confirm('Delete?')){state.retention.splice(${i},1);renderRetentionTable();persistSave();}">Del</button></td></tr>`).join('');
+}
+
+/* SECURITY */
+function openSecurityForm(){['sec-name','sec-desc','sec-applies','sec-audit'].forEach(id=>document.getElementById(id).value='');openModal('security-modal');}
+function saveSecurity(){
+  const name=document.getElementById('sec-name').value.trim(),desc=document.getElementById('sec-desc').value.trim();
+  if(!name||!desc){alert('Fill required fields');return;}
+  state.security.push({name,type:document.getElementById('sec-type').value,desc,applies:document.getElementById('sec-applies').value,status:document.getElementById('sec-status').value,audit:document.getElementById('sec-audit').value});
+  addAuditLog('Security Measure Added',`"${name}"`);closeModal('security-modal');renderSecurity();persistSave();
+}
+function renderSecurity(){
+  const tb=document.getElementById('security-table');
+  if(!state.security.length){tb.innerHTML='<tr><td colspan="7" class="empty-state">No measures.</td></tr>';return;}
+  const tc={'Technical':'badge-blue','Organizational':'badge-green','Physical':'badge-orange'};
+  const sc={Active:'badge-green','In Progress':'badge-warn',Planned:'badge-blue',Retired:'badge-gray'};
+  tb.innerHTML=state.security.map((s,i)=>`<tr><td><strong>${s.name}</strong></td><td><span class="badge ${tc[s.type]||'badge-gray'}">${s.type}</span></td><td>${s.desc}</td><td>${s.applies||'All'}</td><td><span class="badge ${sc[s.status]||'badge-gray'}">${s.status}</span></td><td>${s.audit||'—'}</td><td><button class="btn btn-danger btn-sm" onclick="if(confirm('Delete?')){state.security.splice(${i},1);renderSecurity();persistSave();}">Del</button></td></tr>`).join('');
+}
+
+/* OWNERS */
+function openOwnerForm(){['o-name','o-dept','o-email'].forEach(id=>document.getElementById(id).value='');state.selOT=[];document.querySelectorAll('#owner-type-select .dt-btn').forEach(b=>b.classList.remove('selected'));openModal('owner-modal');}
+function saveOwner(){
+  const name=document.getElementById('o-name').value.trim(),dept=document.getElementById('o-dept').value.trim(),email=document.getElementById('o-email').value.trim();
+  if(!name||!dept||!email){alert('Fill required fields');return;}
+  state.owners.push({name,dept,email,types:[...state.selOT]});
+  addAuditLog('Data Owner Added',`"${name}" (${dept})`);closeModal('owner-modal');renderOwners();updateDTDisplay();persistSave();
+}
+function renderOwners(){
+  const tb=document.getElementById('owners-table');
+  if(!state.owners.length){tb.innerHTML='<tr><td colspan="5" class="empty-state">No owners.</td></tr>';return;}
+  tb.innerHTML=state.owners.map((ow,i)=>`<tr><td><strong>${ow.name}</strong></td><td>${ow.dept}</td><td style="color:var(--accent2)">${ow.email}</td><td>${(ow.types||[]).map(t=>`<span class="badge ${t.includes('⚠')?'badge-red':'badge-blue'}" style="margin:.1rem">${t}</span>`).join('')||'—'}</td><td><button class="btn btn-danger btn-sm" onclick="if(confirm('Delete?')){state.owners.splice(${i},1);renderOwners();persistSave();}">Del</button></td></tr>`).join('');
+}
+
+/* ═══════════════════════════════ DSR TRACKER ═══════════════════════════════ */
+function openSARForm(){
+  ['sar-name','sar-assigned','sar-notes'].forEach(id=>document.getElementById(id).value='');
+  const today=new Date();const dl=new Date(today);dl.setDate(dl.getDate()+30);
+  document.getElementById('sar-received').value=today.toISOString().split('T')[0];
+  document.getElementById('sar-deadline').value=dl.toISOString().split('T')[0];
+  document.getElementById('sar-status').selectedIndex=0;
+  openModal('sar-modal');
+}
+function saveSAR(){
+  const type=document.getElementById('sar-type').value,received=document.getElementById('sar-received').value;
+  if(!received){alert('Date received required');return;}
+  const sar={id:'DSR-'+String(Date.now()).slice(-5),type,name:document.getElementById('sar-name').value,received,deadline:document.getElementById('sar-deadline').value,status:document.getElementById('sar-status').value,assigned:document.getElementById('sar-assigned').value,notes:document.getElementById('sar-notes').value,created:new Date().toISOString()};
+  state.sarList.push(sar);addAuditLog('DSR Logged',`${type} — deadline ${sar.deadline}`);
+  closeModal('sar-modal');renderSAR();updateStats();persistSave();
+}
+function setSARFilter(f,btn){sarFilter=f;document.querySelectorAll('#page-sar .filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderSAR();}
+function renderSAR(){
+  const el=document.getElementById('sar-list');const today=new Date();
+  let list=state.sarList.filter(s=>{
+    if(sarFilter==='open')return s.status==='Open'||s.status==='In Progress';
+    if(sarFilter==='completed')return s.status==='Completed'||s.status==='Rejected';
+    if(sarFilter==='urgent'){const d=new Date(s.deadline);const df=(d-today)/(864e5);return df<=7&&df>=0&&(s.status==='Open'||s.status==='In Progress');}
+    return true;
+  });
+  if(!list.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">◉</div>No requests match.</div>';return;}
+  el.innerHTML=list.map(s=>{
+    const dl=new Date(s.deadline);const days=Math.ceil((dl-today)/864e5);
+    const done=s.status==='Completed'||s.status==='Rejected';
+    const urgent=!done&&days<=7&&days>=0;const ov=!done&&days<0;
+    const dc=done?'done':urgent||ov?'urgent':'';
+    const dt=done?'Done':ov?`${Math.abs(days)}d overdue`:days===0?'Due today':`${days}d left`;
+    const sc={Open:'badge-warn','In Progress':'badge-blue',Completed:'badge-green',Rejected:'badge-gray'};
+    const si=state.sarList.indexOf(s);
+    return`<div class="sar-item">
+      <span class="badge badge-blue" style="font-size:.6rem">${s.type.split(' ').slice(0,2).join(' ')}</span>
+      <div style="flex:1;min-width:130px"><div style="font-size:.84rem;font-weight:600;color:var(--text)">${s.name||'Anonymous'}</div><div style="font-size:.68rem;color:var(--text3);font-family:var(--mono)">Received ${s.received} · ${s.assigned||'Unassigned'}</div></div>
+      <div style="text-align:center"><div class="sar-deadline ${dc}">${dt}</div><div style="font-size:.62rem;color:var(--text3)">Deadline: ${s.deadline}</div></div>
+      <span class="badge ${sc[s.status]||'badge-gray'}">${s.status}</span>
+      <div class="col-actions">
+        ${!done?`<button class="btn btn-success btn-sm" onclick="completeSAR(${si})">✓ Done</button>`:''}
+        <button class="btn btn-danger btn-sm" onclick="if(confirm('Delete?')){state.sarList.splice(${si},1);renderSAR();updateStats();persistSave();}">Del</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function completeSAR(i){state.sarList[i].status='Completed';addAuditLog('DSR Completed',`${state.sarList[i].type} for "${state.sarList[i].name||'Anonymous'}"`);renderSAR();updateStats();persistSave();}
+
+/* ═══════════════════════════════ ORG ADDRESS BOOK ═══════════════════════════════ */
+function getOrgBook(type){
+  if(type==='ctrl')return state.controllers.map(c=>({id:'c_'+c.org,name:c.org,meta:[c.name,c.email,c.phone].filter(Boolean).join(' · '),data:c}));
+  if(type==='recip')return state.recipients.map(r=>({id:'r_'+r.name,name:r.name,meta:[r.category,r.country].filter(Boolean).join(' · '),data:r}));
+  return[];
+}
+function orgOpen(type){
+  const inp=document.getElementById(type+'-org-search');
+  renderOrgDD(type,inp.value.trim());
+  const dd=document.getElementById(type+'-org-dd');
+  const r=inp.getBoundingClientRect();const pw=Math.max(r.width,300);let left=r.left;
+  if(left+pw>window.innerWidth-10)left=window.innerWidth-pw-10;if(left<6)left=6;
+  dd.style.cssText=`left:${left}px;top:${r.bottom+2}px;width:${pw}px`;dd.classList.remove('hidden');
+}
+function orgFilter(type){const q=document.getElementById(type+'-org-search').value.trim();renderOrgDD(type,q);if(document.getElementById(type+'-org-dd').classList.contains('hidden'))orgOpen(type);}
+function renderOrgDD(type,q){
+  const dd=document.getElementById(type+'-org-dd');const book=getOrgBook(type);
+  const f=q?book.filter(o=>o.name.toLowerCase().includes(q.toLowerCase())||o.meta.toLowerCase().includes(q.toLowerCase())):book;
+  if(!f.length){dd.innerHTML=`<div class="org-dd-empty">${book.length?'No matches':'No saved organisations yet'}</div>`;return;}
+  dd.innerHTML=f.map(o=>`<div class="org-dd-item" onclick="orgSelect('${type}','${o.id.replace(/'/g,"\\'")}')"><div class="org-dd-name">${o.name}</div><div class="org-dd-meta">${o.meta}</div></div>`).join('');
+}
+function orgSelect(type,id){
+  const book=getOrgBook(type);const org=book.find(o=>o.id===id);if(!org)return;
+  if(type==='ctrl'){
+    const c=org.data;
+    const m={'e-ctrl':c.org||'','e-ctrl-email':c.email||'','e-ctrl-phone':c.phone||'','e-rep':c.address||'','e-dpo':c.dpo||'','e-dpo-email':c.dpoEmail||''};
+    Object.entries(m).forEach(([k,v])=>{const el=document.getElementById(k);if(el)el.value=v;});
+    document.getElementById('ctrl-filled-badge').innerHTML=`<span class="org-filled-badge">◉ ${c.org} loaded <span class="clr" onclick="orgClearCtrl()">✕ clear</span></span>`;
+    document.getElementById('ctrl-save-row').style.display='none';
+  }
+  if(type==='recip'){
+    const name=org.data.name;const inst=SD['sd-recipients'];
+    if(inst){if(!inst.opts.find(o=>o.v===name))inst.opts.push({v:name,l:name});if(!inst.sel.includes(name))inst.sel.push(name);sdUpdateChips('sd-recipients');sdUpdateTrigger('sd-recipients');}
+    const badge=document.getElementById('recip-filled-badge');
+    if(badge){badge.innerHTML=`<span class="org-filled-badge">◆ ${name} added</span>`;setTimeout(()=>{badge.innerHTML='';},2500);}
+  }
+  orgCloseDD(type);
+}
+function orgClearCtrl(){
+  ['e-ctrl','e-ctrl-email','e-ctrl-phone','e-rep','e-dpo','e-dpo-email'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('ctrl-filled-badge').innerHTML='';
+  document.getElementById('ctrl-save-row').style.display='';
+  document.getElementById('ctrl-org-search').value='';
+}
+function orgCloseDD(type){document.getElementById(type+'-org-dd')?.classList.add('hidden');document.getElementById(type+'-org-search').value='';}
+function orgKey(e,type){if(e.key==='Escape')orgCloseDD(type);if(e.key==='Enter'){e.preventDefault();const f=document.getElementById(type+'-org-dd').querySelector('.org-dd-item');if(f)f.click();}}
+document.addEventListener('click',e=>{
+  ['ctrl','recip'].forEach(type=>{
+    const dd=document.getElementById(type+'-org-dd');const inp=document.getElementById(type+'-org-search');
+    if(dd&&inp&&!dd.contains(e.target)&&!inp.contains(e.target))dd.classList.add('hidden');
+  });
+},{passive:true});
+
+/* ═══════════════════════════════ PDF EXPORT ═══════════════════════════════ */
+function exportToPDF(){
+  const win=window.open('','_blank');
+  const rc={Low:'#2a7a4a',Medium:'#9a6a00',High:'#9a4a00',Critical:'#9a1a2a'};
+  const rows=state.entries.map(e=>`<tr>
+    <td>${e.id}</td><td><strong>${e.name}</strong></td><td>${e.controller}<br><small>${e.controllerEmail||''}</small></td>
+    <td>${e.purpose}</td><td>${e.legalBasis||'—'}${e.art9Basis?`<br><small style="color:#666">${e.art9Basis}</small>`:''}</td>
+    <td>${(e.dataTypes||[]).join('<br>')}</td><td>${(e.subjects||[]).join(', ')}</td>
+    <td>${(e.recipients||[]).join('<br>')}</td><td>${(e.countries||[]).join(', ')||'None'}</td>
+    <td>${e.retention||'—'}<br><small>${e.retentionBasis||''}</small></td>
+    <td style="color:${rc[e.risk]||'#555'};font-weight:600">${e.risk||'—'}</td>
+    <td>${e.reviewDate||'—'}</td><td>${dpiaRequired(e)?`<span style="color:#c00;font-weight:600">${e.dpiaConfirmed?'✓':'⚠ Pending'}</span>`:'N/A'}</td>
+  </tr>`).join('');
+  win.document.write(`<!DOCTYPE html><html><head><title>RoPAforge — RoPA Report</title>
+  <style>body{font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;color:#1a2a3a;margin:0;padding:18px}h1{font-size:19px;color:#005080;margin-bottom:3px}.sub{font-size:10px;color:#5a8aaa;margin-bottom:3px}.meta{font-size:8.5px;color:#888;margin-bottom:16px;border-bottom:2px solid #005080;padding-bottom:8px}table{width:100%;border-collapse:collapse;margin-top:10px}th{background:#005080;color:#fff;padding:5.5px 7px;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.04em}td{padding:4.5px 7px;border-bottom:1px solid #dde;vertical-align:top;font-size:8.5px}tr:nth-child(even)td{background:#f4f8fc}tr:hover td{background:#e8f2ff}small{color:#888;display:block;margin-top:1px}.footer{margin-top:16px;font-size:8px;color:#888;border-top:1px solid #dde;padding-top:6px;text-align:center}@media print{body{padding:8px}button{display:none}}</style>
+  </head><body>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="width:38px;height:38px;background:#005080;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px">RF</div><div><h1>RoPAforge</h1><div class="sub">Record of Processing Activities — GDPR Article 30</div></div></div>
+  <div class="meta">Generated: ${new Date().toLocaleString()} · ${state.entries.length} activities · By Ali Moyo<button onclick="window.print()" style="float:right;background:#005080;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:9px">Print / Save PDF</button></div>
+  <table><thead><tr><th>ID</th><th>Activity</th><th>Controller</th><th>Purpose</th><th>Legal Basis</th><th>Data Types</th><th>Subjects</th><th>Recipients</th><th>3rd Countries</th><th>Retention</th><th>Risk</th><th>Review Date</th><th>DPIA</th></tr></thead>
+  <tbody>${rows||'<tr><td colspan="13" style="text-align:center;color:#888">No entries</td></tr>'}</tbody></table>
+  <div class="footer">RoPAforge · GDPR Art. 30 Compliance Tool · Confidential — Do not distribute without authorisation · By Ali Moyo</div>
+  </body></html>`);
+  win.document.close();
+  addAuditLog('PDF Export','Full register exported to PDF');persistSave();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AUDITOR-READY EXCEL EXPORT
+   Pure JS OOXML builder — no external library, full cell styling
+   10 sheets: Cover · Dashboard · RoPA · Controllers · Recipients
+   Transfers · Retention · Security · DSR Tracker · Data Owners
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Tiny OOXML xlsx builder ───────────────────────────────── */
+const XB = (() => {
+  // Palette (ARGB hex, no #)
+  const C = {
+    navy:'FF003366', dkBlue:'FF004080', midBlue:'FF0070C0',
+    ltBlue:'FFD6E4F0', palBlue:'FFEBF4FB', offWhite:'FFF7FAFD',
+    gold:'FFC9A800', goldPale:'FFFFF8DC',
+    white:'FFFFFFFF', greyDk:'FF4A4A4A', greyMd:'FF888888',
+    greyLt:'FFDADADA', greyPl:'FFF2F2F2',
+    green:'FF00703C', greenPl:'FFE2F4EB',
+    red:'FFC00000',   redPl:'FFFDE9E9',
+    orange:'FFFF6600',orangePl:'FFFFF0E0',
+    amber:'FFFFC000', amberPl:'FFFFFBE0',
+  };
+
+  // Risk colour map
+  const RISK = {
+    Critical:{txt:C.red,    bg:C.redPl   },
+    High:    {txt:C.orange, bg:C.orangePl},
+    Medium:  {txt:C.amber,  bg:C.amberPl },
+    Low:     {txt:C.green,  bg:C.greenPl },
+  };
+
+  function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
+
+  // Build shared strings table
+  function buildSST(sheets){
+    const strs=[]; const map={};
+    const add=s=>{const k=String(s??'');if(!(k in map)){map[k]=strs.length;strs.push(k);}return map[k];};
+    sheets.forEach(sh=>sh.rows.forEach(row=>row.forEach(cell=>{if(cell.t==='s')cell.si=add(cell.v);})));
+    const xml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${strs.length}" uniqueCount="${strs.length}">${strs.map(s=>`<si><t xml:space="preserve">${esc(s)}</t></si>`).join('')}</sst>`;
+    return xml;
+  }
+
+  // Style registry — each unique style gets an index
+  const styleReg={fonts:[],fills:[],borders:[],xfs:[]};
+  const fontMap={},fillMap={},borderMap={},xfMap={};
+
+  function fIdx(f){const k=JSON.stringify(f);if(!(k in fontMap)){fontMap[k]=styleReg.fonts.length;styleReg.fonts.push(f);}return fontMap[k];}
+  function fiIdx(f){const k=JSON.stringify(f);if(!(k in fillMap)){fillMap[k]=styleReg.fills.length;styleReg.fills.push(f);}return fillMap[k];}
+  function bIdx(b){const k=JSON.stringify(b);if(!(k in borderMap)){borderMap[k]=styleReg.borders.length;styleReg.borders.push(b);}return borderMap[k];}
+  function xfIdx(x){const k=JSON.stringify(x);if(!(k in xfMap)){xfMap[k]=styleReg.xfs.length;styleReg.xfs.push(x);}return xfMap[k];}
+
+  // Reset style reg between workbook builds
+  function resetStyles(){
+    styleReg.fonts=[];styleReg.fills=[];styleReg.borders=[];styleReg.xfs=[];
+    Object.keys(fontMap).forEach(k=>delete fontMap[k]);
+    Object.keys(fillMap).forEach(k=>delete fillMap[k]);
+    Object.keys(borderMap).forEach(k=>delete borderMap[k]);
+    Object.keys(xfMap).forEach(k=>delete xfMap[k]);
+    // Required Excel defaults
+    fIdx({sz:9,name:'Arial',color:C.greyDk});        // 0 default
+    fiIdx({type:'none'});                              // 0 none
+    fiIdx({type:'gray125'});                           // 1 required
+    bIdx({none:true});                                 // 0 no border
+  }
+
+  // Build a style index from spec
+  function sty({bold=false,sz=9,color=C.greyDk,bg=null,italic=false,mono=false,
+                ha='left',va='center',wrap=false,border=true}={}){
+    const fi=fIdx({sz,name:mono?'Courier New':'Arial',bold,italic,color});
+    const bgi=bg?fiIdx({type:'solid',fgColor:bg}):0;
+    const bi=border?bIdx({style:'thin',color:C.greyLt}):0;
+    return xfIdx({fi,bgi,bi,ha,va,wrap});
+  }
+
+  function buildStylesXml(){
+    const fontXml=styleReg.fonts.map(f=>`<font><sz val="${f.sz}"/><name val="${f.name}"/><color rgb="${f.color}"/>${f.bold?'<b/>':''}${f.italic?'<i/>':''}</font>`).join('');
+    const fillXml=styleReg.fills.map(f=>{
+      if(f.type==='none')return'<fill><patternFill patternType="none"/></fill>';
+      if(f.type==='gray125')return'<fill><patternFill patternType="gray125"/></fill>';
+      return`<fill><patternFill patternType="solid"><fgColor rgb="${f.fgColor}"/></patternFill></fill>`;
+    }).join('');
+    const bdrXml=styleReg.borders.map(b=>{
+      if(b.none)return'<border><left/><right/><top/><bottom/><diagonal/></border>';
+      const side=`<left style="${b.style}"><color rgb="${b.color}"/></left><right style="${b.style}"><color rgb="${b.color}"/></right><top style="${b.style}"><color rgb="${b.color}"/></top><bottom style="${b.style}"><color rgb="${b.color}"/></bottom><diagonal/>`;
+      return`<border>${side}</border>`;
+    }).join('');
+    const xfXml=styleReg.xfs.map(x=>`<xf numFmtId="0" fontId="${x.fi}" fillId="${x.bgi}" borderId="${x.bi}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${x.ha}" vertical="${x.va}" wrapText="${x.wrap?1:0}"/></xf>`).join('');
+    return`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${styleReg.fonts.length}">${fontXml}</fonts><fills count="${styleReg.fills.length}">${fillXml}</fills><borders count="${styleReg.borders.length}">${bdrXml}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${styleReg.xfs.length}">${xfXml}</cellXfs></styleSheet>`;
+  }
+
+  // Column letter helper
+  function col2letter(n){let r='';while(n>0){r=String.fromCharCode(65+(n-1)%26)+r;n=Math.floor((n-1)/26);}return r;}
+
+  // Build worksheet XML from sheet spec
+  // sheet.rows = array of arrays of {v, t('s'|'n'|''), si(shared string idx), s(style idx), si}
+  // sheet.merges = [{r1,c1,r2,c2}]
+  // sheet.cols = [{wch}]
+  // sheet.rowH = {rownum: height_pts}
+  function buildSheetXml(sheet){
+    const colXml=sheet.cols?sheet.cols.map((c,i)=>`<col min="${i+1}" max="${i+1}" width="${c.wch||10}" customWidth="1"/>`).join(''):'';
+    const rowsXml=sheet.rows.map((row,ri)=>{
+      const r=ri+1;
+      const h=sheet.rowH&&sheet.rowH[r];
+      const htAttr=h?` ht="${h}" customHeight="1"`:'';
+      const cellsXml=row.map((cell,ci)=>{
+        if(!cell)return'';
+        const addr=`${col2letter(ci+1)}${r}`;
+        const s=cell.s||0;
+        if(cell.t==='s'){
+          return`<c r="${addr}" s="${s}" t="s"><v>${cell.si??0}</v></c>`;
+        } else if(cell.t==='n'){
+          return`<c r="${addr}" s="${s}" t="n"><v>${cell.v??0}</v></c>`;
+        } else {
+          return`<c r="${addr}" s="${s}"/>`;
+        }
+      }).join('');
+      return`<row r="${r}"${htAttr}>${cellsXml}</row>`;
+    }).join('');
+    const mergeXml=sheet.merges&&sheet.merges.length?`<mergeCells count="${sheet.merges.length}">${sheet.merges.map(m=>`<mergeCell ref="${col2letter(m.c1)}${m.r1}:${col2letter(m.c2)}${m.r2}"/>`).join('')}</mergeCells>`:'';
+    const freezeXml=sheet.freeze?`<sheetViews><sheetView tabSelected="1" workbookViewId="0" showGridLines="0"><pane ySplit="${sheet.freeze}" topLeftCell="A${sheet.freeze+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`:`<sheetViews><sheetView showGridLines="0" workbookViewId="0"/></sheetViews>`;
+    const afXml=sheet.autoFilter?`<autoFilter ref="${sheet.autoFilter}"/>`:'';
+    return`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetFormatPr defaultRowHeight="15"/>${colXml?`<cols>${colXml}</cols>`:''}<sheetData>${rowsXml}</sheetData>${mergeXml}${afXml}${freezeXml}</worksheet>`;
+  }
+
+  // Zip builder using JSZip-like approach — pure JS
+  // We'll use the XLSX library's zip infrastructure since it's loaded
+  function buildXlsx(sheets){
+    const wb2=XLSX.utils.book_new();
+    sheets.forEach(sh=>{
+      const ws={};
+      let maxC=0;
+      sh.rows.forEach((row,ri)=>{
+        row.forEach((cell,ci)=>{
+          if(!cell)return;
+          const addr=XLSX.utils.encode_cell({r:ri,c:ci});
+          if(cell.t==='s'){ws[addr]={v:cell.v,t:'s'};}
+          else if(cell.t==='n'){ws[addr]={v:cell.v,t:'n'};}
+          else{ws[addr]={v:'',t:'s'};}
+          if(cell.s!=null)ws[addr].s=buildCellStyle(cell._styleSpec||{});
+          if(ci+1>maxC)maxC=ci+1;
+        });
+      });
+      const range={s:{r:0,c:0},e:{r:sh.rows.length-1,c:maxC-1}};
+      ws['!ref']=XLSX.utils.encode_range(range);
+      if(sh.cols)ws['!cols']=sh.cols.map(c=>({wch:c.wch||10}));
+      if(sh.merges)ws['!merges']=sh.merges.map(m=>({s:{r:m.r1-1,c:m.c1-1},e:{r:m.r2-1,c:m.c2-1}}));
+      if(sh.rowH){ws['!rows']=[];Object.entries(sh.rowH).forEach(([r,h])=>{ws['!rows'][parseInt(r)-1]={hpt:h};});}
+      if(sh.freeze){ws['!freeze']={xSplit:0,ySplit:sh.freeze};}
+      if(sh.autoFilter)ws['!autofilter']={ref:sh.autoFilter};
+      XLSX.utils.book_append_sheet(wb2,ws,sh.name);
+    });
+    return wb2;
+  }
+
+  // Build a cell style object for XLSX (SheetJS style format)
+  function buildCellStyle({bold=false,sz=9,color=null,bg=null,italic=false,mono=false,
+                            ha='left',va='center',wrap=false,border=true}={}){
+    const style={font:{name:mono?'Courier New':'Arial',sz,bold,italic},
+                 alignment:{horizontal:ha,vertical:va,wrapText:wrap}};
+    if(color)style.font.color={rgb:color.replace('FF','')};
+    if(bg)style.fill={patternType:'solid',fgColor:{rgb:bg.replace('FF','')}};
+    if(border)style.border={top:{style:'thin',color:{rgb:'DADADA'}},bottom:{style:'thin',color:{rgb:'DADADA'}},left:{style:'thin',color:{rgb:'DADADA'}},right:{style:'thin',color:{rgb:'DADADA'}}};
+    return style;
+  }
+
+  // Cell factory
+  function cell(v, spec={}){
+    const isNum=typeof v==='number';
+    return{v,t:isNum?'n':'s',_styleSpec:spec};
+  }
+  function ec(){return{v:'',t:'s',_styleSpec:{border:false}};}  // empty styled
+
+  // Row fill helper — fills cols 1..n with bg
+  function bgRow(n,bg,h=18){
+    return Array.from({length:n},()=>cell('',{bg,border:false}));
+  }
+
+  /* ── Banner builder ── returns rows + merges for a sheet banner */
+  function makeBanner(title,nCols,bannerBg=C.navy,barBg=C.gold){
+    const rows=[];
+    const merges=[];
+    // Row 1: thin top spacer (navy)
+    rows.push(Array.from({length:nCols},()=>cell('',{bg:bannerBg,border:false})));
+    // Row 2: title
+    const titleRow=Array.from({length:nCols},()=>cell('',{bg:bannerBg,border:false}));
+    titleRow[0]=cell(title,{bold:true,sz:15,color:C.white,bg:bannerBg,ha:'center',va:'center',border:false});
+    rows.push(titleRow);
+    merges.push({r1:2,c1:1,r2:2,c2:nCols});
+    // Row 3: gold bar
+    rows.push(Array.from({length:nCols},()=>cell('',{bg:barBg,border:false})));
+    return{rows,merges,rowH:{1:6,2:36,3:5}};
+  }
+
+  /* ── Column header row ── */
+  function makeHdrRow(headers,bgCol=C.dkBlue){
+    return headers.map(h=>cell(h,{bold:true,sz:9,color:C.white,bg:bgCol,ha:'center',va:'center',wrap:true,border:true}));
+  }
+
+  /* ── Generic sheet builder ── */
+  function makeSheet(name,title,colDefs,dataRows,freeze=true,filterRow=4){
+    const nCols=colDefs.length;
+    const{rows:bannerRows,merges:bannerMerges,rowH}=makeBanner(title,nCols);
+    const rows=[...bannerRows];
+    const merges=[...bannerMerges];
+
+    // Header row (row 4)
+    rows.push(makeHdrRow(colDefs.map(cd=>cd.header)));
+    rowH[4]=34;
+
+    if(!dataRows||!dataRows.length){
+      const emptyRow=Array.from({length:nCols},()=>cell('',{border:false}));
+      emptyRow[0]=cell('No records found.',{italic:true,sz:10,color:C.greyMd,ha:'center'});
+      rows.push(emptyRow);
+      merges.push({r1:5,c1:1,r2:5,c2:nCols});
+    } else {
+      dataRows.forEach((dr,ri)=>{
+        const bg=ri%2===0?C.offWhite:C.white;
+        const row=dr.map((val,ci)=>{
+          const cd=colDefs[ci];
+          const isFirst=ci===0;
+          return cell(val??'—',{
+            bold:isFirst,sz:9,
+            color:isFirst?C.dkBlue:C.greyDk,
+            mono:cd.mono||false,
+            bg:cd.cellBg?cd.cellBg(val,ri):bg,
+            ha:cd.center?'center':'left',
+            va:'top',wrap:true,border:true
+          });
+        });
+        rows.push(row);
+        rowH[5+ri]=48;
+      });
+    }
+
+    return{
+      name,rows,merges,
+      cols:colDefs.map(cd=>({wch:cd.width||18})),
+      rowH,
+      freeze:freeze?filterRow:null,
+      autoFilter:freeze&&dataRows&&dataRows.length?`A${filterRow}:${col2letter(nCols)}${filterRow}`:null
+    };
+  }
+
+  /* ── Footer row ── */
+  function addFooterToSheet(sh,nCols){
+    const fRow=sh.rows.length+1;
+    const row=Array.from({length:nCols},()=>cell('',{bg:C.navy,border:false}));
+    row[0]=cell(
+      `RoPAforge  ·  OmniContact BPO  ·  GDPR Art. 30  ·  ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})}  ·  CONFIDENTIAL`,
+      {italic:true,sz:8,color:C.goldPale,bg:C.navy,ha:'center',va:'center',border:false}
+    );
+    sh.rows.push(row);
+    sh.merges.push({r1:fRow,c1:1,r2:fRow,c2:nCols});
+    sh.rowH[fRow]=20;
+  }
+
+  return{C,RISK,cell,ec,bgRow,makeBanner,makeHdrRow,makeSheet,addFooterToSheet,buildCellStyle,buildXlsx,col2letter};
+})();
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN EXPORT FUNCTION
+═══════════════════════════════════════════════════════════════ */
+function exportToExcel(){
+  const C=XB.C, RISK=XB.RISK;
+  const today=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  const total=state.entries.length;
+  const complete=state.entries.filter(isComplete).length;
+  const special=state.entries.filter(e=>e.dataTypes?.some(d=>d.includes('⚠'))).length;
+  const critical=state.entries.filter(e=>e.risk==='Critical').length;
+  const highRisk=state.entries.filter(e=>e.risk==='High').length;
+  const dpiaCnt=state.entries.filter(dpiaRequired).length;
+  const ctrl0=state.controllers[0]||{};
+
+  const riskRankMap={Critical:4,High:3,Medium:2,Low:1};
+  const rankRiskMap={4:'Critical',3:'High',2:'Medium',1:'Low'};
+
+  /* ── SHEET 1: COVER PAGE ── */
+  function makeCoverSheet(){
+    const nCols=10;
+    const rows=[];const merges=[];const rowH={};
+
+    // Navy header
+    rowH[1]=8;rowH[2]=75;rowH[3]=6;
+    [1,2].forEach(r=>rows.push(Array.from({length:nCols},()=>XB.cell('',{bg:C.navy,border:false}))));
+    rows[1][0]=XB.cell('RECORD OF PROCESSING ACTIVITIES',{bold:true,sz:28,color:C.white,bg:C.navy,ha:'center',va:'center',border:false});
+    merges.push({r1:2,c1:1,r2:2,c2:nCols});
+    rows.push(Array.from({length:nCols},()=>XB.cell('',{bg:C.gold,border:false})));
+
+    // Subtitle strip row 4
+    rowH[4]=32;
+    rows.push(Array.from({length:nCols},()=>XB.cell('',{bg:C.dkBlue,border:false})));
+    rows[3][0]=XB.cell('GDPR Article 30 Compliance Register  ·  Prepared for Regulatory Audit',
+      {italic:true,sz:13,color:C.goldPale,bg:C.dkBlue,ha:'center',va:'center',border:false});
+    merges.push({r1:4,c1:1,r2:4,c2:nCols});
+
+    // White body rows 5+
+    for(let r=5;r<=60;r++){rowH[r]=18;rows.push(Array.from({length:nCols},()=>XB.cell('',{bg:C.white,border:false})));}
+
+    rowH[6]=10;
+
+    // Controller card header (row 7)
+    rowH[7]=22;
+    rows[6][1]=XB.cell('CONTROLLER INFORMATION',{bold:true,sz:9,color:C.white,bg:C.navy,ha:'left',va:'center',border:true});
+    merges.push({r1:7,c1:2,r2:7,c2:6});
+
+    const ctrlFields=[
+      ['Organisation', ctrl0.org||'OmniContact BPO'],
+      ['Controller Type', ctrl0.type||'Data Controller'],
+      ['Contact Person', ctrl0.name||''],
+      ['Email Address', ctrl0.email||''],
+      ['Telephone', ctrl0.phone||''],
+      ['Data Protection Officer', ctrl0.dpo||''],
+      ['DPO Email', ctrl0.dpoEmail||''],
+    ];
+    ctrlFields.forEach(([lbl,val],i)=>{
+      const r=8+i;rowH[r]=22;
+      rows[r-1][1]=XB.cell(lbl,{bold:true,sz:8,color:C.greyDk,bg:C.offWhite,ha:'left',va:'center',border:true});
+      rows[r-1][2]=XB.cell(val||'—',{sz:10,color:C.dkBlue,bg:C.offWhite,ha:'left',va:'center',border:true});
+      merges.push({r1:r,c1:3,r2:r,c2:6});
+    });
+
+    // Doc info card header (row 7, cols 7-10)
+    rows[6][6]=XB.cell('DOCUMENT INFORMATION',{bold:true,sz:9,color:C.white,bg:C.midBlue,ha:'left',va:'center',border:true});
+    merges.push({r1:7,c1:7,r2:7,c2:10});
+    const docFields=[
+      ['Report Title','Record of Processing Activities'],
+      ['Prepared By','Ali Moyo'],
+      ['Date Generated',today],
+      ['Reporting Period','2025 – 2026'],
+      ['Total Entries',String(total)],
+      ['Complete Records',`${complete} of ${total}`],
+      ['Special Category',String(special)],
+    ];
+    docFields.forEach(([lbl,val],i)=>{
+      const r=8+i;
+      rows[r-1][6]=XB.cell(lbl,{bold:true,sz:8,color:C.greyDk,bg:C.palBlue,ha:'left',va:'center',border:true});
+      rows[r-1][7]=XB.cell(val,{sz:10,color:C.dkBlue,bg:C.palBlue,ha:'left',va:'center',border:true});
+      merges.push({r1:r,c1:8,r2:r,c2:10});
+    });
+
+    // Summary stat boxes (rows 17-19)
+    rowH[17]=10;rowH[18]=10;rowH[19]=42;rowH[20]=22;
+    rows[17][1]=XB.cell('REGISTER SUMMARY',{bold:true,sz:9,color:C.white,bg:C.navy,ha:'left',va:'center',border:true});
+    merges.push({r1:18,c1:2,r2:18,c2:10});
+    const stats=[
+      {l:'Total Entries',v:total,col:C.midBlue,bg:C.palBlue},
+      {l:'Complete',v:complete,col:C.green,bg:C.greenPl},
+      {l:'Special Cat.',v:special,col:C.red,bg:C.redPl},
+      {l:'Critical Risk',v:critical,col:C.red,bg:C.redPl},
+      {l:'DPIA Required',v:dpiaCnt,col:C.orange,bg:C.orangePl},
+    ];
+    const statCols=[2,4,6,8,10];
+    stats.forEach(({l,v,col,bg},i)=>{
+      const c=statCols[i];
+      rows[18][c-1]=XB.cell(v,{bold:true,sz:24,color:col,bg,ha:'center',va:'center',border:true});
+      rows[19][c-1]=XB.cell(l,{bold:true,sz:8,color:C.greyDk,bg,ha:'center',va:'center',border:true});
+      merges.push({r1:19,c1:c,r2:19,c2:c+1});
+      merges.push({r1:20,c1:c,r2:20,c2:c+1});
+    });
+
+    // Confidentiality notice (row 22)
+    rowH[22]=48;
+    rows[21][1]=XB.cell(
+      'CONFIDENTIALITY NOTICE: This document contains personal data processed under GDPR Article 30. Intended solely for the named controller, data protection officers, and authorised regulatory auditors. Unauthorised disclosure is prohibited.',
+      {italic:true,sz:8,color:C.greyMd,bg:C.greyPl,ha:'left',va:'center',wrap:true,border:true});
+    merges.push({r1:22,c1:2,r2:22,c2:10});
+
+    // Table of contents (rows 24+)
+    rowH[24]=22;
+    rows[23][1]=XB.cell('TABLE OF CONTENTS',{bold:true,sz:9,color:C.white,bg:C.navy,ha:'left',va:'center',border:true});
+    merges.push({r1:24,c1:2,r2:24,c2:10});
+    const toc=[
+      ['1','Cover Page','Organisational details, document metadata and register summary'],
+      ['2','Compliance Dashboard','Risk heatmap, status breakdown and key compliance metrics'],
+      ['3','RoPA Register','Full record of all processing activities — GDPR Art. 30'],
+      ['4','Controllers & DPO','Data controller and DPO contact details — Art. 30(1)(a)'],
+      ['5','Recipients','Third-party recipients of personal data — Art. 30(1)(d)'],
+      ['6','International Transfers','Cross-border transfer documentation — Art. 30(1)(e)'],
+      ['7','Retention Schedule','Per-category retention periods — Art. 30(1)(f) & Art. 5(1)(e)'],
+      ['8','Security Measures','Technical and organisational controls — Art. 30(1)(g) & Art. 32'],
+      ['9','DSR Tracker','Data Subject Rights requests with 30-day GDPR deadline tracking'],
+      ['10','Data Owners','Data ownership registry mapped by data type'],
+    ];
+    toc.forEach(([num,title,desc],i)=>{
+      const r=25+i;rowH[r]=20;
+      const bg=i%2===0?C.offWhite:C.white;
+      rows[r-1][1]=XB.cell(num,{bold:true,sz:9,color:C.midBlue,bg,ha:'center',va:'center',border:true});
+      rows[r-1][2]=XB.cell(title,{bold:true,sz:9,color:C.navy,bg,ha:'left',va:'center',border:true});
+      merges.push({r1:r,c1:3,r2:r,c2:5});
+      rows[r-1][5]=XB.cell(desc,{sz:9,color:C.greyDk,bg,ha:'left',va:'center',border:true});
+      merges.push({r1:r,c1:6,r2:r,c2:10});
+    });
+
+    const sh={name:'Cover Page',rows,merges,cols:Array.from({length:nCols},(_,i)=>{const ws=[3,3,22,20,20,18,18,16,16,3];return{wch:ws[i]||12};}),rowH};
+    XB.addFooterToSheet(sh,nCols);
+    return sh;
+  }
+
+  /* ── SHEET 2: COMPLIANCE DASHBOARD ── */
+  function makeDashSheet(){
+    const nCols=11;
+    const{rows:bRows,merges:bMerges,rowH}=XB.makeBanner('COMPLIANCE DASHBOARD',nCols);
+    const rows=[...bRows];const merges=[...bMerges];
+
+    // White body
+    for(let r=4;r<=80;r++){rowH[r]=18;rows.push(Array.from({length:nCols},()=>XB.cell('',{bg:C.white,border:false})));}
+
+    // KPI row (rows 5-7)
+    rowH[5]=8;rowH[6]=44;rowH[7]=22;
+    const kpis=[
+      {l:'Total Entries',v:total,col:C.midBlue,bg:C.palBlue},
+      {l:'Complete',v:complete,col:C.green,bg:C.greenPl},
+      {l:'Incomplete',v:total-complete,col:C.red,bg:C.redPl},
+      {l:'Special Cat.',v:special,col:C.red,bg:C.redPl},
+      {l:'Critical Risk',v:critical,col:C.red,bg:C.redPl},
+      {l:'High Risk',v:highRisk,col:C.orange,bg:C.orangePl},
+    ];
+    kpis.forEach(({l,v,col,bg},i)=>{
+      rows[5][1+i]=XB.cell(v,{bold:true,sz:24,color:col,bg,ha:'center',va:'center',border:true});
+      rows[6][1+i]=XB.cell(l,{bold:true,sz:8,color:C.greyDk,bg,ha:'center',va:'center',border:true});
+    });
+
+    // Risk section header (row 9)
+    rowH[9]=8;rowH[10]=22;rowH[11]=22;
+    rows[9][1]=XB.cell('RISK LEVEL DISTRIBUTION',{bold:true,sz:9,color:C.white,bg:C.dkBlue,ha:'left',va:'center',border:true});
+    merges.push({r1:10,c1:2,r2:10,c2:5});
+    ['Risk Level','Count','%','Visual Bar'].forEach((h,i)=>{rows[10][1+i]=XB.cell(h,{bold:true,sz:9,color:C.white,bg:C.dkBlue,ha:'center',va:'center',border:true});});
+
+    const riskCounts={};
+    state.entries.forEach(e=>{const r=e.risk||'Low';riskCounts[r]=(riskCounts[r]||0)+1;});
+    ['Critical','High','Medium','Low'].forEach((risk,ri)=>{
+      const r=12+ri;rowH[r]=22;
+      const cnt=riskCounts[risk]||0;
+      const pct=total>0?Math.round(cnt/total*100):0;
+      const{txt,bg}=RISK[risk]||{txt:C.greyDk,bg:C.greyPl};
+      const vals=[risk,cnt,pct+'%','█'.repeat(Math.round(pct/5))];
+      vals.forEach((v,ci)=>{rows[r-1][1+ci]=XB.cell(v,{bold:ci<2,sz:9,color:txt,bg,ha:ci<3?'center':'left',va:'middle',border:true});});
+    });
+
+    // Dept breakdown (col 7-11, rows 10-16)
+    rows[9][6]=XB.cell('ENTRIES BY DEPARTMENT',{bold:true,sz:9,color:C.white,bg:C.dkBlue,ha:'left',va:'center',border:true});
+    merges.push({r1:10,c1:7,r2:10,c2:11});
+    ['Department','Entries','Spec.','Max Risk'].forEach((h,i)=>{rows[10][6+i]=XB.cell(h,{bold:true,sz:9,color:C.white,bg:C.dkBlue,ha:'center',va:'center',border:true});});
+    const deptMap={};
+    state.entries.forEach(e=>{const d=e.department||'Unassigned';if(!deptMap[d])deptMap[d]={cnt:0,sp:0,risks:[]};deptMap[d].cnt++;if(e.dataTypes?.some(t=>t.includes('⚠')))deptMap[d].sp++;deptMap[d].risks.push(e.risk||'Low');});
+    Object.entries(deptMap).forEach(([dept,d],ri)=>{
+      const r=12+ri;rowH[r]=rowH[r]||22;
+      const bg=ri%2===0?C.offWhite:C.white;
+      const maxRisk=rankRiskMap[Math.max(...d.risks.map(rv=>riskRankMap[rv]||1))];
+      const{txt:rtxt,bg:rbg}=RISK[maxRisk]||{txt:C.greyDk,bg:C.greyPl};
+      rows[r-1][6]=XB.cell(dept,{sz:9,bg,ha:'left',va:'middle',wrap:true,border:true});
+      rows[r-1][7]=XB.cell(d.cnt,{bold:true,sz:10,color:C.dkBlue,bg,ha:'center',border:true});
+      rows[r-1][8]=XB.cell(d.sp,{bold:true,sz:10,color:d.sp>0?C.red:C.green,bg,ha:'center',border:true});
+      rows[r-1][9]=XB.cell(maxRisk,{bold:true,sz:9,color:rtxt,bg:rbg,ha:'center',border:true});
+    });
+
+    // Special category alert table
+    const spStart=12+Math.max(4,Object.keys(deptMap).length)+3;
+    rowH[spStart]=22;
+    rows[spStart-1][1]=XB.cell('⚠  SPECIAL CATEGORY PROCESSING — Art. 9 GDPR — ELEVATED COMPLIANCE OBLIGATION',
+      {bold:true,sz:9,color:C.white,bg:'FF8B0000',ha:'left',va:'center',border:true});
+    merges.push({r1:spStart,c1:2,r2:spStart,c2:nCols});
+    rowH[spStart+1]=22;
+    ['ID','Activity Name','Department','Risk','Art. 9 Basis','DPIA Status'].forEach((h,i)=>{
+      rows[spStart][1+i]=XB.cell(h,{bold:true,sz:9,color:C.white,bg:'FF8B0000',ha:'center',va:'center',border:true});
+    });
+    const spEntries=state.entries.filter(e=>e.dataTypes?.some(d=>d.includes('⚠')));
+    spEntries.forEach((e,ri)=>{
+      const r=spStart+2+ri;rowH[r]=22;
+      const bg=ri%2===0?'FFFFF5F5':'FFFDE9E9';
+      const{txt,bg:rbg}=RISK[e.risk]||{txt:C.greyDk,bg:C.greyPl};
+      const dpiaStatus=dpiaRequired(e)?(e.dpiaConfirmed?'✓ Confirmed':'⚠ Pending'):'Not Required';
+      const vals=[e.id,e.name,e.department||'—',e.risk,e.art9Basis||'See entry',dpiaStatus];
+      vals.forEach((v,ci)=>{
+        rows[r-1][1+ci]=XB.cell(v,{bold:ci===3||v==='⚠ Pending',sz:9,
+          color:ci===3?txt:(v==='⚠ Pending'?C.red:C.greyDk),
+          bg:ci===3?rbg:bg,ha:ci===0||ci===3?'center':'left',va:'middle',wrap:true,border:true});
+      });
+    });
+
+    const sh={name:'Compliance Dashboard',rows,merges,cols:Array.from({length:nCols},(_,i)=>{const ws=[3,20,13,13,13,13,13,13,13,13,3];return{wch:ws[i]||12};}),rowH};
+    XB.addFooterToSheet(sh,nCols);
+    return sh;
+  }
+
+  /* ── SHEET 3: ROPA REGISTER ── */
+  function makeRoPASheet(){
+    const cols=[
+      {header:'ID',             width:13,center:true,mono:true},
+      {header:'Activity Name',  width:28},
+      {header:'Controller',     width:20},
+      {header:'Controller Email',width:24},
+      {header:'DPO',            width:18},
+      {header:'DPO Email',      width:22},
+      {header:'Purpose',        width:36},
+      {header:'Legal Basis (Art.6)', width:28},
+      {header:'Applicable Jurisdiction(s)', width:36},
+      {header:'Art. 9 Basis',   width:26},
+      {header:'Department',     width:22},
+      {header:'Data Types',     width:32},
+      {header:'Special Category',width:14,center:true},
+      {header:'Data Subjects',  width:26},
+      {header:'Recipients',     width:30},
+      {header:'Third Countries',width:18,center:true},
+      {header:'Safeguards',     width:22},
+      {header:'Retention Period',width:22},
+      {header:'Retention Basis',width:28},
+      {header:'Deletion Method',width:26},
+      {header:'Technical Measures',width:34},
+      {header:'Org. Measures',  width:34},
+      {header:'Risk Level',     width:12,center:true},
+      {header:'DPIA Required',  width:13,center:true},
+      {header:'DPIA Confirmed', width:13,center:true},
+      {header:'Review Date',    width:14,center:true},
+      {header:'Completeness',   width:13,center:true},
+      {header:'Status',         width:13,center:true},
+      {header:'Created',        width:13,center:true},
+      {header:'Modified',       width:13,center:true},
+    ];
+
+    const dataRows=state.entries.map(e=>{
+      const spYes=e.dataTypes?.some(d=>d.includes('⚠'));
+      const dpia=dpiaRequired(e);
+      const sc2=cScore(e);
+      return[
+        e.id||'—',e.name||'—',e.controller||'—',e.controllerEmail||'—',
+        e.dpo||'—',e.dpoEmail||'—',e.purpose||'—',e.legalBasis||'—',
+        e.art9Basis||(spYes?'Art. 9 basis required':'—'),
+        e.department||'—',
+        (e.dataTypes||[]).join('; ')||'—',
+        spYes?'YES':'NO',
+        (e.subjects||[]).join('; ')||'—',
+        (e.recipients||[]).join('; ')||'—',
+        (e.countries||[]).join(', ')||'None',
+        e.safeguards||'—',e.retention||'—',e.retentionBasis||'—',e.deletion||'—',
+        (e.techMeasures||[]).join('; ')||'—',
+        (e.orgMeasures||[]).join('; ')||'—',
+        e.risk||'—',dpia?'YES':'NO',e.dpiaConfirmed?'YES':'NO',
+        e.reviewDate||'—',sc2+'%',isComplete(e)?'Complete':'Incomplete',
+        e.created||'—',e.modified||'—'
+      ];
+    });
+
+    const{rows:bRows,merges:bMerges,rowH}=XB.makeBanner(
+      'RECORD OF PROCESSING ACTIVITIES  —  OmniContact BPO  —  GDPR Article 30',cols.length);
+    const rows=[...bRows];const merges=[...bMerges];
+    rows.push(XB.makeHdrRow(cols.map(c=>c.header)));
+    rowH[4]=36;
+
+    dataRows.forEach((dr,ri)=>{
+      const rowNum=5+ri;rowH[rowNum]=70;
+      const bg=ri%2===0?C.offWhite:C.white;
+      const e=state.entries[ri];
+      const{txt:rtxt,bg:rbg}=RISK[e.risk]||{txt:C.greyDk,bg:C.greyPl};
+      const spYes=e.dataTypes?.some(d=>d.includes('⚠'));
+      const dpia=dpiaRequired(e);
+      const sc2=cScore(e);
+      const scCol=sc2>=80?C.green:sc2>=50?C.amber:C.red;
+
+      const row=dr.map((val,ci)=>{
+        let color=C.greyDk,cellBg=bg,bold=false;
+        if(ci===0){color=C.midBlue;cellBg=C.palBlue;bold=true;}
+        else if(ci===1){color=C.navy;bold=true;}
+        else if(ci===21){color=rtxt;cellBg=rbg;bold=true;}// risk
+        else if(ci===11){color=spYes?C.red:C.green;cellBg=spYes?C.redPl:C.greenPl;bold=true;}// special
+        else if(ci===22){const y=val==='YES';color=y?C.red:C.green;cellBg=y?C.redPl:C.greenPl;bold=true;}// dpia req
+        else if(ci===23){const y=val==='YES';color=y?C.green:C.orange;cellBg=y?C.greenPl:C.orangePl;bold=true;}// dpia conf
+        else if(ci===26){const ok=val==='Complete';color=ok?C.green:C.orange;cellBg=ok?C.greenPl:C.orangePl;bold=true;}// status
+        else if(ci===25){color=scCol;bold=true;}// completeness
+        return XB.cell(val??'—',{bold,sz:ci===1?10:9,color,bg:cellBg,mono:cols[ci].mono||false,
+          ha:cols[ci].center?'center':'left',va:'top',wrap:true,border:true});
+      });
+      rows.push(row);
+    });
+
+    return{
+      name:'RoPA Register',rows,merges,
+      cols:cols.map(c=>({wch:c.width||18})),rowH,
+      freeze:4,
+      autoFilter:`A4:${XB.col2letter(cols.length)}4`
+    };
+  }
+
+  /* ── Build all sheets and write file ── */
+  const sheets=[
+    makeCoverSheet(),
+    makeDashSheet(),
+    makeRoPASheet(),
+    XB.makeSheet('Controllers & DPO',
+      'CONTROLLERS & DATA PROTECTION OFFICERS  —  GDPR Art. 30(1)(a)',
+      [{header:'Organisation',width:26},{header:'Type',width:18,center:true},
+       {header:'Contact Person',width:22},{header:'Email',width:28},
+       {header:'Phone',width:18,center:true},{header:'Address',width:24},
+       {header:'DPO Name',width:22},{header:'DPO Email',width:28}],
+      state.controllers.map(c=>[c.org,c.type,c.name,c.email,c.phone||'—',c.address||'—',c.dpo||'—',c.dpoEmail||'—'])
+    ),
+    XB.makeSheet('Recipients',
+      'DATA RECIPIENTS REGISTRY  —  GDPR Art. 30(1)(d)',
+      [{header:'Recipient Name',width:28},{header:'Category',width:20,center:true},
+       {header:'Country',width:18,center:true},{header:'Third Country?',width:14,center:true},
+       {header:'Basis for Sharing',width:26},{header:'Safeguards',width:22},{header:'Data Shared',width:32}],
+      state.recipients.map(r=>[r.name,r.category,r.country,r.thirdCountry,r.basis||'—',r.safeguards||'—',r.data||'—'])
+    ),
+    XB.makeSheet('International Transfers',
+      'INTERNATIONAL DATA TRANSFERS  —  GDPR Art. 30(1)(e) & Chapter V',
+      [{header:'Transfer ID',width:14,center:true,mono:true},{header:'Destination',width:22},
+       {header:'Recipient',width:26},{header:'Safeguard Mechanism',width:30},
+       {header:'Documentation Ref.',width:22},{header:'Review Date',width:14,center:true},{header:'Status',width:14,center:true}],
+      state.transfers.map(t=>[t.id,t.country,t.recipient||'—',t.safeguard,t.doc||'—',t.review||'—',t.status])
+    ),
+    XB.makeSheet('Retention Schedule',
+      'DATA RETENTION SCHEDULE  —  GDPR Art. 30(1)(f) & Art. 5(1)(e)',
+      [{header:'Data Category',width:28},{header:'Retention Period',width:24},
+       {header:'Legal Basis',width:32},{header:'Deletion Method',width:26},
+       {header:'Responsible Owner',width:26},{header:'Review Date',width:16,center:true}],
+      state.retention.map(r=>[r.cat,r.period,r.basis||'—',r.method,r.owner||'—',r.review||'—'])
+    ),
+    XB.makeSheet('Security Measures',
+      'SECURITY MEASURES  —  GDPR Art. 30(1)(g) & Art. 32',
+      [{header:'Measure Name',width:30},{header:'Type',width:16,center:true},
+       {header:'Description',width:38},{header:'Applies To',width:22},
+       {header:'Status',width:14,center:true},{header:'Last Audit',width:16,center:true}],
+      state.security.map(s=>[s.name,s.type,s.desc,s.applies||'All',s.status,s.audit||'—'])
+    ),
+    XB.makeSheet('DSR Tracker',
+      'DATA SUBJECT RIGHTS TRACKER  —  GDPR Art. 12–22 · 30-Day Response Deadline',
+      [{header:'Request ID',width:14,center:true,mono:true},{header:'Request Type',width:28},
+       {header:'Data Subject',width:22},{header:'Date Received',width:16,center:true},
+       {header:'Deadline',width:14,center:true},{header:'Status',width:14,center:true},
+       {header:'Assigned To',width:22},{header:'Notes',width:36}],
+      state.sarList.map(s=>[s.id,s.type,s.name||'Anonymous',s.received,s.deadline,s.status,s.assigned||'—',s.notes||'—'])
+    ),
+    XB.makeSheet('Data Owners',
+      'DATA OWNERS REGISTRY  —  Accountability & Data Type Ownership Mapping',
+      [{header:'Full Name',width:24},{header:'Department',width:24},
+       {header:'Email',width:30},{header:'Data Types Owned',width:52}],
+      state.owners.map(o=>[o.name,o.dept,o.email,(o.types||[]).join('; ')||'—'])
+    ),
+  ];
+
+  // Use XLSX to write with styles (xlsx supports styles via !styles on cells)
+  const wb2=XLSX.utils.book_new();
+  sheets.forEach(sh=>{
+    const ws={};let maxC=0;
+    sh.rows.forEach((row,ri)=>{
+      row.forEach((cell,ci)=>{
+        if(!cell)return;
+        const addr=XLSX.utils.encode_cell({r:ri,c:ci});
+        if(typeof cell.v==='number'){ws[addr]={v:cell.v,t:'n'};}
+        else{ws[addr]={v:String(cell.v??''),t:'s'};}
+        if(cell._styleSpec){ws[addr].s=XB.buildCellStyle(cell._styleSpec);}
+        if(ci+1>maxC)maxC=ci+1;
+      });
+    });
+    const range={s:{r:0,c:0},e:{r:sh.rows.length-1,c:maxC-1}};
+    ws['!ref']=XLSX.utils.encode_range(range);
+    if(sh.cols)ws['!cols']=sh.cols.map(c=>({wch:c.wch||12}));
+    if(sh.merges)ws['!merges']=sh.merges.map(m=>({s:{r:m.r1-1,c:m.c1-1},e:{r:m.r2-1,c:m.c2-1}}));
+    if(sh.rowH){ws['!rows']=[];Object.entries(sh.rowH).forEach(([r,h])=>{ws['!rows'][parseInt(r)-1]={hpt:h,hpx:h};});}
+    if(sh.freeze)ws['!freeze']={xSplit:0,ySplit:sh.freeze};
+    if(sh.autoFilter)ws['!autofilter']={ref:sh.autoFilter};
+    XLSX.utils.book_append_sheet(wb2,ws,sh.name);
+  });
+
+  XLSX.writeFile(wb2,`RoPAforge_${new Date().toISOString().slice(0,10)}.xlsx`,{
+    bookType:'xlsx', type:'binary', cellStyles:true
+  });
+  addAuditLog('Excel Export','Full formatted audit register exported');
+  persistSave();
+}
+
+/* ═══════════════════════════════ BOOT ═══════════════════════════════ */
+(function boot(){
+  const loaded=persistLoad();updateStats();renderDashboard();updateStorageBanner();
+  const ind=document.getElementById('save-indicator'),txt=document.getElementById('save-text');
+  if(loaded){ind.className='save-indicator saved';txt.textContent='DATA RESTORED ✓';setTimeout(()=>{ind.className='save-indicator';txt.textContent='AUTO-SAVE ON';},3000);}
+})();
+</script>
+</body>
+</html>

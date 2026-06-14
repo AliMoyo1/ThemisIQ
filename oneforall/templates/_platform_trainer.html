@@ -1,0 +1,165 @@
+<!-- ═══ PLATFORM TRAINER — AI Help Bubble + Tooltip Mode ═══ -->
+<div id="trainerBubble" class="trainer-bubble">
+  <div class="trainer-icon" onclick="toggleTrainer()" title="Platform Trainer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span class="trainer-pulse"></span>
+  </div>
+
+  <!-- Chat Panel -->
+  <div class="trainer-panel" id="trainerPanel">
+    <div class="trainer-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span style="font-weight:600;font-size:14px;">Platform Trainer</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="trainer-mode-btn" id="tooltipToggle" onclick="toggleTooltipMode()" title="Toggle tooltip mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span style="font-size:10px;">Tips</span>
+        </button>
+        <button class="trainer-close" onclick="toggleTrainer()">&times;</button>
+      </div>
+    </div>
+    <div class="trainer-messages" id="trainerMessages">
+      <div class="trainer-msg bot">
+        <div class="trainer-msg-content">Hi! I'm your Platform Trainer. Ask me anything about how to use AegisGRC — features, navigation, module workflows, or any button you see. You can also turn on <strong>Tooltip Mode</strong> to see explanations when you hover over elements.</div>
+      </div>
+    </div>
+    <div class="trainer-input-wrap">
+      <input type="text" id="trainerInput" placeholder="Ask about any feature..." onkeydown="if(event.key==='Enter')sendTrainerMsg()">
+      <button onclick="sendTrainerMsg()" class="trainer-send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip Overlay (shown in tooltip mode) -->
+<div class="trainer-tooltip" id="trainerTooltip" style="display:none;"></div>
+
+<style>
+.trainer-bubble{position:fixed;bottom:24px;right:24px;z-index:9999;}
+.trainer-icon{width:52px;height:52px;border-radius:50%;background:var(--accent,#1e293b);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.25);transition:transform 0.2s,box-shadow 0.2s;position:relative;}
+.trainer-icon:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(0,0,0,0.3);}
+.trainer-icon svg{width:24px;height:24px;}
+.trainer-pulse{position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--accent,#1e293b);opacity:0;animation:trainerPulse 2.5s infinite;}
+@keyframes trainerPulse{0%{opacity:0.6;transform:scale(1)}100%{opacity:0;transform:scale(1.5)}}
+
+.trainer-panel{position:absolute;bottom:64px;right:0;width:380px;max-height:500px;background:var(--surface,#fff);border-radius:16px;box-shadow:0 12px 48px rgba(0,0,0,0.18);display:none;flex-direction:column;overflow:hidden;border:1px solid var(--border,rgba(0,0,0,0.08));}
+.trainer-panel.open{display:flex;}
+
+.trainer-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border,rgba(0,0,0,0.06));background:var(--surface2,#f8f9fc);color:var(--text,#111);}
+.trainer-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted,#6b7280);padding:2px 6px;border-radius:4px;}
+.trainer-close:hover{background:var(--surface3,#f0f1f6);}
+
+.trainer-mode-btn{display:flex;align-items:center;gap:3px;padding:4px 8px;border-radius:6px;border:1px solid var(--border2,rgba(0,0,0,0.1));background:var(--surface,#fff);cursor:pointer;color:var(--muted,#6b7280);transition:all 0.15s;}
+.trainer-mode-btn:hover{border-color:var(--accent);}
+.trainer-mode-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.trainer-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;max-height:340px;}
+.trainer-msg{display:flex;}
+.trainer-msg.bot .trainer-msg-content{background:var(--surface3,#f0f1f6);color:var(--text,#111);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;line-height:1.5;max-width:90%;}
+.trainer-msg.user{justify-content:flex-end;}
+.trainer-msg.user .trainer-msg-content{background:var(--accent,#1e293b);color:#fff;border-radius:12px 12px 4px 12px;padding:10px 14px;font-size:13px;line-height:1.5;max-width:85%;}
+
+.trainer-input-wrap{display:flex;align-items:center;gap:8px;padding:12px 14px;border-top:1px solid var(--border,rgba(0,0,0,0.06));}
+.trainer-input-wrap input{flex:1;padding:8px 12px;border:1px solid var(--border2,rgba(0,0,0,0.1));border-radius:8px;font-size:13px;background:var(--surface,#fff);color:var(--text,#111);outline:none;}
+.trainer-input-wrap input:focus{border-color:var(--accent);}
+.trainer-send{width:34px;height:34px;border-radius:8px;background:var(--accent,#1e293b);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity 0.15s;}
+.trainer-send:hover{opacity:0.85;}
+
+/* Tooltip mode overlay */
+.trainer-tooltip{position:fixed;z-index:99999;background:var(--accent-dark,#0f172a);color:#fff;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;transition:opacity 0.15s;}
+.trainer-tooltip::after{content:'';position:absolute;bottom:-6px;left:20px;width:12px;height:12px;background:var(--accent-dark,#0f172a);transform:rotate(45deg);}
+
+/* Tooltip mode highlight */
+[data-trainer-tip]{position:relative;}
+body.tooltip-mode [data-trainer-tip]:hover{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;cursor:help;}
+body.tooltip-mode [data-trainer-tip]:hover::after{content:attr(data-trainer-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--accent-dark,#0f172a);color:#fff;padding:8px 12px;border-radius:6px;font-size:11px;white-space:nowrap;max-width:240px;white-space:normal;z-index:99999;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.2);line-height:1.4;}
+</style>
+
+<script>
+function escTrainer(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+
+// ── Platform Trainer Logic ──
+let trainerOpen = false;
+let tooltipMode = false;
+
+function toggleTrainer() {
+  trainerOpen = !trainerOpen;
+  document.getElementById('trainerPanel').classList.toggle('open', trainerOpen);
+}
+
+function toggleTooltipMode() {
+  tooltipMode = !tooltipMode;
+  document.body.classList.toggle('tooltip-mode', tooltipMode);
+  document.getElementById('tooltipToggle').classList.toggle('active', tooltipMode);
+  if (tooltipMode) {
+    injectTrainerTips();
+  }
+}
+
+function sendTrainerMsg() {
+  const input = document.getElementById('trainerInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  appendMsg('user', msg);
+  // Add typing indicator with raw HTML (safe — hardcoded)
+  var typingDiv = document.createElement('div');
+  typingDiv.className = 'trainer-msg bot';
+  typingDiv.id = 'trainerTyping';
+  typingDiv.innerHTML = '<div class="trainer-msg-content"><em style="opacity:0.6;">Thinking...</em></div>';
+  document.getElementById('trainerMessages').appendChild(typingDiv);
+  document.getElementById('trainerMessages').scrollTop = document.getElementById('trainerMessages').scrollHeight;
+
+  fetch('/api/trainer/ask', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ question: msg, page: window.location.pathname })
+  })
+  .then(r => r.json())
+  .then(data => {
+    // Remove thinking indicator
+    var typing = document.getElementById('trainerTyping');
+    if (typing) typing.remove();
+    appendMsg('bot', data.answer || 'Sorry, I could not find an answer for that.');
+  })
+  .catch(() => {
+    var typing = document.getElementById('trainerTyping');
+    if (typing) typing.remove();
+    appendMsg('bot', 'Connection error — please try again.');
+  });
+}
+
+function appendMsg(type, content) {
+  const msgs = document.getElementById('trainerMessages');
+  const div = document.createElement('div');
+  div.className = 'trainer-msg ' + type;
+  div.innerHTML = '<div class="trainer-msg-content">' + escTrainer(content) + '</div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ── Tooltip Tips Injection ──
+// Automatically annotates known elements with data-trainer-tip
+function injectTrainerTips() {
+  const tips = {
+    '.icon-sidebar': 'Module switcher — click icons to navigate between ARIA, GRID, BCM, and Sentinel modules',
+    '.page-title': 'Current page title — shows which section you are viewing',
+    '.topbar-search': 'Global search — find risks, controls, documents, and more across all modules',
+    '#notifBell': 'Notifications — view alerts, approvals, and system messages',
+    '.btn-primary': 'Primary action button — performs the main action for this page',
+    '.sidebar-section': 'Navigation section — expand to see sub-pages within this module',
+    '[data-status]': 'Status indicator — shows the current state of this item',
+  };
+  for (const [selector, tip] of Object.entries(tips)) {
+    document.querySelectorAll(selector).forEach(el => {
+      if (!el.getAttribute('data-trainer-tip')) {
+        el.setAttribute('data-trainer-tip', tip);
+      }
+    });
+  }
+}
+</script>

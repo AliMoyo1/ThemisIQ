@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRID — Audit Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green:#1a6b3a;--green-mid:#2d8653;--green-light:#3fa96b;--green-pale:#e8f5ee;--green-bg:#f0faf4;--green-dark:#0f4424;
+  --bg:#f5f6fa;--surface:#ffffff;--surface2:#f8f9fc;
+  --text:#111827;--text-mid:#374151;--muted:#6b7280;--dim:#9ca3af;
+  --border:rgba(0,0,0,0.06);--border2:rgba(0,0,0,0.1);
+  --amber:#d97706;--red:#dc2626;--blue:#2563eb;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06);--shadow-md:0 4px 16px rgba(0,0,0,0.08);
+  --radius:10px;--radius-lg:16px;
+  --sidebar-w:240px;--font:'Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+
+.app-shell{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:100vh}
+
+/* Sidebar */
+.sidebar{background:var(--green-dark);color:#d4e7da;padding:24px 0;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,0.05)}
+.sidebar-brand{padding:0 20px 24px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.sidebar-logo{width:36px;height:36px;background:linear-gradient(135deg,#1a6b3a,#3fa96b);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff}
+.sidebar-brand h2{font-size:16px;font-weight:600;color:#e8f5ee}
+.sidebar-brand small{display:block;font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+.nav{flex:1;padding:0 12px}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:rgba(255,255,255,0.6);font-size:13px;text-decoration:none;transition:all .15s;margin-bottom:2px}
+.nav a:hover{background:rgba(255,255,255,0.08);color:#e8f5ee}
+.nav a.active{background:rgba(63,169,107,0.2);color:#fff;font-weight:500}
+.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,0.3);padding:16px 12px 6px;font-weight:600}
+
+.sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);margin-top:auto}
+.sidebar-footer a{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.4);font-size:12px;text-decoration:none;padding:6px 8px;border-radius:6px;transition:all .15s}
+.sidebar-footer a:hover{background:rgba(255,255,255,0.05);color:#d4e7da}
+
+/* Main */
+.main{padding:32px;overflow-y:auto}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px}
+.page-header h1{font-size:24px;font-weight:600}
+.user-info{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:32px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm)}
+.kpi-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;font-weight:600}
+.kpi-card .value{font-size:28px;font-weight:700}
+.kpi-card .sub{font-size:12px;color:var(--dim);margin-top:4px}
+
+.placeholder-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:40px;text-align:center;color:var(--muted)}
+.placeholder-section h3{font-size:16px;color:var(--text);margin-bottom:8px}
+.placeholder-section p{font-size:13px;max-width:400px;margin:0 auto}
+
+@media(max-width:900px){.app-shell{grid-template-columns:72px 1fr}.sidebar-brand h2,.sidebar-brand small,.nav a span{display:none}}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">G</div>
+      <div><h2>GRID</h2><small>Audit Management</small></div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-section">Overview</div>
+      <a href="/grid/" class="active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span>Dashboard</span>
+      </a>
+
+      <div class="nav-section">Audits</div>
+      <a href="/grid/audits"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg><span>All Audits</span></a>
+      <a href="/grid/controls"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Controls</span></a>
+      <a href="/grid/evidence"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span>Evidence</span></a>
+
+      <div class="nav-section">AI Tools</div>
+      <a href="/grid/gap-analysis"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Gap Analysis</span></a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="/"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> All Modules</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <h1>GRID Dashboard</h1>
+      <div class="user-info"><span>{{ user.full_name }}</span><div class="avatar">{{ user.avatar_initials }}</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="label">Active Audits</div><div class="value">—</div><div class="sub">In progress</div></div>
+      <div class="kpi-card"><div class="label">Controls</div><div class="value">—</div><div class="sub">Tracked items</div></div>
+      <div class="kpi-card"><div class="label">Evidence Files</div><div class="value">—</div><div class="sub">Uploaded</div></div>
+      <div class="kpi-card"><div class="label">Completion</div><div class="value">—</div><div class="sub">Overall readiness</div></div>
+    </div>
+    <div class="placeholder-section">
+      <h3>GRID Module — Coming in Phase 4</h3>
+      <p>Audit management with AI checklist parsing, gap analysis, evidence repository, and executive reporting will be ported here.</p>
+    </div>
+  </main>
+</div>
+</body>
+</html>

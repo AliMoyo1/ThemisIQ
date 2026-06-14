@@ -1,0 +1,45 @@
+# Version control
+.git/
+.gitignore
+
+# Secrets — never bake into image
+secrets/
+oneforall/.env
+oneforall/.env.*
+
+# SQLite data — mounted at runtime as a volume
+oneforall/data/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/*.egg-info/
+
+# IDE / OS
+.vscode/
+.idea/
+**/.DS_Store
+**/Thumbs.db
+**/*.swp
+**/*.swo
+
+# Docs and other non-app directories at the project root
+ARCHITECTURE.md
+PG_MIGRATION_PLAN_V2.md
+PG_MIGRATION_AUDIT.md
+FEATURE_INVENTORY.md
+BRAINSTORM*.md
+*.html
+*.docx
+*.zip
+*.png
+Inspiration/
+static/
+.claude/
+10auditsphere/
+complianceos/
+"Business Continuity Project"/
+"Data Protection Sentinel"/

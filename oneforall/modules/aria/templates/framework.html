@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block title %}{{ fw.name }} — ARIA{% endblock %}
+{% block head %}
+<style>
+.fw-banner{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:20px 24px;
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:20px;box-shadow:var(--shadow-sm);gap:16px;
+  flex-wrap:wrap;
+  border-left:4px solid {{ fw.color }};
+}
+.fw-banner-info{flex:1;min-width:200px}
+.fw-banner-name{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
+.fw-banner-desc{font-size:13px;color:var(--muted);margin-top:4px}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="/aria/" style="color:var(--muted);text-decoration:none;font-weight:500">ARIA</a>
+<span class="breadcrumb-sep">&#8250;</span>
+<a href="/aria/frameworks" style="color:var(--muted);text-decoration:none;font-weight:500">Frameworks</a>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">{{ fw.name }}</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="page-header">
+  <div class="page-header-left">
+    <a href="/aria/frameworks" class="page-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      Back to Frameworks
+    </a>
+    <div class="page-title">{{ fw.name }}</div>
+    <div class="page-subtitle">{{ fw.description }}</div>
+  </div>
+  <div class="page-actions">
+    <a href="/aria/export/excel" class="btn btn-ghost">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export
+    </a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+  <div class="stat-card">
+    <div class="stat-label">Implemented</div>
+    <div class="stat-value" style="color:var(--green-status,#16a34a)">{{ stats.implemented }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">In Progress</div>
+    <div class="stat-value" style="color:var(--blue,#2563eb)">{{ stats.in_progress }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Not Started</div>
+    <div class="stat-value" style="color:var(--red,#dc2626)">{{ stats.not_started }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Controls</div>
+    <div class="stat-value">{{ stats.total }}</div>
+  </div>
+</div>
+
+<!-- Progress bar -->
+{% set pct = (stats.implemented / stats.total * 100) | round(1) if stats.total > 0 else 0 %}
+<div style="margin-bottom:24px">
+  <div class="progress-label">
+    <span class="progress-label-text">Completion Progress</span>
+    <span class="progress-label-pct" style="color:{% if pct >= 80 %}var(--green-status,#16a34a){% elif pct >= 50 %}var(--amber,#d97706){% else %}var(--red,#dc2626){% endif %}">{{ pct }}%</span>
+  </div>
+  <div class="progress-track">
+    <div class="progress-track-fill" style="width:{{ pct }}%;background:{{ fw.color }}"></div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <div style="flex:1;min-width:180px">
+    <label>Search</label>
+    <input type="text" id="searchInput" placeholder="Search controls..." value="{{ filters.search }}" style="width:100%">
+  </div>
+  <div style="min-width:140px">
+    <label>Status</label>
+    <select id="statusFilter" onchange="applyFilters()">
+      <option value="">All Statuses</option>
+      {% for s in ['Not Started','In Progress','Draft','Under Review','Approved','Implemented','Needs Update'] %}
+      <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="min-width:130px">
+    <label>Priority</label>
+    <select id="priorityFilter" onchange="applyFilters()">
+      <option value="">All Priorities</option>
+      {% for p in ['Critical','High','Medium','Low'] %}
+      <option value="{{ p }}" {% if filters.priority == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="min-width:140px">
+    <label>Category</label>
+    <select id="categoryFilter" onchange="applyFilters()">
+      <option value="">All Categories</option>
+      {% for cat in categories %}
+      <option value="{{ cat[0] }}" {% if filters.category == cat[0] %}selected{% endif %}>{{ cat[0] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="align-self:flex-end">
+    <button onclick="applyFilters()" class="btn btn-primary" style="padding:8px 16px">Filter</button>
+  </div>
+</div>
+
+<!-- Controls table -->
+<div class="card" style="padding:0">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:70px">Ref</th>
+          <th style="min-width:200px">Control Name</th>
+          <th>Category</th>
+          <th>Type</th>
+          <th style="width:130px">Status</th>
+          <th style="width:110px">Priority</th>
+          <th style="width:130px">Owner</th>
+          <th style="width:70px;text-align:center">Evidence</th>
+          <th style="width:130px">Target Date</th>
+          <th style="width:60px;text-align:center">Edit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ctrl in controls %}
+        <tr id="row-{{ ctrl.id }}">
+          <td style="font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:700">{{ ctrl.ref }}</td>
+          <td>
+            <div style="font-weight:600;color:var(--text)">{{ ctrl.name }}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4">{{ ctrl.description }}</div>
+          </td>
+          <td><span class="row-chip">{{ ctrl.category }}</span></td>
+          <td><span class="row-chip">{{ ctrl.doc_type }}</span></td>
+          <td>
+            <select class="inline-select" data-id="{{ ctrl.id }}" onchange="updateStatus(this)">
+              {% for s in ['Not Started','In Progress','Draft','Under Review','Approved','Implemented','Needs Update'] %}
+              <option value="{{ s }}" {% if ctrl.status == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select class="inline-select" data-id="{{ ctrl.id }}" onchange="updatePriority(this)">
+              {% for p in ['Critical','High','Medium','Low'] %}
+              <option value="{{ p }}" {% if ctrl.priority == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <input type="text" class="inline-input" value="{{ ctrl.owner or '' }}" placeholder="Assign..."
+              onblur="updateOwner(this, {{ ctrl.id }})">
+          </td>
+          <td style="text-align:center">
+            {% if ctrl.evidence_count %}
+            <a href="/evidence/?module=aria" style="text-decoration:none">
+              <span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;background:#dcfce7;color:#16a34a">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:10px;height:10px"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                {{ ctrl.evidence_count }}
+              </span>
+            </a>
+            {% else %}
+            <span style="font-size:10px;color:var(--muted)">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <input type="date" class="date-input" value="{{ ctrl.target_date or '' }}"
+              onchange="updateDate(this, {{ ctrl.id }})">
+          </td>
+          <td style="text-align:center">
+            <button class="edit-btn" onclick="openEditModal({{ ctrl.id }}, '{{ ctrl.name | replace("'","\\'")|replace('"','\\"') }}', '{{ ctrl.notes or '' | replace("'","\\'") | replace('"','\\"') }}', '{{ ctrl.evidence_ref or '' }}', '{{ ctrl.version or '1.0' }}', '{{ ctrl.review_date or '' }}')">
+              Edit
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div class="modal-title">Edit Control Details</div>
+      <button class="modal-close" onclick="closeModal()" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
+    </div>
+    <input type="hidden" id="editId">
+    <div class="form-group">
+      <label class="form-label">Control Name</label>
+      <input type="text" id="editName" readonly style="opacity:0.6;cursor:not-allowed">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Document Title</label>
+      <input type="text" id="editDocTitle" placeholder="e.g. Information Security Policy v2.0">
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Version</label>
+        <input type="text" id="editVersion" placeholder="1.0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Review Date</label>
+        <input type="date" id="editReviewDate">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Evidence Reference</label>
+      <input type="text" id="editEvidRef" placeholder="e.g. SharePoint/Policies/ISP-001">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea id="editNotes" rows="3" placeholder="Add any notes or comments..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveModal()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+async function updateControl(id, data) {
+  const form = new FormData();
+  Object.entries(data).forEach(([k,v]) => form.append(k, v));
+  const res = await fetch('/aria/control/' + id + '/update', { method:'POST', body: form });
+  const json = await res.json();
+  if (json.ok) showToast('Control updated');
+  else showToast(json.error || 'Error updating control', 'error');
+}
+function updateStatus(sel) { updateControl(sel.dataset.id, { status: sel.value }); }
+function updatePriority(sel) { updateControl(sel.dataset.id, { priority: sel.value }); }
+function updateOwner(input, id) { updateControl(id, { owner: input.value }); }
+function updateDate(input, id) { updateControl(id, { target_date: input.value }); }
+
+function openEditModal(id, name, notes, evid, ver, reviewDate) {
+  document.getElementById('editId').value = id;
+  document.getElementById('editName').value = name;
+  document.getElementById('editNotes').value = notes;
+  document.getElementById('editEvidRef').value = evid;
+  document.getElementById('editVersion').value = ver;
+  document.getElementById('editReviewDate').value = reviewDate;
+  document.getElementById('editModal').classList.add('open');
+}
+function closeModal() { document.getElementById('editModal').classList.remove('open'); }
+async function saveModal() {
+  const id = document.getElementById('editId').value;
+  await updateControl(id, {
+    notes: document.getElementById('editNotes').value,
+    evidence_ref: document.getElementById('editEvidRef').value,
+    version: document.getElementById('editVersion').value,
+    review_date: document.getElementById('editReviewDate').value,
+    document_title: document.getElementById('editDocTitle').value,
+  });
+  closeModal();
+}
+function applyFilters() {
+  const s = document.getElementById('statusFilter').value;
+  const p = document.getElementById('priorityFilter').value;
+  const c = document.getElementById('categoryFilter').value;
+  const q = document.getElementById('searchInput').value;
+  const params = new URLSearchParams();
+  if (s) params.set('status', s);
+  if (p) params.set('priority', p);
+  if (c) params.set('category', c);
+  if (q) params.set('search', q);
+  window.location.search = params.toString();
+}
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') applyFilters();
+});
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editModal')) closeModal();
+});
+</script>
+{% endblock %}
+

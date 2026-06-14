@@ -1,0 +1,35 @@
+<div class="page-head">
+  <div>
+    <h1>Incidents</h1>
+    <p>Declare, respond, and track continuity incidents.</p>
+  </div>
+  <div class="actions"><a class="btn primary" href="/incidents/new">+ Declare incident</a></div>
+</div>
+
+<div class="card">
+  <% if (rows.length === 0) { %>
+    <p class="muted" style="padding:20px 0;">No incidents logged. Hopefully it stays that way.</p>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr><th>Title</th><th>Severity</th><th>Status</th><th>Commander</th><th>Started</th><th>Resolved</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(i => {
+          const sev = i.severity || 'SEV4';
+          const stcls = i.status === 'resolved' || i.status === 'closed' ? 'success' : (i.status === 'mitigated' ? 'info' : (i.status === 'investigating' ? 'warn' : 'danger'));
+        %>
+          <tr>
+            <td><strong><%= i.title %></strong></td>
+            <td><span class="badge severity-<%= sev %>"><%= sev %></span></td>
+            <td><span class="badge <%= stcls %>"><%= i.status %></span></td>
+            <td><%= i.commander || '—' %></td>
+            <td><%= i.started_at %></td>
+            <td><%= i.resolved_at || '—' %></td>
+            <td class="right"><a href="/incidents/<%= i.id %>">Open</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

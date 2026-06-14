@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}ThemisIQ{% endblock %}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+/* ══════════════════════════════════════════════════════════════════
+   UNIFIED THEME SYSTEM
+   Module accent colors switch via data-module on <body>
+   ══════════════════════════════════════════════════════════════════ */
+:root{
+  --accent:#1e293b;--accent-mid:#334155;--accent-light:#64748b;
+  --accent-pale:#f1f5f9;--accent-bg:#f8fafc;--accent-dark:#0f172a;
+  --accent-shadow:rgba(30,41,59,0.25);--accent-rgb:30,41,59;
+
+  --bg:#f5f6fa;--surface:#ffffff;--surface2:#f8f9fc;--surface3:#f0f1f6;
+  --text:#111827;--text-mid:#374151;--muted:#6b7280;--dim:#9ca3af;
+  --border:rgba(0,0,0,0.06);--border2:rgba(0,0,0,0.1);
+  --amber:#d97706;--amber-bg:#fffbeb;--red:#dc2626;--red-bg:#fef2f2;
+  --blue:#2563eb;--blue-bg:#eff6ff;--green-status:#16a34a;--green-bg:#f0fdf4;
+  --good:#16a34a;--good-soft:rgba(22,163,74,0.1);--bad:#dc2626;--bad-soft:rgba(220,38,38,0.1);
+  --warn:#d97706;--warn-soft:rgba(217,119,6,0.1);--info:#2563eb;--info-soft:rgba(37,99,235,0.1);
+  --purple:#7c3aed;--purple-soft:rgba(124,58,237,0.1);--primary:#2563eb;--primary-dark:#1d4ed8;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.08),0 2px 6px rgba(0,0,0,0.04);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.10),0 4px 12px rgba(0,0,0,0.06);
+  --shadow-accent:0 8px 24px var(--accent-shadow);
+  --radius:10px;--radius-lg:16px;--radius-xl:22px;
+  --topbar-h:60px;--icon-sidebar-w:64px;--sidebar-w:248px;
+  --font:'Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+  --particle-color-rgb:100,140,200;  /* Default: soft steel-blue */
+}
+
+[data-module="platform"]{
+  --accent:#1e3a8a;--accent-mid:#2563eb;--accent-light:#60a5fa;
+  --accent-pale:#eff6ff;--accent-bg:#f0f9ff;--accent-dark:#1e40af;
+  --accent-shadow:rgba(30,58,138,0.25);--accent-rgb:30,58,138;
+  --particle-color-rgb:80,130,230;   /* Bright indigo-blue */
+}
+[data-module="aria"]{
+  --accent:#7e8062;--accent-mid:#969878;--accent-light:#b2b494;
+  --accent-pale:#f4f4ed;--accent-bg:#f8f8f2;--accent-dark:#5c5f3d;
+  --accent-shadow:rgba(126,128,98,0.28);--accent-rgb:126,128,98;
+  --particle-color-rgb:130,135,75;   /* Olive */
+}
+[data-module="grid"]{
+  --accent:#1a6b3a;--accent-mid:#2d8653;--accent-light:#3fa96b;
+  --accent-pale:#e8f5ee;--accent-bg:#f0faf4;--accent-dark:#0f4424;
+  --accent-shadow:rgba(26,107,58,0.25);--accent-rgb:26,107,58;
+  --particle-color-rgb:60,180,120;   /* Forest green */
+}
+[data-module="bcm"]{
+  --accent:#3d4660;--accent-mid:#4f5a7a;--accent-light:#6e7a9a;
+  --accent-pale:#eceef5;--accent-bg:#f0f2f8;--accent-dark:#262d42;
+  --accent-shadow:rgba(61,70,96,0.28);--accent-rgb:61,70,96;
+  --particle-color-rgb:80,95,140;    /* Charcoal-slate */
+}
+[data-module="sentinel"]{
+  --accent:#1a3460;--accent-mid:#22407c;--accent-light:#3a5a9e;
+  --accent-pale:#e8ecf6;--accent-bg:#edf0f9;--accent-dark:#0f2040;
+  --accent-shadow:rgba(26,52,96,0.28);--accent-rgb:26,52,96;
+  --particle-color-rgb:40,75,155;    /* Deep navy */
+}
+[data-module="erm"]{
+  --accent:#7c1220;--accent-mid:#9a1828;--accent-light:#c04050;
+  --accent-pale:#fdf0f2;--accent-bg:#fef4f5;--accent-dark:#5c0e18;
+  --accent-shadow:rgba(124,18,32,0.28);--accent-rgb:124,18,32;
+  --particle-color-rgb:180,28,50;    /* Deep maroon */
+}
+[data-module="orm"]{
+  --accent:#7c3a0a;--accent-mid:#9a4c10;--accent-light:#be6428;
+  --accent-pale:#fdf4ec;--accent-bg:#fef6ef;--accent-dark:#5a2806;
+  --accent-shadow:rgba(124,58,10,0.28);--accent-rgb:124,58,10;
+  --particle-color-rgb:190,88,18;    /* Dark sienna */
+}
+
+/* ══ DARK MODE ══ */
+[data-theme="dark"]{
+  --bg:#0f1219;--surface:#1a1f2e;--surface2:#232838;--surface3:#2d3344;
+  --text:#e2e8f0;--text-mid:#cbd5e1;--muted:#94a3b8;--dim:#64748b;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.12);
+  --amber:#fbbf24;--amber-bg:rgba(251,191,36,0.12);
+  --red:#f87171;--red-bg:rgba(248,113,113,0.12);
+  --blue:#60a5fa;--blue-bg:rgba(96,165,250,0.12);
+  --green-status:#4ade80;--green-bg:rgba(74,222,128,0.12);
+  --good:#4ade80;--good-soft:rgba(74,222,128,0.12);--bad:#f87171;--bad-soft:rgba(248,113,113,0.12);
+  --warn:#fbbf24;--warn-soft:rgba(251,191,36,0.12);--info:#60a5fa;--info-soft:rgba(96,165,250,0.12);
+  --purple:#a78bfa;--purple-soft:rgba(167,139,250,0.12);--primary:#6c63ff;--primary-dark:#5548d9;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.3),0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.4),0 2px 6px rgba(0,0,0,0.3);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.4);
+  --shadow-accent:0 8px 24px rgba(0,0,0,0.4);
+}
+[data-theme="dark"] [data-module="aria"]{
+  --accent-pale:rgba(126,128,98,0.15);--accent-bg:rgba(126,128,98,0.08);
+}
+[data-theme="dark"] [data-module="grid"]{
+  --accent-pale:rgba(26,107,58,0.15);--accent-bg:rgba(26,107,58,0.08);
+}
+[data-theme="dark"] [data-module="bcm"]{
+  --accent-pale:rgba(61,70,96,0.18);--accent-bg:rgba(61,70,96,0.10);
+}
+[data-theme="dark"] [data-module="sentinel"]{
+  --accent-pale:rgba(26,52,96,0.18);--accent-bg:rgba(26,52,96,0.10);
+}
+[data-theme="dark"] [data-module="erm"]{
+  --accent-pale:rgba(124,18,32,0.18);--accent-bg:rgba(124,18,32,0.10);
+}
+[data-theme="dark"] [data-module="orm"]{
+  --accent-pale:rgba(124,58,10,0.18);--accent-bg:rgba(124,58,10,0.10);
+}
+
+/* ── Dark mode: richer ambient glow (dark bg lets colour breathe) ── */
+[data-theme="dark"] .main-content{
+  background-image:
+    radial-gradient(ellipse 70% 55% at 100% 0%,rgba(var(--accent-rgb),0.12) 0%,transparent 65%),
+    radial-gradient(ellipse 45% 35% at 95% 100%,rgba(var(--accent-rgb),0.07) 0%,transparent 60%);
+}
+
+/* ── Noise texture overlay ── */
+#bg-noise{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  opacity:0.03;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:200px 200px;
+}
+
+/* ── Particle network canvas ── */
+#aegis-particles{
+  position:fixed;inset:0;width:100%;height:100%;
+  z-index:1;
+  pointer-events:none;
+  mix-blend-mode:multiply; /* Light mode: darkens on white → colored dots visible */
+}
+[data-theme="dark"] #aegis-particles{
+  mix-blend-mode:screen;   /* Dark mode: adds light → colored glow visible */
+}
+
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+a{color:var(--accent);text-decoration:none}
+button{cursor:pointer;font-family:var(--font)}
+input,select,textarea{font-family:var(--font)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideInLeft{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes dotBlink{0%,80%,100%{opacity:0.2}40%{opacity:1}}
+@keyframes toastSlide{from{opacity:0;transform:translateX(120%)}to{opacity:1;transform:translateX(0)}}
+@keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.animate-fade-up{animation:fadeUp 0.4s ease both}
+.animate-fade{animation:fadeIn 0.3s ease both}
+.anim-1{animation-delay:0.05s}.anim-2{animation-delay:0.10s}.anim-3{animation-delay:0.15s}
+.anim-4{animation-delay:0.20s}.anim-5{animation-delay:0.25s}.anim-6{animation-delay:0.30s}
+
+/* ══════════════════════════════════════════════════════════════════
+   APP SHELL LAYOUT
+   ════════════════════════════════════════════════════════════════���═ */
+.app{display:flex;height:100vh}
+
+/* ── ICON SIDEBAR (always visible) ── */
+.icon-sidebar{
+  width:var(--icon-sidebar-w);background:#0f172a;
+  display:flex;flex-direction:column;align-items:center;
+  padding:12px 0;z-index:200;flex-shrink:0;
+}
+.icon-sidebar-logo{
+  width:44px;height:44px;border-radius:12px;
+  background:linear-gradient(145deg,#0D1B2A 0%,#1a2f48 100%);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:20px;cursor:pointer;transition:transform 0.2s;
+  box-shadow:0 4px 14px rgba(13,27,42,0.7),0 0 0 1px rgba(201,168,76,0.2);
+  overflow:hidden;
+}
+.icon-sidebar-logo:hover{transform:scale(1.07) rotate(-2deg)}
+.icon-sidebar-logo svg{width:28px;height:28px}
+.icon-sidebar-nav{display:flex;flex-direction:column;gap:4px;flex:1;width:100%;padding:0 8px}
+.icon-nav-item{
+  width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 0.2s;position:relative;color:#64748b;margin:0 auto;
+  text-decoration:none;
+}
+.icon-nav-item:hover{background:rgba(255,255,255,0.08);color:#94a3b8}
+.icon-nav-item.active{background:var(--accent);color:white;box-shadow:0 4px 12px var(--accent-shadow)}
+.icon-nav-item svg{width:20px;height:20px}
+.icon-nav-tooltip{
+  display:none;position:absolute;left:56px;top:50%;transform:translateY(-50%);
+  background:#1e293b;color:white;font-size:12px;font-weight:600;padding:6px 12px;
+  border-radius:8px;white-space:nowrap;z-index:300;pointer-events:none;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+}
+.icon-nav-item:hover .icon-nav-tooltip{display:block}
+.icon-nav-divider{width:32px;height:1px;background:rgba(255,255,255,0.08);margin:8px auto}
+.icon-sidebar-bottom{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 8px}
+.icon-sidebar-user{
+  width:36px;height:36px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent-light));
+  color:white;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:transform 0.2s;position:relative;
+}
+.icon-sidebar-user:hover{transform:scale(1.1)}
+.user-dropdown{
+  display:none;position:absolute;bottom:48px;left:8px;
+  background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);
+  box-shadow:var(--shadow-lg);min-width:180px;z-index:500;overflow:hidden;
+}
+.user-dropdown.show{display:block}
+.user-dropdown a,.user-dropdown button{
+  display:block;width:100%;text-align:left;padding:10px 14px;font-size:13px;
+  color:var(--text-mid);border:none;background:none;cursor:pointer;
+  font-family:var(--font);font-weight:500;text-decoration:none;
+}
+.user-dropdown a:hover,.user-dropdown button:hover{background:var(--accent-pale);color:var(--accent)}
+.user-dropdown .sep{height:1px;background:var(--border);margin:4px 0}
+
+/* ── MODULE SIDEBAR ── */
+.module-sidebar{
+  width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;
+  transition:width 0.25s ease, opacity 0.2s ease;
+}
+.module-sidebar.collapsed{width:0;overflow:hidden;opacity:0;border:none}
+.module-sidebar-header{padding:20px 16px 16px;border-bottom:1px solid var(--border)}
+.module-name{font-size:17px;font-weight:800;color:var(--accent);letter-spacing:-0.02em}
+.module-desc{font-size:11px;color:var(--muted);margin-top:3px}
+.sidebar-section{padding:16px 12px 4px}
+.sidebar-label{
+  font-size:10px;font-weight:700;letter-spacing:0.12em;color:var(--dim);
+  text-transform:uppercase;padding:0 8px 8px;font-family:var(--mono);
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border-radius:var(--radius);color:var(--muted);cursor:pointer;
+  font-size:13px;font-weight:500;margin-bottom:2px;transition:all 0.18s;
+  user-select:none;text-decoration:none;
+}
+.nav-item:hover{background:var(--accent-pale);color:var(--accent-mid)}
+.nav-item.active{background:var(--accent);color:white;box-shadow:0 4px 12px var(--accent-shadow)}
+.nav-item.active svg{opacity:1}
+.nav-item svg{opacity:0.6;flex-shrink:0;transition:opacity 0.2s;width:18px;height:18px}
+.nav-item:hover svg{opacity:1}
+.nav-badge{margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;font-family:var(--mono)}
+.nav-item.active .nav-badge{background:rgba(255,255,255,0.25);color:white}
+.nav-count{margin-left:auto;background:var(--accent-pale);color:var(--accent);font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;font-family:var(--mono)}
+.nav-item.active .nav-count{background:rgba(255,255,255,0.2);color:white}
+.sidebar-bottom{margin-top:auto;padding:12px;padding-bottom:72px}
+.ai-chat-btn{
+  width:100%;background:var(--accent);color:white;border:none;
+  padding:11px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:8px;cursor:pointer;
+  box-shadow:var(--shadow-accent);transition:all 0.2s;
+}
+.ai-chat-btn:hover{background:var(--accent-mid);transform:translateY(-1px)}
+
+/* ── MAIN AREA ── */
+.main-wrap{display:flex;flex-direction:column;flex:1;overflow:hidden}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border);
+  flex-shrink:0;box-shadow:var(--shadow-sm);z-index:100;
+}
+.topbar-left{display:flex;align-items:center;gap:16px}
+.sidebar-toggle{
+  width:32px;height:32px;border-radius:8px;border:none;background:transparent;
+  color:var(--muted);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 0.18s;
+}
+.sidebar-toggle:hover{background:var(--accent-pale);color:var(--accent)}
+.breadcrumb{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.breadcrumb-sep{color:var(--dim);font-size:11px}
+.breadcrumb-current{color:var(--text);font-weight:600}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.topbar-search{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:8px 14px 8px 36px;border-radius:var(--radius);font-size:12px;width:220px;
+  outline:none;transition:all 0.18s;
+}
+.topbar-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-pale);width:280px}
+.search-wrap{position:relative}
+.search-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--dim)}
+.topbar-icon-btn{
+  width:36px;height:36px;border-radius:var(--radius);background:var(--surface2);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  color:var(--muted);cursor:pointer;transition:all 0.2s;position:relative;
+}
+.topbar-icon-btn:hover{background:var(--accent-pale);color:var(--accent);border-color:var(--accent)}
+.topbar-icon-btn svg{width:18px;height:18px}
+.notif-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white}
+
+/* Notification panel */
+.notif-panel{
+  display:none;position:absolute;top:44px;right:0;width:340px;
+  background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-lg);z-index:400;overflow:hidden;
+}
+.notif-panel.show{display:block}
+.notif-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+.notif-header-title{font-size:14px;font-weight:700;color:var(--text)}
+.notif-list{max-height:320px;overflow-y:auto}
+.notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s}
+.notif-item:hover{background:var(--accent-bg)}
+.notif-item:last-child{border-bottom:none}
+.notif-item-title{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.notif-dot-unread{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.notif-item-desc{font-size:12px;color:var(--muted);margin-top:3px}
+.notif-item-time{font-size:11px;color:var(--dim);margin-top:4px;font-family:var(--mono)}
+
+/* ── MAIN CONTENT AREA ── */
+.main-content{
+  flex:1;overflow-y:auto;padding:28px;
+  background-color:var(--bg);
+  background-image:
+    radial-gradient(ellipse 70% 55% at 100% 0%,rgba(var(--accent-rgb),0.055) 0%,transparent 65%),
+    radial-gradient(ellipse 45% 35% at 95% 100%,rgba(var(--accent-rgb),0.03) 0%,transparent 60%);
+}
+
+/* ═══ SHARED UI COMPONENTS ═══ */
+.section-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap}
+.section-title{font-size:26px;font-weight:800;color:var(--text);letter-spacing:-0.02em;margin-bottom:4px}
+.section-sub{font-size:13px;color:var(--muted)}
+.header-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:var(--radius);font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all 0.18s;white-space:nowrap}
+.btn-primary{background:var(--accent);color:white;box-shadow:0 2px 8px var(--accent-shadow)}
+.btn-primary:hover{background:var(--accent-mid);transform:translateY(-1px);box-shadow:var(--shadow-accent)}
+.btn-secondary{background:var(--surface);color:var(--text-mid);border:1.5px solid var(--border2)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-pale)}
+.btn-ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--border2)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-danger{background:var(--red);color:white}
+.btn-danger:hover{background:#b91c1c;transform:translateY(-1px)}
+
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{
+  background:var(--surface);border-radius:var(--radius-lg);padding:20px;
+  box-shadow:var(--shadow-sm);border:1px solid var(--border);transition:all 0.2s;
+  position:relative;overflow:hidden;
+}
+.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.stat-card-hero{
+  background:var(--accent);color:white;box-shadow:var(--shadow-accent);
+  background-image:
+    radial-gradient(ellipse at top right,rgba(255,255,255,.18) 0%,transparent 55%),
+    radial-gradient(ellipse at bottom left,rgba(0,0,0,.16) 0%,transparent 55%);
+  isolation:isolate;
+}
+/* Glass reflection — above card background, below text */
+.stat-card-hero::before{
+  content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(135deg,rgba(255,255,255,.15) 0%,rgba(255,255,255,.05) 28%,transparent 60%);
+}
+/* Noise texture for surface depth */
+.stat-card-hero::after{
+  content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
+  opacity:.06;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.stat-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.stat-card-hero .stat-label{color:rgba(255,255,255,0.75)}
+.stat-value{font-size:36px;font-weight:800;line-height:1;margin-bottom:8px;letter-spacing:-0.02em;animation:countUp 0.5s ease}
+.stat-card-hero .stat-value{color:white}
+.stat-trend{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600}
+.stat-trend.up{color:var(--green-status)}.stat-trend.down{color:var(--red)}
+
+.card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);overflow:hidden}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.card-title{font-size:14px;font-weight:700;color:var(--text)}
+.card-body{padding:18px 20px}
+
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;padding:10px 14px;background:var(--surface2);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.data-table td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tbody tr{cursor:pointer;transition:background 0.15s}
+.data-table tbody tr:hover{background:var(--accent-bg)}
+
+.badge{font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block;white-space:nowrap}
+.badge-critical{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
+.badge-high{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.badge-medium{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(37,99,235,0.15)}
+.badge-low{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
+.badge-complete{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
+.badge-progress{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.badge-draft{background:var(--surface3);color:var(--muted);border:1px solid var(--border)}
+.badge-overdue{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
+.badge-accent{background:var(--accent-pale);color:var(--accent);border:1px solid rgba(0,0,0,0.06)}
+
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-chip{font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:all 0.18s}
+.filter-chip.active{background:var(--accent);color:white;border-color:var(--accent);box-shadow:0 2px 8px var(--accent-shadow)}
+.filter-chip:hover:not(.active){border-color:var(--accent);color:var(--accent)}
+
+/* Modal overlay */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:800;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);max-width:600px;width:90%;max-height:85vh;overflow-y:auto;animation:modalIn 0.25s ease}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border)}
+.modal-title{font-size:18px;font-weight:800;color:var(--text)}
+.modal-close{width:32px;height:32px;border-radius:8px;border:none;background:var(--surface2);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.modal-close:hover{background:var(--red-bg);color:var(--red)}
+.modal-body{padding:20px 24px}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--border)}
+
+/* Toast notifications */
+.toast-container{position:fixed;top:80px;right:24px;z-index:900;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 18px;border-radius:var(--radius);font-size:13px;font-weight:500;box-shadow:var(--shadow-md);animation:toastSlide 0.3s ease;display:flex;align-items:center;gap:10px;max-width:360px}
+.toast-success{background:#065f46;color:white}
+.toast-error{background:var(--red);color:white}
+.toast-info{background:var(--accent);color:white}
+
+/* Form elements */
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:6px}
+.form-input{width:100%;padding:10px 14px;border:1.5px solid var(--border2);border-radius:var(--radius);font-size:13px;color:var(--text);background:var(--surface);outline:none;transition:border-color 0.2s}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-pale)}
+textarea.form-input{min-height:100px;resize:vertical}
+select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+
+/* Empty state */
+.empty-state{text-align:center;padding:48px 24px;color:var(--muted)}
+.empty-state svg{width:48px;height:48px;color:var(--dim);margin-bottom:16px}
+.empty-state h3{font-size:16px;font-weight:700;color:var(--text-mid);margin-bottom:6px}
+.empty-state p{font-size:13px;max-width:320px;margin:0 auto 16px}
+
+/* Loading spinner */
+.spinner{width:20px;height:20px;border:2.5px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite}
+
+/* ── Progress Bar ── */
+.pbar{height:4px;background:var(--surface3);border-radius:2px;margin-top:10px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:2px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+
+/* ── AI Gradient Button ── */
+.btn-ai{background:linear-gradient(135deg,var(--accent),var(--accent-light));color:white;box-shadow:var(--shadow-accent)}
+.btn-ai:hover{transform:translateY(-1px);box-shadow:0 6px 20px var(--accent-shadow)}
+
+/* ── Panel Cards ── */
+.panel-card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);padding:18px;margin-bottom:16px;transition:box-shadow 0.2s}
+.panel-card:hover{box-shadow:var(--shadow-md)}
+.panel-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;font-family:var(--mono);margin-bottom:14px}
+
+/* ── Premium Glass Module Cards ── */
+/* Applied only to elements with gradient/color backgrounds (module tiles, etc.) */
+.glass-module{border-radius:var(--radius-lg);overflow:hidden;display:block;transition:box-shadow .25s}
+
+/* ── Ring / Donut Chart ── */
+.ring-wrap{display:flex;align-items:center;gap:16px}
+.ring-legend{font-size:12px;flex:1}
+.ring-item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ring-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ring-lbl{color:var(--muted);flex:1}
+.ring-val{font-family:var(--mono);font-weight:700;color:var(--text)}
+
+/* ── Mini Bar Chart ── */
+.mini-bars{display:flex;align-items:flex-end;gap:4px;height:48px}
+.mini-bar{flex:1;background:var(--accent-pale);border-radius:3px 3px 0 0;transition:all 0.3s;min-width:6px;position:relative}
+.mini-bar:hover{background:var(--accent);opacity:0.8}
+
+/* ── Timeline ── */
+.tl-item{display:flex;gap:12px;margin-bottom:14px}
+.tl-col{display:flex;flex-direction:column;align-items:center}
+.tl-dot{width:10px;height:10px;border-radius:50%;margin-top:2px;flex-shrink:0;border:2px solid white;box-shadow:0 0 0 2px var(--accent)}
+.tl-line{width:1px;background:var(--border);flex:1;margin-top:6px;min-height:14px}
+.tl-content{flex:1;padding-bottom:2px}
+.tl-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.tl-date{font-size:11px;color:var(--muted);font-family:var(--mono)}
+
+/* ── Layout Helpers ── */
+.two-col{display:grid;grid-template-columns:1fr 300px;gap:20px}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+
+/* ── Table Mono ID ── */
+.item-id{font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600}
+
+/* ── Module Page Visibility ── */
+.module-page{display:none}
+.module-page.active{display:block}
+
+/* ── Module Active Marker ── */
+.module-marker{
+  width:4px;height:28px;border-radius:0 4px 4px 0;position:absolute;left:0;top:50%;
+  transform:translateY(-50%);transition:all 0.2s;
+}
+.icon-nav-item.active .module-marker{background:white}
+
+/* ── Hero Card Hover Refinement ── */
+.stat-card-hero:hover{transform:translateY(-2px);box-shadow:0 12px 32px var(--accent-shadow)}
+.stat-card-hero .stat-trend{color:rgba(255,255,255,0.85)}
+
+/* ── Additional Animations ── */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+
+{% block extra_styles %}{% endblock %}
+</style>
+</head>
+
+<body data-module="{{ active_module | default('platform') }}">
+
+<div class="app">
+
+<!-- Noise texture overlay (z-index:0, opacity:3%, mix-blend-mode:overlay) -->
+<div id="bg-noise" aria-hidden="true"></div>
+
+<!-- Particle network canvas (z-index:-1, pointer-events:none — purely decorative) -->
+<canvas id="aegis-particles" aria-hidden="true"></canvas>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     ICON SIDEBAR — always visible, switches modules
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="icon-sidebar">
+  <a href="/" class="icon-sidebar-logo" title="ThemisIQ — Home">
+    <!-- ThemisIQ logo mark: crop to show just the circular head/emblem -->
+    <div style="width:44px;height:44px;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;border-radius:12px">
+      <img src="/static/img/themisiq-logo-clear.png"
+           alt="ThemisIQ"
+           style="width:105px;margin-top:-3px;margin-left:-2px;flex-shrink:0;display:block">
+    </div>
+  </a>
+
+  <div class="icon-sidebar-nav">
+    <!-- Platform Home -->
+    <a href="/" class="icon-nav-item{% if active_module == 'platform' %} active{% endif %}" title="Command Centre">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span class="icon-nav-tooltip">Command Centre</span>
+    </a>
+
+    <div class="icon-nav-divider"></div>
+
+    {% if 'aria' in user_modules %}
+    <a href="/aria/" class="icon-nav-item{% if active_module == 'aria' %} active{% endif %}" title="Governance">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span class="icon-nav-tooltip">Governance — Policy &amp; Compliance</span>
+    </a>
+    {% endif %}
+
+    {% if 'grid' in user_modules %}
+    <a href="/grid/" class="icon-nav-item{% if active_module == 'grid' %} active{% endif %}" title="Audit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+      <span class="icon-nav-tooltip">Audit — Audit Management</span>
+    </a>
+    {% endif %}
+
+    {% if 'bcm' in user_modules %}
+    <a href="/bcm/" class="icon-nav-item{% if active_module == 'bcm' %} active{% endif %}" title="Resilience">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span class="icon-nav-tooltip">Resilience — Business Continuity</span>
+    </a>
+    {% endif %}
+
+    {% if 'sentinel' in user_modules %}
+    <a href="/sentinel/" class="icon-nav-item{% if active_module == 'sentinel' %} active{% endif %}" title="Privacy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      <span class="icon-nav-tooltip">Privacy — Data Protection</span>
+    </a>
+    {% endif %}
+
+    {% if 'erm' in user_modules %}
+    <a href="/erm/" class="icon-nav-item{% if active_module == 'erm' %} active{% endif %}" title="Enterprise Risk">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      <span class="icon-nav-tooltip">Enterprise Risk</span>
+    </a>
+    {% endif %}
+
+    {% if 'orm' in user_modules %}
+    <a href="/orm/" class="icon-nav-item{% if active_module == 'orm' %} active{% endif %}" title="Operations Risk">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span class="icon-nav-tooltip">Operations Risk</span>
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="icon-sidebar-bottom">
+    {% if is_admin %}
+    <a href="/admin/users" class="icon-nav-item{% if active_section == 'admin' %} active{% endif %}" title="Admin" style="color:#94a3b8">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15 1.65 1.65 0 003.17 14H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68 1.65 1.65 0 0010 3.17V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span class="icon-nav-tooltip">Admin Settings</span>
+    </a>
+    {% endif %}
+    <div class="icon-sidebar-user" onclick="toggleUserMenu()" title="{{ user.full_name }}">
+      {{ user.avatar_initials | default('??') }}
+      <div class="user-dropdown" id="userDropdown">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:var(--text)">{{ user.full_name }}</div>
+          <div style="font-size:11px;color:var(--muted)">{{ user.email }}</div>
+        </div>
+        <a href="/change-password">Change Password</a>
+        {% if is_admin %}<a href="/admin/users">User Management</a>{% endif %}
+        {% if is_admin %}<a href="/admin/frameworks">Framework Activation</a>{% endif %}
+        {% if is_admin %}<a href="/admin/logs">Audit Log</a>{% endif %}
+        {% if is_admin %}<a href="/admin/api-keys">API Keys</a>{% endif %}
+        {% if is_admin %}<a href="/admin/webhooks">Webhooks</a>{% endif %}
+        {% if is_admin %}<a href="/admin/email">Email Settings</a>{% endif %}
+        <div class="sep"></div>
+        <a href="#" onclick="document.getElementById('logoutForm').submit();return false" style="color:var(--red)">Sign Out</a>
+        <form id="logoutForm" method="POST" action="/logout" style="display:none"></form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     MODULE SIDEBAR — module-specific navigation
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="module-sidebar{% if not show_sidebar %} collapsed{% endif %}" id="moduleSidebar">
+  {% block module_sidebar %}
+  <!-- Default: platform sidebar -->
+  <div class="module-sidebar-header">
+    <div class="module-name">Command Centre</div>
+    <div class="module-desc">Executive overview & administration</div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Navigation</div>
+    <a href="/" class="nav-item{% if active_section == 'overview' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      Overview
+    </a>
+    <a href="/my-dashboard" class="nav-item{% if active_section == 'my-dashboard' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+      My Dashboard
+    </a>
+    {% if is_admin %}
+    <a href="/admin/users" class="nav-item{% if active_section == 'users' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      User Management
+    </a>
+    <a href="/admin/frameworks" class="nav-item{% if active_section == 'frameworks' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M8 7h8M8 11h6"/></svg>
+      Frameworks
+    </a>
+    <a href="/admin/logs" class="nav-item{% if active_section == 'logs' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Audit Log
+    </a>
+    {% endif %}
+    <a href="/risk-register" class="nav-item{% if active_section == 'risks' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Risk Register
+    </a>
+    <a href="/evidence/" class="nav-item{% if active_section == 'evidence' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      Evidence Vault
+    </a>
+    <a href="/workflows" class="nav-item{% if active_section == 'workflows' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+      Workflows
+    </a>
+    <a href="/reports" class="nav-item{% if active_section == 'reports' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Reports
+    </a>
+    <a href="/tasks" class="nav-item{% if active_section == 'tasks' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      Task Board
+    </a>
+    <a href="/calendar" class="nav-item{% if active_section == 'calendar' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Calendar
+    </a>
+    <a href="/analytics" class="nav-item{% if active_section == 'analytics' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
+    </a>
+    <a href="/change-password" class="nav-item{% if active_section == 'password' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      Change Password
+    </a>
+  </div>
+  {% endblock %}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     MAIN CONTENT AREA
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="main-wrap">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="breadcrumb">
+        {% block breadcrumb %}
+        <span style="font-weight:700"><span style="color:var(--accent)">Themis</span><span style="color:#C9A84C">IQ</span></span>
+        <span class="breadcrumb-sep">›</span>
+        <span class="breadcrumb-current">Command Centre</span>
+        {% endblock %}
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="topbar-search" placeholder="Search across all modules… (Ctrl+K)" type="text" id="globalSearch" autocomplete="off">
+        <div id="searchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:360px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4);z-index:999;"></div>
+      </div>
+      <div style="position:relative">
+        <button class="topbar-icon-btn" onclick="toggleNotif()" id="notifBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <span class="notif-dot" id="notifDot"></span>
+        </button>
+        <div class="notif-panel" id="notifPanel">
+          <div class="notif-header">
+            <span class="notif-header-title">Notifications</span>
+            <span style="font-size:11px;color:var(--accent);cursor:pointer;font-weight:600" onclick="markAllRead()">Mark all read</span>
+          </div>
+          <div class="notif-list" id="notifList">
+            <div class="empty-state" style="padding:24px">
+              <p>No new notifications</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Reminder Button -->
+      <button class="topbar-icon-btn" onclick="openReminderModal()" title="Set email reminder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </button>
+      <!-- Theme Toggle -->
+      <button class="topbar-icon-btn" onclick="toggleTheme()" id="themeToggle" title="Toggle dark/light mode">
+        <svg id="themeSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg id="themeMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
+      {% block topbar_extra %}{% endblock %}
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content" id="mainContent">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+</div><!-- .app -->
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ── Shell Utilities ──
+
+function toggleSidebar(){
+  const sb = document.getElementById('moduleSidebar');
+  sb.classList.toggle('collapsed');
+  localStorage.setItem('sidebarCollapsed', sb.classList.contains('collapsed'));
+}
+
+// Restore sidebar state
+(function(){
+  if(localStorage.getItem('sidebarCollapsed')==='true'){
+    document.getElementById('moduleSidebar').classList.add('collapsed');
+  }
+})();
+
+// ── Theme Toggle (Dark/Light Mode) ──
+function toggleTheme(){
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  localStorage.setItem('ofa-theme', newTheme);
+  updateThemeIcons(newTheme);
+}
+function updateThemeIcons(theme){
+  const sun = document.getElementById('themeSun');
+  const moon = document.getElementById('themeMoon');
+  if(theme === 'dark'){ sun.style.display='block'; moon.style.display='none'; }
+  else { sun.style.display='none'; moon.style.display='block'; }
+}
+// Restore theme on load
+(function(){
+  const saved = localStorage.getItem('ofa-theme') || 'light';
+  if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
+  updateThemeIcons(saved);
+})();
+
+// ── Module Context Switching ──
+// Dynamically sets data-module on <body> to switch accent colors.
+// Called when clicking module icons in the icon sidebar.
+// In the real app, navigation is via <a> links (full page loads),
+// so this is primarily used to ensure accent colors update correctly
+// on module pages that load dynamically or via fetch.
+function switchModuleContext(mod){
+  const validModules = ['platform','aria','grid','bcm','sentinel'];
+  if(!validModules.includes(mod)) return;
+  document.body.setAttribute('data-module', mod);
+  // Update icon sidebar active state
+  document.querySelectorAll('.icon-nav-item').forEach(function(el){
+    const href = el.getAttribute('href') || '';
+    const isTarget = (mod === 'platform' && href === '/') ||
+                     (mod !== 'platform' && href.indexOf('/' + mod) === 0);
+    if(isTarget){ el.classList.add('active'); }
+    else { el.classList.remove('active'); }
+  });
+  // Persist module context for sub-pages that might not set it server-side
+  try{ sessionStorage.setItem('ofa-module', mod); }catch(e){}
+}
+
+function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+
+function toggleNotif(){
+  const p = document.getElementById('notifPanel');
+  p.classList.toggle('show');
+  if(p.classList.contains('show')) loadNotifications();
+}
+
+async function loadNotifications(){
+  try {
+    const resp = await fetch('/api/notifications');
+    const data = await resp.json();
+    const dot = document.getElementById('notifDot');
+    dot.style.display = data.unread_count > 0 ? 'block' : 'none';
+    const list = document.getElementById('notifList');
+    if(!data.notifications.length){
+      list.innerHTML = '<div class="empty-state" style="padding:24px"><p>No notifications</p></div>';
+      return;
+    }
+    list.innerHTML = data.notifications.slice(0,20).map(function(n) {
+      var safeLink = (n.link||'').replace(/[^a-zA-Z0-9\/_\-\.#?=&]/g, '');
+      return '<div style="padding:10px 14px;border-bottom:1px solid var(--border-soft);cursor:pointer;background:'+(n.is_read?'transparent':'var(--surface2)')+'" data-nid="'+parseInt(n.id,10)+'" data-link="'+esc(safeLink)+'">' +
+        '<div style="font-size:12.5px;font-weight:'+(n.is_read?'400':'600')+';color:var(--text);">'+esc(n.title)+'</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(n.message||'')+'</div>' +
+        '<div style="font-size:10px;color:var(--muted);margin-top:4px;">'+esc(n.module||'')+' &middot; '+esc(timeAgo(n.created_at))+'</div>' +
+      '</div>';
+    }).join('');
+    list.querySelectorAll('[data-nid]').forEach(function(el){
+      el.addEventListener('click', function(){ handleNotifClick(parseInt(el.getAttribute('data-nid'),10), el.getAttribute('data-link')||''); });
+    });
+  } catch(e){}
+}
+
+async function handleNotifClick(nid, link){
+  await fetch('/api/notifications/'+nid+'/read', {method:'POST'});
+  if(link) window.location.href=link;
+  else loadNotifications();
+}
+
+async function markAllRead(){
+  await fetch('/api/notifications/read-all', {method:'POST'});
+  document.getElementById('notifDot').style.display='none';
+  loadNotifications();
+}
+
+function timeAgo(ts){
+  if(!ts) return '';
+  const d=new Date(ts+'Z'); const now=new Date(); const s=Math.floor((now-d)/1000);
+  if(s<60) return 'just now'; if(s<3600) return Math.floor(s/60)+'m ago';
+  if(s<86400) return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago';
+}
+
+function toggleUserMenu(){
+  const d = document.getElementById('userDropdown');
+  d.classList.toggle('show');
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.icon-sidebar-user')){
+    document.getElementById('userDropdown').classList.remove('show');
+  }
+  if(!e.target.closest('#notifBtn') && !e.target.closest('#notifPanel')){
+    document.getElementById('notifPanel').classList.remove('show');
+  }
+});
+
+// Global search (Ctrl+K)
+document.addEventListener('keydown', function(e){
+  if((e.ctrlKey || e.metaKey) && e.key === 'k'){
+    e.preventDefault();
+    document.getElementById('globalSearch').focus();
+  }
+  if(e.key === 'Escape'){
+    document.getElementById('searchResults').style.display='none';
+    document.getElementById('globalSearch').blur();
+  }
+});
+
+let searchDebounce = null;
+document.getElementById('globalSearch').addEventListener('input', function(){
+  clearTimeout(searchDebounce);
+  const q = this.value.trim();
+  if(q.length < 2){ document.getElementById('searchResults').style.display='none'; return; }
+  searchDebounce = setTimeout(()=>doGlobalSearch(q), 250);
+});
+
+async function doGlobalSearch(q){
+  const resp = await fetch('/api/search?q=' + encodeURIComponent(q));
+  const data = await resp.json();
+  const el = document.getElementById('searchResults');
+  if(!data.results.length){
+    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">No results</div>';
+  } else {
+    var modColors = {aria:'#6c63ff',sentinel:'#10b981',grid:'#f59e0b',bcm:'#ef4444',platform:'#94a3b8'};
+    el.innerHTML = data.results.map(function(r) {
+      var safeLink = (r.link||'#').replace(/[^a-zA-Z0-9\/_\-\.#?=&]/g, '');
+      var mod = (r.module||'').replace(/[^a-z]/g,'');
+      return '<a href="'+esc(safeLink)+'" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'transparent\'">' +
+        '<span style="width:8px;height:8px;border-radius:50%;background:'+(modColors[mod]||'var(--muted)')+';flex-shrink:0;"></span>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.title)+'</div>' +
+          '<div style="font-size:11px;color:var(--muted);">'+esc(r.module)+' &middot; '+esc(r.type)+(r.subtitle?' &middot; '+esc(r.subtitle):'')+'</div>' +
+        '</div>' +
+      '</a>';
+    }).join('');
+  }
+  el.style.display = 'block';
+}
+
+// Hide search results on click outside
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.search-wrap')){
+    document.getElementById('searchResults').style.display='none';
+  }
+});
+
+// Toast helper
+function showToast(message, type='success', duration=4000){
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + esc(message);
+  c.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),300)}, duration);
+}
+
+// Confirm dialog helper
+function confirmAction(msg, callback){
+  if(confirm(msg)) callback();
+}
+
+// Load notification badge count on page load
+(async function(){
+  try{
+    const r = await fetch('/api/notifications');
+    const d = await r.json();
+    document.getElementById('notifDot').style.display = d.unread_count > 0 ? 'block' : 'none';
+  }catch(e){}
+})();
+// Poll every 60s
+setInterval(async()=>{
+  try{
+    const r = await fetch('/api/notifications');
+    const d = await r.json();
+    document.getElementById('notifDot').style.display = d.unread_count > 0 ? 'block' : 'none';
+  }catch(e){}
+}, 60000);
+
+// ── Stat card 3D mouse tilt ────────────────────────────────────────
+(function(){
+  const MAX = 5;
+  const attached = new WeakSet();
+  function applyTilt(card){
+    if(attached.has(card)) return;
+    attached.add(card);
+    card.style.transformOrigin = 'center center';
+    card.addEventListener('mousemove', function(e){
+      var r  = card.getBoundingClientRect();
+      var dx = (e.clientX - r.left  - r.width  / 2) / (r.width  / 2);
+      var dy = (e.clientY - r.top   - r.height / 2) / (r.height / 2);
+      card.style.transform  = 'translateY(-3px) perspective(600px) rotateX('+(-dy*MAX)+'deg) rotateY('+(dx*MAX)+'deg)';
+      card.style.transition = 'transform 0.05s ease-out, box-shadow 0.2s';
+      card.style.boxShadow  = '0 12px 32px rgba(0,0,0,0.13)';
+    });
+    card.addEventListener('mouseleave', function(){
+      card.style.transform  = '';
+      card.style.transition = 'transform 0.35s ease-out, box-shadow 0.35s';
+      card.style.boxShadow  = '';
+    });
+  }
+  function initTilts(){
+    document.querySelectorAll('.stat-card, .panel-card, [data-glass-tilt]').forEach(applyTilt);
+  }
+  document.addEventListener('DOMContentLoaded', initTilts);
+  // Re-run after SPA content injections
+  var mc = document.getElementById('mainContent');
+  if(mc){ new MutationObserver(initTilts).observe(mc,{childList:true,subtree:false}); }
+})();
+</script>
+
+{% block extra_scripts %}{% endblock %}
+
+<!-- Reminder Modal -->
+<div class="modal" id="reminderModal" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);" onclick="closeReminderModal()"></div>
+  <div style="position:relative;background:var(--surface);border-radius:16px;padding:24px;width:400px;max-width:90vw;box-shadow:var(--shadow-lg);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0;">Set Email Reminder</h3>
+      <button onclick="closeReminderModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">&times;</button>
+    </div>
+    <form id="reminderForm" onsubmit="createReminder(event)">
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Title</label>
+        <input type="text" id="remTitle" required placeholder="e.g. Review audit findings" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Message (optional)</label>
+        <textarea id="remMessage" rows="2" placeholder="Additional details..." style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical;"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Date & Time</label>
+          <input type="datetime-local" id="remAt" required style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Repeat</label>
+          <select id="remRepeat" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
+            <option value="none">No repeat</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Module</label>
+        <select id="remModule" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
+          <option value="platform">Platform (General)</option>
+          <option value="aria">Governance</option>
+          <option value="grid">Audit</option>
+          <option value="bcm">Resilience</option>
+          <option value="sentinel">Privacy</option>
+        </select>
+      </div>
+      <button type="submit" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;font-size:14px;cursor:pointer;">Create Reminder</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function openReminderModal(){
+  const m = document.getElementById('reminderModal');
+  m.style.display='flex';
+  // Pre-select current module from body data attribute
+  const mod = document.body.getAttribute('data-module') || 'platform';
+  document.getElementById('remModule').value = mod;
+  // Default to 1 hour from now
+  const now = new Date();
+  now.setHours(now.getHours() + 1);
+  document.getElementById('remAt').value = now.toISOString().slice(0,16);
+}
+function closeReminderModal(){ document.getElementById('reminderModal').style.display='none'; }
+async function createReminder(e){
+  e.preventDefault();
+  const body = {
+    title: document.getElementById('remTitle').value,
+    message: document.getElementById('remMessage').value,
+    remind_at: document.getElementById('remAt').value,
+    repeat_interval: document.getElementById('remRepeat').value,
+    module: document.getElementById('remModule').value,
+  };
+  const resp = await fetch('/api/reminders', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if(resp.ok){
+    closeReminderModal();
+    document.getElementById('reminderForm').reset();
+    if(typeof showToast==='function') showToast('Reminder created successfully');
+  }
+}
+</script>
+
+{% include "_platform_trainer.html" %}
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     PARTICLE NETWORK BACKGROUND
+     Adapted from AetherFlow. Vanilla JS, no dependencies.
+     z-index:-1, pointer-events:none — completely non-interactive.
+     Pauses when tab is hidden; respects prefers-reduced-motion.
+     ═══════════════════════════════════════════════════════════════════ -->
+<script src="/static/js/aegis-particles.js"></script>
+
+</body>
+</html>

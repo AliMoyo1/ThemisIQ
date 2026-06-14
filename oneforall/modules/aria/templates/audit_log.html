@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — ARIA{% endblock %}
+
+{% block breadcrumb %}
+<span style="color:var(--accent);font-weight:700">ARIA</span>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">Audit Trail</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <div class="page-title">Audit Trail</div>
+    <div class="page-subtitle">Complete log of all actions performed within the ARIA module</div>
+  </div>
+</div>
+
+<div class="card" style="padding:0">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:50px">#</th>
+          <th style="width:140px">Timestamp</th>
+          <th style="width:160px">User</th>
+          <th style="min-width:120px">Action</th>
+          <th style="width:140px">Entity</th>
+          <th style="min-width:180px">Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">{{ log.id }}</span></td>
+          <td><span style="font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap">{{ (log.created_at or '')[:16] }}</span></td>
+          <td>
+            <div style="display:flex;align-items:center;gap:9px">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">
+                {{ (log.full_name or log.username or '?')[0].upper() }}
+              </div>
+              <span style="font-size:12.5px;color:var(--text);font-weight:500">{{ log.full_name or log.username }}</span>
+            </div>
+          </td>
+          <td style="font-size:13px;color:var(--text)">{{ log.action }}</td>
+          <td><span style="font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:600">{{ log.entity_type or '' }} {% if log.entity_id %}#{{ log.entity_id }}{% endif %}</span></td>
+          <td style="font-size:12px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">{{ log.details or '' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;padding:48px;color:var(--muted)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="width:36px;height:36px;margin-bottom:8px;opacity:0.4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <div style="font-size:13px">No audit events recorded yet.</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

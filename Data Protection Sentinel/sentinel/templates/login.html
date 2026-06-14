@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Protection Sentinel — Sign In</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;background:#050914;color:#e2e8f0;overflow:hidden}
+
+/* Animated background */
+.bg-grid{position:fixed;inset:0;background:
+  repeating-linear-gradient(0deg,rgba(0,212,255,.025) 0,rgba(0,212,255,.025) 1px,transparent 1px,transparent 60px),
+  repeating-linear-gradient(90deg,rgba(0,212,255,.025) 0,rgba(0,212,255,.025) 1px,transparent 1px,transparent 60px);animation:gridMove 20s linear infinite;pointer-events:none}
+@keyframes gridMove{0%{transform:translate(0,0)}100%{transform:translate(60px,60px)}}
+
+/* Scanlines */
+.scanlines{position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px);pointer-events:none;z-index:1}
+
+/* Glow orbs */
+.orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;animation:orbFloat 8s ease-in-out infinite}
+.orb-1{width:400px;height:400px;background:rgba(0,212,255,.06);top:-100px;left:-100px;animation-delay:0s}
+.orb-2{width:300px;height:300px;background:rgba(139,92,246,.06);bottom:-50px;right:-50px;animation-delay:3s}
+.orb-3{width:250px;height:250px;background:rgba(16,185,129,.04);top:50%;right:20%;animation-delay:5s}
+@keyframes orbFloat{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(20px,-20px) scale(1.05)}}
+
+/* Floating particles */
+.particles{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.particle{position:absolute;width:2px;height:2px;background:#00d4ff;border-radius:50%;opacity:0;animation:particleFall linear infinite}
+@keyframes particleFall{0%{opacity:0;transform:translateY(-10px)}10%{opacity:.6}90%{opacity:.2}100%{opacity:0;transform:translateY(100vh)}}
+
+/* Main container */
+.container{position:relative;z-index:2;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:20px}
+
+/* Card */
+.card{width:100%;max-width:420px;background:rgba(13,26,46,.9);border:1px solid rgba(0,212,255,.2);border-radius:16px;padding:40px;backdrop-filter:blur(20px);box-shadow:0 0 60px rgba(0,212,255,.08),0 32px 64px rgba(0,0,0,.5);animation:cardIn .5s cubic-bezier(.16,1,.3,1) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(30px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+/* Logo */
+.logo{text-align:center;margin-bottom:32px}
+.logo-icon{width:56px;height:56px;background:linear-gradient(135deg,rgba(0,212,255,.2),rgba(139,92,246,.2));border:1px solid rgba(0,212,255,.4);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px;box-shadow:0 0 20px rgba(0,212,255,.2);animation:iconPulse 3s ease-in-out infinite}
+@keyframes iconPulse{0%,100%{box-shadow:0 0 20px rgba(0,212,255,.2)}50%{box-shadow:0 0 30px rgba(0,212,255,.4)}}
+.logo-title{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.logo-title .sentinel{color:#00d4ff;text-shadow:0 0 20px rgba(0,212,255,.5)}
+.logo-sub{font-size:12px;color:#64748b;margin-top:4px;letter-spacing:.5px;text-transform:uppercase}
+
+/* Status badge */
+.status-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:20px;padding:4px 12px;font-size:11px;color:#10b981;margin-bottom:28px}
+.status-badge .dot{width:6px;height:6px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Form */
+.form-group{margin-bottom:20px}
+.form-label{display:block;font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.form-input{width:100%;padding:12px 14px;background:rgba(7,16,31,.8);border:1px solid rgba(0,212,255,.15);border-radius:8px;color:#e2e8f0;font-size:14px;transition:all .25s;outline:none}
+.form-input:focus{border-color:#00d4ff;box-shadow:0 0 0 3px rgba(0,212,255,.1),0 0 20px rgba(0,212,255,.05)}
+.form-input::placeholder{color:#475569}
+.form-input.error{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.1)}
+
+/* Input icons */
+.input-wrap{position:relative}
+.input-wrap .input-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#64748b;font-size:14px;pointer-events:none;transition:color .25s}
+.input-wrap .form-input{padding-left:38px}
+.input-wrap:focus-within .input-icon{color:#00d4ff}
+.toggle-pw{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#64748b;cursor:pointer;font-size:14px;transition:color .2s}
+.toggle-pw:hover{color:#00d4ff}
+
+/* Button */
+.btn-login{width:100%;padding:13px;background:linear-gradient(135deg,#00b8e6,#00d4ff);border:none;border-radius:8px;color:#050914;font-size:14px;font-weight:700;cursor:pointer;transition:all .25s;letter-spacing:.3px;position:relative;overflow:hidden;margin-top:8px}
+.btn-login::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.15),transparent);opacity:0;transition:opacity .25s}
+.btn-login:hover{transform:translateY(-1px);box-shadow:0 8px 25px rgba(0,212,255,.35)}
+.btn-login:hover::before{opacity:1}
+.btn-login:active{transform:translateY(0)}
+.btn-login:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-login .spinner{display:none;width:16px;height:16px;border:2px solid rgba(5,9,20,.3);border-top-color:#050914;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto}
+.btn-login.loading .btn-text{display:none}
+.btn-login.loading .spinner{display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Error message */
+.error-msg{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px 14px;font-size:13px;color:#fca5a5;display:none;margin-top:16px;animation:shake .4s ease}
+.error-msg.show{display:block}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+
+/* Footer */
+.login-footer{margin-top:28px;padding-top:20px;border-top:1px solid rgba(0,212,255,.08);text-align:center}
+.login-footer p{font-size:11px;color:#475569;line-height:1.6}
+.login-footer .byline{color:#64748b;font-size:11px;margin-top:8px}
+.login-footer .byline span{color:#00d4ff}
+
+/* Default creds hint */
+.creds-hint{background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.1);border-radius:8px;padding:10px 14px;font-size:11px;color:#64748b;margin-bottom:20px;font-family:'Courier New',monospace}
+.creds-hint strong{color:#00d4ff}
+
+/* Reg decoration */
+.reg-strip{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+.reg-tag{font-size:9px;padding:2px 7px;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.1);border-radius:10px;color:#475569;letter-spacing:.3px}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="scanlines"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<div class="particles" id="particles"></div>
+
+<div class="container">
+  <div class="card">
+
+    <div class="logo">
+      <div class="logo-icon">🛡️</div>
+      <div class="logo-title">Data Protection <span class="sentinel">Sentinel</span></div>
+      <div class="logo-sub">by Ali Moyo · Privacy Compliance Platform</div>
+    </div>
+
+    <div style="text-align:center">
+      <div class="status-badge">
+        <span class="dot"></span>
+        System Operational
+      </div>
+    </div>
+
+    <div class="creds-hint">
+      Default login: <strong>admin</strong> / <strong>sentinel2024</strong>
+    </div>
+
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label class="form-label" for="username">Username or Email</label>
+        <div class="input-wrap">
+          <span class="input-icon">◎</span>
+          <input class="form-input" type="text" id="username" name="username"
+                 placeholder="admin" autocomplete="username" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <div class="input-wrap">
+          <span class="input-icon">🔑</span>
+          <input class="form-input" type="password" id="password" name="password"
+                 placeholder="••••••••" autocomplete="current-password" required>
+          <button type="button" class="toggle-pw" onclick="togglePw()" id="pwToggle">👁</button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-login" id="loginBtn">
+        <span class="btn-text">Sign In to Sentinel</span>
+        <span class="spinner"></span>
+      </button>
+
+      <div class="error-msg" id="errorMsg"></div>
+    </form>
+
+    <div class="login-footer">
+      <p>Secure access to your data protection compliance platform.<br>
+         All activity is logged for audit purposes.</p>
+      <div class="byline">Data Protection <span>Sentinel</span> · by Ali Moyo</div>
+      <div class="reg-strip">
+        <span class="reg-tag">GDPR</span><span class="reg-tag">POPIA</span>
+        <span class="reg-tag">Kenya DPA</span><span class="reg-tag">CCPA</span>
+        <span class="reg-tag">LGPD</span><span class="reg-tag">NDPR</span>
+        <span class="reg-tag">UAE PDPL</span><span class="reg-tag">DPDP</span>
+        <span class="reg-tag">APPI</span><span class="reg-tag">+13 more</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Spawn particles
+(function(){
+  const c = document.getElementById('particles');
+  for(let i=0;i<30;i++){
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.cssText = `left:${Math.random()*100}%;animation-duration:${6+Math.random()*10}s;animation-delay:${Math.random()*10}s;opacity:${0.2+Math.random()*0.4}`;
+    c.appendChild(p);
+  }
+})();
+
+function togglePw(){
+  const inp = document.getElementById('password');
+  const btn = document.getElementById('pwToggle');
+  if(inp.type==='password'){inp.type='text';btn.textContent='🙈';}
+  else{inp.type='password';btn.textContent='👁';}
+}
+
+async function handleLogin(e){
+  e.preventDefault();
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('errorMsg');
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+  errEl.classList.remove('show');
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username, password})
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Login failed. Please check your credentials.';
+      errEl.classList.add('show');
+      document.getElementById('username').classList.add('error');
+      document.getElementById('password').classList.add('error');
+    } else {
+      // Success — redirect to app
+      window.location.href = '/';
+    }
+  } catch(err) {
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.classList.add('show');
+  }
+
+  btn.classList.remove('loading');
+  btn.disabled = false;
+}
+
+// Clear error state on input
+['username','password'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',function(){
+    this.classList.remove('error');
+    document.getElementById('errorMsg').classList.remove('show');
+  });
+});
+
+// Auto-focus
+document.getElementById('username').focus();
+</script>
+</body>
+</html>

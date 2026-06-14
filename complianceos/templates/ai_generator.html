@@ -1,0 +1,564 @@
+{% extends "base.html" %}
+{% block title %}AI Policy Generator — ARIA{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+.ai-hero {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: 28px 32px;
+  margin-bottom: 22px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.ai-hero::before {
+  content: ''; position: absolute;
+  width: 360px; height: 360px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(122,90,138,0.14) 0%, transparent 70%);
+  top: -140px; right: -90px; pointer-events: none;
+}
+.ai-hero::after {
+  content: ''; position: absolute;
+  width: 260px; height: 260px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(92,95,61,0.16) 0%, transparent 70%);
+  bottom: -110px; left: -50px; pointer-events: none;
+}
+.hero-content { position: relative; z-index: 1; }
+.hero-title {
+  font-family: var(--display); font-size: 26px; font-weight: 700;
+  color: var(--ink); margin-bottom: 8px; letter-spacing: -0.5px;
+}
+.hero-title .kbd-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ink); color: var(--cream-50);
+  padding: 3px 10px 4px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+  margin-left: 8px; vertical-align: middle; font-family: var(--font);
+}
+.hero-sub { font-size: 14px; color: var(--muted); max-width: 620px; line-height: 1.6; }
+.api-warning {
+  background: var(--warn-soft);
+  border: 1px solid rgba(168,129,31,0.35);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+  font-size: 13px;
+  color: var(--warn);
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 10px;
+}
+/* Generator layout */
+.gen-layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+.gen-panel {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  position: sticky; top: 74px;
+  box-shadow: var(--shadow-sm);
+}
+.gen-panel-title {
+  font-family: var(--display); font-size: 15px; font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 18px; display: flex; align-items: center; gap: 8px;
+}
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block; font-size: 10.5px; font-weight: 700;
+  color: var(--muted); margin-bottom: 7px;
+  letter-spacing: 0.7px; text-transform: uppercase;
+}
+.gen-panel select, .gen-panel input { width: 100%; padding: 9px 12px; font-size: 13px; }
+.btn-generate {
+  width: 100%; padding: 13px;
+  background: var(--ink);
+  border: none; border-radius: var(--r-md);
+  color: var(--cream-50);
+  font-size: 14px; font-weight: 700; font-family: var(--display);
+  cursor: pointer; transition: all 0.18s;
+  letter-spacing: 0.2px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.btn-generate:hover { background: var(--ink-soft); box-shadow: var(--shadow); transform: translateY(-1px); }
+.btn-generate:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+.cost-note {
+  margin-top: 12px; padding: 10px 12px;
+  background: var(--cream-200);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  font-size: 11.5px; color: var(--muted); line-height: 1.5;
+}
+/* Output panel */
+.output-panel {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  min-height: 520px;
+  display: flex; flex-direction: column;
+  box-shadow: var(--shadow-sm);
+}
+.output-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.output-title { font-family: var(--display); font-size: 14px; font-weight: 700; color: var(--ink); }
+.output-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.output-body { padding: 28px 32px; flex: 1; overflow-y: auto; }
+/* Empty state */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 420px; gap: 16px;
+}
+.empty-icon { font-size: 52px; opacity: 0.35; }
+.empty-text { font-size: 14px; color: var(--muted); text-align: center; max-width: 340px; line-height: 1.6; }
+/* Typing animation */
+.typing-indicator {
+  display: none; flex-direction: column; align-items: center;
+  justify-content: center; height: 420px; gap: 20px;
+}
+.typing-indicator.active { display: flex; }
+.ai-spinner {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--ink); color: var(--cream-50);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  animation: pulse-glow 1.6s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(30,28,10,0.35); transform: scale(1); }
+  50% { box-shadow: 0 0 0 16px rgba(30,28,10,0); transform: scale(1.05); }
+}
+.typing-text { font-size: 14px; color: var(--muted); }
+.typing-dots span {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--primary); margin: 0 2px;
+  animation: bounce 1.2s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-8px); } }
+/* Markdown rendered output */
+.policy-output { font-size: 14.5px; line-height: 1.75; color: var(--text); }
+.policy-output h1 { font-family: var(--display); font-size: 22px; font-weight: 700; margin-bottom: 10px; color: var(--ink); letter-spacing: -0.3px; }
+.policy-output h2 {
+  font-family: var(--display); font-size: 16.5px; font-weight: 700;
+  margin: 26px 0 10px; color: var(--primary);
+  border-bottom: 1px solid var(--border-soft); padding-bottom: 7px;
+}
+.policy-output h3 { font-size: 14px; font-weight: 700; margin: 18px 0 6px; color: var(--ink-soft); }
+.policy-output p { margin-bottom: 12px; color: var(--ink-soft); }
+.policy-output ul, .policy-output ol { margin: 8px 0 12px 20px; color: var(--ink-soft); }
+.policy-output li { margin-bottom: 5px; }
+.policy-output strong { color: var(--ink); }
+.policy-output hr { border: none; border-top: 1px solid var(--border-soft); margin: 20px 0; }
+.policy-output code { background: var(--cream-200); padding: 2px 7px; border-radius: 5px; font-family: var(--mono); font-size: 12px; color: var(--primary-dark); }
+.policy-output blockquote {
+  border-left: 3px solid var(--primary);
+  padding: 10px 16px;
+  background: var(--cream-200);
+  border-radius: 0 10px 10px 0;
+  margin: 12px 0;
+  color: var(--muted);
+  font-style: italic;
+}
+/* Meta info bar */
+.meta-bar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 22px; border-top: 1px solid var(--border-soft);
+  font-size: 11.5px; color: var(--muted);
+}
+.meta-item { display: flex; align-items: center; gap: 5px; }
+/* Selected control card */
+.sel-ctrl {
+  margin-top: 10px;
+  background: var(--cream-200);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 11px 13px;
+}
+.sel-ctrl .ref { font-size: 11px; color: var(--primary); font-family: var(--mono); font-weight: 700; }
+.sel-ctrl .name { font-size: 13px; font-weight: 600; margin-top: 2px; color: var(--ink); }
+.sel-ctrl .desc { font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+/* Control search in generator */
+.ctrl-search-results {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+  background: var(--cream-50);
+  border: 1px solid var(--border);
+  border-radius: 10px; max-height: 240px; overflow-y: auto;
+  box-shadow: var(--shadow);
+  margin-top: 4px;
+}
+.ctrl-result {
+  padding: 10px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--border-soft);
+  transition: background 0.12s;
+}
+.ctrl-result:last-child { border-bottom: none; }
+.ctrl-result:hover { background: var(--cream-200); }
+.ctrl-result-ref { font-family: var(--mono); font-size: 11px; color: var(--primary); font-weight: 700; }
+.ctrl-result-name { font-size: 13px; color: var(--ink); margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <span class="page-title">🤖 AI Policy Generator</span>
+</div>
+<div class="content">
+
+  <!-- Hero -->
+  <div class="ai-hero">
+    <div class="hero-content">
+      <div class="hero-title">AI-Powered Policy Generation <span class="kbd-chip">Claude</span></div>
+      <div class="hero-sub">
+        Select any compliance control and instantly generate a professional, audit-ready policy or procedure document.
+        Powered by Claude — tailored to each framework's specific requirements and language.
+      </div>
+    </div>
+  </div>
+
+  {% if not api_configured %}
+  <div class="api-warning">
+    ⚠️ <strong>API Key not configured.</strong>
+    Create a <code>.env</code> file in your project folder with <code>ANTHROPIC_API_KEY=sk-ant-...</code> and restart the server.
+  </div>
+  {% endif %}
+
+  <div class="gen-layout">
+    <!-- Left panel: controls -->
+    <div>
+      <div class="gen-panel">
+        <div class="gen-panel-title">⚙️ Generation Settings</div>
+
+        <div class="form-group">
+          <label class="form-label">Organisation Name</label>
+          <input type="text" id="orgName" placeholder="e.g. Acme Corp" value="Your Organisation">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Framework</label>
+          <select id="fwSelect" onchange="loadControls()">
+            <option value="">— Select Framework —</option>
+            {% for fw in frameworks %}
+            <option value="{{ fw.id }}" data-name="{{ fw.name }}">{{ fw.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group" style="position:relative;">
+          <label class="form-label">Control / Requirement</label>
+          <input type="text" id="ctrlSearch" placeholder="Search controls..."
+            oninput="filterControls()" autocomplete="off" disabled>
+          <div id="ctrlResults" class="ctrl-search-results" style="display:none;"></div>
+          <input type="hidden" id="ctrlId">
+          <div id="selectedCtrl" class="sel-ctrl" style="display:none;">
+            <div class="ref" id="selRef"></div>
+            <div class="name" id="selName"></div>
+            <div class="desc" id="selDesc"></div>
+          </div>
+        </div>
+
+        <button class="btn-generate" id="generateBtn" onclick="generatePolicy()" disabled>
+          <span id="genBtnIcon">✨</span>
+          <span id="genBtnText">Generate Policy Document</span>
+        </button>
+
+        <div class="cost-note">
+          💡 Generation takes 10–20 seconds. Each generation costs approx. $0.01–0.02.
+        </div>
+      </div>
+
+      <!-- Gap Analysis panel -->
+      <div class="gen-panel" style="margin-top:16px;">
+        <div class="gen-panel-title">📊 Gap Analysis</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+          Generate an AI gap analysis report for an entire framework based on your current compliance status.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Framework</label>
+          <select id="gapFwSelect">
+            <option value="">— Select Framework —</option>
+            {% for fw in frameworks %}
+            <option value="{{ fw.id }}">{{ fw.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="generateGapAnalysis()">
+          📋 Generate Gap Analysis
+        </button>
+      </div>
+    </div>
+
+    <!-- Right panel: output -->
+    <div>
+      <div class="output-panel" id="outputPanel">
+        <div class="output-header">
+          <span class="output-title" id="outputTitle">Generated Document</span>
+          <div class="output-actions" id="outputActions" style="display:none;">
+            <button class="btn btn-ghost" onclick="copyToClipboard()" style="font-size:12px;padding:5px 12px;">📋 Copy</button>
+            <button class="btn btn-ghost" onclick="downloadMd()" style="font-size:12px;padding:5px 12px;">⬇️ Markdown</button>
+            <button class="btn btn-primary" onclick="downloadWord()" style="font-size:12px;padding:5px 12px;">📄 Word (.docx)</button>
+            <button class="btn btn-ghost" onclick="printPolicy()" style="font-size:12px;padding:5px 12px;">🖨️ Print</button>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">📄</div>
+          <div class="empty-text">
+            Select a framework and control on the left, then click <strong>Generate Policy Document</strong> to create an AI-written compliance document.
+          </div>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:2px;letter-spacing:0.4px;">Powered by Claude AI</div>
+        </div>
+
+        <!-- Loading state -->
+        <div class="typing-indicator" id="loadingState">
+          <div class="ai-spinner">🤖</div>
+          <div>
+            <div class="typing-text" id="loadingMsg">Claude is writing your policy document...</div>
+            <div class="typing-dots" style="text-align:center;margin-top:8px;">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Output -->
+        <div class="output-body" id="outputBody" style="display:none;">
+          <div class="policy-output" id="policyContent"></div>
+        </div>
+
+        <!-- Meta bar -->
+        <div class="meta-bar" id="metaBar" style="display:none;">
+          <span class="meta-item">🤖 <span id="metaModel">—</span></span>
+          <span class="meta-item">📥 <span id="metaIn">—</span> tokens in</span>
+          <span class="meta-item">📤 <span id="metaOut">—</span> tokens out</span>
+          <span class="meta-item">📅 <span id="metaTime">—</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="rawContent" style="display:none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allControls = [];
+let selectedControl = null;
+let lastGenerated = '';
+
+async function loadControls() {
+  const sel = document.getElementById('fwSelect');
+  const fwId = sel.value;
+  document.getElementById('ctrlSearch').disabled = !fwId;
+  document.getElementById('ctrlSearch').value = '';
+  document.getElementById('selectedCtrl').style.display = 'none';
+  document.getElementById('ctrlId').value = '';
+  document.getElementById('generateBtn').disabled = true;
+  selectedControl = null;
+  if (!fwId) { allControls = []; return; }
+
+  // Load controls via inline fetch from current page
+  const resp = await fetch(`/api/controls/${fwId}`);
+  allControls = await resp.json();
+  document.getElementById('ctrlSearch').placeholder = `Search ${allControls.length} controls...`;
+}
+
+function filterControls() {
+  const q = document.getElementById('ctrlSearch').value.toLowerCase();
+  const results = document.getElementById('ctrlResults');
+  if (!q || allControls.length === 0) { results.style.display = 'none'; return; }
+
+  const filtered = allControls.filter(c =>
+    c.ref.toLowerCase().includes(q) ||
+    c.name.toLowerCase().includes(q) ||
+    (c.description || '').toLowerCase().includes(q)
+  ).slice(0, 12);
+
+  if (!filtered.length) { results.style.display = 'none'; return; }
+
+  results.innerHTML = filtered.map(c => `
+    <div class="ctrl-result" onclick="selectControl(${c.id}, '${c.ref}', '${c.name.replace(/'/g,"\\'")}', '${(c.description||'').replace(/'/g,"\\'")}')">
+      <div class="ctrl-result-ref">${c.ref}</div>
+      <div class="ctrl-result-name">${c.name}</div>
+    </div>
+  `).join('');
+  results.style.display = 'block';
+}
+
+function selectControl(id, ref, name, desc) {
+  document.getElementById('ctrlId').value = id;
+  document.getElementById('ctrlSearch').value = `${ref} — ${name}`;
+  document.getElementById('ctrlResults').style.display = 'none';
+  document.getElementById('selectedCtrl').style.display = 'block';
+  document.getElementById('selRef').textContent = ref;
+  document.getElementById('selName').textContent = name;
+  document.getElementById('selDesc').textContent = desc;
+  document.getElementById('generateBtn').disabled = false;
+  selectedControl = { id, ref, name };
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#ctrlSearch') && !e.target.closest('#ctrlResults')) {
+    document.getElementById('ctrlResults').style.display = 'none';
+  }
+});
+
+async function generatePolicy() {
+  const ctrlId = document.getElementById('ctrlId').value;
+  const orgName = document.getElementById('orgName').value || 'Your Organisation';
+  if (!ctrlId) { showToast('Please select a control first', 'error'); return; }
+
+  // Show loading
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('outputBody').style.display = 'none';
+  document.getElementById('metaBar').style.display = 'none';
+  document.getElementById('outputActions').style.display = 'none';
+  document.getElementById('loadingState').classList.add('active');
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('genBtnText').textContent = 'Generating...';
+  document.getElementById('loadingMsg').textContent = `Claude is writing your ${selectedControl?.ref} policy document...`;
+
+  const form = new FormData();
+  form.append('control_id', ctrlId);
+  form.append('org_name', orgName);
+
+  const start = Date.now();
+  try {
+    const resp = await fetch('/api/generate-policy', { method: 'POST', body: form });
+    const data = await resp.json();
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+    document.getElementById('loadingState').classList.remove('active');
+
+    if (data.success) {
+      lastGenerated = data.content;
+      document.getElementById('rawContent').textContent = data.content;
+      document.getElementById('policyContent').innerHTML = marked.parse(data.content);
+      document.getElementById('outputBody').style.display = 'block';
+      document.getElementById('outputActions').style.display = 'flex';
+      document.getElementById('outputTitle').textContent = `${selectedControl?.ref} — ${selectedControl?.name}`;
+      // Meta
+      document.getElementById('metaBar').style.display = 'flex';
+      document.getElementById('metaModel').textContent = 'claude-sonnet-4';
+      document.getElementById('metaIn').textContent = data.input_tokens;
+      document.getElementById('metaOut').textContent = data.output_tokens;
+      document.getElementById('metaTime').textContent = `Generated in ${elapsed}s`;
+      showToast('✅ Policy document generated!');
+    } else {
+      document.getElementById('emptyState').style.display = 'flex';
+      showToast('❌ ' + (data.error || 'Generation failed'), 'error');
+    }
+  } catch(e) {
+    document.getElementById('loadingState').classList.remove('active');
+    document.getElementById('emptyState').style.display = 'flex';
+    showToast('❌ Network error. Is the server running?', 'error');
+  }
+
+  document.getElementById('generateBtn').disabled = false;
+  document.getElementById('genBtnText').textContent = 'Generate Policy Document';
+}
+
+async function generateGapAnalysis() {
+  const fwId = document.getElementById('gapFwSelect').value;
+  if (!fwId) { showToast('Please select a framework for gap analysis', 'error'); return; }
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('outputBody').style.display = 'none';
+  document.getElementById('outputActions').style.display = 'none';
+  document.getElementById('metaBar').style.display = 'none';
+  document.getElementById('loadingState').classList.add('active');
+  document.getElementById('loadingMsg').textContent = 'Claude is analysing your compliance gaps...';
+
+  const form = new FormData();
+  form.append('framework_id', fwId);
+
+  try {
+    const resp = await fetch('/api/generate-gap-analysis', { method: 'POST', body: form });
+    const data = await resp.json();
+    document.getElementById('loadingState').classList.remove('active');
+
+    if (data.success) {
+      lastGenerated = data.content;
+      document.getElementById('policyContent').innerHTML = marked.parse(data.content);
+      document.getElementById('outputBody').style.display = 'block';
+      document.getElementById('outputActions').style.display = 'flex';
+      document.getElementById('outputTitle').textContent = 'Gap Analysis Report';
+      showToast('✅ Gap analysis complete!');
+    } else {
+      document.getElementById('emptyState').style.display = 'flex';
+      showToast('❌ ' + (data.error || 'Error'), 'error');
+    }
+  } catch(e) {
+    document.getElementById('loadingState').classList.remove('active');
+    document.getElementById('emptyState').style.display = 'flex';
+    showToast('❌ Network error', 'error');
+  }
+}
+
+function copyToClipboard() {
+  navigator.clipboard.writeText(lastGenerated).then(() => showToast('📋 Copied to clipboard!'));
+}
+
+async function downloadWord() {
+  const ctrlId = document.getElementById('ctrlId').value;
+  const orgName = document.getElementById('orgName').value || 'Your Organisation';
+  if (!lastGenerated) { showToast('Generate a policy first', 'error'); return; }
+
+  showToast('⏳ Building Word document...');
+  const form = new FormData();
+  form.append('control_id', ctrlId || '1');
+  form.append('content', lastGenerated);
+  form.append('org_name', orgName);
+
+  try {
+    const resp = await fetch('/api/export-word', { method: 'POST', body: form });
+    if (!resp.ok) {
+      const err = await resp.json();
+      showToast('❌ ' + (err.error || 'Export failed'), 'error'); return;
+    }
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const ref = selectedControl?.ref?.replace(/\./g,'_') || 'policy';
+    a.download = `ARIA_${ref}_Policy.docx`;
+    a.click();
+    showToast('✅ Word document downloaded!');
+  } catch(e) {
+    showToast('❌ Download failed: ' + e.message, 'error');
+  }
+}
+
+function downloadMd() {
+  const blob = new Blob([lastGenerated], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const ref = selectedControl?.ref?.replace(/\./g,'_') || 'policy';
+  a.download = `ARIA_${ref}_Policy.md`;
+  a.click();
+}
+
+function printPolicy() {
+  const content = document.getElementById('outputBody').innerHTML;
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>Policy Document</title>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; color: #1a1a2e; line-height: 1.7; }
+      h1 { font-size: 22px; margin-bottom: 8px; }
+      h2 { font-size: 16px; margin-top: 24px; border-bottom: 1px solid #ccc; padding-bottom: 4px; color: #1E3A5F; }
+      p { margin-bottom: 10px; } ul, ol { margin: 8px 0 12px 20px; } li { margin-bottom: 4px; }
+      code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+      @media print { body { margin: 20px; } }
+    </style></head>
+    <body>${content}</body></html>
+  `);
+  w.document.close();
+  w.print();
+}
+</script>
+{% endblock %}

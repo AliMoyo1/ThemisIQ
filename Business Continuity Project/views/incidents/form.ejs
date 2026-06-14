@@ -1,0 +1,37 @@
+<div class="page-head">
+  <div>
+    <h1><%= incident ? 'Edit incident' : 'Declare incident' %></h1>
+    <p>Page the responders and start the response timeline.</p>
+  </div>
+  <div class="actions"><a class="btn" href="/incidents">Back</a></div>
+</div>
+
+<div class="card">
+  <form method="POST" action="<%= incident ? '/incidents/' + incident.id : '/incidents' %>" class="stack-16">
+    <div><label>Title</label><input name="title" required value="<%= incident ? incident.title : '' %>" placeholder="e.g. Payments gateway degradation" /></div>
+    <div class="form-row cols-3">
+      <div><label>Severity</label>
+        <select name="severity">
+          <% ['SEV1','SEV2','SEV3','SEV4'].forEach(s => { %>
+            <option value="<%= s %>" <%= incident && incident.severity === s ? 'selected' : (!incident && s === 'SEV3' ? 'selected' : '') %>><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div><label>Status</label>
+        <select name="status">
+          <% ['open','investigating','mitigated','resolved','closed'].forEach(s => { %>
+            <option value="<%= s %>" <%= incident && incident.status === s ? 'selected' : '' %>><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div><label>Commander</label><input name="commander" value="<%= incident ? incident.commander || '' : user.name %>" /></div>
+    </div>
+    <div><label>Affected systems</label><input name="affected_systems" value="<%= incident ? incident.affected_systems || '' : '' %>" /></div>
+    <div><label>Description / initial note</label><textarea name="description"><%= incident ? incident.description || '' : '' %></textarea></div>
+
+    <div class="flex gap-8">
+      <button class="btn primary" type="submit"><%= incident ? 'Save' : 'Declare' %></button>
+      <a class="btn" href="/incidents">Cancel</a>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,741 @@
+{% extends "platform_base.html" %}
+{% block title %}Analytics — ThemisIQ{% endblock %}
+
+{% block head %}
+<style>
+/* ── Analytics layout ─────────────────────────────────────────────────────── */
+.an-topbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.an-select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer}
+.an-spacer{flex:1}
+
+/* ── Live metrics strip ───────────────────────────────────────────────────── */
+.an-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px}
+.an-metric{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden}
+.an-metric-lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px}
+.an-metric-val{font-size:26px;font-weight:800;line-height:1;color:var(--text)}
+.an-metric-delta{font-size:10px;font-weight:700;margin-top:4px;display:flex;align-items:center;gap:3px}
+.an-metric-delta.up{color:var(--green-status)}
+.an-metric-delta.down{color:var(--red)}
+.an-metric-delta.neutral{color:var(--muted)}
+.an-metric-bar{position:absolute;bottom:0;left:0;height:3px;border-radius:0 2px 2px 0;transition:width .6s ease}
+
+/* ── AI Insights panel ────────────────────────────────────────────────────── */
+.ai-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:18px;overflow:hidden}
+.ai-panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(var(--accent-rgb),.06),transparent)}
+.ai-panel-title{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:800;color:var(--text)}
+.ai-panel-subtitle{font-size:11px;color:var(--muted);font-weight:500}
+.ai-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:800;background:linear-gradient(135deg,rgba(var(--accent-rgb),.15),rgba(var(--accent-rgb),.05));color:var(--accent);border:1px solid rgba(var(--accent-rgb),.2)}
+.ai-insights-body{padding:16px 20px}
+.ai-insight{display:flex;align-items:start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.ai-insight:last-of-type{border-bottom:none}
+.ai-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.ai-dot.red{background:var(--red)}
+.ai-dot.amber{background:var(--amber)}
+.ai-dot.green{background:var(--green-status)}
+.ai-dot.blue{background:var(--accent)}
+.ai-insight-text{font-size:13px;color:var(--text);line-height:1.5;flex:1}
+.ai-insight-text strong{color:var(--text)}
+.ai-ask-wrap{padding:14px 20px;border-top:1px solid var(--border);background:var(--surface2);display:flex;gap:10px}
+.ai-ask-input{flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;outline:none;transition:border-color .15s}
+.ai-ask-input:focus{border-color:var(--accent)}
+.ai-ask-input::placeholder{color:var(--muted)}
+.ai-answer{padding:12px 20px;font-size:13px;color:var(--text);background:rgba(var(--accent-rgb),.04);border-top:1px solid var(--border);line-height:1.6;display:none}
+.ai-answer.show{display:block}
+
+/* ── Charts grid ──────────────────────────────────────────────────────────── */
+.an-charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:800px){.an-charts{grid-template-columns:1fr}}
+.an-chart-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.an-chart-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
+.an-chart-hero{font-size:22px;font-weight:800;color:var(--text);line-height:1;margin-bottom:2px}
+.an-chart-delta{font-size:11px;font-weight:700;margin-bottom:10px}
+.an-chart-area{position:relative;height:100px}
+.an-chart-empty{display:flex;align-items:center;justify-content:center;height:100px;font-size:12px;color:var(--muted)}
+
+/* ── Bottom row: module health + risk distribution ───────────────────────── */
+.an-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.an-bottom{grid-template-columns:1fr}}
+.an-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.an-card-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:14px}
+
+/* Module health bars */
+.mh-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.mh-name{font-size:12px;font-weight:700;width:64px;flex-shrink:0;color:var(--text)}
+.mh-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.mh-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.mh-pct{font-size:12px;font-weight:800;width:36px;text-align:right;flex-shrink:0}
+
+/* Risk distribution */
+.risk-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.risk-lbl{font-size:12px;font-weight:700;width:60px;flex-shrink:0}
+.risk-track{flex:1;height:14px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.risk-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1);display:flex;align-items:center;padding-left:6px}
+.risk-fill-num{font-size:10px;font-weight:800;color:white}
+.risk-num{font-size:12px;font-weight:800;width:28px;text-align:right;flex-shrink:0}
+
+/* Loading */
+.an-loading{text-align:center;padding:32px;color:var(--muted)}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Topbar ────────────────────────────────────────────────────────────── -->
+<div class="an-topbar">
+  <span style="font-size:16px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+    Analytics &amp; Insights
+  </span>
+
+  <select id="trendDays" class="an-select" onchange="reloadTrends()">
+    <option value="7">7 days</option>
+    <option value="30" selected>30 days</option>
+    <option value="60">60 days</option>
+    <option value="90">90 days</option>
+  </select>
+
+  <div class="an-spacer"></div>
+
+  <button class="btn btn-secondary" onclick="exportCSV()" title="Export metrics as CSV">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Export
+  </button>
+  <button class="btn btn-secondary" id="snapshotBtn" onclick="captureSnapshot()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M20.94 11A8.994 8.994 0 1112.53 3M22 2v6h-6"/></svg>
+    Refresh Snapshot
+  </button>
+</div>
+
+<!-- ── Live Metrics Strip ────────────────────────────────────────────────── -->
+<div class="an-metrics" id="liveMetrics">
+  <div class="an-loading" style="grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+</div>
+
+<!-- ── AI Insights Panel ─────────────────────────────────────────────────── -->
+<div class="ai-panel">
+  <div class="ai-panel-hdr">
+    <div class="ai-panel-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20" style="color:var(--accent)">
+        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+      </svg>
+      AI Compliance Analysis
+      <span class="ai-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Live
+      </span>
+    </div>
+    <span class="ai-panel-subtitle" id="insightTimestamp">Analysing…</span>
+  </div>
+  <div class="ai-insights-body" id="insightsBody">
+    <div class="an-loading"><div class="spinner" style="margin:0 auto"></div></div>
+  </div>
+  <!-- Ask Analytics -->
+  <div class="ai-ask-wrap">
+    <input class="ai-ask-input" id="askInput" type="text"
+           placeholder="Ask a question about your compliance data… e.g. How many critical risks do we have?"
+           onkeydown="if(event.key==='Enter')askAnalytics()">
+    <button class="btn btn-primary" onclick="askAnalytics()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      Ask
+    </button>
+  </div>
+  <div class="ai-answer" id="askAnswer"></div>
+</div>
+
+<!-- ── Trend Charts (2×2) ─────────────────────────────────────────────────── -->
+<div class="an-charts">
+  <div class="an-chart-card">
+    <div class="an-chart-title">
+      Compliance %
+      <span id="compDelta" style="font-size:11px;font-weight:700"></span>
+    </div>
+    <div class="an-chart-hero" id="compVal">—</div>
+    <div class="an-chart-area" id="chartCompliance"></div>
+  </div>
+  <div class="an-chart-card">
+    <div class="an-chart-title">
+      Open Risks
+      <span id="riskDelta" style="font-size:11px;font-weight:700"></span>
+    </div>
+    <div class="an-chart-hero" id="riskVal">—</div>
+    <div class="an-chart-area" id="chartRisks"></div>
+  </div>
+  <div class="an-chart-card">
+    <div class="an-chart-title">
+      Active Audits
+      <span id="auditDelta" style="font-size:11px;font-weight:700"></span>
+    </div>
+    <div class="an-chart-hero" id="auditVal">—</div>
+    <div class="an-chart-area" id="chartAudits"></div>
+  </div>
+  <div class="an-chart-card">
+    <div class="an-chart-title">
+      Open Breaches &amp; DSRs
+      <span id="privDelta" style="font-size:11px;font-weight:700"></span>
+    </div>
+    <div class="an-chart-hero" id="privVal">—</div>
+    <div class="an-chart-area" id="chartPrivacy"></div>
+  </div>
+</div>
+
+<!-- ── Module Health + Risk Distribution ─────────────────────────────────── -->
+<div class="an-bottom">
+  <div class="an-card">
+    <div class="an-card-title">Module Health</div>
+    <div id="moduleHealthPanel">
+      <div class="an-loading"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+  </div>
+  <div class="an-card">
+    <div class="an-card-title">Risk Distribution</div>
+    <div id="riskDistPanel">
+      <div class="an-loading"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function(){
+'use strict';
+
+/* ── State ────────────────────────────────────────────────────────────────── */
+let liveData     = null;   // from /api/command-centre/stats
+let snapshotData = [];     // from /api/analytics/current
+let trendData    = {};     // metric name → [{date, value}]
+const IS_ADMIN   = {{ 'true' if is_admin else 'false' }};
+
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
+function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function n(v){ return v===null||v===undefined ? '—' : v; }
+function pct(v){ return v===null||v===undefined ? '—' : v+'%'; }
+
+function deltaHtml(current, previous, invertGood){
+  if(previous===null||previous===undefined||current===null) return '';
+  const diff = current - previous;
+  if(diff===0) return '<span style="color:var(--muted)">→ no change</span>';
+  const isGood = invertGood ? diff < 0 : diff > 0;
+  const color  = isGood ? 'var(--green-status)' : 'var(--red)';
+  const arrow  = diff > 0 ? '↑' : '↓';
+  return `<span style="color:${color};font-size:11px;font-weight:700">${arrow} ${Math.abs(diff).toFixed(1)} vs prior</span>`;
+}
+
+/* ── Fetch all data ───────────────────────────────────────────────────────── */
+async function loadAll(){
+  try{
+    const [liveResp, snapResp] = await Promise.all([
+      fetch('/api/command-centre/stats'),
+      fetch('/api/analytics/current'),
+    ]);
+    if(liveResp.ok)  liveData     = await liveResp.json();
+    if(snapResp.ok)  snapshotData = await snapResp.json();
+  }catch(e){}
+
+  renderLiveMetrics();
+  renderModuleHealth();
+  renderRiskDist();
+  runInsightEngine();
+  await loadTrends();
+}
+
+async function loadTrends(){
+  const days = document.getElementById('trendDays').value;
+  try{
+    const [cR,rR,aR,pR] = await Promise.all([
+      fetch(`/api/analytics/trends?metric=compliance_pct&days=${days}`),
+      fetch(`/api/analytics/trends?metric=risks_open&days=${days}`),
+      fetch(`/api/analytics/trends?metric=audits_active&days=${days}`),
+      fetch(`/api/analytics/trends?metric=breaches_open&days=${days}`),
+    ]);
+    trendData.compliance = cR.ok ? await cR.json() : [];
+    trendData.risks      = rR.ok ? await rR.json() : [];
+    trendData.audits     = aR.ok ? await aR.json() : [];
+    trendData.privacy    = pR.ok ? await pR.json() : [];
+  }catch(e){
+    trendData = {compliance:[],risks:[],audits:[],privacy:[]};
+  }
+  renderAllCharts();
+}
+
+window.reloadTrends = function(){ loadTrends(); };
+
+/* ── Live Metrics Strip ───────────────────────────────────────────────────── */
+function renderLiveMetrics(){
+  const el = document.getElementById('liveMetrics');
+  if(!liveData){ el.innerHTML='<div class="an-loading" style="grid-column:1/-1">No live data available</div>'; return; }
+
+  const d = liveData;
+  const compPct  = d.compliance_pct||0;
+  const risks    = (d.risk_counts?.critical||0)+(d.risk_counts?.high||0)+(d.risk_counts?.medium||0);
+  const critRisk = d.risk_counts?.critical||0;
+  const slaPct   = d.sla?.pct||100;
+  const evCount  = d.evidence_count||0;
+  const wfActive = d.workflow_active||0;
+
+  // Helper to build a metric card
+  function metCard(label, value, suffix, barColor, barPct, deltaHtmlStr, textColor){
+    return `<div class="an-metric">
+      <div class="an-metric-lbl">${esc(label)}</div>
+      <div class="an-metric-val" style="color:${textColor||'var(--text)'}">${esc(String(value))}${suffix?'<span style="font-size:14px;font-weight:600;color:var(--muted)">'+esc(suffix)+'</span>':''}</div>
+      <div class="an-metric-delta neutral">${deltaHtmlStr||''}</div>
+      <div class="an-metric-bar" style="width:${Math.min(100,barPct||0)}%;background:${barColor}"></div>
+    </div>`;
+  }
+
+  // Get snapshot deltas if available
+  const snapMap = {};
+  snapshotData.forEach(s=>{ snapMap[s.metric_name]=s.metric_value; });
+
+  el.innerHTML =
+    metCard('Compliance', compPct, '%',
+      compPct>=80?'var(--green-status)':compPct>=60?'var(--amber)':'var(--red)',
+      compPct,
+      deltaHtml(compPct, snapMap.compliance_pct, false),
+      compPct>=80?'var(--green-status)':compPct>=60?'var(--amber)':'var(--red)') +
+
+    metCard('Open Risks', risks, '',
+      risks===0?'var(--green-status)':critRisk>0?'var(--red)':'var(--amber)',
+      Math.min(100, risks*5),
+      deltaHtml(risks, snapMap.risks_open, true),
+      critRisk>0?'var(--red)':risks>5?'var(--amber)':'var(--text)') +
+
+    metCard('Critical Risks', critRisk, '',
+      critRisk===0?'var(--green-status)':'var(--red)',
+      Math.min(100, critRisk*20),
+      deltaHtml(critRisk, snapMap.risks_critical, true),
+      critRisk>0?'var(--red)':'var(--text)') +
+
+    metCard('SLA Compliance', slaPct, '%',
+      slaPct>=90?'var(--green-status)':slaPct>=70?'var(--amber)':'var(--red)',
+      slaPct,
+      '',
+      slaPct>=90?'var(--green-status)':slaPct>=70?'var(--amber)':'var(--red)') +
+
+    metCard('Evidence Items', evCount, '',
+      'var(--accent)', Math.min(100, evCount/2),
+      deltaHtml(evCount, snapMap.evidence_count, false), 'var(--text)') +
+
+    metCard('Active Workflows', wfActive, '',
+      'var(--accent)', Math.min(100, wfActive*10),
+      '', 'var(--text)');
+}
+
+/* ── Module Health Bars ──────────────────────────────────────────────────── */
+function renderModuleHealth(){
+  const el = document.getElementById('moduleHealthPanel');
+  const items = (liveData?.module_health)||[];
+  if(!items.length){ el.innerHTML='<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">No module data</div>'; return; }
+
+  const MOD_COLOR = {aria:'#7c3aed',grid:'#1a6b3a',bcm:'#d97706',sentinel:'#0891b2'};
+  el.innerHTML = items.map(m=>{
+    const pct = parseInt(m.pct)||0;
+    const color = pct>=80?'var(--green-status)':pct>=60?'var(--amber)':'var(--red)';
+    const modColor = MOD_COLOR[m.key]||'var(--accent)';
+    return `<div class="mh-row">
+      <div class="mh-name">
+        <span style="color:${modColor};margin-right:4px">●</span>${esc(m.name)}
+      </div>
+      <div class="mh-track">
+        <div class="mh-fill" style="width:${pct}%;background:${color}"></div>
+      </div>
+      <div class="mh-pct" style="color:${color}">${pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Risk Distribution Bars ──────────────────────────────────────────────── */
+function renderRiskDist(){
+  const el = document.getElementById('riskDistPanel');
+  const rc = liveData?.risk_counts||{};
+  const levels = [
+    {key:'critical', label:'Critical', color:'#dc2626', val:rc.critical||0},
+    {key:'high',     label:'High',     color:'#f97316', val:rc.high||0},
+    {key:'medium',   label:'Medium',   color:'#d97706', val:rc.medium||0},
+    {key:'low',      label:'Low',      color:'#16a34a', val:rc.low||0},
+  ];
+  const total = levels.reduce((s,l)=>s+l.val,0)||1;
+  el.innerHTML = levels.map(l=>{
+    const w = Math.round((l.val/total)*100);
+    return `<div class="risk-row">
+      <div class="risk-lbl" style="color:${l.color}">${esc(l.label)}</div>
+      <div class="risk-track">
+        <div class="risk-fill" style="width:${w}%;background:${l.color}">
+          ${l.val>0?`<span class="risk-fill-num">${l.val}</span>`:''}
+        </div>
+      </div>
+      <div class="risk-num" style="color:${l.color}">${l.val}</div>
+    </div>`;
+  }).join('') +
+  (total===1?'<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px">No risks in register</div>':'');
+}
+
+/* ── Charts ───────────────────────────────────────────────────────────────── */
+function renderAllCharts(){
+  const d = trendData;
+  const live = liveData;
+
+  // For compliance: higher is better (NOT inverted)
+  renderChart('chartCompliance', d.compliance, 'compVal', 'compDelta', '%',
+    live?.compliance_pct??null, '#16a34a', false);
+
+  // For risks: lower is better (inverted)
+  const openRisks = (live?.risk_counts?.critical||0)+(live?.risk_counts?.high||0)+(live?.risk_counts?.medium||0);
+  renderChart('chartRisks', d.risks, 'riskVal', 'riskDelta', '',
+    snapshotData.find(s=>s.metric_name==='risks_open')?.metric_value??openRisks, '#f97316', true);
+
+  renderChart('chartAudits', d.audits, 'auditVal', 'auditDelta', '',
+    snapshotData.find(s=>s.metric_name==='audits_active')?.metric_value??null, '#2563eb', false);
+
+  renderChart('chartPrivacy', d.privacy, 'privVal', 'privDelta', '',
+    snapshotData.find(s=>s.metric_name==='breaches_open')?.metric_value??null, '#dc2626', true);
+
+  // Re-run insights now that trend data is available (adds the trend bullet)
+  if(liveData) runInsightEngine();
+}
+
+function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, invertGood){
+  const chartEl = document.getElementById(chartId);
+  const valEl   = document.getElementById(valId);
+  const deltaEl = document.getElementById(deltaId);
+
+  // Current value from live data or last snapshot
+  const current = liveVal ?? (data.length ? data[data.length-1].value : null);
+  if(valEl) valEl.textContent = current!==null ? (current+suffix) : '—';
+
+  if(!data||!data.length){
+    chartEl.innerHTML = `<div class="an-chart-empty">No snapshot data yet — click Refresh Snapshot</div>`;
+    if(deltaEl) deltaEl.innerHTML = '';
+    return;
+  }
+
+  // Delta vs first point
+  const first = data[0].value;
+  const last  = data[data.length-1].value;
+  const diff  = last - first;
+  if(deltaEl){
+    if(diff===0){
+      deltaEl.innerHTML = '<span style="color:var(--muted)">→ flat</span>';
+    } else {
+      const good = invertGood ? diff<0 : diff>0;
+      const color = good?'var(--green-status)':'var(--red)';
+      const arrow = diff>0?'↑':'↓';
+      deltaEl.innerHTML = `<span style="color:${color}">${arrow} ${Math.abs(diff).toFixed(1)}${suffix} over period</span>`;
+    }
+  }
+
+  // Draw SVG chart with area fill
+  const W = chartEl.clientWidth || 320;
+  const H = 100;
+  const PAD = {top:10, right:10, bottom:18, left:32};
+  const vals = data.map(d=>d.value);
+  const max  = Math.max(...vals);
+  const min  = Math.min(...vals);
+  const range = max-min || 1;
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  const pts = data.map((d,i)=>{
+    const x = PAD.left + (i/(data.length-1||1))*innerW;
+    const y = PAD.top + (1-(d.value-min)/range)*innerH;
+    return {x, y, d};
+  });
+
+  // Line path
+  const linePath = pts.map((p,i)=>(i===0?`M${p.x.toFixed(1)},${p.y.toFixed(1)}`:`L${p.x.toFixed(1)},${p.y.toFixed(1)}`)).join(' ');
+  // Area path (close below the line)
+  const bottom = PAD.top + innerH;
+  const areaPath = linePath +
+    ` L${pts[pts.length-1].x.toFixed(1)},${bottom} L${pts[0].x.toFixed(1)},${bottom} Z`;
+
+  // Y-axis labels (3 values: min, mid, max)
+  const yLabels = [
+    {y: PAD.top,          val: max.toFixed(max<10?1:0)},
+    {y: PAD.top+innerH/2, val: ((max+min)/2).toFixed(max<10?1:0)},
+    {y: PAD.top+innerH,   val: min.toFixed(min<10?1:0)},
+  ];
+
+  // X-axis labels (first and last date)
+  const xLabels = data.length >= 2 ? [
+    {x: PAD.left,         label: data[0].date.slice(5)},       // MM-DD
+    {x: PAD.left+innerW,  label: data[data.length-1].date.slice(5)},
+  ] : [];
+
+  const gradId = `grad-${chartId}`;
+
+  chartEl.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+    <defs>
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${baseColor}" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="${baseColor}" stop-opacity="0.02"/>
+      </linearGradient>
+    </defs>
+    <!-- Grid lines -->
+    ${yLabels.map(l=>`<line x1="${PAD.left}" y1="${l.y.toFixed(1)}" x2="${PAD.left+innerW}" y2="${l.y.toFixed(1)}"
+      stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>`).join('')}
+    <!-- Y-axis labels -->
+    ${yLabels.map(l=>`<text x="${PAD.left-4}" y="${l.y+4}" text-anchor="end" font-size="9" fill="var(--muted)">${esc(l.val+suffix)}</text>`).join('')}
+    <!-- Area fill -->
+    <path d="${areaPath}" fill="url(#${gradId})"/>
+    <!-- Line -->
+    <path d="${linePath}" fill="none" stroke="${baseColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Last point dot -->
+    <circle cx="${pts[pts.length-1].x.toFixed(1)}" cy="${pts[pts.length-1].y.toFixed(1)}" r="4" fill="${baseColor}"/>
+    <!-- X-axis labels -->
+    ${xLabels.map((l,i)=>`<text x="${l.x}" y="${H}" text-anchor="${i===0?'start':'end'}" font-size="9" fill="var(--muted)">${esc(l.label)}</text>`).join('')}
+  </svg>`;
+}
+
+/* ── AI Insight Engine ────────────────────────────────────────────────────── */
+function runInsightEngine(){
+  const el = document.getElementById('insightsBody');
+  const ts = document.getElementById('insightTimestamp');
+
+  const d = liveData;
+  if(!d){ el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px">No live data available — check platform connectivity.</div>'; return; }
+
+  const insights = [];
+  const now = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  if(ts) ts.textContent = `Generated at ${now}`;
+
+  // 1. Overall compliance
+  const comp = d.compliance_pct||0;
+  if(comp >= 85){
+    insights.push({sev:'green', text:`<strong>Compliance at ${comp}%</strong> — above the 80% operational threshold. Continue control assurance programme.`});
+  } else if(comp >= 70){
+    insights.push({sev:'amber', text:`<strong>Compliance at ${comp}%</strong> — approaching the 80% threshold. Review and accelerate implementation of ${Math.ceil((80-comp)/100*(d.compliance_pct||1))} outstanding controls.`});
+  } else {
+    insights.push({sev:'red', text:`<strong>Compliance at ${comp}%</strong> — below acceptable threshold. Immediate executive review of control gaps required.`});
+  }
+
+  // 2. Critical risks
+  const crit = d.risk_counts?.critical||0;
+  const high = d.risk_counts?.high||0;
+  if(crit > 0){
+    insights.push({sev:'red', text:`<strong>${crit} critical risk${crit>1?'s':''} unresolved.</strong> These require immediate mitigation plans and executive sign-off before quarter close.`});
+  } else if(high > 3){
+    insights.push({sev:'amber', text:`<strong>${high} high-priority risks open.</strong> No critical risks — good. Review mitigation adequacy for the high-risk items before next board cycle.`});
+  } else {
+    const total = (d.risk_counts?.medium||0)+(d.risk_counts?.low||0);
+    insights.push({sev:'green', text:`<strong>Risk posture healthy.</strong> No critical risks. ${high} high, ${total} medium/low risks tracked and managed.`});
+  }
+
+  // 3. SLA performance
+  const slaPct  = d.sla?.pct||100;
+  const slaBr   = d.sla?.breached||0;
+  const slaRisk = d.sla?.at_risk||0;
+  if(slaBr > 0){
+    insights.push({sev:'red', text:`<strong>${slaBr} SLA breach${slaBr>1?'es':''} active.</strong> Response or resolution deadlines have been missed. Navigate to Workflows → SLA → Breach Monitor to resolve.`});
+  } else if(slaRisk > 2){
+    insights.push({sev:'amber', text:`<strong>${slaRisk} SLAs at risk</strong> of breach within 2 hours. Assign response owners immediately to avoid formal breaches.`});
+  } else {
+    insights.push({sev:'green', text:`<strong>SLA compliance at ${slaPct}%.</strong> ${slaBr===0?'No active breaches.':''} Response and resolution deadlines on track.`});
+  }
+
+  // 4. Evidence vault
+  const evExp = d.evidence_expiring||0;
+  if(evExp > 0){
+    insights.push({sev:'amber', text:`<strong>${evExp} evidence item${evExp>1?'s':''} expiring within 30 days.</strong> Renew or archive these items to maintain audit trail integrity. Review in Evidence Repository.`});
+  } else {
+    insights.push({sev:'green', text:`<strong>Evidence vault in good standing.</strong> No items expiring in the next 30 days. Coverage spans ${Object.keys(d.module_health||{}).length} modules.`});
+  }
+
+  // 5. Module health — flag any low-performing module
+  const mh = d.module_health||[];
+  const lowMod = mh.filter(m=>parseInt(m.pct)<60);
+  if(lowMod.length){
+    insights.push({sev:'amber', text:`<strong>${lowMod.map(m=>m.name).join(', ')} health below 60%.</strong> These modules have the most incomplete controls or unresolved findings. Prioritise in next sprint.`});
+  }
+
+  // 6. Trends (if we have trend data)
+  const compTrend = trendData.compliance||[];
+  if(compTrend.length>=2){
+    const first = compTrend[0].value;
+    const last  = compTrend[compTrend.length-1].value;
+    const diff  = +(last-first).toFixed(1);
+    const days  = document.getElementById('trendDays').value;
+    if(Math.abs(diff)>=1){
+      const dir = diff>0;
+      insights.push({sev:dir?'blue':'amber',
+        text:`<strong>Compliance trend:</strong> ${dir?'↑ improved':'↓ declined'} by ${Math.abs(diff)}% over the last ${days} days. `+
+          (dir?'Maintain momentum.':'Investigate root cause of the decline.')});
+    }
+  }
+
+  // 7. Active workflows
+  const wf = d.workflow_active||0;
+  if(wf>0){
+    insights.push({sev:'blue', text:`<strong>${wf} workflow${wf>1?'s':''} in progress.</strong> Approval chains active. Check Workflows → Active Flows for pending decisions that may be blocking operations.`});
+  }
+
+  // Render
+  el.innerHTML = insights.map(i=>`
+    <div class="ai-insight">
+      <div class="ai-dot ${i.sev}"></div>
+      <div class="ai-insight-text">${i.text}</div>
+    </div>
+  `).join('');
+}
+
+/* ── Ask Analytics Q&A ────────────────────────────────────────────────────── */
+window.askAnalytics = function(){
+  const input = document.getElementById('askInput');
+  const answer = document.getElementById('askAnswer');
+  const q = (input.value||'').trim().toLowerCase();
+  if(!q) return;
+
+  const d = liveData;
+  const snap = {};
+  snapshotData.forEach(s=>{ snap[s.metric_name]=s.metric_value; });
+
+  let response = null;
+
+  // Compliance
+  if(/compliance|control|compliant/.test(q)){
+    const c = d?.compliance_pct??snap.compliance_pct??'unknown';
+    const tot = snap.controls_total;
+    const ok  = snap.controls_compliant;
+    response = `Current compliance rate is <strong>${c}%</strong>${tot?` (${ok} of ${tot} controls implemented)`:''}. `+
+      (c>=80?'This is above the 80% operational threshold.':'This is below the 80% threshold — review control gaps urgently.');
+  }
+
+  // Risks
+  else if(/critical risk|how many critical/.test(q)){
+    const crit = d?.risk_counts?.critical??0;
+    response = `There are currently <strong>${crit} critical open risk${crit!==1?'s':''}</strong> in the Risk Register.`+
+      (crit>0?' These require executive attention and immediate mitigation.':' No critical risks — good risk posture.');
+  }
+  else if(/risk|risks/.test(q)){
+    const rc = d?.risk_counts||{};
+    response = `Open risks: <strong>${rc.critical||0} critical, ${rc.high||0} high, ${rc.medium||0} medium, ${rc.low||0} low.</strong> `+
+      `Total ${(rc.critical||0)+(rc.high||0)+(rc.medium||0)+(rc.low||0)} open risks in the register.`;
+  }
+
+  // SLA
+  else if(/sla|service level|breach/.test(q)){
+    const sla = d?.sla||{};
+    response = `SLA performance: <strong>${sla.pct||100}% on-time</strong>. Met: ${sla.met||0} | At risk: ${sla.at_risk||0} | Breached: ${sla.breached||0}. `+
+      (sla.breached>0?'Navigate to Workflows → SLA → Breach Monitor to resolve active breaches.':'No active breaches.');
+  }
+
+  // Evidence
+  else if(/evidence|vault/.test(q)){
+    const count = d?.evidence_count??0;
+    const exp   = d?.evidence_expiring??0;
+    response = `Evidence vault holds <strong>${count} item${count!==1?'s':''}</strong>. `+
+      (exp>0?`⚠ <strong>${exp} item${exp!==1?'s':''} expiring within 30 days</strong> — review in Evidence Repository.`:'No items expiring in the next 30 days.');
+  }
+
+  // Audits
+  else if(/audit/.test(q)){
+    const a = snap.audits_active??d?.module_health?.find(m=>m.key==='grid')?.pct;
+    response = a!==undefined
+      ? `GRID shows <strong>${snap.audits_active??'N/A'} active audit${snap.audits_active!==1?'s':''}</strong>. `+`Open non-conformities: ${snap.ncs_open??'N/A'}.`
+      : 'Capture a snapshot first to see audit trend data.';
+  }
+
+  // Workflows
+  else if(/workflow|approval|pending/.test(q)){
+    const wf = d?.workflow_active??0;
+    response = `<strong>${wf} workflow${wf!==1?'s':''} currently active.</strong> Navigate to Workflows → Active Flows to see pending decisions.`;
+  }
+
+  // Modules
+  else if(/module|health|aria|grid|bcm|sentinel/.test(q)){
+    const mh = d?.module_health||[];
+    if(mh.length){
+      response = 'Module health scores:<br>' + mh.map(m=>{
+        const c = m.pct>=80?'green':m.pct>=60?'amber':'red';
+        return `<span style="color:var(--${c==='green'?'green-status':c==='amber'?'amber':'red'})">${m.name}: ${m.pct}%</span>`;
+      }).join(' · ');
+    } else {
+      response = 'No module health data available. Ensure the platform has data in each module.';
+    }
+  }
+
+  // Trend
+  else if(/trend|improv|declin|over/.test(q)){
+    const ct = trendData.compliance||[];
+    if(ct.length>=2){
+      const diff = +(ct[ct.length-1].value - ct[0].value).toFixed(1);
+      const days = document.getElementById('trendDays').value;
+      response = `Over the last <strong>${days} days</strong>, compliance has `+
+        (diff>0?`<span style="color:var(--green-status)">improved by ${diff}%</span>`:
+         diff<0?`<span style="color:var(--red)">declined by ${Math.abs(diff)}%</span>`:'remained flat')+'.';
+    } else {
+      response = 'Insufficient snapshot data to calculate trends. Capture daily snapshots for at least 2 days to see trends.';
+    }
+  }
+
+  // Fallback
+  else {
+    response = `I can answer questions about: <strong>compliance rate, critical risks, SLA performance, evidence vault, audits, module health, workflows, and trends.</strong> Try asking one of these topics.`;
+  }
+
+  answer.innerHTML = response;
+  answer.classList.add('show');
+  input.value = '';
+};
+
+/* ── Capture Snapshot ─────────────────────────────────────────────────────── */
+window.captureSnapshot = async function(){
+  const btn = document.getElementById('snapshotBtn');
+  if(btn){ btn.disabled=true; btn.textContent='Capturing…'; }
+  try{
+    const r = await fetch('/api/analytics/snapshot',{method:'POST'});
+    if(r.ok){
+      if(typeof showToast==='function') showToast('Snapshot captured — trends updated','success');
+      await loadAll();
+    } else if(r.status===403){
+      if(typeof showToast==='function') showToast('Snapshot requires admin access','info');
+    } else {
+      if(typeof showToast==='function') showToast('Snapshot failed','error');
+    }
+  }catch(e){
+    if(typeof showToast==='function') showToast('Snapshot failed','error');
+  }finally{
+    if(btn){ btn.disabled=false; btn.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M20.94 11A8.994 8.994 0 1112.53 3M22 2v6h-6"/></svg> Refresh Snapshot`; }
+  }
+};
+
+/* ── Export CSV ───────────────────────────────────────────────────────────── */
+window.exportCSV = function(){
+  if(!snapshotData.length && !liveData){
+    if(typeof showToast==='function') showToast('No data to export','info');
+    return;
+  }
+  const rows = [['Metric','Value','Module','Date']];
+  snapshotData.forEach(s=>{
+    rows.push([s.metric_name, s.metric_value, s.module||'', s.snapshot_date||'']);
+  });
+  if(liveData?.compliance_pct!==undefined && !snapshotData.length){
+    rows.push(['compliance_pct', liveData.compliance_pct, 'aria', new Date().toISOString().slice(0,10)]);
+  }
+  const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `aegisgrc-analytics-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+};
+
+/* ── Init ─────────────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function(){
+  loadAll();
+
+  // Re-run insight engine + chart delta after trends load
+  // (called inside loadTrends via renderAllCharts which triggers runInsightEngine 2nd time if trends are available)
+});
+
+// ESC to close ask answer
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){
+    document.getElementById('askAnswer').classList.remove('show');
+  }
+});
+
+})();
+</script>
+{% endblock %}

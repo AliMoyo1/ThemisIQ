@@ -1,0 +1,181 @@
+<div class="page-head">
+  <div>
+    <h1>Dependency Graph</h1>
+    <p>Map how processes, systems, vendors, sites, and data flow depend on each other. Click a node to see its impact path.</p>
+  </div>
+  <div class="actions">
+    <% if (['admin','manager'].includes(user.role)) { %>
+      <a class="btn" href="/dependencies/nodes/new">+ Add node</a>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:16px;">
+  <div class="card kpi"><div class="kpi-label">Nodes</div><div class="kpi-value"><%= stats.nodes %></div></div>
+  <div class="card kpi"><div class="kpi-label">Edges</div><div class="kpi-value"><%= stats.edges %></div></div>
+  <div class="card kpi"><div class="kpi-label">Critical nodes</div><div class="kpi-value"><%= stats.critical %></div></div>
+  <div class="card kpi"><div class="kpi-label">Orphans</div><div class="kpi-value"><%= stats.orphans %></div><div class="muted" style="font-size:12px;">No connections</div></div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-head">
+    <div class="card-title">Graph</div>
+    <div class="muted" style="font-size:12px;">Drag to pan · scroll to zoom · click a node for impact</div>
+  </div>
+  <div id="dep-graph" style="height:540px; border:1px solid rgba(0,0,0,0.06); border-radius:12px; background:#fbfaf4;"></div>
+  <div class="muted" style="font-size:12px; margin-top:10px;">
+    Legend:
+    <% nodeTypes.forEach(t => { %>
+      <span class="badge info" style="margin-right:6px; text-transform:capitalize;"><%= t %></span>
+    <% }) %>
+  </div>
+</div>
+
+<% if (['admin','manager'].includes(user.role)) { %>
+<div class="grid grid-2" style="margin-bottom:16px;">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Add relationship</div></div>
+    <form method="POST" action="/dependencies/edges" class="stack-10">
+      <div class="form-row cols-2">
+        <div><label>From (source)</label>
+          <select name="source_id" required>
+            <option value="">— pick a node —</option>
+            <% nodes.forEach(n => { %><option value="<%= n.id %>"><%= n.name %> (<%= n.node_type %>)</option><% }) %>
+          </select>
+        </div>
+        <div><label>To (target)</label>
+          <select name="target_id" required>
+            <option value="">— pick a node —</option>
+            <% nodes.forEach(n => { %><option value="<%= n.id %>"><%= n.name %> (<%= n.node_type %>)</option><% }) %>
+          </select>
+        </div>
+      </div>
+      <div class="form-row cols-2">
+        <div><label>Relationship</label>
+          <select name="label">
+            <% edgeLabels.forEach(l => { %><option value="<%= l %>"><%= l.replace('_',' ') %></option><% }) %>
+          </select>
+        </div>
+        <div><label>Strength (1-5)</label>
+          <input type="number" name="strength" min="1" max="5" value="3"/>
+        </div>
+      </div>
+      <div><label>Notes</label><input name="notes" placeholder="Optional context"/></div>
+      <button class="btn primary" type="submit">Add relationship</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Edges <span class="count-chip"><%= edges.length %></span></div></div>
+    <% if (edges.length === 0) { %>
+      <p class="muted" style="padding:16px 0;">No relationships yet. Add nodes, then connect them.</p>
+    <% } else { %>
+      <table class="table">
+        <thead><tr><th>From</th><th>To</th><th>Label</th><th>Strength</th><th></th></tr></thead>
+        <tbody>
+          <% edges.forEach(e => {
+               const src = nodes.find(n => n.id === e.source_id);
+               const tgt = nodes.find(n => n.id === e.target_id); %>
+            <tr>
+              <td><%= src ? src.name : '?' %></td>
+              <td><%= tgt ? tgt.name : '?' %></td>
+              <td><%= e.label %></td>
+              <td><%= e.strength %></td>
+              <td class="right">
+                <form method="POST" action="/dependencies/edges/<%= e.id %>/delete" style="display:inline;">
+                  <button class="btn ghost" type="submit">Remove</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<div class="card">
+  <div class="card-head"><div class="card-title">Nodes <span class="count-chip"><%= nodes.length %></span></div></div>
+  <% if (nodes.length === 0) { %>
+    <p class="muted" style="padding:16px 0;">No nodes yet. Add a process, system, or vendor to start building the graph.</p>
+  <% } else { %>
+    <table class="table">
+      <thead><tr><th>Name</th><th>Type</th><th>Criticality</th><th>Description</th><th></th></tr></thead>
+      <tbody>
+        <% nodes.forEach(n => {
+             const cls = n.criticality === 'Critical' ? 'danger' : (n.criticality === 'High' ? 'warn' : (n.criticality === 'Medium' ? 'info' : 'muted')); %>
+          <tr>
+            <td><strong><%= n.name %></strong></td>
+            <td><span class="badge info" style="text-transform:capitalize;"><%= n.node_type %></span></td>
+            <td><span class="badge <%= cls %>"><%= n.criticality || '—' %></span></td>
+            <td class="muted" style="font-size:12px;"><%= (n.description || '').slice(0,120) %></td>
+            <td class="right">
+              <a href="/dependencies/impact/<%= n.id %>">Impact</a>
+              <% if (['admin','manager'].includes(user.role)) { %>
+                · <a href="/dependencies/nodes/<%= n.id %>/edit">Edit</a>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<!-- vis-network rendering layer -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/dist/vis-network.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+(function() {
+  var container = document.getElementById('dep-graph');
+  if (!container || typeof vis === 'undefined') return;
+
+  var typeColor = {
+    process: '#7a9c6c', system: '#4a75a8', vendor: '#b08a42',
+    site:    '#9a6a9a', team:   '#c37a5b', asset:  '#5a8a8f',
+    data:    '#7f6aa8'
+  };
+  var critEdge = { Critical: '#b3553f', High: '#c77a3f', Medium: '#a3a380', Low: '#b8b8a0' };
+
+  fetch('/dependencies/graph.json')
+    .then(function (r) { return r.json(); })
+    .then(function (g) {
+      var nodes = new vis.DataSet(g.nodes.map(function (n) {
+        return {
+          id: n.id, label: n.name, title: (n.description || n.node_type),
+          shape: n.node_type === 'vendor' ? 'hexagon' :
+                 (n.node_type === 'system' ? 'box' :
+                 (n.node_type === 'site' ? 'database' :
+                 (n.node_type === 'team' ? 'ellipse' :
+                 (n.node_type === 'data' ? 'diamond' : 'dot')))),
+          color: { background: typeColor[n.node_type] || '#999',
+                   border: (critEdge[n.criticality] || '#333') },
+          font: { color: '#fff', face: 'Inter, sans-serif', size: 14 },
+          borderWidth: n.criticality === 'Critical' ? 3 : 1
+        };
+      }));
+      var edges = new vis.DataSet(g.edges.map(function (e) {
+        return {
+          id: e.id, from: e.source_id, to: e.target_id,
+          arrows: 'to', label: e.label,
+          width: Math.max(1, (e.strength || 3)),
+          font: { size: 10, color: '#666', align: 'middle' },
+          color: { color: '#8a8a70', opacity: 0.7 },
+          smooth: { type: 'dynamic' }
+        };
+      }));
+      var network = new vis.Network(container, { nodes: nodes, edges: edges }, {
+        layout: { improvedLayout: true },
+        physics: { barnesHut: { gravitationalConstant: -3000, centralGravity: 0.25, springLength: 140 } },
+        interaction: { hover: true, zoomView: true, dragView: true }
+      });
+      network.on('click', function (params) {
+        if (params.nodes && params.nodes.length) {
+          window.location = '/dependencies/impact/' + params.nodes[0];
+        }
+      });
+    })
+    .catch(function (e) { container.innerHTML = '<p class="muted" style="padding:20px;">Graph library failed to load. Verify network access for CDN assets.</p>'; });
+})();
+</script>

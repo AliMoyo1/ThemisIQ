@@ -1,0 +1,79 @@
+<div class="page-head">
+  <div>
+    <h1><%= vendor ? 'Edit vendor' : 'New vendor' %></h1>
+    <p>Capture the relationship, scope, exposure, and review cadence.</p>
+  </div>
+</div>
+
+<form method="POST" action="<%= vendor ? '/vendors/' + vendor.id : '/vendors' %>" class="card stack-16">
+  <div class="form-row cols-2">
+    <div><label>Vendor name *</label><input name="name" required value="<%= vendor?.name || '' %>"/></div>
+    <div><label>Category</label>
+      <select name="category">
+        <% const cats = ['','Cloud / Hosting','SaaS','Telecom','Logistics','Manufacturing','Professional Services','Financial','Security','Data Provider','Other']; %>
+        <% cats.forEach(c => { %>
+          <option value="<%= c %>" <%= vendor?.category === c ? 'selected' : '' %>><%= c || 'Select...' %></option>
+        <% }) %>
+      </select>
+    </div>
+  </div>
+
+  <div><label>Service provided</label><input name="service_provided" value="<%= vendor?.service_provided || '' %>"/></div>
+
+  <div class="form-row cols-3">
+    <div><label>Owner</label><input name="owner" value="<%= vendor?.owner || '' %>"/></div>
+    <div><label>Contact name</label><input name="contact_name" value="<%= vendor?.contact_name || '' %>"/></div>
+    <div><label>Contact email</label><input type="email" name="contact_email" value="<%= vendor?.contact_email || '' %>"/></div>
+  </div>
+
+  <div class="form-row cols-3">
+    <div><label>Contact phone</label><input name="contact_phone" value="<%= vendor?.contact_phone || '' %>"/></div>
+    <div><label>SLA</label><input name="sla" value="<%= vendor?.sla || '' %>" placeholder="e.g. 99.9% / 4h response"/></div>
+    <div><label>Contract renewal</label><input type="date" name="contract_renewal" value="<%= vendor?.contract_renewal || '' %>"/></div>
+  </div>
+
+  <div class="form-row cols-2">
+    <div><label>Data sensitivity</label>
+      <select name="data_sensitivity">
+        <% const ds = ['None','Public','Internal','Confidential','Restricted / Regulated']; %>
+        <% ds.forEach(d => { %>
+          <option value="<%= d %>" <%= vendor?.data_sensitivity === d ? 'selected' : '' %>><%= d %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>Status</label>
+      <select name="status">
+        <% ['active','review','offboarded'].forEach(s => { %>
+          <option value="<%= s %>" <%= (vendor?.status || 'active') === s ? 'selected' : '' %>><%= s %></option>
+        <% }) %>
+      </select>
+    </div>
+  </div>
+
+  <div class="card-title">Risk scoring (1 = low, 5 = severe)</div>
+  <div class="form-row cols-5">
+    <div><label>Tier (1 = most critical)</label>
+      <select name="tier">
+        <% [1,2,3,4,5].forEach(n => { %>
+          <option value="<%= n %>" <%= (vendor?.tier ?? 3) === n ? 'selected' : '' %>>Tier <%= n %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>Financial</label><input type="number" min="0" max="5" name="financial_score" value="<%= vendor?.financial_score ?? 2 %>"/></div>
+    <div><label>Operational</label><input type="number" min="0" max="5" name="operational_score" value="<%= vendor?.operational_score ?? 2 %>"/></div>
+    <div><label>Compliance</label><input type="number" min="0" max="5" name="compliance_score" value="<%= vendor?.compliance_score ?? 2 %>"/></div>
+    <div><label>Concentration</label><input type="number" min="0" max="5" name="concentration_risk" value="<%= vendor?.concentration_risk ?? 2 %>"/></div>
+  </div>
+
+  <div class="form-row cols-2">
+    <div><label>Last reviewed</label><input type="date" name="last_reviewed" value="<%= vendor?.last_reviewed || '' %>"/></div>
+    <div><label>Next review</label><input type="date" name="next_review" value="<%= vendor?.next_review || '' %>"/></div>
+  </div>
+
+  <div><label>Notes</label><textarea name="notes" rows="4"><%= vendor?.notes || '' %></textarea></div>
+
+  <div style="display:flex; gap:10px;">
+    <button class="btn primary" type="submit"><%= vendor ? 'Save changes' : 'Add vendor' %></button>
+    <a class="btn ghost" href="/vendors">Cancel</a>
+  </div>
+</form>

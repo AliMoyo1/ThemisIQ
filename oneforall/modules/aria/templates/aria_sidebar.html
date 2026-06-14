@@ -1,0 +1,62 @@
+{# ── Shared ARIA sidebar partial ─────────────────────────────────────────
+   Include in any ARIA template's {% block module_sidebar %}.
+   Requires: active_section (string) passed from route context.
+   ──────────────────────────────────────────────────────────────────────── #}
+<div class="module-sidebar-header">
+  <div class="module-name">Governance</div>
+  <div class="module-desc">Policy & Compliance</div>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Navigation</div>
+  <a href="/aria/" class="nav-item{% if active_section == 'dashboard' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Dashboard
+  </a>
+  <a href="/aria/frameworks" class="nav-item{% if active_section == 'frameworks' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    Frameworks
+  </a>
+  <a href="/aria/documents" class="nav-item{% if active_section == 'documents' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    Policies & Documents
+  </a>
+  <a href="/aria/risks" class="nav-item{% if active_section == 'risks' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    Risk Register
+  </a>
+  <a href="/aria/mapping" class="nav-item{% if active_section == 'mapping' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/></svg>
+    Control Mapping
+  </a>
+  <a href="/aria/templates" class="nav-item{% if active_section == 'templates' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+    Document Templates
+  </a>
+  <a href="/aria/ai-generator" class="nav-item{% if active_section == 'ai-generator' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    AI Policy Generator
+  </a>
+  <a href="/aria/ask" class="nav-item{% if active_section == 'ask' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    Ask ARIA AI
+  </a>
+  <a href="/aria/audit-log" class="nav-item{% if active_section == 'audit-log' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    Audit Log
+  </a>
+  <a href="/aria/export/excel" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Export to Excel
+  </a>
+</div>
+
+<!-- AI Chat Card -->
+<div class="sidebar-bottom">
+  <div style="background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden" onclick="window.location='/aria/ask'">
+    <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+    </div>
+    <div style="font-size:24px;margin-bottom:8px">&#10038;</div>
+    <div style="font-size:14px;font-weight:700">Ask ARIA AI...</div>
+  </div>
+</div>

@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}Ask ARIA — Policy Assistant{% endblock %}
+{% block head %}
+<style>
+  .ask-wrap { max-width: 960px; margin: 0 auto; display: grid; grid-template-columns: 260px 1fr; gap: 22px; }
+  @media (max-width: 900px) { .ask-wrap { grid-template-columns: 1fr; } .ask-side { display: none; } }
+
+  .ask-side {
+    background: var(--cream-100);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-lg);
+    padding: 16px 14px;
+    height: fit-content;
+    position: sticky;
+    top: 80px;
+  }
+  .ask-side h4 {
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 1.1px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px;
+  }
+  .history-item {
+    font-size: 12.5px; color: var(--ink-soft);
+    padding: 8px 10px; border-radius: 8px;
+    cursor: pointer; margin-bottom: 3px;
+    border: 1px solid transparent;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .history-item:hover { background: var(--cream-200); border-color: var(--border-soft); }
+  .history-item .hi-q {
+    display: block;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-weight: 500;
+  }
+  .history-item .hi-meta {
+    font-size: 10.5px; color: var(--muted-2); margin-top: 2px;
+    display: flex; gap: 6px; align-items: center;
+  }
+  .history-empty { font-size: 12px; color: var(--muted); font-style: italic; padding: 4px 6px; }
+
+  .ask-chat {
+    background: var(--cream-50);
+    border: 1px solid var(--border);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    min-height: 620px;
+  }
+  .chat-header {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--cream-100);
+  }
+  .chat-header h2 {
+    font-family: var(--display); font-size: 18px; font-weight: 700;
+    color: var(--ink); letter-spacing: -0.3px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .chat-header .kbd-chip {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+    background: var(--ink); color: var(--cream-50);
+    padding: 3px 7px; border-radius: 5px;
+    text-transform: uppercase;
+  }
+  .chat-header p { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+
+  .chat-body {
+    flex: 1;
+    padding: 22px;
+    overflow-y: auto;
+    min-height: 360px;
+    max-height: calc(100vh - 320px);
+  }
+  .msg { margin-bottom: 18px; display: flex; gap: 12px; }
+  .msg .avatar {
+    width: 32px; height: 32px; flex-shrink: 0;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+  .msg-user .avatar   { background: var(--primary); color: var(--cream-50); }
+  .msg-bot  .avatar   { background: var(--ink); color: var(--cream-50); }
+  .msg-meta { font-size: 11px; color: var(--muted-2); margin-bottom: 4px; letter-spacing: 0.2px; }
+  .msg-bubble {
+    flex: 1; min-width: 0;
+    font-size: 14px; line-height: 1.55;
+    color: var(--text);
+  }
+  .msg-bubble p { margin-bottom: 9px; }
+  .msg-bubble p:last-child { margin-bottom: 0; }
+  .msg-bubble ul, .msg-bubble ol { margin: 8px 0 8px 22px; }
+  .msg-bubble li { margin-bottom: 4px; }
+  .msg-bubble strong { color: var(--ink); font-weight: 700; }
+  .msg-bubble code {
+    font-family: var(--mono); font-size: 12.5px;
+    background: var(--cream-200); padding: 1px 6px;
+    border-radius: 5px; color: var(--primary);
+  }
+  .msg.msg-not-covered .msg-bubble {
+    background: var(--warn-soft);
+    border: 1px solid rgba(132,100,22,0.3);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+  }
+
+  .citations {
+    margin-top: 10px;
+    display: flex; flex-wrap: wrap; gap: 7px;
+  }
+  .citation {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--cream-100);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    color: var(--ink);
+    text-decoration: none;
+    transition: all 0.15s ease;
+    line-height: 1.3;
+  }
+  .citation:hover { background: var(--ink); color: var(--cream-50); border-color: var(--ink); }
+  .citation .cit-type {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 1px 5px; border-radius: 4px;
+    background: var(--cream-300); color: var(--ink-soft);
+  }
+  .citation:hover .cit-type { background: var(--cream-50); color: var(--ink); }
+
+  .chat-empty {
+    text-align: center; padding: 40px 20px;
+    color: var(--muted);
+  }
+  .chat-empty .big-icon { font-size: 44px; margin-bottom: 12px; }
+  .chat-empty h3 { font-family: var(--display); font-size: 20px; color: var(--ink); margin-bottom: 6px; font-weight: 700; }
+  .chat-empty p { font-size: 13.5px; margin-bottom: 18px; }
+  .suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 580px; margin: 0 auto; }
+  .sug-chip {
+    background: var(--cream-100);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sug-chip:hover { background: var(--ink); color: var(--cream-50); border-color: var(--ink); }
+
+  .chat-input-wrap {
+    padding: 16px 22px;
+    border-top: 1px solid var(--border-soft);
+    background: var(--cream-100);
+  }
+  .chat-input-row {
+    display: flex; gap: 10px;
+    background: #FBF6E8;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 6px 6px 6px 14px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .chat-input-row:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(92,95,61,0.12);
+  }
+  .chat-input {
+    flex: 1;
+    background: transparent;
+    border: none; outline: none;
+    resize: none;
+    font-family: var(--font);
+    font-size: 14px; color: var(--text);
+    line-height: 1.5;
+    padding: 10px 0;
+    max-height: 140px;
+  }
+  .chat-send {
+    align-self: flex-end;
+    background: var(--ink); color: var(--cream-50);
+    border: none; border-radius: 10px;
+    padding: 9px 16px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .chat-send:hover:not(:disabled) { background: var(--ink-soft); }
+  .chat-send:active:not(:disabled) { transform: translateY(1px); }
+  .chat-send:disabled { opacity: 0.45; cursor: not-allowed; }
+  .chat-footer-hint { font-size: 10.5px; color: var(--muted-2); margin-top: 7px; text-align: center; letter-spacing: 0.2px; }
+
+  /* typing indicator */
+  .typing { display: inline-flex; gap: 3px; padding: 4px 0; }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+    animation: bounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="topbar">
+  <span class="page-title">💬 Ask ARIA</span>
+  <div class="topbar-actions">
+    {% if user.role == 'admin' %}
+    <button class="btn btn-ghost" id="rebuildBtn" title="Rebuild the search index across all policies, controls, and risks">
+      🔄 Rebuild index
+    </button>
+    {% endif %}
+  </div>
+</div>
+<div class="content">
+  <div class="ask-wrap">
+    <aside class="ask-side">
+      <h4>Recent questions</h4>
+      <div id="historyList">
+        {% for h in recent %}
+        <div class="history-item" data-q="{{ h.question|e }}">
+          <span class="hi-q">{{ h.question }}</span>
+          <span class="hi-meta">
+            {% if h.covered %}<span style="color:var(--good);">● covered</span>
+            {% else %}<span style="color:var(--warn);">● no match</span>{% endif %}
+            · {{ h.created_at[:16] }}
+          </span>
+        </div>
+        {% else %}
+        <div class="history-empty">Nothing yet — ask your first question.</div>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <div class="ask-chat">
+      <div class="chat-header">
+        <h2>Ask about our policies <span class="kbd-chip">Claude</span></h2>
+        <p>Every answer is grounded in your organisation's published policies, controls, and risk register. I won't invent anything — if we don't have a policy on it, I'll say so and point you to the right person.</p>
+      </div>
+      <div class="chat-body" id="chatBody">
+        <div class="chat-empty" id="chatEmpty">
+          <div class="big-icon">💬</div>
+          <h3>Ask me anything about our policies</h3>
+          <p>Start with one of these or type your own question below.</p>
+          <div class="suggestion-chips">
+            {% for s in suggestions %}
+            <div class="sug-chip" data-q="{{ s|e }}">{{ s }}</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-wrap">
+        <form id="askForm" autocomplete="off">
+          <div class="chat-input-row">
+            <textarea id="chatInput" class="chat-input" rows="1" placeholder="Ask about a policy, control, or risk…" required></textarea>
+            <button type="submit" class="chat-send" id="chatSend">Ask →</button>
+          </div>
+          <div class="chat-footer-hint">Answers are grounded in published policies only. Enter to send · Shift+Enter for newline.</div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function() {
+  const body  = document.getElementById('chatBody');
+  const empty = document.getElementById('chatEmpty');
+  const input = document.getElementById('chatInput');
+  const send  = document.getElementById('chatSend');
+  const form  = document.getElementById('askForm');
+
+  // Auto-resize textarea
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+  });
+  // Enter = send, Shift+Enter = newline
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  // Suggestion + history clicks
+  document.querySelectorAll('.sug-chip, .history-item').forEach(el => {
+    el.addEventListener('click', () => {
+      input.value = el.dataset.q;
+      input.dispatchEvent(new Event('input'));
+      input.focus();
+      form.requestSubmit();
+    });
+  });
+
+  // Rebuild index (admin)
+  const rebuildBtn = document.getElementById('rebuildBtn');
+  if (rebuildBtn) {
+    rebuildBtn.addEventListener('click', async () => {
+      rebuildBtn.disabled = true;
+      rebuildBtn.textContent = '⏳ Rebuilding…';
+      try {
+        const r = await fetch('/api/ask/rebuild', { method: 'POST' });
+        const j = await r.json();
+        if (j.success) showToast(`✅ Indexed ${j.chunks_indexed} chunks`);
+        else showToast('❌ ' + (j.error || 'Rebuild failed'), 'error');
+      } catch (e) { showToast('❌ ' + e.message, 'error'); }
+      rebuildBtn.disabled = false;
+      rebuildBtn.textContent = '🔄 Rebuild index';
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  // Minimal markdown → HTML (bold, italic, inline code, paragraphs, bullets, numbered lists)
+  function mdToHtml(md) {
+    const escape = s => escapeHtml(s);
+    const lines = md.split(/\n/);
+    let html = '', listType = null, buf = [];
+    const flushPara = () => {
+      if (buf.length) {
+        const text = buf.join(' ')
+          .replace(/`([^`]+)`/g, (_, c) => `<code>${escape(c)}</code>`)
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>');
+        html += `<p>${text}</p>`;
+        buf = [];
+      }
+    };
+    const closeList = () => { if (listType) { html += `</${listType}>`; listType = null; } };
+    for (const raw of lines) {
+      const line = raw.trimEnd();
+      if (!line.trim()) { flushPara(); closeList(); continue; }
+      const bullet = line.match(/^\s*[-*]\s+(.*)/);
+      const numbered = line.match(/^\s*\d+\.\s+(.*)/);
+      if (bullet || numbered) {
+        flushPara();
+        const want = bullet ? 'ul' : 'ol';
+        if (listType !== want) { closeList(); html += `<${want}>`; listType = want; }
+        const content = (bullet || numbered)[1]
+          .replace(/`([^`]+)`/g, (_, c) => `<code>${escape(c)}</code>`)
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html += `<li>${content}</li>`;
+      } else {
+        closeList();
+        buf.push(escape(line));
+      }
+    }
+    flushPara(); closeList();
+    return html;
+  }
+
+  function addUserMsg(q) {
+    if (empty) empty.style.display = 'none';
+    const el = document.createElement('div');
+    el.className = 'msg msg-user';
+    el.innerHTML = `
+      <div class="avatar">You</div>
+      <div style="flex:1;">
+        <div class="msg-meta">You</div>
+        <div class="msg-bubble"><p>${escapeHtml(q)}</p></div>
+      </div>`;
+    body.appendChild(el);
+    body.scrollTop = body.scrollHeight;
+    return el;
+  }
+
+  function addTypingMsg() {
+    const el = document.createElement('div');
+    el.className = 'msg msg-bot msg-typing';
+    el.innerHTML = `
+      <div class="avatar">A</div>
+      <div style="flex:1;">
+        <div class="msg-meta">ARIA · thinking…</div>
+        <div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>
+      </div>`;
+    body.appendChild(el);
+    body.scrollTop = body.scrollHeight;
+    return el;
+  }
+
+  function renderCitations(cits) {
+    if (!cits || !cits.length) return '';
+    const items = cits.map(c => {
+      const type = (c.content_type || 'source').toUpperCase();
+      const title = c.title || 'Source';
+      const section = c.section ? ` · ${escapeHtml(c.section)}` : '';
+      const href = c.url_path || '#';
+      return `<a class="citation" href="${escapeHtml(href)}">
+                <span class="cit-type">${escapeHtml(type)}</span>
+                <span>${escapeHtml(title)}${section}</span>
+              </a>`;
+    }).join('');
+    return `<div class="citations">${items}</div>`;
+  }
+
+  function renderBotMsg(result) {
+    const el = document.createElement('div');
+    const covered = result.covered;
+    el.className = 'msg msg-bot' + (covered ? '' : ' msg-not-covered');
+    const label = covered
+      ? `ARIA · grounded in ${result.chunks_retrieved} source${result.chunks_retrieved === 1 ? '' : 's'} · ${result.latency_ms}ms`
+      : `ARIA · no matching policy`;
+    el.innerHTML = `
+      <div class="avatar">A</div>
+      <div style="flex:1;">
+        <div class="msg-meta">${label}</div>
+        <div class="msg-bubble">${mdToHtml(result.answer || '')}${renderCitations(result.citations)}</div>
+      </div>`;
+    return el;
+  }
+
+  async function ask(question) {
+    addUserMsg(question);
+    const typing = addTypingMsg();
+    send.disabled = true;
+    try {
+      const form = new FormData();
+      form.append('question', question);
+      const r = await fetch('/api/ask', { method: 'POST', body: form });
+      const j = await r.json();
+      typing.remove();
+      if (!r.ok || !j.success) {
+        const el = document.createElement('div');
+        el.className = 'msg msg-bot';
+        el.innerHTML = `
+          <div class="avatar">A</div>
+          <div style="flex:1;">
+            <div class="msg-meta">ARIA · error</div>
+            <div class="msg-bubble"><p>${escapeHtml(j.error || 'Something went wrong. Try again.')}</p></div>
+          </div>`;
+        body.appendChild(el);
+      } else {
+        body.appendChild(renderBotMsg(j));
+      }
+      body.scrollTop = body.scrollHeight;
+    } catch (e) {
+      typing.remove();
+      showToast('❌ ' + e.message, 'error');
+    }
+    send.disabled = false;
+    input.focus();
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = '';
+    input.style.height = 'auto';
+    ask(q);
+  });
+})();
+</script>
+{% endblock %}

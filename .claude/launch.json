@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "AegisGRC",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd oneforall && python -m uvicorn main:app --reload --host 127.0.0.1 --port 8080"],
+      "port": 8080
+    },
+    {
+      "name": "dlu-training",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-c",
+        "import os, runpy; os.chdir(r'C:\\Users\\isadmin\\Desktop\\Data Labeling Unit\\DLU-Training-App'); runpy.run_path('app.py', run_name='__main__')"
+      ],
+      "port": 5000
+    }
+  ]
+}

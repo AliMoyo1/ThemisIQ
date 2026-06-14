@@ -1,0 +1,472 @@
+{% extends "platform_base.html" %}
+{% block title %}Email Settings — ThemisIQ{% endblock %}
+
+{% block head %}
+<style>
+/* ── Provider cards ───────────────────────────────────────────────────────── */
+.prov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.prov-card{border:2px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;text-align:center;background:var(--surface2)}
+.prov-card:hover{border-color:var(--accent);background:rgba(var(--accent-rgb),.04)}
+.prov-card.selected{border-color:var(--accent);background:rgba(var(--accent-rgb),.08)}
+.prov-card .prov-icon{font-size:28px;margin-bottom:8px}
+.prov-card .prov-name{font-size:13px;font-weight:700;color:var(--text)}
+.prov-card .prov-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.prov-radio{display:none}
+
+/* ── Field groups ─────────────────────────────────────────────────────────── */
+.ef-section{display:none;animation:fadeUp .2s ease}
+.ef-section.active{display:block}
+.ef-field{margin-bottom:14px}
+.ef-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:5px}
+.ef-input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box;outline:none;transition:border-color .15s}
+.ef-input:focus{border-color:var(--accent)}
+.ef-row{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+.ef-hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+.ef-hint code{background:var(--surface3);padding:1px 5px;border-radius:3px;font-size:10px}
+
+/* ── Status badge ─────────────────────────────────────────────────────────── */
+.status-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700}
+.status-badge.configured{background:rgba(22,163,74,.1);color:var(--green-status);border:1px solid rgba(22,163,74,.2)}
+.status-badge.unconfigured{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.status-badge.error{background:rgba(220,38,38,.1);color:var(--red);border:1px solid rgba(220,38,38,.2)}
+
+/* ── Test result ──────────────────────────────────────────────────────────── */
+.test-result{padding:12px 16px;border-radius:8px;font-size:13px;margin-top:14px;display:none}
+.test-result.ok{background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);color:var(--green-status)}
+.test-result.fail{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:var(--red)}
+
+/* ── Info box ─────────────────────────────────────────────────────────────── */
+.info-box{background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--accent-rgb),.15);border-radius:8px;padding:14px 16px;font-size:12px;color:var(--text);line-height:1.6;margin-bottom:16px}
+.info-box strong{color:var(--accent)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section-header animate-fade-up">
+  <div>
+    <div class="section-title">Email Settings</div>
+    <div class="section-sub">Configure the email provider for notifications, reminders, and alerts</div>
+  </div>
+  <div id="statusBadge">
+    <span class="status-badge unconfigured">● Not configured</span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start" class="animate-fade-up anim-1">
+
+  <!-- Left: Configuration form -->
+  <div>
+
+    <!-- Step 1: Provider selection -->
+    <div class="panel-card" style="margin-bottom:16px">
+      <div class="panel-title">1 · Select Provider</div>
+      <div class="prov-grid" id="provGrid">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Step 2: Connection details -->
+    <div class="panel-card" style="margin-bottom:16px">
+      <div class="panel-title" style="margin-bottom:16px">2 · Connection Details</div>
+
+      <!-- Google SMTP -->
+      <div class="ef-section" id="sec-google">
+        <div class="info-box">
+          <strong>Gmail App Password required.</strong><br>
+          Go to <strong>Google Account → Security → 2-Step Verification → App passwords</strong>,
+          create a password for "ThemisIQ", and paste it below. Spaces in the password are fine.
+        </div>
+        <div class="ef-row" style="margin-bottom:14px">
+          <div class="ef-field" style="margin-bottom:0">
+            <label class="ef-label">SMTP Host</label>
+            <input class="ef-input" id="fSmtpHost" value="smtp.gmail.com" readonly style="opacity:.6">
+          </div>
+          <div class="ef-field" style="margin-bottom:0">
+            <label class="ef-label">Port</label>
+            <input class="ef-input" id="fSmtpPort" value="587" readonly style="opacity:.6">
+          </div>
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Gmail Address</label>
+          <input class="ef-input" id="fSmtpUser" type="email" placeholder="you@gmail.com">
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">App Password</label>
+          <input class="ef-input" id="fSmtpPass" type="password" placeholder="16-character app password">
+          <div class="ef-hint">This is NOT your Gmail password. Generate it at myaccount.google.com/apppasswords</div>
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">From Address</label>
+          <input class="ef-input" id="fSmtpFrom" placeholder="ThemisIQ &lt;noreply@yourdomain.com&gt;">
+        </div>
+      </div>
+
+      <!-- Microsoft SMTP -->
+      <div class="ef-section" id="sec-microsoft_smtp">
+        <div class="info-box">
+          <strong>Office 365 SMTP Auth.</strong><br>
+          Requires SMTP AUTH enabled on the mailbox (Exchange Admin Center → Active users → mailbox → Mail → Manage email apps → <strong>Authenticated SMTP ✓</strong>).
+          Use an App Password if MFA is enabled on the account.
+        </div>
+        <div class="ef-row" style="margin-bottom:14px">
+          <div class="ef-field" style="margin-bottom:0">
+            <label class="ef-label">SMTP Host</label>
+            <input class="ef-input" id="fSmtpHostMs" value="smtp.office365.com" readonly style="opacity:.6">
+          </div>
+          <div class="ef-field" style="margin-bottom:0">
+            <label class="ef-label">Port</label>
+            <input class="ef-input" id="fSmtpPortMs" value="587" readonly style="opacity:.6">
+          </div>
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Office 365 Email Address</label>
+          <input class="ef-input" id="fSmtpUserMs" type="email" placeholder="notifications@yourcompany.com">
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Password / App Password</label>
+          <input class="ef-input" id="fSmtpPassMs" type="password" placeholder="••••••••">
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">From Address</label>
+          <input class="ef-input" id="fSmtpFromMs" placeholder="ThemisIQ &lt;notifications@yourcompany.com&gt;">
+        </div>
+      </div>
+
+      <!-- Microsoft Graph -->
+      <div class="ef-section" id="sec-microsoft_graph">
+        <div class="info-box">
+          <strong>Microsoft Graph API (service account).</strong><br>
+          Requires an <strong>Azure AD App Registration</strong> with the
+          <code>Mail.Send</code> <em>Application</em> permission and admin consent.
+          The "Send-as" address must be a real mailbox in your tenant.
+          No username or password — uses client credentials (OAuth 2.0).
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Tenant ID</label>
+          <input class="ef-input" id="fTenantId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+          <div class="ef-hint">Found in Azure Portal → Azure Active Directory → Overview</div>
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Client ID (Application ID)</label>
+          <input class="ef-input" id="fClientId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+          <div class="ef-hint">Found in Azure Portal → App Registrations → your app → Application (client) ID</div>
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Client Secret</label>
+          <input class="ef-input" id="fClientSecret" type="password" placeholder="••••••••">
+          <div class="ef-hint">Certificates &amp; secrets → New client secret. Copy it immediately — you can't view it again.</div>
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Send-as Address</label>
+          <input class="ef-input" id="fGraphFrom" placeholder="ThemisIQ &lt;noreply@yourcompany.com&gt;">
+          <div class="ef-hint">Must be a real mailbox (shared mailbox works). The app needs <code>Mail.Send</code> permission on this user.</div>
+        </div>
+      </div>
+
+      <!-- Custom SMTP -->
+      <div class="ef-section" id="sec-smtp">
+        <div class="ef-row" style="margin-bottom:14px">
+          <div class="ef-field" style="margin-bottom:0">
+            <label class="ef-label">SMTP Host</label>
+            <input class="ef-input" id="fSmtpHostCustom" placeholder="mail.yourserver.com">
+          </div>
+          <div class="ef-field" style="margin-bottom:0">
+            <label class="ef-label">Port</label>
+            <input class="ef-input" id="fSmtpPortCustom" placeholder="587">
+          </div>
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Username</label>
+          <input class="ef-input" id="fSmtpUserCustom" placeholder="user@yourserver.com">
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">Password</label>
+          <input class="ef-input" id="fSmtpPassCustom" type="password" placeholder="••••••••">
+        </div>
+        <div class="ef-field">
+          <label class="ef-label">From Address</label>
+          <input class="ef-input" id="fSmtpFromCustom" placeholder="ThemisIQ &lt;noreply@yourserver.com&gt;">
+        </div>
+      </div>
+
+      <!-- Console -->
+      <div class="ef-section" id="sec-console">
+        <div class="info-box" style="background:rgba(100,116,139,.08);border-color:rgba(100,116,139,.2)">
+          <strong>Console mode.</strong> No emails will be sent. All email activity is written to the application log.
+          Useful for development and testing. You can switch to a real provider at any time without restarting.
+        </div>
+      </div>
+
+      <!-- Placeholder when nothing selected -->
+      <div class="ef-section active" id="sec-none">
+        <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">
+          Select a provider above to see configuration options.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:4px" id="saveRow" style="display:none">
+        <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
+        <button class="btn btn-secondary" onclick="loadConfig()">Reset</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Test -->
+    <div class="panel-card">
+      <div class="panel-title" style="margin-bottom:6px">3 · Test Connection</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+        Sends a test email to <strong id="adminEmail">your email address</strong>. Save your configuration first.
+      </div>
+      <button class="btn btn-secondary" id="testBtn" onclick="runTest()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        Send Test Email
+      </button>
+      <div class="test-result" id="testResult"></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px" id="lastTestInfo"></div>
+    </div>
+
+  </div>
+
+  <!-- Right: Info sidebar -->
+  <div>
+    <div class="panel-card" style="margin-bottom:14px">
+      <div class="panel-title">Current Status</div>
+      <div id="sidebarStatus" style="font-size:13px;color:var(--muted)">Loading…</div>
+    </div>
+
+    <div class="panel-card" style="margin-bottom:14px">
+      <div class="panel-title">What Gets Emailed</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.8">
+        <div>📋 Task assignments</div>
+        <div>⏰ Evidence expiry alerts (30/7/1 day)</div>
+        <div>🔴 Data breach 72h notifications</div>
+        <div>📊 DSR response deadlines</div>
+        <div>📅 Scheduled reminders</div>
+        <div>⚡ SLA escalations</div>
+        <div>✅ Workflow approvals &amp; decisions</div>
+        <div>📧 BCM plan &amp; training alerts</div>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-title">Provider Comparison</div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <tr style="color:var(--muted);text-transform:uppercase;font-size:10px;font-weight:700">
+          <td style="padding:4px 0">Provider</td>
+          <td style="padding:4px 0;text-align:center">Volume</td>
+          <td style="padding:4px 0;text-align:center">Setup</td>
+        </tr>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:6px 0;color:var(--text);font-weight:600">Gmail</td>
+          <td style="text-align:center;color:var(--amber)">500/day</td>
+          <td style="text-align:center;color:var(--green-status)">Easy</td>
+        </tr>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:6px 0;color:var(--text);font-weight:600">O365 SMTP</td>
+          <td style="text-align:center;color:var(--green-status)">High</td>
+          <td style="text-align:center;color:var(--amber)">Medium</td>
+        </tr>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:6px 0;color:var(--text);font-weight:600">Graph API</td>
+          <td style="text-align:center;color:var(--green-status)">High</td>
+          <td style="text-align:center;color:var(--red)">Admin needed</td>
+        </tr>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:6px 0;color:var(--text);font-weight:600">Console</td>
+          <td style="text-align:center;color:var(--muted)">∞</td>
+          <td style="text-align:center;color:var(--green-status)">None</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function(){
+'use strict';
+
+const PROVIDERS = [
+  { id:'google',          icon:'✉️',  name:'Google',        sub:'Gmail / Workspace' },
+  { id:'microsoft_smtp',  icon:'📧',  name:'Microsoft',     sub:'Office 365 SMTP' },
+  { id:'microsoft_graph', icon:'☁️',  name:'Microsoft',     sub:'Graph API (service acct)' },
+  { id:'smtp',            icon:'🔧',  name:'Custom SMTP',   sub:'Any SMTP server' },
+  { id:'console',         icon:'🖥️',  name:'Console only',  sub:'Log, no emails sent' },
+];
+
+let currentProvider = '';
+
+// ── Render provider cards ──────────────────────────────────────────────────
+function renderProviders(selectedId) {
+  const grid = document.getElementById('provGrid');
+  grid.innerHTML = PROVIDERS.map(p => `
+    <div class="prov-card${p.id===selectedId?' selected':''}"
+         onclick="selectProvider('${p.id}')">
+      <div class="prov-icon">${p.icon}</div>
+      <div class="prov-name">${p.name}</div>
+      <div class="prov-sub">${p.sub}</div>
+    </div>
+  `).join('');
+}
+
+window.selectProvider = function(id) {
+  currentProvider = id;
+  renderProviders(id);
+  // Show/hide sections
+  document.querySelectorAll('.ef-section').forEach(s => s.classList.remove('active'));
+  const sec = document.getElementById('sec-' + id);
+  if (sec) sec.classList.add('active');
+  else document.getElementById('sec-none').classList.add('active');
+  document.getElementById('saveRow').style.display = 'flex';
+};
+
+// ── Load current config ────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/admin/email-config');
+    if (!r.ok) return;
+    const cfg = await r.json();
+
+    const prov = cfg.provider || cfg.resolved_provider || 'console';
+    selectProvider(prov);
+
+    // Populate fields
+    const set = (id, val) => { const el=document.getElementById(id); if(el&&val) el.value=val; };
+    set('fSmtpUser',      cfg.smtp_user);
+    set('fSmtpPass',      cfg.smtp_pass);
+    set('fSmtpFrom',      cfg.smtp_from);
+    set('fSmtpUserMs',    cfg.smtp_user);
+    set('fSmtpPassMs',    cfg.smtp_pass);
+    set('fSmtpFromMs',    cfg.smtp_from);
+    set('fSmtpHostCustom', cfg.smtp_host);
+    set('fSmtpPortCustom', cfg.smtp_port);
+    set('fSmtpUserCustom', cfg.smtp_user);
+    set('fSmtpPassCustom', cfg.smtp_pass);
+    set('fSmtpFromCustom', cfg.smtp_from);
+    set('fTenantId',      cfg.ms_tenant_id);
+    set('fClientId',      cfg.ms_client_id);
+    set('fClientSecret',  cfg.ms_client_secret);
+    set('fGraphFrom',     cfg.smtp_from);
+
+    // Sidebar status
+    const sb = document.getElementById('sidebarStatus');
+    const badge = document.getElementById('statusBadge');
+    const resolvedLabel = PROVIDERS.find(p=>p.id===cfg.resolved_provider)?.name || cfg.resolved_provider;
+    if (cfg.resolved_provider && cfg.resolved_provider !== 'console') {
+      sb.innerHTML = `<span style="color:var(--green-status);font-weight:700">● Configured</span><br>
+        <span style="font-size:11px;color:var(--muted)">Provider: ${resolvedLabel}</span>`;
+      badge.innerHTML = `<span class="status-badge configured">● Configured — ${resolvedLabel}</span>`;
+    } else if (cfg.resolved_provider === 'console') {
+      sb.innerHTML = `<span style="color:var(--muted);font-weight:700">● Console mode</span><br>
+        <span style="font-size:11px;color:var(--muted)">Emails logged, not sent</span>`;
+      badge.innerHTML = `<span class="status-badge unconfigured">● Console only</span>`;
+    } else {
+      sb.innerHTML = `<span style="color:var(--muted)">Not configured</span>`;
+      badge.innerHTML = `<span class="status-badge unconfigured">● Not configured</span>`;
+    }
+
+    if (cfg.last_test_result) {
+      document.getElementById('lastTestInfo').textContent =
+        `Last test: ${cfg.last_test_result}  (${cfg.last_test_at})`;
+    }
+  } catch(e) {
+    console.error('loadConfig failed', e);
+  }
+}
+
+// ── Save config ────────────────────────────────────────────────────────────
+window.saveConfig = async function() {
+  const prov = currentProvider;
+  const get  = id => { const el=document.getElementById(id); return el ? el.value.trim() : ''; };
+
+  let body = { provider: prov };
+
+  if (prov === 'google') {
+    body.smtp_host  = 'smtp.gmail.com';
+    body.smtp_port  = '587';
+    body.smtp_user  = get('fSmtpUser');
+    body.smtp_pass  = get('fSmtpPass');
+    body.smtp_from  = get('fSmtpFrom');
+  } else if (prov === 'microsoft_smtp') {
+    body.smtp_host  = 'smtp.office365.com';
+    body.smtp_port  = '587';
+    body.smtp_user  = get('fSmtpUserMs');
+    body.smtp_pass  = get('fSmtpPassMs');
+    body.smtp_from  = get('fSmtpFromMs');
+  } else if (prov === 'microsoft_graph') {
+    body.ms_tenant_id    = get('fTenantId');
+    body.ms_client_id    = get('fClientId');
+    body.ms_client_secret = get('fClientSecret');
+    body.smtp_from       = get('fGraphFrom');
+  } else if (prov === 'smtp') {
+    body.smtp_host  = get('fSmtpHostCustom');
+    body.smtp_port  = get('fSmtpPortCustom');
+    body.smtp_user  = get('fSmtpUserCustom');
+    body.smtp_pass  = get('fSmtpPassCustom');
+    body.smtp_from  = get('fSmtpFromCustom');
+  }
+  // console: just saves provider=console
+
+  try {
+    const r = await fetch('/api/admin/email-config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      if (typeof showToast === 'function') showToast('Email configuration saved', 'success');
+      loadConfig();
+    } else {
+      if (typeof showToast === 'function') showToast('Save failed', 'error');
+    }
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('Save failed', 'error');
+  }
+};
+
+// ── Test ────────────────────────────────────────────────────────────────────
+window.runTest = async function() {
+  const btn = document.getElementById('testBtn');
+  const res = document.getElementById('testResult');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  res.className = 'test-result';
+  res.style.display = 'none';
+
+  try {
+    const r = await fetch('/api/admin/email-test', { method: 'POST' });
+    const data = await r.json();
+    res.style.display = 'block';
+    if (data.ok) {
+      res.className = 'test-result ok';
+      res.textContent = `✓ ${data.detail || 'Test email sent to ' + data.to}`;
+    } else {
+      res.className = 'test-result fail';
+      res.textContent = `✗ ${data.detail || 'Failed'}`;
+    }
+    loadConfig(); // refresh last-test info
+  } catch(e) {
+    res.style.display = 'block';
+    res.className = 'test-result fail';
+    res.textContent = '✗ Request failed — check server logs';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Send Test Email`;
+  }
+};
+
+// ── Init ────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  renderProviders('');
+  loadConfig();
+
+  // Show admin's email in test section
+  fetch('/api/notifications').then(r=>r.json()).then(d=>{
+    // User email is not in the notifications API but we can get it from context
+  }).catch(()=>{});
+});
+
+})();
+</script>
+{% endblock %}

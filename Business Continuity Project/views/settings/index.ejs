@@ -1,0 +1,118 @@
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p>Workspace, AI, team, and notifications.</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <!-- Workspace -->
+  <div class="card">
+    <div class="card-head"><div class="card-title">Workspace</div></div>
+    <form method="POST" action="/settings/tenant" class="stack-16">
+      <div><label>Organization name</label><input name="name" value="<%= tenantRecord.name %>" required /></div>
+      <div><label>Industry</label>
+        <select name="industry">
+          <% const list = ['','Financial Services','Healthcare','Manufacturing','Technology','Government / Public Sector','Retail','Energy / Utilities','Other']; %>
+          <% list.forEach(i => { %>
+            <option value="<%= i %>" <%= tenantRecord.industry === i ? 'selected' : '' %>><%= i || 'Select...' %></option>
+          <% }) %>
+        </select>
+      </div>
+      <button class="btn primary" type="submit">Save workspace</button>
+    </form>
+  </div>
+
+  <!-- Profile -->
+  <div class="card">
+    <div class="card-head"><div class="card-title">Your profile</div></div>
+    <form method="POST" action="/settings/profile" class="stack-16">
+      <div><label>Name</label><input name="name" value="<%= user.name %>" required /></div>
+      <div><label>Email</label><input value="<%= user.email %>" disabled /></div>
+      <div><label>New password (leave blank to keep)</label><input type="password" name="password" minlength="8" /></div>
+      <button class="btn primary" type="submit">Save profile</button>
+    </form>
+  </div>
+
+  <!-- AI -->
+  <div class="card" id="ai">
+    <div class="card-head"><div class="card-title">AI configuration</div></div>
+    <form method="POST" action="/settings/ai" class="stack-16">
+      <div><label>Default provider for this workspace</label>
+        <select name="ai_provider">
+          <option value="openai" <%= tenantRecord.ai_provider === 'openai' ? 'selected' : '' %>>OpenAI (GPT)</option>
+          <option value="anthropic" <%= tenantRecord.ai_provider === 'anthropic' ? 'selected' : '' %>>Anthropic (Claude)</option>
+        </select>
+      </div>
+      <div><label>OpenAI API key</label><input type="password" name="ai_openai_key" placeholder="<%= tenantRecord.ai_openai_key ? '•••• saved' : 'sk-...' %>" /></div>
+      <div><label>Anthropic API key</label><input type="password" name="ai_anthropic_key" placeholder="<%= tenantRecord.ai_anthropic_key ? '•••• saved' : 'sk-ant-...' %>" /></div>
+      <p class="muted" style="font-size:12px;">Leave a field blank to keep the existing key. If no key is set, the chatbot returns helpful stub responses.</p>
+      <button class="btn primary" type="submit">Save AI settings</button>
+    </form>
+  </div>
+
+  <!-- Notifications -->
+  <div class="card" id="notifications">
+    <div class="card-head"><div class="card-title">Notifications</div></div>
+    <p>SMTP is configured via the server <code>.env</code>. Admins are automatically emailed for incidents, plan reviews (7 days + on-due), and overdue risk mitigations.</p>
+    <form method="POST" action="/settings/test-email">
+      <button class="btn primary" type="submit">Send test email to me</button>
+    </form>
+  </div>
+</div>
+
+<!-- Team -->
+<div class="card" id="team" style="margin-top:16px;">
+  <div class="card-head"><div class="card-title">Team</div></div>
+  <table class="table">
+    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr></thead>
+    <tbody>
+      <% users.forEach(u => { %>
+        <tr>
+          <td><strong><%= u.name %></strong></td>
+          <td><%= u.email %></td>
+          <td>
+            <form method="POST" action="/settings/users/<%= u.id %>/role" style="display:inline;">
+              <select name="role" onchange="this.form.submit()" <%= user.role !== 'admin' ? 'disabled' : '' %>>
+                <% ['admin','manager','responder','viewer'].forEach(r => { %>
+                  <option value="<%= r %>" <%= u.role === r ? 'selected' : '' %>><%= r %></option>
+                <% }) %>
+              </select>
+            </form>
+          </td>
+          <td><%= u.created_at %></td>
+          <td class="right">
+            <% if (user.role === 'admin' && u.id !== user.id) { %>
+              <form method="POST" action="/settings/users/<%= u.id %>/delete" data-confirm="Remove this user?" style="display:inline;">
+                <button class="btn small danger" type="submit">Remove</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <% if (user.role === 'admin' || user.role === 'manager') { %>
+    <div style="margin-top:20px;">
+      <div class="card-title" style="margin-bottom:10px;">Invite a teammate</div>
+      <form method="POST" action="/settings/invite" class="stack-10">
+        <div class="form-row cols-2">
+          <div><label>Name</label><input name="name" required /></div>
+          <div><label>Email</label><input type="email" name="email" required /></div>
+        </div>
+        <div class="form-row cols-2">
+          <div><label>Role</label>
+            <select name="role">
+              <% ['admin','manager','responder','viewer'].forEach(r => { %>
+                <option value="<%= r %>" <%= r === 'viewer' ? 'selected' : '' %>><%= r %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div><label>Temporary password (min 8 chars)</label><input type="password" name="password" minlength="8" required /></div>
+        </div>
+        <button class="btn primary" type="submit">Invite</button>
+      </form>
+    </div>
+  <% } %>
+</div>

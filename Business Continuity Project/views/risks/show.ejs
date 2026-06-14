@@ -1,0 +1,37 @@
+<div class="page-head">
+  <div>
+    <h1><%= risk.title %></h1>
+    <p><%= risk.category || '—' %> · Owner: <%= risk.owner || '—' %></p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/risks">Back</a>
+    <a class="btn" href="/risks/<%= risk.id %>/edit">Edit</a>
+    <form method="POST" action="/risks/<%= risk.id %>/delete" data-confirm="Delete this risk?" style="display:inline;">
+      <button class="btn danger" type="submit">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:16px;">
+  <div class="kpi"><div class="k-label">Likelihood</div><div class="k-value"><%= risk.likelihood %>/5</div></div>
+  <div class="kpi"><div class="k-label">Impact</div><div class="k-value"><%= risk.impact %>/5</div></div>
+  <div class="kpi">
+    <div class="k-label">Risk score</div>
+    <% const cls = risk.score >= 15 ? 'danger' : (risk.score >= 9 ? 'warn' : (risk.score >= 4 ? 'info' : 'muted')); %>
+    <div class="k-value"><span class="badge <%= cls %>" style="font-size:14px; padding:6px 14px;"><%= risk.score %></span></div>
+  </div>
+  <div class="kpi"><div class="k-label">Status</div><div class="k-value"><%= risk.status %></div></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Description</div></div>
+    <p><%= risk.description || 'No description.' %></p>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Treatment & mitigation</div></div>
+    <p><strong>Treatment:</strong> <%= risk.treatment %></p>
+    <p><%= risk.mitigation || 'No mitigation documented.' %></p>
+    <p class="muted">Due: <%= risk.due_date || '—' %></p>
+  </div>
+</div>

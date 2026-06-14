@@ -1,0 +1,49 @@
+<div class="page-head">
+  <div>
+    <a href="/dependencies" class="muted">&larr; Dependency graph</a>
+    <h1><%= node ? 'Edit node' : 'New node' %></h1>
+  </div>
+  <% if (node) { %>
+    <div class="actions">
+      <form method="POST" action="/dependencies/nodes/<%= node.id %>/delete" onsubmit="return confirm('Delete this node and all its edges?');" style="display:inline;">
+        <button class="btn danger" type="submit">Delete</button>
+      </form>
+    </div>
+  <% } %>
+</div>
+
+<form method="POST" action="<%= node ? '/dependencies/nodes/' + node.id : '/dependencies/nodes' %>" class="card stack-16">
+  <div class="form-row cols-2">
+    <div><label>Name *</label><input name="name" required value="<%= node?.name || '' %>"/></div>
+    <div><label>Type</label>
+      <select name="node_type">
+        <% nodeTypes.forEach(t => { %>
+          <option value="<%= t %>" <%= (node?.node_type || 'process') === t ? 'selected' : '' %> style="text-transform:capitalize;"><%= t %></option>
+        <% }) %>
+      </select>
+    </div>
+  </div>
+  <div><label>Description</label><textarea name="description" rows="3"><%= node?.description || '' %></textarea></div>
+  <div class="form-row cols-3">
+    <div><label>Criticality</label>
+      <select name="criticality">
+        <% ['Critical','High','Medium','Low'].forEach(c => { %>
+          <option value="<%= c %>" <%= (node?.criticality || 'Medium') === c ? 'selected' : '' %>><%= c %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>Linked entity table (optional)</label>
+      <select name="ref_table">
+        <option value="">— none —</option>
+        <% ['bia_records','bcp_plans','vendors','incidents'].forEach(t => { %>
+          <option value="<%= t %>" <%= node?.ref_table === t ? 'selected' : '' %>><%= t %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div><label>Linked entity id</label><input type="number" name="ref_id" value="<%= node?.ref_id || '' %>"/></div>
+  </div>
+  <div style="display:flex; gap:10px;">
+    <button class="btn primary" type="submit"><%= node ? 'Save changes' : 'Add node' %></button>
+    <a class="btn ghost" href="/dependencies">Cancel</a>
+  </div>
+</form>

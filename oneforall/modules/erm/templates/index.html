@@ -1,0 +1,2017 @@
+{% extends "base_shell.html" %}
+{% block title %}ERM — Enterprise Risk Management{% endblock %}
+
+{% block extra_styles %}
+/* ── ERM SPA — view switching ── */
+#ermSpaRoot .spa-view{display:none !important}
+#ermSpaRoot .spa-view.active{display:block !important;animation:fadeUp .3s ease}
+
+/* ── Modals ── */
+.erm-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease}
+.modal-box{background:var(--surface);border-radius:var(--radius-lg);padding:28px;width:90%;max-width:640px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);position:relative}
+.modal-title{font-size:17px;font-weight:800;color:var(--text);margin-bottom:16px}
+.modal-close{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:4px 8px;border-radius:var(--radius)}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box}
+.form-group textarea{resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+
+/* ── Filter chips ── */
+.erm-filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.erm-chip{padding:5px 12px;border-radius:100px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.erm-chip:hover{border-color:var(--accent);color:var(--accent)}
+.erm-chip.active{background:var(--accent);border-color:var(--accent);color:white}
+.erm-search{flex:1;min-width:160px;max-width:280px;padding:6px 12px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;outline:none}
+.erm-search:focus{border-color:var(--accent)}
+
+/* ── Slide-out Risk Drawer ── */
+.erm-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;display:flex;align-items:stretch;justify-content:flex-end}
+.erm-drawer-panel{background:var(--surface);width:min(580px,96vw);height:100%;display:flex;flex-direction:column;box-shadow:-12px 0 48px rgba(0,0,0,.22);animation:ermDrawerIn .28s cubic-bezier(.22,.61,.36,1)}
+@keyframes ermDrawerIn{from{transform:translateX(100%);opacity:.6}to{transform:translateX(0);opacity:1}}
+.erm-drawer-head{padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:flex-start;gap:12px;background:var(--surface)}
+.erm-drawer-body{flex:1;overflow-y:auto;padding:20px;scroll-behavior:smooth}
+.erm-drawer-foot{padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface);box-shadow:0 -2px 12px rgba(0,0,0,.06)}
+.erm-drawer-section{margin-bottom:20px}
+.erm-drawer-section-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.erm-drawer-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.erm-drawer-row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border)}
+.erm-drawer-row:last-child{border-bottom:none}
+.erm-drawer-label{color:var(--muted);flex-shrink:0;margin-right:12px}
+.erm-drawer-val{color:var(--text);font-weight:500;text-align:right}
+
+/* ── Bulk action bar ── */
+.erm-bulk-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 18px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 32px rgba(0,0,0,.2);z-index:500;animation:fadeUp .2s ease}
+
+/* ── Heat map ── */
+.heat-map-grid{display:grid;grid-template-columns:20px repeat(5,1fr);gap:3px;align-items:center}
+.heat-cell{height:34px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;transition:transform .15s,filter .15s}
+.heat-cell:hover{transform:scale(1.1);filter:brightness(1.15)}
+.heat-0{background:rgba(22,163,74,.12);color:var(--good,#16a34a)}
+.heat-1{background:rgba(22,163,74,.4)}
+.heat-2{background:rgba(234,88,12,.5)}
+.heat-3{background:rgba(220,38,38,.6)}
+.heat-4{background:rgba(220,38,38,.85)}
+.heat-axis{font-size:10px;color:var(--muted);text-align:center;font-weight:600}
+
+/* ── Appetite ── */
+.appetite-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;transition:all .2s;position:relative}
+.appetite-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md)}
+.gauge-bar{height:8px;border-radius:100px;background:var(--surface3);overflow:hidden;margin:8px 0}
+.gauge-fill{height:100%;border-radius:100px;transition:width .8s ease}
+.gauge-ok{background:var(--good,#16a34a)}
+.gauge-warn{background:var(--amber,#d97706)}
+.gauge-breach{background:var(--red,#dc2626)}
+
+/* ── Library ── */
+.lib-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;transition:all .2s}
+.lib-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.lib-cat-chip{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px;border-radius:100px;margin-bottom:8px}
+.lib-tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:100px;background:var(--surface3);color:var(--muted);margin:2px 2px 0 0}
+.lib-split-btn{position:relative;display:inline-flex}
+.lib-split-btn .lib-split-main{border-radius:var(--radius) 0 0 var(--radius);border-right:1px solid rgba(255,255,255,.25)}
+.lib-split-btn .lib-split-arr{border-radius:0 var(--radius) var(--radius) 0;padding:7px 8px}
+.lib-split-menu{position:absolute;bottom:calc(100% + 4px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);z-index:200;min-width:160px;overflow:hidden}
+.lib-split-menu button{display:block;width:100%;padding:9px 14px;text-align:left;background:none;border:none;font-size:13px;color:var(--text);cursor:pointer;white-space:nowrap}
+.lib-split-menu button:hover{background:var(--surface2)}
+
+/* ── Assess results drawer ── */
+.assess-q-result{padding:12px 0;border-bottom:1px solid var(--border)}
+.assess-bar-row{display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0}
+.assess-bar-track{flex:1;height:8px;background:var(--surface3);border-radius:100px;overflow:hidden}
+.assess-bar-fill{height:100%;background:var(--accent);border-radius:100px;transition:width .5s ease}
+
+/* ── Scale respond buttons ── */
+.scale-btns{display:flex;gap:6px;margin-top:8px}
+.scale-btn{padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.scale-btn.active,.scale-btn:hover{background:var(--accent);color:white;border-color:var(--accent)}
+
+/* ── Feed ── */
+.feed-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;align-items:flex-start}
+.feed-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+
+/* ── AI buttons ── */
+.btn-erm-ai{background:linear-gradient(135deg,rgba(220,38,38,.1),rgba(220,38,38,.04));border:1px solid rgba(220,38,38,.3);color:var(--accent);padding:6px 12px;border-radius:var(--radius);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
+.btn-erm-ai:hover{background:rgba(220,38,38,.15)}
+.btn-erm-ai:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Doc viewer ── */
+.erm-doc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1400;display:flex;align-items:stretch;justify-content:flex-end}
+.erm-doc-panel{background:var(--surface);width:min(720px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.18);animation:ermDrawerIn .3s ease}
+.erm-doc-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);gap:12px;flex-shrink:0}
+.erm-doc-body{flex:1;overflow-y:auto;padding:24px;font-size:13px;white-space:pre-wrap;line-height:1.8;color:var(--text)}
+
+/* ── KRI Cards ── */
+.kri-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;transition:all .2s;position:relative}
+.kri-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md)}
+.kri-gauge-track{height:10px;border-radius:100px;overflow:hidden;margin:10px 0;background:var(--surface3);position:relative}
+.kri-gauge-fill{height:100%;border-radius:100px;transition:width .8s ease}
+.kri-val-big{font-size:28px;font-weight:900;line-height:1}
+.kri-threshold-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:600}
+.kri-sparkline{height:28px;margin-top:6px}
+
+/* ── Qualitative Score Chips ── */
+.q-chip{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:100px;margin-left:4px}
+.q-chip-critical{background:rgba(220,38,38,.15);color:#dc2626}
+.q-chip-high{background:rgba(234,88,12,.15);color:#ea580c}
+.q-chip-medium{background:rgba(217,119,6,.15);color:#d97706}
+.q-chip-low{background:rgba(22,163,74,.15);color:#16a34a}
+
+/* ── Workflow Step Chips ── */
+.wf-chip{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;padding:2px 6px;border-radius:100px;border:1px solid var(--border);background:var(--surface2);color:var(--muted)}
+.wf-chip-draft{background:rgba(100,116,139,.1);color:#64748b}
+.wf-chip-identified{background:rgba(37,99,235,.1);color:#2563eb}
+.wf-chip-assessed{background:rgba(217,119,6,.12);color:#d97706}
+.wf-chip-treated{background:rgba(8,145,178,.12);color:#0891b2}
+.wf-chip-monitored{background:rgba(22,163,74,.12);color:#16a34a}
+.wf-chip-closed{background:rgba(100,116,139,.1);color:#94a3b8}
+
+/* ── Workflow Stepper ── */
+.wf-stepper{display:flex;align-items:center;gap:0;margin:14px 0;overflow-x:auto;padding-bottom:4px}
+.wf-step-btn{padding:6px 12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap}
+.wf-step-btn:first-child{border-radius:var(--radius) 0 0 var(--radius)}
+.wf-step-btn:last-child{border-radius:0 var(--radius) var(--radius) 0}
+.wf-step-btn.done{background:rgba(22,163,74,.15);color:#16a34a;border-color:rgba(22,163,74,.3)}
+.wf-step-btn.current{background:var(--accent);color:white;border-color:var(--accent)}
+.wf-step-btn:hover:not(.current):not(.done){border-color:var(--accent);color:var(--accent)}
+
+/* ── Trend Chart ── */
+.erm-trend-wrap{width:100%;height:120px;position:relative}
+.erm-trend-svg{width:100%;height:100%}
+
+/* ── Statement Cards ── */
+.stmt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;transition:all .2s}
+.stmt-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md)}
+.stmt-part{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:2px}
+.stmt-text{font-size:13px;color:var(--text);line-height:1.5;font-style:italic}
+
+/* ── View tabs (Library: Templates | Statements) ── */
+.view-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px}
+.view-tab{padding:8px 18px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.view-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ── Misc ── */
+.board-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;background:rgba(220,38,38,.1);color:var(--red,#dc2626);border:1px solid rgba(220,38,38,.25);border-radius:100px;padding:1px 6px}
+.src-pill{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;padding:2px 7px;border-radius:100px;display:inline-block}
+.src-pill-erm{background:rgba(220,38,38,.1);color:var(--accent)}
+.src-pill-grid{background:rgba(22,163,74,.1);color:#16a34a}
+.src-pill-bcm{background:rgba(217,119,6,.1);color:#d97706}
+.src-pill-sentinel{background:rgba(8,145,178,.1);color:#0891b2}
+.src-pill-orm{background:rgba(234,88,12,.1);color:#ea580c}
+.xm-banner{background:linear-gradient(135deg,rgba(220,38,38,.06),rgba(220,38,38,.02));border:1px solid rgba(220,38,38,.2);border-radius:var(--radius);padding:11px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:13px}
+/* ring chart */
+.erm-ring-wrap{display:flex;align-items:center;gap:16px}
+.erm-ring-legend{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.erm-ring-item{display:flex;align-items:center;gap:7px}
+.erm-ring-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+/* chat prompts */
+.chat-prompt-chip{padding:7px 14px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--muted);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.chat-prompt-chip:hover{border-color:var(--accent);color:var(--accent)}
+@media(max-width:900px){.form-row,.form-row-3{grid-template-columns:1fr}}
+{% endblock %}
+
+{% block module_sidebar %}
+<div class="module-sidebar-header">
+  <div class="module-name">Enterprise Risk</div>
+  <div class="module-desc">Enterprise Risk Management</div>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Navigation</div>
+  <a href="/erm/" class="nav-item" data-spa="/erm/">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Dashboard
+  </a>
+  <a href="/erm/register" class="nav-item" data-spa="/erm/register">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    Risk Register
+    <span class="nav-count" id="ermNavRisks">--</span>
+  </a>
+  <a href="/erm/appetite" class="nav-item" data-spa="/erm/appetite">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-4"/></svg>
+    Risk Appetite
+    <span class="nav-badge badge-high" id="ermNavAppetite" style="display:none">!</span>
+  </a>
+  <a href="/erm/library" class="nav-item" data-spa="/erm/library">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+    Risk Library
+  </a>
+  <a href="/erm/obligations" class="nav-item" data-spa="/erm/obligations">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    Obligations
+    <span class="nav-count" id="ermNavObl">--</span>
+  </a>
+  <a href="/erm/indicators" class="nav-item" data-spa="/erm/indicators">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    Indicators
+    <span class="nav-badge badge-high" id="ermNavKriBreach" style="display:none">!</span>
+  </a>
+  <a href="/erm/assessments" class="nav-item" data-spa="/erm/assessments">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+    Assessments
+    <span class="nav-count" id="ermNavAssess">--</span>
+  </a>
+  <a href="/erm/reports" class="nav-item" data-spa="/erm/reports">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Reports
+  </a>
+</div>
+<div class="sidebar-bottom">
+  <div style="background:linear-gradient(135deg,var(--accent-dark,#6b1220),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden" data-spa="/erm/chat">
+    <div style="font-size:24px;margin-bottom:8px">&#9888;</div>
+    <div style="font-size:14px;font-weight:700">Ask ERM AI...</div>
+    <div style="font-size:11px;opacity:0.7;margin-top:4px">Risk advice &amp; guidance</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block breadcrumb %}
+<span style="color:var(--accent);font-weight:700">ERM</span>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current" id="ermBreadcrumb">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div id="ermSpaRoot">
+
+<!-- ══════════════════════ DASHBOARD ══════════════════════ -->
+<div class="spa-view" id="view-dashboard">
+  <div class="section-header animate-fade-up">
+    <div>
+      <div class="section-title">ERM Dashboard</div>
+      <div class="section-sub">Enterprise risk profile · All modules · Updated <span id="ermLastUpdated">—</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" onclick="ermNav('/erm/register')">View Register</button>
+      <button class="btn btn-primary" onclick="ermOpenRiskModal()">+ Add Risk</button>
+    </div>
+  </div>
+
+  <!-- Hero stats -->
+  <div class="stats-row animate-fade-up anim-1" id="dashStatRow" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+    <div class="stat-card stat-card-hero">
+      <div class="stat-label">Total Risks</div>
+      <div class="stat-value" id="dTotalRisks">—</div>
+      <div class="stat-sub" id="dTotalSub">enterprise + platform</div>
+      <div class="stat-trend" id="dTrendTotal" style="font-size:11px;margin-top:4px"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Critical</div>
+      <div class="stat-value" id="dCritical" style="color:var(--red)">—</div>
+      <div class="stat-trend" id="dTrendCrit" style="font-size:11px;margin-top:4px"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Appetite Breaches</div>
+      <div class="stat-value" id="dAppetiteBreaches" style="color:var(--amber)">—</div>
+      <div class="stat-sub">categories over threshold</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Overdue Obligations</div>
+      <div class="stat-value" id="dObligations" style="color:var(--red)">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Board-Visible</div>
+      <div class="stat-value" id="dBoardRisks">—</div>
+      <div class="stat-sub">flagged for executive</div>
+    </div>
+  </div>
+
+  <!-- Row 2: Heat map + Appetite + Top Critical -->
+  <div class="three-col animate-fade-up anim-2">
+    <div class="panel-card">
+      <div class="panel-title">Risk Heat Map <span style="font-size:10px;color:var(--muted);font-weight:400">(click cell to filter)</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Likelihood (rows 1–5) × Impact (cols 1–5)</div>
+      <div id="ermHeatMap"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">Appetite Status</div>
+      <div id="ermAppetitePanel"><div class="spinner" style="margin:0 auto"></div></div>
+      <div style="margin-top:10px"><a href="#" data-spa="/erm/appetite" style="font-size:12px;color:var(--accent);text-decoration:none">View all →</a></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">Top 5 Critical Risks</div>
+      <div id="ermTopCritical"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Actions Required + Feed -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px" class="animate-fade-up anim-3">
+    <div class="panel-card">
+      <div class="panel-title">Actions Required</div>
+      <div id="ermActionsRequired"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">Cross-Module Risk Feed</div>
+      <div id="ermFeedPanel"><div class="spinner" style="margin:0 auto"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ REGISTER ══════════════════════ -->
+<div class="spa-view" id="view-register">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Risk Register</div>
+      <div class="section-sub">Enterprise + cross-module risks, unified view</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" onclick="ermExportCSV()" title="Export visible rows to CSV">⬇ Export</button>
+      <button class="btn btn-primary" onclick="ermOpenRiskModal()">+ Add Risk</button>
+    </div>
+  </div>
+  <!-- Filter chips + search -->
+  <div class="erm-filter-bar" id="regFilterBar">
+    <span class="erm-chip active" data-status="">All</span>
+    <span class="erm-chip" data-status="open">Open</span>
+    <span class="erm-chip" data-status="under_review">Under Review</span>
+    <span class="erm-chip" data-status="mitigated">Mitigated</span>
+    <span class="erm-chip" data-status="accepted">Accepted</span>
+    <span class="erm-chip" data-status="closed">Closed</span>
+    <select id="regCatFilter" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600" onchange="ermRenderRegister()">
+      <option value="">All Categories</option>
+      <option value="strategic">Strategic</option><option value="operational">Operational</option>
+      <option value="compliance">Compliance</option><option value="financial">Financial</option>
+      <option value="reputational">Reputational</option><option value="technology">Technology</option>
+      <option value="third_party">Third Party</option><option value="environmental">Environmental</option>
+    </select>
+    <input class="erm-search" id="regSearch" placeholder="🔍 Search risks…" oninput="ermRenderRegister()">
+  </div>
+  <!-- Stats strip -->
+  <div id="regStats" class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:14px"></div>
+  <!-- Auto-elevation banner -->
+  <div id="regXmBanner" style="display:none"></div>
+  <!-- Bulk action bar (hidden until rows selected) -->
+  <div id="ermBulkBar" class="erm-bulk-bar" style="display:none">
+    <span id="ermBulkCount" style="font-size:13px;font-weight:600;color:var(--text)">0 selected</span>
+    <div style="width:1px;height:20px;background:var(--border)"></div>
+    <button class="btn btn-sm btn-secondary" onclick="ermBulkStatus()">Change Status ▼</button>
+    <button class="btn btn-sm btn-secondary" onclick="ermBulkAssign()">Assign Owner ▼</button>
+    <button class="btn btn-sm btn-secondary" onclick="ermBulkDelete()" style="color:var(--red)">Delete</button>
+    <button class="btn btn-sm btn-secondary" onclick="ermClearSelection()">✕ Clear</button>
+  </div>
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="data-table" id="ermRegTable">
+        <thead><tr>
+          <th style="width:32px"><input type="checkbox" id="regSelectAll" onchange="ermSelectAll(this)" style="cursor:pointer"></th>
+          <th>Risk</th><th>Category</th><th>Score</th><th>Level</th>
+          <th>Status</th><th>Owner</th><th>Review</th><th>Residual</th>
+          <th>Source</th><th style="width:60px">Actions</th>
+        </tr></thead>
+        <tbody id="ermRegBody"><tr><td colspan="11" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ APPETITE ══════════════════════ -->
+<div class="spa-view" id="view-appetite">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Risk Appetite Framework</div>
+      <div class="section-sub">Category-level tolerance thresholds vs current exposure</div>
+    </div>
+    <button class="btn btn-primary" onclick="ermOpenAppetiteModal()">+ Set Appetite</button>
+  </div>
+  <div id="ermAppetiteGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:8px">
+    <div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ LIBRARY ══════════════════════ -->
+<div class="spa-view" id="view-library">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Risk Library</div>
+      <div class="section-sub">25+ pre-built templates — click Use to add to your register</div>
+    </div>
+    <div class="header-actions">
+      <select id="libCatFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" onchange="ermLoadLibrary()">
+        <option value="">All Categories</option>
+        <option value="technology">Technology</option><option value="operational">Operational</option>
+        <option value="compliance">Compliance</option><option value="financial">Financial</option>
+        <option value="reputational">Reputational</option><option value="strategic">Strategic</option>
+        <option value="third_party">Third Party</option>
+      </select>
+      <button class="btn btn-secondary" id="libAdminBtn" style="display:none" onclick="ermOpenLibraryModal()">+ Add Template</button>
+    </div>
+  </div>
+  <div class="erm-filter-bar" style="margin-bottom:16px">
+    <input class="erm-search" id="libSearch" placeholder="🔍 Search templates…" oninput="ermFilterLibrary()" style="max-width:320px">
+    <span class="erm-chip active" data-industry="">All Industries</span>
+    <span class="erm-chip" data-industry="telecom">Telecom</span>
+    <span class="erm-chip" data-industry="banking">Banking</span>
+    <span class="erm-chip" data-industry="healthcare">Healthcare</span>
+    <span class="erm-chip" data-industry="general">General</span>
+  </div>
+  <div id="ermLibGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px">
+    <div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ OBLIGATIONS ══════════════════════ -->
+<div class="spa-view" id="view-obligations">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Regulatory Obligations</div>
+      <div class="section-sub">Track regulatory requirements, owners, due dates and compliance status</div>
+    </div>
+    <button class="btn btn-primary" onclick="ermOpenOblModal()">+ Add Obligation</button>
+  </div>
+  <div id="oblStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
+  <div class="erm-filter-bar" id="oblFilterBar">
+    <span class="erm-chip active" data-status="">All</span>
+    <span class="erm-chip" data-status="pending">Pending</span>
+    <span class="erm-chip" data-status="compliant">Compliant</span>
+    <span class="erm-chip" data-status="non_compliant">Non-Compliant</span>
+    <span class="erm-chip" data-status="under_review">Under Review</span>
+    <input class="erm-search" id="oblSearch" placeholder="🔍 Search regulator…" oninput="ermRenderObligations()" style="max-width:220px">
+  </div>
+  <div id="oblAlertBanner" style="display:none;margin-bottom:12px"></div>
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Regulator</th><th>Regulation</th><th>Obligation</th><th>Owner</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="ermOblBody"><tr><td colspan="7" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ ASSESSMENTS ══════════════════════ -->
+<div class="spa-view" id="view-assessments">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Self-Assessments</div>
+      <div class="section-sub">Build, launch, and analyse risk and control assessments</div>
+    </div>
+    <button class="btn btn-primary" onclick="ermOpenAssessmentModal()">+ New Assessment</button>
+  </div>
+  <div id="assessStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
+  <div class="erm-filter-bar" id="assessFilterBar">
+    <span class="erm-chip active" data-status="">All</span>
+    <span class="erm-chip" data-status="draft">Draft</span>
+    <span class="erm-chip" data-status="active">Active</span>
+    <span class="erm-chip" data-status="closed">Closed</span>
+  </div>
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Title</th><th>Type</th><th>Questions</th><th>Responses</th><th>Status</th><th>Due</th><th>Actions</th></tr></thead>
+        <tbody id="ermAssessBody"><tr><td colspan="7" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ REPORTS ══════════════════════ -->
+<div class="spa-view" id="view-reports">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Reports &amp; Analytics</div>
+      <div class="section-sub">AI-generated board narratives and risk analytics</div>
+    </div>
+    <button class="btn-erm-ai" id="ermBoardRptBtn" onclick="ermBoardReport(this)">&#128202; Generate Board Report</button>
+  </div>
+  <!-- Stats strip -->
+  <div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:20px">
+    <div class="stat-card" id="rptTotal"><div class="stat-label">Total Risks</div><div class="stat-value">—</div></div>
+    <div class="stat-card" id="rptCritical"><div class="stat-label">Critical</div><div class="stat-value" style="color:var(--red)">—</div></div>
+    <div class="stat-card" id="rptHigh"><div class="stat-label">High</div><div class="stat-value" style="color:var(--amber)">—</div></div>
+    <div class="stat-card" id="rptBreaches"><div class="stat-label">Appetite Breaches</div><div class="stat-value">—</div></div>
+    <div class="stat-card" id="rptBoard"><div class="stat-label">Board-Visible</div><div class="stat-value">—</div></div>
+  </div>
+  <!-- 3-panel row: donut + by-module + by-category -->
+  <div class="three-col" style="margin-bottom:20px">
+    <div class="panel-card">
+      <div class="panel-title">Risk Level Distribution</div>
+      <div id="rptDonut" style="padding:8px 0"></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">Risks by Source Module</div>
+      <div id="rptByModule" style="padding:8px 0"></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">By Category</div>
+      <div id="rptByCategory" style="padding:8px 0"></div>
+    </div>
+  </div>
+  <!-- Appetite compliance matrix + Assessment summary -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div class="panel-card">
+      <div class="panel-title">Appetite Compliance</div>
+      <div id="rptAppetiteMatrix" style="padding:8px 0"></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">Assessment Results Summary</div>
+      <div id="rptAssessments" style="padding:8px 0"></div>
+    </div>
+  </div>
+  <!-- Risk Trend + Aging row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div class="panel-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="panel-title" style="margin-bottom:0">Risk Trend</div>
+        <div style="display:flex;gap:4px" id="trendPeriodBtns">
+          <button class="erm-chip active" data-days="30" onclick="ermSelectTrendPeriod(this)">30d</button>
+          <button class="erm-chip" data-days="60" onclick="ermSelectTrendPeriod(this)">60d</button>
+          <button class="erm-chip" data-days="90" onclick="ermSelectTrendPeriod(this)">90d</button>
+        </div>
+      </div>
+      <div class="erm-trend-wrap"><div id="rptTrendChart" style="width:100%;height:120px">Loading…</div></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">Risk Aging</div>
+      <div id="rptAgingChart" style="padding:8px 0">Loading…</div>
+    </div>
+  </div>
+  <!-- Board report output -->
+  <div id="boardRptOutput" style="display:none">
+    <div class="panel-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="panel-title" style="margin-bottom:0">Board Report</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('boardRptText').textContent).then(()=>showToast&&showToast('Copied!'))">Copy</button>
+          <button class="btn btn-sm btn-secondary" onclick="ermDownloadDoc('ERM-Board-Report',document.getElementById('boardRptText').textContent)">⬇ .txt</button>
+          <button class="btn btn-sm btn-secondary" onclick="document.getElementById('boardRptOutput').style.display='none'">Close</button>
+        </div>
+      </div>
+      <div id="boardRptText" style="white-space:pre-wrap;line-height:1.8;font-size:14px;color:var(--text)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ CHAT ══════════════════════ -->
+<div class="spa-view" id="view-chat">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Ask ERM AI</div>
+      <div class="section-sub">Risk management advice, treatment planning, regulatory guidance</div>
+    </div>
+    <button class="btn btn-secondary" onclick="ermClearChat()" style="font-size:12px">Clear History</button>
+  </div>
+  <div class="card" style="overflow:hidden">
+    <div style="display:flex;flex-direction:column;height:calc(100vh - 230px);min-height:420px">
+      <div id="ermChatMsgs" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5">
+          Hello! I'm your ERM AI assistant. Ask me about risk scoring, treatment strategies, appetite frameworks, or regulatory requirements.
+        </div>
+      </div>
+      <!-- Prompt chips -->
+      <div id="ermPromptChips" style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;background:var(--surface2)">
+        <span class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Suggest treatment for my top risk</span>
+        <span class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Summarise our appetite breaches</span>
+        <span class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Key GDPR obligations to track</span>
+        <span class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Help me score a technology risk</span>
+      </div>
+      <div style="display:flex;gap:10px;padding:14px 16px;border-top:1px solid var(--border);background:var(--surface)">
+        <input type="text" id="ermChatInput" placeholder="Ask about enterprise risks, appetite, treatment plans…" style="flex:1;padding:11px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ermSendChat()}">
+        <button class="btn btn-primary" onclick="ermSendChat()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ INDICATORS ══════════════════════ -->
+<div class="spa-view" id="view-indicators">
+  <div class="section-header animate-fade-up">
+    <div>
+      <div class="section-title">Key Risk Indicators</div>
+      <div class="section-sub">Monitor performance thresholds linked to enterprise risks</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="ermOpenKriModal()">+ Add KRI</button>
+    </div>
+  </div>
+  <div id="kriBreachBanner" style="display:none;margin-bottom:16px"></div>
+  <div class="stats-row" id="kriStats" style="margin-bottom:20px"></div>
+  <div id="kriGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
+    <div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+  </div>
+</div>
+
+</div><!-- /ermSpaRoot -->
+
+<!-- Shared overlay containers -->
+<div id="ermRiskDrawer"></div>
+<div id="ermResultsDrawer"></div>
+<div id="ermModalRoot"></div>
+<div id="ermDocViewerRoot"></div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+'use strict';
+
+/* ────────────────── HELPERS ────────────────── */
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function fmtDate(ts){if(!ts)return'—';try{var d=new Date(ts.includes('T')?ts:ts+' UTC');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return ts;}}
+function daysUntil(ds){if(!ds)return null;var diff=Math.round((new Date(ds)-new Date())/(864e5));return diff;}
+function timeAgo(ts){if(!ts)return'';try{var s=Math.floor((Date.now()-new Date(ts.includes('T')?ts:ts+' UTC'))/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}catch(e){return'';}}
+function scoreToLevel(s){s=parseInt(s)||0;if(s>=20)return'critical';if(s>=12)return'high';if(s>=6)return'medium';return'low';}
+function levelBadge(lvl){var m={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};return'<span class="badge '+(m[lvl]||'badge-draft')+'">'+esc((lvl||'?').toUpperCase())+'</span>';}
+function statusBadge(s){var m={open:'badge-high',under_review:'badge-progress',mitigated:'badge-complete',accepted:'badge-draft',closed:'badge-draft',pending:'badge-draft',compliant:'badge-complete',non_compliant:'badge-critical',draft:'badge-draft',active:'badge-high',closed:'badge-draft'};var lbl=(s||'—').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});return'<span class="badge '+(m[(s||'').toLowerCase()]||'badge-draft')+'">'+esc(lbl)+'</span>';}
+function srcPill(mod,src){var cls={erm:'src-pill-erm',grid:'src-pill-grid',bcm:'src-pill-bcm',sentinel:'src-pill-sentinel',orm:'src-pill-orm'};var lbl=src==='erm'?'ERM':(mod||src||'?');return'<span class="src-pill '+(cls[mod]||cls[src]||'')+'">'+esc(lbl.toUpperCase())+'</span>';}
+function spinner(n){return'<tr><td colspan="'+n+'" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
+function emptyRow(n,msg){return'<tr><td colspan="'+n+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records')+'</td></tr>';}
+function trendArrow(n){if(!n&&n!==0)return'';var c=n>0?'var(--red)':n<0?'var(--good,#16a34a)':'var(--muted)';var sym=n>0?'▲':n<0?'▼':'—';return'<span style="color:'+c+';font-weight:700">'+sym+' '+Math.abs(n)+' vs 30d</span>';}
+function statCards(elId,cards){var el=document.getElementById(elId);if(!el)return;el.innerHTML=cards.map(function(c){return'<div class="stat-card" style="padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">'+esc(c.label)+'</div><div style="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+(c.sub?'<div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(c.sub)+'</div>':'')+' </div>';}).join('');el.querySelectorAll('.stat-card').forEach(function(card){card.addEventListener('mousemove',function(e){var r=card.getBoundingClientRect();var x=(e.clientX-r.left)/r.width-.5;var y=(e.clientY-r.top)/r.height-.5;card.style.transform='perspective(600px) rotateX('+(-y*8)+'deg) rotateY('+(x*8)+'deg) translateY(-2px)';});card.addEventListener('mouseleave',function(){card.style.transform='';});});}
+
+async function apiFetch(url,opts){
+  opts=opts||{};opts.headers=opts.headers||{};
+  if(opts.body&&typeof opts.body==='object'){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(opts.body);}
+  var r=await fetch(url,opts);
+  if(!r.ok){var txt='';try{var j=await r.json();txt=j.detail||JSON.stringify(j);}catch(e){txt=r.statusText;}throw new Error(txt||'HTTP '+r.status);}
+  if(r.status===204)return null;return r.json();
+}
+
+/* ────────────────── DOC VIEWER ────────────────── */
+var _docContent='';
+window.ermDownloadDoc=function(name,content){var b=new Blob([content||_docContent],{type:'text/plain'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(name||'erm').replace(/[^a-z0-9]/gi,'_').toLowerCase()+'.txt';document.body.appendChild(a);a.click();document.body.removeChild(a);};
+window.ermCloseDocViewer=function(){document.getElementById('ermDocViewerRoot').innerHTML='';};
+
+/* ── Role flags ── */
+var ERM_IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+
+/* ────────────────── SPA ROUTER ────────────────── */
+var _routes={'/erm/':'dashboard','/erm':'dashboard','/erm/register':'register','/erm/appetite':'appetite','/erm/library':'library','/erm/obligations':'obligations','/erm/indicators':'indicators','/erm/assessments':'assessments','/erm/reports':'reports','/erm/chat':'chat'};
+var _crumbs={dashboard:'Dashboard',register:'Risk Register',appetite:'Risk Appetite',library:'Risk Library',obligations:'Obligations',indicators:'KRI Indicators',assessments:'Assessments',reports:'Reports',chat:'Ask ERM AI'};
+var ermRouter={
+  current:null,
+  navigate:function(p,replace){if(replace)history.replaceState(null,'',p);else history.pushState(null,'',p);this.resolve();},
+  resolve:function(){
+    var path=location.pathname.replace(/\/+$/,'')||'/erm';
+    var view=_routes[path]||_routes[path+'/']||'dashboard';
+    if(view===this.current)return;
+    this.current=view;
+    document.querySelectorAll('#ermSpaRoot .spa-view').forEach(function(v){v.classList.remove('active');});
+    var el=document.getElementById('view-'+view);if(el)el.classList.add('active');
+    var bc=document.getElementById('ermBreadcrumb');if(bc)bc.textContent=_crumbs[view]||view;
+    document.querySelectorAll('[data-spa]').forEach(function(a){
+      a.classList.remove('active');
+      var t=(a.getAttribute('data-spa')||'').replace(/\/+$/,'')||'/erm';
+      if(t===path)a.classList.add('active');
+    });
+    this.load(view);
+  },
+  load:function(v){
+    switch(v){
+      case'dashboard':   ermLoadDashboard();break;
+      case'register':    ermLoadRegister();break;
+      case'appetite':    ermLoadAppetite();break;
+      case'library':     ermLoadLibrary();break;
+      case'obligations': ermLoadObligations();break;
+      case'assessments': ermLoadAssessments();break;
+      case'reports':     ermLoadReports();break;
+      case'chat':        ermLoadChat();break;
+      case'indicators':  ermLoadIndicators();break;
+    }
+  }
+};
+document.addEventListener('click',function(e){var a=e.target.closest('[data-spa]');if(a){e.preventDefault();ermRouter.navigate(a.getAttribute('data-spa'));}});
+window.addEventListener('popstate',function(){ermRouter.resolve();});
+window.ermNav=function(p){ermRouter.navigate(p);};
+
+/* chip filter helper */
+function initChips(barId,onchange){
+  var bar=document.getElementById(barId);if(!bar)return;
+  bar.querySelectorAll('.erm-chip').forEach(function(chip){
+    chip.addEventListener('click',function(){bar.querySelectorAll('.erm-chip').forEach(function(c){c.classList.remove('active');});chip.classList.add('active');if(onchange)onchange(chip.dataset.status||chip.dataset.industry||'');});
+  });
+}
+
+/* ────────────────── DASHBOARD ────────────────── */
+async function ermLoadDashboard(){
+  try{
+    var d=await apiFetch('/erm/api/dashboard');
+    document.getElementById('ermLastUpdated').textContent='just now';
+    document.getElementById('dTotalRisks').textContent=d.total_risks||0;
+    document.getElementById('dTotalSub').textContent=(d.total_enterprise_risks||0)+' enterprise + '+(d.total_register_risks||0)+' platform';
+    var tc=document.getElementById('dTrendTotal');if(tc)tc.innerHTML=trendArrow(d.trend_total);
+    document.getElementById('dCritical').textContent=d.critical||0;
+    var cc=document.getElementById('dTrendCrit');if(cc)cc.innerHTML=trendArrow(d.trend_critical);
+    document.getElementById('dAppetiteBreaches').textContent=d.appetite_breaches||0;
+    var oblEl=document.getElementById('dObligations');if(oblEl){oblEl.textContent=d.overdue_obligations||0;oblEl.style.color=d.overdue_obligations>0?'var(--red)':'var(--good,#16a34a)';}
+    document.getElementById('dBoardRisks').textContent=d.board_visible||0;
+    // Nav counters
+    var nav=document.getElementById('ermNavRisks');if(nav)nav.textContent=d.total_enterprise_risks||0;
+    var oblNav=document.getElementById('ermNavObl');if(oblNav)oblNav.textContent=d.overdue_obligations||0;
+    var apBadge=document.getElementById('ermNavAppetite');if(apBadge)apBadge.style.display=d.appetite_breaches>0?'':'none';
+    var asNav=document.getElementById('ermNavAssess');if(asNav)asNav.textContent=d.open_assessments||0;
+    // Panels
+    ermRenderHeatMap(d.register_stats&&d.register_stats.heat_map||null);
+    ermRenderAppetitePanel(d.appetite_status||[]);
+    ermRenderTopCritical(d.top_critical_risks||[]);
+    ermRenderActionsRequired(d.actions_required||[]);
+    ermRenderFeedPanel(d.risk_feed||[]);
+  }catch(e){console.error('ERM dashboard',e);}
+}
+
+function ermRenderHeatMap(hm){
+  var el=document.getElementById('ermHeatMap');if(!el)return;
+  if(!hm||!hm.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px">No risk data yet</div>';return;}
+  var cells='';
+  for(var l=4;l>=0;l--){
+    cells+='<div class="heat-axis">'+(l+1)+'</div>';
+    for(var i=0;i<5;i++){
+      var cnt=hm[l][i]||0;var sc=(l+1)*(i+1);
+      var cls=sc>=20?'heat-4':sc>=12?'heat-3':sc>=6?'heat-2':sc>=4?'heat-1':'heat-0';
+      var ll=l+1,ii=i+1;
+      cells+='<div class="heat-cell '+cls+'" onclick="ermNavToRegisterFiltered('+ll+','+ii+')" title="L'+ll+'×I'+ii+'='+sc+' ('+cnt+' risks)">'+(cnt||'')+'</div>';
+    }
+  }
+  var hdr='<div></div>';for(var j=1;j<=5;j++)hdr+='<div class="heat-axis">'+j+'</div>';
+  el.innerHTML='<div class="heat-map-grid">'+hdr+cells+'</div>';
+}
+window.ermNavToRegisterFiltered=function(l,i){
+  _heatL=l; _heatI=i;
+  ermRouter.navigate('/erm/register');
+};
+var _heatL=0,_heatI=0;
+
+function ermRenderAppetitePanel(statuses){
+  var el=document.getElementById('ermAppetitePanel');if(!el)return;
+  if(!statuses.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:12px;font-size:12px">No appetite defined yet</div>';return;}
+  el.innerHTML=statuses.slice(0,6).map(function(a){
+    var pct=a.max_score>0?Math.min(100,Math.round((a.current_max_score/a.max_score)*100)):0;
+    var cls=a.breached?'gauge-breach':pct>=80?'gauge-warn':'gauge-ok';
+    var ragColor=a.breached?'var(--red)':pct>=80?'var(--amber)':'var(--good,#16a34a)';
+    return'<div style="margin-bottom:10px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="font-size:12px;font-weight:600;text-transform:capitalize">'+esc(a.category)+'</div>'+
+        '<div style="font-size:11px;font-weight:700;color:'+ragColor+'">'+(a.breached?'⚠ BREACH':a.current_max_score+'/'+a.max_score)+'</div>'+
+      '</div>'+
+      '<div class="gauge-bar" style="margin:4px 0 0"><div class="gauge-fill '+cls+'" style="width:'+pct+'%"></div></div>'+
+    '</div>';
+  }).join('');
+}
+
+function ermRenderTopCritical(risks){
+  var el=document.getElementById('ermTopCritical');if(!el)return;
+  if(!risks.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:12px">No critical risks — well done!</div>';return;}
+  el.innerHTML=risks.map(function(r){
+    var score=r.score||((r.likelihood||0)*(r.impact||0));
+    var lvl=scoreToLevel(score);
+    var scoreCl=lvl==='critical'?'var(--red)':lvl==='high'?'var(--amber)':'var(--text)';
+    return'<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">'+
+      '<div style="font-size:15px;font-weight:800;color:'+scoreCl+';flex-shrink:0;width:28px;text-align:center">'+score+'</div>'+
+      '<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.title)+'</div>'+
+      '<div style="color:var(--muted);font-size:11px;text-transform:capitalize">'+esc(r.category||'')+'</div></div>'+
+      srcPill(r.source_module,'erm')+
+      '<a href="#" onclick="event.preventDefault();ermRouter.navigate(\'/erm/register\')" style="color:var(--accent);font-size:11px;white-space:nowrap;text-decoration:none">View →</a>'+
+    '</div>';
+  }).join('');
+}
+
+function ermRenderActionsRequired(actions){
+  var el=document.getElementById('ermActionsRequired');if(!el)return;
+  if(!actions.length){el.innerHTML='<div style="color:var(--good,#16a34a);text-align:center;padding:16px;font-size:13px">✓ No actions required</div>';return;}
+  var icons={unowned_risk:'👤',overdue_review:'📅',overdue_obligation:'⚠'};
+  el.innerHTML=actions.map(function(a){
+    return'<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">'+
+      '<div style="font-size:16px;flex-shrink:0">'+(icons[a.type]||'!')+'</div>'+
+      '<div style="flex:1">'+esc(a.text)+'</div>'+
+      '<a href="#" onclick="event.preventDefault();ermRouter.navigate(\''+a.link+'\')" style="color:var(--accent);font-size:11px;white-space:nowrap;text-decoration:none;flex-shrink:0">Fix →</a>'+
+    '</div>';
+  }).join('');
+}
+
+function ermRenderFeedPanel(items){
+  var el=document.getElementById('ermFeedPanel');if(!el)return;
+  if(!items.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:12px">No cross-module risk events yet</div>';return;}
+  var modColors={aria:'#7e8062',grid:'#16a34a',bcm:'#d97706',sentinel:'#0891b2',erm:'var(--accent)',orm:'#ea580c',platform:'var(--muted)'};
+  el.innerHTML=items.map(function(f){
+    var col=modColors[f.source_module]||'var(--muted)';
+    var payload={};try{payload=JSON.parse(f.payload||'{}');}catch(e){}
+    return'<div class="feed-item">'+
+      '<div class="feed-dot" style="background:'+col+'"></div>'+
+      '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(payload.title||f.event_type.replace(/\./g,' '))+'</div>'+
+      '<div style="font-size:11px;color:var(--muted)">'+esc(f.source_module||'?')+' &bull; '+timeAgo(f.created_at)+'</div></div>'+
+    '</div>';
+  }).join('');
+}
+
+/* ────────────────── REGISTER ────────────────── */
+var regCache=[], regStatusFilter='', regSelIds=new Set(), _drawerRisk=null;
+
+window.ermLoadRegister=async function(){
+  var body=document.getElementById('ermRegBody');body.innerHTML=spinner(11);
+  try{
+    var data=await apiFetch('/erm/api/register');
+    regCache=Array.isArray(data)?data:[];
+    initChips('regFilterBar',function(s){regStatusFilter=s;ermRenderRegister();});
+    // Apply heat-map filter if navigated from heat map cell
+    if(_heatL&&_heatI){
+      setTimeout(function(){
+        var hint=document.getElementById('regHeatHint');
+        if(hint)hint.textContent='Filtered: L'+_heatL+'×I'+_heatI+' = '+(+_heatL*+_heatI);
+        var hf=document.getElementById('regHeatFilter');if(hf)hf.style.display='';
+        _regHeatFilter={l:_heatL,i:_heatI};_heatL=0;_heatI=0;
+        ermRenderRegister();
+      },100);
+    } else { _regHeatFilter=null; ermRenderRegister(); }
+  }catch(e){document.getElementById('ermRegBody').innerHTML=emptyRow(11,'Failed to load: '+e.message);}
+};
+var _regHeatFilter=null;
+
+window.ermRenderRegister=function(){
+  var q=(document.getElementById('regSearch')||{}).value||'';
+  var cat=(document.getElementById('regCatFilter')||{}).value||'';
+  var filtered=regCache.filter(function(r){
+    if(regStatusFilter&&r.status!==regStatusFilter)return false;
+    if(cat&&r.category!==cat)return false;
+    if(q){var t=(r.title||'').toLowerCase()+(r.description||'').toLowerCase();if(!t.includes(q.toLowerCase()))return false;}
+    if(_regHeatFilter){
+      var rl=r.likelihood||0,ri=r.impact||0;
+      if(rl!==_regHeatFilter.l||ri!==_regHeatFilter.i)return false;
+    }
+    return true;
+  });
+  var critical=filtered.filter(function(r){return scoreToLevel(r.risk_score||0)==='critical';}).length;
+  var high=filtered.filter(function(r){return scoreToLevel(r.risk_score||0)==='high';}).length;
+  var erm=filtered.filter(function(r){return r.register_source==='erm';}).length;
+  var elevated=filtered.filter(function(r){return r.register_source==='erm'&&r.source_module&&r.source_module!=='erm';}).length;
+  statCards('regStats',[
+    {label:'Showing',value:filtered.length},{label:'Critical',value:critical,color:'var(--red)'},{label:'High',value:high,color:'var(--amber)'},{label:'ERM',value:erm},{label:'Auto-Elevated',value:elevated,sub:'from other modules'}
+  ]);
+  var banner=document.getElementById('regXmBanner');
+  if(banner){if(elevated>0){banner.style.display='';banner.innerHTML='<div class="xm-banner"><span style="font-size:18px">📥</span><div><strong>'+elevated+' risk'+(elevated>1?'s':'')+'</strong> auto-elevated from GRID, BCM, Sentinel or ORM. Review and assign owners.</div></div>';}else{banner.style.display='none';}}
+  var body=document.getElementById('ermRegBody');
+  if(!filtered.length){body.innerHTML=emptyRow(11,'No risks match current filters');return;}
+  body.innerHTML=filtered.map(function(r){
+    var score=r.risk_score||((r.likelihood||0)*(r.impact||0));
+    var lvl=scoreToLevel(score);
+    var scoreCl=lvl==='critical'?'var(--red)':lvl==='high'?'var(--amber)':lvl==='medium'?'var(--blue)':'var(--good,#16a34a)';
+    var isErm=r.register_source==='erm';
+    var boardBadge=isErm&&r.board_visibility?'<span class="board-badge">★ Board</span> ':'';
+    var resScore=r.residual_likelihood&&r.residual_impact?(r.residual_likelihood*r.residual_impact):'—';
+    var reviewDays=daysUntil(r.review_date);
+    var reviewStr=reviewDays===null?'—':reviewDays<0?'<span style="color:var(--red);font-weight:700">'+Math.abs(reviewDays)+'d overdue</span>':'<span style="color:var(--good,#16a34a)">'+reviewDays+'d</span>';
+    var chk='<input type="checkbox" class="reg-chk" data-id="'+r.id+'" onchange="ermToggleSelect(this)" style="cursor:pointer"'+(regSelIds.has(r.id)?' checked':'')+'>';
+    var aiBtn=isErm?'<button class="btn-erm-ai" onclick="event.stopPropagation();ermAiScoreRisk('+r.id+',this)" title="AI score">🤖</button>':'';
+    var editBtn=isErm?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();ermEditRisk('+r.id+')" style="padding:3px 7px" title="Edit">✎</button>':'';
+    var delBtn=ERM_IS_ADMIN?'<button onclick="event.stopPropagation();ermDeleteRisk('+r.id+',\''+esc(r.register_source||'erm')+'\')" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" onmouseenter="this.style.color=\'#ef4444\';this.style.borderColor=\'rgba(239,68,68,.3)\'" onmouseleave="this.style.color=\'var(--muted)\';this.style.borderColor=\'transparent\'" title="Delete risk">🗑</button>':'';
+    var ql=r.qualitative_score||lvl;
+    var qChip='<span class="q-chip q-chip-'+ql+'">'+ql+'</span>';
+    var wfStep=r.workflow_step||'draft';
+    var wfChip='<span class="wf-chip wf-chip-'+wfStep+'">'+wfStep+'</span>';
+    return'<tr onclick="ermOpenRiskDrawer('+r.id+')" style="cursor:pointer">'+
+      '<td onclick="event.stopPropagation()">'+chk+'</td>'+
+      '<td style="font-weight:600;max-width:200px">'+boardBadge+esc(r.title||'')+'</td>'+
+      '<td style="text-transform:capitalize;font-size:12px">'+esc(r.category||'')+'</td>'+
+      '<td style="text-align:center;font-weight:800;color:'+scoreCl+'">'+score+qChip+'</td>'+
+      '<td>'+wfChip+'</td>'+
+      '<td>'+statusBadge(r.status)+'</td>'+
+      '<td style="font-size:12px">'+esc(r.owner_name||'—')+'</td>'+
+      '<td style="font-size:11px;white-space:nowrap">'+reviewStr+'</td>'+
+      '<td style="text-align:center;font-size:12px">'+resScore+'</td>'+
+      '<td>'+srcPill(r.source_module||'erm',r.register_source)+'</td>'+
+      '<td onclick="event.stopPropagation()"><div style="display:flex;gap:3px;align-items:center">'+aiBtn+editBtn+delBtn+'</div></td>'+
+    '</tr>';
+  }).join('');
+};
+
+/* Bulk select */
+window.ermToggleSelect=function(chk){var id=parseInt(chk.dataset.id);if(chk.checked)regSelIds.add(id);else regSelIds.delete(id);ermUpdateBulkBar();};
+window.ermSelectAll=function(chk){regSelIds.clear();if(chk.checked){document.querySelectorAll('.reg-chk').forEach(function(c){regSelIds.add(parseInt(c.dataset.id));c.checked=true;});}else{document.querySelectorAll('.reg-chk').forEach(function(c){c.checked=false;});}ermUpdateBulkBar();};
+function ermUpdateBulkBar(){var bar=document.getElementById('ermBulkBar');var cnt=document.getElementById('ermBulkCount');if(bar){bar.style.display=regSelIds.size>0?'':'none';}if(cnt)cnt.textContent=regSelIds.size+' selected';}
+window.ermClearSelection=function(){regSelIds.clear();document.querySelectorAll('.reg-chk').forEach(function(c){c.checked=false;});var sa=document.getElementById('regSelectAll');if(sa)sa.checked=false;ermUpdateBulkBar();};
+window.ermBulkStatus=function(){
+  var ids=Array.from(regSelIds).filter(function(id){return regCache.find(function(r){return r.id===id&&r.register_source==='erm';});});
+  if(!ids.length){typeof showToast==='function'&&showToast('No ERM risks selected','error');return;}
+  var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:400px">'+
+    '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
+    '<div class="modal-title">Change Status — '+ids.length+' risk(s)</div>'+
+    '<div class="form-group"><label>New Status</label><select id="bulkStatusSel">'+
+      '<option value="open">Open</option><option value="under_review">Under Review</option>'+
+      '<option value="mitigated">Mitigated</option><option value="accepted">Accepted</option><option value="closed">Closed</option>'+
+    '</select></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
+      '<button class="btn btn-primary" onclick="ermDoBulkStatus('+JSON.stringify(ids)+')">Apply</button>'+
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ermDoBulkStatus=async function(ids){
+  var s=(document.getElementById('bulkStatusSel')||{}).value;if(!s)return;
+  document.querySelector('.erm-modal-overlay')&&document.querySelector('.erm-modal-overlay').remove();
+  try{for(var id of ids)await apiFetch('/erm/api/risks/'+id,{method:'PUT',body:{status:s}});ermClearSelection();ermLoadRegister();typeof showToast==='function'&&showToast('Updated '+ids.length+' risks');}
+  catch(e){typeof showToast==='function'&&showToast('Bulk update failed','error');}
+};
+window.ermBulkAssign=async function(){
+  var ids=Array.from(regSelIds).filter(function(id){return regCache.find(function(r){return r.id===id&&r.register_source==='erm';});});
+  if(!ids.length){typeof showToast==='function'&&showToast('No ERM risks selected','error');return;}
+  try{
+    var users=await apiFetch('/erm/api/users')||[];
+    var opts=users.map(function(u){return'<option value="'+u.id+'">'+esc(u.full_name||u.username)+'</option>';}).join('');
+    var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:400px">'+
+      '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
+      '<div class="modal-title">Assign Owner — '+ids.length+' risk(s)</div>'+
+      '<div class="form-group"><label>Owner</label><select id="bulkOwnerSel">'+opts+'</select></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ermDoBulkAssign('+JSON.stringify(ids)+')">Assign</button>'+
+      '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  }catch(e){typeof showToast==='function'&&showToast('Failed to load users','error');}
+};
+window.ermDoBulkAssign=async function(ids){
+  var oid=parseInt((document.getElementById('bulkOwnerSel')||{}).value||'0');if(!oid)return;
+  document.querySelector('.erm-modal-overlay')&&document.querySelector('.erm-modal-overlay').remove();
+  try{for(var id of ids)await apiFetch('/erm/api/risks/'+id,{method:'PUT',body:{owner_id:oid}});ermClearSelection();ermLoadRegister();typeof showToast==='function'&&showToast('Assigned '+ids.length+' risks');}
+  catch(e){typeof showToast==='function'&&showToast('Assign failed','error');}
+};
+window.ermBulkDelete=async function(){
+  var ids=Array.from(regSelIds).filter(function(id){return regCache.find(function(r){return r.id===id&&r.register_source==='erm';});});
+  if(!confirm('Delete '+ids.length+' ERM risk(s)?'))return;
+  try{for(var id of ids)await apiFetch('/erm/api/risks/'+id,{method:'DELETE'});ermClearSelection();ermLoadRegister();typeof showToast==='function'&&showToast('Deleted '+ids.length+' risks');}
+  catch(e){typeof showToast==='function'&&showToast('Delete failed','error');}
+};
+window.ermExportCSV=function(){
+  if(!regCache.length){typeof showToast==='function'&&showToast('No data to export','error');return;}
+  var q=(document.getElementById('regSearch')||{}).value||'';
+  var cat=(document.getElementById('regCatFilter')||{}).value||'';
+  var rows=regCache.filter(function(r){if(regStatusFilter&&r.status!==regStatusFilter)return false;if(cat&&r.category!==cat)return false;if(q){var t=(r.title||'').toLowerCase()+(r.description||'').toLowerCase();if(!t.includes(q.toLowerCase()))return false;}return true;});
+  var hdr=['ID','Title','Category','Likelihood','Impact','Score','Level','Status','Treatment','Owner','Source','Board Visible','Review Date'];
+  var lines=[hdr.join(',')].concat(rows.map(function(r){var score=r.risk_score||((r.likelihood||0)*(r.impact||0));return[r.id,'"'+(r.title||'').replace(/"/g,'""')+'"',r.category||'',r.likelihood||'',r.impact||'',score,scoreToLevel(score),r.status||'',r.treatment||'',r.owner_name||'',r.source_module||r.register_source||'',r.board_visibility?1:0,r.review_date||''].join(',');}));
+  var b=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='erm-register.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
+  typeof showToast==='function'&&showToast('Exported '+rows.length+' rows');
+};
+window.ermEditRisk=function(id){var r=regCache.find(function(x){return x.id===id&&x.register_source==='erm';});if(r)ermOpenRiskModal(r);};
+/* Delete works for both erm_enterprise_risks AND platform risk_register entries.
+   registerSource defaults to auto-detect from regCache. */
+window.ermDeleteRisk=async function(id,registerSource){
+  if(!confirm('Delete this risk? This cannot be undone.'))return;
+  try{
+    var src=registerSource||(regCache.find(function(r){return r.id===id;})||{}).register_source||'erm';
+    var url=src==='erm'?'/erm/api/risks/'+id:'/erm/api/register-entry/'+id;
+    await apiFetch(url,{method:'DELETE'});
+    ermCloseRiskDrawer();
+    ermLoadRegister();
+    typeof showToast==='function'&&showToast('Risk deleted');
+  }catch(e){typeof showToast==='function'&&showToast('Delete failed: '+(e.message||e),'error');}
+};
+window.ermAiScoreRisk=async function(id,btn){var orig=btn.textContent;btn.disabled=true;btn.textContent='…';try{var res=await apiFetch('/erm/api/ai/score-risk/'+id,{method:'POST'});btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('AI scored L'+res.likelihood+'×I'+res.impact+'='+(res.likelihood*res.impact));ermLoadRegister();}catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('AI failed','error');}};
+
+/* ── Risk Drawer ── */
+window.ermOpenRiskDrawer=async function(id){
+  _drawerRisk=null;
+  document.getElementById('ermRiskDrawer').innerHTML=
+    '<div class="erm-drawer-overlay" onclick="if(event.target===this)ermCloseRiskDrawer()">'+
+    '<div class="erm-drawer-panel">'+
+    '<div style="height:3px;background:var(--accent);flex-shrink:0"></div>'+
+    '<div class="erm-drawer-head"><div style="font-size:15px;font-weight:700;flex:1">Loading…</div>'+
+    '<button onclick="ermCloseRiskDrawer()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:0 4px">✕</button></div>'+
+    '<div class="erm-drawer-body"><div class="spinner" style="margin:60px auto"></div></div>'+
+    '</div></div>';
+  try{
+    var r=await apiFetch('/erm/api/risks/'+id);
+    if(!r){var rr=regCache.find(function(x){return x.id===id;});r=rr||null;}
+    if(!r){ermCloseRiskDrawer();return;}
+    _drawerRisk=r;
+    var score=(r.likelihood||0)*(r.impact||0);
+    var qScore=r.qualitative_score||scoreToLevel(score);
+    var resScore=(r.residual_likelihood&&r.residual_impact)?(r.residual_likelihood*r.residual_impact):null;
+    // isErm = stored in erm_enterprise_risks (not a cross-module risk_register entry)
+    // get_enterprise_risk now returns register_source='erm'; regCache fallback also has it
+    var isErm=r.register_source==='erm'||r.source_module==='erm'||(!r.register_source&&!r.risk_level);
+    var registerSrc=r.register_source||'erm';
+    // Qualitative color maps
+    var qColor={critical:'#dc2626',high:'#ea580c',medium:'#d97706',low:'#16a34a'}[qScore]||'var(--muted)';
+    var qBg={critical:'rgba(220,38,38,.08)',high:'rgba(234,88,12,.08)',medium:'rgba(217,119,6,.08)',low:'rgba(22,163,74,.08)'}[qScore]||'var(--surface2)';
+    var qBorder={critical:'rgba(220,38,38,.22)',high:'rgba(234,88,12,.22)',medium:'rgba(217,119,6,.22)',low:'rgba(22,163,74,.22)'}[qScore]||'var(--border)';
+    // Treatment color maps
+    var txColor={mitigate:'#2563eb',accept:'#16a34a',avoid:'#dc2626',transfer:'#d97706'}[r.treatment||'mitigate']||'var(--muted)';
+    var txBg={mitigate:'rgba(37,99,235,.1)',accept:'rgba(22,163,74,.1)',avoid:'rgba(220,38,38,.1)',transfer:'rgba(217,119,6,.1)'}[r.treatment||'mitigate']||'var(--surface2)';
+    var txBorder={mitigate:'rgba(37,99,235,.25)',accept:'rgba(22,163,74,.25)',avoid:'rgba(220,38,38,.25)',transfer:'rgba(217,119,6,.25)'}[r.treatment||'mitigate']||'var(--border)';
+    // Workflow steps
+    var wfSteps=['draft','identified','assessed','treated','monitored','closed'];
+    var curOrd=wfSteps.indexOf(r.workflow_step||'draft');
+    // Detail card helper
+    function dCard(label,val,fullWidth){
+      return '<div style="background:var(--surface2);border-radius:var(--radius);padding:9px 12px'+(fullWidth?';grid-column:1/-1':'')+'">'
+        +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:3px">'+label+'</div>'
+        +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+val+'</div>'
+        +'</div>';
+    }
+    document.getElementById('ermRiskDrawer').innerHTML=
+      '<div class="erm-drawer-overlay" onclick="if(event.target===this)ermCloseRiskDrawer()">'+
+      '<div class="erm-drawer-panel">'+
+      // Accent strip
+      '<div style="height:3px;background:var(--accent);flex-shrink:0"></div>'+
+      // ── Header ──
+      '<div class="erm-drawer-head" style="align-items:flex-start;gap:12px;padding:16px 20px 14px">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:16px;font-weight:800;line-height:1.35;color:var(--text);margin-bottom:9px">'+
+            (r.board_visibility?'<span class="board-badge" style="vertical-align:middle;margin-right:6px">★ Board</span>':'')+
+            esc(r.title)+
+          '</div>'+
+          '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+
+            levelBadge(qScore)+statusBadge(r.status)+srcPill(r.source_module||'erm',r.register_source||'erm')+
+            '<span class="wf-chip wf-chip-'+(r.workflow_step||'draft')+'">'+(r.workflow_step||'draft')+'</span>'+
+          '</div>'+
+        '</div>'+
+        // Score pill (top-right of header)
+        '<div style="flex-shrink:0;background:'+qBg+';border:1px solid '+qBorder+';border-radius:var(--radius-lg);padding:8px 16px;text-align:center;min-width:64px">'+
+          '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+qColor+';margin-bottom:2px">Score</div>'+
+          '<div style="font-size:28px;font-weight:900;line-height:1;color:'+qColor+'">'+score+'</div>'+
+          '<div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:'+qColor+';margin-top:2px">'+qScore+'</div>'+
+        '</div>'+
+        '<button onclick="ermCloseRiskDrawer()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;flex-shrink:0;padding:0 4px;line-height:1;margin-top:1px">✕</button>'+
+      '</div>'+
+      // ── Scrollable body ──
+      '<div class="erm-drawer-body" style="padding:18px 20px;display:flex;flex-direction:column;gap:0">'+
+        // Description
+        (r.description?
+          '<div class="erm-drawer-section">'+
+            '<div class="erm-drawer-section-title">Description</div>'+
+            '<div style="font-size:13px;color:var(--text);line-height:1.65;padding:12px 14px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">'+esc(r.description)+'</div>'+
+          '</div>':'')+
+        // Risk Scores — two cards side by side
+        '<div class="erm-drawer-section">'+
+          '<div class="erm-drawer-section-title">Risk Scores</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+            '<div style="background:'+qBg+';border:1px solid '+qBorder+';border-radius:var(--radius);padding:14px 12px;text-align:center">'+
+              '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:'+qColor+';margin-bottom:5px">Inherent</div>'+
+              '<div style="font-size:30px;font-weight:900;line-height:1;color:'+qColor+'">'+score+'</div>'+
+              '<div style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600">'+(r.likelihood||'?')+' × '+(r.impact||'?')+'</div>'+
+            '</div>'+
+            '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 12px;text-align:center">'+
+              '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:5px">Residual</div>'+
+              '<div style="font-size:30px;font-weight:900;line-height:1;color:var(--text)">'+(resScore||'—')+'</div>'+
+              (resScore?
+                '<div style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600">'+r.residual_likelihood+' × '+r.residual_impact+'</div>':
+                '<div style="font-size:11px;color:var(--muted);margin-top:5px">not assessed</div>')+
+            '</div>'+
+          '</div>'+
+          (r.velocity?
+            '<div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-radius:var(--radius)">'+
+              '<span style="font-size:12px;color:var(--muted);font-weight:600">Velocity (speed of materialisation)</span>'+
+              '<span style="font-size:13px;font-weight:800;color:var(--text)">'+r.velocity+' / 5</span>'+
+            '</div>':'')+
+        '</div>'+
+        // Details — 2-col grid of mini cards
+        '<div class="erm-drawer-section">'+
+          '<div class="erm-drawer-section-title">Details</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+            dCard('Category','<span style="text-transform:capitalize">'+(r.category||'—')+'</span>')+
+            dCard('Owner',esc(r.owner_name||'Unassigned'))+
+            dCard('Review Date',fmtDate(r.review_date))+
+            dCard('Source',srcPill(r.source_module||'erm',r.register_source||'erm'))+
+            (r.regulation_links?dCard('Regulations','<span style="font-size:12px">'+esc(r.regulation_links)+'</span>',true):'')+
+          '</div>'+
+        '</div>'+
+        // Treatment
+        '<div class="erm-drawer-section">'+
+          '<div class="erm-drawer-section-title">Treatment</div>'+
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+            '<span style="font-size:11px;font-weight:700;color:var(--muted)">Strategy</span>'+
+            '<span style="background:'+txBg+';color:'+txColor+';border:1px solid '+txBorder+';font-size:12px;font-weight:800;text-transform:capitalize;padding:3px 12px;border-radius:100px">'+(r.treatment||'mitigate')+'</span>'+
+          '</div>'+
+          (r.treatment_plan?
+            '<div style="font-size:13px;color:var(--text);line-height:1.65;padding:12px 14px;background:var(--surface2);border-radius:var(--radius)">'+esc(r.treatment_plan)+'</div>':
+            '<div style="font-size:12px;color:var(--muted);padding:10px 14px;background:var(--surface2);border-radius:var(--radius);font-style:italic">No treatment plan recorded.</div>')+
+        '</div>'+
+        // Workflow Stepper
+        '<div class="erm-drawer-section">'+
+          '<div class="erm-drawer-section-title">Workflow Progress</div>'+
+          '<div class="wf-stepper" id="wfStepper_'+id+'">'+
+            wfSteps.map(function(step){
+              var thisOrd=wfSteps.indexOf(step);
+              var cls=thisOrd<curOrd?'done':thisOrd===curOrd?'current':'';
+              return'<button class="wf-step-btn '+cls+'" onclick="ermAdvanceWorkflow('+id+',\''+step+'\',this)" title="Advance to: '+step+'">'+step+'</button>';
+            }).join('')+
+          '</div>'+
+          '<div id="wfHistory_'+id+'" style="margin-top:6px"></div>'+
+        '</div>'+
+      '</div>'+  // closes erm-drawer-body
+      // ── Footer ──
+      '<div class="erm-drawer-foot">'+
+        (isErm?'<button class="btn btn-primary" style="padding:7px 16px" onclick="ermCloseRiskDrawer();ermOpenRiskModal(_drawerRisk)">Edit</button>':'')+
+        (isErm?'<button class="btn-erm-ai" onclick="ermAiScoreRisk('+id+',this)">🤖 AI Score</button>':'')+
+        (isErm?'<button class="btn-erm-ai" onclick="ermGetRemediationPlan('+id+',this)">🗺 Plan</button>':'')+
+        (isErm&&r.status!=='mitigated'?'<button class="btn btn-secondary" onclick="ermQuickStatusChange('+id+',\'mitigated\')">✓ Mitigated</button>':'')+
+        (!isErm?'<div style="font-size:11px;color:var(--muted);padding:4px 6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)">Cross-module risk — manage in source module</div>':'')+
+        (ERM_IS_ADMIN?'<button class="btn btn-secondary" style="color:var(--red);margin-left:auto" onclick="ermDeleteRisk('+id+',\''+registerSrc+'\')">Delete</button>':'')+
+      '</div>'+
+      '</div></div>';
+    // Load workflow history
+    try{
+      var hist=await apiFetch('/erm/api/risks/'+id+'/workflow');
+      var histEl=document.getElementById('wfHistory_'+id);
+      if(histEl&&hist&&hist.length){
+        histEl.innerHTML='<div style="font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:4px;padding-top:2px">'+
+          hist.slice(-4).map(function(h){
+            return'<div style="display:flex;gap:7px;align-items:center">'+
+              '<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0"></span>'+
+              '<span style="color:var(--muted)">'+fmtDate(h.changed_at)+'</span>'+
+              '<span style="font-weight:700;color:var(--text)">'+esc(h.from_step||'—')+' → '+esc(h.to_step)+'</span>'+
+              (h.changed_by_name?'<span style="color:var(--muted)">by '+esc(h.changed_by_name)+'</span>':'')+
+            '</div>';
+          }).join('')+
+        '</div>';
+      }
+    }catch(e){}
+  }catch(e){ermCloseRiskDrawer();typeof showToast==='function'&&showToast('Load failed','error');}
+};
+window.ermCloseRiskDrawer=function(){document.getElementById('ermRiskDrawer').innerHTML='';_drawerRisk=null;};
+window.ermQuickStatusChange=async function(id,status){try{await apiFetch('/erm/api/risks/'+id,{method:'PUT',body:{status:status}});ermCloseRiskDrawer();ermLoadRegister();typeof showToast==='function'&&showToast('Status updated');}catch(e){typeof showToast==='function'&&showToast('Update failed','error');}};
+
+window.ermAdvanceWorkflow=async function(riskId,toStep,btn){
+  var notes=null;
+  if(toStep==='closed'){notes=prompt('Closure notes (optional):');}
+  try{
+    await apiFetch('/erm/api/risks/'+riskId+'/workflow',{method:'POST',body:{step:toStep,notes:notes||undefined}});
+    // Update stepper in-place
+    var steps=['draft','identified','assessed','treated','monitored','closed'];
+    var curIdx=steps.indexOf(toStep);
+    var btns=btn.closest('.wf-stepper').querySelectorAll('.wf-step-btn');
+    btns.forEach(function(b,i){b.className='wf-step-btn'+(i<curIdx?' done':i===curIdx?' current':'');});
+    // Update workflow history
+    var hist=await apiFetch('/erm/api/risks/'+riskId+'/workflow');
+    var histEl=document.getElementById('wfHistory_'+riskId);
+    if(histEl&&hist&&hist.length){
+      histEl.innerHTML='<div style="font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px">'+
+        hist.slice(-4).map(function(h){return'<div style="display:flex;gap:6px;align-items:center"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0"></span><span>'+fmtDate(h.changed_at)+'</span><span style="font-weight:700;color:var(--text)">'+esc(h.from_step||'—')+' → '+esc(h.to_step)+'</span>'+(h.changed_by_name?'<span style="color:var(--muted)">by '+esc(h.changed_by_name)+'</span>':'')+'</div>';}).join('')+
+      '</div>';
+    }
+    // When reaching a status-altering step, refresh the drawer and the background view
+    var statusSteps={closed:'closed',treated:'mitigated',assessed:'under_review'};
+    if(statusSteps[toStep]){
+      if(_drawerRisk){_drawerRisk.status=statusSteps[toStep];_drawerRisk.workflow_step=toStep;}
+      // Re-render drawer with fresh data so header badges, footer buttons all update
+      setTimeout(function(){ermOpenRiskDrawer(riskId);},400);
+      // Refresh whatever view is currently visible behind the drawer
+      if(ermRouter.current==='appetite')setTimeout(function(){ermLoadAppetite();},600);
+      else if(ermRouter.current==='dashboard')setTimeout(function(){ermLoadDashboard();},600);
+      else if(ermRouter.current==='register')setTimeout(function(){ermLoadRegister();},600);
+    }
+    typeof showToast==='function'&&showToast('Moved to '+toStep+(toStep==='closed'?' — risk appetite will update':toStep==='treated'?' — status set to Mitigated':''));
+  }catch(e){typeof showToast==='function'&&showToast('Workflow update failed','error');}
+};
+
+window.ermGetRemediationPlan=async function(id,btn){
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='…';
+  try{
+    var plan=await apiFetch('/erm/api/ai/remediation-plan/'+id,{method:'POST'});
+    btn.disabled=false;btn.textContent=orig;
+    var stepsHtml=(plan.steps||[]).map(function(s){return'<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px"><strong>'+s.step+'.</strong> '+esc(s.action)+'<span style="float:right;color:var(--muted)">'+esc(s.timeline||'')+'</span></div>';}).join('');
+    var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
+      '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
+      '<div class="modal-title">🗺 AI Remediation Plan</div>'+
+      '<p style="font-size:13px;color:var(--muted);margin-bottom:14px">'+esc(plan.summary||'')+'</p>'+
+      stepsHtml+
+      (plan.success_criteria?'<div style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:var(--radius);font-size:12px"><strong>Success criteria:</strong> '+esc(plan.success_criteria)+'</div>':'')+
+      (plan.cost_tier?'<div style="margin-top:8px;font-size:11px;color:var(--muted)">Estimated effort: <strong>'+esc(plan.cost_tier)+'</strong></div>':'')+
+      '<div style="display:flex;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Close</button>'+
+      '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Plan generation failed','error');}
+};
+
+/* ────────────────── APPETITE ────────────────── */
+var appetiteCache=[];
+window.ermLoadAppetite=async function(){
+  var grid=document.getElementById('ermAppetiteGrid');
+  grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    var data=await apiFetch('/erm/api/appetite/status');
+    appetiteCache=Array.isArray(data)?data:[];
+    if(!appetiteCache.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No appetite thresholds defined. Click <strong>+ Set Appetite</strong>.</div>';return;}
+    grid.innerHTML=appetiteCache.map(function(a){
+      var pct=a.max_score>0?Math.min(100,Math.round((a.current_max_score/a.max_score)*100)):0;
+      var breachColor=a.breached?'var(--red)':pct>=80?'var(--amber)':'var(--good,#16a34a)';
+      var statusTxt=a.breached?'🔴 ABOVE APPETITE':pct>=80?'🟡 APPROACHING':'🟢 WITHIN APPETITE';
+      var fillCls=a.breached?'gauge-breach':pct>=80?'gauge-warn':'gauge-ok';
+      var topRisk=a.top_risk?'<div style="font-size:11px;color:var(--muted);margin-top:8px;padding:7px;background:var(--surface2);border-radius:var(--radius)">⚠ Highest: <a href="#" onclick="event.preventDefault();ermOpenRiskDrawer('+a.top_risk.id+')" style="color:var(--accent);text-decoration:none;font-weight:600">'+esc(a.top_risk.title.slice(0,50))+'</a> — score <strong>'+a.top_risk.score+'</strong></div>':'';
+      var notesHtml=a.tolerance_notes?'<details style="margin-top:10px;font-size:12px"><summary style="cursor:pointer;color:var(--muted)">Tolerance notes ▼</summary><div style="padding:6px 0;color:var(--text);line-height:1.5">'+esc(a.tolerance_notes)+'</div></details>':'';
+      var datesHtml=(a.review_date||a.effective_date)?'<div style="font-size:11px;color:var(--muted);margin-top:8px">'+(a.effective_date?'Effective: '+fmtDate(a.effective_date)+' &nbsp;':'')+(a.review_date?'Review: '+fmtDate(a.review_date):'')+'</div>':'';
+      return'<div class="appetite-card">'+
+        '<div style="position:absolute;top:12px;right:12px;display:flex;gap:6px">'+
+          '<button onclick="ermEditAppetite('+a.id+')" class="btn btn-sm btn-secondary" style="padding:3px 8px">Edit</button>'+
+          '<button onclick="ermDeleteAppetite('+a.id+')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px" title="Delete">🗑</button>'+
+        '</div>'+
+        '<div style="font-size:16px;font-weight:800;text-transform:capitalize;margin-bottom:4px">'+esc(a.category)+'</div>'+
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Appetite: <strong style="text-transform:capitalize">'+esc(a.appetite_level||'—')+'</strong></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;color:'+breachColor+'">'+statusTxt+'</div>'+
+        '<div class="gauge-bar" style="height:10px"><div class="gauge-fill '+fillCls+'" style="width:'+pct+'%"></div></div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">'+
+          '<span>Current: <strong style="color:'+breachColor+'">'+a.current_max_score+'</strong></span>'+
+          '<span>Threshold: '+a.max_score+'</span>'+
+        '</div>'+
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px">'+esc(a.open_count||0)+' open risk(s)</div>'+
+        topRisk+notesHtml+datesHtml+
+        '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
+          '<a href="#" onclick="event.preventDefault();ermNavToCategory(\''+a.category+'\')" style="font-size:12px;color:var(--accent);text-decoration:none">View all risks →</a>'+
+          (a.breached?'<button class="btn btn-sm btn-secondary" onclick="ermOpenBreachAction(\''+esc(a.category)+'\')" style="color:var(--red);border-color:rgba(220,38,38,.4)">🚨 Create Remediation</button>':'')+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }catch(e){document.getElementById('ermAppetiteGrid').innerHTML='<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px">Failed: '+esc(e.message)+'</div>';}
+};
+window.ermNavToCategory=function(cat){regStatusFilter='';ermRouter.navigate('/erm/register');setTimeout(function(){var s=document.getElementById('regCatFilter');if(s){s.value=cat;ermRenderRegister();}},300);};
+window.ermEditAppetite=function(id){var a=appetiteCache.find(function(x){return x.id===id;});if(a)ermOpenAppetiteModal(a);};
+window.ermDeleteAppetite=async function(id){if(!confirm('Delete this appetite setting?'))return;try{await apiFetch('/erm/api/appetite/'+id,{method:'DELETE'});ermLoadAppetite();typeof showToast==='function'&&showToast('Deleted');}catch(e){typeof showToast==='function'&&showToast('Delete failed','error');}};
+window.ermOpenBreachAction=function(cat){
+  var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:500px">'+
+    '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
+    '<div class="modal-title">🚨 Remediation Action — '+esc(cat)+'</div>'+
+    '<div class="form-group"><label>What will you do to reduce this exposure?</label><textarea id="remedTxt" rows="3" placeholder="e.g. Review all compliance risks, schedule treatment plan review…"></textarea></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
+      '<button class="btn btn-primary" onclick="ermSubmitBreachAction(\''+cat+'\')">Create Risk Action</button>'+
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ermSubmitBreachAction=async function(cat){
+  var txt=(document.getElementById('remedTxt')||{}).value||'';
+  if(!txt){typeof showToast==='function'&&showToast('Please describe the action','error');return;}
+  try{
+    await apiFetch('/erm/api/risks',{method:'POST',body:{title:'Remediation: '+cat+' appetite breach',description:txt,category:cat,status:'under_review',treatment:'mitigate',likelihood:3,impact:3}});
+    document.querySelector('.erm-modal-overlay').remove();
+    typeof showToast==='function'&&showToast('Remediation risk created ✓');
+  }catch(e){typeof showToast==='function'&&showToast('Failed','error');}
+};
+
+window.ermOpenAppetiteModal=function(existing){
+  var isEdit=!!(existing&&existing.id);
+  var cats=['strategic','operational','compliance','financial','reputational','technology','third_party','environmental'];
+  var html='<div class="erm-modal-overlay" id="ermApModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:520px">'+
+    '<button class="modal-close" onclick="document.getElementById(\'ermApModal\').remove()">✕</button>'+
+    '<div class="modal-title">'+(isEdit?'Edit':'Set')+' Risk Appetite</div>'+
+    '<div class="form-group"><label>Category</label><select id="ap_cat">'+cats.map(function(c){return'<option value="'+c+'"'+(isEdit&&existing.category===c?' selected':'')+'>'+c.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+    '<div class="form-row"><div class="form-group"><label>Appetite Level</label><select id="ap_level"><option value="low"'+(isEdit&&existing.appetite_level==='low'?' selected':'')+'>Low</option><option value="medium"'+(isEdit&&existing.appetite_level==='medium'?' selected':'')+'>Medium</option><option value="high"'+(isEdit&&existing.appetite_level==='high'?' selected':'')+'>High</option></select></div>'+
+    '<div class="form-group"><label>Max Score (L×I threshold)</label><input type="number" id="ap_max" value="'+(isEdit?(existing.max_score||12):12)+'" min="1" max="25"></div></div>'+
+    '<div class="form-group"><label>Description</label><textarea id="ap_desc" rows="2">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+    '<div class="form-group"><label>Tolerance Notes</label><textarea id="ap_notes" rows="2">'+esc(isEdit?(existing.tolerance_notes||''):'')+'</textarea></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="document.getElementById(\'ermApModal\').remove()">Cancel</button><button class="btn btn-primary" onclick="ermSaveAppetite()">Save</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ermSaveAppetite=async function(){
+  var data={category:document.getElementById('ap_cat').value,appetite_level:document.getElementById('ap_level').value,max_score:parseInt(document.getElementById('ap_max').value)||12,description:document.getElementById('ap_desc').value.trim(),tolerance_notes:document.getElementById('ap_notes').value.trim()};
+  try{await apiFetch('/erm/api/appetite',{method:'POST',body:data});document.getElementById('ermApModal').remove();ermLoadAppetite();typeof showToast==='function'&&showToast('Appetite saved');}
+  catch(e){typeof showToast==='function'&&showToast('Save failed','error');}
+};
+
+/* ────────────────── LIBRARY ────────────────── */
+var libCache=[], libIndustryFilter='';
+window.ermLoadLibrary=async function(){
+  var cat=document.getElementById('libCatFilter').value;
+  var grid=document.getElementById('ermLibGrid');
+  grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    var data=await apiFetch('/erm/api/library'+(cat?'?category='+encodeURIComponent(cat):''));
+    libCache=Array.isArray(data)?data:[];
+    initChips('view-library .erm-filter-bar:last-of-type',null);
+    document.querySelectorAll('#view-library .erm-chip[data-industry]').forEach(function(chip){
+      chip.addEventListener('click',function(){document.querySelectorAll('#view-library .erm-chip[data-industry]').forEach(function(c){c.classList.remove('active');});chip.classList.add('active');libIndustryFilter=chip.dataset.industry||'';ermFilterLibrary();});
+    });
+    ermFilterLibrary();
+  }catch(e){document.getElementById('ermLibGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Failed: '+esc(e.message)+'</div>';}
+};
+window.ermFilterLibrary=function(){
+  var q=(document.getElementById('libSearch')||{}).value||'';
+  var filtered=libCache.filter(function(item){
+    if(libIndustryFilter&&!(item.applicable_industries||'').toLowerCase().includes(libIndustryFilter)&&libIndustryFilter!=='general')return false;
+    if(q){var t=(item.title+' '+(item.description||'')+' '+(item.tags||'')).toLowerCase();if(!t.includes(q.toLowerCase()))return false;}
+    return true;
+  });
+  var grid=document.getElementById('ermLibGrid');
+  if(!filtered.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No templates match</div>';return;}
+  var catColors={technology:'#6366f1',operational:'#f59e0b',compliance:'#10b981',financial:'#3b82f6',reputational:'#ec4899',strategic:'var(--accent)',third_party:'#8b5cf6',environmental:'#22c55e'};
+  grid.innerHTML=filtered.map(function(item){
+    var col=catColors[item.category]||'var(--muted)';
+    var score=(item.default_likelihood||3)*(item.default_impact||3);
+    var tags=(item.tags||'').split(',').filter(Boolean).map(function(t){return'<span class="lib-tag">'+esc(t.trim())+'</span>';}).join('');
+    return'<div class="lib-card">'+
+      '<div class="lib-cat-chip" style="background:'+col+'22;color:'+col+'">'+esc(item.category||'general')+'</div>'+
+      '<div style="font-size:14px;font-weight:700;margin-bottom:6px">'+esc(item.title)+'</div>'+
+      '<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:10px">'+esc((item.description||'').slice(0,100))+((item.description||'').length>100?'…':'')+'</div>'+
+      (tags?'<div style="margin-bottom:8px">'+tags+'</div>':'')+
+      '<div style="display:flex;gap:10px;font-size:11px;color:var(--muted);margin-bottom:10px"><span>Score: <strong>'+score+'</strong></span><span>'+esc(item.typical_treatment||'mitigate')+'</span></div>'+
+      (item.regulatory_references?'<div style="font-size:11px;color:var(--muted);margin-bottom:10px">📋 '+esc(item.regulatory_references)+'</div>':'')+
+      '<div style="display:flex;gap:6px">'+
+        '<button class="btn btn-sm btn-primary" onclick="ermQuickAddRisk('+item.id+',this)">+ Quick Add</button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="ermCustomizeFromLib('+item.id+')">Customize First</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+};
+window.ermQuickAddRisk=async function(id,btn){if(btn){btn.disabled=true;btn.textContent='Adding…';}try{await apiFetch('/erm/api/library/'+id+'/use',{method:'POST',body:{}});typeof showToast==='function'&&showToast('Risk added to register ✓');ermRouter.navigate('/erm/register');}catch(e){if(btn){btn.disabled=false;btn.textContent='+ Quick Add';}typeof showToast==='function'&&showToast('Failed: '+e.message,'error');}};
+window.ermCustomizeFromLib=function(id){var item=libCache.find(function(x){return x.id===id;});if(item)ermCustomizeRisk(item);};
+window.ermCustomizeRisk=function(item){
+  ermOpenRiskModal({title:item.title,description:item.description||'',category:item.category||'operational',treatment:item.typical_treatment||'mitigate',likelihood:item.default_likelihood||3,impact:item.default_impact||3,treatment_plan:item.suggested_controls||'',status:'open',_isNew:true});
+};
+
+/* ────────────────── OBLIGATIONS ────────────────── */
+var oblCache=[], oblStatusFilter='';
+window.ermLoadObligations=async function(){
+  var body=document.getElementById('ermOblBody');body.innerHTML=spinner(7);
+  try{
+    var data=await apiFetch('/erm/api/obligations');
+    oblCache=Array.isArray(data)?data:[];
+    initChips('oblFilterBar',function(s){oblStatusFilter=s;ermRenderObligations();});
+    // Stats strip
+    var compliant=oblCache.filter(function(o){return o.status==='compliant';}).length;
+    var nc=oblCache.filter(function(o){return o.status==='non_compliant';}).length;
+    var overdue=oblCache.filter(function(o){return o.status!=='compliant'&&o.due_date&&new Date(o.due_date)<new Date();}).length;
+    statCards('oblStats',[
+      {label:'Total',value:oblCache.length},{label:'Compliant',value:compliant,color:'var(--good,#16a34a)'},{label:'Non-Compliant',value:nc,color:'var(--red)'},{label:'Overdue',value:overdue,color:'var(--red)'}
+    ]);
+    ermRenderObligations();
+  }catch(e){document.getElementById('ermOblBody').innerHTML=emptyRow(7,'Failed: '+e.message);}
+};
+window.ermRenderObligations=function(){
+  var q=(document.getElementById('oblSearch')||{}).value||'';
+  var filtered=oblCache.filter(function(o){
+    if(oblStatusFilter&&o.status!==oblStatusFilter)return false;
+    if(q&&!(o.regulator||'').toLowerCase().includes(q.toLowerCase())&&!(o.regulation_name||'').toLowerCase().includes(q.toLowerCase()))return false;
+    return true;
+  });
+  var overdue=filtered.filter(function(o){return o.status!=='compliant'&&o.due_date&&new Date(o.due_date)<new Date();});
+  var banner=document.getElementById('oblAlertBanner');
+  if(banner){if(overdue.length){banner.style.display='';banner.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--red)">⚠ <strong>'+overdue.length+' obligation'+(overdue.length>1?'s':'')+'</strong> overdue and not compliant.</div>';}else{banner.style.display='none';}}
+  var body=document.getElementById('ermOblBody');
+  if(!filtered.length){body.innerHTML=emptyRow(7,'No obligations match');return;}
+  body.innerHTML=filtered.map(function(o){
+    var days=daysUntil(o.due_date);
+    var dueStr=days===null?'—':days<0?'<span style="color:var(--red);font-weight:700">'+Math.abs(days)+'d overdue</span>':days===0?'<span style="color:var(--amber);font-weight:700">Due today</span>':'<span style="color:'+(days<14?'var(--amber)':'var(--good,#16a34a)')+'">'+days+'d</span>';
+    return'<tr>'+
+      '<td style="font-weight:600">'+esc(o.regulator)+'</td>'+
+      '<td>'+esc(o.regulation_name)+'</td>'+
+      '<td style="max-width:180px;font-size:12px">'+esc((o.obligation||'').slice(0,70))+((o.obligation||'').length>70?'…':'')+'</td>'+
+      '<td style="font-size:12px">'+esc(o.owner_name||'—')+'</td>'+
+      '<td style="white-space:nowrap">'+dueStr+'</td>'+
+      '<td>'+statusBadge(o.status)+'</td>'+
+      '<td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="ermEditObl('+o.id+')" style="padding:3px 8px">Edit</button><button class="btn btn-sm btn-secondary" onclick="ermDeleteObl('+o.id+')" style="padding:3px 8px;color:var(--red)">Del</button></div></td>'+
+    '</tr>';
+  }).join('');
+};
+window.ermEditObl=function(id){var o=oblCache.find(function(x){return x.id===id;});if(o)ermOpenOblModal(o);};
+window.ermDeleteObl=async function(id){if(!confirm('Delete?'))return;try{await apiFetch('/erm/api/obligations/'+id,{method:'DELETE'});ermLoadObligations();}catch(e){typeof showToast==='function'&&showToast('Delete failed','error');}};
+window.ermOpenOblModal=function(existing){
+  var isEdit=!!(existing&&existing.id);
+  var html='<div class="erm-modal-overlay" id="oblModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:640px">'+
+    '<button class="modal-close" onclick="document.getElementById(\'oblModal\').remove()">✕</button>'+
+    '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Regulatory Obligation</div>'+
+    '<div class="form-row"><div class="form-group"><label>Regulator *</label><input id="obl_reg" value="'+esc(isEdit?existing.regulator||'':'')+'"></div>'+
+    '<div class="form-group"><label>Regulation Name *</label><input id="obl_name" value="'+esc(isEdit?existing.regulation_name||'':'')+'"></div></div>'+
+    '<div class="form-group"><label>Obligation *</label><textarea id="obl_obl" rows="3">'+esc(isEdit?existing.obligation||'':'')+'</textarea></div>'+
+    '<div class="form-row"><div class="form-group"><label>Applicable Depts</label><input id="obl_depts" value="'+esc(isEdit?existing.applicable_departments||'':'')+'"></div>'+
+    '<div class="form-group"><label>Due Date</label><input type="date" id="obl_due" value="'+esc(isEdit?existing.due_date||'':'')+'"></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Status</label><select id="obl_status">'+['pending','compliant','non_compliant','under_review'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+    '<div class="form-group"><label>Evidence Required</label><input id="obl_evid" value="'+esc(isEdit?existing.evidence_required||'':'')+'"></div></div>'+
+    '<div class="form-group"><label>Notes</label><textarea id="obl_notes" rows="2">'+esc(isEdit?existing.notes||'':'')+'</textarea></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="document.getElementById(\'oblModal\').remove()">Cancel</button><button class="btn btn-primary" onclick="ermSaveObl('+(isEdit?existing.id:'null')+')">Save</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ermSaveObl=async function(id){
+  var data={regulator:document.getElementById('obl_reg').value.trim(),regulation_name:document.getElementById('obl_name').value.trim(),obligation:document.getElementById('obl_obl').value.trim(),applicable_departments:document.getElementById('obl_depts').value.trim(),due_date:document.getElementById('obl_due').value,status:document.getElementById('obl_status').value,evidence_required:document.getElementById('obl_evid').value.trim(),notes:document.getElementById('obl_notes').value.trim()};
+  if(!data.regulator||!data.regulation_name||!data.obligation){typeof showToast==='function'&&showToast('Regulator, regulation and obligation required','error');return;}
+  try{if(id)await apiFetch('/erm/api/obligations/'+id,{method:'PUT',body:data});else await apiFetch('/erm/api/obligations',{method:'POST',body:data});document.getElementById('oblModal').remove();ermLoadObligations();typeof showToast==='function'&&showToast('Saved');}
+  catch(e){typeof showToast==='function'&&showToast('Save failed','error');}
+};
+
+/* ────────────────── ASSESSMENTS ────────────────── */
+var assessCache=[], assessStatusFilter='';
+window.ermLoadAssessments=async function(){
+  var body=document.getElementById('ermAssessBody');body.innerHTML=spinner(7);
+  try{
+    var data=await apiFetch('/erm/api/assessments');
+    assessCache=Array.isArray(data)?data:[];
+    initChips('assessFilterBar',function(s){assessStatusFilter=s;ermRenderAssessments();});
+    var active=assessCache.filter(function(a){return a.status==='active';}).length;
+    var draft=assessCache.filter(function(a){return a.status==='draft';}).length;
+    var closed=assessCache.filter(function(a){return a.status==='closed';}).length;
+    statCards('assessStats',[{label:'Total',value:assessCache.length},{label:'Draft',value:draft},{label:'Active',value:active,color:'var(--amber)'},{label:'Closed',value:closed}]);
+    ermRenderAssessments();
+  }catch(e){document.getElementById('ermAssessBody').innerHTML=emptyRow(7,'Failed: '+e.message);}
+};
+window.ermRenderAssessments=function(){
+  var filtered=assessCache.filter(function(a){return!assessStatusFilter||a.status===assessStatusFilter;});
+  var body=document.getElementById('ermAssessBody');
+  if(!filtered.length){body.innerHTML=emptyRow(7,'No assessments');return;}
+  body.innerHTML=filtered.map(function(a){
+    var canRespond=a.status==='active';var canResults=a.status==='active'||a.status==='closed';
+    return'<tr>'+
+      '<td style="font-weight:600;cursor:pointer;color:var(--accent)" onclick="ermOpenAssessmentDetail('+a.id+')">'+esc(a.title)+'</td>'+
+      '<td style="text-transform:capitalize;font-size:12px">'+esc(a.type||'risk')+'</td>'+
+      '<td style="text-align:center">'+esc(a.question_count||0)+'</td>'+
+      '<td style="text-align:center;font-size:12px;color:var(--muted)">—</td>'+
+      '<td>'+statusBadge(a.status)+'</td>'+
+      '<td>'+fmtDate(a.due_date)+'</td>'+
+      '<td><div style="display:flex;gap:4px;flex-wrap:nowrap">'+
+        '<button class="btn btn-sm btn-secondary" onclick="ermOpenAssessmentDetail('+a.id+')" style="padding:3px 8px">View</button>'+
+        (canResults?'<button class="btn btn-sm btn-primary" onclick="ermOpenResultsDrawer('+a.id+')" style="padding:3px 8px">Results</button>':'')+
+        (canRespond?'<button class="btn btn-sm btn-secondary" onclick="ermOpenRespond('+a.id+')" style="padding:3px 8px">Respond</button>':'')+
+        (a.status==='draft'?'<button class="btn btn-sm btn-secondary" onclick="ermLaunchAssessment('+a.id+')" style="padding:3px 8px">Launch</button>':'')+
+        (a.status==='active'?'<button class="btn btn-sm btn-secondary" onclick="ermCloseAssessment('+a.id+')" style="padding:3px 8px;color:var(--muted)">Close</button>':'')+
+        '<button class="btn btn-sm btn-secondary" onclick="ermDeleteAssessment('+a.id+')" style="padding:3px 8px;color:var(--red)">Del</button>'+
+      '</div></td>'+
+    '</tr>';
+  }).join('');
+};
+window.ermLaunchAssessment=async function(id){try{await apiFetch('/erm/api/assessments/'+id,{method:'PUT',body:{status:'active'}});ermLoadAssessments();typeof showToast==='function'&&showToast('Launched ✓');}catch(e){typeof showToast==='function'&&showToast('Failed','error');}};
+window.ermCloseAssessment=async function(id){if(!confirm('Close this assessment?'))return;try{await apiFetch('/erm/api/assessments/'+id,{method:'PUT',body:{status:'closed'}});ermLoadAssessments();typeof showToast==='function'&&showToast('Assessment closed');}catch(e){typeof showToast==='function'&&showToast('Failed','error');}};
+window.ermDeleteAssessment=async function(id){if(!confirm('Delete assessment and all responses?'))return;try{await apiFetch('/erm/api/assessments/'+id,{method:'DELETE'});ermLoadAssessments();}catch(e){typeof showToast==='function'&&showToast('Failed','error');}};
+window.ermOpenAssessmentModal=function(){
+  var html='<div class="erm-modal-overlay" id="assessModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:540px">'+
+    '<button class="modal-close" onclick="document.getElementById(\'assessModal\').remove()">✕</button>'+
+    '<div class="modal-title">New Self-Assessment</div>'+
+    '<div class="form-group"><label>Title *</label><input id="as_title" placeholder="e.g. Q4 Risk Self-Assessment"></div>'+
+    '<div class="form-row"><div class="form-group"><label>Type</label><select id="as_type">'+['risk','control','vendor','compliance','privacy','bcm'].map(function(t){return'<option value="'+t+'">'+t+'</option>';}).join('')+'</select></div><div class="form-group"><label>Due Date</label><input type="date" id="as_due"></div></div>'+
+    '<div class="form-group"><label>Description</label><textarea id="as_desc" rows="2"></textarea></div>'+
+    '<div class="form-group"><label>Target Audience</label><input id="as_audience" placeholder="Department Heads, Risk Owners"></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="document.getElementById(\'assessModal\').remove()">Cancel</button><button class="btn btn-primary" onclick="ermSaveAssessment()">Create</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ermSaveAssessment=async function(){
+  var t=document.getElementById('as_title').value.trim();if(!t){typeof showToast==='function'&&showToast('Title required','error');return;}
+  try{await apiFetch('/erm/api/assessments',{method:'POST',body:{title:t,type:document.getElementById('as_type').value,due_date:document.getElementById('as_due').value,description:document.getElementById('as_desc').value.trim(),target_audience:document.getElementById('as_audience').value.trim()}});document.getElementById('assessModal').remove();ermLoadAssessments();typeof showToast==='function'&&showToast('Created ✓');}
+  catch(e){typeof showToast==='function'&&showToast('Failed','error');}
+};
+window.ermOpenAssessmentDetail=async function(id){
+  try{
+    var a=await apiFetch('/erm/api/assessments/'+id);
+    var qs=a.questions||[];var isDraft=a.status==='draft';
+    var qHtml=qs.length?qs.map(function(q,i){return'<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:start"><div><div style="font-size:13px;font-weight:600">'+(i+1)+'. '+esc(q.question)+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(q.question_type)+' &bull; weight: '+q.weight+'</div></div>'+(isDraft?'<button class="btn btn-sm btn-secondary" onclick="ermDelQ('+id+','+q.id+',this)" style="padding:3px 8px;color:var(--red);flex-shrink:0">Del</button>':'')+' </div>';}).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">No questions yet</div>';
+    var addQHtml=isDraft?'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)"><div style="font-size:13px;font-weight:700;margin-bottom:8px">Add Question</div><div class="form-group"><textarea id="aq_q" rows="2" placeholder="Question text…"></textarea></div><div class="form-row"><div class="form-group"><label style="font-size:11px;font-weight:700;color:var(--muted)">TYPE</label><select id="aq_type"><option value="scale">1–5 Scale</option><option value="yes_no">Yes / No</option><option value="text">Free Text</option></select></div><div class="form-group"><label style="font-size:11px;font-weight:700;color:var(--muted)">WEIGHT</label><input type="number" id="aq_weight" value="1" min="0.1" max="5" step="0.1"></div></div><button class="btn btn-sm btn-primary" onclick="ermAddQuestion('+id+',this)">+ Add Question</button></div>':'';
+    var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:660px">'+
+      '<div class="modal-title">'+esc(a.title)+'</div>'+
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">'+statusBadge(a.status)+'<span style="font-size:12px;color:var(--muted)">'+esc(a.type)+' &bull; '+qs.length+' question(s)</span>'+(a.target_audience?'<span style="font-size:12px;color:var(--muted)">&bull; '+esc(a.target_audience)+'</span>':'')+' </div>'+
+      '<div id="aqList" style="max-height:280px;overflow-y:auto">'+qHtml+'</div>'+addQHtml+
+      '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Close</button>'+
+        (isDraft?'<button class="btn-erm-ai" onclick="ermSuggestQuestions('+id+',this)">🧠 Suggest Questions</button>':'')+
+        (a.status==='closed'||a.status==='active'?'<button class="btn-erm-ai" onclick="ermIdentifyRisks('+id+',this)">🔍 Identify Risks</button>':'')+
+        (isDraft?'<button class="btn btn-primary" onclick="ermLaunchAssessment('+id+');this.closest(\'.erm-modal-overlay\').remove()">Launch</button>':'')+
+      '</div>'+
+    '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  }catch(e){typeof showToast==='function'&&showToast('Load failed','error');}
+};
+window.ermAddQuestion=async function(assessId,btn){
+  var q=(document.getElementById('aq_q')||{}).value||'';if(!q){typeof showToast==='function'&&showToast('Question required','error');return;}
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='Saving…';
+  try{
+    await apiFetch('/erm/api/assessments/'+assessId+'/questions',{method:'POST',body:{question:q,question_type:document.getElementById('aq_type').value,weight:parseFloat(document.getElementById('aq_weight').value)||1}});
+    document.getElementById('aq_q').value='';
+    var detail=await apiFetch('/erm/api/assessments/'+assessId);var qs=detail.questions||[];
+    var list=document.getElementById('aqList');
+    if(list)list.innerHTML=qs.map(function(q2,i){return'<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:start"><div><div style="font-size:13px;font-weight:600">'+(i+1)+'. '+esc(q2.question)+'</div><div style="font-size:11px;color:var(--muted)">'+esc(q2.question_type)+' &bull; weight: '+q2.weight+'</div></div><button class="btn btn-sm btn-secondary" onclick="ermDelQ('+assessId+','+q2.id+',this)" style="padding:3px 8px;color:var(--red)">Del</button></div>';}).join('');
+    btn.disabled=false;btn.textContent=orig;ermLoadAssessments();typeof showToast==='function'&&showToast('Question added ✓');
+  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Failed','error');}
+};
+window.ermDelQ=async function(aId,qId,btn){if(!confirm('Remove question?'))return;try{await apiFetch('/erm/api/assessments/'+aId+'/questions/'+qId,{method:'DELETE'});var row=btn.closest('div[style*="border-bottom"]');if(row)row.remove();ermLoadAssessments();}catch(e){}};
+window.ermOpenRespond=async function(id){
+  try{
+    var a=await apiFetch('/erm/api/assessments/'+id);var qs=a.questions||[];if(!qs.length){typeof showToast==='function'&&showToast('No questions','error');return;}
+    var _scaleAns={};
+    var qHtml=qs.map(function(q){
+      if(q.question_type==='scale')return'<div class="assess-q-item" data-qid="'+q.id+'" style="padding:12px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;font-weight:600">'+esc(q.question)+'</div><div class="scale-btns">'+[1,2,3,4,5].map(function(v){return'<button class="scale-btn" onclick="ermScaleSel(this,\''+q.id+'\','+v+')">'+v+'</button>';}).join('')+'</div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px"><span>Low</span><span>High</span></div></div>';
+      if(q.question_type==='yes_no')return'<div style="padding:12px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;font-weight:600">'+esc(q.question)+'</div><div class="scale-btns"><button class="scale-btn" onclick="ermScaleSel(this,\''+q.id+'\',\'yes\')">Yes</button><button class="scale-btn" onclick="ermScaleSel(this,\''+q.id+'\',\'no\')">No</button></div></div>';
+      return'<div style="padding:12px 0;border-bottom:1px solid var(--border)"><div style="font-size:13px;font-weight:600">'+esc(q.question)+'</div><textarea id="resp_'+q.id+'" rows="2" style="width:100%;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box"></textarea></div>';
+    }).join('');
+    var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:640px">'+
+      '<div class="modal-title">Respond: '+esc(a.title)+'</div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:14px">'+qs.length+' question(s) &bull; '+esc(a.type)+'</div>'+
+      '<div id="respondQs" style="max-height:420px;overflow-y:auto">'+qHtml+'</div>'+
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button><button class="btn btn-primary" id="submitRespBtn" onclick="ermSubmitResponses('+id+','+JSON.stringify(qs)+')">Submit Responses</button></div>'+
+    '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  }catch(e){typeof showToast==='function'&&showToast('Load failed','error');}
+};
+var _scaleAnswers={};
+window.ermScaleSel=function(btn,qid,val){_scaleAnswers[qid]=val;var p=btn.closest('[data-qid]')||btn.parentElement;if(p)p.querySelectorAll('.scale-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');};
+window.ermSubmitResponses=async function(assessId,qs){
+  var btn=document.getElementById('submitRespBtn');if(btn){btn.disabled=true;btn.textContent='Submitting…';}
+  var responses=qs.map(function(q){var resp=_scaleAnswers[q.id]||'';if(q.question_type==='text'){var el=document.getElementById('resp_'+q.id);if(el)resp=el.value.trim();}var score=null;if(q.question_type==='scale')score=parseFloat(resp)||null;else if(q.question_type==='yes_no')score=resp==='yes'?1:0;return{question_id:q.id,response:String(resp),score:score};});
+  try{await apiFetch('/erm/api/assessments/'+assessId+'/respond',{method:'POST',body:{responses:responses}});if(btn)btn.closest('.erm-modal-overlay').remove();_scaleAnswers={};typeof showToast==='function'&&showToast('Responses submitted ✓');}
+  catch(e){if(btn){btn.disabled=false;btn.textContent='Submit Responses';}typeof showToast==='function'&&showToast('Submit failed','error');}
+};
+
+/* ── Assessment Results Drawer ── */
+window.ermOpenResultsDrawer=async function(id){
+  document.getElementById('ermResultsDrawer').innerHTML='<div class="erm-drawer-overlay" onclick="if(event.target===this)ermCloseResultsDrawer()"><div class="erm-drawer-panel"><div class="erm-drawer-head"><div style="font-size:15px;font-weight:700">Loading results…</div><button onclick="ermCloseResultsDrawer()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px">✕</button></div><div class="erm-drawer-body"><div class="spinner" style="margin:40px auto"></div></div></div></div>';
+  try{
+    var a=await apiFetch('/erm/api/assessments/'+id);
+    var responses=await apiFetch('/erm/api/assessments/'+id+'/responses');
+    var qs=a.questions||[];var resp=Array.isArray(responses)?responses:[];
+    // Per-question analysis
+    function qStats(qid,qtype){
+      var qResp=resp.filter(function(r){return r.question_id===qid;});
+      if(!qResp.length)return{count:0,avg:null,dist:{}};
+      if(qtype==='scale'){var dist={};[1,2,3,4,5].forEach(function(v){dist[v]=0;});qResp.forEach(function(r){if(r.score)dist[Math.round(r.score)]=(dist[Math.round(r.score)]||0)+1;});var avg=qResp.reduce(function(s,r){return s+(r.score||0);},0)/qResp.length;return{count:qResp.length,avg:avg.toFixed(1),dist:dist};}
+      if(qtype==='yes_no'){var yes=qResp.filter(function(r){return r.response==='yes';}).length;return{count:qResp.length,yes:yes,no:qResp.length-yes};}
+      return{count:qResp.length,texts:qResp.map(function(r){return r.response||'';}).filter(Boolean)};
+    }
+    var respondents=new Set(resp.map(function(r){return r.respondent_id;})).size;
+    var totalWeight=qs.reduce(function(s,q){return s+(q.weight||1);},0);
+    var weightedScore=0;
+    qs.forEach(function(q){var s=qStats(q.id,q.question_type);if(s.avg!==null&&s.avg!==undefined)weightedScore+=(parseFloat(s.avg)/5)*(q.weight||1);});
+    var overallPct=totalWeight>0?Math.round((weightedScore/totalWeight)*100):0;
+    var qsHtml=qs.map(function(q){
+      var s=qStats(q.id,q.question_type);
+      if(q.question_type==='scale'){
+        var maxDist=Math.max.apply(null,Object.values(s.dist||{}).concat([1]));
+        var bars=[1,2,3,4,5].map(function(v){var cnt=s.dist[v]||0;var pct=Math.round(cnt/maxDist*100);return'<div class="assess-bar-row"><span style="width:12px;text-align:right;flex-shrink:0">'+v+'</span><div class="assess-bar-track"><div class="assess-bar-fill" style="width:'+pct+'%"></div></div><span style="width:20px;color:var(--muted)">'+cnt+'</span></div>';}).join('');
+        return'<div class="assess-q-result"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(q.question)+'</div>'+bars+'<div style="font-size:11px;color:var(--muted);margin-top:4px">'+s.count+' response(s) &bull; avg: <strong>'+s.avg+'</strong></div></div>';
+      }
+      if(q.question_type==='yes_no'){var yPct=s.count?Math.round(s.yes/s.count*100):0;var nPct=100-yPct;return'<div class="assess-q-result"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(q.question)+'</div><div class="assess-bar-row"><span style="width:28px;font-size:11px">Yes</span><div class="assess-bar-track"><div class="assess-bar-fill" style="width:'+yPct+'%;background:var(--good,#16a34a)"></div></div><span style="font-size:11px;color:var(--muted);width:40px">'+s.yes+' ('+yPct+'%)</span></div><div class="assess-bar-row"><span style="width:28px;font-size:11px">No</span><div class="assess-bar-track"><div class="assess-bar-fill" style="width:'+nPct+'%;background:var(--red)"></div></div><span style="font-size:11px;color:var(--muted);width:40px">'+s.no+' ('+nPct+'%)</span></div></div>';}
+      return'<div class="assess-q-result"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(q.question)+'</div>'+(s.texts&&s.texts.length?s.texts.map(function(t){return'<div style="font-size:12px;padding:6px 10px;background:var(--surface2);border-radius:var(--radius);margin-bottom:4px">'+esc(t)+'</div>';}).join(''):'<div style="color:var(--muted);font-size:12px">No text responses</div>')+'</div>';
+    }).join('');
+    var scoreColor=overallPct>=80?'var(--good,#16a34a)':overallPct>=50?'var(--amber)':'var(--red)';
+    document.getElementById('ermResultsDrawer').innerHTML=
+      '<div class="erm-drawer-overlay" onclick="if(event.target===this)ermCloseResultsDrawer()">'+
+      '<div class="erm-drawer-panel">'+
+        '<div class="erm-drawer-head">'+
+          '<div style="flex:1"><div style="font-size:15px;font-weight:800">'+esc(a.title)+' — Results</div>'+
+          '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+respondents+' respondent(s) &bull; '+qs.length+' question(s) &bull; '+statusBadge(a.status)+'</div></div>'+
+          '<button onclick="ermCloseResultsDrawer()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;flex-shrink:0">✕</button>'+
+        '</div>'+
+        '<div class="erm-drawer-body">'+
+          '<div style="text-align:center;padding:16px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px">'+
+            '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">OVERALL WEIGHTED SCORE</div>'+
+            '<div style="font-size:36px;font-weight:800;color:'+scoreColor+'">'+overallPct+'%</div>'+
+            '<div class="gauge-bar" style="margin:8px 0"><div class="gauge-fill" style="width:'+overallPct+'%;background:'+scoreColor+'"></div></div>'+
+          '</div>'+
+          qsHtml+
+        '</div>'+
+        '<div class="erm-drawer-foot">'+
+          '<button class="btn btn-secondary" onclick="ermExportResponses('+id+')">⬇ Export CSV</button>'+
+          (a.status==='active'?'<button class="btn btn-secondary" onclick="ermCloseAssessment('+id+');ermCloseResultsDrawer()">Close Assessment</button>':'')+
+          '<button class="btn btn-secondary" onclick="ermCloseResultsDrawer()" style="margin-left:auto">Close</button>'+
+        '</div>'+
+      '</div></div>';
+  }catch(e){ermCloseResultsDrawer();typeof showToast==='function'&&showToast('Load failed','error');}
+};
+window.ermCloseResultsDrawer=function(){document.getElementById('ermResultsDrawer').innerHTML='';};
+window.ermExportResponses=async function(id){
+  try{
+    var responses=await apiFetch('/erm/api/assessments/'+id+'/responses');
+    var rows=Array.isArray(responses)?responses:[];
+    var hdr=['Question','Response','Score','Respondent','Submitted'];
+    var lines=[hdr.join(',')].concat(rows.map(function(r){return['"'+(r.question||'').replace(/"/g,'""')+'"','"'+(r.response||'').replace(/"/g,'""')+'"',r.score||'','"'+(r.respondent_name||'').replace(/"/g,'""')+'"',r.submitted_at||''].join(',');}));
+    var b=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='assessment-responses.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
+  }catch(e){typeof showToast==='function'&&showToast('Export failed','error');}
+};
+
+/* ────────────────── REPORTS ────────────────── */
+window.ermLoadReports=async function(){
+  try{
+    var s=await apiFetch('/erm/api/register/stats');
+    var d=await apiFetch('/erm/api/dashboard');
+    var sv=function(id,v){var e=document.getElementById(id);if(e){var vv=e.querySelector('.stat-value');if(vv)vv.textContent=v;}};
+    sv('rptTotal',s.total||0);sv('rptCritical',(s.by_level&&s.by_level.critical)||0);sv('rptHigh',(s.by_level&&s.by_level.high)||0);sv('rptBreaches',d.appetite_breaches||0);sv('rptBoard',d.board_visible||0);
+    // Donut chart (inline SVG)
+    var donut=document.getElementById('rptDonut');
+    if(donut&&s.by_level){
+      var lvls=[{k:'critical',c:'var(--red)',l:'Critical'},{k:'high',c:'var(--amber)',l:'High'},{k:'medium',c:'var(--blue)',l:'Medium'},{k:'low',c:'var(--good,#16a34a)',l:'Low'}];
+      var total=Object.values(s.by_level).reduce(function(a,b){return a+b;},0)||1;
+      var r=52,cx=64,cy=64,stroke=22;var dash=2*Math.PI*r;
+      var offset=0;var segs=lvls.map(function(lv){var pct=(s.by_level[lv.k]||0)/total;var seg='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+lv.c+'" stroke-width="'+stroke+'" stroke-dasharray="'+(pct*dash).toFixed(2)+' '+dash.toFixed(2)+'" stroke-dashoffset="'+(-offset*dash).toFixed(2)+'" transform="rotate(-90 '+cx+' '+cy+')" opacity="0.85"/>';offset+=pct;return seg;}).join('');
+      var legend=lvls.map(function(lv){return'<div class="erm-ring-item"><div class="erm-ring-dot" style="background:'+lv.c+'"></div><span>'+lv.l+': <strong>'+(s.by_level[lv.k]||0)+'</strong></span></div>';}).join('');
+      donut.innerHTML='<div class="erm-ring-wrap"><svg width="128" height="128" viewBox="0 0 128 128"><'+segs.slice(1)+'</svg><div class="erm-ring-legend">'+legend+'</div></div>';
+    }
+    // Module bars
+    var byMod=document.getElementById('rptByModule');
+    if(byMod&&s.by_module){var maxV=Math.max.apply(null,Object.values(s.by_module).concat([1]));var modC={aria:'#7e8062',grid:'#16a34a',bcm:'#d97706',sentinel:'#0891b2',erm:'var(--accent)',orm:'#ea580c'};byMod.innerHTML=Object.entries(s.by_module).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxV*100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="text-transform:capitalize">'+esc(e[0])+'</span><span>'+e[1]+'</span></div><div style="height:7px;background:var(--surface3);border-radius:100px"><div style="height:100%;width:'+pct+'%;background:'+(modC[e[0]]||'var(--accent)')+';border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
+    // Category bars
+    var byCat=document.getElementById('rptByCategory');
+    if(byCat&&s.by_category){var maxC=Math.max.apply(null,Object.values(s.by_category).concat([1]));byCat.innerHTML=Object.entries(s.by_category).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxC*100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="text-transform:capitalize">'+esc(e[0].replace(/_/g,' '))+'</span><span>'+e[1]+'</span></div><div style="height:7px;background:var(--surface3);border-radius:100px"><div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
+    // Appetite matrix
+    var matrix=document.getElementById('rptAppetiteMatrix');
+    if(matrix){
+      try{
+        var ap=await apiFetch('/erm/api/appetite/status');
+        if(ap&&ap.length){
+          matrix.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+ap.map(function(a){var icon=a.breached?'🔴':((a.current_max_score/(a.max_score||1))>=0.8?'🟡':'✅');return'<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--surface2);border-radius:var(--radius);font-size:12px">'+icon+'<span style="text-transform:capitalize">'+esc(a.category)+'</span></div>';}).join('')+'</div>';
+        }else{matrix.innerHTML='<div style="color:var(--muted);font-size:12px">No appetite configured</div>';}
+      }catch(e){matrix.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load</div>';}
+    }
+    // Assessment summary
+    var asSum=document.getElementById('rptAssessments');
+    if(asSum){
+      try{
+        var asList=await apiFetch('/erm/api/assessments');var closed=(asList||[]).filter(function(a){return a.status==='closed'||a.status==='active';});
+        if(closed.length){asSum.innerHTML=closed.slice(0,5).map(function(a){return'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="font-weight:600">'+esc(a.title)+'</span><div style="display:flex;gap:6px;align-items:center">'+statusBadge(a.status)+'<button class="btn btn-sm btn-secondary" onclick="ermOpenResultsDrawer('+a.id+')" style="padding:2px 7px">Results</button></div></div>';}).join('');}
+        else{asSum.innerHTML='<div style="color:var(--muted);font-size:12px">No completed assessments yet</div>';}
+      }catch(e){asSum.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load</div>';}
+    }
+    // Trend and aging charts
+    ermLoadTrendChart(30);
+    ermLoadAgingChart();
+  }catch(e){console.error('ERM reports',e);}
+};
+
+window.ermSelectTrendPeriod=function(btn){
+  document.querySelectorAll('#trendPeriodBtns .erm-chip').forEach(function(c){c.classList.remove('active');});
+  btn.classList.add('active');
+  ermLoadTrendChart(parseInt(btn.dataset.days||30));
+};
+
+window.ermLoadTrendChart=async function(period){
+  var el=document.getElementById('rptTrendChart');if(!el)return;
+  el.textContent='Loading…';
+  try{
+    var data=await apiFetch('/erm/api/reports/trend?period='+period);
+    var daily=data.daily||[];
+    if(!daily.length){el.innerHTML='<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center">No trend data for this period</div>';return;}
+    var maxV=Math.max.apply(null,daily.map(function(d){return d.new_risks||0;}).concat([1]));
+    var W=el.offsetWidth||300,H=100,PAD=20;
+    var pts=daily.map(function(d,i){
+      var x=PAD+(i/(daily.length-1||1))*(W-PAD*2);
+      var y=H-PAD-(d.new_risks/maxV)*(H-PAD*2);
+      return x.toFixed(1)+','+y.toFixed(1);
+    }).join(' ');
+    el.innerHTML='<svg width="100%" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="overflow:visible">'+
+      '<polyline fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" points="'+pts+'" />'+
+      daily.filter(function(d,i){return i===0||i===daily.length-1||d.new_risks===maxV;}).map(function(d,i){
+        var idx=daily.indexOf(d);
+        var x=PAD+(idx/(daily.length-1||1))*(W-PAD*2);
+        var y=H-PAD-(d.new_risks/maxV)*(H-PAD*2);
+        return'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="var(--accent)"/><text x="'+x.toFixed(1)+'" y="'+(y-7).toFixed(1)+'" text-anchor="middle" font-size="9" fill="var(--muted)">'+d.new_risks+'</text>';
+      }).join('')+
+      '<text x="'+PAD+'" y="'+(H-5)+'" font-size="9" fill="var(--muted)">'+esc((daily[0]||{}).day||'')+'</text>'+
+      '<text x="'+(W-PAD)+'" y="'+(H-5)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+esc((daily[daily.length-1]||{}).day||'')+'</text>'+
+    '</svg><div style="font-size:11px;color:var(--muted);margin-top:4px">Total open: <strong>'+data.total_open+'</strong> · Critical: <strong>'+data.critical_open+'</strong></div>';
+  }catch(e){el.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load trend data</div>';}
+};
+
+window.ermLoadAgingChart=async function(){
+  var el=document.getElementById('rptAgingChart');if(!el)return;
+  el.textContent='Loading…';
+  try{
+    var data=await apiFetch('/erm/api/reports/aging');
+    var buckets=[
+      {k:'lt30',label:'< 30 days',color:'var(--good,#16a34a)'},
+      {k:'d30_90',label:'30–90 days',color:'var(--amber)'},
+      {k:'d90_180',label:'90–180 days',color:'#ea580c'},
+      {k:'gt180',label:'> 180 days',color:'var(--red)'}
+    ];
+    var total=buckets.reduce(function(s,b){return s+(data[b.k]&&data[b.k].count||0);},0)||1;
+    el.innerHTML=buckets.map(function(b){
+      var cnt=(data[b.k]&&data[b.k].count)||0;
+      var pct=Math.round(cnt/total*100);
+      return'<div style="margin-bottom:10px">'+
+        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">'+
+          '<span>'+b.label+'</span><span style="font-weight:700;color:'+b.color+'">'+cnt+'</span>'+
+        '</div>'+
+        '<div style="height:8px;background:var(--surface3);border-radius:100px">'+
+          '<div style="height:100%;width:'+pct+'%;background:'+b.color+';border-radius:100px;transition:width .6s ease"></div>'+
+        '</div>'+
+      '</div>';
+    }).join('')+'<div style="font-size:11px;color:var(--muted);margin-top:8px">'+total+' open risks tracked</div>';
+  }catch(e){el.innerHTML='<div style="color:var(--muted);font-size:12px">Could not load aging data</div>';}
+};
+window.ermBoardReport=async function(btn){
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='Generating…';
+  try{
+    var res=await apiFetch('/erm/api/ai/board-report',{method:'POST'});
+    btn.disabled=false;btn.textContent=orig;
+    var out=document.getElementById('boardRptOutput');var txt=document.getElementById('boardRptText');
+    if(out&&txt){txt.textContent=res.narrative||'No narrative generated.';out.style.display='';}
+    typeof showToast==='function'&&showToast('Board report generated ✓');
+  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Report failed','error');}
+};
+
+/* ────────────────── RISK MODAL ────────────────── */
+window.ermOpenRiskModal=function(existing){
+  var isEdit=!!(existing&&existing.id&&!existing._isNew);
+  var cats=['strategic','operational','compliance','financial','reputational','technology','third_party','environmental'];
+  var html='<div class="erm-modal-overlay" id="ermRiskModal" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
+    '<button class="modal-close" onclick="document.getElementById(\'ermRiskModal\').remove()">✕</button>'+
+    '<div class="modal-title">'+(isEdit?'Edit':'New')+' Enterprise Risk</div>'+
+    '<div class="form-group"><label>Risk Title *</label><input id="rsk_title" value="'+esc(existing?existing.title||'':'')+'"></div>'+
+    '<div class="form-group"><label>Description</label><textarea id="rsk_desc" rows="3">'+esc(existing?existing.description||'':'')+'</textarea></div>'+
+    '<div class="form-row"><div class="form-group"><label>Category</label><select id="rsk_cat">'+cats.map(function(c){return'<option value="'+c+'"'+((existing&&existing.category===c)?' selected':'')+'>'+c.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+    '<div class="form-group"><label>Treatment</label><select id="rsk_treat">'+['mitigate','accept','avoid','transfer'].map(function(t){return'<option value="'+t+'"'+((existing&&existing.treatment===t)?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="form-row-3">'+
+    '<div class="form-group"><label>Likelihood (1–5)</label><input type="number" id="rsk_l" min="1" max="5" value="'+(existing?existing.likelihood||3:3)+'"></div>'+
+    '<div class="form-group"><label>Impact (1–5)</label><input type="number" id="rsk_i" min="1" max="5" value="'+(existing?existing.impact||3:3)+'"></div>'+
+    '<div class="form-group"><label>Velocity (1–5)</label><input type="number" id="rsk_v" min="1" max="5" value="'+(existing?existing.velocity||3:3)+'" title="How fast could this materialise?"></div></div>'+
+    '<div class="form-group"><label>Treatment Plan</label><textarea id="rsk_plan" rows="2">'+esc(existing?existing.treatment_plan||'':'')+'</textarea></div>'+
+    '<div class="form-row"><div class="form-group"><label>Status</label><select id="rsk_status">'+['open','under_review','mitigated','accepted','closed'].map(function(s){return'<option value="'+s+'"'+((existing&&existing.status===s)?' selected':'')+'>'+s.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+    '<div class="form-group"><label>Review Date</label><input type="date" id="rsk_review" value="'+(existing?existing.review_date||'':'')+'"></div></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><input type="checkbox" id="rsk_board" style="width:auto;margin:0"'+((existing&&existing.board_visibility)?' checked':'')+'><label for="rsk_board" style="font-size:13px;font-weight:600;margin:0;cursor:pointer">★ Flag as Board-Visible (escalate to executive reporting)</label></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'ermRiskModal\').remove()">Cancel</button>'+
+    '<button class="btn-erm-ai" onclick="ermAiSuggestTreatment()" title="AI suggest">🤖 AI Suggest</button>'+
+    '<button class="btn btn-primary" onclick="ermSaveRisk('+(isEdit?existing.id:'null')+')">Save Risk</button>'+
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ermAiSuggestTreatment=async function(){
+  var btns=document.querySelectorAll('#ermRiskModal .btn-erm-ai');var btn=btns[0];if(!btn)return;
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='…';
+  try{
+    var res=await apiFetch('/erm/api/ai/suggest-treatment',{method:'POST',body:{title:document.getElementById('rsk_title').value.trim(),description:document.getElementById('rsk_desc').value.trim(),category:document.getElementById('rsk_cat').value,likelihood:parseInt(document.getElementById('rsk_l').value)||3,impact:parseInt(document.getElementById('rsk_i').value)||3}});
+    if(res.treatment)document.getElementById('rsk_treat').value=res.treatment;
+    if(res.treatment_plan)document.getElementById('rsk_plan').value=res.treatment_plan;
+    btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('AI treatment applied ✓');
+  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('AI failed','error');}
+};
+window.ermSaveRisk=async function(id){
+  var title=document.getElementById('rsk_title').value.trim();if(!title){typeof showToast==='function'&&showToast('Title required','error');return;}
+  var data={title:title,description:document.getElementById('rsk_desc').value.trim(),category:document.getElementById('rsk_cat').value,treatment:document.getElementById('rsk_treat').value,likelihood:parseInt(document.getElementById('rsk_l').value)||3,impact:parseInt(document.getElementById('rsk_i').value)||3,velocity:parseInt(document.getElementById('rsk_v').value)||3,treatment_plan:document.getElementById('rsk_plan').value.trim(),status:document.getElementById('rsk_status').value,review_date:document.getElementById('rsk_review').value,board_visibility:document.getElementById('rsk_board').checked?1:0};
+  try{
+    if(id)await apiFetch('/erm/api/risks/'+id,{method:'PUT',body:data});else await apiFetch('/erm/api/risks',{method:'POST',body:data});
+    document.getElementById('ermRiskModal').remove();
+    ermLoadRegister();if(ermRouter.current==='dashboard')ermLoadDashboard();
+    typeof showToast==='function'&&showToast('Risk saved ✓');
+  }catch(e){typeof showToast==='function'&&showToast('Save failed: '+e.message,'error');}
+};
+
+/* ────────────────── CHAT ────────────────── */
+var chatLoaded=false;
+window.ermLoadChat=async function(){
+  if(chatLoaded)return;chatLoaded=true;
+  try{
+    var data=await apiFetch('/erm/api/chat');
+    var msgs=Array.isArray(data)?data:[];
+    if(msgs.length){
+      var chips=document.getElementById('ermPromptChips');if(chips)chips.style.display='none';
+      var c=document.getElementById('ermChatMsgs');
+      msgs.forEach(function(m){var isUser=m.role==='user';var div=document.createElement('div');div.style.cssText=isUser?'align-self:flex-end;background:var(--accent);color:white;padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5':'align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';div.innerHTML=esc(m.content||'').replace(/\n/g,'<br>');c.appendChild(div);});
+      c.scrollTop=c.scrollHeight;
+    }
+  }catch(e){}
+};
+window.ermQuickPrompt=function(chip){var input=document.getElementById('ermChatInput');if(input){input.value=chip.textContent;ermSendChat();}var chips=document.getElementById('ermPromptChips');if(chips)chips.style.display='none';};
+window.ermSendChat=async function(){
+  var input=document.getElementById('ermChatInput');var msg=input.value.trim();if(!msg)return;
+  input.value='';var chips=document.getElementById('ermPromptChips');if(chips)chips.style.display='none';
+  var c=document.getElementById('ermChatMsgs');
+  var ud=document.createElement('div');ud.style.cssText='align-self:flex-end;background:var(--accent);color:white;padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';ud.textContent=msg;c.appendChild(ud);c.scrollTop=c.scrollHeight;
+  var tid='t'+Date.now();var aid=document.createElement('div');aid.id=tid;aid.style.cssText='align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';aid.innerHTML='<div class="spinner" style="width:16px;height:16px;border-width:2px"></div>';c.appendChild(aid);c.scrollTop=c.scrollHeight;
+  try{var d=await apiFetch('/erm/api/chat',{method:'POST',body:{message:msg}});var el=document.getElementById(tid);if(el)el.innerHTML=esc(d.reply||'No reply').replace(/\n/g,'<br>');}
+  catch(e){var el2=document.getElementById(tid);if(el2)el2.textContent='Error: '+e.message;}
+  c.scrollTop=c.scrollHeight;
+};
+window.ermClearChat=async function(){
+  if(!confirm('Clear chat history?'))return;
+  try{await apiFetch('/erm/api/chat/clear',{method:'POST'});chatLoaded=false;var c=document.getElementById('ermChatMsgs');if(c){c.innerHTML='<div style="align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%">Chat cleared. Ask me anything about enterprise risk management.</div>';}var chips=document.getElementById('ermPromptChips');if(chips)chips.style.display='';}
+  catch(e){typeof showToast==='function'&&showToast('Clear failed','error');}
+};
+
+/* ────────────────── KRI INDICATORS ────────────────── */
+var kriCache=[];
+window.ermLoadIndicators=async function(){
+  var grid=document.getElementById('kriGrid');
+  if(!grid)return;
+  grid.innerHTML='<div style="text-align:center;padding:60px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    var data=await apiFetch('/erm/api/kris');
+    kriCache=Array.isArray(data)?data:[];
+    // Stats strip
+    var breaching=kriCache.filter(function(k){return k.threshold_crit&&k.current_value>=k.threshold_crit;}).length;
+    var warning=kriCache.filter(function(k){return !k.threshold_crit||k.current_value<k.threshold_crit;}).filter(function(k){return k.threshold_warn&&k.current_value>=k.threshold_warn;}).length;
+    var healthy=kriCache.length-breaching-warning;
+    statCards('kriStats',[
+      {label:'Total KRIs',value:kriCache.length},
+      {label:'Breaching',value:breaching,color:'var(--red)'},
+      {label:'Warning',value:warning,color:'var(--amber)'},
+      {label:'Healthy',value:healthy,color:'var(--good,#16a34a)'}
+    ]);
+    // Breach banner
+    var breachBanner=document.getElementById('kriBreachBanner');
+    if(breachBanner){
+      if(breaching>0){
+        var names=kriCache.filter(function(k){return k.threshold_crit&&k.current_value>=k.threshold_crit;}).map(function(k){return esc(k.name);});
+        breachBanner.style.display='';
+        breachBanner.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius);padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:13px">'+
+          '<span style="font-size:18px">🔴</span><div><strong>'+breaching+' KRI'+(breaching>1?'s':'')+' at critical threshold:</strong> '+names.join(', ')+'</div></div>';
+      }else{breachBanner.style.display='none';}
+    }
+    // Nav badge
+    var badge=document.getElementById('ermNavKriBreach');if(badge)badge.style.display=breaching>0?'':'none';
+    if(!kriCache.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-title">No KRIs yet</div><div class="empty-state-text">Create Key Risk Indicators to monitor performance thresholds linked to enterprise risks.</div><button class="btn btn-primary" onclick="ermOpenKriModal()">+ Add KRI</button></div>';return;}
+    grid.innerHTML=kriCache.map(function(k){
+      var warn=k.threshold_warn||0,crit=k.threshold_crit||0;
+      var val=k.current_value||0;
+      var status=crit&&val>=crit?'critical':warn&&val>=warn?'warning':'ok';
+      var statusColor=status==='critical'?'var(--red)':status==='warning'?'var(--amber)':'var(--good,#16a34a)';
+      var trendIcon=k.trend==='worsening'?'↑':k.trend==='improving'?'↓':'→';
+      var trendColor=k.trend==='worsening'?'var(--red)':k.trend==='improving'?'var(--good,#16a34a)':'var(--muted)';
+      var gaugeHtml=ermKriGauge(val,warn,crit);
+      return'<div class="kri-card">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'+
+          '<div style="font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(k.name)+'</div>'+
+          '<span style="font-size:18px;font-weight:900;color:'+trendColor+';flex-shrink:0;margin-left:8px">'+trendIcon+'</span>'+
+        '</div>'+
+        (k.risk_title?'<div style="font-size:11px;color:var(--accent);margin-bottom:8px;font-weight:600">⚡ '+esc(k.risk_title)+'</div>':'')+
+        '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">'+
+          '<div class="kri-val-big" style="color:'+statusColor+'">'+val+'</div>'+
+          '<div style="font-size:12px;color:var(--muted)">'+(k.unit||'')+'</div>'+
+        '</div>'+
+        gaugeHtml+
+        '<div class="kri-threshold-labels">'+
+          '<span>0</span>'+
+          (warn?'<span style="color:var(--amber)">⚠ '+warn+'</span>':'')+
+          (crit?'<span style="color:var(--red)">🔴 '+crit+'</span>':'')+
+        '</div>'+
+        '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--muted)">'+
+          (k.frequency?'<span>📅 '+esc(k.frequency)+'</span>':'')+
+          (k.owner_name?'<span>👤 '+esc(k.owner_name)+'</span>':'')+
+          (k.last_updated?'<span>🕐 '+fmtDate(k.last_updated)+'</span>':'')+
+        '</div>'+
+        '<div style="margin-top:12px;display:flex;gap:6px">'+
+          '<button class="btn btn-sm btn-secondary" onclick="ermOpenKriValueModal('+k.id+','+val+')">Update Value</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ermOpenKriModal('+k.id+')">Edit</button>'+
+          '<button onclick="ermDeleteKri('+k.id+')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;margin-left:auto">🗑</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }catch(e){console.error('ERM KRI',e);if(grid)grid.innerHTML='<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px">Failed to load indicators</div>';}
+};
+
+function ermKriGauge(val,warn,crit){
+  var maxV=crit?crit*1.3:warn?warn*1.5:val>0?val*1.5:10;
+  var warnPct=warn?Math.min(100,warn/maxV*100):0;
+  var critPct=crit?Math.min(100,crit/maxV*100):100;
+  var curPct=Math.min(100,val/maxV*100);
+  var fillColor=crit&&val>=crit?'var(--red)':warn&&val>=warn?'var(--amber)':'var(--good,#16a34a)';
+  return'<div class="kri-gauge-track">'+
+    '<div style="position:absolute;left:0;top:0;height:100%;width:'+warnPct.toFixed(1)+'%;background:rgba(22,163,74,.25)"></div>'+
+    '<div style="position:absolute;left:'+warnPct.toFixed(1)+'%;top:0;height:100%;width:'+(critPct-warnPct).toFixed(1)+'%;background:rgba(217,119,6,.25)"></div>'+
+    '<div style="position:absolute;left:'+critPct.toFixed(1)+'%;top:0;height:100%;width:'+(100-critPct).toFixed(1)+'%;background:rgba(220,38,38,.25)"></div>'+
+    '<div class="kri-gauge-fill" style="width:'+curPct.toFixed(1)+'%;background:'+fillColor+';position:relative;z-index:1"></div>'+
+  '</div>';
+}
+
+window.ermOpenKriModal=async function(id){
+  var k=id?kriCache.find(function(x){return x.id===id;})||{}:{};
+  var risks=[];
+  try{risks=await apiFetch('/erm/api/risks')||[];}catch(e){}
+  var riskOpts='<option value="">None</option>'+risks.map(function(r){return'<option value="'+r.id+'"'+(k.linked_risk_id===r.id?' selected':'')+'>'+esc(r.title)+'</option>';}).join('');
+  var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
+    '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
+    '<div class="modal-title">'+(id?'Edit':'New')+' KRI</div>'+
+    '<div class="form-group"><label>Name</label><input id="kriName" value="'+esc(k.name||'')+'" placeholder="e.g. Monthly data breach incidents"></div>'+
+    '<div class="form-group"><label>Description</label><textarea id="kriDesc" rows="2">'+esc(k.description||'')+'</textarea></div>'+
+    '<div class="form-group"><label>Linked Risk</label><select id="kriRisk">'+riskOpts+'</select></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label>Metric Type</label><select id="kriType"><option value="count"'+(k.metric_type==='count'?' selected':'')+'>Count</option><option value="amount"'+(k.metric_type==='amount'?' selected':'')+'>Amount</option><option value="percentage"'+(k.metric_type==='percentage'?' selected':'')+'>Percentage</option><option value="duration"'+(k.metric_type==='duration'?' selected':'')+'>Duration</option></select></div>'+
+      '<div class="form-group"><label>Unit</label><input id="kriUnit" value="'+esc(k.unit||'')+'" placeholder="events, $, %, hours"></div>'+
+    '</div>'+
+    '<div class="form-row-3">'+
+      '<div class="form-group"><label>Current Value</label><input id="kriVal" type="number" value="'+(k.current_value||0)+'"></div>'+
+      '<div class="form-group"><label>Warning Threshold</label><input id="kriWarn" type="number" value="'+(k.threshold_warn||'')+'" placeholder="Amber"></div>'+
+      '<div class="form-group"><label>Critical Threshold</label><input id="kriCrit" type="number" value="'+(k.threshold_crit||'')+'" placeholder="Red"></div>'+
+    '</div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label>Frequency</label><select id="kriFreq"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly"'+((!k.frequency||k.frequency==='monthly')?' selected':'')+'>Monthly</option><option value="quarterly">Quarterly</option></select></div>'+
+      '<div class="form-group"><label>Trend</label><select id="kriTrend"><option value="stable"'+((!k.trend||k.trend==='stable')?' selected':'')+'>Stable</option><option value="improving"'+(k.trend==='improving'?' selected':'')+'>Improving ↓</option><option value="worsening"'+(k.trend==='worsening'?' selected':'')+'>Worsening ↑</option></select></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
+      '<button class="btn btn-primary" onclick="ermSaveKri('+(id||'null')+')">Save</button>'+
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+
+window.ermSaveKri=async function(id){
+  var body={
+    name:(document.getElementById('kriName')||{}).value||'',
+    description:(document.getElementById('kriDesc')||{}).value,
+    linked_risk_id:parseInt((document.getElementById('kriRisk')||{}).value||'0')||null,
+    metric_type:(document.getElementById('kriType')||{}).value||'count',
+    unit:(document.getElementById('kriUnit')||{}).value,
+    current_value:parseFloat((document.getElementById('kriVal')||{}).value||0),
+    threshold_warn:parseFloat((document.getElementById('kriWarn')||{}).value||0)||null,
+    threshold_crit:parseFloat((document.getElementById('kriCrit')||{}).value||0)||null,
+    frequency:(document.getElementById('kriFreq')||{}).value||'monthly',
+    trend:(document.getElementById('kriTrend')||{}).value||'stable'
+  };
+  if(!body.name){typeof showToast==='function'&&showToast('Name is required','error');return;}
+  try{
+    if(id)await apiFetch('/erm/api/kris/'+id,{method:'PUT',body:body});
+    else await apiFetch('/erm/api/kris',{method:'POST',body:body});
+    document.querySelector('.erm-modal-overlay')&&document.querySelector('.erm-modal-overlay').remove();
+    typeof showToast==='function'&&showToast('KRI saved ✓');
+    ermLoadIndicators();
+  }catch(e){typeof showToast==='function'&&showToast('Save failed','error');}
+};
+
+window.ermOpenKriValueModal=function(id,currentVal){
+  var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:360px">'+
+    '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
+    '<div class="modal-title">Update KRI Value</div>'+
+    '<div class="form-group"><label>New Value</label><input id="kriNewVal" type="number" value="'+currentVal+'" autofocus></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+      '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
+      '<button class="btn btn-primary" onclick="ermDoUpdateKriValue('+id+')">Update</button>'+
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+
+window.ermDoUpdateKriValue=async function(id){
+  var val=parseFloat((document.getElementById('kriNewVal')||{}).value||0);
+  try{
+    await apiFetch('/erm/api/kris/'+id,{method:'PUT',body:{current_value:val}});
+    document.querySelector('.erm-modal-overlay')&&document.querySelector('.erm-modal-overlay').remove();
+    typeof showToast==='function'&&showToast('Value updated ✓');
+    ermLoadIndicators();
+  }catch(e){typeof showToast==='function'&&showToast('Update failed','error');}
+};
+
+window.ermDeleteKri=async function(id){
+  if(!confirm('Delete this KRI?'))return;
+  try{await apiFetch('/erm/api/kris/'+id,{method:'DELETE'});ermLoadIndicators();typeof showToast==='function'&&showToast('KRI deleted');}
+  catch(e){typeof showToast==='function'&&showToast('Delete failed','error');}
+};
+
+/* ────────────────── SMART ASSESSMENT ────────────────── */
+window.ermSuggestQuestions=async function(assessmentId,btn){
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='Thinking…';
+  try{
+    var body={linked_risk_titles:[]};
+    var res=await apiFetch('/erm/api/assessments/'+assessmentId+'/suggest-questions',{method:'POST',body:body});
+    btn.disabled=false;btn.textContent=orig;
+    var sug=res.suggestions||[];
+    if(!sug.length){typeof showToast==='function'&&showToast('No suggestions returned','error');return;}
+    var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
+      '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
+      '<div class="modal-title">🧠 Suggested Questions</div>'+
+      '<div style="margin-bottom:14px;font-size:13px;color:var(--muted)">Select questions to add to the assessment:</div>'+
+      sug.map(function(q,i){return'<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border)">'+
+        '<input type="checkbox" id="sugQ'+i+'" checked style="margin-top:3px">'+
+        '<div><div style="font-size:13px;font-weight:600">'+esc(q.question)+'</div>'+
+        '<div style="font-size:11px;color:var(--muted)">Type: '+esc(q.question_type)+'  Weight: '+esc(String(q.weight||1))+'</div></div>'+
+      '</div>';}).join('')+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ermAddSuggestedQuestions('+assessmentId+','+JSON.stringify(sug)+')">Add Selected</button>'+
+      '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Suggestion failed','error');}
+};
+
+window.ermAddSuggestedQuestions=async function(assessmentId,suggestions){
+  var added=0;
+  for(var i=0;i<suggestions.length;i++){
+    var chk=document.getElementById('sugQ'+i);
+    if(chk&&chk.checked){
+      try{await apiFetch('/erm/api/assessments/'+assessmentId+'/questions',{method:'POST',body:suggestions[i]});added++;}
+      catch(e){}
+    }
+  }
+  document.querySelector('.erm-modal-overlay')&&document.querySelector('.erm-modal-overlay').remove();
+  typeof showToast==='function'&&showToast('Added '+added+' questions ✓');
+  // Refresh assessment detail
+  ermOpenAssessmentDetail(assessmentId);
+};
+
+window.ermIdentifyRisks=async function(assessmentId,btn){
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='Analysing…';
+  try{
+    var res=await apiFetch('/erm/api/assessments/'+assessmentId+'/identify-risks',{method:'POST'});
+    btn.disabled=false;btn.textContent=orig;
+    var candidates=res.candidates||[];
+    if(!candidates.length){typeof showToast==='function'&&showToast('No risks identified from responses','error');return;}
+    var html='<div class="erm-modal-overlay" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
+      '<button class="modal-close" onclick="this.closest(\'.erm-modal-overlay\').remove()">✕</button>'+
+      '<div class="modal-title">🔍 Identified Risks</div>'+
+      '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">'+candidates.length+' risk(s) identified from assessment responses:</div>'+
+      candidates.map(function(c,i){
+        var score=(c.likelihood||3)*(c.impact||3);
+        var lvl=scoreToLevel(score);
+        return'<div style="padding:10px;background:var(--surface2);border-radius:var(--radius);margin-bottom:8px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
+            '<div style="font-size:13px;font-weight:700;flex:1">'+esc(c.title)+'</div>'+
+            levelBadge(lvl)+
+          '</div>'+
+          '<div style="font-size:12px;color:var(--muted);margin:4px 0">'+esc(c.category)+'</div>'+
+          '<div style="font-size:12px;line-height:1.5">'+esc(c.description||'')+'</div>'+
+          '<button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="ermAddIdentifiedRisk('+JSON.stringify(c)+',this)">+ Add to Register</button>'+
+        '</div>';
+      }).join('')+
+      '<div style="display:flex;justify-content:flex-end;margin-top:14px">'+
+        '<button class="btn btn-secondary" onclick="this.closest(\'.erm-modal-overlay\').remove()">Close</button>'+
+      '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Identification failed','error');}
+};
+
+window.ermAddIdentifiedRisk=async function(risk,btn){
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='Adding…';
+  try{
+    await apiFetch('/erm/api/risks',{method:'POST',body:risk});
+    btn.textContent='✓ Added';btn.disabled=true;
+    typeof showToast==='function'&&showToast('Risk added to register ✓');
+  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Failed to add risk','error');}
+};
+
+/* ────────────────── INIT ────────────────── */
+ermRouter.resolve();
+setInterval(function(){if(ermRouter.current==='dashboard')ermLoadDashboard();},300000);
+})();
+</script>
+{% endblock %}
+

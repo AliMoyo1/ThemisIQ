@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThemisIQ — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{--particle-color-rgb:30,70,160}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4fb;color:#1e293b;overflow:hidden}
+/* ── Particle canvas ── */
+#aegis-particles{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;mix-blend-mode:multiply;}
+
+/* ── Background scene ── */
+.scene{position:fixed;inset:0;z-index:0}
+
+/* Light base gradient — very subtle blue wash */
+.scene-gradient{
+  position:absolute;inset:0;
+  background:linear-gradient(160deg,#e8f0fe 0%,#f0f4fb 45%,#e6f7fb 100%);
+}
+
+/* Noise texture */
+.scene-noise{
+  position:absolute;inset:0;opacity:.02;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:200px 200px;
+}
+
+/* Top radial — navy bloom */
+.scene-top-glow{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:120vh;height:60vh;border-radius:0 0 50% 50%;
+  background:rgba(30,58,138,0.10);filter:blur(80px);
+}
+.scene-top-pulse{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:100vh;height:60vh;border-radius:0 0 50% 50%;
+  background:rgba(37,99,235,0.08);filter:blur(60px);
+  animation:topPulse 8s ease-in-out infinite alternate;
+}
+@keyframes topPulse{
+  0%{opacity:.4;transform:translateX(-50%) scale(.98)}
+  100%{opacity:.9;transform:translateX(-50%) scale(1.02)}
+}
+
+/* Bottom glow — teal bloom */
+.scene-bottom-glow{
+  position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  width:90vh;height:90vh;border-radius:50% 50% 0 0;
+  background:rgba(6,182,212,0.08);filter:blur(60px);
+  animation:bottomPulse 6s ease-in-out infinite alternate;
+}
+@keyframes bottomPulse{
+  0%{opacity:.4;transform:translateX(-50%) scale(1)}
+  100%{opacity:.8;transform:translateX(-50%) scale(1.08)}
+}
+
+/* Ambient spots */
+.scene-spot{position:absolute;border-radius:50%;filter:blur(100px);animation:spotPulse 4s ease-in-out infinite alternate}
+.scene-spot-1{width:24rem;height:24rem;background:rgba(30,58,138,0.07);left:25%;top:25%}
+.scene-spot-2{width:24rem;height:24rem;background:rgba(6,182,212,0.07);right:25%;bottom:25%;animation-delay:1s}
+@keyframes spotPulse{0%{opacity:.5}100%{opacity:1}}
+
+/* ── Container ── */
+.container{
+  position:relative;z-index:2;
+  display:flex;align-items:center;justify-content:center;
+  height:100%;padding:20px;
+}
+
+/* ── Perspective wrapper ── */
+.card-perspective{
+  width:100%;max-width:400px;
+  perspective:1500px;
+}
+
+/* ── 3D tilt target ── */
+.card-tilt{
+  position:relative;
+  transform-style:preserve-3d;
+  transition:transform .08s ease-out;
+  will-change:transform;
+}
+
+/* ── Card outer ── */
+.card-outer{position:relative}
+
+/* Ambient glow ring */
+.card-glow{
+  position:absolute;inset:-1px;border-radius:20px;
+  box-shadow:0 0 20px 4px rgba(37,99,235,0.06);
+  opacity:.5;
+  animation:ambientGlow 4s ease-in-out infinite alternate;
+  pointer-events:none;
+}
+@keyframes ambientGlow{
+  0%{opacity:.3;box-shadow:0 0 10px 2px rgba(37,99,235,0.05)}
+  100%{opacity:.7;box-shadow:0 0 25px 8px rgba(6,182,212,0.08)}
+}
+
+/* Border beam rail */
+.card-beams{
+  position:absolute;inset:-1px;border-radius:20px;overflow:hidden;pointer-events:none;
+}
+
+/* Beams — navy/teal tinted instead of white */
+.beam{position:absolute}
+
+.beam-top{
+  top:0;left:-50%;height:2px;width:50%;
+  background:linear-gradient(90deg,transparent,rgba(37,99,235,0.55),transparent);
+  filter:blur(1.5px);
+  animation:beamTop 3.5s ease-in-out infinite;
+  animation-delay:0s;
+}
+@keyframes beamTop{0%{left:-50%;opacity:.4}50%{opacity:.8}100%{left:100%;opacity:.4}}
+
+.beam-right{
+  top:-50%;right:0;width:2px;height:50%;
+  background:linear-gradient(180deg,transparent,rgba(6,182,212,0.55),transparent);
+  filter:blur(1.5px);
+  animation:beamRight 3.5s ease-in-out infinite;
+  animation-delay:.6s;
+}
+@keyframes beamRight{0%{top:-50%;opacity:.4}50%{opacity:.8}100%{top:100%;opacity:.4}}
+
+.beam-bottom{
+  bottom:0;right:-50%;height:2px;width:50%;
+  background:linear-gradient(90deg,transparent,rgba(37,99,235,0.55),transparent);
+  filter:blur(1.5px);
+  animation:beamBottom 3.5s ease-in-out infinite;
+  animation-delay:1.2s;
+}
+@keyframes beamBottom{0%{right:-50%;opacity:.4}50%{opacity:.8}100%{right:100%;opacity:.4}}
+
+.beam-left{
+  bottom:-50%;left:0;width:2px;height:50%;
+  background:linear-gradient(180deg,transparent,rgba(6,182,212,0.55),transparent);
+  filter:blur(1.5px);
+  animation:beamLeft 3.5s ease-in-out infinite;
+  animation-delay:1.8s;
+}
+@keyframes beamLeft{0%{bottom:-50%;opacity:.4}50%{opacity:.8}100%{bottom:100%;opacity:.4}}
+
+/* Corner sparks */
+.corner{position:absolute;border-radius:50%;filter:blur(1px)}
+.corner-tl{top:0;left:0;width:5px;height:5px;background:rgba(37,99,235,.5);animation:cornerPulse 2s ease-in-out infinite alternate}
+.corner-tr{top:0;right:0;width:8px;height:8px;background:rgba(6,182,212,.5);animation:cornerPulse 2.4s ease-in-out infinite alternate;animation-delay:.5s}
+.corner-br{bottom:0;right:0;width:8px;height:8px;background:rgba(6,182,212,.5);animation:cornerPulse 2.2s ease-in-out infinite alternate;animation-delay:1s}
+.corner-bl{bottom:0;left:0;width:5px;height:5px;background:rgba(37,99,235,.5);animation:cornerPulse 2.3s ease-in-out infinite alternate;animation-delay:1.5s}
+@keyframes cornerPulse{0%{opacity:.3}100%{opacity:.7}}
+
+/* ── Frosted white glass card ── */
+.card{
+  position:relative;
+  background:rgba(255,255,255,0.75);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.90);
+  border-radius:20px;
+  padding:32px 28px 28px;
+  overflow:hidden;
+  box-shadow:
+    0 8px 32px rgba(30,58,138,0.10),
+    0 2px 8px rgba(0,0,0,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+  animation:cardIn .7s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes cardIn{
+  from{opacity:0;transform:translateY(24px) scale(.96)}
+  to{opacity:1;transform:none}
+}
+
+/* Inner card top edge highlight */
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 0%,rgba(37,99,235,.25) 40%,rgba(6,182,212,.25) 60%,transparent 100%);
+}
+
+/* ── Logo ── */
+.logo-area{text-align:center;margin-bottom:12px}
+
+.logo-mark{
+  width:100%;max-width:260px;height:auto;margin:0 auto 0;
+  display:flex;align-items:center;justify-content:center;
+  animation:logoIn .8s cubic-bezier(.34,1.56,.64,1) both;
+  animation-delay:.1s;
+}
+.logo-mark img{
+  display:block;
+  width:100%;
+}
+@keyframes logoIn{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+
+.logo-title{
+  font-size:22px;font-weight:800;letter-spacing:-.5px;line-height:1;
+  animation:fadeUp .5s ease both;animation-delay:.2s;
+}
+.logo-title .t-themis{color:#0D1B2A}
+.logo-title .t-iq{
+  background:linear-gradient(135deg,#C9A84C,#E8C96A);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.logo-sub{
+  font-size:10px;color:#64748b;margin-top:5px;
+  letter-spacing:1.5px;text-transform:uppercase;font-weight:600;
+  animation:fadeUp .5s ease both;animation-delay:.3s;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ── Error ── */
+.error-msg{
+  background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);
+  border-radius:10px;padding:10px 14px;font-size:13px;color:#dc2626;
+  margin-bottom:18px;text-align:center;
+}
+
+/* ── Form fields ── */
+.fields{display:flex;flex-direction:column;gap:12px;margin-bottom:14px}
+
+.field-wrap{position:relative}
+
+.field-icon{
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  width:16px;height:16px;
+  color:rgba(30,58,138,0.35);
+  transition:color .25s;
+  pointer-events:none;
+}
+.field-wrap:focus-within .field-icon{color:#1e3a8a}
+
+.form-input{
+  width:100%;height:42px;padding:0 38px 0 38px;
+  background:rgba(255,255,255,0.7);
+  border:1px solid rgba(30,58,138,0.14);
+  border-radius:10px;
+  color:#0f172a;font-size:13px;font-family:inherit;
+  outline:none;transition:background .2s,border-color .2s,box-shadow .2s;
+}
+.form-input::placeholder{color:rgba(100,116,139,0.6)}
+.form-input:focus{
+  background:rgba(255,255,255,0.9);
+  border-color:rgba(37,99,235,0.45);
+  box-shadow:0 0 0 3px rgba(37,99,235,0.08);
+}
+/* Suppress browser autofill yellow */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:focus{
+  -webkit-box-shadow:0 0 0 1000px rgba(240,247,255,.98) inset !important;
+  -webkit-text-fill-color:#0f172a !important;
+  transition:background-color 9999s;
+}
+
+/* Password toggle */
+.pw-toggle{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;padding:0;
+  color:rgba(30,58,138,.35);transition:color .2s;
+  display:flex;align-items:center;
+}
+.pw-toggle:hover{color:#1e3a8a}
+
+/* ── Remember + forgot ── */
+.row-options{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:18px;
+}
+
+.cb-wrap{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none}
+.cb-box{
+  width:16px;height:16px;border-radius:4px;
+  border:1.5px solid rgba(30,58,138,0.25);
+  background:rgba(255,255,255,0.8);
+  flex-shrink:0;position:relative;
+  transition:background .15s,border-color .15s;
+}
+.cb-real{position:absolute;opacity:0;width:0;height:0}
+.cb-real:checked ~ .cb-box{
+  background:linear-gradient(135deg,#1e3a8a,#2563eb);
+  border-color:#1e3a8a;
+}
+.cb-check{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .15s;
+}
+.cb-real:checked ~ .cb-box .cb-check{opacity:1}
+.cb-label{font-size:11px;color:#64748b;transition:color .2s}
+.cb-wrap:hover .cb-label{color:#1e3a8a}
+
+.forgot{font-size:11px;color:#64748b;text-decoration:none;transition:color .2s}
+.forgot:hover{color:#1e3a8a}
+
+/* ── Sign in button ── */
+.btn-signin-wrap{position:relative;margin-bottom:18px}
+
+.btn-glow{
+  position:absolute;inset:0;border-radius:10px;
+  background:linear-gradient(135deg,rgba(30,58,138,.3),rgba(6,182,212,.2));
+  filter:blur(12px);opacity:0;transition:opacity .3s;pointer-events:none;
+}
+.btn-signin-wrap:hover .btn-glow{opacity:.8}
+
+.btn-signin{
+  width:100%;height:42px;border:none;border-radius:10px;
+  font-size:13px;font-weight:700;font-family:inherit;
+  cursor:pointer;position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 60%,#0891b2 100%);
+  color:#fff;
+  transition:transform .15s,box-shadow .15s;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.btn-signin:hover{
+  transform:translateY(-1px);
+  box-shadow:0 8px 24px rgba(30,58,138,0.35);
+}
+.btn-signin:active{transform:none}
+.btn-signin:disabled{cursor:not-allowed;opacity:.8}
+
+/* Shimmer during loading */
+.btn-shimmer{
+  position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);
+  transform:translateX(-100%);opacity:0;pointer-events:none;
+}
+.btn-signin.loading .btn-shimmer{animation:shimmer 1.5s ease-in-out infinite;opacity:1}
+@keyframes shimmer{to{transform:translateX(100%)}}
+
+.btn-text{display:flex;align-items:center;gap:5px;transition:opacity .15s}
+.btn-spinner{
+  display:none;width:16px;height:16px;
+  border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-signin.loading .btn-text{display:none}
+.btn-signin.loading .btn-spinner{display:block}
+
+/* ── Divider ── */
+.divider{
+  display:flex;align-items:center;gap:12px;margin-bottom:16px;
+}
+.divider-line{flex:1;height:1px;background:rgba(30,58,138,0.10)}
+.divider-text{font-size:11px;color:#94a3b8}
+
+/* ── Module pills ── */
+.module-pills{
+  display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:18px;
+}
+.pill{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:20px;
+  font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  border:1px solid;
+}
+.pill-aria   {color:#7c3aed;border-color:rgba(124,58,237,.25);background:rgba(124,58,237,.06)}
+.pill-grid   {color:#1a6b3a;border-color:rgba(26,107,58,.25);background:rgba(26,107,58,.06)}
+.pill-bcm    {color:#b45309;border-color:rgba(180,83,9,.25);background:rgba(180,83,9,.06)}
+.pill-sentinel{color:#0891b2;border-color:rgba(8,145,178,.25);background:rgba(8,145,178,.06)}
+
+/* ── Footer ── */
+.card-footer{text-align:center;margin-top:14px}
+.card-footer p{font-size:10px;color:#94a3b8;letter-spacing:.3px}
+
+/* ── Responsive ── */
+@media(max-width:440px){
+  .card{padding:28px 20px}
+  .card-perspective{max-width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- Particle network -->
+<canvas id="aegis-particles" aria-hidden="true"></canvas>
+
+<!-- Background scene -->
+<div class="scene">
+  <div class="scene-gradient"></div>
+  <div class="scene-noise"></div>
+  <div class="scene-top-glow"></div>
+  <div class="scene-top-pulse"></div>
+  <div class="scene-bottom-glow"></div>
+  <div class="scene-spot scene-spot-1"></div>
+  <div class="scene-spot scene-spot-2"></div>
+</div>
+
+<div class="container">
+  <div class="card-perspective">
+
+    <!-- 3D tilt wrapper -->
+    <div class="card-tilt" id="cardTilt">
+      <div class="card-outer">
+
+        <!-- Ambient glow ring -->
+        <div class="card-glow"></div>
+
+        <!-- Traveling border beams -->
+        <div class="card-beams">
+          <div class="beam beam-top"></div>
+          <div class="beam beam-right"></div>
+          <div class="beam beam-bottom"></div>
+          <div class="beam beam-left"></div>
+          <div class="corner corner-tl"></div>
+          <div class="corner corner-tr"></div>
+          <div class="corner corner-br"></div>
+          <div class="corner corner-bl"></div>
+        </div>
+
+        <!-- Frosted glass card -->
+        <div class="card">
+
+          <!-- Logo -->
+          <div class="logo-area">
+            <div class="logo-mark">
+              <!-- ThemisIQ logo: real PNG from static/img/themisiq-logo.png -->
+              <img src="/static/img/themisiq-logo-clear.png"
+                   alt="ThemisIQ"
+                   id="tiq-logo-img"
+                   onload="document.getElementById('tiq-text-area').style.display='none'"
+                   onerror="this.style.display='none';document.getElementById('tiq-svg-fallback').style.display='block'">
+              <!-- SVG fallback shown only if PNG not yet saved -->
+              <svg id="tiq-svg-fallback" viewBox="0 0 220 190" fill="none" xmlns="http://www.w3.org/2000/svg"
+                   width="154" height="133" style="display:none;margin:0 auto">
+                <defs>
+                  <linearGradient id="tiq-gold-l" x1="0" y1="0" x2="0.8" y2="1">
+                    <stop offset="0%" stop-color="#E8D06A"/>
+                    <stop offset="100%" stop-color="#B8902A"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- ── SPLIT RING ── -->
+                <!-- Left half: navy -->
+                <path d="M88 8 A87 87 0 0 0 88 182"
+                      stroke="#0D1B2A" stroke-width="11" fill="none" stroke-linecap="round"/>
+                <!-- Right half: gold -->
+                <path d="M88 8 A87 87 0 0 1 88 182"
+                      stroke="url(#tiq-gold-l)" stroke-width="10" fill="none" stroke-linecap="round"/>
+                <!-- Accent dot at top split point -->
+                <circle cx="88" cy="8" r="4" fill="#C9A84C"/>
+
+                <!-- ── HAIR BUN (back/left of head) ── -->
+                <!-- Bun loop -->
+                <path d="M58 56 C46 48,44 34,54 27 C62 21,72 25,72 34"
+                      stroke="#0D1B2A" stroke-width="2.8" fill="none"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Hair swept into bun -->
+                <path d="M72 34 C68 28,64 26,62 30 C60 34,60 42,62 48 C64 54,60 58,57 58"
+                      stroke="#0D1B2A" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+                <!-- ── LAUREL WREATH ── -->
+                <!-- Band arc across crown -->
+                <path d="M78 21 C82 16,87 14,92 17 C97 20,100 26,100 32"
+                      stroke="#0D1B2A" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                <!-- Leaf spikes on wreath -->
+                <path d="M80 18 L77 14" stroke="#0D1B2A" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M84 16 L82 12" stroke="#0D1B2A" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M89 14 L88 10" stroke="#0D1B2A" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M94 16 L95 12" stroke="#0D1B2A" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M98 20 L101 17" stroke="#0D1B2A" stroke-width="1.8" stroke-linecap="round"/>
+
+                <!-- ── FACIAL PROFILE (forehead → nose → lips → chin) ── -->
+                <path d="M88 20
+                         C93 20,98 25,100 31
+                         C102 37,101 42,102 48
+                         C104 55,107 60,108 66
+                         C109 71,107 74,105 78
+                         C103 82,100 85,99 90
+                         L97 97
+                         C94 104,90 110,85 116
+                         C81 121,78 125,77 130"
+                      stroke="#0D1B2A" stroke-width="3.2" fill="none"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+
+                <!-- ── BACK OF HEAD / SKULL ── -->
+                <path d="M72 34
+                         C68 42,62 57,60 72
+                         C59 84,60 97,62 108
+                         C64 117,66 123,68 130"
+                      stroke="#0D1B2A" stroke-width="2.8" fill="none"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+
+                <!-- ── NECK ── -->
+                <!-- Front of neck -->
+                <path d="M77 130 C75 137,73 142,72 146"
+                      stroke="#0D1B2A" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+                <!-- Back of neck -->
+                <path d="M68 130 C69 137,70 142,72 146"
+                      stroke="#0D1B2A" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+
+                <!-- ── SHOULDER / DRAPED GARMENT ── -->
+                <path d="M72 146 C64 154,56 160,54 168 C52 174,60 178,76 176"
+                      stroke="#0D1B2A" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+                <path d="M68 144 C58 152,50 160,50 170"
+                      stroke="#0D1B2A" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+                <!-- ── HAIR FLOW (crown to bun) ── -->
+                <path d="M88 20 C82 22,76 26,72 34"
+                      stroke="#0D1B2A" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+                <!-- ── EYE ── -->
+                <circle cx="97" cy="47" r="3" fill="#0D1B2A"/>
+                <!-- Eyebrow -->
+                <path d="M93 42 C96 40,100 41,102 43"
+                      stroke="#0D1B2A" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+                <!-- ── EAR SUGGESTION ── -->
+                <path d="M88 76 C84 74,82 78,84 83 C86 87,90 85,89 81"
+                      stroke="#0D1B2A" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+
+                <!-- ── CIRCUIT BOARD TRACES ── -->
+                <!-- Upper trace -->
+                <path d="M156 64 L180 64" stroke="url(#tiq-gold-l)" stroke-width="3.2" stroke-linecap="round"/>
+                <path d="M180 64 L196 48" stroke="url(#tiq-gold-l)" stroke-width="2.8" stroke-linecap="round"/>
+                <circle cx="197" cy="47" r="6" fill="url(#tiq-gold-l)"/>
+                <!-- Middle trace -->
+                <path d="M162 94 L200 94" stroke="url(#tiq-gold-l)" stroke-width="3.2" stroke-linecap="round"/>
+                <circle cx="201" cy="94" r="6.5" fill="url(#tiq-gold-l)"/>
+                <!-- Lower trace -->
+                <path d="M156 124 L182 124" stroke="url(#tiq-gold-l)" stroke-width="2.8" stroke-linecap="round"/>
+                <path d="M182 124 L196 138" stroke="url(#tiq-gold-l)" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="197" cy="139" r="5.5" fill="url(#tiq-gold-l)"/>
+                <!-- Junction dots at ring edge -->
+                <circle cx="156" cy="64" r="3.5" fill="#C9A84C"/>
+                <circle cx="162" cy="94" r="3.5" fill="#C9A84C"/>
+                <circle cx="156" cy="124" r="3.5" fill="#C9A84C"/>
+              </svg>
+            </div>
+            <!-- Shown only when PNG is not available (SVG fallback mode) -->
+            <div id="tiq-text-area">
+              <div class="logo-title">
+                <span class="t-themis">Themis</span><span class="t-iq">IQ</span>
+              </div>
+              <div class="logo-sub">Govern &middot; Manage &middot; Protect</div>
+            </div>
+          </div>
+
+          <!-- Error message -->
+          {% if error %}
+          <div class="error-msg">{{ error }}</div>
+          {% endif %}
+
+          <!-- Login form -->
+          <form method="POST" action="/login" id="loginForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="fields">
+              <!-- Username -->
+              <div class="field-wrap">
+                <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <input
+                  class="form-input" type="text" id="username" name="username"
+                  placeholder="Username" required autofocus autocomplete="username"
+                />
+              </div>
+
+              <!-- Password -->
+              <div class="field-wrap">
+                <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <input
+                  class="form-input" type="password" id="password" name="password"
+                  placeholder="Password" required autocomplete="current-password"
+                />
+                <button type="button" class="pw-toggle" id="pwToggle" aria-label="Toggle password" tabindex="-1">
+                  <svg id="eyeOpen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg id="eyeClosed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                    <line x1="1" y1="1" x2="23" y2="23"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Remember + Forgot -->
+            <div class="row-options">
+              <label class="cb-wrap">
+                <input class="cb-real" type="checkbox" name="remember_me" id="rememberMe">
+                <span class="cb-box">
+                  <span class="cb-check">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </span>
+                </span>
+                <span class="cb-label">Remember me</span>
+              </label>
+              <a href="/forgot-password" class="forgot">Forgot password?</a>
+            </div>
+
+            <!-- Sign in button -->
+            <div class="btn-signin-wrap">
+              <div class="btn-glow"></div>
+              <button type="submit" class="btn-signin" id="submitBtn">
+                <div class="btn-shimmer"></div>
+                <span class="btn-text">
+                  Sign In
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                </span>
+                <div class="btn-spinner"></div>
+              </button>
+            </div>
+
+          </form>
+
+          <!-- Divider + pills -->
+          <div class="divider">
+            <div class="divider-line"></div>
+            <span class="divider-text">modules</span>
+            <div class="divider-line"></div>
+          </div>
+
+          <div class="module-pills">
+            <span class="pill pill-aria">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+              Governance
+            </span>
+            <span class="pill pill-grid">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+              Audit
+            </span>
+            <span class="pill pill-bcm">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Resilience
+            </span>
+            <span class="pill pill-sentinel">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              Privacy
+            </span>
+          </div>
+
+          <div class="card-footer">
+            <p>ThemisIQ Compliance Suite &mdash; v1.0</p>
+          </div>
+
+        </div><!-- /card -->
+      </div><!-- /card-outer -->
+    </div><!-- /card-tilt -->
+  </div><!-- /card-perspective -->
+</div><!-- /container -->
+
+<script>
+(function(){
+  'use strict';
+
+  /* ── Password toggle ── */
+  const pwInput   = document.getElementById('password');
+  const pwToggle  = document.getElementById('pwToggle');
+  const eyeOpen   = document.getElementById('eyeOpen');
+  const eyeClosed = document.getElementById('eyeClosed');
+  pwToggle.addEventListener('click', function(){
+    const isHidden = pwInput.type === 'password';
+    pwInput.type = isHidden ? 'text' : 'password';
+    eyeOpen  .style.display = isHidden ? 'none'  : 'block';
+    eyeClosed.style.display = isHidden ? 'block' : 'none';
+  });
+
+  /* ── Submit loading state ── */
+  const form      = document.getElementById('loginForm');
+  const submitBtn = document.getElementById('submitBtn');
+  form.addEventListener('submit', function(){
+    submitBtn.classList.add('loading');
+    submitBtn.disabled = true;
+    setTimeout(function(){ submitBtn.classList.remove('loading'); submitBtn.disabled = false; }, 8000);
+  });
+
+  /* ── 3D card tilt ── */
+  const tilt = document.getElementById('cardTilt');
+  const MAX  = 10;
+  tilt.addEventListener('mousemove', function(e){
+    var r  = tilt.getBoundingClientRect();
+    var dx = (e.clientX - r.left - r.width  / 2) / (r.width  / 2);
+    var dy = (e.clientY - r.top  - r.height / 2) / (r.height / 2);
+    tilt.style.transform = 'rotateX(' + (-dy * MAX) + 'deg) rotateY(' + (dx * MAX) + 'deg)';
+  });
+  tilt.addEventListener('mouseleave', function(){
+    tilt.style.transform = 'rotateX(0deg) rotateY(0deg)';
+  });
+
+  /* ── Parallax glow spots on mouse ── */
+  document.addEventListener('mousemove', function(e){
+    var ox = (e.clientX / window.innerWidth  - 0.5) * 20;
+    var oy = (e.clientY / window.innerHeight - 0.5) * 20;
+    var spots = document.querySelectorAll('.scene-spot');
+    spots.forEach(function(s, i){
+      var f = i === 0 ? 1 : -1;
+      s.style.transform = 'translate(' + (ox * f) + 'px,' + (oy * f) + 'px)';
+    });
+  });
+})();
+</script>
+<script src="/static/js/aegis-particles.js"></script>
+</body>
+</html>

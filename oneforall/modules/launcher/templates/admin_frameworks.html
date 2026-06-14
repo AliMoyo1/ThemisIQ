@@ -1,0 +1,297 @@
+{% extends "platform_base.html" %}
+{% block title %}Framework Management — ThemisIQ{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <span class="page-title">Framework Management</span>
+  <div class="topbar-actions">
+    <button class="btn" onclick="seedControls()" style="font-size:12px; padding:7px 14px;" id="seedBtn">Seed Controls</button>
+    <button class="btn btn-primary" onclick="document.getElementById('newFwModal').classList.add('open')" style="font-size:12px; padding:7px 14px;">+ Custom Framework</button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Stats Summary Cards -->
+  <div id="fw-stats" style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px;">
+    {% set active_count = frameworks|selectattr('is_active')|list|length %}
+    {% set total_count = frameworks|length %}
+    {% set total_ctrls = frameworks|map(attribute='total_controls')|sum %}
+    <div class="card" style="padding:16px 20px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px;">Total Frameworks</div>
+      <div style="font-size:28px; font-weight:700; color:var(--text); line-height:1;">{{ total_count }}</div>
+    </div>
+    <div class="card" style="padding:16px 20px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px;">Active</div>
+      <div style="font-size:28px; font-weight:700; color:var(--good); line-height:1;">{{ active_count }}</div>
+    </div>
+    <div class="card" style="padding:16px 20px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px;">Inactive</div>
+      <div style="font-size:28px; font-weight:700; color:var(--muted); line-height:1;">{{ total_count - active_count }}</div>
+    </div>
+    <div class="card" style="padding:16px 20px;">
+      <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:6px;">Total Controls</div>
+      <div style="font-size:28px; font-weight:700; color:var(--text); line-height:1;">{{ total_ctrls }}</div>
+    </div>
+  </div>
+
+  <!-- Info Banner -->
+  <div class="card" style="padding:14px 18px; margin-bottom:18px; background:var(--info-soft); border:1px solid rgba(96,165,250,0.15);">
+    <div style="display:flex; align-items:center; gap:10px; color:var(--info); font-size:12.5px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span>Only <strong>activated</strong> frameworks appear in module dashboards and compliance statistics. Deactivated frameworks preserve all data but are hidden from normal users.</span>
+    </div>
+  </div>
+
+  <!-- Frameworks Table -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="background:var(--surface2);">
+          <th style="padding:12px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border);">Framework</th>
+          <th style="padding:12px 18px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border);">Modules</th>
+          <th style="padding:12px 18px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border);">Controls</th>
+          <th style="padding:12px 18px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border); width:130px;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fw in frameworks %}
+        <tr id="fw-row-{{ fw.id }}" style="border-bottom:1px solid var(--border-soft); transition:background 0.15s;"
+            onmouseenter="this.style.background='var(--surface2)'" onmouseleave="this.style.background='transparent'">
+          <td style="padding:14px 18px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="width:10px; height:10px; border-radius:50%; background:{{ fw.color }}; flex-shrink:0; box-shadow:0 0 0 3px {{ fw.color }}22;"></span>
+              <div>
+                <div style="font-weight:600; font-size:13.5px; color:var(--text); line-height:1.3;">{{ fw.name }}</div>
+                <div style="font-size:11.5px; color:var(--muted); margin-top:2px; max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ fw.description }}</div>
+              </div>
+            </div>
+          </td>
+          <td style="padding:14px 18px;">
+            {% for mod in fw.relevant_modules.split(',') %}
+              {% set mod_name = mod.strip() %}
+              {% if mod_name %}
+              <span style="display:inline-block; padding:2px 8px; margin:2px; border-radius:4px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px;
+                {% if mod_name == 'aria' %}background:#dbeafe; color:#2563eb;
+                {% elif mod_name == 'grid' %}background:#d1fae5; color:#059669;
+                {% elif mod_name == 'bcm' %}background:#fef3c7; color:#d97706;
+                {% elif mod_name == 'sentinel' %}background:#ede9fe; color:#7c3aed;
+                {% else %}background:var(--surface3); color:var(--muted);{% endif %}
+              ">{{ mod_name }}</span>
+              {% endif %}
+            {% endfor %}
+          </td>
+          <td id="fw-controls-{{ fw.id }}" style="padding:14px 18px; text-align:center;">
+            {% if fw.total_controls > 0 %}
+              <span style="font-size:14px; font-weight:700; color:var(--text);">{{ fw.total_controls }}</span>
+            {% else %}
+              <button class="fw-ai-btn" onclick="aiGenerateControls({{ fw.id }}, '{{ fw.name }}')"
+                      id="fw-ai-btn-{{ fw.id }}"
+                      style="font-size:11px; padding:5px 12px; background:linear-gradient(135deg, rgba(124,58,237,0.08), rgba(124,58,237,0.15)); color:#7c3aed; border:1px solid rgba(124,58,237,0.2); border-radius:6px; cursor:pointer; font-weight:600; transition:all 0.2s;">
+                AI Generate
+              </button>
+            {% endif %}
+          </td>
+          <td style="padding:14px 18px; text-align:center;">
+            <label style="display:inline-flex; align-items:center; cursor:pointer; gap:8px; user-select:none;">
+              <input type="checkbox" id="fw-toggle-{{ fw.id }}"
+                     {% if fw.is_active %}checked{% endif %}
+                     onchange="toggleFramework({{ fw.id }}, this.checked)"
+                     style="display:none;">
+              <span class="toggle-track" id="fw-track-{{ fw.id }}" style="
+                position:relative; width:40px; height:22px; border-radius:11px;
+                background: {% if fw.is_active %}#22c55e{% else %}var(--surface3){% endif %};
+                transition: background 0.25s ease; display:inline-block; flex-shrink:0;
+              ">
+                <span class="toggle-thumb" id="fw-thumb-{{ fw.id }}" style="
+                  position:absolute; top:2px;
+                  left: {% if fw.is_active %}20px{% else %}2px{% endif %};
+                  width:18px; height:18px; border-radius:50%;
+                  background:white; box-shadow:0 1px 3px rgba(0,0,0,0.25);
+                  transition: left 0.25s ease;
+                "></span>
+              </span>
+              <span id="fw-label-{{ fw.id }}" style="font-size:12px; font-weight:600;
+                color:{% if fw.is_active %}#22c55e{% else %}var(--muted){% endif %}; min-width:50px; text-align:left;">
+                {{ "Active" if fw.is_active else "Inactive" }}
+              </span>
+            </label>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:14px; padding:0 4px; font-size:12px; color:var(--muted);">
+    <strong>{{ frameworks|selectattr('is_active')|list|length }}</strong> of <strong>{{ frameworks|length }}</strong> frameworks active &middot;
+    Frameworks with no controls can use <strong>AI Generate</strong> to auto-populate controls from the framework specification.
+  </div>
+
+</div>
+
+<!-- Custom Framework Modal -->
+<div class="modal" id="newFwModal" style="position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;">
+  <div onclick="document.getElementById('newFwModal').classList.remove('open')" style="position:absolute;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(3px);"></div>
+  <div style="position:relative;background:var(--surface);border-radius:14px;padding:28px 30px;width:500px;max-width:92vw;box-shadow:0 25px 50px rgba(0,0,0,0.25);">
+    <h3 style="margin:0 0 20px;font-size:17px;font-weight:700;color:var(--text);">Create Custom Framework</h3>
+    <form id="newFwForm" onsubmit="createFramework(event)">
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Framework Name *</label>
+        <input type="text" name="name" required maxlength="100" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="e.g. NIST CSF 2.0">
+      </div>
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Description *</label>
+        <input type="text" name="description" required maxlength="200" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="Cybersecurity Framework for critical infrastructure">
+      </div>
+      <div style="display:flex;gap:14px;margin-bottom:16px;">
+        <div style="flex:0 0 70px;">
+          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Color</label>
+          <input type="color" name="color" value="#1E3A5F" style="width:48px;height:38px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px;">
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Relevant Modules</label>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;">
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="aria" checked> ARIA</label>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="grid"> GRID</label>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="bcm"> BCM</label>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="sentinel"> Sentinel</label>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px;padding-top:16px;border-top:1px solid var(--border-soft);">
+        <button type="button" onclick="document.getElementById('newFwModal').classList.remove('open')" class="btn" style="padding:8px 18px;font-size:13px;">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="createFwBtn" style="padding:8px 18px;font-size:13px;">Create Framework</button>
+      </div>
+    </form>
+  </div>
+</div>
+<style>
+.modal.open{display:flex !important}
+.fw-ai-btn:hover{background:linear-gradient(135deg, rgba(124,58,237,0.15), rgba(124,58,237,0.25)) !important; transform:translateY(-1px);}
+</style>
+
+<script>
+function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+
+async function createFramework(e) {
+  e.preventDefault();
+  var form = document.getElementById('newFwForm');
+  var fd = new FormData(form);
+  var modules = Array.from(form.querySelectorAll('input[name="modules"]:checked')).map(function(c){return c.value;}).join(',');
+  var body = {
+    name: fd.get('name'),
+    description: fd.get('description'),
+    color: fd.get('color'),
+    relevant_modules: modules,
+  };
+  var btn = document.getElementById('createFwBtn');
+  btn.textContent = 'Creating...';
+  btn.disabled = true;
+  try {
+    var resp = await fetch('/admin/api/frameworks', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) { var d = await resp.json(); throw new Error(d.error || 'Failed'); }
+    showToast('Framework created successfully', 'success');
+    document.getElementById('newFwModal').classList.remove('open');
+    setTimeout(function(){ location.reload(); }, 600);
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+    btn.textContent = 'Create Framework';
+    btn.disabled = false;
+  }
+}
+
+async function toggleFramework(fwId, active) {
+  var toggle = document.getElementById('fw-toggle-' + fwId);
+  var track = document.getElementById('fw-track-' + fwId);
+  var thumb = document.getElementById('fw-thumb-' + fwId);
+  var label = document.getElementById('fw-label-' + fwId);
+
+  var endpoint = active ? '/api/frameworks/' + fwId + '/activate' : '/api/frameworks/' + fwId + '/deactivate';
+  try {
+    var resp = await fetch(endpoint, { method: 'POST' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    track.style.background = active ? '#22c55e' : 'var(--surface3)';
+    thumb.style.left = active ? '20px' : '2px';
+    label.textContent = active ? 'Active' : 'Inactive';
+    label.style.color = active ? '#22c55e' : 'var(--muted)';
+    toggle.checked = active;
+    showToast((active ? 'Activated' : 'Deactivated') + ' framework', 'success');
+  } catch (err) {
+    toggle.checked = !active;
+    showToast('Failed: ' + err.message, 'error');
+  }
+}
+
+async function aiGenerateControls(fwId, fwName) {
+  var btn = document.getElementById('fw-ai-btn-' + fwId);
+  if (!btn) return;
+  btn.textContent = 'Generating...';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  btn.style.cursor = 'wait';
+
+  try {
+    var resp = await fetch('/api/frameworks/' + fwId + '/controls/ai-generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({count: 15}),
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed');
+
+    var cell = document.getElementById('fw-controls-' + fwId);
+    cell.innerHTML = '<span style="font-size:14px; font-weight:700; color:var(--text);">' + esc(data.inserted) + '</span>';
+    showToast('Generated ' + data.inserted + ' controls for ' + esc(fwName), 'success');
+  } catch (err) {
+    btn.textContent = 'AI Generate';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function seedControls() {
+  var btn = document.getElementById('seedBtn');
+  btn.textContent = 'Seeding...';
+  btn.disabled = true;
+  try {
+    var resp = await fetch('/admin/api/frameworks/seed-controls', {method: 'POST'});
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Failed');
+    showToast('Seeded ' + data.seeded + ' controls', 'success');
+    if (data.seeded > 0) setTimeout(function(){ location.reload(); }, 800);
+    else { btn.textContent = 'Seed Controls'; btn.disabled = false; }
+  } catch (err) {
+    btn.textContent = 'Seed Controls';
+    btn.disabled = false;
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+function showToast(msg, type) {
+  var existing = document.querySelectorAll('.ofa-toast');
+  existing.forEach(function(t){ t.remove(); });
+  var t = document.createElement('div');
+  t.className = 'ofa-toast';
+  t.style.cssText = 'position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:500; z-index:9999; box-shadow:0 4px 12px rgba(0,0,0,0.15); animation:toastIn 0.3s ease;';
+  t.style.background = type === 'success' ? '#f0fdf4' : '#fef2f2';
+  t.style.color = type === 'success' ? '#16a34a' : '#dc2626';
+  t.style.border = '1px solid ' + (type === 'success' ? 'rgba(22,163,74,0.2)' : 'rgba(220,38,38,0.2)');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function(){ t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; }, 2500);
+  setTimeout(function(){ t.remove(); }, 2800);
+}
+</script>
+<style>
+@keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+</style>
+
+{% endblock %}

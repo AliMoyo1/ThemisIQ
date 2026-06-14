@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BCM Sentinel — Business Continuity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-page:#b0ac8f;--bg-frame:#f4f1e8;--bg-card:#ffffff;
+  --bg-sidebar:#0f1116;--bg-sidebar-hover:#1b1e26;--bg-sidebar-active:#000000;
+  --text-primary:#1c1c1c;--text-secondary:#6b6b6b;--text-muted:#9a9a9a;
+  --text-sidebar:#d8d8d2;--text-sidebar-muted:#8a8a8a;
+  --accent:#8a8a5b;--accent-soft:#c9c79f;--accent-bright:#3b6cd4;
+  --border:#e8e4d5;--border-strong:#d7d1bf;
+  --success:#6a8f5c;--warn:#c49a3a;--danger:#b3553f;
+  --shadow-sm:0 1px 2px rgba(20,20,20,0.04);--shadow-md:0 6px 20px rgba(20,20,20,0.06);
+  --radius-lg:18px;--radius-md:12px;--radius-sm:8px;
+  --font-sans:'Inter',system-ui,sans-serif;--font-serif:'Cormorant Garamond','Georgia',serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-sans);background:var(--bg-page);color:var(--text-primary);min-height:100vh;font-size:14px}
+
+.app-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh;background:var(--bg-frame);margin:14px;border-radius:var(--radius-lg);overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.10)}
+
+.sidebar{background:var(--bg-sidebar);color:var(--text-sidebar);padding:24px 0;display:flex;flex-direction:column}
+.sidebar-brand{padding:0 20px 24px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.sidebar-logo{width:36px;height:36px;background:linear-gradient(135deg,#8a8a5b,#c9c79f);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0f1116}
+.sidebar-brand h2{font-size:16px;font-weight:600;color:#f4f1e8;font-family:var(--font-serif)}
+.sidebar-brand small{display:block;font-size:10px;color:var(--text-sidebar-muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;font-family:var(--font-sans)}
+
+.nav{flex:1;padding:0 12px}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#b0b0a0;font-size:13px;text-decoration:none;transition:all .15s;margin-bottom:2px}
+.nav a:hover{background:var(--bg-sidebar-hover);color:#e8e4d5}
+.nav a.active{background:var(--bg-sidebar-active);color:#f5f0e4;font-weight:500}
+.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#6a6a5a;padding:16px 12px 6px;font-weight:600}
+
+.sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.06);margin-top:auto}
+.sidebar-footer a{display:flex;align-items:center;gap:8px;color:var(--text-sidebar-muted);font-size:12px;text-decoration:none;padding:6px 8px;border-radius:6px;transition:all .15s}
+.sidebar-footer a:hover{background:rgba(255,255,255,0.05);color:var(--text-sidebar)}
+
+.main{padding:32px;overflow-y:auto}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px}
+.page-header h1{font-size:26px;font-weight:500;font-family:var(--font-serif)}
+.user-info{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:32px}
+.kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-sm)}
+.kpi-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px;font-weight:600}
+.kpi-card .value{font-size:28px;font-weight:700;color:var(--text-primary)}
+.kpi-card .sub{font-size:12px;color:var(--text-muted);margin-top:4px}
+
+.placeholder-section{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:40px;text-align:center;color:var(--text-secondary)}
+.placeholder-section h3{font-size:16px;color:var(--text-primary);margin-bottom:8px}
+.placeholder-section p{font-size:13px;max-width:400px;margin:0 auto}
+
+.pro-pill{position:fixed;bottom:20px;right:20px;background:var(--accent-bright);color:#fff;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.5px;box-shadow:0 4px 12px rgba(59,108,212,0.3);z-index:50}
+
+@media(max-width:900px){.app-shell{grid-template-columns:72px 1fr;margin:8px}.sidebar-brand h2,.sidebar-brand small,.nav a span{display:none}}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">B</div>
+      <div><h2>BCM Sentinel</h2><small>Business Continuity</small></div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-section">Overview</div>
+      <a href="/bcm/" class="active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span>Dashboard</span></a>
+
+      <div class="nav-section">Core Modules</div>
+      <a href="/bcm/bia"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Business Impact</span></a>
+      <a href="/bcm/risks"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg><span>Risk Register</span></a>
+      <a href="/bcm/plans"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span>Continuity Plans</span></a>
+      <a href="/bcm/incidents"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Incidents</span></a>
+      <a href="/bcm/exercises"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><span>Exercises</span></a>
+      <a href="/bcm/vendors"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Vendors</span></a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="/"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> All Modules</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <h1>BCM Dashboard</h1>
+      <div class="user-info"><span>{{ user.full_name }}</span><div class="avatar">{{ user.avatar_initials }}</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="label">BIA Records</div><div class="value">—</div><div class="sub">Business processes analysed</div></div>
+      <div class="kpi-card"><div class="label">Open Risks</div><div class="value">—</div><div class="sub">Active risk items</div></div>
+      <div class="kpi-card"><div class="label">Active Plans</div><div class="value">—</div><div class="sub">Continuity plans</div></div>
+      <div class="kpi-card"><div class="label">Open Incidents</div><div class="value">—</div><div class="sub">Being managed</div></div>
+    </div>
+    <div class="placeholder-section">
+      <h3>BCM Module — Coming in Phase 5</h3>
+      <p>Business continuity with BIA, risk register, continuity plans, incident management, tabletop exercises, and ISO 22301 compliance will be ported here.</p>
+    </div>
+  </main>
+</div>
+<span class="pro-pill">Pro</span>
+</body>
+</html>

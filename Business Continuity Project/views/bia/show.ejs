@@ -1,0 +1,85 @@
+<div class="page-head">
+  <div>
+    <h1><%= record.process_name %></h1>
+    <p><%= record.department || 'Unassigned department' %> · Owner: <%= record.owner || '—' %></p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/bia">Back</a>
+    <a class="btn" href="/bia/<%= record.id %>/edit">Edit</a>
+    <form method="POST" action="/bia/<%= record.id %>/delete" data-confirm="Delete this BIA record?" style="display:inline;">
+      <button class="btn danger" type="submit">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:16px;">
+  <div class="kpi"><div class="k-label">RTO</div><div class="k-value"><%= record.rto_hours != null ? record.rto_hours + ' hrs' : '—' %></div></div>
+  <div class="kpi"><div class="k-label">RPO</div><div class="k-value"><%= record.rpo_hours != null ? record.rpo_hours + ' hrs' : '—' %></div></div>
+  <div class="kpi"><div class="k-label">$/day impact</div><div class="k-value"><%= record.financial_impact_per_day != null ? '$' + Number(record.financial_impact_per_day).toLocaleString() : '—' %></div></div>
+  <div class="kpi">
+    <div class="k-label">Criticality</div>
+    <% const crit = record.criticality || '—'; const cls = crit === 'Critical' ? 'danger' : (crit === 'High' ? 'warn' : (crit === 'Medium' ? 'info' : 'muted')); %>
+    <div class="k-value"><span class="badge <%= cls %>" style="font-size:14px; padding:6px 14px;"><%= crit %></span></div>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-bottom:16px;">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Description</div></div>
+    <p><%= record.description || 'No description provided.' %></p>
+    <div style="margin-top:10px;" class="muted">Dependencies: <%= record.dependencies || '—' %></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Impact scoring</div></div>
+    <table class="table">
+      <tr><th>Operational</th><td><%= record.operational_impact || '—' %> / 5</td></tr>
+      <tr><th>Reputational</th><td><%= record.reputational_impact || '—' %> / 5</td></tr>
+      <tr><th>Regulatory</th><td><%= record.regulatory_impact || '—' %> / 5</td></tr>
+    </table>
+  </div>
+</div>
+
+<%
+  const linked = linkedPlans || [];
+  const hasPrimary = linked.some(p => p.coverage_type === 'primary');
+  let covState, covLabel, covCls;
+  if (!linked.length) { covState = 'red'; covLabel = 'No plan linked'; covCls = 'danger'; }
+  else if (hasPrimary) { covState = 'green'; covLabel = 'Covered'; covCls = 'success'; }
+  else { covState = 'amber'; covLabel = 'Partial / secondary only'; covCls = 'warn'; }
+%>
+<div class="card">
+  <div class="card-head" style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="card-title">Recovery plans</div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span class="badge <%= covCls %>"><%= covLabel %></span>
+      <a class="btn" style="padding:4px 10px; font-size:12.5px;" href="/bia/<%= record.id %>/edit#plans">Manage links</a>
+    </div>
+  </div>
+  <% if (!linked.length) { %>
+    <p class="muted">No continuity plans are linked to this process. If it's disrupted, nobody knows which runbook to open.
+      <a href="/bia/<%= record.id %>/edit">Link a plan →</a></p>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr><th>Plan</th><th>Version</th><th>Status</th><th>Owner</th><th>Coverage</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% linked.forEach(p => {
+             const ccls = p.coverage_type === 'primary' ? 'success'
+                         : p.coverage_type === 'secondary' ? 'info'
+                         : p.coverage_type === 'partial' ? 'warn' : 'muted';
+             const scls = p.status === 'approved' ? 'success' : (p.status === 'draft' ? 'info' : 'muted');
+        %>
+          <tr>
+            <td><strong><%= p.title %></strong></td>
+            <td>v<%= p.version || '1.0' %></td>
+            <td><span class="badge <%= scls %>"><%= p.status || 'draft' %></span></td>
+            <td><%= p.owner || '—' %></td>
+            <td><span class="badge <%= ccls %>"><%= p.coverage_type %></span></td>
+            <td class="right"><a href="/bcp/<%= p.id %>">Open plan</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

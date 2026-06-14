@@ -1,0 +1,765 @@
+{% extends "platform_base.html" %}
+{% block title %}Users & Roles — ThemisIQ{% endblock %}
+
+{# ── tone → (background, text, border) maps for role chips ──────────────── #}
+{# Defined here (outside blocks) as Jinja2 set is block-scoped — we use     #}
+{# them inside {% block content %} by re-declaring there.                    #}
+
+{% block head %}
+<style>
+/* ── Stats strip ─────────────────────────────────────────────────────────── */
+.au-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+@media(max-width:680px){ .au-stats{ grid-template-columns:repeat(2,1fr); } }
+.au-stat { background:var(--surface); border:1px solid var(--border);
+           border-radius:var(--radius); padding:16px 18px; }
+.au-stat-label { font-size:11.5px; font-weight:600; color:var(--muted);
+                 text-transform:uppercase; letter-spacing:0.4px; margin-bottom:6px;
+                 display:flex; align-items:center; gap:6px; }
+.au-stat-val   { font-size:26px; font-weight:800; color:var(--text); line-height:1; }
+
+/* ── Filter toolbar ──────────────────────────────────────────────────────── */
+.au-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+              padding:12px 16px; background:var(--surface);
+              border:1px solid var(--border); border-radius:var(--radius);
+              margin-bottom:16px; }
+.au-search  { position:relative; flex:1; min-width:180px; }
+.au-search input { width:100%; padding:7px 10px 7px 32px;
+                   border:1.5px solid var(--border2); border-radius:var(--radius);
+                   font-size:13px; background:var(--surface2); color:var(--text);
+                   outline:none; font-family:inherit; box-sizing:border-box; }
+.au-search input:focus { border-color:var(--accent); }
+.au-search svg { position:absolute; left:9px; top:50%; transform:translateY(-50%);
+                 color:var(--dim); pointer-events:none; }
+
+/* ── Filter chips ────────────────────────────────────────────────────────── */
+.f-chip { padding:5px 13px; border-radius:999px; font-size:12px; font-weight:600;
+          border:1.5px solid var(--border2); background:var(--surface2);
+          color:var(--muted); cursor:pointer; transition:all 0.14s; white-space:nowrap; }
+.f-chip.active { background:rgba(var(--accent-rgb),0.12); color:var(--accent);
+                 border-color:var(--accent); }
+.f-chip:hover:not(.active) { color:var(--text); border-color:var(--muted); }
+
+/* ── Role filter dropdown ────────────────────────────────────────────────── */
+.au-role-sel { padding:6px 28px 6px 10px; border:1.5px solid var(--border2);
+               border-radius:var(--radius); font-size:12.5px; background:var(--surface2);
+               color:var(--text); appearance:none; font-family:inherit; cursor:pointer;
+               background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+               background-repeat:no-repeat; background-position:right 9px center;
+               outline:none; }
+.au-role-sel:focus { border-color:var(--accent); }
+
+/* ── Users table ─────────────────────────────────────────────────────────── */
+.au-table-wrap { overflow-x:auto; }
+.au-table { width:100%; border-collapse:collapse; min-width:640px; }
+.au-table th { padding:10px 16px; font-size:11.5px; font-weight:700; color:var(--muted);
+               text-transform:uppercase; letter-spacing:0.4px; text-align:left;
+               border-bottom:1px solid var(--border); background:var(--surface2);
+               white-space:nowrap; }
+.au-table td { padding:12px 16px; border-bottom:1px solid var(--border);
+               vertical-align:middle; font-size:13px; color:var(--text); }
+.au-table tbody tr:last-child td { border-bottom:none; }
+.au-table tbody tr:hover td { background:var(--surface2); }
+
+/* ── User avatar ─────────────────────────────────────────────────────────── */
+.ua-circle { width:36px; height:36px; border-radius:50%; flex-shrink:0;
+             background:linear-gradient(135deg,var(--accent),rgba(var(--accent-rgb),0.6));
+             color:white; display:flex; align-items:center; justify-content:center;
+             font-weight:700; font-size:13px; letter-spacing:0.4px; }
+
+/* ── Inline badges ───────────────────────────────────────────────────────── */
+.b-you    { font-size:9.5px; color:var(--accent); background:rgba(var(--accent-rgb),0.12);
+            padding:1px 6px; border-radius:999px; font-weight:700;
+            text-transform:uppercase; letter-spacing:0.3px; }
+.b-pwrst  { font-size:9.5px; color:var(--amber); background:var(--warn-soft);
+            padding:1px 6px; border-radius:999px; font-weight:700;
+            text-transform:uppercase; letter-spacing:0.3px; }
+.b-active   { display:inline-block; font-size:11.5px; font-weight:700;
+              padding:3px 10px; border-radius:999px;
+              background:var(--good-soft); color:var(--good);
+              border:1px solid rgba(94,122,58,0.25); }
+.b-inactive { display:inline-block; font-size:11.5px; font-weight:700;
+              padding:3px 10px; border-radius:999px;
+              background:var(--surface2); color:var(--muted);
+              border:1px solid var(--border); }
+
+/* ── Role chips ──────────────────────────────────────────────────────────── */
+.role-chip { display:inline-flex; align-items:center; font-size:11.5px; font-weight:600;
+             padding:3px 9px; border-radius:999px; cursor:pointer;
+             font-family:var(--body,inherit); line-height:1.4;
+             transition:filter 0.14s, transform 0.1s; }
+.role-chip:hover { filter:brightness(0.92); transform:translateY(-0.5px); }
+.role-add-select { font-size:11.5px; padding:3px 8px; border-radius:999px;
+                   border:1px dashed var(--border); background:var(--surface2);
+                   color:var(--muted); font-family:inherit; cursor:pointer; outline:none; }
+.role-add-select:hover { color:var(--text); }
+
+/* ── Edit icon button ────────────────────────────────────────────────────── */
+.au-edit-btn { width:30px; height:30px; border:1.5px solid var(--border2);
+               border-radius:8px; background:var(--surface2); color:var(--muted);
+               cursor:pointer; display:inline-flex; align-items:center;
+               justify-content:center; transition:all 0.14s; vertical-align:middle; }
+.au-edit-btn:hover { background:rgba(var(--accent-rgb),0.1); color:var(--accent);
+                     border-color:var(--accent); }
+
+/* ── Row hidden by filter ────────────────────────────────────────────────── */
+.u-hidden { display:none !important; }
+
+/* ── Edit drawer ─────────────────────────────────────────────────────────── */
+#editDrawerOverlay { display:none; position:fixed; inset:0; z-index:700;
+                     background:rgba(0,0,0,0.3); backdrop-filter:blur(2px); }
+#editDrawer { position:fixed; top:0; right:0; bottom:0; width:400px; max-width:94vw;
+              background:var(--surface); border-left:1px solid var(--border2);
+              box-shadow:-8px 0 32px rgba(0,0,0,0.14); z-index:701;
+              display:flex; flex-direction:column;
+              transform:translateX(100%); transition:transform 0.26s cubic-bezier(0.4,0,0.2,1); }
+#editDrawer.open { transform:translateX(0); }
+.ed-head { padding:20px 22px 16px; border-bottom:1px solid var(--border);
+           display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.ed-title { font-size:17px; font-weight:800; color:var(--text); letter-spacing:-0.01em; }
+.ed-sub   { font-size:12px; color:var(--muted); margin-top:2px; }
+.ed-close { width:30px; height:30px; border-radius:8px; border:none;
+            background:var(--surface2); color:var(--muted); font-size:18px;
+            cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.ed-close:hover { background:var(--bad-soft); color:var(--bad); }
+.ed-body  { flex:1; overflow-y:auto; padding:22px; }
+.ed-foot  { padding:14px 22px; border-top:1px solid var(--border); flex-shrink:0;
+            display:flex; gap:10px; justify-content:flex-end; }
+.ed-error { display:none; padding:10px 13px; background:var(--bad-soft);
+            border:1px solid rgba(165,80,60,0.3); border-radius:var(--radius);
+            color:var(--bad); font-size:13px; margin-bottom:14px; }
+.ed-ro { background:var(--surface2) !important; color:var(--muted) !important;
+         cursor:not-allowed !important; }
+
+/* ── Role legend ─────────────────────────────────────────────────────────── */
+.role-legend { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:10px; }
+.role-legend-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
+                    background:var(--surface2); border:1px solid var(--border);
+                    border-radius:10px; }
+
+/* ── Flash cards ─────────────────────────────────────────────────────────── */
+.flash-error { padding:14px 18px; margin-bottom:16px; background:var(--bad-soft);
+               border:1px solid rgba(165,80,60,0.35); border-radius:var(--radius); }
+.flash-ok    { padding:22px 24px; margin-bottom:20px; background:var(--good-soft);
+               border:1px solid rgba(94,122,58,0.35); border-radius:var(--radius); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Tone maps (must be inside a block to be usable) ─────────────────────── #}
+{% set tone_bg = {
+    'bad':     'var(--bad-soft)',
+    'good':    'var(--good-soft)',
+    'warn':    'var(--warn-soft)',
+    'info':    'var(--info-soft)',
+    'purple':  'var(--purple-soft)',
+    'neutral': 'var(--surface2)',
+} %}
+{% set tone_fg = {
+    'bad':     'var(--bad)',
+    'good':    'var(--good)',
+    'warn':    'var(--warn)',
+    'info':    'var(--info)',
+    'purple':  'var(--purple)',
+    'neutral': 'var(--muted)',
+} %}
+{% set tone_bd = {
+    'bad':     'rgba(165,80,60,0.3)',
+    'good':    'rgba(94,122,58,0.25)',
+    'warn':    'rgba(168,129,31,0.3)',
+    'info':    'rgba(59,107,209,0.25)',
+    'purple':  'rgba(122,90,138,0.3)',
+    'neutral': 'var(--border)',
+} %}
+
+{# ── CSRF anchor for JS fetch ─────────────────────────────────────────────── #}
+<div id="usersPageData" data-csrf="{{ csrf_token }}" style="display:none;"></div>
+
+{# ── Page header ──────────────────────────────────────────────────────────── #}
+<div style="display:flex; align-items:center; justify-content:space-between;
+            flex-wrap:wrap; gap:12px; margin-bottom:22px;">
+  <div>
+    <h1 style="font-size:22px; font-weight:800; color:var(--text); margin:0 0 3px;
+               letter-spacing:-0.02em;">Users &amp; Roles</h1>
+    <p style="font-size:13px; color:var(--muted); margin:0;">
+      Manage user accounts, roles, and platform access
+    </p>
+  </div>
+  <button class="btn btn-primary" style="gap:6px; display:inline-flex; align-items:center;"
+          onclick="document.getElementById('newUserModal').classList.add('open')">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    New User
+  </button>
+</div>
+
+{# ── Flash: error ────────────────────────────────────────────────────────── #}
+{% if flash and flash.type == 'error' %}
+<div class="flash-error">
+  <div style="display:flex; align-items:center; gap:10px; color:var(--bad);
+              font-weight:600; font-size:13.5px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    {{ flash.message }}
+  </div>
+</div>
+{% endif %}
+
+{# ── Flash: new user / password reset ─────────────────────────────────────── #}
+{% if flash and flash.type in ('new_user', 'reset_pw') %}
+<div class="flash-ok">
+  <div style="font-size:16px; font-weight:700; color:var(--good); margin-bottom:6px;">
+    {% if flash.type == 'new_user' %}✅ User created — temporary password below
+    {% else %}🔑 Password reset for {{ flash.full_name or flash.username }}{% endif %}
+  </div>
+  <p style="font-size:13px; color:var(--text); margin:0 0 14px;">
+    This password is shown <strong>once only</strong>. Share it securely with
+    <strong>{{ flash.full_name or flash.username }}</strong> — they'll be asked to
+    choose a new one at first login.
+  </p>
+  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+    <code id="tempPwValue"
+          style="font-family:var(--mono); font-size:15px; font-weight:700;
+                 background:var(--surface); color:var(--text);
+                 padding:9px 14px; border-radius:8px; border:1px dashed var(--accent);
+                 letter-spacing:1px;">{{ flash.temp_password }}</code>
+    <button class="btn btn-ghost" type="button" onclick="copyTempPassword()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;">
+        <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+      </svg>
+      Copy
+    </button>
+    <span style="font-size:12px; color:var(--muted);">
+      Username: <code style="font-family:var(--mono); color:var(--accent); font-weight:700;">{{ flash.username }}</code>
+    </span>
+  </div>
+</div>
+{% endif %}
+
+{# ── Stats strip ───────────────────────────────────────────────────────────── #}
+<div class="au-stats">
+  <div class="au-stat">
+    <div class="au-stat-label">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      Total Users
+    </div>
+    <div class="au-stat-val">{{ stat_total }}</div>
+  </div>
+  <div class="au-stat">
+    <div class="au-stat-label">Active</div>
+    <div class="au-stat-val" style="color:var(--good);">{{ stat_active }}</div>
+  </div>
+  <div class="au-stat">
+    <div class="au-stat-label">Inactive</div>
+    <div class="au-stat-val" style="color:var(--muted);">{{ stat_inactive }}</div>
+  </div>
+  <div class="au-stat">
+    <div class="au-stat-label">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+      </svg>
+      PW Reset Pending
+    </div>
+    <div class="au-stat-val" style="color:{% if stat_pw_pending > 0 %}var(--amber){% else %}var(--muted){% endif %};">
+      {{ stat_pw_pending }}
+    </div>
+  </div>
+</div>
+
+{# ── Filter toolbar ──────────────────────────────────────────────────────── #}
+<div class="au-toolbar">
+  <div class="au-search">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input id="userSearch" type="text" placeholder="Search name, email or username…"
+           oninput="filterUsers()" autocomplete="off">
+  </div>
+  <div style="display:flex; gap:6px;">
+    <button class="f-chip active" id="chip-all"      onclick="setStatusFilter('all')">All</button>
+    <button class="f-chip"        id="chip-active"   onclick="setStatusFilter('active')">Active</button>
+    <button class="f-chip"        id="chip-inactive" onclick="setStatusFilter('inactive')">Inactive</button>
+  </div>
+  <select id="roleFilter" class="au-role-sel" onchange="filterUsers()">
+    <option value="">All Roles</option>
+    {% for rk in all_roles %}
+    <option value="{{ rk }}">{{ role_labels.get(rk, rk) }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+{# ── Users table ────────────────────────────────────────────────────────────── #}
+<div style="background:var(--surface); border:1px solid var(--border);
+            border-radius:var(--radius); overflow:hidden; margin-bottom:20px;">
+  <div class="au-table-wrap">
+    <table class="au-table" id="usersTable">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th style="min-width:180px;">Roles</th>
+          <th style="text-align:center; width:100px;">Status</th>
+          <th style="white-space:nowrap; width:130px;">Last Login</th>
+          <th style="text-align:right; width:240px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        {% set is_self = (u.id|string == user.id|string) %}
+        <tr data-user-id="{{ u.id }}"
+            data-searchtext="{{ ((u.full_name or '') ~ ' ' ~ u.username ~ ' ' ~ (u.email or ''))|lower }}"
+            data-status="{{ 'active' if u.is_active else 'inactive' }}"
+            data-roles="{{ u.role_keys|join(' ') }}">
+
+          {# ── User cell ── #}
+          <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div id="avatar-{{ u.id }}" class="ua-circle">
+                {{ u.avatar_initials or ((u.full_name or u.username or '?')[0]|upper) }}
+              </div>
+              <div style="min-width:0;">
+                <div style="font-weight:600; color:var(--text); font-size:13.5px;
+                            display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                  <span id="fullname-{{ u.id }}">{{ u.full_name or u.username }}</span>
+                  {% if is_self %}<span class="b-you">you</span>{% endif %}
+                  {% if u.must_change_password %}<span class="b-pwrst" title="Must change password at next login">pw reset</span>{% endif %}
+                </div>
+                <div style="font-size:11.5px; color:var(--muted); font-family:var(--mono); margin-top:2px;">
+                  @{{ u.username }}
+                  <span style="margin:0 4px; color:var(--dim);">·</span>
+                  <span id="email-{{ u.id }}">{{ u.email or '—' }}</span>
+                </div>
+              </div>
+            </div>
+          </td>
+
+          {# ── Roles cell ── #}
+          <td>
+            <div style="display:flex; flex-wrap:wrap; gap:5px; max-width:320px;">
+              {% for rk in u.role_keys %}
+                {% set tone = role_chip_tone.get(rk, 'neutral') %}
+                <form method="post" action="/admin/users/{{ u.id }}/roles/revoke"
+                      style="display:inline-block;"
+                      onsubmit="return confirm('Revoke the {{ role_labels.get(rk, rk)|e }} role from {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="role_key" value="{{ rk }}">
+                  <button type="submit" class="role-chip" title="Click to revoke"
+                          style="background:{{ tone_bg[tone] }};
+                                 color:{{ tone_fg[tone] }};
+                                 border:1px solid {{ tone_bd[tone] }};">
+                    {{ role_labels.get(rk, rk) }}
+                    <span style="margin-left:5px; opacity:0.5; font-weight:700;">×</span>
+                  </button>
+                </form>
+              {% else %}
+                <span style="font-size:11.5px; color:var(--muted); font-style:italic;">no roles</span>
+              {% endfor %}
+              {# ── Add-role picker ── #}
+              {% set ns = namespace(has_missing=false) %}
+              {% for rk in all_roles %}{% if rk not in u.role_keys %}{% set ns.has_missing = true %}{% endif %}{% endfor %}
+              {% if ns.has_missing %}
+              <form method="post" action="/admin/users/{{ u.id }}/roles/grant"
+                    style="display:inline-flex;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <select name="role_key" onchange="this.form.submit()"
+                        class="role-add-select" aria-label="Grant role">
+                  <option value="" disabled selected>+ grant…</option>
+                  {% for rk in all_roles %}{% if rk not in u.role_keys %}
+                    <option value="{{ rk }}">{{ role_labels.get(rk, rk) }}</option>
+                  {% endif %}{% endfor %}
+                </select>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+
+          {# ── Status cell ── #}
+          <td style="text-align:center;">
+            {% if u.is_active %}
+              <span class="b-active">Active</span>
+            {% else %}
+              <span class="b-inactive">Inactive</span>
+            {% endif %}
+          </td>
+
+          {# ── Last Login cell ── #}
+          <td style="font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap;">
+            {{ (u.last_login or '—')[:16] }}
+          </td>
+
+          {# ── Actions cell ── #}
+          <td style="text-align:right; white-space:nowrap;">
+            {# Edit profile button #}
+            <button type="button" class="au-edit-btn" title="Edit name / email"
+                    data-uid="{{ u.id }}"
+                    data-name="{{ u.full_name or '' }}"
+                    data-email="{{ u.email or '' }}"
+                    data-username="{{ u.username }}"
+                    data-created="{{ u.created_at or '' }}"
+                    onclick="openEditDrawerBtn(this)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            {# Reset password #}
+            <form method="post" action="/admin/users/{{ u.id }}/reset-password"
+                  style="display:inline-block; margin-left:4px;"
+                  onsubmit="return confirm('Reset password for {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nA new temporary password will be shown once.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px;">
+                Reset PW
+              </button>
+            </form>
+            {# Deactivate / Reactivate #}
+            {% if u.is_active %}
+              {% if not is_self %}
+              <form method="post" action="/admin/users/{{ u.id }}/deactivate"
+                    style="display:inline-block;"
+                    onsubmit="return confirm('Deactivate {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nThey will no longer be able to log in.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);">
+                  Deactivate
+                </button>
+              </form>
+              {% endif %}
+            {% else %}
+              <form method="post" action="/admin/users/{{ u.id }}/activate"
+                    style="display:inline-block;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--good);">
+                  Reactivate
+                </button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center; padding:48px; color:var(--muted);">
+          No users yet. Create the first user with the button above.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── Role legend ────────────────────────────────────────────────────────────── #}
+<div style="background:var(--surface); border:1px solid var(--border);
+            border-radius:var(--radius); padding:20px 22px;">
+  <div style="font-size:14px; font-weight:700; color:var(--text); margin-bottom:14px;
+              letter-spacing:-0.01em;">Role Reference</div>
+  <div class="role-legend">
+    {% for rk in all_roles %}
+    {% set tone = role_chip_tone.get(rk, 'neutral') %}
+    <div class="role-legend-item">
+      <span class="role-chip"
+            style="background:{{ tone_bg[tone] }};
+                   color:{{ tone_fg[tone] }};
+                   border:1px solid {{ tone_bd[tone] }};
+                   flex-shrink:0; cursor:default;">
+        {{ role_labels.get(rk, rk) }}
+      </span>
+      <span style="font-size:12px; color:var(--muted); line-height:1.45;">
+        {{ role_descriptions.get(rk, '') }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# ═════════════════════════════════════════════════════════════════════════════
+   EDIT USER DRAWER
+   ════════════════════════════════════════════════════════════════════════════ #}
+<div id="editDrawerOverlay" onclick="closeEditDrawer()"></div>
+<div id="editDrawer">
+  <div class="ed-head">
+    <div>
+      <div class="ed-title">Edit User</div>
+      <div class="ed-sub" id="drawerSubtitle"></div>
+    </div>
+    <button class="ed-close" onclick="closeEditDrawer()" title="Close">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="ed-body">
+    <input type="hidden" id="drawerUid">
+    <div id="drawerError" class="ed-error"></div>
+    <div class="form-group">
+      <label class="form-label">Full Name</label>
+      <input type="text" id="drawerFullName" class="form-control"
+             placeholder="e.g. Tatenda Chikomba" maxlength="120" autocomplete="off"
+             style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="form-group" style="margin-top:14px;">
+      <label class="form-label">Email Address</label>
+      <input type="email" id="drawerEmail" class="form-control"
+             placeholder="user@example.com" maxlength="254" autocomplete="off"
+             style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="form-group" style="margin-top:14px;">
+      <label class="form-label">
+        Username
+        <span style="font-size:11px; font-weight:400; color:var(--muted);">(read-only)</span>
+      </label>
+      <input type="text" id="drawerUsername" class="form-control ed-ro"
+             readonly style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="form-group" style="margin-top:14px;">
+      <label class="form-label">
+        Account Created
+        <span style="font-size:11px; font-weight:400; color:var(--muted);">(read-only)</span>
+      </label>
+      <input type="text" id="drawerCreated" class="form-control ed-ro"
+             readonly style="width:100%; box-sizing:border-box;">
+    </div>
+  </div>
+  <div class="ed-foot">
+    <button type="button" class="btn btn-ghost" onclick="closeEditDrawer()">Cancel</button>
+    <button type="button" class="btn btn-primary" id="drawerSaveBtn" onclick="saveEditDrawer()">
+      Save Changes
+    </button>
+  </div>
+</div>
+
+{# ═════════════════════════════════════════════════════════════════════════════
+   NEW USER MODAL
+   ════════════════════════════════════════════════════════════════════════════ #}
+<div class="modal-overlay" id="newUserModal"
+     onclick="if(event.target.id==='newUserModal') this.classList.remove('open')">
+  <div class="modal" style="max-width:500px; width:90vw;">
+    <div class="modal-title" style="margin-bottom:4px;">👤 New User</div>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 18px;">
+      Creates an account with the <strong>Employee</strong> role and a one-time
+      temporary password. Grant additional roles after creation.
+    </p>
+    <form method="post" action="/admin/users/create">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" name="full_name" required placeholder="e.g. Tatenda Chikomba">
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input type="text" name="username" required pattern="[A-Za-z0-9_.-]{3,32}"
+                 placeholder="tatenda.c" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" required placeholder="user@example.com">
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('newUserModal').classList.remove('open')">
+          Cancel
+        </button>
+        <button type="submit" class="btn btn-primary">Create User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+// ── Drawer state ────────────────────────────────────────────────────────────
+var _drawerUid = null;
+
+function openEditDrawerBtn(btn) {
+  openEditDrawer(
+    btn.dataset.uid,
+    btn.dataset.name,
+    btn.dataset.email,
+    btn.dataset.username,
+    btn.dataset.created
+  );
+}
+
+function openEditDrawer(uid, fullName, email, username, createdAt) {
+  _drawerUid = uid;
+  document.getElementById('drawerUid').value       = uid;
+  document.getElementById('drawerFullName').value  = fullName;
+  document.getElementById('drawerEmail').value     = email;
+  document.getElementById('drawerUsername').value  = username;
+  document.getElementById('drawerSubtitle').textContent = '@' + username;
+
+  var created = createdAt ? createdAt.slice(0, 16).replace('T', ' ') : '—';
+  document.getElementById('drawerCreated').value   = created;
+
+  var errEl = document.getElementById('drawerError');
+  errEl.style.display = 'none';
+  errEl.textContent   = '';
+
+  document.getElementById('editDrawerOverlay').style.display = 'block';
+  document.getElementById('editDrawer').classList.add('open');
+
+  // Reset save button state
+  var btn = document.getElementById('drawerSaveBtn');
+  btn.disabled    = false;
+  btn.textContent = 'Save Changes';
+
+  setTimeout(function() {
+    document.getElementById('drawerFullName').focus();
+  }, 60);
+}
+
+function closeEditDrawer() {
+  document.getElementById('editDrawer').classList.remove('open');
+  document.getElementById('editDrawerOverlay').style.display = 'none';
+  _drawerUid = null;
+}
+
+// Close on Escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && _drawerUid !== null) closeEditDrawer();
+});
+
+// ── Save via PATCH /api/admin/users/{uid} ───────────────────────────────────
+async function saveEditDrawer() {
+  var uid      = document.getElementById('drawerUid').value;
+  var fullName = document.getElementById('drawerFullName').value.trim();
+  var email    = document.getElementById('drawerEmail').value.trim().toLowerCase();
+  var errEl    = document.getElementById('drawerError');
+  var saveBtn  = document.getElementById('drawerSaveBtn');
+
+  // Client-side quick validation
+  if (!fullName) { showDrawerErr('Full name cannot be empty.'); return; }
+  if (!email || !email.includes('@')) { showDrawerErr('Enter a valid email address.'); return; }
+
+  var csrfToken = document.getElementById('usersPageData').dataset.csrf;
+
+  saveBtn.disabled    = true;
+  saveBtn.textContent = 'Saving…';
+  errEl.style.display = 'none';
+
+  try {
+    var resp = await fetch('/api/admin/users/' + uid, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type':  'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ full_name: fullName, email: email }),
+    });
+
+    var data = await resp.json();
+
+    if (!data.success) {
+      showDrawerErr(data.error || 'An error occurred. Please try again.');
+      return;
+    }
+
+    // ── In-place DOM update (no page reload) ──────────────────────────────
+    var nameEl   = document.getElementById('fullname-' + uid);
+    var emailEl  = document.getElementById('email-'    + uid);
+    var avatarEl = document.getElementById('avatar-'   + uid);
+    if (nameEl)   nameEl.textContent   = data.full_name;
+    if (emailEl)  emailEl.textContent  = data.email;
+    if (avatarEl) avatarEl.textContent = data.avatar_initials;
+
+    // Update data-searchtext so filtering stays accurate
+    var rowEl = document.querySelector('tr[data-user-id="' + uid + '"]');
+    if (rowEl) {
+      var uname = document.getElementById('drawerUsername').value;
+      rowEl.dataset.searchtext = (data.full_name + ' ' + uname + ' ' + data.email).toLowerCase();
+    }
+
+    closeEditDrawer();
+    if (typeof showToast === 'function') showToast('User profile updated.');
+
+  } catch (err) {
+    showDrawerErr('Network error — could not save. Please try again.');
+  } finally {
+    saveBtn.disabled    = false;
+    saveBtn.textContent = 'Save Changes';
+  }
+}
+
+function showDrawerErr(msg) {
+  var el = document.getElementById('drawerError');
+  el.textContent  = msg;
+  el.style.display = 'block';
+}
+
+// ── Client-side filtering ───────────────────────────────────────────────────
+var _statusFilter = 'all';
+
+function setStatusFilter(val) {
+  _statusFilter = val;
+  ['all', 'active', 'inactive'].forEach(function(s) {
+    document.getElementById('chip-' + s).classList.toggle('active', s === val);
+  });
+  filterUsers();
+}
+
+function filterUsers() {
+  var q      = (document.getElementById('userSearch').value || '').toLowerCase().trim();
+  var role   = (document.getElementById('roleFilter').value || '').trim();
+  var rows   = document.querySelectorAll('tr[data-user-id]');
+  var visible = 0;
+
+  rows.forEach(function(row) {
+    var text   = (row.dataset.searchtext || '').toLowerCase();
+    var status = row.dataset.status || 'active';
+    var roles  = (row.dataset.roles  || '');
+
+    var ok = (!q    || text.includes(q))
+          && (_statusFilter === 'all' || status === _statusFilter)
+          && (!role || roles.split(' ').indexOf(role) !== -1);
+
+    row.classList.toggle('u-hidden', !ok);
+    if (ok) visible++;
+  });
+
+  // Empty state
+  var empty = document.getElementById('filterEmptyRow');
+  if (visible === 0 && rows.length > 0) {
+    if (!empty) {
+      empty = document.createElement('tr');
+      empty.id = 'filterEmptyRow';
+      empty.innerHTML = '<td colspan="5" style="text-align:center;padding:40px;color:var(--muted);">'
+                      + 'No users match the current filters.'
+                      + '</td>';
+      var tbody = document.querySelector('#usersTable tbody');
+      if (tbody) tbody.appendChild(empty);
+    }
+    empty.style.display = '';
+  } else if (empty) {
+    empty.style.display = 'none';
+  }
+}
+
+// ── Copy temporary password ─────────────────────────────────────────────────
+function copyTempPassword() {
+  var el = document.getElementById('tempPwValue');
+  if (!el) return;
+  var txt = el.textContent.trim();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(
+      function() { if (typeof showToast === 'function') showToast('Temporary password copied.'); },
+      function() { _fbCopy(txt); }
+    );
+  } else {
+    _fbCopy(txt);
+  }
+}
+function _fbCopy(txt) {
+  var ta = document.createElement('textarea');
+  ta.value = txt; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); if (typeof showToast === 'function') showToast('Copied.'); }
+  catch (_) {}
+  document.body.removeChild(ta);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>One For All — Unified Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+/* ── THEME SYSTEM ── */
+:root{
+  /* Module accent colors — switched via JS */
+  --accent:#2563eb;--accent-mid:#3b82f6;--accent-light:#60a5fa;
+  --accent-pale:#eff6ff;--accent-bg:#f0f7ff;--accent-dark:#1d4ed8;
+  --accent-shadow:rgba(37,99,235,0.25);
+
+  /* Neutrals — shared across all modules */
+  --bg:#f5f6fa;--surface:#ffffff;--surface2:#f8f9fc;--surface3:#f0f1f6;
+  --text:#111827;--text-mid:#374151;--muted:#6b7280;--dim:#9ca3af;
+  --border:rgba(0,0,0,0.06);--border2:rgba(0,0,0,0.1);
+  --amber:#d97706;--amber-bg:#fffbeb;--red:#dc2626;--red-bg:#fef2f2;
+  --blue:#2563eb;--blue-bg:#eff6ff;--green-status:#16a34a;--green-bg:#f0fdf4;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.08),0 2px 6px rgba(0,0,0,0.04);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.10),0 4px 12px rgba(0,0,0,0.06);
+  --shadow-accent:0 8px 24px var(--accent-shadow);
+  --radius:10px;--radius-lg:16px;--radius-xl:22px;
+  --topbar-h:60px;--icon-sidebar-w:64px;--sidebar-w:248px;
+  --font:'Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+
+/* Module color themes */
+[data-module="platform"]{
+  --accent:#1e293b;--accent-mid:#334155;--accent-light:#64748b;
+  --accent-pale:#f1f5f9;--accent-bg:#f8fafc;--accent-dark:#0f172a;
+  --accent-shadow:rgba(30,41,59,0.25);
+}
+[data-module="aria"]{
+  --accent:#7c3aed;--accent-mid:#8b5cf6;--accent-light:#a78bfa;
+  --accent-pale:#f5f3ff;--accent-bg:#faf5ff;--accent-dark:#6d28d9;
+  --accent-shadow:rgba(124,58,237,0.25);
+}
+[data-module="grid"]{
+  --accent:#1a6b3a;--accent-mid:#2d8653;--accent-light:#3fa96b;
+  --accent-pale:#e8f5ee;--accent-bg:#f0faf4;--accent-dark:#0f4424;
+  --accent-shadow:rgba(26,107,58,0.25);
+}
+[data-module="bcm"]{
+  --accent:#b45309;--accent-mid:#d97706;--accent-light:#f59e0b;
+  --accent-pale:#fffbeb;--accent-bg:#fefce8;--accent-dark:#92400e;
+  --accent-shadow:rgba(180,83,9,0.25);
+}
+[data-module="sentinel"]{
+  --accent:#0891b2;--accent-mid:#06b6d4;--accent-light:#22d3ee;
+  --accent-pale:#ecfeff;--accent-bg:#f0fdfa;--accent-dark:#0e7490;
+  --accent-shadow:rgba(8,145,178,0.25);
+}
+
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+a{color:var(--accent);text-decoration:none}
+button{cursor:pointer;font-family:var(--font)}
+input,select,textarea{font-family:var(--font)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideInLeft{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dotBlink{0%,80%,100%{opacity:0.2}40%{opacity:1}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.animate-fade-up{animation:fadeUp 0.4s ease both}
+.anim-1{animation-delay:0.05s}.anim-2{animation-delay:0.10s}.anim-3{animation-delay:0.15s}
+.anim-4{animation-delay:0.20s}.anim-5{animation-delay:0.25s}.anim-6{animation-delay:0.30s}
+
+/* ── APP LAYOUT ── */
+.app{display:flex;height:100vh}
+
+/* ── ICON SIDEBAR (always visible) ── */
+.icon-sidebar{
+  width:var(--icon-sidebar-w);background:#0f172a;
+  display:flex;flex-direction:column;align-items:center;
+  padding:12px 0;z-index:200;flex-shrink:0;
+}
+.icon-sidebar-logo{
+  width:40px;height:40px;border-radius:12px;
+  background:linear-gradient(135deg,#6366f1,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:20px;cursor:pointer;transition:transform 0.2s;
+  box-shadow:0 4px 12px rgba(99,102,241,0.4);
+}
+.icon-sidebar-logo:hover{transform:scale(1.08) rotate(-3deg)}
+.icon-sidebar-logo svg{width:22px;height:22px;color:white}
+.icon-sidebar-nav{display:flex;flex-direction:column;gap:4px;flex:1;width:100%;padding:0 8px}
+.icon-nav-item{
+  width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 0.2s;position:relative;color:#64748b;margin:0 auto;
+}
+.icon-nav-item:hover{background:rgba(255,255,255,0.08);color:#94a3b8}
+.icon-nav-item.active{background:var(--accent);color:white;box-shadow:0 4px 12px var(--accent-shadow)}
+.icon-nav-item svg{width:20px;height:20px}
+.icon-nav-tooltip{
+  display:none;position:absolute;left:56px;top:50%;transform:translateY(-50%);
+  background:#1e293b;color:white;font-size:12px;font-weight:600;padding:6px 12px;
+  border-radius:8px;white-space:nowrap;z-index:300;pointer-events:none;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+}
+.icon-nav-item:hover .icon-nav-tooltip{display:block}
+.icon-nav-divider{width:32px;height:1px;background:rgba(255,255,255,0.08);margin:8px auto}
+.icon-sidebar-bottom{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 8px}
+.icon-sidebar-user{
+  width:36px;height:36px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent-light));
+  color:white;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:transform 0.2s;
+}
+.icon-sidebar-user:hover{transform:scale(1.1)}
+
+/* ── MODULE SIDEBAR ── */
+.module-sidebar{
+  width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;
+  animation:slideInLeft 0.3s ease;
+}
+.module-sidebar-header{
+  padding:20px 16px 16px;border-bottom:1px solid var(--border);
+}
+.module-name{font-size:17px;font-weight:800;color:var(--accent);letter-spacing:-0.02em}
+.module-desc{font-size:11px;color:var(--muted);margin-top:3px}
+.sidebar-section{padding:16px 12px 4px}
+.sidebar-label{
+  font-size:10px;font-weight:700;letter-spacing:0.12em;color:var(--dim);
+  text-transform:uppercase;padding:0 8px 8px;font-family:var(--mono);
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border-radius:var(--radius);color:var(--muted);cursor:pointer;
+  font-size:13px;font-weight:500;margin-bottom:2px;transition:all 0.18s;user-select:none;
+}
+.nav-item:hover{background:var(--accent-pale);color:var(--accent-mid)}
+.nav-item.active{background:var(--accent);color:white;box-shadow:0 4px 12px var(--accent-shadow)}
+.nav-item.active svg{opacity:1}
+.nav-item svg{opacity:0.6;flex-shrink:0;transition:opacity 0.2s;width:18px;height:18px}
+.nav-item:hover svg{opacity:1}
+.nav-badge{margin-left:auto;background:var(--red);color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;font-family:var(--mono)}
+.nav-item.active .nav-badge{background:rgba(255,255,255,0.25);color:white}
+.nav-count{margin-left:auto;background:var(--accent-pale);color:var(--accent);font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;font-family:var(--mono)}
+.nav-item.active .nav-count{background:rgba(255,255,255,0.2);color:white}
+.sidebar-bottom{margin-top:auto;padding:12px}
+.ai-chat-btn{
+  width:100%;background:var(--accent);color:white;border:none;
+  padding:11px 14px;border-radius:var(--radius);font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:8px;cursor:pointer;
+  box-shadow:var(--shadow-accent);transition:all 0.2s;
+}
+.ai-chat-btn:hover{background:var(--accent-mid);transform:translateY(-1px)}
+
+/* ── MAIN AREA ── */
+.main-wrap{display:flex;flex-direction:column;flex:1;overflow:hidden}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border);
+  flex-shrink:0;box-shadow:var(--shadow-sm);z-index:100;
+}
+.topbar-left{display:flex;align-items:center;gap:16px}
+.breadcrumb{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.breadcrumb-sep{color:var(--dim);font-size:11px}
+.breadcrumb-current{color:var(--text);font-weight:600}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.topbar-search{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:8px 14px 8px 36px;border-radius:var(--radius);font-size:12px;width:220px;
+  outline:none;transition:all 0.18s;position:relative;
+}
+.topbar-search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(var(--accent),0.1);width:280px}
+.search-wrap{position:relative}
+.search-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--dim)}
+.topbar-icon-btn{
+  width:36px;height:36px;border-radius:var(--radius);background:var(--surface2);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  color:var(--muted);cursor:pointer;transition:all 0.2s;position:relative;
+}
+.topbar-icon-btn:hover{background:var(--accent-pale);color:var(--accent);border-color:var(--accent)}
+.topbar-icon-btn svg{width:18px;height:18px}
+.notif-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--red);border:2px solid white}
+
+/* ── MAIN CONTENT ── */
+.main-content{flex:1;overflow-y:auto;padding:28px;background:var(--bg)}
+.section-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap}
+.section-title{font-size:26px;font-weight:800;color:var(--text);letter-spacing:-0.02em;margin-bottom:4px}
+.section-sub{font-size:13px;color:var(--muted)}
+.header-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:var(--radius);font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all 0.18s;white-space:nowrap}
+.btn-primary{background:var(--accent);color:white;box-shadow:0 2px 8px var(--accent-shadow)}
+.btn-primary:hover{background:var(--accent-mid);transform:translateY(-1px);box-shadow:var(--shadow-accent)}
+.btn-secondary{background:var(--surface);color:var(--text-mid);border:1.5px solid var(--border2)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-pale)}
+.btn-ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--border2)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-ai{background:linear-gradient(135deg,var(--accent),var(--accent-light));color:white;box-shadow:var(--shadow-accent)}
+.btn-ai:hover{transform:translateY(-1px);box-shadow:0 6px 20px var(--accent-shadow)}
+
+/* ── STAT CARDS ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-card{
+  background:var(--surface);border-radius:var(--radius-lg);padding:20px;
+  box-shadow:var(--shadow-sm);border:1px solid var(--border);transition:all 0.2s;
+  position:relative;overflow:hidden;
+}
+.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.stat-card-hero{
+  background:var(--accent);color:white;box-shadow:var(--shadow-accent);
+  background-image:radial-gradient(ellipse at top right,rgba(255,255,255,0.12) 0%,transparent 60%);
+}
+.stat-card-hero:hover{transform:translateY(-2px);box-shadow:0 12px 32px var(--accent-shadow)}
+.stat-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.stat-card-hero .stat-label{color:rgba(255,255,255,0.75)}
+.stat-value{font-size:36px;font-weight:800;line-height:1;margin-bottom:8px;letter-spacing:-0.02em;animation:countUp 0.5s ease}
+.stat-card-hero .stat-value{color:white}
+.stat-trend{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600}
+.stat-trend.up{color:var(--green-status)}.stat-trend.down{color:var(--red)}
+.stat-card-hero .stat-trend{color:rgba(255,255,255,0.85)}
+.pbar{height:4px;background:var(--surface3);border-radius:2px;margin-top:10px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:2px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);overflow:hidden}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.card-title{font-size:14px;font-weight:700;color:var(--text)}
+.card-body{padding:18px 20px}
+.two-col{display:grid;grid-template-columns:1fr 300px;gap:20px}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+
+/* ── TABLE ── */
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;padding:10px 14px;background:var(--surface2);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.data-table td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tbody tr{cursor:pointer;transition:background 0.15s}
+.data-table tbody tr:hover{background:var(--accent-bg)}
+.item-id{font-family:var(--mono);font-size:10px;color:var(--accent);font-weight:600}
+
+/* ── BADGES ── */
+.badge{font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block;white-space:nowrap}
+.badge-critical{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
+.badge-high{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.badge-medium{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(37,99,235,0.15)}
+.badge-low{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
+.badge-complete{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
+.badge-progress{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.badge-draft{background:var(--surface3);color:var(--muted);border:1px solid var(--border)}
+.badge-overdue{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
+.badge-accent{background:var(--accent-pale);color:var(--accent);border:1px solid rgba(0,0,0,0.06)}
+
+/* ── PANEL CARDS ── */
+.panel-card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);padding:18px;margin-bottom:16px;transition:box-shadow 0.2s}
+.panel-card:hover{box-shadow:var(--shadow-md)}
+.panel-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.12em;font-family:var(--mono);margin-bottom:14px}
+
+/* ── RING / DONUT CHART ── */
+.ring-wrap{display:flex;align-items:center;gap:16px}
+.ring-legend{font-size:12px;flex:1}
+.ring-item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ring-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ring-lbl{color:var(--muted);flex:1}
+.ring-val{font-family:var(--mono);font-weight:700;color:var(--text)}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-chip{font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:all 0.18s}
+.filter-chip.active{background:var(--accent);color:white;border-color:var(--accent);box-shadow:0 2px 8px var(--accent-shadow)}
+.filter-chip:hover:not(.active){border-color:var(--accent);color:var(--accent)}
+
+/* ── MINI BAR CHART ── */
+.mini-bars{display:flex;align-items:flex-end;gap:4px;height:48px}
+.mini-bar{flex:1;background:var(--accent-pale);border-radius:3px 3px 0 0;transition:all 0.3s;min-width:6px;position:relative}
+.mini-bar:hover{background:var(--accent);opacity:0.8}
+
+/* ── TIMELINE ── */
+.tl-item{display:flex;gap:12px;margin-bottom:14px}
+.tl-col{display:flex;flex-direction:column;align-items:center}
+.tl-dot{width:10px;height:10px;border-radius:50%;margin-top:2px;flex-shrink:0;border:2px solid white;box-shadow:0 0 0 2px var(--accent)}
+.tl-line{width:1px;background:var(--border);flex:1;margin-top:6px;min-height:14px}
+.tl-content{flex:1;padding-bottom:2px}
+.tl-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.tl-date{font-size:11px;color:var(--muted);font-family:var(--mono)}
+
+/* ── MODULE PAGES ── */
+.module-page{display:none}
+.module-page.active{display:block}
+
+/* ── NOTIFICATION PANEL ── */
+.notif-panel{
+  display:none;position:absolute;top:48px;right:0;width:340px;
+  background:white;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);
+  border:1px solid var(--border);z-index:300;overflow:hidden;
+}
+.notif-panel.open{display:block;animation:fadeUp 0.2s ease}
+.notif-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.notif-header-title{font-size:14px;font-weight:700}
+.notif-list{max-height:320px;overflow-y:auto}
+.notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s}
+.notif-item:hover{background:var(--surface2)}
+.notif-item:last-child{border-bottom:none}
+.notif-item-title{font-size:12px;font-weight:600;margin-bottom:3px}
+.notif-item-desc{font-size:11px;color:var(--muted);line-height:1.4}
+.notif-item-time{font-size:10px;color:var(--dim);font-family:var(--mono);margin-top:4px}
+.notif-dot-unread{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:6px}
+
+/* ── MODULE-SPECIFIC MARKER ── */
+.module-marker{
+  width:4px;height:28px;border-radius:0 4px 4px 0;position:absolute;left:0;top:50%;
+  transform:translateY(-50%);transition:all 0.2s;
+}
+.icon-nav-item.active .module-marker{background:white}
+</style>
+</head>
+<body data-module="platform">
+
+<!-- ═══ ICON SIDEBAR ═══ -->
+<div class="app">
+<div class="icon-sidebar">
+  <div class="icon-sidebar-logo" onclick="switchModule('platform')" title="One For All">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+  </div>
+
+  <div class="icon-sidebar-nav">
+    <!-- Platform Home -->
+    <div class="icon-nav-item active" data-target="platform" onclick="switchModule('platform')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span class="icon-nav-tooltip">Command Centre</span>
+    </div>
+
+    <div class="icon-nav-divider"></div>
+
+    <!-- ARIA -->
+    <div class="icon-nav-item" data-target="aria" onclick="switchModule('aria')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span class="icon-nav-tooltip">ARIA — Policy &amp; Compliance</span>
+    </div>
+
+    <!-- GRID -->
+    <div class="icon-nav-item" data-target="grid" onclick="switchModule('grid')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
+      <span class="icon-nav-tooltip">GRID — Audit Management</span>
+    </div>
+
+    <!-- BCM -->
+    <div class="icon-nav-item" data-target="bcm" onclick="switchModule('bcm')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span class="icon-nav-tooltip">BCM — Business Continuity</span>
+    </div>
+
+    <!-- Sentinel -->
+    <div class="icon-nav-item" data-target="sentinel" onclick="switchModule('sentinel')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      <span class="icon-nav-tooltip">Sentinel — Data Protection</span>
+    </div>
+  </div>
+
+  <div class="icon-sidebar-bottom">
+    <div class="icon-nav-item" style="color:#94a3b8" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    </div>
+    <div class="icon-sidebar-user">AM</div>
+  </div>
+</div>
+
+<!-- ═══ MODULE SIDEBAR ═══ -->
+<div class="module-sidebar" id="moduleSidebar">
+  <!-- Content injected by JS based on active module -->
+</div>
+
+<!-- ═══ MAIN AREA ═══ -->
+<div class="main-wrap">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="breadcrumb" id="breadcrumb">
+        <span style="color:var(--accent);font-weight:700">One For All</span>
+        <span class="breadcrumb-sep">›</span>
+        <span class="breadcrumb-current">Command Centre</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="topbar-search" placeholder="Search across all modules…" type="text">
+      </div>
+      <div style="position:relative">
+        <button class="topbar-icon-btn" onclick="toggleNotif()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <span class="notif-dot"></span>
+        </button>
+        <div class="notif-panel" id="notifPanel">
+          <div class="notif-header">
+            <span class="notif-header-title">Notifications</span>
+            <span style="font-size:11px;color:var(--accent);cursor:pointer;font-weight:600">Mark all read</span>
+          </div>
+          <div class="notif-list">
+            <div class="notif-item"><div class="notif-item-title"><span class="notif-dot-unread"></span>Policy Review Due</div><div class="notif-item-desc">Information Security Policy needs approval by Friday</div><div class="notif-item-time">2 hours ago · ARIA</div></div>
+            <div class="notif-item"><div class="notif-item-title"><span class="notif-dot-unread"></span>Evidence Rejected</div><div class="notif-item-desc">ISO 27001 A.8.1 evidence was rejected — re-upload needed</div><div class="notif-item-time">4 hours ago · GRID</div></div>
+            <div class="notif-item"><div class="notif-item-title">Incident Resolved</div><div class="notif-item-desc">Server room flood incident marked as resolved</div><div class="notif-item-time">Yesterday · BCM</div></div>
+            <div class="notif-item"><div class="notif-item-title">DPIA Completed</div><div class="notif-item-desc">Customer analytics DPIA approved by DPO</div><div class="notif-item-time">2 days ago · Sentinel</div></div>
+          </div>
+        </div>
+      </div>
+      <button class="topbar-icon-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content" id="mainContent">
+    <!-- Pages injected by JS -->
+  </div>
+</div>
+</div>
+
+<script>
+// ── Module configurations ──
+const modules = {
+  platform: {
+    name: 'Command Centre',
+    desc: 'Cross-module executive overview',
+    breadcrumb: ['One For All', 'Command Centre'],
+    nav: [
+      {id:'overview', icon:'grid', label:'Overview', active:true},
+      {id:'projects', icon:'folder', label:'Compliance Projects', count:'3'},
+      {id:'evidence', icon:'file', label:'Evidence Repository', count:'156'},
+      {id:'workflows', icon:'git', label:'Workflows'},
+      {id:'reports', icon:'bar-chart', label:'Reports'},
+      {id:'users', icon:'users', label:'User Management'},
+      {id:'settings', icon:'settings', label:'Settings'},
+    ],
+    ai: 'Ask One For All AI…'
+  },
+  aria: {
+    name: 'A.R.I.A.',
+    desc: 'Policy & Compliance Management',
+    breadcrumb: ['One For All', 'ARIA', 'Dashboard'],
+    nav: [
+      {id:'dashboard', icon:'grid', label:'Dashboard', active:true},
+      {id:'frameworks', icon:'layers', label:'Frameworks', count:'4'},
+      {id:'policies', icon:'file-text', label:'Policies', count:'28'},
+      {id:'controls', icon:'shield', label:'Controls', count:'114'},
+      {id:'risks', icon:'alert', label:'Risk Register', badge:'5'},
+      {id:'documents', icon:'folder', label:'Documents'},
+      {id:'mapping', icon:'link', label:'Cross-Mapping'},
+    ],
+    ai: 'Ask ARIA…'
+  },
+  grid: {
+    name: 'G.R.I.D.',
+    desc: 'Audit & Evidence Management',
+    breadcrumb: ['One For All', 'GRID', 'Dashboard'],
+    nav: [
+      {id:'dashboard', icon:'grid', label:'Dashboard', active:true},
+      {id:'audits', icon:'clipboard', label:'Active Audits', count:'2'},
+      {id:'controls', icon:'check-square', label:'Controls', count:'87'},
+      {id:'evidence', icon:'upload', label:'Evidence', count:'64'},
+      {id:'findings', icon:'alert-circle', label:'Findings', badge:'3'},
+      {id:'ncs', icon:'x-circle', label:'Non-Conformities'},
+      {id:'vendors', icon:'truck', label:'Vendors'},
+      {id:'reports', icon:'bar-chart', label:'Reports'},
+    ],
+    ai: 'Ask GRID…'
+  },
+  bcm: {
+    name: 'BCM Sentinel',
+    desc: 'Business Continuity Management',
+    breadcrumb: ['One For All', 'BCM', 'Dashboard'],
+    nav: [
+      {id:'dashboard', icon:'grid', label:'Dashboard', active:true},
+      {id:'plans', icon:'file-text', label:'Continuity Plans', count:'12'},
+      {id:'incidents', icon:'zap', label:'Incidents', badge:'2'},
+      {id:'bia', icon:'activity', label:'Impact Analysis'},
+      {id:'risks', icon:'alert', label:'Risk Register', count:'18'},
+      {id:'exercises', icon:'play', label:'Exercises'},
+      {id:'vendors', icon:'truck', label:'Vendor Dependencies'},
+      {id:'reports', icon:'bar-chart', label:'Reports'},
+    ],
+    ai: 'Ask BCM Sentinel…'
+  },
+  sentinel: {
+    name: 'DP Sentinel',
+    desc: 'Data Protection & Privacy',
+    breadcrumb: ['One For All', 'Sentinel', 'Dashboard'],
+    nav: [
+      {id:'dashboard', icon:'grid', label:'Dashboard', active:true},
+      {id:'ropa', icon:'database', label:'RoPA', count:'24'},
+      {id:'dpia', icon:'shield', label:'DPIAs', count:'8'},
+      {id:'breaches', icon:'alert-octagon', label:'Breaches', badge:'1'},
+      {id:'dsr', icon:'user-check', label:'DSR Requests', count:'6'},
+      {id:'consent', icon:'check-circle', label:'Consent Records'},
+      {id:'vendors', icon:'truck', label:'Processors'},
+      {id:'reports', icon:'bar-chart', label:'Reports'},
+    ],
+    ai: 'Ask Sentinel…'
+  }
+};
+
+// ── SVG icon map ──
+const icons = {
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>',
+  'file-text': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+  git: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 009 9"/></svg>',
+  'bar-chart': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
+  layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,2 2,7 12,12 22,7"/><polyline points="2,17 12,22 22,17"/><polyline points="2,12 12,17 22,12"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>',
+  clipboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
+  'check-square': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,11 12,14 22,4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>',
+  upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16,16 12,12 8,16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>',
+  'alert-circle': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  'x-circle': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+  truck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16,8 20,8 23,11 23,16 16,16"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
+  zap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>',
+  activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>',
+  database: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+  'alert-octagon': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="7.86,2 16.14,2 22,7.86 22,16.14 16.14,22 7.86,22 2,16.14 2,7.86"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  'user-check': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17,11 19,13 23,9"/></svg>',
+  'check-circle': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>',
+  sparkles: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M19 15l.75 2.25L22 18l-2.25.75L19 21l-.75-2.25L16 18l2.25-.75z"/></svg>',
+};
+
+function getIcon(name) { return icons[name] || icons.grid; }
+
+let currentModule = 'platform';
+
+function switchModule(mod) {
+  currentModule = mod;
+  document.body.setAttribute('data-module', mod);
+
+  // Update icon sidebar active state
+  document.querySelectorAll('.icon-nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.target === mod);
+  });
+
+  // Update breadcrumb
+  const cfg = modules[mod];
+  const bc = document.getElementById('breadcrumb');
+  bc.innerHTML = cfg.breadcrumb.map((b, i) =>
+    i === 0 ? `<span style="color:var(--accent);font-weight:700">${b}</span>` :
+    i < cfg.breadcrumb.length - 1 ? `<span class="breadcrumb-sep">›</span><span>${b}</span>` :
+    `<span class="breadcrumb-sep">›</span><span class="breadcrumb-current">${b}</span>`
+  ).join('');
+
+  // Update module sidebar
+  renderSidebar(mod);
+
+  // Update main content
+  renderMainContent(mod);
+}
+
+function renderSidebar(mod) {
+  const cfg = modules[mod];
+  const sb = document.getElementById('moduleSidebar');
+  sb.innerHTML = `
+    <div class="module-sidebar-header">
+      <div class="module-name">${cfg.name}</div>
+      <div class="module-desc">${cfg.desc}</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigation</div>
+      ${cfg.nav.map(n => `
+        <div class="nav-item ${n.active ? 'active' : ''}" onclick="navClick(this)">
+          ${getIcon(n.icon)}
+          <span>${n.label}</span>
+          ${n.badge ? `<span class="nav-badge">${n.badge}</span>` : ''}
+          ${n.count ? `<span class="nav-count">${n.count}</span>` : ''}
+        </div>
+      `).join('')}
+    </div>
+    <div class="sidebar-bottom">
+      <button class="ai-chat-btn">
+        ${getIcon('sparkles')}
+        ${cfg.ai}
+      </button>
+    </div>
+  `;
+}
+
+function navClick(el) {
+  el.parentElement.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function toggleNotif() {
+  document.getElementById('notifPanel').classList.toggle('open');
+}
+
+// Close notif on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.topbar-icon-btn') && !e.target.closest('.notif-panel')) {
+    document.getElementById('notifPanel').classList.remove('open');
+  }
+});
+
+// ── Dashboard Content Generators ──
+
+function platformDashboard() {
+  return `
+    <div class="section-header animate-fade-up">
+      <div>
+        <div class="section-title">Command Centre</div>
+        <div class="section-sub">Cross-module compliance overview · Last updated 2 min ago</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm">Export Report</button>
+        <button class="btn btn-ai btn-sm">${getIcon('sparkles')} Generate Board Report</button>
+      </div>
+    </div>
+    <div class="stats-row animate-fade-up anim-1">
+      <div class="stat-card stat-card-hero">
+        <div class="stat-label">Overall Compliance <span style="font-size:16px">📊</span></div>
+        <div class="stat-value">78%</div>
+        <div class="stat-trend up">▲ 6% from last quarter</div>
+        <div class="pbar"><div class="pbar-fill" style="width:78%;background:rgba(255,255,255,0.4)"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Projects</div>
+        <div class="stat-value" style="color:var(--accent)">3</div>
+        <div class="stat-trend" style="color:var(--muted)">ISO 27001 · ISO 9001 · PCI DSS</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Overdue Actions</div>
+        <div class="stat-value" style="color:var(--red)">7</div>
+        <div class="stat-trend down">▲ 2 since last week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Evidence Collected</div>
+        <div class="stat-value">156</div>
+        <div class="stat-trend up">▲ 12 this week</div>
+        <div class="pbar"><div class="pbar-fill" style="width:64%;background:var(--accent)"></div></div>
+      </div>
+    </div>
+    <div class="three-col animate-fade-up anim-2">
+      <div class="panel-card">
+        <div class="panel-title">Module Health</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#7c3aed"></div>
+            <span style="flex:1;font-size:13px;font-weight:600">ARIA</span>
+            <span class="badge badge-complete">82%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#1a6b3a"></div>
+            <span style="flex:1;font-size:13px;font-weight:600">GRID</span>
+            <span class="badge badge-progress">64%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#b45309"></div>
+            <span style="flex:1;font-size:13px;font-weight:600">BCM</span>
+            <span class="badge badge-complete">91%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#0891b2"></div>
+            <span style="flex:1;font-size:13px;font-weight:600">Sentinel</span>
+            <span class="badge badge-high">45%</span>
+          </div>
+        </div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-title">SLA Performance</div>
+        <div style="text-align:center;margin-bottom:12px">
+          <svg viewBox="0 0 120 120" width="100" height="100">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#f0f1f6" stroke-width="10"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--accent)" stroke-width="10"
+              stroke-dasharray="${2*Math.PI*50*0.87} ${2*Math.PI*50*(1-0.87)}"
+              stroke-dashoffset="${2*Math.PI*50*0.25}" stroke-linecap="round"/>
+            <text x="60" y="56" text-anchor="middle" style="font-size:22px;font-weight:800;fill:var(--text);font-family:var(--font)">87%</text>
+            <text x="60" y="72" text-anchor="middle" style="font-size:10px;fill:var(--muted);font-family:var(--mono)">ON TIME</text>
+          </svg>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:center">
+          <div style="text-align:center"><div style="font-size:18px;font-weight:800;color:var(--green-status)">142</div><div style="font-size:10px;color:var(--muted)">Met SLA</div></div>
+          <div style="text-align:center"><div style="font-size:18px;font-weight:800;color:var(--amber)">14</div><div style="font-size:10px;color:var(--muted)">At Risk</div></div>
+          <div style="text-align:center"><div style="font-size:18px;font-weight:800;color:var(--red)">7</div><div style="font-size:10px;color:var(--muted)">Breached</div></div>
+        </div>
+      </div>
+      <div class="panel-card">
+        <div class="panel-title">Recent Activity</div>
+        <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:#7c3aed"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name">Policy approved</div><div class="tl-date">10 min ago · ARIA</div></div></div>
+        <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:#1a6b3a"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name">Evidence uploaded</div><div class="tl-date">1 hour ago · GRID</div></div></div>
+        <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:#b45309"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name">Incident resolved</div><div class="tl-date">3 hours ago · BCM</div></div></div>
+        <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:#0891b2"></div></div><div class="tl-content"><div class="tl-name">DPIA submitted</div><div class="tl-date">Yesterday · Sentinel</div></div></div>
+      </div>
+    </div>
+    <div class="card animate-fade-up anim-3">
+      <div class="card-header">
+        <div class="card-title">Overdue Action Items</div>
+        <div class="filter-bar" style="margin:0;gap:6px">
+          <span class="filter-chip active">All</span>
+          <span class="filter-chip">ARIA</span>
+          <span class="filter-chip">GRID</span>
+          <span class="filter-chip">BCM</span>
+          <span class="filter-chip">Sentinel</span>
+        </div>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Item</th><th>Module</th><th>Assigned To</th><th>Due Date</th><th>SLA Status</th><th>Priority</th></tr></thead>
+        <tbody>
+          <tr><td><span class="item-id">POL-042</span><div style="font-weight:500">Review Access Control Policy</div></td><td><span class="badge badge-accent" style="--accent:#7c3aed;--accent-pale:#f5f3ff">ARIA</span></td><td>Sarah K.</td><td style="font-family:var(--mono);font-size:12px;color:var(--red)">12 May 2026</td><td><span class="badge badge-overdue">3d overdue</span></td><td><span class="badge badge-critical">Critical</span></td></tr>
+          <tr><td><span class="item-id">AUD-018</span><div style="font-weight:500">Upload firewall config evidence</div></td><td><span class="badge badge-accent" style="--accent:#1a6b3a;--accent-pale:#e8f5ee">GRID</span></td><td>James M.</td><td style="font-family:var(--mono);font-size:12px;color:var(--red)">13 May 2026</td><td><span class="badge badge-overdue">2d overdue</span></td><td><span class="badge badge-high">High</span></td></tr>
+          <tr><td><span class="item-id">INC-007</span><div style="font-weight:500">Complete post-incident review</div></td><td><span class="badge badge-accent" style="--accent:#b45309;--accent-pale:#fffbeb">BCM</span></td><td>Ali M.</td><td style="font-family:var(--mono);font-size:12px;color:var(--red)">14 May 2026</td><td><span class="badge badge-overdue">1d overdue</span></td><td><span class="badge badge-medium">Medium</span></td></tr>
+          <tr><td><span class="item-id">DSR-031</span><div style="font-weight:500">Process data deletion request</div></td><td><span class="badge badge-accent" style="--accent:#0891b2;--accent-pale:#ecfeff">Sentinel</span></td><td>Nina R.</td><td style="font-family:var(--mono);font-size:12px;color:var(--amber)">16 May 2026</td><td><span class="badge badge-high">Due today</span></td><td><span class="badge badge-high">High</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function ariaDashboard() {
+  return `
+    <div class="section-header animate-fade-up">
+      <div>
+        <div class="section-title">ARIA Dashboard</div>
+        <div class="section-sub">Policy & compliance management overview</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm">Export</button>
+        <button class="btn btn-primary btn-sm">+ New Policy</button>
+      </div>
+    </div>
+    <div class="stats-row animate-fade-up anim-1">
+      <div class="stat-card stat-card-hero"><div class="stat-label">Frameworks</div><div class="stat-value">4</div><div class="stat-trend">ISO 27001 · SOC 2 · PCI DSS · ISO 9001</div></div>
+      <div class="stat-card"><div class="stat-label">Policies</div><div class="stat-value" style="color:var(--accent)">28</div><div class="stat-trend up">▲ 3 this month</div></div>
+      <div class="stat-card"><div class="stat-label">Controls Implemented</div><div class="stat-value">96<span style="font-size:18px;color:var(--muted)">/114</span></div><div class="pbar"><div class="pbar-fill" style="width:84%;background:var(--accent)"></div></div></div>
+      <div class="stat-card"><div class="stat-label">Pending Reviews</div><div class="stat-value" style="color:var(--amber)">5</div><div class="stat-trend down">▲ 2 since last week</div></div>
+    </div>
+    <div class="two-col animate-fade-up anim-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Recent Policies</div><button class="btn btn-ghost btn-sm">View All</button></div>
+        <table class="data-table">
+          <thead><tr><th>Policy</th><th>Status</th><th>Version</th><th>Last Updated</th></tr></thead>
+          <tbody>
+            <tr><td><span class="item-id">POL-001</span><div style="font-weight:500">Information Security Policy</div></td><td><span class="badge badge-complete">Approved</span></td><td style="font-family:var(--mono);font-size:11px">v3.2</td><td style="font-family:var(--mono);font-size:12px;color:var(--muted)">14 May 2026</td></tr>
+            <tr><td><span class="item-id">POL-015</span><div style="font-weight:500">Access Control Policy</div></td><td><span class="badge badge-progress">In Review</span></td><td style="font-family:var(--mono);font-size:11px">v2.1</td><td style="font-family:var(--mono);font-size:12px;color:var(--muted)">12 May 2026</td></tr>
+            <tr><td><span class="item-id">POL-022</span><div style="font-weight:500">Data Classification Policy</div></td><td><span class="badge badge-draft">Draft</span></td><td style="font-family:var(--mono);font-size:11px">v1.0</td><td style="font-family:var(--mono);font-size:12px;color:var(--muted)">10 May 2026</td></tr>
+            <tr><td><span class="item-id">POL-028</span><div style="font-weight:500">Incident Response Policy</div></td><td><span class="badge badge-complete">Approved</span></td><td style="font-family:var(--mono);font-size:11px">v1.4</td><td style="font-family:var(--mono);font-size:12px;color:var(--muted)">8 May 2026</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="panel-card">
+          <div class="panel-title">Risk Distribution</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-critical" style="width:70px;text-align:center">Critical</span><div class="pbar" style="flex:1;margin:0"><div class="pbar-fill" style="width:12%;background:var(--red)"></div></div><span style="font-family:var(--mono);font-size:11px;color:var(--muted);width:24px;text-align:right">5</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-high" style="width:70px;text-align:center">High</span><div class="pbar" style="flex:1;margin:0"><div class="pbar-fill" style="width:30%;background:var(--amber)"></div></div><span style="font-family:var(--mono);font-size:11px;color:var(--muted);width:24px;text-align:right">12</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-medium" style="width:70px;text-align:center">Medium</span><div class="pbar" style="flex:1;margin:0"><div class="pbar-fill" style="width:52%;background:var(--blue)"></div></div><span style="font-family:var(--mono);font-size:11px;color:var(--muted);width:24px;text-align:right">21</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-low" style="width:70px;text-align:center">Low</span><div class="pbar" style="flex:1;margin:0"><div class="pbar-fill" style="width:25%;background:var(--green-status)"></div></div><span style="font-family:var(--mono);font-size:11px;color:var(--muted);width:24px;text-align:right">10</span></div>
+          </div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-title">Approval Pipeline</div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--accent)"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name">Access Control Policy</div><div class="tl-date">Pending Sarah's review</div></div></div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--amber)"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name">Vendor Management Policy</div><div class="tl-date">Due in 3 days</div></div></div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--green-status)"></div></div><div class="tl-content"><div class="tl-name">Encryption Standards</div><div class="tl-date">Approved today</div></div></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function gridDashboard() {
+  return `
+    <div class="section-header animate-fade-up">
+      <div>
+        <div class="section-title">GRID Dashboard</div>
+        <div class="section-sub">Audit & evidence management overview</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm">Export</button>
+        <button class="btn btn-primary btn-sm">+ New Audit</button>
+      </div>
+    </div>
+    <div class="stats-row animate-fade-up anim-1">
+      <div class="stat-card stat-card-hero"><div class="stat-label">Active Audits</div><div class="stat-value">2</div><div class="stat-trend">ISO 27001 · PCI DSS 4.0</div></div>
+      <div class="stat-card"><div class="stat-label">Controls Assessed</div><div class="stat-value">87<span style="font-size:18px;color:var(--muted)">/114</span></div><div class="pbar"><div class="pbar-fill" style="width:76%;background:var(--accent)"></div></div></div>
+      <div class="stat-card"><div class="stat-label">Evidence Files</div><div class="stat-value" style="color:var(--accent)">64</div><div class="stat-trend up">▲ 8 this week</div></div>
+      <div class="stat-card"><div class="stat-label">Open Findings</div><div class="stat-value" style="color:var(--red)">3</div><div class="stat-trend">1 critical · 2 high</div></div>
+    </div>
+    <div class="two-col animate-fade-up anim-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Control Status</div>
+          <div class="filter-bar" style="margin:0;gap:6px">
+            <span class="filter-chip active">All</span><span class="filter-chip">Complete</span><span class="filter-chip">In Progress</span><span class="filter-chip">Not Started</span>
+          </div>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Control</th><th>Framework</th><th>Status</th><th>Evidence</th><th>Assigned</th></tr></thead>
+          <tbody>
+            <tr><td><span class="item-id">A.5.1</span><div style="font-weight:500">Policies for information security</div></td><td style="font-family:var(--mono);font-size:11px">ISO 27001</td><td><span class="badge badge-complete">Complete</span></td><td style="font-family:var(--mono);font-size:11px">3 files</td><td>Rachel M.</td></tr>
+            <tr><td><span class="item-id">A.8.1</span><div style="font-weight:500">User endpoint devices</div></td><td style="font-family:var(--mono);font-size:11px">ISO 27001</td><td><span class="badge badge-progress">In Progress</span></td><td style="font-family:var(--mono);font-size:11px">1 file</td><td>James M.</td></tr>
+            <tr><td><span class="item-id">3.1</span><div style="font-weight:500">Protect stored account data</div></td><td style="font-family:var(--mono);font-size:11px">PCI DSS</td><td><span class="badge badge-draft">Not Started</span></td><td style="font-family:var(--mono);font-size:11px">—</td><td>Unassigned</td></tr>
+            <tr><td><span class="item-id">A.7.1</span><div style="font-weight:500">Physical security perimeters</div></td><td style="font-family:var(--mono);font-size:11px">ISO 27001</td><td><span class="badge badge-complete">Complete</span></td><td style="font-family:var(--mono);font-size:11px">2 files</td><td>Ali M.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="panel-card">
+          <div class="panel-title">Evidence Progress</div>
+          <div style="text-align:center;margin-bottom:12px">
+            <svg viewBox="0 0 120 120" width="100" height="100">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#f0f1f6" stroke-width="10"/>
+              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--accent)" stroke-width="10"
+                stroke-dasharray="${2*Math.PI*50*0.64} ${2*Math.PI*50*(1-0.64)}"
+                stroke-dashoffset="${2*Math.PI*50*0.25}" stroke-linecap="round"/>
+              <text x="60" y="56" text-anchor="middle" style="font-size:22px;font-weight:800;fill:var(--text);font-family:var(--font)">64%</text>
+              <text x="60" y="72" text-anchor="middle" style="font-size:10px;fill:var(--muted);font-family:var(--mono)">COLLECTED</text>
+            </svg>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;font-size:11px">
+            <div style="text-align:center"><div style="font-weight:800;font-size:16px;color:var(--green-status)">38</div>Approved</div>
+            <div style="text-align:center"><div style="font-weight:800;font-size:16px;color:var(--amber)">17</div>Pending</div>
+            <div style="text-align:center"><div style="font-weight:800;font-size:16px;color:var(--red)">9</div>Rejected</div>
+          </div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-title">Upcoming Deadlines</div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--red)"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name" style="color:var(--red)">A.8.1 Evidence due</div><div class="tl-date">Tomorrow</div></div></div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--amber)"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name">PCI DSS 3.1 review</div><div class="tl-date">18 May 2026</div></div></div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--accent)"></div></div><div class="tl-content"><div class="tl-name">ISO 27001 audit close</div><div class="tl-date">30 May 2026</div></div></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bcmDashboard() {
+  return `
+    <div class="section-header animate-fade-up">
+      <div>
+        <div class="section-title">BCM Dashboard</div>
+        <div class="section-sub">Business continuity & incident management overview</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm">Export</button>
+        <button class="btn btn-primary btn-sm" style="background:var(--red);box-shadow:0 2px 8px rgba(220,38,38,0.25)">⚡ Declare Incident</button>
+      </div>
+    </div>
+    <div class="stats-row animate-fade-up anim-1">
+      <div class="stat-card stat-card-hero"><div class="stat-label">Continuity Plans</div><div class="stat-value">12</div><div class="stat-trend">10 approved · 2 in review</div></div>
+      <div class="stat-card"><div class="stat-label">Open Incidents</div><div class="stat-value" style="color:var(--red)">2</div><div class="stat-trend">1 critical · 1 medium</div></div>
+      <div class="stat-card"><div class="stat-label">BIA Coverage</div><div class="stat-value">85<span style="font-size:18px;color:var(--muted)">%</span></div><div class="pbar"><div class="pbar-fill" style="width:85%;background:var(--accent)"></div></div></div>
+      <div class="stat-card"><div class="stat-label">Exercise Completion</div><div class="stat-value" style="color:var(--accent)">4<span style="font-size:18px;color:var(--muted)">/6</span></div><div class="stat-trend up">Next: 22 May 2026</div></div>
+    </div>
+    <div class="two-col animate-fade-up anim-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Active Incidents</div></div>
+        <table class="data-table">
+          <thead><tr><th>Incident</th><th>Severity</th><th>Status</th><th>Commander</th><th>Duration</th></tr></thead>
+          <tbody>
+            <tr><td><span class="item-id">INC-012</span><div style="font-weight:500">Data centre cooling failure</div></td><td><span class="badge badge-critical">Critical</span></td><td><span class="badge badge-progress">Responding</span></td><td>Ali M.</td><td style="font-family:var(--mono);font-size:12px;color:var(--red)">4h 22m</td></tr>
+            <tr><td><span class="item-id">INC-011</span><div style="font-weight:500">Vendor payment system outage</div></td><td><span class="badge badge-medium">Medium</span></td><td><span class="badge badge-progress">Investigating</span></td><td>Sarah K.</td><td style="font-family:var(--mono);font-size:12px;color:var(--amber)">18h 45m</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="panel-card">
+          <div class="panel-title">Risk Heat Map</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;text-align:center;font-size:10px;font-family:var(--mono)">
+            <div></div><div style="font-weight:700;color:var(--muted);padding:4px">Medium</div><div style="font-weight:700;color:var(--muted);padding:4px">High</div>
+            <div style="font-weight:700;color:var(--muted);padding:4px;text-align:right">High</div>
+            <div style="background:var(--amber-bg);color:var(--amber);padding:8px;border-radius:6px;font-weight:700">3</div>
+            <div style="background:var(--red-bg);color:var(--red);padding:8px;border-radius:6px;font-weight:700">2</div>
+            <div style="font-weight:700;color:var(--muted);padding:4px;text-align:right">Med</div>
+            <div style="background:#eff6ff;color:var(--blue);padding:8px;border-radius:6px;font-weight:700">5</div>
+            <div style="background:var(--amber-bg);color:var(--amber);padding:8px;border-radius:6px;font-weight:700">4</div>
+            <div style="font-weight:700;color:var(--muted);padding:4px;text-align:right">Low</div>
+            <div style="background:var(--green-bg);color:var(--green-status);padding:8px;border-radius:6px;font-weight:700">4</div>
+            <div style="background:#eff6ff;color:var(--blue);padding:8px;border-radius:6px;font-weight:700">0</div>
+          </div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-title">Plan Review Schedule</div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--red)"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name" style="color:var(--red)">IT DR Plan — overdue</div><div class="tl-date">Was due 10 May</div></div></div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--accent)"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-name">Pandemic Response Plan</div><div class="tl-date">Due 20 May 2026</div></div></div>
+          <div class="tl-item"><div class="tl-col"><div class="tl-dot" style="color:var(--green-status)"></div></div><div class="tl-content"><div class="tl-name">Building Evac Plan</div><div class="tl-date">Reviewed 2 May 2026</div></div></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function sentinelDashboard() {
+  return `
+    <div class="section-header animate-fade-up">
+      <div>
+        <div class="section-title">Sentinel Dashboard</div>
+        <div class="section-sub">Data protection & privacy programme overview</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm">Export</button>
+        <button class="btn btn-primary btn-sm">+ New DPIA</button>
+      </div>
+    </div>
+    <div class="stats-row animate-fade-up anim-1">
+      <div class="stat-card stat-card-hero"><div class="stat-label">RoPA Records</div><div class="stat-value">24</div><div class="stat-trend">18 active · 6 archived</div></div>
+      <div class="stat-card"><div class="stat-label">Active DPIAs</div><div class="stat-value" style="color:var(--accent)">8</div><div class="stat-trend up">▲ 2 this month</div></div>
+      <div class="stat-card"><div class="stat-label">Open DSRs</div><div class="stat-value" style="color:var(--amber)">6</div><div class="stat-trend">Avg response: 12 days</div></div>
+      <div class="stat-card"><div class="stat-label">Active Breaches</div><div class="stat-value" style="color:var(--red)">1</div><div class="stat-trend">72h notification deadline</div></div>
+    </div>
+    <div class="two-col animate-fade-up anim-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">DSR Requests</div><button class="btn btn-ghost btn-sm">View All</button></div>
+        <table class="data-table">
+          <thead><tr><th>Request</th><th>Type</th><th>Status</th><th>Deadline</th><th>Days Left</th></tr></thead>
+          <tbody>
+            <tr><td><span class="item-id">DSR-031</span><div style="font-weight:500">J. Smith — Data Deletion</div></td><td style="font-size:12px">Erasure</td><td><span class="badge badge-progress">Processing</span></td><td style="font-family:var(--mono);font-size:12px">16 May</td><td style="font-family:var(--mono);font-size:12px;color:var(--red);font-weight:700">0</td></tr>
+            <tr><td><span class="item-id">DSR-030</span><div style="font-weight:500">M. Jones — Access Request</div></td><td style="font-size:12px">Access</td><td><span class="badge badge-progress">Gathering</span></td><td style="font-family:var(--mono);font-size:12px">22 May</td><td style="font-family:var(--mono);font-size:12px;color:var(--amber);font-weight:700">6</td></tr>
+            <tr><td><span class="item-id">DSR-029</span><div style="font-weight:500">A. Brown — Portability</div></td><td style="font-size:12px">Portability</td><td><span class="badge badge-complete">Complete</span></td><td style="font-family:var(--mono);font-size:12px">10 May</td><td style="font-family:var(--mono);font-size:12px;color:var(--green-status)">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="panel-card">
+          <div class="panel-title">DPIA Risk Levels</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-critical" style="width:60px;text-align:center">High</span><div class="pbar" style="flex:1;margin:0"><div class="pbar-fill" style="width:25%;background:var(--red)"></div></div><span style="font-family:var(--mono);font-size:11px;width:20px;text-align:right">2</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-high" style="width:60px;text-align:center">Med</span><div class="pbar" style="flex:1;margin:0"><div class="pbar-fill" style="width:50%;background:var(--amber)"></div></div><span style="font-family:var(--mono);font-size:11px;width:20px;text-align:right">4</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-low" style="width:60px;text-align:center">Low</span><div class="pbar" style="flex:1;margin:0"><div class="pbar-fill" style="width:25%;background:var(--green-status)"></div></div><span style="font-family:var(--mono);font-size:11px;width:20px;text-align:right">2</span></div>
+          </div>
+        </div>
+        <div class="panel-card" style="background:var(--red-bg);border-color:rgba(220,38,38,0.15)">
+          <div class="panel-title" style="color:var(--red)">⚠ Active Breach</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">Customer DB unauthorized access</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Detected 15 May · ~2,400 records affected</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="badge badge-overdue">Notification due in 48h</span>
+            <button class="btn btn-sm" style="background:var(--red);color:white;font-size:11px;padding:4px 10px">View Details →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderMainContent(mod) {
+  const mc = document.getElementById('mainContent');
+  switch(mod) {
+    case 'platform': mc.innerHTML = platformDashboard(); break;
+    case 'aria': mc.innerHTML = ariaDashboard(); break;
+    case 'grid': mc.innerHTML = gridDashboard(); break;
+    case 'bcm': mc.innerHTML = bcmDashboard(); break;
+    case 'sentinel': mc.innerHTML = sentinelDashboard(); break;
+  }
+}
+
+// ── Initialize ──
+switchModule('platform');
+</script>
+</body>
+</html>

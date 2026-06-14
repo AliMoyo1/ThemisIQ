@@ -1,0 +1,135 @@
+<div class="page-head">
+  <div>
+    <h1>AI Plan Review</h1>
+    <p><a href="/bcp/<%= plan.id %>"><%= plan.title %></a> · v<%= plan.version %> · <%= plan.status %></p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/bcp/<%= plan.id %>">Back to plan</a>
+  </div>
+</div>
+
+<!-- ===== Heuristic coverage + new review form ===== -->
+<div class="grid grid-2" style="margin-bottom:16px;">
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Section coverage (heuristic)</div>
+      <div class="card-subtitle">
+        <%= coverage.filter(c => c.present).length %>/<%= coverage.length %> detected
+      </div>
+    </div>
+    <p class="muted" style="font-size:13px; margin-bottom:12px;">
+      A quick keyword scan of your plan's text. Missing sections are the first thing ISO 22301 auditors will flag.
+    </p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+      <% coverage.forEach(c => { %>
+        <div style="display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; background:<%= c.present ? '#eef3e0' : '#f6e9e4' %>;">
+          <span style="font-size:14px;"><%= c.present ? '✓' : '○' %></span>
+          <span style="font-size:12.5px; <%= c.present ? '' : 'color:#8c3b26;' %>"><%= c.label %></span>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Run a new AI review</div>
+    </div>
+    <p class="muted" style="font-size:13px; margin-bottom:12px;">
+      Runs your configured AI provider against the plan. Results are versioned — run it again after each edit to see your score improve.
+    </p>
+    <form method="POST" action="/bcp/<%= plan.id %>/review" data-ai="Auditing your plan against ISO 22301 + NIST CSF…">
+      <div style="display:flex; gap:18px; margin-bottom:14px;">
+        <label style="display:flex; gap:6px; align-items:center; cursor:pointer;">
+          <input type="checkbox" name="iso22301" checked> ISO 22301
+        </label>
+        <label style="display:flex; gap:6px; align-items:center; cursor:pointer;">
+          <input type="checkbox" name="nistcsf" checked> NIST CSF
+        </label>
+      </div>
+      <button class="btn primary" type="submit">Run review</button>
+    </form>
+  </div>
+</div>
+
+<% if (!reviews.length) { %>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Review history</div></div>
+    <p class="muted">No reviews yet. Kick the first one off above.</p>
+  </div>
+<% } else { %>
+  <% reviews.forEach((r, i) => { %>
+    <% const score = r.overall_score || 0; %>
+    <% const scoreBand = score >= 90 ? 'success' : (score >= 75 ? 'info' : (score >= 60 ? 'warn' : 'danger')); %>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head">
+        <div class="card-title">
+          Review #<%= reviews.length - i %>
+          <span class="badge <%= scoreBand %>" style="margin-left:8px;"><%= score %>/100</span>
+          <span class="muted" style="font-weight:400; margin-left:8px; font-size:12px;"><%= r.provider %></span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span class="muted" style="font-size:12px;"><%= r.created_at %> · <%= r.reviewer_name || 'system' %></span>
+          <form method="POST" action="/bcp/<%= plan.id %>/review/<%= r.id %>/delete" style="display:inline;" data-confirm="Remove this review?">
+            <button class="btn small ghost" type="submit">✕</button>
+          </form>
+        </div>
+      </div>
+
+      <div style="font-style:italic; color:var(--text-secondary); margin-bottom:14px; padding:10px 12px; background:var(--frame); border-radius:8px;">
+        <%= r.summary %>
+      </div>
+
+      <div class="grid grid-3" style="margin-bottom:14px;">
+        <div>
+          <div style="font-weight:600; color:#446a33; margin-bottom:6px;">Strengths</div>
+          <% if (r.strengths.length) { %>
+            <ul style="margin:0; padding-left:18px; font-size:13px;">
+              <% r.strengths.forEach(s => { %><li style="margin-bottom:4px;"><%= s %></li><% }) %>
+            </ul>
+          <% } else { %><p class="muted" style="font-size:13px;">—</p><% } %>
+        </div>
+        <div>
+          <div style="font-weight:600; color:#8c3b26; margin-bottom:6px;">Gaps</div>
+          <% if (r.gaps.length) { %>
+            <ul style="margin:0; padding-left:18px; font-size:13px;">
+              <% r.gaps.forEach(g => { %><li style="margin-bottom:4px;"><%= g %></li><% }) %>
+            </ul>
+          <% } else { %><p class="muted" style="font-size:13px;">—</p><% } %>
+        </div>
+        <div>
+          <div style="font-weight:600; color:#27477c; margin-bottom:6px;">Recommendations</div>
+          <% if (r.recommendations.length) { %>
+            <ul style="margin:0; padding-left:18px; font-size:13px;">
+              <% r.recommendations.forEach(rec => { %><li style="margin-bottom:4px;"><%= rec %></li><% }) %>
+            </ul>
+          <% } else { %><p class="muted" style="font-size:13px;">—</p><% } %>
+        </div>
+      </div>
+
+      <% const sa = r.standards_alignment && r.standards_alignment.standards_alignment; %>
+      <% const sc = r.standards_alignment && r.standards_alignment.section_coverage; %>
+      <% if (sa) { %>
+        <details style="margin-bottom:10px;">
+          <summary style="cursor:pointer; font-weight:600; font-size:13px;">Standards alignment</summary>
+          <div style="padding:10px 0 0 0; font-size:13px;">
+            <% Object.keys(sa).forEach(std => { %>
+              <p style="margin:6px 0;"><strong><%= std %>:</strong> <%= sa[std] %></p>
+            <% }) %>
+          </div>
+        </details>
+      <% } %>
+      <% if (sc && Array.isArray(sc)) { %>
+        <details>
+          <summary style="cursor:pointer; font-weight:600; font-size:13px;">Section coverage at review time</summary>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; padding:10px 0 0 0;">
+            <% sc.forEach(c => { %>
+              <div style="font-size:12.5px; color:<%= c.present ? '#446a33' : '#8c3b26' %>;">
+                <%= c.present ? '✓' : '○' %> <%= c.label %>
+              </div>
+            <% }) %>
+          </div>
+        </details>
+      <% } %>
+    </div>
+  <% }) %>
+<% } %>

@@ -1,0 +1,2303 @@
+{% extends "base_shell.html" %}
+
+{% block title %}ORM — Operational Risk Management{% endblock %}
+
+{% block extra_styles %}
+/* ── ORM SPA Views ── */
+#ormSpaRoot .spa-view{display:none !important}
+#ormSpaRoot .spa-view.active{display:block !important;animation:fadeUp .3s ease}
+
+/* ── Modals ── */
+.orm-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease}
+.modal-box{background:var(--surface);border-radius:var(--radius-lg);padding:28px;width:90%;max-width:640px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);position:relative}
+.modal-title{font-size:17px;font-weight:800;color:var(--text);margin-bottom:16px}
+.modal-close{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:4px 8px;border-radius:var(--radius)}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* ── Filter chips ── */
+.orm-filter-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.orm-chip{padding:5px 12px;border-radius:100px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.orm-chip:hover{border-color:var(--accent);color:var(--accent)}
+.orm-chip.active{background:var(--accent);border-color:var(--accent);color:white}
+.orm-search{flex:1;min-width:160px;max-width:260px;padding:7px 12px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:13px}
+.orm-search:focus{outline:none;border-color:var(--accent)}
+
+/* ── Bulk action bar ── */
+.orm-bulk-bar{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 18px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 32px rgba(0,0,0,.2);z-index:500;animation:fadeUp .2s ease}
+
+/* ── Type icons ── */
+.evt-icon{font-size:18px;flex-shrink:0}
+
+/* ── KRI cards ── */
+.kri-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;transition:all .2s}
+.kri-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.kri-gauge{height:10px;border-radius:100px;overflow:hidden;margin:8px 0;background:var(--surface3);position:relative}
+.kri-fill-ok{background:var(--good,#16a34a)}
+.kri-fill-warn{background:var(--amber,#d97706)}
+.kri-fill-crit{background:var(--red,#dc2626)}
+
+/* ── Drawer ── */
+.orm-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1400;display:flex;align-items:stretch;justify-content:flex-end}
+.orm-drawer-panel{background:var(--surface);width:min(640px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.18);animation:ormSlide .28s ease}
+@keyframes ormSlide{from{transform:translateX(100%);opacity:.5}to{transform:translateX(0);opacity:1}}
+.orm-drawer-head{padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.orm-drawer-body{flex:1;overflow-y:auto;padding:20px}
+.orm-drawer-footer{padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface);display:flex;gap:8px;flex-wrap:wrap}
+.orm-drawer-section{margin-bottom:18px}
+.orm-drawer-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:8px}
+.orm-drawer-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--surface3)}
+.orm-drawer-label{color:var(--muted);font-size:12px;margin-right:12px}
+.orm-drawer-val{color:var(--text);font-size:13px;font-weight:500;text-align:right}
+
+/* ── AI button ── */
+.btn-orm-ai{background:linear-gradient(135deg,rgba(234,88,12,.1),rgba(234,88,12,.04));border:1px solid rgba(234,88,12,.3);color:var(--accent);padding:5px 10px;border-radius:var(--radius);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s}
+.btn-orm-ai:hover{background:rgba(234,88,12,.15)}
+.btn-orm-ai:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Doc viewer ── */
+.orm-doc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;display:flex;align-items:stretch;justify-content:flex-end}
+.orm-doc-panel{background:var(--surface);width:min(700px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.18);animation:ormSlide .3s ease}
+.orm-doc-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);gap:12px;flex-shrink:0}
+.orm-doc-body{flex:1;overflow-y:auto;padding:24px;font-size:13px;white-space:pre-wrap;line-height:1.8;color:var(--text);font-family:var(--mono,monospace)}
+
+/* ── Trend arrow ── */
+.orm-trend{font-size:11px;font-weight:700;margin-top:3px}
+
+/* ── KRI sparkline ── */
+.kri-sparkline{display:block;overflow:visible}
+
+/* ── Event Template Browser ── */
+.orm-tmpl-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1600;display:flex;align-items:flex-end;justify-content:stretch;animation:fadeIn .2s ease}
+.orm-tmpl-panel{background:var(--surface);width:100%;max-height:90vh;display:flex;flex-direction:column;border-radius:var(--radius-lg) var(--radius-lg) 0 0;box-shadow:0 -12px 48px rgba(0,0,0,.25);animation:tmplSlide .3s cubic-bezier(.22,.61,.36,1)}
+@keyframes tmplSlide{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.orm-tmpl-head{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.orm-tmpl-body{flex:1;overflow-y:auto;padding:20px 24px}
+.orm-tmpl-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;gap:8px;transition:all .18s;position:relative}
+.orm-tmpl-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.orm-tmpl-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.orm-tmpl-card-title{font-size:13px;font-weight:700;color:var(--text);line-height:1.3;flex:1}
+.orm-tmpl-card-desc{font-size:12px;color:var(--muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.orm-tmpl-card-footer{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px}
+.orm-cat-chip{font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;display:inline-block}
+.orm-tmpl-filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.orm-tmpl-chip{padding:5px 12px;border-radius:100px;font-size:11px;font-weight:700;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.orm-tmpl-chip:hover{border-color:var(--accent);color:var(--accent)}
+.orm-tmpl-chip.active{background:var(--accent);border-color:var(--accent);color:white}
+
+/* ── Workflow stepper ── */
+.orm-stepper{display:flex;align-items:center;gap:0;margin-bottom:16px;flex-wrap:wrap}
+.orm-step{display:flex;flex-direction:column;align-items:center;flex:1;min-width:80px;cursor:pointer;position:relative}
+.orm-step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;transition:all .2s;z-index:1}
+.orm-step-dot.done{background:var(--good,#16a34a);border-color:var(--good,#16a34a);color:white}
+.orm-step-dot.active{background:var(--accent);border-color:var(--accent);color:white}
+.orm-step-label{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:4px;text-align:center;max-width:72px;line-height:1.2}
+.orm-step::after{content:'';position:absolute;top:14px;left:50%;width:100%;height:2px;background:var(--border);z-index:0}
+.orm-step:last-child::after{display:none}
+.orm-step.done::after{background:var(--good,#16a34a)}
+
+/* ── SLA chip ── */
+.sla-ok{color:var(--good,#16a34a);font-size:11px;font-weight:700}
+.sla-warn{color:var(--amber,#d97706);font-size:11px;font-weight:700}
+.sla-overdue{color:var(--red,#dc2626);font-size:11px;font-weight:800}
+
+/* ── RCSA styles ── */
+.rcsa-risk-row{padding:10px 14px;border-radius:var(--radius);background:var(--surface2);border:1px solid var(--border);margin-bottom:8px;cursor:pointer;transition:all .15s}
+.rcsa-risk-row:hover{border-color:var(--accent);box-shadow:var(--shadow-sm)}
+.rcsa-eff-bar{height:6px;border-radius:100px;overflow:hidden;background:var(--surface3);margin-top:4px}
+.eff-low{background:var(--red,#dc2626)}
+.eff-mid{background:var(--amber,#d97706)}
+.eff-high{background:var(--good,#16a34a)}
+
+@media(max-width:900px){.form-row{grid-template-columns:1fr}.orm-filter-bar{gap:4px}}
+{% endblock %}
+
+{% block module_sidebar %}
+<div class="module-sidebar-header">
+  <div class="module-name">Operations Risk</div>
+  <div class="module-desc">Operational Risk Management</div>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Navigation</div>
+  <a href="/orm/" class="nav-item active" data-spa="/orm/">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Dashboard
+  </a>
+  <a href="/orm/events" class="nav-item" data-spa="/orm/events">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    Events
+    <span class="nav-count" id="ormNavEvents">--</span>
+  </a>
+  <a href="/orm/indicators" class="nav-item" data-spa="/orm/indicators">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    KRI Indicators
+    <span class="nav-count" id="ormNavKriAlert" style="display:none;background:var(--red)">!</span>
+  </a>
+  <a href="/orm/assessment" class="nav-item" data-spa="/orm/assessment">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+    RCSA
+    <span class="nav-count" id="ormNavRcsa"></span>
+  </a>
+  <a href="/orm/reports" class="nav-item" data-spa="/orm/reports">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Reports
+  </a>
+</div>
+<div class="sidebar-bottom">
+  <div style="background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer" data-spa="/orm/chat">
+    <div style="font-size:24px;margin-bottom:8px">&#128200;</div>
+    <div style="font-size:14px;font-weight:700">Ask ORM AI...</div>
+    <div style="font-size:11px;opacity:0.7;margin-top:4px">Root cause &amp; remediation</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block breadcrumb %}
+<span style="color:var(--accent);font-weight:700">ORM</span>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current" id="ormBreadcrumb">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div id="ormSpaRoot">
+
+<!-- ═══════════════════════════════════════ DASHBOARD ═══════════════════════ -->
+<div class="spa-view active" id="view-dashboard">
+  <div class="section-header animate-fade-up">
+    <div>
+      <div class="section-title">ORM Dashboard</div>
+      <div class="section-sub">Operational risk events &middot; Last 30 days &middot; Updated <span id="ormLastUpdated">&mdash;</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="ormOpenEventModal()">+ Log Event</button>
+    </div>
+  </div>
+
+  <!-- SLA overdue banner -->
+  <div id="ormSlaBanner" style="display:none;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
+    <span style="font-size:18px">⏰</span>
+    <span style="flex:1"><strong id="ormSlaCount">0</strong> event(s) have breached SLA response or resolution deadlines.</span>
+    <a data-spa="/orm/events" class="btn btn-sm btn-secondary" style="flex-shrink:0;cursor:pointer">View Events</a>
+  </div>
+
+  <!-- Sentinel breach banner -->
+  <div id="ormSentinelBanner" style="display:none;background:rgba(8,145,178,.07);border:1px solid rgba(8,145,178,.3);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
+    <span style="font-size:18px">&#128737;</span>
+    <span style="flex:1"><strong>Active data breach in Sentinel.</strong> Review fraud and system failure events for potential data exposure.</span>
+    <a href="/sentinel/" class="btn btn-sm btn-secondary" style="flex-shrink:0">View Sentinel</a>
+  </div>
+
+  <!-- BCM active incident banner -->
+  <div id="ormBcmBanner" style="display:none;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
+    <span style="font-size:18px">&#9889;</span>
+    <span style="flex:1"><strong>Active BCM Incident in progress.</strong> Operational events during this period should be logged and linked to the incident.</span>
+    <a href="/bcm/incidents" class="btn btn-sm btn-secondary" style="flex-shrink:0">View Incident</a>
+  </div>
+
+  <!-- KRI alerts banner -->
+  <div id="ormKriBanner" style="display:none"></div>
+
+  <!-- KRI status strip -->
+  <div id="ormKriStrip" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 16px;margin-bottom:16px;display:none;flex-wrap:wrap;gap:8px;align-items:center;cursor:pointer" data-spa="/orm/indicators">
+    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">KRI Status:</span>
+    <div id="ormKriStripDots" style="display:flex;gap:6px;flex-wrap:wrap;flex:1"></div>
+    <span style="font-size:11px;color:var(--accent);font-weight:700">View All &#8250;</span>
+  </div>
+
+  <!-- Hero stats -->
+  <div class="stats-row animate-fade-up anim-1">
+    <div class="stat-card stat-card-hero">
+      <div class="stat-label">Total Events</div>
+      <div class="stat-value" id="dTotalEvts">&mdash;</div>
+      <div class="orm-trend" id="dEvtDelta"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Financial Loss</div>
+      <div class="stat-value" id="dFinLoss" style="font-size:20px">&mdash;</div>
+      <div class="orm-trend" id="dFinDelta"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Customers Affected</div>
+      <div class="stat-value" id="dCustomers">&mdash;</div>
+      <div class="orm-trend" id="dCustDelta"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Downtime Hours</div>
+      <div class="stat-value" id="dDowntime">&mdash;</div>
+      <div class="orm-trend" id="dDownDelta"></div>
+    </div>
+  </div>
+
+  <!-- Charts + Insights + Top 5 -->
+  <div class="three-col animate-fade-up anim-2">
+    <div class="panel-card">
+      <div class="panel-title">&#9889; Smart Insights</div>
+      <div id="ormInsights" style="font-size:13px;line-height:1.8;color:var(--text)"><div style="color:var(--muted)">Loading…</div></div>
+    </div>
+    <div class="panel-card" style="grid-column:span 2">
+      <div class="panel-title">Events by Type (Last 30 Days)</div>
+      <div id="ormTypeChart" style="padding:8px 0"></div>
+    </div>
+  </div>
+
+  <!-- Top 5 + Recent events -->
+  <div class="three-col animate-fade-up anim-3">
+    <div class="panel-card">
+      <div class="panel-title">&#128184; Top 5 by Financial Impact</div>
+      <div id="ormTop5"></div>
+    </div>
+    <div class="card" style="grid-column:span 2">
+      <div class="card-header">
+        <span class="card-title">Recent Events</span>
+        <a data-spa="/orm/events" class="btn btn-sm btn-secondary" style="cursor:pointer">View All</a>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr><th>Event</th><th>Type</th><th>Severity</th><th>Financial Impact</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody id="ormRecentBody"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ EVENTS ══════════════════════════ -->
+<div class="spa-view" id="view-events">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Operational Risk Events</div>
+      <div class="section-sub">Log, track and investigate operational risk events</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-sm btn-secondary" onclick="ormExportCSV()">&#8595; Export CSV</button>
+      <button class="btn btn-sm btn-secondary" onclick="ormOpenTemplates()" style="gap:5px">&#128203; Templates</button>
+      <button class="btn btn-primary" onclick="ormOpenEventModal()">+ Log Event</button>
+    </div>
+  </div>
+
+  <!-- Status chip bar -->
+  <div class="orm-filter-bar" id="evtStatusBar">
+    <button class="orm-chip active" data-val="" onclick="ormChipStatus(this)">All</button>
+    <button class="orm-chip" data-val="open" onclick="ormChipStatus(this)">Open</button>
+    <button class="orm-chip" data-val="investigating" onclick="ormChipStatus(this)">Investigating</button>
+    <button class="orm-chip" data-val="resolved" onclick="ormChipStatus(this)">Resolved</button>
+    <button class="orm-chip" data-val="closed" onclick="ormChipStatus(this)">Closed</button>
+    <button class="orm-chip" data-val="recurring" onclick="ormChipStatus(this)">&#128260; Recurring</button>
+  </div>
+
+  <!-- Type chip bar -->
+  <div class="orm-filter-bar" id="evtTypeBar" style="margin-bottom:14px">
+    <button class="orm-chip active" data-val="" onclick="ormChipType(this)">All Types</button>
+    <button class="orm-chip" data-val="process_failure" onclick="ormChipType(this)">&#9881; Process Failure</button>
+    <button class="orm-chip" data-val="fraud" onclick="ormChipType(this)">&#128680; Fraud</button>
+    <button class="orm-chip" data-val="system_failure" onclick="ormChipType(this)">&#128187; System Failure</button>
+    <button class="orm-chip" data-val="human_error" onclick="ormChipType(this)">&#128100; Human Error</button>
+    <button class="orm-chip" data-val="outage" onclick="ormChipType(this)">&#128268; Outage</button>
+    <button class="orm-chip" data-val="vendor_failure" onclick="ormChipType(this)">&#128230; Vendor Failure</button>
+    <button class="orm-chip" data-val="customer_impact" onclick="ormChipType(this)">&#128101; Customer Impact</button>
+  </div>
+
+  <!-- Search + severity + dept row -->
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+    <input class="orm-search" id="evtSearch" placeholder="&#128269; Search events…" oninput="evtFilters.search=this.value.trim().toLowerCase();ormRenderEvents()">
+    <select id="evtSevFilter" style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" onchange="evtFilters.sev=this.value;ormRenderEvents()">
+      <option value="">All Severities</option>
+      <option value="critical">Critical</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+    <select id="evtDeptFilter" style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" onchange="evtFilters.dept=this.value;ormRenderEvents()">
+      <option value="">All Departments</option>
+    </select>
+  </div>
+
+  <!-- Stats strip -->
+  <div id="evtStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr>
+          <th style="width:32px"><input type="checkbox" id="evtSelectAll" onchange="ormSelectAll(this.checked)" title="Select all"></th>
+          <th>Event</th><th>Type</th><th>Severity</th><th>Dept</th><th>Financial Impact</th><th>Status</th><th>SLA</th><th>Detected</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="ormEvtBody"><tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ KRIs ════════════════════════════ -->
+<div class="spa-view" id="view-indicators">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Key Risk Indicators</div>
+      <div class="section-sub">Monitor operational risk thresholds and trigger alerts</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-secondary" onclick="ormOpenKriLibrary()">&#128218; From Library</button>
+      <button class="btn btn-primary" onclick="ormOpenKriModal()">+ Add KRI</button>
+    </div>
+  </div>
+
+  <!-- Stats strip -->
+  <div id="kriStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+
+  <!-- Filter chips -->
+  <div id="kriFilterBar" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+
+  <!-- Stale KRI banner -->
+  <div id="ormKriStaleBanner" style="display:none"></div>
+
+  <!-- Breach banner -->
+  <div id="ormKriBreachBanner" style="display:none"></div>
+
+  <!-- KRI grid -->
+  <div id="ormKriGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+</div>
+
+<!-- ═══════════════════════════════════════ REPORTS ═════════════════════════ -->
+<div class="spa-view" id="view-reports">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Reports &amp; Analytics</div>
+      <div class="section-sub">Trend analysis, root cause distribution, board narrative</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-sm btn-secondary" onclick="ormExportCSV()">&#8595; Export CSV</button>
+      <button class="btn-orm-ai" id="ormBoardBtn" onclick="ormBoardReport(this)">&#128202; Board Report</button>
+    </div>
+  </div>
+
+  <!-- Stats strip -->
+  <div id="rptStatCards" class="stats-row" style="margin-bottom:24px"></div>
+
+  <!-- Ring charts + Events by type -->
+  <div class="three-col" style="margin-bottom:20px">
+    <div class="panel-card">
+      <div class="panel-title">Events by Severity</div>
+      <div style="display:flex;align-items:center;padding:4px 0">
+        <div id="rptSevRing" style="flex-shrink:0"></div>
+        <div id="rptSevLegend" style="margin-left:12px;flex:1"></div>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">By Root Cause</div>
+      <div style="display:flex;align-items:center;padding:4px 0">
+        <div id="rptRcaRing" style="flex-shrink:0"></div>
+        <div id="rptRcaLegend" style="margin-left:12px;flex:1"></div>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">Events by Type</div>
+      <div id="rptTypeChart" style="padding:8px 0"></div>
+    </div>
+  </div>
+
+  <!-- Dept heat + Loss trend -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="panel-card">
+      <div class="panel-title">Department Risk Heat Map</div>
+      <div id="rptDeptHeat" style="overflow-x:auto;margin-top:4px"></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-title">Financial Loss Trend</div>
+      <div id="rptLossTrend" style="padding:4px 0"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ RCSA ════════════════════════════ -->
+<div class="spa-view" id="view-assessment">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Risk Control Self-Assessment</div>
+      <div class="section-sub">Assess operational risks and control effectiveness across business units</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-primary" onclick="ormOpenRcsaModal()">+ New (Blank)</button>
+      <button class="btn btn-primary" onclick="ormOpenTemplatePickerModal()">&#128203; From Template</button>
+    </div>
+  </div>
+
+  <!-- Stats strip -->
+  <div id="rcsaStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+
+  <!-- Assessments table -->
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr>
+          <th>Assessment</th><th>Scope</th><th>Period</th><th>Status</th><th>Owner</th><th>Due Date</th><th>Risks</th><th>Open Actions</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="rcsaBody"><tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ CHAT ════════════════════════════ -->
+<div class="spa-view" id="view-chat">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Ask ORM AI</div>
+      <div class="section-sub">Root cause analysis, remediation guidance, industry benchmarks</div>
+    </div>
+  </div>
+  <div class="card" style="overflow:hidden">
+    <div style="display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:400px">
+      <div class="chat-messages" id="ormChatMsgs" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%">Hello! I'm your ORM AI. Ask me about root cause analysis, corrective actions, industry benchmarks, or operational risk frameworks.</div>
+      </div>
+      <!-- Suggested prompt chips -->
+      <div id="ormPromptChips" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 16px;border-top:1px solid var(--border);background:var(--surface2)">
+        <button class="orm-chip" onclick="ormSendPromptChip('What are my top financial loss events this month?')">&#128184; Top loss events</button>
+        <button class="orm-chip" onclick="ormSendPromptChip('Suggest corrective actions for recurring process failures')">&#128260; Recurring failures</button>
+        <button class="orm-chip" onclick="ormSendPromptChip('Which departments have the most operational risk events?')">&#127968; Department breakdown</button>
+        <button class="orm-chip" onclick="ormSendPromptChip('Help me write a board summary of operational risk this month')">&#128202; Board summary</button>
+      </div>
+      <div style="display:flex;gap:10px;padding:16px;border-top:1px solid var(--border)">
+        <input type="text" id="ormChatInput" placeholder="Ask about operational risks…" style="flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter')ormSendChat()">
+        <button class="btn btn-primary" onclick="ormSendChat()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /ormSpaRoot -->
+
+<div id="ormModalRoot"></div>
+<div id="ormDrawerRoot"></div>
+<div id="ormDocRoot"></div>
+
+<!-- Bulk action bar -->
+<div class="orm-bulk-bar" id="ormBulkBar" style="display:none">
+  <span style="font-size:13px;font-weight:700;color:var(--text)" id="ormBulkCount">0 selected</span>
+  <div style="width:1px;background:var(--border);height:20px"></div>
+  <button class="btn btn-sm btn-secondary" onclick="ormBulkStatus()">Change Status &#9660;</button>
+  <button class="btn btn-sm btn-secondary" onclick="ormBulkDelete()" style="color:var(--red)">Delete Selected</button>
+  <button class="btn btn-sm btn-secondary" onclick="ormBulkClear()" style="color:var(--muted)">&#10005; Clear</button>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+'use strict';
+
+var ORM_CURRENT_USER_ID = {{ user.id }};
+
+/* ─────────────────────────── HELPERS ─────────────────────────── */
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function fmtDate(ts){if(!ts)return'—';var d=new Date(ts.includes('T')?ts:ts+'Z');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
+function timeAgo(ts){if(!ts)return'';var s=Math.floor((Date.now()-new Date(ts.includes('T')?ts:ts+'Z').getTime())/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
+function fmtCurrency(v){v=parseFloat(v)||0;if(v>=1000000)return'$'+(v/1000000).toFixed(1)+'M';if(v>=1000)return'$'+(v/1000).toFixed(1)+'K';return'$'+v.toFixed(0);}
+function sevBadge(s){var m={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};return'<span class="badge '+(m[(s||'').toLowerCase()]||'badge-draft')+'">'+esc((s||'?').toUpperCase())+'</span>';}
+function statusBadge(s){var m={open:'badge-high',investigating:'badge-progress',resolved:'badge-complete',closed:'badge-draft',recurring:'badge-critical'};var lbl=(s||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});return'<span class="badge '+(m[s]||'badge-draft')+'">'+esc(lbl)+'</span>';}
+var typeIcons={process_failure:'⚙',fraud:'🚨',system_failure:'💻',human_error:'👤',outage:'🔌',vendor_failure:'📦',customer_impact:'👥'};
+function typeIcon(t){return typeIcons[t]||'⚠';}
+function spinner(cols){return'<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
+function emptyRow(cols,msg){return'<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records found')+'</td></tr>';}
+async function apiFetch(url,opts){
+  opts=opts||{};opts.headers=opts.headers||{};
+  if(opts.body&&typeof opts.body==='object'){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(opts.body);}
+  var r=await fetch(url,opts);if(!r.ok)throw new Error('API '+r.status);
+  if(r.status===204)return null;return r.json();
+}
+function populateStatCards(elId,cards){
+  var el=document.getElementById(elId);if(!el)return;
+  el.innerHTML=cards.map(function(c){
+    return'<div class="stat-card" style="padding:14px 16px;cursor:default">'+
+      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">'+esc(c.label)+'</div>'+
+      '<div style="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+
+      (c.sub?'<div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(c.sub)+'</div>':'')+
+    '</div>';
+  }).join('');
+  el.querySelectorAll('.stat-card').forEach(function(card){
+    card.addEventListener('mousemove',function(e){var r=card.getBoundingClientRect();var x=(e.clientX-r.left)/r.width-0.5;var y=(e.clientY-r.top)/r.height-0.5;card.style.transform='perspective(600px) rotateX('+(-y*8)+'deg) rotateY('+(x*8)+'deg) translateY(-2px)';});
+    card.addEventListener('mouseleave',function(){card.style.transform='';});
+  });
+}
+
+/* Trend arrow — invertColor=true means upward delta is bad (more events = worse) */
+function trendArrow(n,invertColor){
+  if(n===0||n===null||n===undefined)return'<span style="color:var(--muted)">— 0 vs 30d</span>';
+  var isUp=n>0;
+  var isBad=invertColor?isUp:!isUp;
+  var col=isBad?'var(--red)':'var(--good,#16a34a)';
+  var sym=isUp?'▲':'▼';
+  return'<span style="color:'+col+';font-weight:700">'+sym+' '+Math.abs(n)+' vs 30d</span>';
+}
+
+/* KRI tri-zone gauge */
+function ormKriGauge(val,warn,crit){
+  var maxVal=crit?crit*1.25:warn?warn*1.5:(val>0?val*1.5:10);
+  var warnPct=warn?(warn/maxVal*100).toFixed(1):0;
+  var critPct=crit?(crit/maxVal*100).toFixed(1):100;
+  var curPct=Math.min(100,(val/maxVal*100)).toFixed(1);
+  var fillColor=crit&&val>=crit?'var(--red,#dc2626)':warn&&val>=warn?'var(--amber,#d97706)':'var(--good,#16a34a)';
+  return'<div style="height:10px;border-radius:100px;background:var(--surface3);overflow:hidden;margin:8px 0;position:relative">'+
+    '<div style="position:absolute;inset:0;background:linear-gradient(to right,var(--good,#16a34a) '+warnPct+'%,var(--amber,#d97706) '+warnPct+'% '+critPct+'%,var(--red,#dc2626) '+critPct+'% 100%);opacity:.2"></div>'+
+    '<div style="position:absolute;top:0;left:0;height:100%;width:'+curPct+'%;background:'+fillColor+';border-radius:100px;transition:width .6s ease"></div>'+
+  '</div>';
+}
+
+/* Ring (donut) chart — segments=[{label,count,color}] */
+function ormDrawRing(wrapperId,legendId,segments){
+  var wrap=document.getElementById(wrapperId);
+  var leg=document.getElementById(legendId);
+  if(!wrap)return;
+  var C=314.16;
+  var total=segments.reduce(function(s,x){return s+(x.count||0);},0);
+  var offset=0;
+  var arcs=segments.map(function(seg){
+    var len=total>0?(seg.count/total)*C:0;
+    var rotDeg=(offset/C)*360-90;
+    offset+=len;
+    if(!len)return'';
+    return'<circle cx="60" cy="60" r="50" fill="none" stroke="'+seg.color+'" stroke-width="11" '+
+      'stroke-dasharray="'+len.toFixed(2)+' '+C+'" '+
+      'transform="rotate('+rotDeg.toFixed(1)+' 60 60)" style="transition:stroke-dasharray 1s ease"/>';
+  }).join('');
+  wrap.innerHTML=
+    '<div style="position:relative;display:inline-flex;align-items:center;justify-content:center">'+
+    '<svg viewBox="0 0 120 120" style="width:100px;height:100px">'+
+    '<circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface3)" stroke-width="11"/>'+arcs+'</svg>'+
+    '<div style="position:absolute;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--text)">'+total+'</div><div style="font-size:9px;color:var(--muted)">Total</div></div>'+
+    '</div>';
+  if(leg){
+    leg.innerHTML=segments.map(function(s){
+      var pct=total>0?Math.round((s.count/total)*100):0;
+      return'<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:5px">'+
+        '<div style="width:9px;height:9px;border-radius:50%;background:'+s.color+';flex-shrink:0"></div>'+
+        '<span style="flex:1;color:var(--text)">'+esc(s.label)+'</span>'+
+        '<span style="font-weight:700;color:var(--text)">'+s.count+'</span>'+
+        '<span style="color:var(--muted);font-size:11px;min-width:32px;text-align:right">'+pct+'%</span>'+
+      '</div>';
+    }).join('');
+  }
+}
+
+/* ─────────────────────────── DOC VIEWER ─────────────────────────── */
+var _ormDocContent='';
+window.ormOpenDocViewer=function(title,content){
+  _ormDocContent=content||'';
+  document.getElementById('ormDocRoot').innerHTML=
+    '<div class="orm-doc-overlay" onclick="if(event.target===this)ormCloseDoc()">'+
+    '<div class="orm-doc-panel">'+
+      '<div class="orm-doc-head">'+
+        '<div style="font-size:14px;font-weight:700;flex:1">'+esc(title)+'</div>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText(_ormDocContent).then(function(){typeof showToast===\'function\'&&showToast(\'Copied!\')})">Copy</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormCloseDoc()">&#10005;</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="orm-doc-body">'+esc(content)+'</div>'+
+    '</div></div>';
+};
+window.ormCloseDoc=function(){document.getElementById('ormDocRoot').innerHTML='';};
+
+/* ─────────────────────────── SPA ROUTER ─────────────────────────── */
+var ormRoutes={'/orm/':'dashboard','/orm':'dashboard','/orm/events':'events','/orm/indicators':'indicators','/orm/reports':'reports','/orm/chat':'chat','/orm/assessment':'assessment'};
+var ormBreadcrumbs={dashboard:'Dashboard',events:'Events',indicators:'KRI Indicators',reports:'Reports',chat:'Ask ORM AI',assessment:'RCSA'};
+var ormRouter={
+  current:null,
+  navigate:function(path,replace){if(replace)history.replaceState(null,'',path);else history.pushState(null,'',path);this.resolve();},
+  resolve:function(){
+    var path=location.pathname.replace(/\/$/,'')||'/orm';
+    var view=ormRoutes[path]||'dashboard';
+    if(view===this.current)return;
+    this.current=view;
+    document.querySelectorAll('.spa-view').forEach(function(v){v.classList.remove('active');});
+    var el=document.getElementById('view-'+view);if(el)el.classList.add('active');
+    var bc=document.getElementById('ormBreadcrumb');if(bc)bc.textContent=ormBreadcrumbs[view]||view;
+    document.querySelectorAll('[data-spa]').forEach(function(a){a.classList.remove('active');var t=a.getAttribute('data-spa').replace(/\/$/,'')||'/orm';if(t===path)a.classList.add('active');});
+    this.load(view);
+  },
+  load:function(view){
+    switch(view){
+      case'dashboard':  ormLoadDashboard();break;
+      case'events':     ormLoadEvents();break;
+      case'indicators': ormLoadKris();break;
+      case'reports':    ormLoadReports();break;
+      case'chat':       ormLoadChat();break;
+      case'assessment': ormLoadRcsa();break;
+    }
+  }
+};
+document.addEventListener('click',function(e){var a=e.target.closest('[data-spa]');if(a){e.preventDefault();ormRouter.navigate(a.getAttribute('data-spa'));}});
+window.addEventListener('popstate',function(){ormRouter.resolve();});
+
+/* ─────────────────────────── USERS CACHE ─────────────────────────── */
+var usersCache=null;
+async function ormLoadUsers(){
+  if(usersCache)return usersCache;
+  try{usersCache=await apiFetch('/orm/api/users');}catch(e){usersCache=[];}
+  return usersCache||[];
+}
+
+/* ─────────────────────────── DASHBOARD ─────────────────────────── */
+async function ormLoadDashboard(){
+  try{
+    var d=await apiFetch('/orm/api/dashboard');
+    document.getElementById('ormLastUpdated').textContent='just now';
+
+    // SLA overdue banner
+    var slaBanner=document.getElementById('ormSlaBanner');
+    var slaCount=document.getElementById('ormSlaCount');
+    if(slaBanner){
+      var slaOvd=d.sla_overdue||0;
+      slaBanner.style.display=slaOvd>0?'flex':'none';
+      if(slaCount)slaCount.textContent=slaOvd;
+    }
+
+    // Sentinel banner
+    var sb=document.getElementById('ormSentinelBanner');
+    if(sb)sb.style.display=d.active_sentinel_breach?'flex':'none';
+
+    // BCM banner
+    var bb=document.getElementById('ormBcmBanner');
+    if(bb)bb.style.display=d.active_bcm_incident?'flex':'none';
+
+    // KRI alerts banner
+    var kBanner=document.getElementById('ormKriBanner');
+    if(kBanner){
+      if(d.kri_alerts&&d.kri_alerts.length){
+        kBanner.style.display='';
+        kBanner.innerHTML='<div style="background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:8px">'+
+          '<span style="font-size:16px">&#9888;</span>'+
+          '<span><strong>KRI Alerts:</strong> '+d.kri_alerts.map(function(k){return esc(k.name)+' ('+k.value+') is <strong>'+k.level+'</strong>';}).join(', ')+'</span>'+
+          '<a data-spa="/orm/indicators" style="margin-left:auto;cursor:pointer;color:var(--accent);font-weight:700;font-size:12px">View KRIs →</a>'+
+        '</div>';
+      }else{kBanner.style.display='none';}
+    }
+
+    // KRI status strip
+    var kStrip=document.getElementById('ormKriStrip');
+    var kDots=document.getElementById('ormKriStripDots');
+    if(kStrip&&kDots&&d.kri_alerts&&d.kri_alerts.length){
+      kStrip.style.display='flex';
+      // Show all KRI alerts as colored dots
+      kDots.innerHTML=d.kri_alerts.map(function(k){
+        var col=k.level==='critical'?'var(--red)':k.level==='warning'?'var(--amber,#d97706)':'var(--good,#16a34a)';
+        return'<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;background:var(--surface3);font-size:11px;font-weight:600">'+
+          '<span style="width:7px;height:7px;border-radius:50%;background:'+col+'"></span>'+esc(k.name)+'</span>';
+      }).join('');
+      // Show badge on sidebar
+      var sideAlert=document.getElementById('ormNavKriAlert');
+      if(sideAlert){var critCount=d.kri_alerts.filter(function(k){return k.level==='critical';}).length;sideAlert.style.display=critCount?'':'none';sideAlert.textContent=critCount;}
+    }else if(kStrip){kStrip.style.display='none';}
+
+    // Trend arrows on stat cards (all are "higher = worse" for ORM)
+    document.getElementById('dTotalEvts').textContent=d.total_events||0;
+    document.getElementById('dEvtDelta').innerHTML=trendArrow(d.total_events_delta||0,true);
+    document.getElementById('dFinLoss').textContent=fmtCurrency(d.financial_loss||0);
+    document.getElementById('dFinDelta').innerHTML=trendArrow(Math.round(d.financial_loss_delta||0),true);
+    document.getElementById('dCustomers').textContent=(d.customers_affected||0).toLocaleString();
+    document.getElementById('dCustDelta').innerHTML=trendArrow(d.customers_delta||0,true);
+    document.getElementById('dDowntime').textContent=d.downtime_hours||0;
+    document.getElementById('dDownDelta').innerHTML=trendArrow(d.downtime_delta||0,true);
+
+    // Nav count
+    var navEvts=document.getElementById('ormNavEvents');if(navEvts)navEvts.textContent=d.total_events||0;
+
+    // Smart Insights
+    var insights=[];
+    var recurring=(d.recent_events||[]).filter(function(e){return e.is_recurring;}).length;
+    var byType=d.by_type||[];
+    var total=d.total_events||0;
+    if(total===0)insights.push('&#10003; No events recorded in the last 30 days');
+    if(recurring>0)insights.push('&#128260; <strong>'+recurring+'</strong> recurring event'+(recurring>1?'s':'')+' this period — consider root cause analysis');
+    var fraudRow=byType.find(function(t){return t.event_type==='fraud';});
+    if(fraudRow&&fraudRow.cnt>0)insights.push('&#128680; <strong>'+fraudRow.cnt+'</strong> fraud event'+(fraudRow.cnt>1?'s':'')+' — review for data exposure with Sentinel');
+    var sysRow=byType.find(function(t){return t.event_type==='system_failure'||t.event_type==='outage';});
+    if(sysRow&&sysRow.cnt>0)insights.push('&#128187; <strong>'+sysRow.cnt+'</strong> system/outage event'+(sysRow.cnt>1?'s':'')+' — check BCM plans');
+    if(d.financial_loss_delta>0)insights.push('&#128200; Financial loss up <strong>'+fmtCurrency(d.financial_loss_delta)+'</strong> vs previous period');
+    else if(d.financial_loss_delta<0)insights.push('&#10003; Financial loss down <strong>'+fmtCurrency(Math.abs(d.financial_loss_delta))+'</strong> vs previous period');
+    var resolved=byType.reduce(function(s,t){return s+(t.cnt||0);},0);
+    if(d.kri_alerts&&d.kri_alerts.length>0)insights.push('&#9888; <strong>'+d.kri_alerts.length+'</strong> KRI'+( d.kri_alerts.length>1?'s':'')+' breaching thresholds');
+    var insEl=document.getElementById('ormInsights');
+    if(insEl)insEl.innerHTML=insights.length?insights.map(function(i){return'<div style="padding:3px 0">'+i+'</div>';}).join(''):'<div style="color:var(--muted)">No significant insights this period.</div>';
+
+    // Events by type chart
+    ormRenderTypeChart('ormTypeChart',d.by_type||[]);
+
+    // Top 5
+    var top5El=document.getElementById('ormTop5');
+    if(top5El){
+      if(!d.top5_by_impact||!d.top5_by_impact.length){top5El.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px;font-size:13px">No financial impact recorded</div>';}
+      else{top5El.innerHTML=d.top5_by_impact.map(function(e,i){
+        return'<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer" onclick="ormOpenEventDrawer('+e.id+')">'+
+          '<div style="font-size:12px;min-width:16px;color:var(--muted);font-weight:700">'+(i+1)+'.</div>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.title)+'</div>'+
+            '<div style="font-size:11px;color:var(--muted)">'+typeIcon(e.event_type)+' '+esc((e.event_type||'').replace(/_/g,' '))+'</div>'+
+          '</div>'+
+          sevBadge(e.severity)+
+          '<div style="font-size:13px;font-weight:700;color:var(--red);flex-shrink:0">'+fmtCurrency(e.financial_impact)+'</div>'+
+        '</div>';
+      }).join('');}
+    }
+
+    // Recent events table
+    var recent=d.recent_events||[];
+    var rBody=document.getElementById('ormRecentBody');
+    if(rBody){
+      if(!recent.length){rBody.innerHTML=emptyRow(6,'No events yet');}
+      else{rBody.innerHTML=recent.map(function(e){
+        return'<tr>'+
+          '<td style="cursor:pointer;color:var(--accent);font-weight:600" onclick="ormOpenEventDrawer('+e.id+')">'+esc(e.title||'')+'</td>'+
+          '<td>'+typeIcon(e.event_type)+' <span style="font-size:11px;color:var(--muted)">'+esc((e.event_type||'').replace(/_/g,' '))+'</span></td>'+
+          '<td>'+sevBadge(e.severity)+'</td>'+
+          '<td style="font-weight:700;color:'+(e.financial_impact>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(e.financial_impact||0)+'</td>'+
+          '<td>'+statusBadge(e.status)+'</td>'+
+          '<td style="font-size:12px;color:var(--muted)">'+timeAgo(e.created_at)+'</td>'+
+        '</tr>';
+      }).join('');}
+    }
+  }catch(e){console.error('ORM dashboard error',e);}
+}
+
+function ormRenderTypeChart(elId,byType){
+  var el=document.getElementById(elId);if(!el)return;
+  if(!byType||!byType.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:13px">No events recorded</div>';return;}
+  var max=Math.max.apply(null,byType.map(function(t){return t.cnt;}));
+  var total=byType.reduce(function(s,t){return s+(t.cnt||0);},0);
+  var typeColors={process_failure:'#f59e0b',fraud:'#ef4444',system_failure:'#6366f1',human_error:'#ec4899',outage:'#8b5cf6',vendor_failure:'#14b8a6',customer_impact:'#f97316'};
+  el.innerHTML=byType.map(function(t){
+    var pct=max>0?Math.round((t.cnt/max)*100):0;
+    var col=typeColors[t.event_type]||'var(--accent)';
+    var sharePct=total>0?Math.round((t.cnt/total)*100):0;
+    return'<div style="margin-bottom:10px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">'+
+        '<span>'+typeIcon(t.event_type)+' '+esc((t.event_type||'').replace(/_/g,' '))+'</span>'+
+        '<span style="color:var(--muted)">'+t.cnt+' ('+sharePct+'%)</span>'+
+      '</div>'+
+      '<div style="height:8px;background:var(--surface3);border-radius:100px"><div style="height:100%;width:'+pct+'%;background:'+col+';border-radius:100px;transition:width .6s ease"></div></div>'+
+    '</div>';
+  }).join('');
+}
+
+/* ─────────────────────────── EVENTS ─────────────────────────── */
+var evtCache=[];
+var evtFilters={status:'',type:'',sev:'',dept:'',search:'',recurring:false};
+var evtSelectedIds=new Set();
+
+window.ormChipStatus=function(chip){
+  chip.closest('.orm-filter-bar').querySelectorAll('.orm-chip').forEach(function(c){c.classList.remove('active');});
+  chip.classList.add('active');
+  var v=chip.dataset.val||'';
+  evtFilters.recurring=(v==='recurring');
+  evtFilters.status=v==='recurring'?'':v;
+  ormRenderEvents();
+};
+window.ormChipType=function(chip){
+  chip.closest('.orm-filter-bar').querySelectorAll('.orm-chip').forEach(function(c){c.classList.remove('active');});
+  chip.classList.add('active');
+  evtFilters.type=chip.dataset.val||'';
+  ormRenderEvents();
+};
+
+window.ormLoadEvents=async function(){
+  var body=document.getElementById('ormEvtBody');
+  if(body)body.innerHTML=spinner(10);
+  evtSelectedIds.clear();
+  var bar=document.getElementById('ormBulkBar');if(bar)bar.style.display='none';
+  try{
+    var data=await apiFetch('/orm/api/events');
+    evtCache=Array.isArray(data)?data:[];
+    // Populate dept filter
+    var deptSel=document.getElementById('evtDeptFilter');
+    if(deptSel){
+      var depts=[...new Set(evtCache.map(function(e){return e.department;}).filter(Boolean))].sort();
+      deptSel.innerHTML='<option value="">All Departments</option>'+depts.map(function(d){return'<option value="'+esc(d)+'">'+esc(d)+'</option>';}).join('');
+    }
+    ormRenderEvents();
+  }catch(err){if(body)body.innerHTML=emptyRow(9,'Failed to load events');}
+};
+
+function ormRenderEvents(){
+  var filtered=evtCache.filter(function(e){
+    if(evtFilters.recurring&&!e.is_recurring)return false;
+    if(!evtFilters.recurring&&evtFilters.status&&e.status!==evtFilters.status)return false;
+    if(evtFilters.type&&e.event_type!==evtFilters.type)return false;
+    if(evtFilters.sev&&e.severity!==evtFilters.sev)return false;
+    if(evtFilters.dept&&e.department!==evtFilters.dept)return false;
+    if(evtFilters.search){
+      var q=evtFilters.search;
+      if(!((e.title||'').toLowerCase().includes(q)||(e.description||'').toLowerCase().includes(q)||(e.department||'').toLowerCase().includes(q)))return false;
+    }
+    return true;
+  });
+
+  var total=filtered.length;
+  var open=filtered.filter(function(e){return e.status==='open'||e.status==='investigating';}).length;
+  var totalLoss=filtered.reduce(function(s,e){return s+(parseFloat(e.financial_impact)||0);},0);
+  var cust=filtered.reduce(function(s,e){return s+(parseInt(e.customers_affected)||0);},0);
+  populateStatCards('evtStats',[
+    {label:'Total',value:total},
+    {label:'Open / Investigating',value:open,color:open>0?'var(--red)':'var(--good,#16a34a)'},
+    {label:'Total Financial Loss',value:fmtCurrency(totalLoss),color:totalLoss>0?'var(--red)':'var(--text)'},
+    {label:'Customers Affected',value:cust.toLocaleString()}
+  ]);
+
+  var body=document.getElementById('ormEvtBody');
+  if(!body)return;
+  if(!filtered.length){body.innerHTML=emptyRow(10,'No events match the current filters');return;}
+  var now=Date.now();
+  body.innerHTML=filtered.map(function(e){
+    var recurBadge=e.is_recurring?'<span class="badge badge-critical" style="font-size:9px;padding:1px 5px;margin-right:4px">&#128260;</span>':'';
+    var elevateBtn=!e.erm_risk_id&&(e.severity==='critical'||e.severity==='high'||(parseFloat(e.financial_impact)||0)>=10000)?
+      '<button class="btn btn-sm btn-secondary" onclick="ormElevateToErm('+e.id+')" style="font-size:11px;color:var(--accent)">&#8593; ERM</button>':'';
+    var aiBtn='<button class="btn-orm-ai" onclick="ormAiAnalyze('+e.id+',this)" title="AI root cause">&#129504;</button>';
+    var detDate=e.detected_at||e.created_at;
+    // SLA chip
+    var slaHtml='<span style="color:var(--muted);font-size:11px">—</span>';
+    var isClosed=e.status==='closed'||e.status==='resolved';
+    if(!isClosed){
+      var respDue=e.response_due_at?new Date(e.response_due_at.includes('T')?e.response_due_at:e.response_due_at+'Z').getTime():null;
+      var resDue=e.resolution_due_at?new Date(e.resolution_due_at.includes('T')?e.resolution_due_at:e.resolution_due_at+'Z').getTime():null;
+      var overdue=(respDue&&respDue<now)||(resDue&&resDue<now);
+      var dueSoon=!overdue&&((respDue&&respDue-now<86400000)||(resDue&&resDue-now<86400000));
+      if(overdue)slaHtml='<span class="sla-overdue">&#9888; OVERDUE</span>';
+      else if(dueSoon)slaHtml='<span class="sla-warn">&#9200; Due Soon</span>';
+      else if(respDue||resDue){
+        var target=respDue&&respDue>now?respDue:(resDue||0);
+        if(target>now){var days=Math.ceil((target-now)/86400000);slaHtml='<span class="sla-ok">'+days+'d left</span>';}
+      }
+    }else{slaHtml='<span class="sla-ok">&#10003;</span>';}
+    return'<tr id="evtRow-'+e.id+'">'+
+      '<td><input type="checkbox" data-id="'+e.id+'" onchange="ormToggleSelect('+e.id+',this.checked)"></td>'+
+      '<td style="cursor:pointer" onclick="ormOpenEventDrawer('+e.id+')">'+recurBadge+'<span style="color:var(--accent);font-weight:600">'+esc(e.title||'')+'</span></td>'+
+      '<td><span style="font-size:14px">'+typeIcon(e.event_type)+'</span> <span style="font-size:11px;color:var(--muted)">'+esc((e.event_type||'').replace(/_/g,' '))+'</span></td>'+
+      '<td>'+sevBadge(e.severity)+'</td>'+
+      '<td style="font-size:12px;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.department||'—')+'</td>'+
+      '<td style="font-weight:700;color:'+(parseFloat(e.financial_impact)>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(e.financial_impact||0)+'</td>'+
+      '<td>'+statusBadge(e.status)+'</td>'+
+      '<td>'+slaHtml+'</td>'+
+      '<td style="font-size:12px;color:var(--muted)">'+fmtDate(detDate)+'</td>'+
+      '<td><div style="display:flex;gap:4px;align-items:center">'+aiBtn+elevateBtn+
+        '<button class="btn btn-sm btn-secondary" onclick="ormOpenEventModal(evtCache.find(function(x){return x.id==='+e.id+'}))" style="padding:4px 8px" title="Edit">&#9998;</button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="ormDuplicateEvt('+e.id+')" style="padding:4px 8px" title="Duplicate">&#128203;</button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="ormDeleteEvt('+e.id+')" style="padding:4px 8px;color:var(--red)" title="Delete">&#10005;</button>'+
+      '</div></td>'+
+    '</tr>';
+  }).join('');
+}
+
+/* Bulk actions */
+window.ormToggleSelect=function(id,checked){
+  if(checked)evtSelectedIds.add(id);else evtSelectedIds.delete(id);
+  var bar=document.getElementById('ormBulkBar');
+  var cnt=document.getElementById('ormBulkCount');
+  if(bar){bar.style.display=evtSelectedIds.size?'flex':'none';}
+  if(cnt)cnt.textContent=evtSelectedIds.size+' selected';
+};
+window.ormSelectAll=function(checked){
+  var rows=document.querySelectorAll('#ormEvtBody input[type=checkbox]');
+  rows.forEach(function(cb){cb.checked=checked;ormToggleSelect(parseInt(cb.dataset.id),checked);});
+};
+window.ormBulkClear=function(){
+  evtSelectedIds.clear();
+  document.querySelectorAll('#ormEvtBody input[type=checkbox]').forEach(function(cb){cb.checked=false;});
+  var sel=document.getElementById('evtSelectAll');if(sel)sel.checked=false;
+  var bar=document.getElementById('ormBulkBar');if(bar)bar.style.display='none';
+};
+window.ormBulkStatus=function(){
+  if(!evtSelectedIds.size)return;
+  var cnt=evtSelectedIds.size;
+  var html='<div class="orm-modal-overlay" id="ormBulkStatusModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:380px">'+
+      '<div class="modal-title">Change Status — '+cnt+' Event(s)</div>'+
+      '<div class="form-group"><label>New Status</label>'+
+        '<select id="bulkStatusSel" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px">'+
+          '<option value="open">Open</option>'+
+          '<option value="investigating" selected>Investigating</option>'+
+          '<option value="resolved">Resolved</option>'+
+          '<option value="closed">Closed</option>'+
+        '</select>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'ormBulkStatusModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormBulkStatusApply()">Apply</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ormBulkStatusApply=async function(){
+  var s=document.getElementById('bulkStatusSel').value;
+  document.getElementById('ormBulkStatusModal').remove();
+  var ids=Array.from(evtSelectedIds);
+  try{
+    await Promise.all(ids.map(function(id){return apiFetch('/orm/api/events/'+id,{method:'PUT',body:{status:s}});}));
+    ormBulkClear();ormLoadEvents();
+    if(typeof showToast==='function')showToast('Updated '+ids.length+' event(s)');
+  }catch(e){if(typeof showToast==='function')showToast('Bulk update failed','error');}
+};
+window.ormBulkDelete=async function(){
+  if(!evtSelectedIds.size)return;
+  if(!confirm('Delete '+evtSelectedIds.size+' selected event(s)? This cannot be undone.'))return;
+  var ids=Array.from(evtSelectedIds);
+  try{
+    await Promise.all(ids.map(function(id){return apiFetch('/orm/api/events/'+id,{method:'DELETE'});}));
+    ormBulkClear();ormLoadEvents();
+    if(typeof showToast==='function')showToast('Deleted '+ids.length+' event(s)');
+  }catch(e){if(typeof showToast==='function')showToast('Bulk delete failed','error');}
+};
+
+window.ormDeleteEvt=async function(id){
+  if(!confirm('Delete this event?'))return;
+  try{await apiFetch('/orm/api/events/'+id,{method:'DELETE'});ormLoadEvents();}
+  catch(e){if(typeof showToast==='function')showToast('Delete failed','error');}
+};
+window.ormElevateToErm=async function(id){
+  if(!confirm('Elevate this event to an ERM enterprise risk?'))return;
+  try{
+    var res=await apiFetch('/orm/api/events/'+id+'/elevate',{method:'POST',body:{}});
+    if(typeof showToast==='function')showToast('Elevated to ERM — Risk #'+res.erm_risk_id);
+    ormLoadEvents();
+  }catch(e){if(typeof showToast==='function')showToast('Elevation failed','error');}
+};
+window.ormAiAnalyze=async function(id,btn){
+  var orig=btn.textContent||'🧠';btn.disabled=true;btn.textContent='…';
+  try{
+    var res=await apiFetch('/orm/api/ai/analyze/'+id,{method:'POST'});
+    btn.disabled=false;btn.textContent=orig;
+    document.body.insertAdjacentHTML('beforeend',
+      '<div class="orm-modal-overlay" onclick="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:560px">'+
+        '<div class="modal-title">&#129504; AI Root Cause Analysis</div>'+
+        '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px">'+
+          '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Root Cause Category</div>'+
+          '<div style="font-size:15px;font-weight:700;color:var(--text);text-transform:capitalize">'+esc(res.root_cause_category||'—')+'</div>'+
+        '</div>'+
+        (res.root_cause_analysis?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Analysis</div><div style="font-size:13px;line-height:1.6">'+esc(res.root_cause_analysis)+'</div></div>':'')+
+        '<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:var(--good,#16a34a);text-transform:uppercase;margin-bottom:4px">Corrective Action</div><div style="font-size:13px;line-height:1.6">'+esc(res.corrective_action||'—')+'</div></div>'+
+        '<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:4px">Preventive Action</div><div style="font-size:13px;line-height:1.6">'+esc(res.preventive_action||'—')+'</div></div>'+
+        '<div style="display:flex;justify-content:flex-end"><button class="btn btn-secondary" onclick="this.closest(\'.orm-modal-overlay\').remove()">Close</button></div>'+
+      '</div></div>'
+    );
+    ormLoadEvents();
+  }catch(e){btn.disabled=false;btn.textContent=orig;if(typeof showToast==='function')showToast('AI analysis failed','error');}
+};
+
+/* ─────────────────────────── EVENT DRAWER ─────────────────────────── */
+window.ormOpenEventDrawer=async function(id){
+  var drawer=document.getElementById('ormDrawerRoot');
+  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+  try{
+    var e=await apiFetch('/orm/api/events/'+id);
+    window._ormDrawerEvt = e;
+    var isFraud=e.event_type==='fraud'||e.event_type==='customer_impact';
+    var isSystem=e.event_type==='system_failure'||e.event_type==='outage';
+    var canElevate=!e.erm_risk_id&&(e.severity==='critical'||e.severity==='high'||(parseFloat(e.financial_impact)||0)>=10000);
+    drawer.innerHTML='<div class="orm-drawer-overlay" onclick="if(event.target===this)ormCloseDrawer()">'+
+    '<div class="orm-drawer-panel">'+
+      '<div class="orm-drawer-head">'+
+        '<div style="display:flex;justify-content:space-between;align-items:start;gap:12px">'+
+          '<div>'+
+            '<div style="font-size:16px;font-weight:800;color:var(--text)">'+typeIcon(e.event_type)+' '+esc(e.title||'')+'</div>'+
+            '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+esc((e.event_type||'').replace(/_/g,' '))+' &bull; '+fmtDate(e.created_at)+'</div>'+
+          '</div>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormCloseDrawer()">&#10005;</button>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+
+          sevBadge(e.severity)+statusBadge(e.status)+
+          (e.is_recurring?'<span class="badge badge-critical" style="font-size:10px">&#128260; Recurring</span>':'')+
+          (e.erm_risk_id?'<span class="badge badge-complete" title="ERM Risk #'+e.erm_risk_id+'">&#8593; ERM #'+e.erm_risk_id+'</span>':'')+
+        '</div>'+
+      '</div>'+
+      '<div class="orm-drawer-body">'+
+        '<!-- Metrics grid -->'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">'+
+          '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Financial Impact</div><div style="font-size:18px;font-weight:800;color:var(--red)">'+fmtCurrency(e.financial_impact||0)+'</div></div>'+
+          '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Customers</div><div style="font-size:18px;font-weight:800">'+(e.customers_affected||0).toLocaleString()+'</div></div>'+
+          '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Downtime</div><div style="font-size:18px;font-weight:800">'+(e.downtime_minutes?Math.round(e.downtime_minutes/60*10)/10+'h':'—')+'</div></div>'+
+        '</div>'+
+        '<!-- Details section -->'+
+        '<div class="orm-drawer-section">'+
+          '<div class="orm-drawer-section-title">Details</div>'+
+          '<div class="orm-drawer-row"><span class="orm-drawer-label">Department</span><span class="orm-drawer-val">'+esc(e.department||'—')+'</span></div>'+
+          '<div class="orm-drawer-row"><span class="orm-drawer-label">Process Affected</span><span class="orm-drawer-val">'+esc(e.process_affected||'—')+'</span></div>'+
+          '<div class="orm-drawer-row"><span class="orm-drawer-label">Detected At</span><span class="orm-drawer-val">'+fmtDate(e.detected_at||e.created_at)+'</span></div>'+
+          '<div class="orm-drawer-row"><span class="orm-drawer-label">Reported By</span><span class="orm-drawer-val">'+esc(e.reporter_name||'—')+'</span></div>'+
+          '<div class="orm-drawer-row"><span class="orm-drawer-label">Owner</span><span class="orm-drawer-val">'+esc(e.owner_name||'Unassigned')+'</span></div>'+
+          (e.resolved_at?'<div class="orm-drawer-row"><span class="orm-drawer-label">Resolved At</span><span class="orm-drawer-val">'+fmtDate(e.resolved_at)+'</span></div>':'')+
+        '</div>'+
+        (e.description?'<div class="orm-drawer-section"><div class="orm-drawer-section-title">Description</div><div style="font-size:13px;line-height:1.6;color:var(--text)">'+esc(e.description)+'</div></div>':'')+
+        '<!-- Root cause section -->'+
+        '<div class="orm-drawer-section">'+
+          '<div class="orm-drawer-section-title">Root Cause</div>'+
+          '<div class="orm-drawer-row"><span class="orm-drawer-label">Category</span><span class="orm-drawer-val" style="text-transform:capitalize">'+esc(e.root_cause_category||'—')+'</span></div>'+
+          (e.root_cause?'<div style="font-size:13px;line-height:1.6;margin-top:8px;color:var(--text)">'+esc(e.root_cause)+'</div>':'')+
+        '</div>'+
+        (e.corrective_action||e.preventive_action?
+          '<div class="orm-drawer-section">'+
+            '<div class="orm-drawer-section-title">Actions</div>'+
+            (e.corrective_action?'<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:var(--good,#16a34a);text-transform:uppercase;margin-bottom:2px">Corrective</div><div style="font-size:13px;line-height:1.5">'+esc(e.corrective_action)+'</div></div>':'')+
+            (e.preventive_action?'<div><div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:2px">Preventive</div><div style="font-size:13px;line-height:1.5">'+esc(e.preventive_action)+'</div></div>':'')+
+          '</div>':'')+
+        /* Sentinel cross-module link for fraud/customer impact */
+        (isFraud?'<div style="background:rgba(8,145,178,.06);border:1px solid rgba(8,145,178,.2);border-radius:var(--radius);padding:10px 12px;margin-top:4px;font-size:12px"><span style="font-size:14px">&#128737;</span> <strong>Data exposure risk</strong> — If personal data was affected, consider raising a Sentinel incident. <a href="/sentinel/" style="color:var(--accent);font-weight:700">Open Sentinel &#8594;</a></div>':'')+
+        /* BCM link for system failures with significant downtime */
+        (isSystem&&(e.downtime_minutes||0)>=120?'<div style="background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius);padding:10px 12px;margin-top:8px;font-size:12px"><span style="font-size:14px">&#9889;</span> <strong>Significant downtime detected</strong> — Consider creating a BCM incident if business continuity is at risk. <a href="/bcm/" style="color:var(--accent);font-weight:700">Open BCM &#8594;</a></div>':'')+
+        /* Workflow stepper */
+        '<div class="orm-drawer-section" style="margin-top:16px">'+
+          '<div class="orm-drawer-section-title">Investigation Workflow</div>'+
+          ormWorkflowStepper(e)+
+          '<div id="wfHistory-'+e.id+'" style="margin-top:10px;display:none"></div>'+
+          '<button style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;margin-top:2px" onclick="ormToggleWfHistory('+e.id+')">&#9776; Show history</button>'+
+        '</div>'+
+        /* Related events — parent + children from evtCache */
+        (function(){
+          var parentEvt=e.parent_event_id?evtCache.find(function(x){return x.id===e.parent_event_id;}):null;
+          var children=evtCache.filter(function(x){return x.parent_event_id===e.id;});
+          if(!parentEvt&&!children.length)return'';
+          return'<div class="orm-drawer-section" style="margin-top:12px">'+
+            '<div class="orm-drawer-section-title">Related Events</div>'+
+            (parentEvt?'<div style="margin-bottom:6px"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Parent</span>'+
+              '<div style="margin-top:4px"><a href="#" onclick="event.preventDefault();ormOpenEventDrawer('+parentEvt.id+');ormCloseDrawer()" style="font-size:12px;font-weight:600;color:var(--accent)">'+typeIcon(parentEvt.event_type)+' '+esc(parentEvt.title)+'</a></div></div>':'')+
+            (children.length?'<div><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Children ('+children.length+')</span>'+
+              '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">'+
+              children.map(function(c){return'<a href="#" onclick="event.preventDefault();ormOpenEventDrawer('+c.id+');ormCloseDrawer()" style="font-size:11px;font-weight:600;color:var(--accent);background:var(--surface3);padding:3px 8px;border-radius:100px">'+typeIcon(c.event_type)+' '+esc(c.title)+'</a>';}).join('')+
+              '</div></div>':'')+
+          '</div>';
+        })()+
+      '</div>'+
+      '<div class="orm-drawer-footer">'+
+        '<button class="btn-orm-ai" onclick="ormAiAnalyzeFromDrawer('+e.id+')">&#129504; AI Analyze</button>'+
+        (canElevate?'<button class="btn btn-secondary" onclick="ormElevateToErm('+e.id+');ormCloseDrawer()">&#8593; Elevate to ERM</button>':'')+
+        '<button class="btn btn-sm btn-secondary" onclick="ormToggleRecurring('+e.id+','+(e.is_recurring?0:1)+')">'+(e.is_recurring?'&#10003; Recurring':'Mark &#128260; Recurring')+'</button>'+
+        '<button class="btn btn-primary" onclick="ormOpenEventModal(window._ormDrawerEvt);ormCloseDrawer()" style="margin-left:auto">Edit</button>'+
+      '</div>'+
+    '</div></div>';
+  }catch(ex){drawer.innerHTML='';}
+};
+window.ormCloseDrawer=function(){document.getElementById('ormDrawerRoot').innerHTML='';};
+window.ormAiAnalyzeFromDrawer=async function(id){
+  ormCloseDrawer();
+  var fakeBtn={textContent:'…',disabled:false};
+  await ormAiAnalyze(id,fakeBtn);
+};
+window.ormToggleRecurring=async function(id,val){
+  try{
+    await apiFetch('/orm/api/events/'+id,{method:'PUT',body:{is_recurring:val}});
+    ormCloseDrawer();
+    if(ormRouter.current==='events')ormLoadEvents();
+    if(typeof showToast==='function')showToast(val?'Marked as recurring':'Cleared recurring flag');
+  }catch(e){if(typeof showToast==='function')showToast('Update failed','error');}
+};
+
+/* ─────────────────────────── EVENT MODAL ─────────────────────────── */
+window.ormOpenEventModal=async function(existing){
+  var isEdit=!!(existing&&existing.id);
+  var users=await ormLoadUsers();
+  var types=['process_failure','fraud','system_failure','human_error','outage','vendor_failure','customer_impact'];
+  var statusVal=isEdit?(existing.status||'open'):'open';
+  var showResolvedAt=statusVal==='resolved'||statusVal==='closed';
+  var html='<div class="orm-modal-overlay" id="ormEvtModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box">'+
+      '<button class="modal-close" onclick="document.getElementById(\'ormEvtModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'Log')+' Operational Risk Event</div>'+
+      '<div class="form-group"><label>Title *</label><input id="oe_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Event Type *</label><select id="oe_type">'+types.map(function(t){return'<option value="'+t+'"'+(isEdit&&existing.event_type===t?' selected':'')+'>'+typeIcon(t)+' '+t.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Severity</label><select id="oe_sev">'+['low','medium','high','critical'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.severity===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Description</label><textarea id="oe_desc" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Financial Impact ($)</label><input type="number" id="oe_fin" min="0" value="'+(isEdit?(existing.financial_impact||0):0)+'"></div>'+
+        '<div class="form-group"><label>Customers Affected</label><input type="number" id="oe_cust" min="0" value="'+(isEdit?(existing.customers_affected||0):0)+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Downtime (minutes)</label><input type="number" id="oe_down" min="0" value="'+(isEdit?(existing.downtime_minutes||0):0)+'"></div>'+
+        '<div class="form-group"><label>Department</label><input id="oe_dept" value="'+esc(isEdit?(existing.department||''):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Process Affected</label><input id="oe_proc" placeholder="e.g. Payment Processing" value="'+esc(isEdit?(existing.process_affected||''):'')+'"></div>'+
+        '<div class="form-group"><label>Owner</label><select id="oe_owner">'+
+          '<option value="">— Unassigned —</option>'+
+          users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+
+        '</select></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Detected At</label><input type="datetime-local" id="oe_detected" value="'+(isEdit&&existing.detected_at?existing.detected_at.replace(' ','T').slice(0,16):'')+'"></div>'+
+        '<div class="form-group"><label>Root Cause Category</label><select id="oe_rcc">'+['','people','process','system','external'].map(function(c){return'<option value="'+c+'"'+(isEdit&&existing.root_cause_category===c?' selected':'')+'>'+esc(c||'— Select —')+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Status</label><select id="oe_status" onchange="document.getElementById(\'oe_resolved_row\').style.display=(this.value===\'resolved\'||this.value===\'closed\')?\'block\':\'none\'">'+['open','investigating','resolved','closed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group" id="oe_resolved_row" style="display:'+(showResolvedAt?'block':'none')+'"><label>Resolved At</label><input type="datetime-local" id="oe_resolved" value="'+(isEdit&&existing.resolved_at?existing.resolved_at.replace(' ','T').slice(0,16):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Corrective Action</label><textarea id="oe_corrective" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.corrective_action||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Preventive Action</label><textarea id="oe_preventive" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.preventive_action||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Basel III Category <span style="font-size:10px;color:var(--muted);font-weight:400">(optional — financial services)</span></label>'+
+        '<select id="oe_basel">'+
+          '<option value="">— Not specified —</option>'+
+          ['internal_fraud','external_fraud','employment_practices','clients_products','physical_assets','business_disruption','execution_delivery'].map(function(c){
+            var labels={internal_fraud:'Internal Fraud',external_fraud:'External Fraud',employment_practices:'Employment Practices & Workplace Safety',clients_products:'Clients, Products & Business Practices',physical_assets:'Damage to Physical Assets',business_disruption:'Business Disruption & System Failures',execution_delivery:'Execution, Delivery & Process Management'};
+            return'<option value="'+c+'"'+(isEdit&&existing.basel_category===c?' selected':'')+'>'+esc(labels[c]||c)+'</option>';
+          }).join('')+
+        '</select>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'ormEvtModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveEvent('+(isEdit?existing.id:'null')+')">Save Event</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('oe_title');if(t)t.focus();},80);
+  // Show Sentinel suggestion for fraud type
+  document.getElementById('oe_type').addEventListener('change',function(){
+    if(this.value==='fraud'&&typeof showToast==='function')
+      showToast('Fraud event: if personal data is involved, raise a Sentinel incident after saving');
+  });
+};
+window.ormSaveEvent=async function(id){
+  var title=document.getElementById('oe_title').value.trim();
+  if(!title){if(typeof showToast==='function')showToast('Title required','error');return;}
+  var statusSel=document.getElementById('oe_status').value;
+  var detectedVal=document.getElementById('oe_detected').value;
+  var resolvedVal=document.getElementById('oe_resolved').value;
+  var data={
+    title:title,
+    event_type:document.getElementById('oe_type').value,
+    severity:document.getElementById('oe_sev').value,
+    description:document.getElementById('oe_desc').value.trim(),
+    financial_impact:parseFloat(document.getElementById('oe_fin').value)||0,
+    customers_affected:parseInt(document.getElementById('oe_cust').value)||0,
+    downtime_minutes:parseInt(document.getElementById('oe_down').value)||0,
+    department:document.getElementById('oe_dept').value.trim(),
+    process_affected:document.getElementById('oe_proc').value.trim()||null,
+    owner_id:document.getElementById('oe_owner').value||null,
+    detected_at:detectedVal?detectedVal.replace('T',' '):null,
+    root_cause_category:document.getElementById('oe_rcc').value||null,
+    status:statusSel,
+    resolved_at:(statusSel==='resolved'||statusSel==='closed')&&resolvedVal?resolvedVal.replace('T',' '):null,
+    basel_category:document.getElementById('oe_basel').value||null,
+    corrective_action:document.getElementById('oe_corrective').value.trim()||null,
+    preventive_action:document.getElementById('oe_preventive').value.trim()||null
+  };
+  try{
+    if(id)await apiFetch('/orm/api/events/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/events',{method:'POST',body:data});
+    document.getElementById('ormEvtModal').remove();
+    if(ormRouter.current==='events')ormLoadEvents();
+    else ormLoadDashboard();
+    if(typeof showToast==='function'){
+      showToast('Event saved');
+      if(data.severity==='critical')
+        setTimeout(function(){showToast('Critical event logged — consider elevating to ERM or creating a BCM incident','info');},1000);
+      else if(data.event_type==='fraud'&&(data.financial_impact||0)>5000)
+        setTimeout(function(){showToast('High-value fraud event — check if a Sentinel privacy incident is needed','info');},1000);
+      else if(data.event_type==='system_failure'&&(data.downtime_minutes||0)>120)
+        setTimeout(function(){showToast('Significant outage detected — review BCM plans in the Resilience module','info');},1000);
+      else if(data.event_type==='fraud')
+        setTimeout(function(){showToast('Fraud event: if personal data was affected, raise a Sentinel incident','info');},1200);
+    }
+  }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+
+/* ─────────────────────────── EXPORT CSV ─────────────────────────── */
+window.ormExportCSV=function(){
+  var src=evtCache.length?evtCache:[];
+  if(!src.length){if(typeof showToast==='function')showToast('No events loaded — open the Events view first','error');return;}
+  var cols=['id','title','event_type','severity','status','department','process_affected','financial_impact','customers_affected','downtime_minutes','root_cause_category','detected_at','resolved_at','created_at'];
+  var csv=cols.join(',')+'\n'+src.map(function(e){
+    return cols.map(function(c){var v=(e[c]===null||e[c]===undefined)?'':String(e[c]);return'"'+v.replace(/"/g,'""')+'"';}).join(',');
+  }).join('\n');
+  var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='orm_events_'+new Date().toISOString().split('T')[0]+'.csv';a.click();
+  if(typeof showToast==='function')showToast('CSV downloaded');
+};
+
+/* ─────────────────────────── KRI SPARKLINE ─────────────────────────── */
+function ormKriSparkline(points){
+  /* points = array of numbers, newest last */
+  if(!points||points.length<2)return'';
+  var w=80,h=28,pad=2;
+  var min=Math.min.apply(null,points),max=Math.max.apply(null,points);
+  var range=max-min||1;
+  var xs=points.map(function(_,i){return pad+(i/(points.length-1))*(w-pad*2);});
+  var ys=points.map(function(v){return h-pad-(v-min)/range*(h-pad*2);});
+  var d='M'+xs.map(function(x,i){return x.toFixed(1)+','+ys[i].toFixed(1);}).join(' L');
+  var last=points[points.length-1];var prev=points[0];
+  var col=last>prev?'var(--red,#dc2626)':last<prev?'var(--good,#16a34a)':'var(--muted)';
+  return'<svg class="kri-sparkline" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+
+    '<polyline points="'+xs.map(function(x,i){return x.toFixed(1)+','+ys[i].toFixed(1);}).join(' ')+'" fill="none" stroke="'+col+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'+
+    '<circle cx="'+xs[xs.length-1].toFixed(1)+'" cy="'+ys[ys.length-1].toFixed(1)+'" r="2.5" fill="'+col+'"/>'+
+  '</svg>';
+}
+
+/* ─────────────────────────── KRI INDICATORS ─────────────────────────── */
+var kriCache=[], kriHistoryCache={};
+window.ormLoadKris=async function(){
+  var grid=document.getElementById('ormKriGrid');
+  if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    var data=await apiFetch('/orm/api/kris');
+    kriCache=Array.isArray(data)?data:[];
+    // Load history for sparklines (fire and forget — fill in asynchronously)
+    kriCache.forEach(function(k){
+      apiFetch('/orm/api/kris/'+k.id+'/history?limit=7').then(function(hist){
+        kriHistoryCache[k.id]=(hist||[]).map(function(h){return h.value;}).reverse();
+        // Re-render just the sparkline in the card if it exists
+        var sparkEl=document.getElementById('kriSpark-'+k.id);
+        if(sparkEl)sparkEl.innerHTML=ormKriSparkline(kriHistoryCache[k.id]);
+      }).catch(function(){});
+    });
+
+    // Stats strip
+    var crit=kriCache.filter(function(k){var v=k.current_value||0;return k.threshold_crit&&v>=k.threshold_crit;}).length;
+    var warn=kriCache.filter(function(k){var v=k.current_value||0;return k.threshold_warn&&v>=k.threshold_warn&&(!k.threshold_crit||v<k.threshold_crit);}).length;
+    var ok=kriCache.length-crit-warn;
+    populateStatCards('kriStats',[
+      {label:'Total KRIs',value:kriCache.length},
+      {label:'Breaching (Critical)',value:crit,color:crit>0?'var(--red)':'var(--text)'},
+      {label:'Warning',value:warn,color:warn>0?'var(--amber,#d97706)':'var(--text)'},
+      {label:'Healthy',value:ok,color:'var(--good,#16a34a)'}
+    ]);
+
+    // Breach banner
+    var breaching=kriCache.filter(function(k){var v=k.current_value||0;return k.threshold_crit&&v>=k.threshold_crit;});
+    var bb=document.getElementById('ormKriBreachBanner');
+    if(bb){
+      if(breaching.length){
+        bb.style.display='';
+        bb.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.3);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">'+
+          '<span style="font-size:20px">&#128680;</span>'+
+          '<div style="flex:1"><strong style="color:var(--red)">'+breaching.length+' KRI'+(breaching.length>1?'s':'')+' at Critical Level</strong>: '+
+          breaching.map(function(k){
+            var sentinelLink=(k.name||'').toLowerCase().includes('breach')||(k.name||'').toLowerCase().includes('data')?
+              ' <a href="/sentinel/" style="color:var(--accent);font-size:11px">(Review in Sentinel)</a>':'';
+            return esc(k.name)+' <strong>'+k.current_value+' '+esc(k.unit||'')+'</strong>'+sentinelLink;
+          }).join(', ')+'</div>'+
+        '</div>';
+      }else{bb.style.display='none';}
+    }
+
+    // Stale KRI banner (>30 days without update)
+    var stale=kriCache.filter(function(k){
+      if(!k.last_updated)return true;
+      var ts=k.last_updated.includes('T')?k.last_updated:k.last_updated+'Z';
+      return(Date.now()-new Date(ts).getTime())>30*86400*1000;
+    });
+    var sb=document.getElementById('ormKriStaleBanner');
+    if(sb){
+      if(stale.length){
+        sb.style.display='';
+        sb.innerHTML='<div style="background:rgba(217,119,6,.07);border:1px solid rgba(217,119,6,.3);border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px">'+
+          '<span style="font-size:18px">&#9200;</span>'+
+          '<div style="flex:1;font-size:13px"><strong style="color:var(--amber,#d97706)">'+stale.length+' KRI'+(stale.length>1?'s':'')+' haven\'t been updated in over 30 days</strong>: '+
+          stale.map(function(k){return'<a href="#" style="color:var(--accent)" onclick="event.preventDefault();ormOpenKriUpdateModal(kriCache.find(function(x){return x.id==='+k.id+'}))">'+esc(k.name)+'</a>';}).join(', ')+
+          ' — update them to keep your risk picture accurate.</div>'+
+        '</div>';
+      }else{sb.style.display='none';}
+    }
+
+    // Filter chips
+    var fb=document.getElementById('kriFilterBar');
+    if(fb){
+      var chips=[
+        {label:'All KRIs',filter:'all'},
+        {label:'My KRIs',filter:'mine'},
+        {label:'Breaching',filter:'critical'},
+        {label:'Warning',filter:'warning'},
+        {label:'Healthy',filter:'ok'}
+      ];
+      fb.innerHTML=chips.map(function(c){
+        var active=window._kriFilter===c.filter||(!window._kriFilter&&c.filter==='all');
+        return'<button onclick="ormKriFilter(\''+c.filter+'\')" style="padding:4px 12px;border-radius:100px;border:1px solid var(--border);background:'+(active?'var(--accent)':'var(--surface2)')+';color:'+(active?'white':'var(--text)')+';font-size:12px;font-weight:600;cursor:pointer">'+c.label+'</button>';
+      }).join('');
+    }
+
+    if(!kriCache.length){
+      if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No KRIs defined. Click "+ Add KRI" to create your first indicator.</div>';
+      return;
+    }
+    var displayKris=ormGetFilteredKris(kriCache);
+    if(!displayKris.length){
+      if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No KRIs match the selected filter.</div>';
+      return;
+    }
+    if(grid)grid.innerHTML=displayKris.map(function(k){
+      var val=parseFloat(k.current_value)||0;
+      var crit=parseFloat(k.threshold_crit)||null;
+      var warn=parseFloat(k.threshold_warn)||null;
+      var ragColor=crit&&val>=crit?'var(--red)':warn&&val>=warn?'var(--amber,#d97706)':'var(--good,#16a34a)';
+      var status=crit&&val>=crit?'&#9888; CRITICAL':warn&&val>=warn?'&#9888; WARNING':'&#10003; OK';
+      var sentinelHint=(k.name||'').toLowerCase().includes('breach')||(k.name||'').toLowerCase().includes('data');
+      var criticalKri=crit&&val>=crit;
+      return'<div class="kri-card">'+
+        '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">'+
+          '<div style="font-size:14px;font-weight:700;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(k.name)+'</div>'+
+          '<span style="font-size:10px;font-weight:700;color:'+ragColor+';flex-shrink:0;margin-left:8px">'+status+'</span>'+
+        '</div>'+
+        (k.description?'<div style="font-size:12px;color:var(--muted);margin-bottom:6px">'+esc(k.description)+'</div>':'')+
+        '<div style="font-size:28px;font-weight:900;color:'+ragColor+';line-height:1;cursor:pointer" onclick="ormInlineKriEdit('+k.id+',this)" title="Click to update value" id="kriVal-'+k.id+'">'+val+'<span style="font-size:13px;font-weight:400;color:var(--muted)"> '+esc(k.unit||'')+'</span></div>'+
+        ormKriGauge(val,warn,crit)+
+        '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:8px">'+
+          (warn?'<span>&#9888; Warn: '+warn+'</span>':'<span></span>')+
+          (crit?'<span>&#128308; Crit: '+crit+'</span>':'<span></span>')+
+        '</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'+
+          (k.frequency?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px">&#9200; '+esc(k.frequency)+'</span>':'')+
+          (k.owner_name?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px">&#128100; '+esc(k.owner_name)+'</span>':'')+
+          (k.last_updated?'<span style="font-size:10px;color:var(--muted);background:var(--surface3);padding:2px 7px;border-radius:100px">Updated '+timeAgo(k.last_updated)+'</span>':'')+
+          (k.trend==='worsening'?'<span style="font-size:10px;color:var(--red);background:rgba(220,38,38,.08);padding:2px 7px;border-radius:100px;font-weight:700">&#8593; Worsening</span>':
+           k.trend==='improving'?'<span style="font-size:10px;color:var(--good,#16a34a);background:rgba(22,163,74,.08);padding:2px 7px;border-radius:100px;font-weight:700">&#8595; Improving</span>':'')+
+        '</div>'+
+        /* Sparkline */
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+          '<span style="font-size:10px;color:var(--muted);font-weight:600">7-day trend</span>'+
+          '<span id="kriSpark-'+k.id+'">'+ormKriSparkline(kriHistoryCache[k.id]||[])+'</span>'+
+        '</div>'+
+        (criticalKri&&sentinelHint?'<div style="font-size:11px;color:var(--accent);margin-bottom:8px">&#128737; Breach indicator — <a href="/sentinel/" style="color:var(--accent)">Review in Sentinel</a></div>':'')+
+        '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenKriUpdateModal(kriCache.find(function(x){return x.id==='+k.id+'}))">Update Value</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenKriModal(kriCache.find(function(x){return x.id==='+k.id+'}))">Edit</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormDeleteKri('+k.id+')" style="color:var(--red)">Delete</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }catch(e){if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Failed to load KRIs</div>';}
+};
+window.ormUpdateKriValue=function(id,currentVal,unit){
+  var newVal=prompt('Update KRI value\nCurrent: '+currentVal+' '+unit+'\n\nEnter new value:');
+  if(newVal===null||newVal==='')return;
+  var n=parseFloat(newVal);if(isNaN(n)){if(typeof showToast==='function')showToast('Invalid value — enter a number','error');return;}
+  apiFetch('/orm/api/kris/'+id,{method:'PUT',body:{current_value:n}}).then(function(){ormLoadKris();}).catch(function(){if(typeof showToast==='function')showToast('Update failed','error');});
+};
+window.ormDeleteKri=async function(id){
+  if(!confirm('Delete this KRI?'))return;
+  try{await apiFetch('/orm/api/kris/'+id,{method:'DELETE'});ormLoadKris();}
+  catch(e){if(typeof showToast==='function')showToast('Delete failed','error');}
+};
+window.ormOpenKriModal=async function(existing){
+  var isEdit=!!(existing&&existing.id);
+  var users=await ormLoadUsers();
+  var html='<div class="orm-modal-overlay" id="kriModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:520px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'kriModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Key Risk Indicator</div>'+
+      '<div class="form-group"><label>Name *</label><input id="kr_name" value="'+esc(isEdit?(existing.name||''):'')+'"></div>'+
+      '<div class="form-group"><label>Description</label><input id="kr_desc" value="'+esc(isEdit?(existing.description||''):'')+'"></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Metric Type</label><select id="kr_type">'+['count','amount','percentage','duration'].map(function(t){return'<option value="'+t+'"'+(isEdit&&existing.metric_type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Unit</label><input id="kr_unit" placeholder="e.g. events, $, %, hours" value="'+esc(isEdit?(existing.unit||'events'):'events')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Warning Threshold</label><input type="number" id="kr_warn" value="'+esc(isEdit?(existing.threshold_warn||''):'')+'"></div>'+
+        '<div class="form-group"><label>Critical Threshold</label><input type="number" id="kr_crit" value="'+esc(isEdit?(existing.threshold_crit||''):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Current Value</label><input type="number" id="kr_val" value="'+(isEdit?(existing.current_value||0):0)+'"></div>'+
+        '<div class="form-group"><label>Frequency</label><select id="kr_freq">'+['daily','weekly','monthly','quarterly'].map(function(f){return'<option value="'+f+'"'+(isEdit&&existing.frequency===f?' selected':'')+'>'+f+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Auto-update when event type is logged <span style="font-size:10px;color:var(--muted)">(optional)</span></label>'+
+        '<select id="kr_auto_type">'+
+          '<option value="">— Manual updates only —</option>'+
+          ['process_failure','fraud','system_failure','human_error','outage','vendor_failure','customer_impact'].map(function(t){
+            return'<option value="'+t+'"'+(isEdit&&existing.auto_update_event_type===t?' selected':'')+'>'+typeIcon(t)+' '+t.replace(/_/g,' ')+'</option>';
+          }).join('')+
+        '</select>'+
+      '</div>'+
+      '<div class="form-group"><label>Owner</label><select id="kr_owner">'+
+        '<option value="">— Unassigned —</option>'+
+        users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+
+      '</select></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'kriModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveKri('+(isEdit?existing.id:'null')+')">Save KRI</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ormSaveKri=async function(id){
+  var name=document.getElementById('kr_name').value.trim();
+  if(!name){if(typeof showToast==='function')showToast('Name required','error');return;}
+  var data={name:name,description:document.getElementById('kr_desc').value.trim(),metric_type:document.getElementById('kr_type').value,unit:document.getElementById('kr_unit').value.trim(),threshold_warn:parseFloat(document.getElementById('kr_warn').value)||null,threshold_crit:parseFloat(document.getElementById('kr_crit').value)||null,current_value:parseFloat(document.getElementById('kr_val').value)||0,frequency:document.getElementById('kr_freq').value,owner_id:document.getElementById('kr_owner').value||null,auto_update_event_type:document.getElementById('kr_auto_type').value||null};
+  try{
+    if(id)await apiFetch('/orm/api/kris/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/kris',{method:'POST',body:data});
+    document.getElementById('kriModal').remove();ormLoadKris();
+    if(typeof showToast==='function')showToast('KRI saved');
+  }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+
+/* ─────────────────────────── REPORTS ─────────────────────────── */
+window.ormLoadReports=async function(){
+  try{
+    var d=await apiFetch('/orm/api/dashboard');
+    populateStatCards('rptStatCards',[
+      {label:'Total Events',value:d.total_events||0},
+      {label:'Total Loss',value:fmtCurrency(d.financial_loss||0),color:d.financial_loss>0?'var(--red)':'var(--text)'},
+      {label:'Customers Affected',value:(d.customers_affected||0).toLocaleString()},
+      {label:'Downtime Hours',value:d.downtime_hours||0}
+    ]);
+    ormRenderTypeChart('rptTypeChart',d.by_type||[]);
+
+    // Load all events for ring charts + heat table + trend
+    var evts=await apiFetch('/orm/api/events');
+    var events=Array.isArray(evts)?evts:[];
+
+    // Severity ring chart
+    var sc={critical:0,high:0,medium:0,low:0};
+    events.forEach(function(e){var s=(e.severity||'').toLowerCase();if(sc.hasOwnProperty(s))sc[s]++;});
+    ormDrawRing('rptSevRing','rptSevLegend',[
+      {label:'Critical',count:sc.critical,color:'var(--red)'},
+      {label:'High',count:sc.high,color:'var(--amber,#d97706)'},
+      {label:'Medium',count:sc.medium,color:'#6366f1'},
+      {label:'Low',count:sc.low,color:'var(--good,#16a34a)'}
+    ]);
+
+    // Root cause ring chart
+    var rcaMap={};
+    events.forEach(function(e){var c=e.root_cause_category||'unknown';rcaMap[c]=(rcaMap[c]||0)+1;});
+    var rcaColors={people:'#f59e0b',process:'#6366f1',system:'#0ea5e9',external:'#10b981',unknown:'#94a3b8'};
+    var rcaSegs=Object.entries(rcaMap).sort(function(a,b){return b[1]-a[1];}).map(function(kv){return{label:kv[0],count:kv[1],color:rcaColors[kv[0]]||'var(--accent)'};});
+    ormDrawRing('rptRcaRing','rptRcaLegend',rcaSegs.length?rcaSegs:[{label:'No data',count:0,color:'var(--surface3)'}]);
+
+    // Dept heat table
+    ormRenderDeptHeat(events);
+
+    // Loss trend
+    ormRenderLossTrend(events);
+
+  }catch(e){console.error('ORM reports error',e);}
+};
+
+function ormRenderDeptHeat(events){
+  var el=document.getElementById('rptDeptHeat');if(!el)return;
+  var sevs=['critical','high','medium','low'];
+  var dMap={};
+  events.forEach(function(e){
+    var d=e.department||'Unknown';var s=(e.severity||'unknown').toLowerCase();
+    if(!dMap[d])dMap[d]={};dMap[d][s]=(dMap[d][s]||0)+1;
+  });
+  var depts=Object.keys(dMap).sort();
+  if(!depts.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:13px">No department data — add departments when logging events</div>';return;}
+  var maxCnt=1;
+  depts.forEach(function(d){sevs.forEach(function(s){if((dMap[d][s]||0)>maxCnt)maxCnt=dMap[d][s];});});
+  var sevRgb={critical:'220,38,38',high:'245,158,11',medium:'99,102,241',low:'22,163,74'};
+  el.innerHTML='<table style="width:100%;border-collapse:separate;border-spacing:4px 2px">'+
+    '<thead><tr><th style="padding:4px 8px;font-size:11px;color:var(--muted);text-align:left;font-weight:600">Dept</th>'+
+    sevs.map(function(s){return'<th style="padding:4px 8px;font-size:11px;color:var(--muted);text-align:center;text-transform:capitalize;font-weight:600">'+s+'</th>';}).join('')+
+    '<th style="padding:4px 8px;font-size:11px;color:var(--muted);text-align:center;font-weight:600">Total</th></tr></thead>'+
+    '<tbody>'+depts.map(function(d){
+      var rowTotal=sevs.reduce(function(s,sv){return s+(dMap[d][sv]||0);},0);
+      return'<tr><td style="padding:5px 8px;font-size:12px;font-weight:600;white-space:nowrap">'+esc(d)+'</td>'+
+        sevs.map(function(s){
+          var cnt=dMap[d][s]||0;
+          var op=cnt>0?(0.12+(cnt/maxCnt)*0.65).toFixed(2):'0';
+          var rgb=sevRgb[s]||'99,102,241';
+          return'<td style="padding:5px 8px;text-align:center">'+
+            (cnt>0?'<div style="display:inline-block;min-width:26px;padding:2px 6px;border-radius:4px;font-size:12px;font-weight:700;background:rgba('+rgb+','+op+');color:rgba('+rgb+',.95)">'+cnt+'</div>':'<span style="color:var(--surface3);font-size:12px">—</span>')+
+          '</td>';
+        }).join('')+
+        '<td style="padding:5px 8px;text-align:center;font-size:12px;font-weight:700">'+rowTotal+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+
+function ormRenderLossTrend(events){
+  var el=document.getElementById('rptLossTrend');if(!el)return;
+  var now=new Date();
+  var months=[];
+  for(var i=5;i>=0;i--){
+    var dt=new Date(now.getFullYear(),now.getMonth()-i,1);
+    months.push({key:dt.getFullYear()+'-'+(dt.getMonth()+1).toString().padStart(2,'0'),label:dt.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}),loss:0});
+  }
+  events.forEach(function(e){
+    if(!(parseFloat(e.financial_impact)>0))return;
+    var d=new Date(e.created_at&&e.created_at.includes('T')?e.created_at:e.created_at+'Z');
+    var key=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0');
+    var mo=months.find(function(m){return m.key===key;});
+    if(mo)mo.loss+=parseFloat(e.financial_impact);
+  });
+  var maxL=Math.max.apply(null,months.map(function(m){return m.loss;}).concat([1]));
+  el.innerHTML=months.map(function(m){
+    var pct=(m.loss/maxL*100).toFixed(1);
+    return'<div style="margin-bottom:10px">'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">'+
+        '<span style="color:var(--text)">'+esc(m.label)+'</span>'+
+        '<span style="color:'+(m.loss>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(m.loss)+'</span>'+
+      '</div>'+
+      '<div style="height:7px;background:var(--surface3);border-radius:100px">'+
+        '<div style="height:100%;width:'+pct+'%;background:var(--red,#dc2626);border-radius:100px;transition:width .6s ease"></div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+window.ormBoardReport=async function(btn){
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='Generating…';
+  try{
+    var res=await apiFetch('/orm/api/ai/board-report',{method:'POST',body:{days:30}});
+    btn.disabled=false;btn.textContent=orig;
+    ormOpenDocViewer('ORM Board Report — '+new Date().toLocaleDateString('en-GB'),res.narrative||'No narrative generated.');
+  }catch(e){btn.disabled=false;btn.textContent=orig;if(typeof showToast==='function')showToast('Board report failed','error');}
+};
+
+/* ─────────────────────────── CHAT ─────────────────────────── */
+var chatLoaded=false;
+window.ormLoadChat=async function(){
+  if(chatLoaded)return;chatLoaded=true;
+  try{
+    var data=await apiFetch('/orm/api/chat');
+    var msgs=Array.isArray(data)?data:[];
+    if(msgs.length){
+      // Hide prompt chips if history exists
+      var chips=document.getElementById('ormPromptChips');
+      if(chips)chips.style.display='none';
+      var container=document.getElementById('ormChatMsgs');
+      msgs.forEach(function(m){
+        var div=document.createElement('div');
+        var isUser=m.role==='user';
+        div.style.cssText=isUser?'align-self:flex-end;background:var(--accent);color:white;padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5':'align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';
+        div.innerHTML=esc(m.content||'').replace(/\n/g,'<br>');
+        container.appendChild(div);
+      });
+      container.scrollTop=container.scrollHeight;
+    }
+  }catch(e){}
+};
+window.ormSendChat=async function(){
+  var input=document.getElementById('ormChatInput');
+  var msg=input.value.trim();if(!msg)return;
+  // Hide prompt chips on first message
+  var chips=document.getElementById('ormPromptChips');if(chips)chips.style.display='none';
+  input.value='';
+  var container=document.getElementById('ormChatMsgs');
+  var ud=document.createElement('div');
+  ud.style.cssText='align-self:flex-end;background:var(--accent);color:white;padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';
+  ud.textContent=msg;container.appendChild(ud);container.scrollTop=container.scrollHeight;
+  var tid='t-'+Date.now();
+  var ad=document.createElement('div');ad.id=tid;
+  ad.style.cssText='align-self:flex-start;background:var(--surface2);padding:12px 16px;border-radius:var(--radius-lg);font-size:14px;max-width:80%;line-height:1.5';
+  ad.innerHTML='<div class="spinner" style="width:16px;height:16px;border-width:2px"></div>';
+  container.appendChild(ad);container.scrollTop=container.scrollHeight;
+  try{
+    var d=await apiFetch('/orm/api/chat',{method:'POST',body:{message:msg}});
+    var el=document.getElementById(tid);
+    if(el)el.innerHTML=esc(d.reply||'No reply.').replace(/\n/g,'<br>');
+  }catch(e){var el2=document.getElementById(tid);if(el2)el2.textContent='Error — please try again.';}
+  container.scrollTop=container.scrollHeight;
+};
+window.ormSendPromptChip=function(msg){
+  var chips=document.getElementById('ormPromptChips');if(chips)chips.style.display='none';
+  document.getElementById('ormChatInput').value=msg;
+  ormSendChat();
+};
+
+/* ─────────────────────────── EVENT TEMPLATES ─────────────────────────── */
+var TMPL_CATEGORIES=[
+  {key:'',label:'All Templates',icon:'&#128203;',color:'var(--accent)'},
+  {key:'Cybersecurity',label:'Cybersecurity',icon:'&#128737;',color:'#dc2626'},
+  {key:'Data & Privacy',label:'Data & Privacy',icon:'&#128274;',color:'#7c3aed'},
+  {key:'Process & Operations',label:'Process & Ops',icon:'&#9881;',color:'#ea580c'},
+  {key:'Technology & Systems',label:'Technology',icon:'&#128187;',color:'#0ea5e9'},
+  {key:'People & HR',label:'People & HR',icon:'&#128100;',color:'#16a34a'},
+  {key:'Financial & Fraud',label:'Financial & Fraud',icon:'&#128178;',color:'#b45309'},
+  {key:'Vendor & Third Party',label:'Vendor & 3rd Party',icon:'&#128230;',color:'#0891b2'},
+  {key:'Compliance & Regulatory',label:'Compliance',icon:'&#9878;',color:'#be123c'}
+];
+var tmplCache=[],tmplCatFilter='',tmplSearch='';
+
+var TMPL_CAT_COLORS={
+  'Cybersecurity':'rgba(220,38,38,.12)',
+  'Data & Privacy':'rgba(124,58,237,.12)',
+  'Process & Operations':'rgba(234,88,12,.12)',
+  'Technology & Systems':'rgba(14,165,233,.12)',
+  'People & HR':'rgba(22,163,74,.12)',
+  'Financial & Fraud':'rgba(180,83,9,.12)',
+  'Vendor & Third Party':'rgba(8,145,178,.12)',
+  'Compliance & Regulatory':'rgba(190,18,60,.12)'
+};
+var TMPL_CAT_TEXT_COLORS={
+  'Cybersecurity':'#dc2626','Data & Privacy':'#7c3aed',
+  'Process & Operations':'#ea580c','Technology & Systems':'#0ea5e9',
+  'People & HR':'#16a34a','Financial & Fraud':'#b45309',
+  'Vendor & Third Party':'#0891b2','Compliance & Regulatory':'#be123c'
+};
+
+window.ormOpenTemplates=async function(){
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="orm-tmpl-overlay" id="ormTmplOverlay" onclick="if(event.target===this)ormCloseTemplates()">'+
+      '<div class="orm-tmpl-panel" onclick="event.stopPropagation()">'+
+        '<div class="orm-tmpl-head">'+
+          '<div style="font-size:20px">&#128203;</div>'+
+          '<div style="flex:1">'+
+            '<div style="font-size:16px;font-weight:800;color:var(--text)">Event Templates</div>'+
+            '<div style="font-size:12px;color:var(--muted)">Select a template to activate instantly or customise before logging</div>'+
+          '</div>'+
+          '<input id="tmplSearch" class="orm-search" placeholder="&#128269; Search templates…" style="max-width:240px" oninput="tmplSearch=this.value.toLowerCase();ormRenderTemplates()">'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenTemplateModal()" title="Create custom template">+ Custom</button>'+
+          '<button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:4px 8px" onclick="ormCloseTemplates()">&#10005;</button>'+
+        '</div>'+
+        '<div class="orm-tmpl-body">'+
+          '<div class="orm-tmpl-filter-bar" id="tmplCatBar">'+
+            TMPL_CATEGORIES.map(function(c){
+              return'<button class="orm-tmpl-chip'+(c.key===''?' active':'')+'" data-cat="'+esc(c.key)+'" onclick="ormTmplCat(this,\''+esc(c.key)+'\')">'+c.icon+' '+esc(c.label)+'</button>';
+            }).join('')+
+          '</div>'+
+          '<div id="tmplGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px"></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'
+  );
+  var grid=document.getElementById('tmplGrid');
+  if(grid)grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    var data=await apiFetch('/orm/api/event-templates');
+    tmplCache=Array.isArray(data)?data:[];
+    tmplCatFilter='';tmplSearch='';
+    ormRenderTemplates();
+  }catch(e){var g=document.getElementById('tmplGrid');if(g)g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--red)">Failed to load templates</div>';}
+};
+
+window.ormCloseTemplates=function(){
+  var el=document.getElementById('ormTmplOverlay');
+  if(el)el.remove();
+};
+
+window.ormTmplCat=function(btn,cat){
+  document.querySelectorAll('#tmplCatBar .orm-tmpl-chip').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  tmplCatFilter=cat;
+  ormRenderTemplates();
+};
+
+function ormRenderTemplates(){
+  var grid=document.getElementById('tmplGrid');if(!grid)return;
+  var filtered=tmplCache.filter(function(t){
+    if(tmplCatFilter&&t.category!==tmplCatFilter)return false;
+    if(tmplSearch){
+      var q=tmplSearch;
+      if(!((t.title||'').toLowerCase().includes(q)||(t.description||'').toLowerCase().includes(q)||(t.tags||'').toLowerCase().includes(q)))return false;
+    }
+    return t.is_active!==0;
+  });
+  if(!filtered.length){
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">'+
+      '<div style="font-size:32px;margin-bottom:12px">&#128203;</div>'+
+      '<div style="font-size:14px;font-weight:600">No templates match your search</div>'+
+      '<button class="btn btn-secondary" style="margin-top:12px" onclick="ormOpenTemplateModal()">+ Create Custom Template</button>'+
+    '</div>';
+    return;
+  }
+  grid.innerHTML=filtered.map(function(t){
+    var catColor=TMPL_CAT_TEXT_COLORS[t.category]||'var(--accent)';
+    var catBg=TMPL_CAT_COLORS[t.category]||'rgba(99,102,241,.1)';
+    var catObj=TMPL_CATEGORIES.find(function(c){return c.key===t.category;})||{icon:'&#128203;'};
+    var tags=(t.tags||'').split(',').filter(Boolean).slice(0,3);
+    var usageHint=t.usage_count>0?'<span style="font-size:10px;color:var(--muted);margin-left:auto">Used '+t.usage_count+'&#215;</span>':'';
+    return'<div class="orm-tmpl-card">'+
+      '<div class="orm-tmpl-card-top">'+
+        '<div>'+
+          '<span class="orm-cat-chip" style="background:'+catBg+';color:'+catColor+';margin-bottom:6px;display:inline-block">'+catObj.icon+' '+esc(t.category)+'</span>'+
+          '<div class="orm-tmpl-card-title">'+esc(t.title)+'</div>'+
+        '</div>'+
+        sevBadge(t.severity)+
+      '</div>'+
+      '<div class="orm-tmpl-card-desc">'+esc(t.description||'')+'</div>'+
+      '<div class="orm-tmpl-card-footer">'+
+        '<span style="font-size:11px"><span style="font-size:13px">'+typeIcon(t.event_type)+'</span> '+esc((t.event_type||'').replace(/_/g,' '))+'</span>'+
+        (tags.length?tags.map(function(tag){return'<span style="font-size:10px;background:var(--surface3);color:var(--muted);padding:2px 6px;border-radius:100px">'+esc(tag.trim())+'</span>';}).join(''):'')+
+        usageHint+
+      '</div>'+
+      '<div style="display:flex;gap:8px;margin-top:6px">'+
+        '<button class="btn btn-primary" style="flex:1;font-size:12px" onclick="ormActivateTemplate('+t.id+',\''+esc(t.title)+'\')" title="Create event immediately with template defaults">&#9658; Activate</button>'+
+        '<button class="btn btn-secondary" style="flex:1;font-size:12px" onclick="ormCustomiseTemplate('+t.id+')" title="Pre-fill Log Event form for review before saving">&#9998; Customise</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+window.ormActivateTemplate=async function(id,title){
+  if(!confirm('Activate template "'+title+'"?\n\nThis will create an open event immediately. You can edit details afterwards.'))return;
+  try{
+    var res=await apiFetch('/orm/api/event-templates/'+id+'/activate',{method:'POST',body:{}});
+    ormCloseTemplates();
+    if(ormRouter.current==='events')ormLoadEvents();else ormLoadDashboard();
+    if(typeof showToast==='function')showToast('Event created from template — Event #'+res.id);
+  }catch(e){if(typeof showToast==='function')showToast('Activation failed','error');}
+};
+
+window.ormCustomiseTemplate=async function(id){
+  var tmpl=tmplCache.find(function(t){return t.id===id;});
+  if(!tmpl)return;
+  ormCloseTemplates();
+  // Pre-fill the event modal with template values — user can review & edit before saving
+  await ormOpenEventModal({
+    title:tmpl.title,description:tmpl.description,
+    event_type:tmpl.event_type,severity:tmpl.severity,
+    department:tmpl.department||'',process_affected:tmpl.process_affected||'',
+    root_cause_category:tmpl.root_cause_category||'',
+    corrective_action:tmpl.corrective_action||'',
+    preventive_action:tmpl.preventive_action||'',
+    basel_category:tmpl.basel_category||'',
+    status:'open',_from_template:id
+  });
+  // Increment usage count in background
+  apiFetch('/orm/api/event-templates/'+id+'/activate',{method:'POST',body:{_preview_only:true}}).catch(function(){});
+};
+
+/* ── Custom Template Creation Modal ── */
+window.ormOpenTemplateModal=async function(existing){
+  ormCloseTemplates();
+  var isEdit=!!(existing&&existing.id);
+  var html='<div class="orm-modal-overlay" id="ormTmplEditModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:640px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'ormTmplEditModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'Create Custom')+' Event Template</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Template Title *</label><input id="tm_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
+        '<div class="form-group"><label>Category *</label><select id="tm_cat">'+
+          TMPL_CATEGORIES.slice(1).map(function(c){return'<option value="'+c.key+'"'+(isEdit&&existing.category===c.key?' selected':'')+'>'+c.icon+' '+esc(c.label)+'</option>';}).join('')+
+        '</select></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Description</label><textarea id="tm_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Event Type</label><select id="tm_type">'+['process_failure','fraud','system_failure','human_error','outage','vendor_failure','customer_impact'].map(function(t){return'<option value="'+t+'"'+(isEdit&&existing.event_type===t?' selected':'')+'>'+typeIcon(t)+' '+t.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Severity</label><select id="tm_sev">'+['low','medium','high','critical'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.severity===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Default Department</label><input id="tm_dept" value="'+esc(isEdit?(existing.department||''):'')+'"></div>'+
+        '<div class="form-group"><label>Process Affected</label><input id="tm_proc" value="'+esc(isEdit?(existing.process_affected||''):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Root Cause Category</label><select id="tm_rcc">'+['','people','process','system','external'].map(function(c){return'<option value="'+c+'"'+(isEdit&&existing.root_cause_category===c?' selected':'')+'>'+esc(c||'— Select —')+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Tags (comma-separated)</label><input id="tm_tags" placeholder="e.g. fraud,cyber,payment" value="'+esc(isEdit?(existing.tags||''):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Corrective Action Template</label><textarea id="tm_corr" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.corrective_action||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Preventive Action Template</label><textarea id="tm_prev" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.preventive_action||''):'')+'</textarea></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'ormTmplEditModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveTemplate('+(isEdit?existing.id:'null')+')">Save Template</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('tm_title');if(t)t.focus();},80);
+};
+window.ormSaveTemplate=async function(id){
+  var title=document.getElementById('tm_title').value.trim();
+  if(!title){if(typeof showToast==='function')showToast('Title required','error');return;}
+  var data={title:title,description:document.getElementById('tm_desc').value.trim(),category:document.getElementById('tm_cat').value,event_type:document.getElementById('tm_type').value,severity:document.getElementById('tm_sev').value,department:document.getElementById('tm_dept').value.trim()||null,process_affected:document.getElementById('tm_proc').value.trim()||null,root_cause_category:document.getElementById('tm_rcc').value||null,tags:document.getElementById('tm_tags').value.trim()||null,corrective_action:document.getElementById('tm_corr').value.trim()||null,preventive_action:document.getElementById('tm_prev').value.trim()||null,is_active:1};
+  try{
+    if(id)await apiFetch('/orm/api/event-templates/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/event-templates',{method:'POST',body:data});
+    document.getElementById('ormTmplEditModal').remove();
+    if(typeof showToast==='function')showToast('Template saved');
+  }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+
+/* ─────────────────────────── WORKFLOW STEPPER ─────────────────────────── */
+var WF_STEPS=[
+  {key:'identified',label:'Identified'},
+  {key:'under_investigation',label:'Investigating'},
+  {key:'root_cause_confirmed',label:'Root Cause'},
+  {key:'remediation',label:'Remediation'},
+  {key:'closed',label:'Closed'}
+];
+function ormWorkflowStepper(e){
+  var cur=e.workflow_step||'identified';
+  var curIdx=WF_STEPS.findIndex(function(s){return s.key===cur;});
+  if(curIdx<0)curIdx=0;
+  return'<div class="orm-stepper">'+WF_STEPS.map(function(s,i){
+    var cls=i<curIdx?'done':i===curIdx?'active':'';
+    var canAdvance=i===curIdx+1;
+    return'<div class="orm-step '+(i<=curIdx?'done':'')+'">'+
+      '<div class="orm-step-dot '+cls+'" '+
+        (canAdvance?'onclick="ormAdvanceWorkflow('+e.id+',\''+s.key+'\')" title="Advance to '+s.label+'" style="cursor:pointer"':'title="'+s.label+'"')+
+        '>'+
+        (i<curIdx?'&#10003;':(i===curIdx?'&#8226;':(i+1).toString()))+
+      '</div>'+
+      '<div class="orm-step-label">'+esc(s.label)+'</div>'+
+    '</div>';
+  }).join('')+'</div>';
+}
+window.ormAdvanceWorkflow=async function(eventId,toStep){
+  try{
+    await apiFetch('/orm/api/events/'+eventId+'/workflow',{method:'POST',body:{step:toStep}});
+    if(typeof showToast==='function')showToast('Workflow advanced');
+    ormCloseDrawer();
+    if(ormRouter.current==='events')ormLoadEvents();
+    else ormLoadDashboard();
+  }catch(e){if(typeof showToast==='function')showToast('Workflow update failed','error');}
+};
+window.ormToggleWfHistory=async function(eventId){
+  var el=document.getElementById('wfHistory-'+eventId);if(!el)return;
+  if(el.style.display==='block'){el.style.display='none';return;}
+  el.style.display='block';
+  el.innerHTML='<div class="spinner" style="width:16px;height:16px;border-width:2px;margin:8px auto"></div>';
+  try{
+    var hist=await apiFetch('/orm/api/events/'+eventId+'/workflow');
+    if(!hist||!hist.length){el.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 0">No history yet</div>';return;}
+    el.innerHTML='<div style="border-left:2px solid var(--border);padding-left:12px;margin-top:6px">'+
+      hist.map(function(h){
+        return'<div style="position:relative;padding:4px 0;font-size:12px">'+
+          '<div style="position:absolute;left:-17px;top:8px;width:8px;height:8px;border-radius:50%;background:var(--accent)"></div>'+
+          '<span style="font-weight:600">'+esc((h.to_step||'').replace(/_/g,' '))+'</span>'+
+          '<span style="color:var(--muted);margin-left:6px">'+fmtDate(h.changed_at)+'</span>'+
+          (h.changed_by_name?'<span style="color:var(--muted);margin-left:6px">by '+esc(h.changed_by_name)+'</span>':'')+
+          (h.notes?'<div style="color:var(--muted);font-size:11px">'+esc(h.notes)+'</div>':'')+
+        '</div>';
+      }).join('')+
+    '</div>';
+  }catch(ex){el.innerHTML='<div style="font-size:12px;color:var(--red)">Failed to load history</div>';}
+};
+
+/* ─────────────────────────── RCSA ─────────────────────────── */
+var rcsaCache=[];
+window.ormLoadRcsa=async function(){
+  var body=document.getElementById('rcsaBody');
+  if(body)body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+  try{
+    var data=await apiFetch('/orm/api/rcsa');
+    rcsaCache=Array.isArray(data)?data:[];
+    var total=rcsaCache.length;
+    var active=rcsaCache.filter(function(a){return a.status==='active';}).length;
+    var completed=rcsaCache.filter(function(a){return a.status==='completed';}).length;
+    var openActs=rcsaCache.reduce(function(s,a){return s+(a.open_actions||0);},0);
+    populateStatCards('rcsaStats',[
+      {label:'Total Assessments',value:total},
+      {label:'Active',value:active,color:active>0?'var(--accent)':'var(--text)'},
+      {label:'Completed',value:completed,color:'var(--good,#16a34a)'},
+      {label:'Open Actions',value:openActs,color:openActs>0?'var(--amber,#d97706)':'var(--text)'}
+    ]);
+    var navBadge=document.getElementById('ormNavRcsa');
+    if(navBadge)navBadge.textContent=total||'';
+    if(!rcsaCache.length){
+      if(body)body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">No RCSA campaigns yet. Click "+ New Assessment" to start.</td></tr>';
+      return;
+    }
+    if(body)body.innerHTML=rcsaCache.map(function(a){
+      var statusColors={draft:'badge-draft',active:'badge-progress',under_review:'badge-high',completed:'badge-complete'};
+      var sc=statusColors[a.status]||'badge-draft';
+      var periodStr=(a.period_start?fmtDate(a.period_start):'—')+(a.period_end?' – '+fmtDate(a.period_end):'');
+      return'<tr>'+
+        '<td style="cursor:pointer;color:var(--accent);font-weight:600" onclick="ormOpenRcsaDetail('+a.id+')">'+esc(a.title)+'</td>'+
+        '<td style="font-size:12px;color:var(--muted)">'+esc(a.scope||'—')+'</td>'+
+        '<td style="font-size:12px;color:var(--muted)">'+esc(periodStr)+'</td>'+
+        '<td><span class="badge '+sc+'">'+esc((a.status||'draft').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</span></td>'+
+        '<td style="font-size:12px">'+esc(a.owner_name||'—')+'</td>'+
+        '<td style="font-size:12px;color:var(--muted)">'+fmtDate(a.due_date)+'</td>'+
+        '<td style="text-align:center"><span class="badge badge-draft">'+esc(a.risk_count||0)+'</span></td>'+
+        '<td style="text-align:center"><span class="badge '+(a.open_actions>0?'badge-high':'badge-draft')+'">'+esc(a.open_actions||0)+'</span></td>'+
+        '<td><div style="display:flex;gap:4px">'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenRcsaDetail('+a.id+')" title="Open">&#128269;</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenRcsaModal(rcsaCache.find(function(x){return x.id==='+a.id+'}))">&#9998;</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormDeleteRcsa('+a.id+')" style="color:var(--red)">&#10005;</button>'+
+        '</div></td>'+
+      '</tr>';
+    }).join('');
+  }catch(e){if(body)body.innerHTML='<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--red)">Failed to load</td></tr>';}
+};
+
+window.ormOpenRcsaModal=async function(existing){
+  var isEdit=!!(existing&&existing.id);
+  var users=await ormLoadUsers();
+  var html='<div class="orm-modal-overlay" id="rcsaModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:580px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'rcsaModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'New')+' RCSA Campaign</div>'+
+      '<div class="form-group"><label>Title *</label><input id="rc_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
+      '<div class="form-group"><label>Scope / Business Unit</label><input id="rc_scope" placeholder="e.g. Operations, IT, Finance" value="'+esc(isEdit?(existing.scope||''):'')+'"></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Period Start</label><input type="date" id="rc_ps" value="'+(isEdit&&existing.period_start?existing.period_start.slice(0,10):'')+'"></div>'+
+        '<div class="form-group"><label>Period End</label><input type="date" id="rc_pe" value="'+(isEdit&&existing.period_end?existing.period_end.slice(0,10):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Status</label><select id="rc_status">'+['draft','active','under_review','completed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Due Date</label><input type="date" id="rc_due" value="'+(isEdit&&existing.due_date?existing.due_date.slice(0,10):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Owner</label><select id="rc_owner">'+
+        '<option value="">— Unassigned —</option>'+users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+
+      '</select></div>'+
+      '<div class="form-group"><label>Notes</label><textarea id="rc_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.notes||''):'')+'</textarea></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'rcsaModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveRcsa('+(isEdit?existing.id:'null')+')">Save</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('rc_title');if(t)t.focus();},80);
+};
+window.ormSaveRcsa=async function(id){
+  var title=document.getElementById('rc_title').value.trim();
+  if(!title){if(typeof showToast==='function')showToast('Title required','error');return;}
+  var data={title:title,scope:document.getElementById('rc_scope').value.trim(),period_start:document.getElementById('rc_ps').value||null,period_end:document.getElementById('rc_pe').value||null,status:document.getElementById('rc_status').value,due_date:document.getElementById('rc_due').value||null,owner_id:document.getElementById('rc_owner').value||null,notes:document.getElementById('rc_notes').value.trim()};
+  try{
+    var res;
+    if(id){await apiFetch('/orm/api/rcsa/'+id,{method:'PUT',body:data});res={id:id};}
+    else{res=await apiFetch('/orm/api/rcsa',{method:'POST',body:data});}
+    var newId=res&&(res.id||res.assessment_id);
+    document.getElementById('rcsaModal').remove();
+    // Apply template risks if one was selected
+    var tmpl=window._selectedRcsaTemplate;
+    if(tmpl&&tmpl.risks&&newId&&!id){
+      for(var i=0;i<tmpl.risks.length;i++){
+        var tr=tmpl.risks[i];
+        await apiFetch('/orm/api/rcsa/'+newId+'/risks',{method:'POST',body:{title:tr.title,inherent_likelihood:tr.inherent_likelihood||3,inherent_impact:tr.inherent_impact||3,control_effectiveness:tr.control_effectiveness||3,notes:(tr.controls||[]).join('; ')}});
+      }
+      window._selectedRcsaTemplate=null;
+      if(typeof showToast==='function'){showToast('Assessment saved');setTimeout(function(){showToast(tmpl.risks.length+' risks pre-populated from template');},800);}
+    }else{
+      if(typeof showToast==='function')showToast('Assessment saved');
+    }
+    ormLoadRcsa();
+  }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+window.ormDeleteRcsa=async function(id){
+  if(!confirm('Delete this assessment and all its risks, controls, and actions?'))return;
+  try{await apiFetch('/orm/api/rcsa/'+id,{method:'DELETE'});ormLoadRcsa();}
+  catch(e){if(typeof showToast==='function')showToast('Delete failed','error');}
+};
+
+/* ── RCSA Detail Drawer ── */
+window.ormOpenRcsaDetail=async function(assessId){
+  var drawer=document.getElementById('ormDrawerRoot');
+  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+  try{
+    var a=await apiFetch('/orm/api/rcsa/'+assessId);
+    var risks=await apiFetch('/orm/api/rcsa/'+assessId+'/risks');
+    var actions=await apiFetch('/orm/api/rcsa/'+assessId+'/actions');
+    drawer.innerHTML='<div class="orm-drawer-overlay" onclick="if(event.target===this)ormCloseDrawer()">'+
+    '<div class="orm-drawer-panel" style="width:min(720px,100%)">'+
+      '<div class="orm-drawer-head">'+
+        '<div style="display:flex;justify-content:space-between;align-items:start">'+
+          '<div>'+
+            '<div style="font-size:16px;font-weight:800">'+esc(a.title)+'</div>'+
+            '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+(a.scope?esc(a.scope)+' &bull; ':'')+fmtDate(a.period_start)+' – '+fmtDate(a.period_end)+'</div>'+
+          '</div>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormCloseDrawer()">&#10005;</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="orm-drawer-body">'+
+        /* Stats row */
+        (function(){
+          var avgResidual=risks.length?risks.reduce(function(s,r){return s+(r.residual_score||0);},0)/risks.length:0;
+          var healthScore=risks.length?Math.max(0,Math.round((1-avgResidual/25)*100)):null;
+          var hColor=healthScore===null?'var(--muted)':healthScore>=70?'var(--good,#16a34a)':healthScore>=40?'var(--amber,#d97706)':'var(--red)';
+          return'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">'+
+            '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Risks</div><div style="font-size:22px;font-weight:800">'+risks.length+'</div></div>'+
+            '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Open Actions</div><div style="font-size:22px;font-weight:800;color:var(--amber,#d97706)">'+(actions.filter(function(x){return x.status==='open';}).length)+'</div></div>'+
+            '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Avg Residual</div><div style="font-size:22px;font-weight:800;">'+(risks.length?Math.round(avgResidual*10)/10:'—')+'</div></div>'+
+            '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Health Score</div>'+
+              (healthScore!==null?
+                '<div style="font-size:22px;font-weight:800;color:'+hColor+'">'+healthScore+'%</div>'+
+                '<div style="height:4px;background:var(--surface3);border-radius:100px;margin-top:4px"><div style="height:100%;width:'+healthScore+'%;background:'+hColor+';border-radius:100px;transition:width .8s ease"></div></div>'
+                :'<div style="font-size:22px;font-weight:800;color:var(--muted)">—</div>')+
+            '</div>'+
+          '</div>';
+        })()+
+        /* Risks */
+        '<div class="orm-drawer-section">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+            '<div class="orm-drawer-section-title" style="margin-bottom:0">Assessed Risks</div>'+
+            '<button class="btn btn-sm btn-primary" onclick="ormAddRcsaRisk('+assessId+')">+ Add Risk</button>'+
+          '</div>'+
+          (risks.length?risks.map(function(r){
+            var inherent=r.inherent_likelihood*r.inherent_impact;
+            var effPct=((r.control_effectiveness||3)/5*100).toFixed(0);
+            var effColor=r.control_effectiveness>=4?'var(--good,#16a34a)':r.control_effectiveness>=3?'var(--amber,#d97706)':'var(--red,#dc2626)';
+            return'<div class="rcsa-risk-row">'+
+              '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">'+
+                '<span style="font-weight:600;font-size:13px">'+esc(r.title)+'</span>'+
+                '<div style="display:flex;gap:6px;align-items:center">'+
+                  '<span style="font-size:11px;color:var(--muted)">Inherent: <strong>'+inherent+'</strong></span>'+
+                  '<span style="font-size:11px;color:var(--red)">Residual: <strong>'+((r.residual_score||0).toFixed(1))+'</strong></span>'+
+                '</div>'+
+              '</div>'+
+              '<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)">'+
+                '<span>Control Effectiveness:</span>'+
+                '<div style="flex:1;height:6px;background:var(--surface3);border-radius:100px;overflow:hidden">'+
+                  '<div style="height:100%;width:'+effPct+'%;background:'+effColor+';border-radius:100px"></div>'+
+                '</div>'+
+                '<span style="color:'+effColor+';font-weight:700">'+effPct+'%</span>'+
+              '</div>'+
+              (r.notes&&r.notes.includes(';')?
+                '<div style="margin-top:8px;padding:8px;background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.15);border-radius:var(--radius)">'+
+                  '<div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:5px">&#10003; Suggested Controls</div>'+
+                  r.notes.split(';').map(function(ctrl){
+                    return ctrl.trim()?'<div style="font-size:11px;color:var(--muted);padding:2px 0">&#8226; '+esc(ctrl.trim())+'</div>':'';
+                  }).join('')+
+                '</div>':'')+
+            '</div>';
+          }).join(''):'<div style="color:var(--muted);font-size:13px;padding:12px 0">No risks assessed yet</div>')+
+        '</div>'+
+        /* Actions */
+        (actions.length?
+          '<div class="orm-drawer-section">'+
+            '<div class="orm-drawer-section-title">Remediation Actions</div>'+
+            actions.map(function(ac){
+              var s={open:'badge-high',in_progress:'badge-progress',completed:'badge-complete',overdue:'badge-critical'}[ac.status]||'badge-draft';
+              return'<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--surface3)">'+
+                '<div>'+
+                  '<div style="font-size:13px;font-weight:600">'+esc(ac.title)+'</div>'+
+                  '<div style="font-size:11px;color:var(--muted)">'+esc(ac.control_name||'')+(ac.due_date?' &bull; Due '+fmtDate(ac.due_date):'')+'</div>'+
+                '</div>'+
+                '<span class="badge '+s+'">'+esc((ac.status||'open').replace(/_/g,' '))+'</span>'+
+              '</div>';
+            }).join('')+
+          '</div>':'')+'</div>'+
+      '<div class="orm-drawer-footer">'+
+        '<button class="btn btn-secondary" onclick="ormOpenRcsaModal(rcsaCache.find(function(x){return x.id==='+assessId+'}));ormCloseDrawer()">&#9998; Edit</button>'+
+        '<button class="btn btn-primary" onclick="ormCloseDrawer();ormRouter.navigate(\'/orm/assessment\')">View All Assessments</button>'+
+      '</div>'+
+    '</div></div>';
+  }catch(ex){drawer.innerHTML='';}
+};
+
+window.ormAddRcsaRisk=async function(assessId){
+  var users=await ormLoadUsers();
+  var html='<div class="orm-modal-overlay" id="rcsaRiskModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:560px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'rcsaRiskModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">Add Assessed Risk</div>'+
+      '<div class="form-group"><label>Risk Title *</label><input id="rr_title" placeholder="e.g. Unauthorised access to customer data"></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Inherent Likelihood (1-5)</label><input type="number" id="rr_il" min="1" max="5" value="3"></div>'+
+        '<div class="form-group"><label>Inherent Impact (1-5)</label><input type="number" id="rr_ii" min="1" max="5" value="3"></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Control Effectiveness (1=Low, 5=High)</label>'+
+        '<input type="range" id="rr_ce" min="1" max="5" value="3" style="width:100%" oninput="document.getElementById(\'rr_ce_val\').textContent=this.value">'+
+        '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)"><span>1 Ineffective</span><span id="rr_ce_val" style="font-weight:700;color:var(--accent)">3</span><span>5 Effective</span></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Owner</label><select id="rr_owner"><option value="">— Unassigned —</option>'+users.map(function(u){return'<option value="'+u.id+'">'+esc(u.full_name)+'</option>';}).join('')+'</select></div>'+
+      '<div class="form-group"><label>Notes</label><textarea id="rr_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box"></textarea></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'rcsaRiskModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveRcsaRisk('+assessId+')">Add Risk</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('rr_title');if(t)t.focus();},80);
+};
+window.ormSaveRcsaRisk=async function(assessId){
+  var title=document.getElementById('rr_title').value.trim();
+  if(!title){if(typeof showToast==='function')showToast('Title required','error');return;}
+  var data={title:title,inherent_likelihood:parseInt(document.getElementById('rr_il').value)||3,inherent_impact:parseInt(document.getElementById('rr_ii').value)||3,control_effectiveness:parseInt(document.getElementById('rr_ce').value)||3,owner_id:document.getElementById('rr_owner').value||null,notes:document.getElementById('rr_notes').value.trim()};
+  try{
+    await apiFetch('/orm/api/rcsa/'+assessId+'/risks',{method:'POST',body:data});
+    document.getElementById('rcsaRiskModal').remove();
+    ormCloseDrawer();ormOpenRcsaDetail(assessId);
+    if(typeof showToast==='function')showToast('Risk added');
+  }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+
+/* ─────────────────────────── KRI FILTER ─────────────────────────── */
+window._kriFilter='all';
+window.ormGetFilteredKris=function(kris){
+  var f=window._kriFilter||'all';
+  return kris.filter(function(k){
+    var v=parseFloat(k.current_value)||0;
+    var crit=parseFloat(k.threshold_crit)||null;
+    var warn=parseFloat(k.threshold_warn)||null;
+    if(f==='all')return true;
+    if(f==='mine')return k.owner_id==ORM_CURRENT_USER_ID;
+    if(f==='critical')return crit&&v>=crit;
+    if(f==='warning')return warn&&v>=warn&&(!crit||v<crit);
+    if(f==='ok')return!(crit&&v>=crit)&&!(warn&&v>=warn);
+    return true;
+  });
+};
+window.ormKriFilter=function(f){
+  window._kriFilter=f;
+  ormLoadKris();
+};
+
+/* ─────────────────────────── EVENT DUPLICATE ─────────────────────────── */
+window.ormDuplicateEvt=function(id){
+  var src=evtCache.find(function(x){return x.id===id;});
+  if(!src)return;
+  var clone=Object.assign({},src);
+  clone.id=null;clone.status='open';clone.detected_at=null;clone.resolved_at=null;clone.created_at=null;clone.erm_risk_id=null;
+  clone.title='Copy of '+clone.title;
+  ormOpenEventModal(clone);
+};
+
+/* ─────────────────────────── KRI INLINE EDIT ─────────────────────────── */
+window.ormInlineKriEdit=function(id,el){
+  var cur=parseFloat(el.textContent)||0;
+  el.innerHTML='<input type="number" value="'+cur+'" style="width:80px;font-size:24px;font-weight:900;background:var(--surface);border:2px solid var(--accent);border-radius:var(--radius);padding:2px 6px;color:var(--text)" onblur="ormInlineKriSave('+id+',this)" onkeydown="if(event.key===\'Enter\')this.blur();if(event.key===\'Escape\')ormLoadKris();">';
+  var inp=el.querySelector('input');
+  if(inp){inp.focus();inp.select();}
+};
+window.ormInlineKriSave=async function(id,inp){
+  var n=parseFloat(inp.value);
+  if(isNaN(n))return ormLoadKris();
+  try{
+    await apiFetch('/orm/api/kris/'+id,{method:'PUT',body:{current_value:n}});
+    ormLoadKris();
+    if(typeof showToast==='function')showToast('KRI updated');
+  }catch(e){if(typeof showToast==='function')showToast('Update failed','error');ormLoadKris();}
+};
+
+/* ─────────────────────────── KRI UPDATE MODAL ─────────────────────────── */
+window.ormOpenKriUpdateModal=function(kri){
+  if(!kri)return;
+  var cur=parseFloat(kri.current_value)||0;
+  var hist=kriHistoryCache[kri.id]||[];
+  var html='<div class="orm-modal-overlay" id="kriUpdateModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:420px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'kriUpdateModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">Update: '+esc(kri.name)+'</div>'+
+      '<div style="text-align:center;margin-bottom:16px">'+
+        '<div style="font-size:42px;font-weight:900;color:var(--accent);line-height:1" id="kumDisplay">'+cur+'</div>'+
+        '<div style="font-size:13px;color:var(--muted)">'+esc(kri.unit||'')+'</div>'+
+        (hist.length>1?'<div style="margin-top:8px">'+ormKriSparkline(hist)+'</div>':'')+
+      '</div>'+
+      '<div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px">'+
+        ['+1','+5','+10','Reset'].map(function(c){
+          return'<button class="btn btn-sm btn-secondary" onclick="(function(){var inp=document.getElementById(\'kum_val\');'+
+            (c==='Reset'?'inp.value=0;':'inp.value=parseFloat(inp.value||0)+('+parseInt(c)+');')+
+            'document.getElementById(\'kumDisplay\').textContent=inp.value;})()">'+c+'</button>';
+        }).join('')+
+      '</div>'+
+      '<div class="form-group"><label>New Value</label>'+
+        '<input type="number" id="kum_val" value="'+cur+'" oninput="document.getElementById(\'kumDisplay\').textContent=this.value" style="font-size:20px;font-weight:700;text-align:center">'+
+      '</div>'+
+      '<div class="form-group"><label>Notes <span style="font-size:10px;color:var(--muted)">(optional)</span></label>'+
+        '<textarea id="kum_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box"></textarea>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'kriUpdateModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveKriUpdate('+kri.id+')">Save</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var v=document.getElementById('kum_val');if(v){v.focus();v.select();}},80);
+};
+window.ormSaveKriUpdate=async function(id){
+  var n=parseFloat(document.getElementById('kum_val').value);
+  if(isNaN(n)){if(typeof showToast==='function')showToast('Invalid value','error');return;}
+  try{
+    await apiFetch('/orm/api/kris/'+id,{method:'PUT',body:{current_value:n}});
+    document.getElementById('kriUpdateModal').remove();
+    ormLoadKris();
+    if(typeof showToast==='function')showToast('KRI updated');
+  }catch(e){if(typeof showToast==='function')showToast('Update failed','error');}
+};
+
+/* ─────────────────────────── KRI LIBRARY ─────────────────────────── */
+var KRI_LIBRARY=[
+  {name:'Monthly Fraud Events',description:'Number of fraud incidents per month',metric_type:'count',unit:'events',threshold_warn:3,threshold_crit:8,frequency:'monthly',auto_update_event_type:'fraud'},
+  {name:'System Downtime Hours',description:'Total unplanned downtime hours per month',metric_type:'duration',unit:'hours',threshold_warn:4,threshold_crit:12,frequency:'monthly',auto_update_event_type:'outage'},
+  {name:'Process Failure Rate',description:'Process failure incidents per month',metric_type:'count',unit:'events',threshold_warn:5,threshold_crit:15,frequency:'monthly',auto_update_event_type:'process_failure'},
+  {name:'Human Error Incidents',description:'Human error events per month',metric_type:'count',unit:'events',threshold_warn:3,threshold_crit:8,frequency:'monthly',auto_update_event_type:'human_error'},
+  {name:'Vendor Failures',description:'Supplier/vendor failure incidents per quarter',metric_type:'count',unit:'events',threshold_warn:2,threshold_crit:5,frequency:'quarterly',auto_update_event_type:'vendor_failure'},
+  {name:'Customer-Impacting Events',description:'Events directly affecting customers per month',metric_type:'count',unit:'events',threshold_warn:3,threshold_crit:10,frequency:'monthly',auto_update_event_type:'customer_impact'},
+  {name:'Data Breach / Security Incidents',description:'Security and data breach events',metric_type:'count',unit:'events',threshold_warn:1,threshold_crit:3,frequency:'monthly',auto_update_event_type:'system_failure'},
+  {name:'Financial Loss per Month',description:'Total operational loss ($) per month',metric_type:'amount',unit:'$',threshold_warn:10000,threshold_crit:50000,frequency:'monthly',auto_update_event_type:''},
+  {name:'Average Resolution Time',description:'Average days to resolve operational events',metric_type:'duration',unit:'days',threshold_warn:5,threshold_crit:14,frequency:'monthly',auto_update_event_type:''},
+  {name:'Recurring Events Count',description:'Events flagged as recurring over last 30 days',metric_type:'count',unit:'events',threshold_warn:3,threshold_crit:7,frequency:'monthly',auto_update_event_type:''}
+];
+window.ormOpenKriLibrary=function(){
+  var html='<div class="orm-modal-overlay" id="kriLibModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:700px;max-height:80vh;overflow-y:auto">'+
+      '<button class="modal-close" onclick="document.getElementById(\'kriLibModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">&#128218; KRI Library — Pre-built Indicators</div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Click "Add" to pre-fill the KRI form with suggested settings</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
+      KRI_LIBRARY.map(function(lib,i){
+        return'<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;border:1px solid var(--border)">'+
+          '<div style="font-size:13px;font-weight:700;margin-bottom:4px">'+esc(lib.name)+'</div>'+
+          '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">'+esc(lib.description)+'</div>'+
+          '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'+
+            '<span style="font-size:10px;background:var(--surface3);padding:2px 7px;border-radius:100px;color:var(--muted)">&#9200; '+esc(lib.frequency)+'</span>'+
+            (lib.threshold_warn?'<span style="font-size:10px;background:rgba(217,119,6,.1);padding:2px 7px;border-radius:100px;color:var(--amber,#d97706)">Warn: '+lib.threshold_warn+'</span>':'')+
+            (lib.threshold_crit?'<span style="font-size:10px;background:rgba(220,38,38,.1);padding:2px 7px;border-radius:100px;color:var(--red)">Crit: '+lib.threshold_crit+'</span>':'')+
+            (lib.auto_update_event_type?'<span style="font-size:10px;background:rgba(var(--accent-rgb,.1),0.1);padding:2px 7px;border-radius:100px;color:var(--accent)">Auto: '+lib.auto_update_event_type.replace(/_/g,' ')+'</span>':'')+
+          '</div>'+
+          '<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'kriLibModal\').remove();ormOpenKriModal('+JSON.stringify(lib)+')">+ Add this KRI</button>'+
+        '</div>';
+      }).join('')+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+
+/* ─────────────────────────── RCSA TEMPLATES ─────────────────────────── */
+var RCSA_TEMPLATES=[
+  {id:'it_cyber',title:'IT Operations & Cybersecurity',scope:'Information Technology',icon:'💻',description:'Covers data security, system availability, access control, patch management, and incident response.',
+   risks:[
+    {title:'Unauthorized Access / Data Breach',inherent_likelihood:3,inherent_impact:5,control_effectiveness:3,controls:['Access control reviews (quarterly)','MFA on all critical systems','Privileged Access Management (PAM)']},
+    {title:'Ransomware / Malware Infection',inherent_likelihood:3,inherent_impact:5,control_effectiveness:3,controls:['Endpoint detection & response (EDR)','Offline backup testing (monthly)','Security patch management (<30d critical)']},
+    {title:'Unplanned System Outage',inherent_likelihood:3,inherent_impact:4,control_effectiveness:3,controls:['Change management process (CAB)','High-availability / failover configuration','Incident response runbooks']},
+    {title:'Vendor / Third-Party Access Risk',inherent_likelihood:3,inherent_impact:4,control_effectiveness:2,controls:['Third-party access register','Vendor access reviews (quarterly)','Contractual security obligations (ISO/SOC)']},
+    {title:'Insider Threat / Data Exfiltration',inherent_likelihood:2,inherent_impact:5,control_effectiveness:3,controls:['DLP tools on email and endpoints','User activity monitoring (UAM)','Offboarding access revocation checklist']}
+  ]},
+  {id:'privacy_gdpr',title:'Privacy & Data Protection (GDPR)',scope:'Data Protection / Privacy',icon:'🔒',description:'Covers consent management, data subject rights, breach notification, cross-border transfers, and data minimization.',
+   risks:[
+    {title:'Unlawful Data Processing / Consent Failure',inherent_likelihood:3,inherent_impact:4,control_effectiveness:3,controls:['ROPA maintained and reviewed','Consent management platform active','Legal basis documented per process']},
+    {title:'Data Subject Rights Failure (DSR)',inherent_likelihood:3,inherent_impact:3,control_effectiveness:3,controls:['DSR intake and tracking process','Response within 30 days (GDPR Art.12)','DSR register maintained']},
+    {title:'Cross-Border Transfer Risk',inherent_likelihood:2,inherent_impact:4,control_effectiveness:3,controls:['Transfer impact assessments (TIA)','SCCs / adequacy decision reviewed','Transfer registry maintained']},
+    {title:'Breach Notification Failure',inherent_likelihood:2,inherent_impact:5,control_effectiveness:3,controls:['Breach detection tools (SIEM/DLP)','72-hour notification procedure','Incident severity classification guide']},
+    {title:'Privacy by Design not embedded',inherent_likelihood:3,inherent_impact:3,control_effectiveness:2,controls:['DPIA process for new processing','Privacy review in project approval gate','Data minimization standards']}
+  ]},
+  {id:'financial',title:'Financial Controls',scope:'Finance & Accounting',icon:'💰',description:'Covers fraud prevention, payment controls, financial reporting accuracy, and budget governance.',
+   risks:[
+    {title:'Internal Fraud / Misappropriation',inherent_likelihood:2,inherent_impact:5,control_effectiveness:3,controls:['Segregation of duties (SoD)','Dual authorization on payments >$10k','Monthly reconciliations reviewed by management']},
+    {title:'Payment Processing Error',inherent_likelihood:3,inherent_impact:3,control_effectiveness:3,controls:['Automated reconciliation tool','Exception reporting dashboard','Daily bank reconciliation']},
+    {title:'Financial Reporting Inaccuracy',inherent_likelihood:2,inherent_impact:4,control_effectiveness:3,controls:['Monthly close checklist','CFO review and sign-off','ERP access control reviews']},
+    {title:'Budget Overrun / Variance',inherent_likelihood:3,inherent_impact:3,control_effectiveness:3,controls:['Budget vs actuals review (monthly)','Procurement approval limits enforced','Variance explanation required >5%']}
+  ]},
+  {id:'hr_people',title:'Human Resources & People',scope:'Human Resources',icon:'👥',description:'Covers key person risk, conduct, training compliance, recruitment, and workforce management.',
+   risks:[
+    {title:'Key Person Dependency',inherent_likelihood:3,inherent_impact:4,control_effectiveness:2,controls:['Cross-training / knowledge transfer plans','Succession plans for critical roles','Process documentation maintained']},
+    {title:'Workforce Misconduct / Policy Breach',inherent_likelihood:2,inherent_impact:3,control_effectiveness:3,controls:['Code of conduct training (annual)','Whistleblower / speak-up channel','Disciplinary policy enforced consistently']},
+    {title:'Training Compliance Failure',inherent_likelihood:3,inherent_impact:3,control_effectiveness:3,controls:['Mandatory training tracking system','Completion deadlines enforced','Manager accountability for team completion']},
+    {title:'Poor Recruitment / Onboarding Controls',inherent_likelihood:2,inherent_impact:3,control_effectiveness:3,controls:['Background screening for all new hires','Structured onboarding checklist','Role-based access provisioned on day 1']}
+  ]},
+  {id:'vendor_supply',title:'Vendor & Supply Chain',scope:'Procurement / Vendor Management',icon:'📦',description:'Covers critical vendor dependency, vendor security, contract management, and third-party compliance.',
+   risks:[
+    {title:'Critical Vendor Failure / Dependency',inherent_likelihood:2,inherent_impact:4,control_effectiveness:2,controls:['Single-source vendor risk register','Alternative vendor pre-qualified','Vendor SLA monitoring dashboard']},
+    {title:'Vendor Data Security Breach',inherent_likelihood:2,inherent_impact:4,control_effectiveness:2,controls:['Annual vendor security assessment','Data processing agreements (DPA)','Minimum security standards contractual requirement']},
+    {title:'Contract Expiry / Non-Renewal Risk',inherent_likelihood:3,inherent_impact:3,control_effectiveness:2,controls:['Contract expiry calendar/alerts','90-day renewal review process','Legal review of key contracts']},
+    {title:'Third-Party Compliance Failure',inherent_likelihood:2,inherent_impact:3,control_effectiveness:2,controls:['Annual compliance questionnaire','Right-to-audit clause in contracts','Vendor compliance certificate on file']}
+  ]},
+  {id:'bcm_resilience',title:'Business Continuity & Resilience',scope:'Business Continuity',icon:'🔄',description:'Covers disaster recovery, crisis communication, regulatory resilience requirements, and BCP testing.',
+   risks:[
+    {title:'Disaster Recovery / BCP Failure',inherent_likelihood:2,inherent_impact:5,control_effectiveness:3,controls:['Annual BCP / DR test (documented)','Recovery objectives (RTO/RPO) defined and tested','Offsite backup verified monthly']},
+    {title:'Crisis Communication Breakdown',inherent_likelihood:2,inherent_impact:4,control_effectiveness:2,controls:['Crisis communication plan documented','Contact tree tested annually','Spokesperson trained and designated']},
+    {title:'Regulatory Resilience Non-Compliance',inherent_likelihood:2,inherent_impact:4,control_effectiveness:3,controls:['Regulatory resilience calendar maintained','Senior manager accountability (SMCR/DORA)','Annual resilience self-assessment']},
+    {title:'Critical Process Outage',inherent_likelihood:2,inherent_impact:4,control_effectiveness:3,controls:['BIA reviewed annually','Critical process workarounds documented','Backup IT site / cloud failover tested']}
+  ]}
+];
+
+window.ormOpenTemplatePickerModal=function(){
+  var html='<div class="orm-modal-overlay" id="tmplPickerModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:800px;max-height:85vh;overflow-y:auto">'+
+      '<button class="modal-close" onclick="document.getElementById(\'tmplPickerModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">&#128203; Start from a Template</div>'+
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:20px">Select a template to pre-populate your assessment with common risks and suggested controls</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'+
+      RCSA_TEMPLATES.map(function(t){
+        return'<div style="background:var(--surface2);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border)">'+
+          '<div style="font-size:20px;margin-bottom:6px">'+t.icon+'</div>'+
+          '<div style="font-size:14px;font-weight:700;margin-bottom:4px">'+esc(t.title)+'</div>'+
+          '<div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:8px">'+esc(t.scope)+'</div>'+
+          '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.4">'+esc(t.description)+'</div>'+
+          '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">'+t.risks.length+' risks included</div>'+
+          '<details style="margin-bottom:10px"><summary style="font-size:11px;color:var(--accent);cursor:pointer">Preview risks &#9660;</summary>'+
+            '<ul style="margin:6px 0 0 0;padding-left:16px">'+t.risks.map(function(r){return'<li style="font-size:11px;color:var(--muted);margin-bottom:2px">'+esc(r.title)+'</li>';}).join('')+'</ul>'+
+          '</details>'+
+          '<button class="btn btn-primary" style="width:100%" onclick="(function(){window._selectedRcsaTemplate=RCSA_TEMPLATES.find(function(x){return x.id===\''+t.id+'\'});document.getElementById(\'tmplPickerModal\').remove();ormOpenRcsaModal({title:\''+t.title.replace(/'/g,"\\'")+'—RCSA\',scope:\''+t.scope.replace(/'/g,"\\'")+'\'});})()">Use this template &#8594;</button>'+
+        '</div>';
+      }).join('')+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+
+/* ─────────────────────────── INIT ─────────────────────────── */
+ormRouter.resolve();
+setInterval(function(){if(ormRouter.current==='dashboard')ormLoadDashboard();},300000);
+
+})();
+</script>
+{% endblock %}

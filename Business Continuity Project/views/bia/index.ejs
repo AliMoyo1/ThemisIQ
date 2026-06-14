@@ -1,0 +1,48 @@
+<div class="page-head">
+  <div>
+    <h1>Business Impact Analysis</h1>
+    <p>Identify critical processes, quantify impact, and define recovery targets.</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/coverage">Coverage map</a>
+    <a class="btn primary" href="/bia/new">+ New BIA record</a>
+  </div>
+</div>
+
+<div class="card">
+  <% if (rows.length === 0) { %>
+    <p class="muted" style="padding:20px 0;">No BIA records yet. Start by listing a critical business process.</p>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Process</th><th>Department</th><th>Owner</th><th>RTO</th><th>RPO</th><th>Criticality</th><th>Coverage</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(r => {
+             const crit = r.criticality || '—';
+             const cls = crit === 'Critical' ? 'danger' : (crit === 'High' ? 'warn' : (crit === 'Medium' ? 'info' : 'muted'));
+             const cov = (coverage && coverage[r.id]) || { state: 'red', link_count: 0 };
+             const covCls = cov.state === 'green' ? 'success' : cov.state === 'amber' ? 'warn' : 'danger';
+             const covLabel = cov.state === 'green'
+               ? 'Covered (' + cov.link_count + ')'
+               : cov.state === 'amber'
+                 ? 'Partial (' + cov.link_count + ')'
+                 : 'No plan';
+        %>
+          <tr>
+            <td><strong><%= r.process_name %></strong></td>
+            <td><%= r.department || '—' %></td>
+            <td><%= r.owner || '—' %></td>
+            <td><%= r.rto_hours != null ? r.rto_hours + ' hrs' : '—' %></td>
+            <td><%= r.rpo_hours != null ? r.rpo_hours + ' hrs' : '—' %></td>
+            <td><span class="badge <%= cls %>"><%= crit %></span></td>
+            <td><span class="badge <%= covCls %>"><%= covLabel %></span></td>
+            <td class="right"><a href="/bia/<%= r.id %>">View</a></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>

@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+{% block title %}Document Register — ARIA{% endblock %}
+{% block content %}
+<style>
+.doc-wrap { padding: 6px 28px 32px; }
+.doc-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 22px; flex-wrap: wrap; gap: 12px;
+}
+.doc-top h1 {
+  margin: 0; font-family: var(--display);
+  font-size: 22px; font-weight: 700;
+  color: var(--text-on-olive); letter-spacing: -0.3px;
+}
+.doc-top .subtitle {
+  margin: 4px 0 0; color: var(--text-on-olive);
+  opacity: 0.8; font-size: 13px;
+}
+.doc-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+.filter-bar {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: 16px 20px;
+  display: flex; gap: 14px;
+  align-items: flex-end; flex-wrap: wrap;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
+}
+.filter-bar label {
+  font-size: 10.5px; color: var(--muted);
+  display: block; margin-bottom: 5px;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  font-weight: 700;
+}
+.filter-bar select, .filter-bar input {
+  padding: 7px 11px; font-size: 13px;
+}
+.doc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.doc-table th {
+  background: var(--cream-100);
+  color: var(--muted);
+  font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.8px; font-weight: 700;
+  padding: 11px 14px; text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.doc-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: middle; color: var(--text);
+}
+.doc-table tr:hover td { background: rgba(192, 180, 148, 0.18); }
+.badge-review   { background: var(--info-soft); color: var(--info); border: 1px solid rgba(59,107,209,0.25); }
+.badge-retired  { background: var(--bad-soft);  color: var(--bad);  border: 1px solid rgba(165,80,60,0.3); }
+.badge-ai {
+  display: inline-block; padding: 2px 9px;
+  border-radius: 999px; font-size: 10px; font-weight: 700;
+  background: var(--purple-soft); color: var(--purple);
+  margin-top: 3px;
+  border: 1px solid rgba(122,90,138,0.3);
+}
+.fw-tag {
+  display: inline-block; padding: 3px 9px; border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+  background: var(--cream-200);
+  color: var(--ink);
+  border: 1px solid var(--border-soft);
+}
+.btn-icon {
+  background: var(--cream-50);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  border-radius: 7px; padding: 5px 10px;
+  cursor: pointer; font-size: 11.5px; font-weight: 600;
+  transition: all 0.15s; margin: 0 2px;
+}
+.btn-icon:hover { background: var(--ink); color: var(--cream-50); border-color: var(--ink); }
+.btn-icon.del:hover { background: var(--bad); color: var(--cream-50); border-color: var(--bad); }
+.table-shell {
+  background: var(--cream-100);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid .full { grid-column: 1/-1; }
+.form-group label {
+  display: block; font-size: 10.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.6px;
+  margin-bottom: 5px; font-weight: 700;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 8px 12px; font-size: 13px; box-sizing: border-box;
+}
+.form-group textarea { resize: vertical; min-height: 72px; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+.empty-state a { color: var(--primary); font-weight: 600; }
+.doc-count {
+  margin-top: 10px; color: var(--text-on-olive);
+  opacity: 0.75; font-size: 12px;
+}
+.modal-close {
+  background: none; border: none;
+  color: var(--muted); font-size: 22px;
+  cursor: pointer; line-height: 1; padding: 4px 8px;
+  border-radius: 6px;
+}
+.modal-close:hover { background: var(--cream-200); color: var(--ink); }
+</style>
+
+<div class="doc-wrap">
+
+<div class="doc-top">
+  <div>
+    <h1>📋 Document Register</h1>
+    <p class="subtitle">All compliance policies, procedures and documents</p>
+  </div>
+  {% if user.role != 'viewer' %}
+  <button class="btn btn-primary" onclick="openAddModal()">+ Add Document</button>
+  {% endif %}
+</div>
+
+<!-- Stats -->
+<div class="doc-stats">
+  <div class="stat-card">
+    <div class="stat-label">Total Documents</div>
+    <div class="stat-value" style="color:var(--ink);">{{ stats.total }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Approved</div>
+    <div class="stat-value" style="color:var(--good);">{{ stats.approved }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Drafts</div>
+    <div class="stat-value" style="color:var(--warn);">{{ stats.draft }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">AI Generated</div>
+    <div class="stat-value" style="color:var(--purple);">{{ stats.ai_gen }}</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" action="/documents">
+<div class="filter-bar" style="margin-bottom:18px;">
+  <div style="flex:1;min-width:160px;">
+    <label>Search</label>
+    <input type="text" name="search" value="{{ filters.search }}" placeholder="Title, ref, owner...">
+  </div>
+  <div style="min-width:150px;">
+    <label>Framework</label>
+    <select name="framework">
+      <option value="">All Frameworks</option>
+      {% for fw in frameworks %}
+      <option value="{{ fw.name }}" {% if filters.framework == fw.name %}selected{% endif %}>{{ fw.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="min-width:130px;">
+    <label>Status</label>
+    <select name="status">
+      <option value="">All Statuses</option>
+      {% for s in ['Draft','Under Review','Approved','Retired'] %}
+      <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="min-width:130px;">
+    <label>Type</label>
+    <select name="doc_type">
+      <option value="">All Types</option>
+      {% for t in ['Policy','Procedure','Standard','Guideline','Template','Record','Plan'] %}
+      <option value="{{ t }}" {% if filters.doc_type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  <a href="/documents" class="btn btn-ghost">Clear</a>
+</div>
+</form>
+
+<!-- Table -->
+<div class="table-shell">
+{% if docs %}
+<table class="doc-table">
+  <thead>
+    <tr>
+      <th>Doc ID</th>
+      <th>Title</th>
+      <th>Framework</th>
+      <th>Control Ref</th>
+      <th>Type</th>
+      <th>Version</th>
+      <th>Status</th>
+      <th>Owner</th>
+      <th>Review Date</th>
+      <th style="text-align:center;">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for doc in docs %}
+    <tr id="row-{{ doc.doc_id }}">
+      <td style="font-family:var(--mono);font-size:11.5px;color:var(--muted);font-weight:600;">{{ doc.doc_id }}</td>
+      <td>
+        <div style="font-weight:600;color:var(--ink);">{{ doc.title }}</div>
+        {% if doc.comments and 'AI Generated' in doc.comments %}
+        <span class="badge-ai">AI Generated</span>
+        {% endif %}
+      </td>
+      <td><span class="fw-tag">{{ doc.framework }}</span></td>
+      <td style="font-family:var(--mono);font-size:11.5px;color:var(--ink);">{{ doc.control_ref or '—' }}</td>
+      <td style="color:var(--muted);">{{ doc.doc_type }}</td>
+      <td style="font-family:var(--mono);font-size:11.5px;color:var(--ink);">v{{ doc.version }}</td>
+      <td>
+        {% if doc.status == 'Approved' %}<span class="badge badge-approved">{{ doc.status }}</span>
+        {% elif doc.status == 'Draft' %}<span class="badge badge-draft">{{ doc.status }}</span>
+        {% elif doc.status == 'Under Review' %}<span class="badge badge-review">{{ doc.status }}</span>
+        {% elif doc.status == 'Retired' %}<span class="badge badge-retired">{{ doc.status }}</span>
+        {% else %}<span class="badge badge-draft">{{ doc.status }}</span>{% endif %}
+      </td>
+      <td style="color:var(--muted);font-size:12px;">{{ doc.owner or '—' }}</td>
+      <td style="font-size:12px;color:var(--muted);">{{ doc.review_date or '—' }}</td>
+      <td style="text-align:center;white-space:nowrap;">
+        {% if user.role != 'viewer' %}
+        <button class="btn-icon" onclick='openEditModal({{ doc | tojson }})' title="Edit">Edit</button>
+        {% if user.role == 'admin' %}
+        <button class="btn-icon del" onclick="deleteDoc('{{ doc.doc_id }}')" title="Delete">Del</button>
+        {% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+  <div class="icon">📄</div>
+  <div style="font-size:16px;font-weight:600;margin-bottom:8px;">No documents found</div>
+  <div style="font-size:13px;">
+    {% if filters.search or filters.framework or filters.status %}
+    No documents match your filters. <a href="/documents">Clear filters</a>
+    {% else %}
+    Documents appear here automatically when you generate policies in the AI Generator,
+    or you can add them manually using the button above.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+</div>
+
+{% if docs %}
+<div class="doc-count">
+  Showing {{ docs|length }} document{% if docs|length != 1 %}s{% endif %}
+</div>
+{% endif %}
+
+<!-- Add Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" style="margin:0;">Add Document</div>
+      <button class="modal-close" onclick="closeModal('addModal')">×</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Document Title *</label>
+        <input type="text" id="add-title" placeholder="e.g. Information Security Policy">
+      </div>
+      <div class="form-group">
+        <label>Framework *</label>
+        <select id="add-framework">
+          {% for fw in frameworks %}
+          <option value="{{ fw.name }}">{{ fw.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Control Reference</label>
+        <input type="text" id="add-control-ref" placeholder="e.g. A.5.1">
+      </div>
+      <div class="form-group">
+        <label>Document Type</label>
+        <select id="add-doc-type">
+          {% for t in ['Policy','Procedure','Standard','Guideline','Template','Record','Plan'] %}
+          <option>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Version</label>
+        <input type="text" id="add-version" value="1.0">
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="add-status">
+          {% for s in ['Draft','Under Review','Approved','Retired'] %}
+          <option>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Document Owner</label>
+        <input type="text" id="add-owner" placeholder="Name or role">
+      </div>
+      <div class="form-group">
+        <label>Approver</label>
+        <input type="text" id="add-approver" placeholder="Name or role">
+      </div>
+      <div class="form-group">
+        <label>Effective Date</label>
+        <input type="date" id="add-effective-date">
+      </div>
+      <div class="form-group">
+        <label>Review Date</label>
+        <input type="date" id="add-review-date">
+      </div>
+      <div class="form-group full">
+        <label>Document Location / URL</label>
+        <input type="text" id="add-location" placeholder="e.g. SharePoint link or file path">
+      </div>
+      <div class="form-group full">
+        <label>Comments / Notes</label>
+        <textarea id="add-comments" placeholder="Any additional notes..."></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-ghost" onclick="closeModal('addModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAdd()">Save Document</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div class="modal-title" style="margin:0;">Edit Document</div>
+      <button class="modal-close" onclick="closeModal('editModal')">×</button>
+    </div>
+    <input type="hidden" id="edit-doc-id">
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Document Title</label>
+        <input type="text" id="edit-title">
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="edit-status">
+          {% for s in ['Draft','Under Review','Approved','Retired'] %}
+          <option>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Version</label>
+        <input type="text" id="edit-version">
+      </div>
+      <div class="form-group">
+        <label>Owner</label>
+        <input type="text" id="edit-owner">
+      </div>
+      <div class="form-group">
+        <label>Approver</label>
+        <input type="text" id="edit-approver">
+      </div>
+      <div class="form-group">
+        <label>Effective Date</label>
+        <input type="date" id="edit-effective-date">
+      </div>
+      <div class="form-group">
+        <label>Review Date</label>
+        <input type="date" id="edit-review-date">
+      </div>
+      <div class="form-group full">
+        <label>Document Location / URL</label>
+        <input type="text" id="edit-location">
+      </div>
+      <div class="form-group full">
+        <label>Comments / Notes</label>
+        <textarea id="edit-comments"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-ghost" onclick="closeModal('editModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /.doc-wrap -->
+
+<script>
+// showToast() is provided by base.html's global script — no override needed
+function openAddModal() {
+  ['add-title','add-control-ref','add-owner','add-approver','add-effective-date','add-review-date','add-location','add-comments'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('add-version').value = '1.0';
+  document.getElementById('addModal').classList.add('open');
+}
+function openEditModal(doc) {
+  document.getElementById('edit-doc-id').value          = doc.doc_id || '';
+  document.getElementById('edit-title').value           = doc.title || '';
+  document.getElementById('edit-status').value          = doc.status || 'Draft';
+  document.getElementById('edit-version').value         = doc.version || '1.0';
+  document.getElementById('edit-owner').value           = doc.owner || '';
+  document.getElementById('edit-approver').value        = doc.approver || '';
+  document.getElementById('edit-effective-date').value  = doc.effective_date || '';
+  document.getElementById('edit-review-date').value     = doc.review_date || '';
+  document.getElementById('edit-location').value        = doc.location || '';
+  document.getElementById('edit-comments').value        = doc.comments || '';
+  document.getElementById('editModal').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+async function submitAdd() {
+  const title = document.getElementById('add-title').value.trim();
+  if (!title) { showToast('Title is required', 'error'); return; }
+  const form = new FormData();
+  form.append('framework',      document.getElementById('add-framework').value);
+  form.append('control_ref',    document.getElementById('add-control-ref').value);
+  form.append('title',          title);
+  form.append('doc_type',       document.getElementById('add-doc-type').value);
+  form.append('version',        document.getElementById('add-version').value);
+  form.append('status',         document.getElementById('add-status').value);
+  form.append('owner',          document.getElementById('add-owner').value);
+  form.append('approver',       document.getElementById('add-approver').value);
+  form.append('effective_date', document.getElementById('add-effective-date').value);
+  form.append('review_date',    document.getElementById('add-review-date').value);
+  form.append('location',       document.getElementById('add-location').value);
+  form.append('comments',       document.getElementById('add-comments').value);
+  const res = await fetch('/documents/add', { method:'POST', body:form });
+  const data = await res.json();
+  if (data.success) { showToast('Document added: ' + data.doc_id); setTimeout(() => location.reload(), 1000); }
+  else showToast(data.error || 'Failed', 'error');
+}
+async function submitEdit() {
+  const docId = document.getElementById('edit-doc-id').value;
+  const form = new FormData();
+  form.append('title',          document.getElementById('edit-title').value);
+  form.append('status',         document.getElementById('edit-status').value);
+  form.append('version',        document.getElementById('edit-version').value);
+  form.append('owner',          document.getElementById('edit-owner').value);
+  form.append('approver',       document.getElementById('edit-approver').value);
+  form.append('effective_date', document.getElementById('edit-effective-date').value);
+  form.append('review_date',    document.getElementById('edit-review-date').value);
+  form.append('location',       document.getElementById('edit-location').value);
+  form.append('comments',       document.getElementById('edit-comments').value);
+  const res = await fetch(`/documents/update/${docId}`, { method:'POST', body:form });
+  const data = await res.json();
+  if (data.success) { showToast('Document updated'); setTimeout(() => location.reload(), 1000); }
+  else showToast(data.error || 'Failed', 'error');
+}
+async function deleteDoc(docId) {
+  if (!confirm('Delete ' + docId + '? This cannot be undone.')) return;
+  const res = await fetch(`/documents/delete/${docId}`, { method:'POST' });
+  const data = await res.json();
+  if (data.success) { document.getElementById('row-' + docId)?.remove(); showToast('Document deleted'); }
+  else showToast(data.error || 'Failed', 'error');
+}
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "platform_base.html" %}
+{% block title %}Webhooks — ThemisIQ{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <span class="page-title">Webhook Management</span>
+  <div class="topbar-actions">
+    <button class="btn btn-primary" onclick="openNewWebhook()">+ New Webhook</button>
+  </div>
+</div>
+
+<div class="content">
+  <div class="card" style="padding:16px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
+    <div style="font-size:12px; color:var(--muted);">Webhooks send HTTP POST notifications to external URLs when platform events occur. Available events: <code style="padding:2px 4px;border-radius:3px;background:var(--surface3);font-size:11px;">risk.created</code>, <code style="padding:2px 4px;border-radius:3px;background:var(--surface3);font-size:11px;">workflow.completed</code>, <code style="padding:2px 4px;border-radius:3px;background:var(--surface3);font-size:11px;">sla.breached</code>, <code style="padding:2px 4px;border-radius:3px;background:var(--surface3);font-size:11px;">audit.status_changed</code>, <code style="padding:2px 4px;border-radius:3px;background:var(--surface3);font-size:11px;">breach.reported</code>, <code style="padding:2px 4px;border-radius:3px;background:var(--surface3);font-size:11px;">task.assigned</code></div>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Name</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">URL</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Events</th>
+          <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Status</th>
+          <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="webhooksBody">
+        <tr><td colspan="5" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Delivery Log -->
+  <div id="logSection" class="card" style="padding:16px; margin-top:16px; display:none;">
+    <div style="font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:12px;">Delivery Log</div>
+    <div id="logList"></div>
+  </div>
+</div>
+
+<!-- New Webhook Modal -->
+<div class="modal" id="newWhModal">
+  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h3 style="margin:0; font-size:16px;">Create Webhook</h3>
+      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px;">
+      <form id="whForm" onsubmit="createWebhook(event)">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Name</label>
+          <input type="text" id="whName" required placeholder="e.g. Slack Notifications" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">Endpoint URL</label>
+          <input type="url" id="whUrl" required placeholder="https://..." style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface2); color:var(--text); font-size:13px;">
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:8px;">Events</label>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <label style="font-size:12px; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="risk.created" class="wh-event"> risk.created</label>
+            <label style="font-size:12px; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="workflow.completed" class="wh-event"> workflow.completed</label>
+            <label style="font-size:12px; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="sla.breached" class="wh-event"> sla.breached</label>
+            <label style="font-size:12px; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="audit.status_changed" class="wh-event"> audit.status_changed</label>
+            <label style="font-size:12px; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="breach.reported" class="wh-event"> breach.reported</label>
+            <label style="font-size:12px; display:flex; align-items:center; gap:6px;"><input type="checkbox" value="task.assigned" class="wh-event"> task.assigned</label>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Create Webhook</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadWebhooks() {
+  const resp = await fetch('/api/admin/webhooks');
+  const hooks = await resp.json();
+  const tbody = document.getElementById('webhooksBody');
+  if (!hooks.length) { tbody.innerHTML = '<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--muted);">No webhooks configured.</td></tr>'; return; }
+  tbody.innerHTML = hooks.map(h => `
+    <tr style="border-bottom:1px solid var(--border-soft);">
+      <td style="padding:10px 14px;font-weight:500;font-size:13px;">${esc(h.name)}</td>
+      <td style="padding:10px 14px;font-size:12px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(h.url)}</td>
+      <td style="padding:10px 14px;font-size:11px;color:var(--muted);">${(h.events||'').split(',').map(e=>'<span style="padding:1px 5px;border-radius:3px;background:var(--surface3);margin-right:3px;">'+esc(e)+'</span>').join('')}</td>
+      <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${h.is_active?'var(--good-soft)':'var(--bad-soft)'};color:${h.is_active?'var(--good)':'var(--bad)'};">${h.is_active?'Active':'Disabled'}</span></td>
+      <td style="padding:10px 14px;text-align:center;display:flex;gap:4px;justify-content:center;">
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;" onclick="testWebhook(${parseInt(h.id,10)})">Test</button>
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;" onclick="viewLogs(${parseInt(h.id,10)})">Logs</button>
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:var(--bad);" onclick="deleteWebhook(${parseInt(h.id,10)})">Del</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openNewWebhook() { document.getElementById('newWhModal').classList.add('open'); }
+
+async function createWebhook(e) {
+  e.preventDefault();
+  const events = [...document.querySelectorAll('.wh-event:checked')].map(el => el.value);
+  if (!events.length) { alert('Select at least one event'); return; }
+  const body = { name: document.getElementById('whName').value, url: document.getElementById('whUrl').value, events };
+  const resp = await fetch('/api/admin/webhooks', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (resp.ok) {
+    document.getElementById('newWhModal').classList.remove('open');
+    document.getElementById('whForm').reset();
+    loadWebhooks();
+  }
+}
+
+async function testWebhook(id) {
+  const resp = await fetch(`/api/admin/webhooks/${id}/test`, { method:'POST' });
+  if (resp.ok) alert('Test ping sent and logged.');
+}
+
+async function viewLogs(id) {
+  const resp = await fetch(`/api/admin/webhooks/${id}/logs`);
+  const logs = await resp.json();
+  const section = document.getElementById('logSection');
+  section.style.display = 'block';
+  const el = document.getElementById('logList');
+  if (!logs.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px;">No delivery attempts yet.</div>'; return; }
+  el.innerHTML = logs.map(l => `
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;background:var(--surface2);margin-bottom:4px;">
+      <span style="width:8px;height:8px;border-radius:50%;background:${l.success?'var(--good)':'var(--bad)'};"></span>
+      <span style="font-size:12px;flex:1;">${esc(l.event)}</span>
+      <span style="font-size:11px;color:var(--muted);">HTTP ${esc(String(l.response_code||'—'))}</span>
+      <span style="font-size:11px;color:var(--muted);">${esc(l.attempted_at||'')}</span>
+    </div>
+  `).join('');
+  section.scrollIntoView({ behavior:'smooth' });
+}
+
+async function deleteWebhook(id) {
+  if (!confirm('Delete this webhook?')) return;
+  await fetch(`/api/admin/webhooks/${id}`, { method:'DELETE' });
+  loadWebhooks();
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+document.addEventListener('DOMContentLoaded', loadWebhooks);
+</script>
+
+{% endblock %}

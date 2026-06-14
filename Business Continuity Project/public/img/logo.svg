@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" width="200" height="220" role="img" aria-label="BCM Sentinel">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2f6ee0"/>
+      <stop offset="55%" stop-color="#3aa3c2"/>
+      <stop offset="100%" stop-color="#39c46a"/>
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9fe3ff"/>
+      <stop offset="100%" stop-color="#d7ffdf"/>
+    </linearGradient>
+    <radialGradient id="centerGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="60%" stop-color="#c9f0d8"/>
+      <stop offset="100%" stop-color="#39c46a"/>
+    </radialGradient>
+  </defs>
+  <!-- Shield outline -->
+  <path d="M100 10 L180 40 L180 110 C180 160 140 200 100 210 C60 200 20 160 20 110 L20 40 Z"
+        fill="url(#shieldGrad)" stroke="#0f1116" stroke-width="4"/>
+  <!-- Inner shield gloss -->
+  <path d="M100 22 L170 48 L170 110 C170 152 138 188 100 198 C62 188 30 152 30 110 L30 48 Z"
+        fill="none" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/>
+  <!-- Outer ring -->
+  <circle cx="100" cy="112" r="52" fill="none" stroke="url(#ringGrad)" stroke-width="4"/>
+  <!-- Inner ring -->
+  <circle cx="100" cy="112" r="38" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="2"/>
+  <!-- Reticle crosshairs -->
+  <line x1="100" y1="48" x2="100" y2="74" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="100" y1="150" x2="100" y2="176" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="36" y1="112" x2="62" y2="112" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="138" y1="112" x2="164" y2="112" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <!-- Center dot -->
+  <circle cx="100" cy="112" r="10" fill="url(#centerGrad)" stroke="#ffffff" stroke-width="2"/>
+</svg>

@@ -1,0 +1,64 @@
+<div class="page-head">
+  <div>
+    <h1><%= risk ? 'Edit risk' : 'Log new risk' %></h1>
+    <p>Rate likelihood and impact from 1 (lowest) to 5 (highest).</p>
+  </div>
+  <div class="actions"><a class="btn" href="/risks">Back</a></div>
+</div>
+
+<div class="card">
+  <form method="POST" action="<%= risk ? '/risks/' + risk.id : '/risks' %>" class="stack-16">
+    <div><label>Title</label><input name="title" required value="<%= risk ? risk.title : '' %>" /></div>
+
+    <div class="form-row cols-2">
+      <div><label>Category</label>
+        <select name="category">
+          <% ['Cyber','Natural','Operational','Supplier','Regulatory','People','Facility','Financial'].forEach(c => { %>
+            <option value="<%= c %>" <%= risk && risk.category === c ? 'selected' : '' %>><%= c %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div><label>Owner</label><input name="owner" value="<%= risk ? risk.owner || '' : '' %>" /></div>
+    </div>
+
+    <div><label>Description</label><textarea name="description"><%= risk ? risk.description || '' : '' %></textarea></div>
+
+    <div class="form-row cols-3">
+      <div><label>Likelihood (1–5)</label>
+        <select name="likelihood">
+          <% for (let i = 1; i <= 5; i++) { %><option value="<%= i %>" <%= risk && risk.likelihood === i ? 'selected' : '' %>><%= i %></option><% } %>
+        </select>
+      </div>
+      <div><label>Impact (1–5)</label>
+        <select name="impact">
+          <% for (let i = 1; i <= 5; i++) { %><option value="<%= i %>" <%= risk && risk.impact === i ? 'selected' : '' %>><%= i %></option><% } %>
+        </select>
+      </div>
+      <div><label>Treatment</label>
+        <select name="treatment">
+          <% ['Mitigate','Accept','Transfer','Avoid'].forEach(t => { %>
+            <option value="<%= t %>" <%= risk && risk.treatment === t ? 'selected' : '' %>><%= t %></option>
+          <% }) %>
+        </select>
+      </div>
+    </div>
+
+    <div><label>Mitigation actions</label><textarea name="mitigation"><%= risk ? risk.mitigation || '' : '' %></textarea></div>
+
+    <div class="form-row cols-2">
+      <div><label>Due date</label><input type="date" name="due_date" value="<%= risk ? risk.due_date || '' : '' %>" /></div>
+      <div><label>Status</label>
+        <select name="status">
+          <% ['open','in_progress','closed'].forEach(s => { %>
+            <option value="<%= s %>" <%= risk && risk.status === s ? 'selected' : '' %>><%= s %></option>
+          <% }) %>
+        </select>
+      </div>
+    </div>
+
+    <div class="flex gap-8">
+      <button class="btn primary" type="submit"><%= risk ? 'Save changes' : 'Log risk' %></button>
+      <a class="btn" href="/risks">Cancel</a>
+    </div>
+  </form>
+</div>

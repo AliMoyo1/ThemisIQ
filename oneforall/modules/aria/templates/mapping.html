@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block title %}IMS Control Mapping — Governance{% endblock %}
+
+{% block breadcrumb %}
+<span style="color:var(--accent);font-weight:700">Governance</span>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">IMS Control Mapping</span>
+{% endblock %}
+
+{% block content %}
+<style>
+.ims-int     { background:var(--green-status);color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase; }
+.ims-partial { background:var(--amber);color:#1a1a0a;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase; }
+.ims-unique  { background:var(--red);color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase; }
+.ims-section-header { display:flex;align-items:center;gap:12px;margin-bottom:14px; }
+.ims-section-icon   { width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0; }
+.ctrl-map-card { background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:flex-start;gap:10px; }
+.ctrl-map-card:hover { background:var(--surface3);border-color:var(--border-hover); }
+.fw-chip { display:inline-flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;font-family:var(--mono);color:var(--text-mid); }
+.confidence-dot { width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0; }
+</style>
+
+<div class="page-header">
+  <div class="page-header-left">
+    <div class="page-title">IMS Control Mapping</div>
+    <div class="page-subtitle">Automatically identifies equivalent controls across frameworks. Select frameworks and click Auto-Map — no manual linking required.</div>
+  </div>
+</div>
+
+<!-- ── Framework Selector + Auto-Generate ── -->
+<div class="card" style="margin-bottom:20px;padding:22px 24px;">
+  <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px;">Framework Selection</div>
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+    <!-- Multi-select -->
+    <div style="flex:1;min-width:260px;">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Select 2 or more active frameworks</div>
+      <select id="fwSelector" multiple size="6" style="width:100%;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);padding:6px;font-size:13px;line-height:1.8;">
+        {% for fw in frameworks %}
+        <option value="{{ fw.id }}" style="padding:4px 8px;">{{ fw.name }}</option>
+        {% endfor %}
+      </select>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px;">Hold Ctrl/Cmd to select multiple.</div>
+    </div>
+    <!-- Options + button -->
+    <div style="display:flex;flex-direction:column;gap:12px;padding-top:22px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+        <input type="checkbox" id="useAiToggle" checked style="width:13px;height:13px;">
+        AI semantic analysis (for ambiguous pairs)
+        <span style="font-size:11px;color:var(--muted);">— slower but more accurate</span>
+      </label>
+      <button id="autoGenBtn" class="btn btn-primary" onclick="runAutoMap()" disabled>
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.3 5.3l1.4 1.4M13.3 13.3l1.4 1.4M5.3 14.7l1.4-1.4M13.3 6.7l1.4-1.4"/></svg>
+        Auto-Map Selected Frameworks
+      </button>
+      <button class="btn btn-secondary" onclick="viewExisting()" style="font-size:12px;">View existing mappings only</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Status / Progress bar ── -->
+<div id="progressWrap" style="display:none;margin-bottom:20px;">
+  <div class="card" style="padding:20px 24px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <div class="spinner" style="width:18px;height:18px;border-width:2px;"></div>
+      <div id="progressMsg" style="font-size:13px;font-weight:600;color:var(--text);">Running text matching…</div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);">This may take a moment if AI semantic analysis is enabled.</div>
+  </div>
+</div>
+
+<!-- ── Stats strip ── -->
+<div id="statsStrip" style="display:none;margin-bottom:20px;">
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
+    <div class="stat-card"><div class="stat-label">Total Controls</div><div class="stat-value" id="sTotal">—</div></div>
+    <div class="stat-card"><div class="stat-label">Integrated</div><div class="stat-value" id="sInt" style="color:var(--green-status);">—</div></div>
+    <div class="stat-card"><div class="stat-label">Partial</div><div class="stat-value" id="sPart" style="color:var(--amber);">—</div></div>
+    <div class="stat-card"><div class="stat-label">Unique</div><div class="stat-value" id="sUniq" style="color:var(--red);">—</div></div>
+    <div class="stat-card"><div class="stat-label">Effort Saved</div><div class="stat-value" id="sEffort" style="color:var(--accent);">—</div></div>
+  </div>
+</div>
+
+<!-- ── Fully Integrated Controls ── -->
+<div id="intSection" style="display:none;margin-bottom:20px;">
+  <div class="ims-section-header">
+    <div class="ims-section-icon" style="background:rgba(var(--green-rgb,34,197,94),0.15);border:1px solid rgba(34,197,94,.3);">✓</div>
+    <div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);">Integrated Controls</div>
+      <div style="font-size:12px;color:var(--muted);">Present across ALL selected frameworks — one test, one document, one evidence upload.</div>
+    </div>
+    <span class="ims-int" id="intCount">0</span>
+  </div>
+  <div id="intList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;"></div>
+</div>
+
+<!-- ── Partial Matches ── -->
+<div id="partSection" style="display:none;margin-bottom:20px;">
+  <div class="ims-section-header">
+    <div class="ims-section-icon" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,.3);">⚠</div>
+    <div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);">Partial Matches</div>
+      <div style="font-size:12px;color:var(--muted);">Present in some but not all selected frameworks.</div>
+    </div>
+    <span class="ims-partial" id="partCount">0</span>
+  </div>
+  <div id="partList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;"></div>
+</div>
+
+<!-- ── Unique Controls ── -->
+<div id="uniqSection" style="display:none;margin-bottom:20px;">
+  <div class="ims-section-header">
+    <div class="ims-section-icon" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,.25);">✕</div>
+    <div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);">Unique Controls</div>
+      <div style="font-size:12px;color:var(--muted);">Unique to a single framework — must be tested and documented separately.</div>
+    </div>
+    <span class="ims-unique" id="uniqCount">0</span>
+  </div>
+  <div id="uniqList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;"></div>
+</div>
+
+<!-- ── Manual Link Panel (collapsed) ── -->
+<details style="margin-bottom:20px;">
+  <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text-mid);padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);">
+    Manual Control Linking (advanced)
+  </summary>
+  <div class="card" style="border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:20px 24px;">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;">Use this to manually link controls that the auto-mapper missed. Auto-generated mappings are preferred.</div>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr auto;gap:12px;align-items:end;">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">Framework A</div>
+        <select id="fwA" onchange="loadControls('A')" class="form-select" style="width:100%;margin-bottom:8px;"><option value="">— Select framework —</option>{% for fw in frameworks %}<option value="{{ fw.id }}">{{ fw.name }}</option>{% endfor %}</select>
+        <select id="ctrlA" class="form-select" style="width:100%;" disabled><option value="">— Select control —</option></select>
+      </div>
+      <div style="padding-bottom:8px;color:var(--muted);font-size:22px;">⇄</div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;">Framework B</div>
+        <select id="fwB" onchange="loadControls('B')" class="form-select" style="width:100%;margin-bottom:8px;"><option value="">— Select framework —</option>{% for fw in frameworks %}<option value="{{ fw.id }}">{{ fw.name }}</option>{% endfor %}</select>
+        <select id="ctrlB" class="form-select" style="width:100%;" disabled><option value="">— Select control —</option></select>
+      </div>
+      <div style="padding-bottom:8px;"><button class="btn btn-secondary" onclick="createMapping()">Link</button></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:10px;align-items:center;">
+      <select id="mappingType" class="form-select" style="width:150px;"><option value="equivalent">Equivalent</option><option value="related">Related</option><option value="covers">Covers</option><option value="partial">Partial</option></select>
+      <input type="text" id="mappingNotes" class="form-input" placeholder="Notes (optional)" style="flex:1;">
+    </div>
+  </div>
+</details>
+
+<script>
+const CONFIDENCE_COLORS = { equivalent:'var(--green-status)', related:'var(--amber)', partial:'var(--amber)', covers:'var(--accent)', manual:'var(--accent)' };
+
+// ── Enable/disable auto-map button based on selection ───────────────────────
+document.getElementById('fwSelector').addEventListener('change', function(){
+  const count = Array.from(this.selectedOptions).length;
+  document.getElementById('autoGenBtn').disabled = count < 2;
+});
+
+// ── Auto-map selected frameworks ─────────────────────────────────────────────
+async function runAutoMap() {
+  const sel = document.getElementById('fwSelector');
+  const fwIds = Array.from(sel.selectedOptions).map(o => parseInt(o.value));
+  if (fwIds.length < 2) { if(typeof showToast==='function') showToast('Select at least 2 frameworks', 'error'); return; }
+
+  const useAi = document.getElementById('useAiToggle').checked;
+
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('autoGenBtn').disabled = true;
+  document.getElementById('progressMsg').textContent = useAi
+    ? 'Running text matching + AI semantic analysis… (this may take a minute)'
+    : 'Running text matching…';
+
+  try {
+    // Step 1: Auto-generate mappings
+    const genRes = await fetch('/aria/api/control-mappings/auto-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ framework_ids: fwIds, use_ai: useAi })
+    });
+    const genData = await genRes.json();
+    if (!genData.ok) {
+      if(typeof showToast==='function') showToast(genData.error || 'Auto-mapping failed', 'error');
+      return;
+    }
+
+    document.getElementById('progressMsg').textContent = `Mapped ${genData.created} control pairs — loading IMS status…`;
+
+    // Step 2: Load IMS status
+    await loadImsStatus(fwIds);
+
+    if(typeof showToast==='function')
+      showToast(`Auto-mapping complete — ${genData.created} new mappings (${genData.ai_calls} AI calls)`);
+  } catch(e) {
+    if(typeof showToast==='function') showToast('Error: ' + e.message, 'error');
+  } finally {
+    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('autoGenBtn').disabled = false;
+  }
+}
+
+// ── View existing mappings only ───────────────────────────────────────────────
+async function viewExisting() {
+  const sel = document.getElementById('fwSelector');
+  const fwIds = Array.from(sel.selectedOptions).map(o => parseInt(o.value));
+  if (fwIds.length < 2) { if(typeof showToast==='function') showToast('Select at least 2 frameworks first', 'error'); return; }
+  await loadImsStatus(fwIds);
+}
+
+// ── Load and render IMS status ────────────────────────────────────────────────
+async function loadImsStatus(fwIds) {
+  const res  = await fetch('/aria/api/control-mappings/ims-status?fw_ids=' + fwIds.join(','));
+  const data = await res.json();
+
+  const st = data.stats || {};
+  document.getElementById('statsStrip').style.display = 'block';
+  document.getElementById('sTotal').textContent  = st.total || 0;
+  document.getElementById('sInt').textContent    = st.integrated || 0;
+  document.getElementById('sPart').textContent   = st.partial || 0;
+  document.getElementById('sUniq').textContent   = st.unique || 0;
+  document.getElementById('sEffort').textContent = (st.effort_saved_pct || 0) + '%';
+
+  // Integrated
+  document.getElementById('intCount').textContent = (data.integrated||[]).length;
+  document.getElementById('intList').innerHTML = renderCtrlList(data.integrated || [], 'integrated');
+  document.getElementById('intSection').style.display = 'block';
+
+  // Partial
+  document.getElementById('partCount').textContent = (data.partial||[]).length;
+  document.getElementById('partList').innerHTML = renderCtrlList(data.partial || [], 'partial');
+  document.getElementById('partSection').style.display = (data.partial||[]).length ? 'block' : 'none';
+
+  // Unique
+  document.getElementById('uniqCount').textContent = (data.unique||[]).length;
+  document.getElementById('uniqList').innerHTML = renderCtrlList(data.unique || [], 'unique');
+  document.getElementById('uniqSection').style.display = (data.unique||[]).length ? 'block' : 'none';
+}
+
+function renderCtrlList(items, status) {
+  if (!items.length) return '<div style="padding:16px;color:var(--muted);font-size:13px;font-style:italic;">None</div>';
+  return items.map(c => `
+    <div class="ctrl-map-card">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;">
+          <span class="fw-chip" title="${esc(c.fw_name||'')}">${esc((c.fw_name||'').slice(0,14))||'?'}</span>
+          <span class="fw-chip" style="color:var(--accent)">[${esc(c.ref||'')}]</span>
+          <span class="ims-${status}" style="font-size:9px;">${status.toUpperCase()}</span>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${esc(c.name||'')}</div>
+        ${c.mapped_fw_names && c.mapped_fw_names.length
+          ? `<div style="font-size:11px;color:var(--muted);">↔ ${c.mapped_fw_names.map(n=>'<span class="fw-chip" style="font-size:10px;">'+esc(n)+'</span>').join(' ')}</div>`
+          : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Manual linking helpers ────────────────────────────────────────────────────
+async function loadControls(side) {
+  const fwSel   = document.getElementById('fw'+side);
+  const ctrlSel = document.getElementById('ctrl'+side);
+  const fwId    = fwSel.value;
+  ctrlSel.innerHTML = '<option value="">— loading —</option>';
+  ctrlSel.disabled  = true;
+  if (!fwId) { ctrlSel.innerHTML = '<option value="">— Select control —</option>'; return; }
+  const res  = await fetch('/aria/api/control-mappings/frameworks/'+fwId+'/controls');
+  const data = await res.json();
+  ctrlSel.innerHTML = '<option value="">— Select control —</option>' +
+    data.items.map(c=>`<option value="${c.id}">[${esc(c.ref)}] ${esc(c.name)}</option>`).join('');
+  ctrlSel.disabled = false;
+}
+
+async function createMapping() {
+  const srcId = document.getElementById('ctrlA').value;
+  const tgtId = document.getElementById('ctrlB').value;
+  const type  = document.getElementById('mappingType').value;
+  const notes = document.getElementById('mappingNotes').value;
+  if (!srcId || !tgtId) { if(typeof showToast==='function') showToast('Select a control from both frameworks', 'error'); return; }
+  const res  = await fetch('/aria/api/control-mappings', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({source_control_id:srcId,target_control_id:tgtId,mapping_type:type,notes})
+  });
+  const data = await res.json();
+  if(data.ok){ if(typeof showToast==='function') showToast('Controls linked'); document.getElementById('mappingNotes').value=''; }
+  else { if(typeof showToast==='function') showToast(data.error||'Error','error'); }
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+{% endblock %}

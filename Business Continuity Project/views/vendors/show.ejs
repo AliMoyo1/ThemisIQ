@@ -1,0 +1,82 @@
+<div class="page-head">
+  <div>
+    <h1><%= vendor.name %></h1>
+    <p><%= vendor.service_provided || 'Third-party supplier' %> · <%= vendor.category || 'Uncategorized' %></p>
+  </div>
+  <div class="actions">
+    <a class="btn ghost" href="/vendors/<%= vendor.id %>/edit">Edit</a>
+    <form method="POST" action="/vendors/<%= vendor.id %>/delete" data-confirm="Remove this vendor?" style="display:inline;">
+      <button class="btn danger" type="submit">Remove</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Relationship</div></div>
+    <dl class="definition">
+      <dt>Tier</dt><dd>Tier <%= vendor.tier %></dd>
+      <dt>Criticality</dt><dd><%= vendor.criticality %></dd>
+      <dt>Risk score</dt><dd><%= vendor.risk_score %> / 25</dd>
+      <dt>Status</dt><dd><%= vendor.status %></dd>
+      <dt>Owner</dt><dd><%= vendor.owner || '—' %></dd>
+      <dt>Contact</dt><dd><%= vendor.contact_name || '—' %><% if (vendor.contact_email) { %> · <%= vendor.contact_email %><% } %><% if (vendor.contact_phone) { %> · <%= vendor.contact_phone %><% } %></dd>
+      <dt>Data sensitivity</dt><dd><%= vendor.data_sensitivity || '—' %></dd>
+      <dt>SLA</dt><dd><%= vendor.sla || '—' %></dd>
+      <dt>Contract renewal</dt><dd><%= vendor.contract_renewal || '—' %></dd>
+      <dt>Last reviewed</dt><dd><%= vendor.last_reviewed || '—' %></dd>
+      <dt>Next review</dt><dd><%= vendor.next_review || '—' %></dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Risk posture</div></div>
+    <dl class="definition">
+      <dt>Financial</dt><dd><%= vendor.financial_score %> / 5</dd>
+      <dt>Operational</dt><dd><%= vendor.operational_score %> / 5</dd>
+      <dt>Compliance</dt><dd><%= vendor.compliance_score %> / 5</dd>
+      <dt>Concentration</dt><dd><%= vendor.concentration_risk %> / 5</dd>
+    </dl>
+    <% if (vendor.notes) { %>
+      <div style="margin-top:10px;">
+        <div class="card-title" style="font-size:14px;">Notes</div>
+        <p style="white-space:pre-wrap;"><%= vendor.notes %></p>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-head"><div class="card-title">Assessments</div></div>
+  <% if (assessments.length === 0) { %>
+    <p class="muted">No assessments recorded yet.</p>
+  <% } else { %>
+    <table class="table">
+      <thead><tr><th>Date</th><th>Assessor</th><th>Score</th><th>Summary</th></tr></thead>
+      <tbody>
+        <% assessments.forEach(a => { %>
+          <tr>
+            <td><%= a.assessed_on %></td>
+            <td><%= a.assessor || '—' %></td>
+            <td><%= a.score ?? '—' %></td>
+            <td><%= a.summary || '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <div style="margin-top:18px;">
+    <div class="card-title" style="margin-bottom:10px;">Record a new assessment</div>
+    <form method="POST" action="/vendors/<%= vendor.id %>/assessments" class="stack-10">
+      <div class="form-row cols-3">
+        <div><label>Date</label><input type="date" name="assessed_on" /></div>
+        <div><label>Assessor</label><input name="assessor" value="<%= user.name %>"/></div>
+        <div><label>Score (0–100)</label><input type="number" min="0" max="100" name="score" /></div>
+      </div>
+      <div><label>Summary</label><input name="summary" placeholder="Key finding or outcome"/></div>
+      <div><label>Findings</label><textarea name="findings" rows="3" placeholder="Strengths, gaps, follow-ups..."></textarea></div>
+      <button class="btn primary" type="submit">Save assessment</button>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,211 @@
+{% extends "platform_base.html" %}
+{% block title %}Audit Log — ThemisIQ{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <span class="page-title">Platform Audit Log</span>
+  <div class="topbar-actions">
+    <button class="btn btn-secondary" onclick="exportCSV()" title="Export filtered logs as CSV">
+      ⬇ Export CSV
+    </button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Filters -->
+  <div class="card" style="padding:16px 20px; margin-bottom:16px;">
+    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+      <div style="flex:1; min-width:140px;">
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">Module</label>
+        <select id="filterModule" onchange="loadLogs(1)" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+          <option value="">All Modules</option>
+        </select>
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">Action</label>
+        <input id="filterAction" type="text" placeholder="Filter by action..." onchange="loadLogs(1)" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">User</label>
+        <input id="filterUser" type="text" placeholder="Filter by user..." onchange="loadLogs(1)" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">From</label>
+        <input id="filterFrom" type="date" onchange="loadLogs(1)" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <label style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); display:block; margin-bottom:4px;">To</label>
+        <input id="filterTo" type="date" onchange="loadLogs(1)" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:13px;">
+      </div>
+      <div>
+        <button class="btn btn-secondary" onclick="clearFilters()" style="padding:8px 14px; font-size:12px;">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Table -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div id="logTableWrap" style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; min-width:800px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); white-space:nowrap;">Timestamp</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">User</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">Module</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">Action</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">Details</th>
+            <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted);">IP</th>
+          </tr>
+        </thead>
+        <tbody id="logBody">
+          <tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div id="pagination" style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; padding:0 4px;">
+    <span id="pageInfo" style="font-size:12px; color:var(--muted);"></span>
+    <div style="display:flex; gap:6px;">
+      <button id="btnPrev" class="btn btn-secondary" onclick="prevPage()" style="padding:6px 12px; font-size:12px;" disabled>← Prev</button>
+      <button id="btnNext" class="btn btn-secondary" onclick="nextPage()" style="padding:6px 12px; font-size:12px;" disabled>Next →</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let currentPage = 1;
+let totalPages = 1;
+
+function getFilters() {
+  return {
+    module: document.getElementById('filterModule').value,
+    action: document.getElementById('filterAction').value,
+    user: document.getElementById('filterUser').value,
+    from: document.getElementById('filterFrom').value,
+    to: document.getElementById('filterTo').value,
+  };
+}
+
+function buildQueryString(filters, page) {
+  const params = new URLSearchParams();
+  if (filters.module) params.set('module', filters.module);
+  if (filters.action) params.set('action', filters.action);
+  if (filters.user) params.set('user', filters.user);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  params.set('page', page);
+  params.set('per_page', '50');
+  return params.toString();
+}
+
+async function loadLogs(page) {
+  currentPage = page || 1;
+  const filters = getFilters();
+  const qs = buildQueryString(filters, currentPage);
+
+  try {
+    const resp = await fetch('/admin/api/logs?' + qs);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    totalPages = data.pages || 1;
+
+    // Populate module dropdown if first load
+    const sel = document.getElementById('filterModule');
+    if (sel.options.length <= 1 && data.modules) {
+      data.modules.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m.charAt(0).toUpperCase() + m.slice(1);
+        sel.appendChild(opt);
+      });
+    }
+
+    renderLogs(data.logs);
+    updatePagination(data);
+  } catch (err) {
+    document.getElementById('logBody').innerHTML =
+      '<tr><td colspan="6" style="padding:30px; text-align:center; color:var(--bad);">Failed to load logs: ' + err.message + '</td></tr>';
+  }
+}
+
+function renderLogs(logs) {
+  const tbody = document.getElementById('logBody');
+  if (!logs || logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">No audit log entries found</td></tr>';
+    return;
+  }
+
+  const moduleColors = {
+    platform: '#94a3b8',
+    aria: '#6c63ff',
+    sentinel: '#10b981',
+    grid: '#f59e0b',
+    bcm: '#ef4444',
+  };
+
+  tbody.innerHTML = logs.map(log => {
+    const ts = log.created_at ? new Date(log.created_at + 'Z').toLocaleString() : '—';
+    const user = log.full_name || log.username || 'system';
+    const mod = log.module || '—';
+    const modColor = moduleColors[mod] || 'var(--muted)';
+    const action = escHtml(log.action || '');
+    const details = escHtml((log.details || '').substring(0, 120));
+    const ip = log.ip_address || '';
+
+    return `<tr style="border-bottom:1px solid var(--border-soft);">
+      <td style="padding:10px 14px; font-size:12px; color:var(--muted); white-space:nowrap;">${ts}</td>
+      <td style="padding:10px 14px; font-size:13px; font-weight:500; color:var(--text);">${escHtml(user)}</td>
+      <td style="padding:10px 14px;">
+        <span style="display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; background:${modColor}22; color:${modColor}; text-transform:uppercase;">${escHtml(mod)}</span>
+      </td>
+      <td style="padding:10px 14px; font-size:12.5px; color:var(--text);">${action}</td>
+      <td style="padding:10px 14px; font-size:12px; color:var(--muted); max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${details}">${details}</td>
+      <td style="padding:10px 14px; font-size:11px; color:var(--muted); font-family:monospace;">${escHtml(ip)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function updatePagination(data) {
+  document.getElementById('pageInfo').textContent =
+    `Showing page ${data.page} of ${data.pages} (${data.total} entries)`;
+  document.getElementById('btnPrev').disabled = data.page <= 1;
+  document.getElementById('btnNext').disabled = data.page >= data.pages;
+}
+
+function prevPage() { if (currentPage > 1) loadLogs(currentPage - 1); }
+function nextPage() { if (currentPage < totalPages) loadLogs(currentPage + 1); }
+
+function clearFilters() {
+  document.getElementById('filterModule').value = '';
+  document.getElementById('filterAction').value = '';
+  document.getElementById('filterUser').value = '';
+  document.getElementById('filterFrom').value = '';
+  document.getElementById('filterTo').value = '';
+  loadLogs(1);
+}
+
+function exportCSV() {
+  const filters = getFilters();
+  const params = new URLSearchParams();
+  if (filters.module) params.set('module', filters.module);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  window.location.href = '/admin/api/logs/export?' + params.toString();
+}
+
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// Load on page ready
+document.addEventListener('DOMContentLoaded', () => loadLogs(1));
+</script>
+
+{% endblock %}
