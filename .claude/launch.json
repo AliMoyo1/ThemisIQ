@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "ThemisIQ-Landing",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8090", "--directory", "landing_page"],
+      "port": 8090
+    },
+    {
       "name": "AegisGRC",
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "cd oneforall && python -m uvicorn main:app --reload --host 127.0.0.1 --port 8080"],

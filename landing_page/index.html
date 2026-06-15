@@ -1,0 +1,1858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ThemisIQ: Enterprise GRC Command Centre</title>
+  <meta name="description" content="Unify governance, risk, and compliance across 6 intelligent modules. AI-native GRC platform built for regulated enterprises."/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist:wght@400;600;700&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary:      '#4648d4',
+            'primary-container': '#6063ee',
+            'on-primary': '#ffffff',
+            secondary:    '#0058be',
+            'secondary-container': '#2170e4',
+            tertiary:     '#006c49',
+            'tertiary-container': '#00885d',
+            surface:      '#faf8ff',
+            'surface-dim': '#d2d9f4',
+            'surface-container-low':    '#f2f3ff',
+            'surface-container':        '#eaedff',
+            'surface-container-high':   '#e2e7ff',
+            'surface-container-highest':'#dae2fd',
+            'surface-container-lowest': '#ffffff',
+            'on-surface':         '#131b2e',
+            'on-surface-variant': '#464554',
+            'inverse-surface':    '#283044',
+            'inverse-on-surface': '#eef0ff',
+            outline:         '#767586',
+            'outline-variant':'#c7c4d7',
+            error:           '#ba1a1a',
+          },
+          fontFamily: {
+            sans:    ['Inter', 'sans-serif'],
+            heading: ['Geist', 'sans-serif'],
+            mono:    ['JetBrains Mono', 'monospace'],
+          },
+          fontSize: {
+            'display': ['52px', { lineHeight: '60px', letterSpacing: '-0.025em', fontWeight: '700' }],
+            'display-sm': ['36px', { lineHeight: '44px', letterSpacing: '-0.02em', fontWeight: '700' }],
+            'h1':  ['32px', { lineHeight: '40px', letterSpacing: '-0.01em', fontWeight: '600' }],
+            'h2':  ['24px', { lineHeight: '32px', fontWeight: '600' }],
+            'body-lg': ['18px', { lineHeight: '28px', fontWeight: '400' }],
+            'body':    ['14px', { lineHeight: '20px', fontWeight: '400' }],
+            'label':   ['12px', { lineHeight: '16px', letterSpacing: '0.05em', fontWeight: '500' }],
+            'label-xs':['10px', { lineHeight: '14px', letterSpacing: '0.06em', fontWeight: '500' }],
+          },
+          borderRadius: {
+            DEFAULT: '0.25rem',
+            sm:  '0.125rem',
+            md:  '0.375rem',
+            lg:  '0.5rem',
+            xl:  '0.75rem',
+            '2xl': '1rem',
+            full: '9999px',
+          },
+          maxWidth: { 'screen-xl': '1440px' },
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #faf8ff; color: #131b2e; overflow-x: hidden; }
+    .font-heading { font-family: 'Geist', sans-serif; }
+    .font-mono    { font-family: 'JetBrains Mono', monospace; }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      vertical-align: middle;
+    }
+
+    /* NAV */
+    .nav-blur { backdrop-filter: blur(10px); background-color: rgba(250,248,255,0.85); }
+
+    /* HERO grid background */
+    .hero-grid {
+      background-image:
+        linear-gradient(rgba(70,72,212,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(70,72,212,0.06) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .hero-glow {
+      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(70,72,212,0.12) 0%, transparent 70%);
+    }
+
+    /* SPLINE 3D / SPOTLIGHT */
+    @keyframes spotlight-in {
+      0%   { opacity: 0; transform: translate(-72%, -62%) scale(0.5); }
+      100% { opacity: 1; transform: translate(-50%, -40%) scale(1); }
+    }
+    .hero-spotlight { animation: spotlight-in 2s ease forwards 0.3s; opacity: 0; }
+    .spline-container {
+      overflow: hidden;
+      background: transparent;
+      -webkit-mask-image: radial-gradient(ellipse 80% 90% at 55% 45%, black 30%, transparent 72%);
+      mask-image: radial-gradient(ellipse 80% 90% at 55% 45%, black 30%, transparent 72%);
+    }
+
+    /* MODULE CARDS */
+    .module-card {
+      transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s cubic-bezier(.4,0,.2,1), border-color 0.2s;
+    }
+    .module-card:hover { transform: translateY(-6px); }
+    .module-card.aria:hover     { border-color: #4648d4; box-shadow: 0 16px 32px -8px rgba(70,72,212,0.15); }
+    .module-card.grid-m:hover   { border-color: #006c49; box-shadow: 0 16px 32px -8px rgba(0,108,73,0.15); }
+    .module-card.bcm:hover      { border-color: #0058be; box-shadow: 0 16px 32px -8px rgba(0,88,190,0.15); }
+    .module-card.sentinel:hover { border-color: #2170e4; box-shadow: 0 16px 32px -8px rgba(33,112,228,0.15); }
+    .module-card.erm:hover      { border-color: #ba1a1a; box-shadow: 0 16px 32px -8px rgba(186,26,26,0.15); }
+    .module-card.orm:hover      { border-color: #9a3412; box-shadow: 0 16px 32px -8px rgba(154,52,18,0.15); }
+    .module-card.evidence:hover { border-color: #6063ee; box-shadow: 0 16px 32px -8px rgba(96,99,238,0.15); }
+
+    /* FEATURE CHIP */
+    .feature-chip {
+      display: inline-flex; align-items: center; padding: 4px 10px;
+      border-radius: 9999px; border: 1px solid #c7c4d7;
+      background: #eaedff; font-size: 11px; font-family: 'JetBrains Mono', monospace;
+      color: #464554; letter-spacing: 0.04em; font-weight: 500;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .feature-chip:hover { border-color: #4648d4; color: #4648d4; }
+
+    /* AI BADGE */
+    .ai-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 9999px;
+      background: linear-gradient(135deg, #4648d4 0%, #6063ee 100%);
+      color: #fff; font-size: 10px; font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.06em; font-weight: 500;
+    }
+
+    /* STAT NUMBER */
+    .stat-number { font-family: 'Geist', sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+
+    /* TIMELINE CONNECTOR */
+    .step-connector {
+      width: 2px; height: 48px; background: linear-gradient(#c7c4d7, #4648d4);
+      margin: 0 auto;
+    }
+
+    /* SCROLLBAR HIDE */
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* MOBILE MENU */
+    #mobile-menu { display: none; }
+    #mobile-menu.open { display: block; }
+
+    /* SMOOTH SCROLL */
+    html { scroll-behavior: smooth; }
+
+    /* Section highlight border for features */
+    .feature-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 9999px;
+      font-size: 10px; font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.07em; font-weight: 500; text-transform: uppercase;
+      border: 1px solid; margin-bottom: 8px;
+    }
+
+    /* Particle canvas */
+    #aegis-particles {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+      mix-blend-mode: multiply;
+    }
+    :root { --particle-color-rgb: 70,72,212; }
+
+    /* Lift content above canvas */
+    header, section, footer { position: relative; z-index: 2; }
+
+    /* Stat card: in-place 3D tilt (no translateY; safe inside overflow:hidden parent) */
+    .stat-card {
+      transition: background-color 0.2s;
+      cursor: default;
+      position: relative;
+    }
+    .stat-card:hover { background-color: rgba(70, 72, 212, 0.05); }
+
+    /* Panel card: standalone; lifts + tilts on hover */
+    .panel-card {
+      transition: transform 0.22s cubic-bezier(.4,0,.2,1), box-shadow 0.22s cubic-bezier(.4,0,.2,1);
+      position: relative;
+    }
+    .panel-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 18px 40px -12px rgba(70, 72, 212, 0.22);
+    }
+
+    /* MARQUEE / INFINITE SCROLL */
+    @keyframes marquee-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .marquee-track {
+      display: flex;
+      align-items: center;
+      width: max-content;
+      animation: marquee-scroll 42s linear infinite;
+    }
+    .marquee-track:hover { animation-play-state: paused; }
+    @media (prefers-reduced-motion: reduce) { .marquee-track { animation: none; } }
+    .marquee-fade {
+      -webkit-mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+      mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+    }
+    .marquee-sep {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #c7c4d7; flex-shrink: 0; margin: 0 2.5rem;
+    }
+
+    /* SOCIAL PROOF CARDS */
+    .proof-card {
+      border: 1px solid #c7c4d7;
+      border-radius: 12px;
+      padding: 28px 24px;
+      background: #ffffff;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+    .proof-card:hover {
+      border-color: #4648d4;
+      box-shadow: 0 12px 32px -8px rgba(70,72,212,0.18);
+      transform: translateY(-3px);
+    }
+    .proof-stat {
+      font-family: 'Geist', sans-serif;
+      font-size: 44px; font-weight: 700;
+      letter-spacing: -0.03em; line-height: 1;
+      background: linear-gradient(135deg, #4648d4 0%, #6063ee 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* GLASSMORPHISM PRICING */
+    .glass-card {
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.6);
+      border-radius: 16px;
+      transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+    }
+    .glass-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px -12px rgba(70,72,212,0.12);
+    }
+    .glass-card-featured {
+      background: rgba(70,72,212,0.06);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1.5px solid rgba(70,72,212,0.25);
+      border-radius: 16px;
+      transition: transform 0.25s, box-shadow 0.25s;
+    }
+    .glass-card-featured:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 24px 48px -12px rgba(70,72,212,0.22);
+    }
+    .pricing-bg {
+      background:
+        radial-gradient(ellipse 50% 60% at 30% 20%, rgba(70,72,212,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 50% at 75% 80%, rgba(96,99,238,0.06) 0%, transparent 70%),
+        linear-gradient(180deg, #faf8ff 0%, #f2f3ff 100%);
+    }
+    .pricing-toggle {
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(199,196,215,0.5);
+      border-radius: 9999px;
+      padding: 4px;
+    }
+    .pricing-toggle button {
+      border-radius: 9999px;
+      padding: 6px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+      background: transparent;
+      color: #464554;
+    }
+    .pricing-toggle button.active {
+      background: #4648d4;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(70,72,212,0.3);
+    }
+    .price-amount {
+      font-family: 'Geist', sans-serif;
+      font-weight: 700;
+      font-size: 48px;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+    .price-period {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: #767586;
+      font-weight: 400;
+    }
+    .glass-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(199,196,215,0.5), transparent);
+    }
+
+    /* FAQ ACCORDION */
+    .faq-content {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 0.26s ease-out;
+    }
+    .faq-item.open .faq-content { grid-template-rows: 1fr; }
+    .faq-content > div { overflow: hidden; }
+    .faq-chevron { transition: transform 0.26s ease-out; flex-shrink: 0; }
+    .faq-item.open .faq-chevron { transform: rotate(180deg); }
+    .faq-trigger { background: none; border: none; width: 100%; cursor: pointer; }
+    .faq-trigger:hover .faq-question { color: #4648d4; }
+    .faq-question { transition: color 0.15s; }
+  </style>
+</head>
+<body data-module="platform">
+<canvas id="aegis-particles" aria-hidden="true"></canvas>
+
+<!-- ═══════════════════════════════════════════
+     NAVIGATION
+════════════════════════════════════════════ -->
+<header class="fixed top-0 left-0 right-0 z-50 nav-blur border-b border-outline-variant">
+  <div class="max-w-screen-xl mx-auto px-6 h-16 flex items-center justify-between">
+    <!-- Logo -->
+    <a href="#" class="flex items-center gap-3">
+      <img src="Themis Logo No Background.png" alt="ThemisIQ" class="h-10 w-auto object-contain"/>
+      <span class="font-heading font-bold text-h2 text-on-surface">Themis<span class="text-primary">IQ</span></span>
+    </a>
+
+    <!-- Desktop Nav -->
+    <nav class="hidden md:flex items-center gap-8">
+      <a href="#modules"     class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest">Modules</a>
+      <a href="#features"    class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest">Features</a>
+      <a href="#frameworks"  class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest">Frameworks</a>
+      <a href="#pricing"     class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest">Pricing</a>
+    </nav>
+
+    <!-- Desktop CTAs -->
+    <div class="hidden md:flex items-center gap-3">
+      <button class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest px-3 py-2">Sign In</button>
+      <a href="#demo" class="bg-primary text-on-primary px-4 py-2 rounded-lg text-label font-mono font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest">Request Demo</a>
+    </div>
+
+    <!-- Mobile hamburger -->
+    <button id="hamburger" class="md:hidden p-2 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors" aria-label="Toggle menu">
+      <span class="material-symbols-outlined">menu</span>
+    </button>
+  </div>
+
+  <!-- Mobile menu -->
+  <div id="mobile-menu" class="md:hidden border-t border-outline-variant bg-surface/95 backdrop-blur-md px-6 pb-4">
+    <nav class="flex flex-col gap-1 pt-2">
+      <a href="#modules"    class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest border-b border-outline-variant/50">Modules</a>
+      <a href="#features"   class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest border-b border-outline-variant/50">Features</a>
+      <a href="#frameworks" class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest border-b border-outline-variant/50">Frameworks</a>
+      <a href="#pricing"    class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest">Pricing</a>
+    </nav>
+    <div class="flex gap-3 mt-4">
+      <button class="flex-1 border border-outline-variant rounded-lg py-2 text-label font-mono text-on-surface-variant hover:bg-surface-container transition-colors">Sign In</button>
+      <a href="#demo" class="flex-1 text-center bg-primary text-on-primary rounded-lg py-2 text-label font-mono font-bold hover:opacity-90 transition-all">Request Demo</a>
+    </div>
+  </div>
+</header>
+
+
+<!-- ═══════════════════════════════════════════
+     HERO
+════════════════════════════════════════════ -->
+<section class="pt-16 relative overflow-hidden">
+  <div class="hero-grid absolute inset-0"></div>
+  <div class="hero-glow absolute inset-0"></div>
+
+  <div class="relative max-w-screen-xl mx-auto px-6 pt-20 pb-16">
+    <!-- Hero split: text left, 3D robot right -->
+    <div class="flex flex-col lg:flex-row items-center gap-8 lg:gap-12 mb-16">
+
+      <!-- Left: text content -->
+      <div class="flex-1 text-center lg:text-left">
+        <div class="inline-flex items-center gap-2 mb-6">
+          <div class="ai-badge">
+            <span class="material-symbols-outlined text-[12px]" style="font-size:12px">auto_awesome</span>
+            AI-NATIVE GRC
+          </div>
+          <span class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest">Enterprise Edition</span>
+        </div>
+
+        <h1 class="font-heading text-display mb-6 leading-tight">
+          The Single Pane of Glass<br/>
+          for <span class="text-primary">Enterprise Risk.</span>
+        </h1>
+
+        <p class="text-body-lg text-on-surface-variant max-w-2xl mx-auto lg:mx-0 mb-10">
+          Six unified intelligence modules: Governance, Audit, Resilience, Privacy, Enterprise Risk, and Operations Risk. All sharing context, surfacing insights, and automating action.
+        </p>
+
+        <div class="flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
+          <a href="#demo" class="inline-flex items-center justify-center gap-2 bg-primary text-on-primary px-8 py-3 rounded-lg font-mono text-label font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest">
+            <span class="material-symbols-outlined text-[16px]" style="font-size:16px">play_circle</span>
+            Request Demo
+          </a>
+          <a href="#modules" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-surface-container-lowest text-on-surface px-8 py-3 rounded-lg font-mono text-label font-bold hover:bg-surface-container transition-all uppercase tracking-widest">
+            Explore Modules
+            <span class="material-symbols-outlined text-[16px]" style="font-size:16px">arrow_forward</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Right: Spline 3D Robot -->
+      <div class="hidden lg:block flex-1 relative" style="margin:-40px -60px -40px 0">
+        <div class="spline-container relative" style="height:560px">
+          <svg class="hero-spotlight pointer-events-none absolute z-[1] h-[169%] w-[84%] opacity-0" style="top:-160px;left:40px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3787 2842" fill="none">
+            <g filter="url(#spotlight-blur)">
+              <ellipse cx="1924.71" cy="273.501" rx="1924.71" ry="273.501" transform="matrix(-0.822377 -0.568943 -0.568943 0.822377 3631.88 2291.09)" fill="#6063ee" fill-opacity="0.21"/>
+            </g>
+            <defs>
+              <filter id="spotlight-blur" x="0.860352" y="0.838989" width="3785.16" height="2840.26" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+                <feGaussianBlur stdDeviation="151" result="effect1_foregroundBlur"/>
+              </filter>
+            </defs>
+          </svg>
+          <canvas id="spline3d" style="width:100%;height:100%"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-outline-variant border border-outline-variant rounded-xl overflow-hidden max-w-2xl mx-auto">
+      <div class="stat-card bg-surface-container-lowest px-6 py-4">
+        <div class="stat-number text-h1 text-primary">6</div>
+        <div class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-1">GRC Modules</div>
+      </div>
+      <div class="stat-card bg-surface-container-lowest px-6 py-4">
+        <div class="stat-number text-h1 text-primary">150+</div>
+        <div class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-1">Features</div>
+      </div>
+      <div class="stat-card bg-surface-container-lowest px-6 py-4">
+        <div class="stat-number text-h1 text-primary">27</div>
+        <div class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-1">Jurisdictions</div>
+      </div>
+      <div class="stat-card bg-surface-container-lowest px-6 py-4">
+        <div class="stat-number text-h1 text-primary">AI</div>
+        <div class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-1">Powered</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Platform Preview -->
+  <div class="relative max-w-screen-xl mx-auto px-6 mb-0">
+    <div class="relative rounded-2xl overflow-hidden border border-outline-variant" style="box-shadow: 0 30px 70px -20px rgba(70,72,212,0.25);">
+      <img src="Screenshot 2026-06-09 205219.png" alt="ThemisIQ Command Centre" class="w-full h-auto block"/>
+      <div class="absolute inset-0 bg-gradient-to-t from-[#faf8ff] via-[#faf8ff]/10 to-transparent pointer-events-none"></div>
+      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-center bg-surface-container-lowest/80 backdrop-blur-sm px-5 py-2 rounded-full border border-outline-variant whitespace-nowrap">
+        <p class="text-label-xs font-mono text-primary uppercase tracking-widest">Command Centre: Real-time cross-module GRC intelligence</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     TRUST BAND
+════════════════════════════════════════════ -->
+<section id="frameworks" class="bg-surface-container-low border-y border-outline-variant py-10 overflow-hidden">
+  <p class="text-center text-label-xs font-mono text-outline uppercase tracking-widest mb-8">Built to meet the world's most rigorous frameworks</p>
+  <div class="marquee-fade overflow-hidden">
+    <div class="marquee-track">
+      <!-- Set 1 -->
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 27001</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">SOC 2 TYPE II</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">NIST CSF 2.0</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">GDPR</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">HIPAA</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">PCI DSS 4.0</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">DORA</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 31000</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">COBIT 2019</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">FCA / PRA</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">APRA CPS 234</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">NIS2</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">CMMC 2.0</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 22301</span>
+      <span class="marquee-sep"></span>
+      <!-- Set 2: duplicate for seamless loop -->
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 27001</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">SOC 2 TYPE II</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">NIST CSF 2.0</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">GDPR</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">HIPAA</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">PCI DSS 4.0</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">DORA</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 31000</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">COBIT 2019</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">FCA / PRA</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">APRA CPS 234</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">NIS2</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">CMMC 2.0</span>
+      <span class="marquee-sep"></span>
+      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 22301</span>
+      <span class="marquee-sep"></span>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     MODULES CAROUSEL
+════════════════════════════════════════════ -->
+<section id="modules" class="py-20 max-w-screen-xl mx-auto px-6">
+  <div class="flex justify-between items-end mb-10">
+    <div>
+      <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-2">Platform Architecture</p>
+      <h2 class="font-heading text-display-sm text-on-surface">Integrated GRC Ecosystem</h2>
+      <p class="text-body text-on-surface-variant mt-2">Six modules. One data model. Shared context, cross-module cascades, unified RBAC.</p>
+    </div>
+    <div class="hidden md:flex gap-2 flex-shrink-0">
+      <button id="prevBtn" class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container transition-colors">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <button id="nextBtn" class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container transition-colors">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="carousel" class="flex gap-4 overflow-x-auto hide-scrollbar pb-4 snap-x snap-mandatory scroll-smooth -mx-1 px-1">
+
+    <!-- ARIA -->
+    <div class="module-card aria snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
+        <img src="Screenshot 2026-06-09 205246.png" alt="ARIA Governance Dashboard" class="w-full h-full object-cover object-top"/>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#fdf2e9">
+            <span class="material-symbols-outlined text-[18px]" style="color:#b45309;font-size:18px">account_balance</span>
+          </div>
+          <div>
+            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#b45309">Governance</div>
+            <h3 class="font-heading text-h2 text-on-surface leading-none">ARIA</h3>
+          </div>
+        </div>
+        <p class="text-body text-on-surface-variant flex-1">Centralized policy management and real-time regulatory cross-mapping. Import frameworks, auto-map controls, generate policies with AI.</p>
+        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
+          <span class="feature-chip">Policy lifecycle</span>
+          <span class="feature-chip">Control cross-map</span>
+          <span class="feature-chip">Ask ARIA RAG</span>
+          <span class="feature-chip">AI policy gen</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRID -->
+    <div class="module-card grid-m snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
+        <img src="Screenshot 2026-06-09 205306.png" alt="GRID Audit Dashboard" class="w-full h-full object-cover object-top"/>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#ecfdf5">
+            <span class="material-symbols-outlined text-[18px]" style="color:#047857;font-size:18px">fact_check</span>
+          </div>
+          <div>
+            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#047857">Audit</div>
+            <h3 class="font-heading text-h2 text-on-surface leading-none">GRID</h3>
+          </div>
+        </div>
+        <p class="text-body text-on-surface-variant flex-1">End-to-end audit lifecycle: schedule, collect evidence, track non-conformities, and generate AI-written reports in PDF or DOCX.</p>
+        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
+          <span class="feature-chip">Evidence capture</span>
+          <span class="feature-chip">NC tracking</span>
+          <span class="feature-chip">AI findings</span>
+          <span class="feature-chip">PDF/DOCX export</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BCM -->
+    <div class="module-card bcm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
+        <img src="Screenshot 2026-06-09 205350.png" alt="BCM Resilience Dashboard" class="w-full h-full object-cover object-top"/>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#eef2ff">
+            <span class="material-symbols-outlined text-[18px]" style="color:#4338ca;font-size:18px">sync_alt</span>
+          </div>
+          <div>
+            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#4338ca">Resilience</div>
+            <h3 class="font-heading text-h2 text-on-surface leading-none">BCM</h3>
+          </div>
+        </div>
+        <p class="text-body text-on-surface-variant flex-1">Map dependencies, run BIA, activate continuity plans, manage live incidents in real time. AI-generated recovery plans.</p>
+        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
+          <span class="feature-chip">BIA scoring</span>
+          <span class="feature-chip">Incident chat</span>
+          <span class="feature-chip">AI plan gen</span>
+          <span class="feature-chip">Exercises</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sentinel -->
+    <div class="module-card sentinel snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
+        <img src="Screenshot 2026-06-09 205406.png" alt="Sentinel Privacy Dashboard" class="w-full h-full object-cover object-top"/>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#f0fdf4">
+            <span class="material-symbols-outlined text-[18px]" style="color:#2170e4;font-size:18px">shield</span>
+          </div>
+          <div>
+            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#2170e4">Privacy</div>
+            <h3 class="font-heading text-h2 text-on-surface leading-none">Sentinel</h3>
+          </div>
+        </div>
+        <p class="text-body text-on-surface-variant flex-1">GDPR Art 33 72-hour breach countdown, DSR management, RoPA/DPIA automation, consent tracking across 27 jurisdictions.</p>
+        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
+          <span class="feature-chip">72h breach timer</span>
+          <span class="feature-chip">RoPA/DPIA</span>
+          <span class="feature-chip">DSR workflow</span>
+          <span class="feature-chip">27 jurisdictions</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ERM -->
+    <div class="module-card erm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
+        <img src="Screenshot 2026-06-09 205422.png" alt="ERM Enterprise Risk Dashboard" class="w-full h-full object-cover object-top"/>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#fef2f2">
+            <span class="material-symbols-outlined text-[18px]" style="color:#991b1b;font-size:18px">analytics</span>
+          </div>
+          <div>
+            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#991b1b">Enterprise Risk</div>
+            <h3 class="font-heading text-h2 text-on-surface leading-none">ERM</h3>
+          </div>
+        </div>
+        <p class="text-body text-on-surface-variant flex-1">Aggregate risk intelligence across the corporate hierarchy. Risk appetite monitoring, board-level reporting, auto-escalation from modules.</p>
+        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
+          <span class="feature-chip">Risk heatmaps</span>
+          <span class="feature-chip">Appetite tracking</span>
+          <span class="feature-chip">Obligations</span>
+          <span class="feature-chip">Auto-escalation</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORM -->
+    <div class="module-card orm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
+        <img src="Screenshot 2026-06-09 205444.png" alt="ORM Operations Risk Dashboard" class="w-full h-full object-cover object-top"/>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#fff7ed">
+            <span class="material-symbols-outlined text-[18px]" style="color:#9a3412;font-size:18px">bolt</span>
+          </div>
+          <div>
+            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#9a3412">Operations Risk</div>
+            <h3 class="font-heading text-h2 text-on-surface leading-none">ORM</h3>
+          </div>
+        </div>
+        <p class="text-body text-on-surface-variant flex-1">Day-to-day event logging, KRI monitoring with auto-increment triggers, RCSA workflows, AI root cause analysis, SLA tracking.</p>
+        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
+          <span class="feature-chip">Event logging</span>
+          <span class="feature-chip">KRI library</span>
+          <span class="feature-chip">RCSA templates</span>
+          <span class="feature-chip">AI root cause</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Evidence Vault -->
+    <div class="module-card evidence snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
+        <img src="Screenshot 2026-06-09 205219.png" alt="ThemisIQ Command Centre" class="w-full h-full object-cover object-top"/>
+      </div>
+      <div class="p-5 flex flex-col gap-3 flex-1">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-surface-container-high">
+            <span class="material-symbols-outlined text-primary text-[18px]" style="font-size:18px">inventory_2</span>
+          </div>
+          <div>
+            <div class="text-label-xs font-mono uppercase tracking-widest text-primary">Cross-Module</div>
+            <h3 class="font-heading text-h2 text-on-surface leading-none">Evidence Vault</h3>
+          </div>
+        </div>
+        <p class="text-body text-on-surface-variant flex-1">A single, versioned evidence repository shared across all modules. Tag evidence to controls, audits, risks, and DSARs. No duplication.</p>
+        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
+          <span class="feature-chip">Versioned files</span>
+          <span class="feature-chip">Cross-module tags</span>
+          <span class="feature-chip">Audit trail</span>
+          <span class="feature-chip">Bulk upload</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     SOCIAL PROOF / WHY THEMISIQ
+════════════════════════════════════════════ -->
+<section class="py-24 border-t border-outline-variant">
+  <div class="max-w-screen-xl mx-auto px-6">
+    <div class="text-center mb-14">
+      <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-3">Why ThemisIQ</p>
+      <h2 class="font-heading text-display-sm text-on-surface">Numbers that matter in GRC</h2>
+      <p class="text-body-lg text-on-surface-variant mt-3 max-w-xl mx-auto">Designed for the teams who can't afford to guess. Every metric is a guarantee, not a goal.</p>
+    </div>
+
+    <!-- Metric cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-16">
+      <div class="proof-card stat-card">
+        <div class="proof-stat mb-2">72h</div>
+        <p class="font-heading font-semibold text-on-surface text-base mb-1">Breach-to-Report</p>
+        <p class="text-body text-on-surface-variant">Sentinel triggers NIS2-compliant incident workflows and auto-populates regulator notifications within the mandatory 72-hour window.</p>
+      </div>
+      <div class="proof-card stat-card">
+        <div class="proof-stat mb-2">6→1</div>
+        <p class="font-heading font-semibold text-on-surface text-base mb-1">Tool Consolidation</p>
+        <p class="text-body text-on-surface-variant">Replace six siloed point solutions: policy manager, audit tracker, risk register, BCM tool, incident log, evidence vault. One unified platform.</p>
+      </div>
+      <div class="proof-card stat-card">
+        <div class="proof-stat mb-2">10×</div>
+        <p class="font-heading font-semibold text-on-surface text-base mb-1">Faster Audit Reports</p>
+        <p class="text-body text-on-surface-variant">GRID's AI report engine drafts fully-cited audit reports in minutes. What used to take a week now takes an afternoon.</p>
+      </div>
+      <div class="proof-card stat-card">
+        <div class="proof-stat mb-2">0×</div>
+        <p class="font-heading font-semibold text-on-surface text-base mb-1">Evidence Duplication</p>
+        <p class="text-body text-on-surface-variant">One evidence upload satisfies controls across every mapped framework simultaneously. No copy-paste. No version drift.</p>
+      </div>
+    </div>
+
+    <!-- Testimonial -->
+    <div class="max-w-3xl mx-auto">
+      <div class="border-l-2 border-primary pl-8 py-2">
+        <p class="font-heading text-h1 text-on-surface leading-snug mb-6">"Before ThemisIQ, our ISO 27001 renewal consumed three weeks of four people's time. Last cycle it was two days, and the auditor commented on how clean the evidence package was."</p>
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-size:20px">person</span>
+          </div>
+          <div>
+            <p class="font-heading font-semibold text-on-surface text-sm">Head of Information Security</p>
+            <p class="text-label font-mono text-on-surface-variant">Financial Services Enterprise · 8,000+ employees</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     AI INTELLIGENCE SECTION
+════════════════════════════════════════════ -->
+<section class="py-20 bg-inverse-surface relative overflow-hidden">
+  <!-- Background pattern -->
+  <div class="absolute inset-0 opacity-10"
+    style="background-image: radial-gradient(circle, rgba(192,193,255,0.6) 1px, transparent 1px); background-size: 32px 32px;"></div>
+
+  <div class="relative max-w-screen-xl mx-auto px-6">
+    <div class="text-center mb-14">
+      <div class="ai-badge inline-flex mb-4">
+        <span class="material-symbols-outlined text-[12px]" style="font-size:12px">auto_awesome</span>
+        Intelligence at every layer
+      </div>
+      <h2 class="font-heading text-display-sm text-inverse-on-surface max-w-2xl mx-auto">
+        AI that understands GRC, not just text.
+      </h2>
+      <p class="text-body-lg text-inverse-on-surface/70 max-w-xl mx-auto mt-4">
+        Powered by Claude, ThemisIQ's AI acts like a knowledgeable GRC analyst embedded in every workflow.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
+        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
+          <span class="material-symbols-outlined text-[#c0c1ff]">policy</span>
+        </div>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">Ask ARIA</h3>
+        <p class="text-body text-inverse-on-surface/70">RAG-powered search over your entire policy library. Ask natural language questions, get cited answers from your own documents.</p>
+        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Governance · ARIA</div>
+      </div>
+
+      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
+        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
+          <span class="material-symbols-outlined text-[#c0c1ff]">description</span>
+        </div>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Policy Generator</h3>
+        <p class="text-body text-inverse-on-surface/70">Draft framework-aligned policies in seconds. Select a framework, enter scope, receive a structured, editable policy document.</p>
+        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Governance · ARIA</div>
+      </div>
+
+      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
+        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
+          <span class="material-symbols-outlined text-[#c0c1ff]">summarize</span>
+        </div>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Audit Reports</h3>
+        <p class="text-body text-inverse-on-surface/70">Turn raw audit evidence and NC logs into polished executive findings reports, complete with observations, risk ratings, and recommendations.</p>
+        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Audit · GRID</div>
+      </div>
+
+      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
+        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
+          <span class="material-symbols-outlined text-[#c0c1ff]">gpp_maybe</span>
+        </div>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI DPIA & Breach Analysis</h3>
+        <p class="text-body text-inverse-on-surface/70">AI-guided DPIAs surface hidden privacy risks. Breach triage analysis helps determine notifiability and GDPR Art 33 obligations within the 72-hour window.</p>
+        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Privacy · Sentinel</div>
+      </div>
+
+      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
+        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
+          <span class="material-symbols-outlined text-[#c0c1ff]">emergency</span>
+        </div>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Continuity Plans</h3>
+        <p class="text-body text-inverse-on-surface/70">Generate BIA-informed business continuity plans automatically. Input critical processes, get structured recovery procedures with RTOs and RPOs.</p>
+        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Resilience · BCM</div>
+      </div>
+
+      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
+        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
+          <span class="material-symbols-outlined text-[#c0c1ff]">manage_search</span>
+        </div>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Root Cause Analysis</h3>
+        <p class="text-body text-inverse-on-surface/70">ORM's AI chat surfaces causal patterns in operational events, identifying systemic risks before they become incidents.</p>
+        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Operations Risk · ORM</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     FEATURE DEEP-DIVE (Alternating)
+════════════════════════════════════════════ -->
+<section id="features" class="py-20 max-w-screen-xl mx-auto px-6">
+  <div class="text-center mb-16">
+    <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-2">Platform Capabilities</p>
+    <h2 class="font-heading text-display-sm text-on-surface">Precision-engineered for compliance.</h2>
+    <p class="text-body text-on-surface-variant max-w-lg mx-auto mt-3">Each module is built around the operational reality of regulated enterprises, not a generic workflow tool dressed up as GRC.</p>
+  </div>
+
+  <div class="flex flex-col gap-24">
+
+    <!-- Row 1: ARIA (text left, visual right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div>
+        <div class="feature-badge" style="color:#b45309; border-color:#fde68a; background:#fef3c7">Governance · ARIA</div>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">Dynamic Framework Mapping. Zero duplication of effort.</h3>
+        <p class="text-body text-on-surface-variant mb-6">Import ISO 27001, NIST CSF, SOC 2, GDPR, and more. ARIA automatically cross-maps shared controls so you implement a control once and satisfy multiple frameworks simultaneously.</p>
+        <div class="flex flex-wrap gap-2 mb-8">
+          <span class="feature-chip">Import &amp; manage frameworks</span>
+          <span class="feature-chip">Cross-map controls</span>
+          <span class="feature-chip">AI-assisted policy generation</span>
+          <span class="feature-chip">Evidence attachment</span>
+          <span class="feature-chip">Risk register</span>
+          <span class="feature-chip">Ask ARIA RAG</span>
+          <span class="feature-chip">Compliance mapping viz</span>
+          <span class="feature-chip">Control re-evaluation triggers</span>
+        </div>
+        <div class="flex gap-6">
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Active Frameworks</div>
+            <div class="font-heading text-h1 text-primary mt-1">12+</div>
+          </div>
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Avg. Compliance Score</div>
+            <div class="font-heading text-h1 text-primary mt-1">94.2%</div>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+        <img src="Screenshot 2026-06-09 205246.png" alt="ARIA Governance Dashboard" class="w-full h-auto block"/>
+      </div>
+    </div>
+
+    <!-- Row 2: Audit GRID (visual left, text right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
+        <img src="Screenshot 2026-06-09 205306.png" alt="GRID Audit Dashboard" class="w-full h-auto block"/>
+      </div>
+      <div class="order-1 lg:order-2">
+        <div class="feature-badge" style="color:#047857; border-color:#6ee7b7; background:#ecfdf5">Audit · GRID</div>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">Surgical audit execution from schedule to sign-off.</h3>
+        <p class="text-body text-on-surface-variant mb-6">GRID manages the complete audit lifecycle: sampling, evidence collection, non-conformity tracking, compliance scoring, and AI-generated findings reports exported to PDF or DOCX.</p>
+        <div class="flex flex-wrap gap-2">
+          <span class="feature-chip">Audit scheduling &amp; sampling</span>
+          <span class="feature-chip">Evidence capture &amp; versioning</span>
+          <span class="feature-chip">NC tracking &amp; gap analysis</span>
+          <span class="feature-chip">Compliance scoring</span>
+          <span class="feature-chip">PDF/DOCX reports</span>
+          <span class="feature-chip">Vendor profile integration</span>
+          <span class="feature-chip">Timeline &amp; approval workflows</span>
+          <span class="feature-chip">AI finding write-ups</span>
+          <span class="feature-chip">Post-incident audit creation</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Sentinel (text left, visual right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div>
+        <div class="feature-badge" style="color:#2170e4; border-color:#adc6ff; background:#dbe6ff">Privacy · Sentinel</div>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">GDPR compliance with the 72-hour clock always running.</h3>
+        <p class="text-body text-on-surface-variant mb-6">Sentinel manages your complete data protection obligations: RoPA generation, automated DPIA workflows, DSR handling, consent tracking, and the critical 72-hour breach notification countdown required under GDPR Article 33.</p>
+        <div class="flex flex-wrap gap-2 mb-8">
+          <span class="feature-chip">RoPA management</span>
+          <span class="feature-chip">DPIA workflow</span>
+          <span class="feature-chip">72-hour breach countdown</span>
+          <span class="feature-chip">DSR management</span>
+          <span class="feature-chip">Consent &amp; legal basis tracking</span>
+          <span class="feature-chip">Retention policies</span>
+          <span class="feature-chip">International transfer tracking</span>
+          <span class="feature-chip">27 jurisdictions</span>
+          <span class="feature-chip">AI-assisted DPIA &amp; breach analysis</span>
+        </div>
+        <!-- GDPR countdown visual -->
+        <div class="bg-surface-container border border-outline-variant rounded-lg p-4 inline-flex items-center gap-4">
+          <div class="w-12 h-12 rounded-full border-4 flex items-center justify-center" style="border-color:#2170e4">
+            <span class="font-mono text-label font-bold" style="color:#2170e4">72h</span>
+          </div>
+          <div>
+            <div class="text-label-xs font-mono text-on-surface font-bold">GDPR Art. 33 Timer</div>
+            <div class="text-label-xs font-mono text-on-surface-variant">Auto-starts on breach confirmation</div>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+        <img src="Screenshot 2026-06-09 205406.png" alt="Sentinel Privacy Dashboard" class="w-full h-auto block"/>
+      </div>
+    </div>
+
+    <!-- Row 4: BCM (visual left, text right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
+        <img src="Screenshot 2026-06-09 205350.png" alt="BCM Resilience Dashboard" class="w-full h-auto block"/>
+      </div>
+      <div class="order-1 lg:order-2">
+        <div class="feature-badge" style="color:#4338ca; border-color:#c7d2fe; background:#eef2ff">Resilience · BCM</div>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">Business continuity from BIA to live incident command.</h3>
+        <p class="text-body text-on-surface-variant mb-6">BCM maps your critical processes and dependencies, scores them with BIA, and then activates structured recovery plans the moment an incident occurs. A live incident command channel keeps response teams coordinated and every action time-stamped for post-incident review.</p>
+        <div class="flex flex-wrap gap-2 mb-8">
+          <span class="feature-chip">Business Impact Analysis</span>
+          <span class="feature-chip">Dependency mapping</span>
+          <span class="feature-chip">AI recovery plan generation</span>
+          <span class="feature-chip">Live incident command channel</span>
+          <span class="feature-chip">BCP exercises &amp; testing</span>
+          <span class="feature-chip">Activation workflows</span>
+          <span class="feature-chip">ISO 22301 alignment</span>
+          <span class="feature-chip">DORA operational resilience</span>
+        </div>
+        <div class="flex gap-6">
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">RTO Coverage</div>
+            <div class="font-heading text-h1 mt-1" style="color:#4338ca">100%</div>
+          </div>
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Avg. Plan Activation</div>
+            <div class="font-heading text-h1 mt-1" style="color:#4338ca">&lt; 4 min</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 5: ERM (text left, visual right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div>
+        <div class="feature-badge" style="color:#991b1b; border-color:#fecaca; background:#fef2f2">Enterprise Risk · ERM</div>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">Board-level risk intelligence, aggregated in real time.</h3>
+        <p class="text-body text-on-surface-variant mb-6">ERM sits at the apex of the ThemisIQ risk hierarchy, aggregating signals from every other module into a single enterprise risk posture. Monitor appetite against tolerance, track regulatory obligations, and generate board-ready reporting without manual aggregation.</p>
+        <div class="flex flex-wrap gap-2 mb-8">
+          <span class="feature-chip">Risk register &amp; heatmaps</span>
+          <span class="feature-chip">Risk appetite &amp; tolerance bands</span>
+          <span class="feature-chip">Obligations tracker</span>
+          <span class="feature-chip">Cross-module escalation intake</span>
+          <span class="feature-chip">Board-level reporting</span>
+          <span class="feature-chip">AI risk scoring</span>
+          <span class="feature-chip">Inherent vs. residual risk</span>
+          <span class="feature-chip">ISO 31000 aligned</span>
+        </div>
+        <div class="flex gap-6">
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Risk Sources</div>
+            <div class="font-heading text-h1 mt-1" style="color:#991b1b">6 modules</div>
+          </div>
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Escalation Latency</div>
+            <div class="font-heading text-h1 mt-1" style="color:#991b1b">Real-time</div>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+        <img src="Screenshot 2026-06-09 205422.png" alt="ERM Enterprise Risk Dashboard" class="w-full h-auto block"/>
+      </div>
+    </div>
+
+    <!-- Row 6: ORM (visual left, text right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
+        <img src="Screenshot 2026-06-09 205444.png" alt="ORM Operations Risk Dashboard" class="w-full h-auto block"/>
+      </div>
+      <div class="order-1 lg:order-2">
+        <div class="feature-badge" style="color:#9a3412; border-color:#fed7aa; background:#fff7ed">Operations Risk · ORM</div>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">Operational risk caught at the event level, before it escalates.</h3>
+        <p class="text-body text-on-surface-variant mb-6">ORM provides day-to-day visibility into operational risk events, KRI breaches, and control failures. Auto-increment thresholds trigger escalation to ERM. RCSA templates standardize risk and control self-assessments across business units. AI root cause analysis reduces mean-time-to-understanding.</p>
+        <div class="flex flex-wrap gap-2 mb-8">
+          <span class="feature-chip">Event &amp; loss logging</span>
+          <span class="feature-chip">KRI library &amp; thresholds</span>
+          <span class="feature-chip">Auto-escalation to ERM</span>
+          <span class="feature-chip">RCSA templates</span>
+          <span class="feature-chip">Control testing</span>
+          <span class="feature-chip">SLA breach tracking</span>
+          <span class="feature-chip">AI root cause analysis</span>
+          <span class="feature-chip">Vendor risk events</span>
+        </div>
+        <div class="flex gap-6">
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">KRI Templates</div>
+            <div class="font-heading text-h1 mt-1" style="color:#9a3412">150+</div>
+          </div>
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Escalation</div>
+            <div class="font-heading text-h1 mt-1" style="color:#9a3412">Automatic</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 7: Evidence Vault (text left, visual right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <div>
+        <div class="feature-badge" style="color:#4648d4; border-color:#c7c4d7; background:#eaedff">Cross-Module · Evidence Vault</div>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">One evidence upload. Every framework satisfied.</h3>
+        <p class="text-body text-on-surface-variant mb-6">The Evidence Vault is the connective tissue of ThemisIQ: a single, versioned, tamper-evident repository shared by every module. Upload an asset once, tag it to a control, and it automatically satisfies the same control across every mapped framework. No copies, no drift, no duplication.</p>
+        <div class="flex flex-wrap gap-2 mb-8">
+          <span class="feature-chip">Versioned file store</span>
+          <span class="feature-chip">Cross-module tagging</span>
+          <span class="feature-chip">Control &amp; audit linkage</span>
+          <span class="feature-chip">Tamper-evident audit trail</span>
+          <span class="feature-chip">Bulk upload</span>
+          <span class="feature-chip">Expiry &amp; re-review alerts</span>
+          <span class="feature-chip">DSAR &amp; risk attachments</span>
+          <span class="feature-chip">Framework auto-satisfy</span>
+        </div>
+        <div class="bg-surface-container border border-outline-variant rounded-lg p-4 inline-flex items-center gap-4">
+          <span class="material-symbols-outlined text-primary" style="font-size:32px">inventory_2</span>
+          <div>
+            <div class="text-label-xs font-mono text-on-surface font-bold">Zero Duplication Guarantee</div>
+            <div class="text-label-xs font-mono text-on-surface-variant">One upload · all frameworks · full audit trail</div>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
+        <img src="Screenshot 2026-06-09 205219.png" alt="Evidence Vault" class="w-full h-auto block"/>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     HOW IT WORKS
+════════════════════════════════════════════ -->
+<section class="py-20 bg-surface-container-low border-y border-outline-variant">
+  <div class="max-w-screen-xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-2">Getting Started</p>
+      <h2 class="font-heading text-display-sm text-on-surface">Enterprise-ready in 48 hours.</h2>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+      <!-- Connector lines (desktop only) -->
+      <div class="hidden md:block absolute top-8 left-1/3 right-1/3 h-px bg-outline-variant" style="top:2.5rem"></div>
+
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6 shadow-lg" style="box-shadow:0 0 0 8px #e2e7ff">
+          <span class="font-heading font-bold text-h2">1</span>
+        </div>
+        <h3 class="font-heading text-h2 text-on-surface mb-2">Onboard &amp; Configure</h3>
+        <p class="text-body text-on-surface-variant">Connect your organization structure, import frameworks, and configure RBAC roles. Our setup script handles deployment in minutes.</p>
+      </div>
+
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6 shadow-lg" style="box-shadow:0 0 0 8px #e2e7ff">
+          <span class="font-heading font-bold text-h2">2</span>
+        </div>
+        <h3 class="font-heading text-h2 text-on-surface mb-2">Activate Modules</h3>
+        <p class="text-body text-on-surface-variant">Enable the GRC modules your organization needs, from Governance to Privacy. All modules share a single data model and evidence vault.</p>
+      </div>
+
+      <div class="text-center">
+        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6 shadow-lg" style="box-shadow:0 0 0 8px #e2e7ff">
+          <span class="font-heading font-bold text-h2">3</span>
+        </div>
+        <h3 class="font-heading text-h2 text-on-surface mb-2">Monitor &amp; Respond</h3>
+        <p class="text-body text-on-surface-variant">Cross-module event bus surfaces risks in real time. KRI breaches, privacy incidents, and audit NCs auto-escalate across modules.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     PRICING
+════════════════════════════════════════════ -->
+<section id="pricing" class="py-24 pricing-bg relative overflow-hidden">
+  <div class="max-w-screen-xl mx-auto px-6">
+
+    <!-- Header -->
+    <div class="text-center mb-6">
+      <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-3">Pricing</p>
+      <h2 class="font-heading text-display-sm text-on-surface">Simple, transparent pricing.</h2>
+      <p class="text-body-lg text-on-surface-variant max-w-xl mx-auto mt-3">Every plan includes unlimited users, single-tenancy deployment, full audit trail, and dedicated onboarding.</p>
+    </div>
+
+    <!-- Billing toggle -->
+    <div class="flex justify-center mb-14">
+      <div class="pricing-toggle inline-flex items-center gap-1">
+        <button id="bill-monthly" class="active" onclick="toggleBilling('monthly')">Monthly</button>
+        <button id="bill-annual" onclick="toggleBilling('annual')">Annual <span style="color:#006c49;font-weight:600">-20%</span></button>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+
+      <!-- Starter -->
+      <div class="glass-card p-8 flex flex-col">
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center">
+              <span class="material-symbols-outlined text-on-surface-variant" style="font-size:18px">shield</span>
+            </div>
+            <span class="font-heading font-semibold text-on-surface text-base">Starter</span>
+          </div>
+          <p class="text-body text-on-surface-variant mb-6">Governance and Audit. For teams beginning their compliance journey.</p>
+          <div class="flex items-baseline gap-1 mb-1">
+            <span class="price-amount text-on-surface" data-monthly="490" data-annual="392">$490</span>
+            <span class="price-period">/ month</span>
+          </div>
+          <p class="text-label-xs font-mono text-outline">per organization, billed <span class="billing-label">monthly</span></p>
+        </div>
+
+        <div class="glass-divider mb-6"></div>
+
+        <ul class="flex flex-col gap-3 mb-8 flex-1">
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>ARIA Governance module</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>GRID Audit module</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Evidence Vault</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>AI policy generation</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Ask ARIA RAG search</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Up to 5 frameworks</span>
+          </li>
+        </ul>
+
+        <a href="#demo" class="block text-center border border-outline-variant/60 rounded-xl py-3 text-label font-mono text-on-surface hover:bg-white/60 hover:border-primary/30 transition-all uppercase tracking-widest">
+          Get Started
+        </a>
+      </div>
+
+      <!-- Professional (featured) -->
+      <div class="glass-card-featured p-8 flex flex-col relative" style="margin-top:-8px;margin-bottom:-8px;box-shadow: 0 24px 48px -12px rgba(70,72,212,0.18)">
+        <div class="absolute -top-3.5 left-1/2 -translate-x-1/2">
+          <div class="ai-badge" style="padding:5px 14px;font-size:11px">
+            <span class="material-symbols-outlined" style="font-size:12px">star</span>
+            Most Popular
+          </div>
+        </div>
+
+        <div class="mb-6 pt-2">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(70,72,212,0.12)">
+              <span class="material-symbols-outlined text-primary" style="font-size:18px">verified_user</span>
+            </div>
+            <span class="font-heading font-semibold text-on-surface text-base">Professional</span>
+          </div>
+          <p class="text-body text-on-surface-variant mb-6">The full GRC suite. For regulated organizations that need comprehensive coverage across all domains.</p>
+          <div class="flex items-baseline gap-1 mb-1">
+            <span class="price-amount text-primary" data-monthly="1,290" data-annual="1,032">$1,290</span>
+            <span class="price-period">/ month</span>
+          </div>
+          <p class="text-label-xs font-mono text-outline">per organization, billed <span class="billing-label">monthly</span></p>
+        </div>
+
+        <div class="glass-divider mb-6"></div>
+
+        <ul class="flex flex-col gap-3 mb-8 flex-1">
+          <li class="flex items-start gap-2.5 text-body text-on-surface">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px">check_circle</span>
+            <span><strong>All 6 GRC modules</strong></span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Evidence Vault</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>All AI features + Ask ARIA</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Cross-module event bus</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Unlimited frameworks</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>PostgreSQL + automated backup</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-primary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Priority support</span>
+          </li>
+        </ul>
+
+        <a href="#demo" class="block text-center bg-primary text-on-primary rounded-xl py-3 text-label font-mono font-bold hover:opacity-90 active:scale-[0.98] transition-all uppercase tracking-widest" style="box-shadow:0 4px 14px rgba(70,72,212,0.35)">
+          Request Demo
+        </a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="glass-card p-8 flex flex-col">
+        <div class="mb-6">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-surface-container-high flex items-center justify-center">
+              <span class="material-symbols-outlined text-on-surface-variant" style="font-size:18px">apartment</span>
+            </div>
+            <span class="font-heading font-semibold text-on-surface text-base">Enterprise</span>
+          </div>
+          <p class="text-body text-on-surface-variant mb-6">Dedicated infrastructure, custom integrations, and SLA guarantees for large-scale deployments.</p>
+          <div class="flex items-baseline gap-1 mb-1">
+            <span class="font-heading font-bold text-on-surface" style="font-size:48px;line-height:1;letter-spacing:-0.03em">Custom</span>
+          </div>
+          <p class="text-label-xs font-mono text-outline">tailored to your organization</p>
+        </div>
+
+        <div class="glass-divider mb-6"></div>
+
+        <ul class="flex flex-col gap-3 mb-8 flex-1">
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Everything in Professional</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>On-premises or private cloud</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Custom API integrations</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Dedicated SLA + account manager</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>SSO / SAML integration</span>
+          </li>
+          <li class="flex items-start gap-2.5 text-body text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-size:16px">check_circle</span>
+            <span>Multi-entity hierarchy</span>
+          </li>
+        </ul>
+
+        <a href="#demo" class="block text-center border border-outline-variant/60 rounded-xl py-3 text-label font-mono text-on-surface hover:bg-white/60 hover:border-primary/30 transition-all uppercase tracking-widest">
+          Contact Sales
+        </a>
+      </div>
+
+    </div>
+
+    <!-- Bottom note -->
+    <p class="text-center text-label-xs font-mono text-outline mt-10">All plans include unlimited users, full audit trail, and 99.9% uptime SLA. Prices shown in USD.</p>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     CTA SECTION
+════════════════════════════════════════════ -->
+<section id="demo" class="py-20 bg-surface-container-low border-y border-outline-variant">
+  <div class="max-w-screen-xl mx-auto px-6">
+    <div class="bg-surface-container-lowest border border-outline-variant rounded-2xl p-12 text-center max-w-3xl mx-auto">
+      <div class="ai-badge inline-flex mb-6">
+        <span class="material-symbols-outlined text-[12px]" style="font-size:12px">verified_user</span>
+        Enterprise-ready setup in 48 hours
+      </div>
+      <h2 class="font-heading text-display-sm text-on-surface mb-4">Ready to upgrade your compliance posture?</h2>
+      <p class="text-body text-on-surface-variant max-w-lg mx-auto mb-10">
+        Join leading financial institutions and technology enterprises who rely on ThemisIQ for continuous GRC intelligence.
+      </p>
+      <form class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-4" onsubmit="return false">
+        <input type="email" placeholder="Enter work email"
+          class="flex-1 border border-outline-variant rounded-lg px-4 py-3 text-body bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-on-surface-variant/50"/>
+        <button type="submit" class="bg-primary text-on-primary px-6 py-3 rounded-lg text-label font-mono font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest whitespace-nowrap">
+          Get Started
+        </button>
+      </form>
+      <p class="text-label-xs font-mono text-outline">No credit card required. We'll contact you within 24 hours.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     FAQ
+════════════════════════════════════════════ -->
+<section id="faq" class="py-20 border-t border-outline-variant">
+  <div class="max-w-5xl mx-auto px-6">
+
+    <!-- Header -->
+    <div class="text-center mb-14">
+      <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-3">Frequently Asked Questions</p>
+      <h2 class="font-heading text-display-sm text-on-surface mb-4">Platform &amp; Compliance Help</h2>
+      <p class="text-body text-on-surface-variant max-w-xl mx-auto mb-8">
+        Answers to the most common questions about ThemisIQ's modules, AI capabilities, frameworks, and enterprise deployment.
+      </p>
+      <a href="#demo" class="inline-flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-full text-label font-mono font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest">
+        Schedule a Demo
+        <span class="material-symbols-outlined" style="font-size:16px">arrow_forward</span>
+      </a>
+    </div>
+
+    <!-- Two-column accordion -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12">
+
+      <!-- LEFT COLUMN -->
+      <div class="faq-column">
+
+        <div class="faq-item border-b border-outline-variant">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">What GRC modules are included in ThemisIQ?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">ThemisIQ includes six integrated modules: ARIA (Governance), GRID (Audit), BCM (Resilience), Sentinel (Privacy), ERM (Enterprise Risk), and ORM (Operations Risk), all sharing a single unified data model and versioned Evidence Vault.</p></div>
+          </div>
+        </div>
+
+        <div class="faq-item border-b border-outline-variant">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">How does the AI work within the platform?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">ThemisIQ's AI is powered by Claude and operates contextually within each module, generating policies, writing audit reports, conducting DPIA analysis, performing root-cause reasoning on operational events, and answering natural-language questions via the Ask ARIA RAG engine.</p></div>
+          </div>
+        </div>
+
+        <div class="faq-item border-b border-outline-variant">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">Which compliance frameworks are supported?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">ThemisIQ ships with built-in support for ISO 27001, SOC 2 Type II, NIST CSF, GDPR, HIPAA, PCI DSS, DORA, and more across 27 jurisdictions. Controls are cross-mapped automatically, so a single implementation satisfies multiple frameworks simultaneously.</p></div>
+          </div>
+        </div>
+
+        <div class="faq-item border-b border-outline-variant">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">Can ThemisIQ replace our existing GRC tools?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">Yes. ThemisIQ is designed as a full-stack GRC replacement, not an add-on. Most clients consolidate 3–6 point tools (policy managers, audit platforms, incident trackers, privacy tools) into a single ThemisIQ deployment within the first month.</p></div>
+          </div>
+        </div>
+
+        <div class="faq-item border-b border-outline-variant md:border-b-0">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">How is evidence shared across modules?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">All evidence lives in a single versioned Evidence Vault accessible to every module. A file uploaded during an audit can be simultaneously tagged to a risk, a policy control, and a DSAR, with full chain-of-custody tracking and no duplication.</p></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div class="faq-column">
+
+        <div class="faq-item border-b border-outline-variant">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">Which industries is ThemisIQ built for?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">ThemisIQ is built for regulated enterprises across financial services, healthcare, technology, energy, and the public sector. Multi-framework cross-mapping and 27-jurisdiction privacy support make it especially strong for organizations with overlapping regulatory obligations.</p></div>
+          </div>
+        </div>
+
+        <div class="faq-item border-b border-outline-variant">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">How long does initial implementation take?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">Most organizations are fully configured within 2–4 weeks. Our onboarding team assists with framework imports, RBAC setup, policy migration, and data seeding. Most clients have their first audit scheduled within the first week of going live.</p></div>
+          </div>
+        </div>
+
+        <div class="faq-item border-b border-outline-variant">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">What does "cross-module cascade" mean in practice?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">When a critical operational risk is logged in ORM, it automatically surfaces in ERM's risk register and triggers a control review in ARIA, with no manual intervention. Cascades are configurable and follow your organizational hierarchy and risk appetite thresholds.</p></div>
+          </div>
+        </div>
+
+        <div class="faq-item border-b border-outline-variant">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">How secure is our compliance data on ThemisIQ?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">ThemisIQ is built on enterprise-grade infrastructure with role-based access control, comprehensive audit trails, encryption at rest and in transit, and configurable data residency. SOC 2 Type II and ISO 27001 certification documentation is available on request.</p></div>
+          </div>
+        </div>
+
+        <div class="faq-item border-b border-outline-variant md:border-b-0">
+          <button class="faq-trigger flex items-center justify-between gap-4 py-5 text-left">
+            <span class="faq-question font-heading text-body-lg font-semibold text-on-surface">Does ThemisIQ support multi-entity organizations?</span>
+            <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
+          </button>
+          <div class="faq-content">
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">Yes. ThemisIQ supports multi-tenant and multi-entity structures with hierarchical RBAC. Subsidiaries maintain their own module views while risk and compliance posture rolls up to a group-level Command Centre dashboard for board-level reporting.</p></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════ -->
+<footer class="bg-inverse-surface text-inverse-on-surface py-16">
+  <div class="max-w-screen-xl mx-auto px-6">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
+
+      <!-- Brand -->
+      <div class="col-span-2">
+        <a href="#" class="block mb-4">
+          <img src="Themis Logo 2D.png" alt="ThemisIQ"
+               style="height:88px; width:auto; filter:brightness(0) invert(1); opacity:0.88;"/>
+        </a>
+        <p class="text-body text-inverse-on-surface/60 max-w-xs">
+          Precision-engineered GRC for regulated enterprises. Six intelligent modules, one unified platform.
+        </p>
+        <div class="flex gap-3 mt-6">
+          <div class="w-9 h-9 rounded-lg border border-inverse-on-surface/20 flex items-center justify-center cursor-pointer hover:border-inverse-on-surface/40 transition-colors">
+            <span class="material-symbols-outlined text-inverse-on-surface/60" style="font-size:18px">language</span>
+          </div>
+          <div class="w-9 h-9 rounded-lg border border-inverse-on-surface/20 flex items-center justify-center cursor-pointer hover:border-inverse-on-surface/40 transition-colors">
+            <span class="material-symbols-outlined text-inverse-on-surface/60" style="font-size:18px">verified_user</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Product -->
+      <div>
+        <h5 class="text-label-xs font-mono text-inverse-on-surface/40 uppercase tracking-widest mb-4">Product</h5>
+        <ul class="flex flex-col gap-3">
+          <li><a href="#modules"   class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">All Modules</a></li>
+          <li><a href="#features"  class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Features</a></li>
+          <li><a href="#pricing"   class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Pricing</a></li>
+          <li><a href="#frameworks" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Frameworks</a></li>
+        </ul>
+      </div>
+
+      <!-- Company -->
+      <div>
+        <h5 class="text-label-xs font-mono text-inverse-on-surface/40 uppercase tracking-widest mb-4">Company</h5>
+        <ul class="flex flex-col gap-3">
+          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">About</a></li>
+          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Careers</a></li>
+          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Contact</a></li>
+          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Blog</a></li>
+        </ul>
+      </div>
+
+      <!-- Legal -->
+      <div>
+        <h5 class="text-label-xs font-mono text-inverse-on-surface/40 uppercase tracking-widest mb-4">Legal</h5>
+        <ul class="flex flex-col gap-3">
+          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Privacy Policy</a></li>
+          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Terms of Service</a></li>
+          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Security Overview</a></li>
+          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Cookie Policy</a></li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div class="pt-8 border-t border-inverse-on-surface/10 flex flex-col md:flex-row justify-between items-center gap-4">
+      <p class="text-label-xs font-mono text-inverse-on-surface/40">© 2026 ThemisIQ. All rights reserved. Precision GRC Engineering.</p>
+      <div class="flex items-center gap-4">
+        <span class="text-label-xs font-mono text-inverse-on-surface/40">Powered by</span>
+        <div class="ai-badge text-[9px]">Claude AI</div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<!-- ═══════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════ -->
+<script>
+// Mobile nav toggle
+const hamburger = document.getElementById('hamburger');
+const mobileMenu = document.getElementById('mobile-menu');
+hamburger.addEventListener('click', () => {
+  mobileMenu.classList.toggle('open');
+});
+// Close on nav link click
+mobileMenu.querySelectorAll('a').forEach(link => {
+  link.addEventListener('click', () => mobileMenu.classList.remove('open'));
+});
+
+// Module Carousel
+const carousel  = document.getElementById('carousel');
+const prevBtn   = document.getElementById('prevBtn');
+const nextBtn   = document.getElementById('nextBtn');
+if (prevBtn) prevBtn.addEventListener('click', () => carousel.scrollBy({ left: -340, behavior: 'smooth' }));
+if (nextBtn) nextBtn.addEventListener('click', () => carousel.scrollBy({ left:  340, behavior: 'smooth' }));
+
+// Globe Canvas
+(function() {
+  const canvas = document.getElementById('globe-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let w, h, rot = 0, animId;
+
+  const PRIMARY   = 'rgba(70, 72, 212, ';
+  const MARKER    = 'rgba(96, 99, 238, 1)';
+
+  function resize() {
+    w = canvas.parentElement.clientWidth;
+    h = canvas.parentElement.clientHeight;
+    canvas.width  = w;
+    canvas.height = h;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    const R  = Math.min(w, h) * 0.38;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Glow
+    const grd = ctx.createRadialGradient(cx, cy, R * 0.6, cx, cy, R * 1.4);
+    grd.addColorStop(0, PRIMARY + '0.06)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.4, 0, Math.PI * 2); ctx.fill();
+
+    // Outer ring
+    ctx.strokeStyle = PRIMARY + '0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
+    // Longitude ellipses
+    ctx.strokeStyle = PRIMARY + '0.15)';
+    for (let i = 0; i < 8; i++) {
+      const angle = rot + i * (Math.PI / 4);
+      const rx = R * Math.abs(Math.cos(angle));
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, R, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Latitude circles
+    for (let i = -3; i <= 3; i++) {
+      const yOff = i * (R / 3.5);
+      const rr   = Math.sqrt(Math.max(0, R * R - yOff * yOff));
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + yOff, rr, rr * 0.18, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Nodes
+    const nodes = [
+      {la:0.3,lo:0.4},{la:-0.2,lo:1.3},{la:0.5,lo:2.2},
+      {la:-0.4,lo:3.1},{la:0.1,lo:4.0},{la:0.6,lo:5.1},
+      {la:-0.3,lo:0.9},{la:0.2,lo:2.8},{la:-0.5,lo:4.6},
+    ];
+    const t = Date.now();
+    nodes.forEach((n, idx) => {
+      const lon = n.lo + rot;
+      const front = Math.cos(lon) > 0;
+      if (!front) return;
+      const x = cx + R * Math.cos(n.la) * Math.sin(lon);
+      const y = cy + R * Math.sin(n.la);
+      // Dot
+      ctx.fillStyle = MARKER;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+      // Pulse
+      const pulse = 4 + Math.sin(t * 0.003 + idx) * 3;
+      ctx.strokeStyle = PRIMARY + '0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, pulse, 0, Math.PI * 2); ctx.stroke();
+    });
+
+    rot += 0.0015;
+    animId = requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', () => { cancelAnimationFrame(animId); resize(); draw(); });
+  resize();
+  draw();
+})();
+
+// Active nav link on scroll (secondary/hash links)
+(function() {
+  const anchors = ['modules','features','frameworks','pricing'];
+  window.addEventListener('scroll', () => {
+    let current = '';
+    anchors.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && window.scrollY >= el.offsetTop - 100) current = id;
+    });
+  });
+})();
+
+// Particle network background
+(function(){
+  var canvas = document.getElementById('aegis-particles');
+  if (!canvas) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, particles = [], mouse = { x: -9999, y: -9999 }, animId = null;
+  var colorRGB = '70,72,212';
+
+  function readColor() {
+    colorRGB = getComputedStyle(document.body).getPropertyValue('--particle-color-rgb').trim() || '70,72,212';
+  }
+  readColor();
+  new MutationObserver(readColor).observe(document.body, { attributes: true });
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    var count = Math.min(70, Math.floor((W * H) / 13000));
+    particles = [];
+    for (var i = 0; i < count; i++) particles.push(makeParticle());
+  }
+
+  function makeParticle() {
+    return {
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.45, vy: (Math.random() - 0.5) * 0.45,
+      r: 0.6 + Math.random() * 0.8
+    };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    var maxDist = 130, repelR = 120, repelF = 2;
+
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      var dx = p.x - mouse.x, dy = p.y - mouse.y;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < repelR && dist > 0) {
+        var force = (repelR - dist) / repelR * repelF;
+        p.vx += (dx / dist) * force * 0.08;
+        p.vy += (dy / dist) * force * 0.08;
+      }
+      var spd = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+      if (spd > 1.2) { p.vx *= 0.95; p.vy *= 0.95; }
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+      if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + colorRGB + ',0.5)';
+      ctx.fill();
+
+      for (var j = i + 1; j < particles.length; j++) {
+        var q = particles[j];
+        var ex = p.x - q.x, ey = p.y - q.y;
+        var ed = Math.sqrt(ex*ex + ey*ey);
+        if (ed < maxDist) {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
+          ctx.strokeStyle = 'rgba(' + colorRGB + ',' + ((1 - ed / maxDist) * 0.28) + ')';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
+      }
+    }
+    animId = requestAnimationFrame(draw);
+  }
+
+  function start() { if (!animId) animId = requestAnimationFrame(draw); }
+  function stop()  { if (animId) { cancelAnimationFrame(animId); animId = null; } }
+
+  document.addEventListener('visibilitychange', function() { document.hidden ? stop() : start(); });
+  window.addEventListener('resize', function() { stop(); resize(); start(); });
+  document.addEventListener('mousemove', function(e) { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+  resize();
+  start();
+})();
+
+// Pricing billing toggle
+function toggleBilling(mode) {
+  document.getElementById('bill-monthly').classList.toggle('active', mode === 'monthly');
+  document.getElementById('bill-annual').classList.toggle('active', mode === 'annual');
+  document.querySelectorAll('.price-amount').forEach(function(el) {
+    var val = mode === 'annual' ? el.dataset.annual : el.dataset.monthly;
+    if (val) el.textContent = '$' + val;
+  });
+  document.querySelectorAll('.billing-label').forEach(function(el) {
+    el.textContent = mode === 'annual' ? 'annually' : 'monthly';
+  });
+}
+
+// FAQ Accordion: one open at a time per column
+(function() {
+  document.querySelectorAll('.faq-trigger').forEach(function(trigger) {
+    trigger.addEventListener('click', function() {
+      var item = trigger.closest('.faq-item');
+      var column = trigger.closest('.faq-column');
+      var isOpen = item.classList.contains('open');
+      column.querySelectorAll('.faq-item.open').forEach(function(o) { o.classList.remove('open'); });
+      if (!isOpen) item.classList.add('open');
+    });
+  });
+})();
+
+// 3D tilt: stat-card (in-place, no lift) and panel-card (lift + tilt)
+(function() {
+  function applyTilt(card) {
+    const isPanel = card.classList.contains('panel-card');
+    card.addEventListener('mousemove', e => {
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width  - 0.5;
+      const y = (e.clientY - r.top)  / r.height - 0.5;
+      card.style.transform = `perspective(600px) rotateX(${-y * 8}deg) rotateY(${x * 8}deg)${isPanel ? ' translateY(-4px)' : ''}`;
+      if (isPanel) card.style.boxShadow = '0 18px 40px -12px rgba(70,72,212,0.28)';
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = '';
+      card.style.boxShadow = '';
+    });
+  }
+  document.querySelectorAll('.stat-card, .panel-card').forEach(applyTilt);
+})();
+</script>
+<script type="module">
+import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.82/build/runtime.js';
+(async function(){
+  var canvas = document.getElementById('spline3d');
+  if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  var app = new Application(canvas);
+  await app.load('https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode');
+
+  document.addEventListener('pointermove', function(e){
+    if (e.target === canvas) return;
+    canvas.dispatchEvent(new PointerEvent('pointermove', {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      pointerId: 1,
+      pointerType: 'mouse',
+      bubbles: false
+    }));
+  });
+})();
+</script>
+</body>
+</html>
