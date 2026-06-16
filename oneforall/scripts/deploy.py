@@ -47,7 +47,7 @@ def run(cmd, check=True):
 print("=" * 60)
 print("Step 1: Installing Python dependencies...")
 print("=" * 60)
-run(f"{sys.executable} -m pip install -r {REQUIREMENTS} -q")
+run(f"{sys.executable} -m pip install -r {REQUIREMENTS} -q --break-system-packages")
 print("Dependencies installed.\n")
 
 
