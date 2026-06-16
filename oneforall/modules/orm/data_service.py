@@ -709,7 +709,7 @@ def get_dashboard_stats(days=30):
 
         def count_period(where_extra="", params=()):
             return db.execute(
-                f"SELECT COUNT(*) FROM orm_events WHERE created_at >= %s" {where_extra}",
+                f"SELECT COUNT(*) FROM orm_events WHERE created_at >= %s {where_extra}",
                 (since,) + params,
             ).fetchone()[0]
 
