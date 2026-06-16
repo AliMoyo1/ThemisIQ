@@ -5,10 +5,9 @@ services:
     environment:
       POSTGRES_DB: themisiq
       POSTGRES_USER: themisiq
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - /project/secrets/pg_password.txt:/run/secrets/pg_password:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U themisiq"]
       interval: 5s
@@ -31,13 +30,11 @@ services:
     environment:
       DB_HOST: db
       DB_USER: themisiq
-      DB_PASSWORD_FILE: /run/secrets/pg_password
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: themisiq
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 200
       DEFAULT_POOL_SIZE: 25
-    volumes:
-      - /project/secrets/pg_password.txt:/run/secrets/pg_password:ro
     depends_on:
       db:
         condition: service_healthy
@@ -52,16 +49,11 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      # App connects via pgbouncer — password injected via file mount.
       DATABASE_URL: postgresql://themisiq@pgbouncer:5432/themisiq
-      PGPASSWORD_FILE: /run/secrets/pg_password
-      # Conservative start: 2 workers x 10-conn pool = 20 backend conns.
-      # Raise WORKERS to 4 only after observed p95 latency or queue buildup.
       WORKERS: "2"
     env_file:
       - oneforall/.env
     volumes:
-      - /project/secrets/pg_password.txt:/run/secrets/pg_password:ro
       - ./data/backups:/app/data/backups
       - ./data/grid_uploads:/app/data/grid_uploads
       - ./data/evidence:/app/data/evidence
