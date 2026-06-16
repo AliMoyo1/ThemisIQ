@@ -9,10 +9,15 @@ if [ -f "${PGPASSWORD_FILE:-}" ]; then
 fi
 
 # Run Alembic schema migrations once, before uvicorn workers spawn.
-# This avoids the race condition where multiple workers each try to migrate.
+# Only runs if there are actual migration version files to apply.
 if [ -n "${DATABASE_URL:-}" ]; then
-    echo "[entrypoint] Running Alembic migrations..."
-    alembic upgrade head
+    VERSION_COUNT=$(find alembic/versions -name '*.py' ! -name '__init__.py' 2>/dev/null | wc -l)
+    if [ "$VERSION_COUNT" -gt 0 ]; then
+        echo "[entrypoint] Running Alembic migrations ($VERSION_COUNT version files)..."
+        alembic upgrade head
+    else
+        echo "[entrypoint] No Alembic migration versions found, skipping."
+    fi
 fi
 
 echo "[entrypoint] Starting uvicorn (workers=${WORKERS:-2})..."
