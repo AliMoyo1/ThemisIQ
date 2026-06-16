@@ -62,7 +62,7 @@ async def api_vendor_directory_create(request: Request):
                       "risk_level", "notes"):
             if body.get(field):
                 db.execute(
-                    f"UPDATE canonical_vendors SET {field}=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    f"UPDATE canonical_vendors SET {field}=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
                     (body[field], cid),
                 )
         db.commit()

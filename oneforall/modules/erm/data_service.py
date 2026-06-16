@@ -29,11 +29,11 @@ def list_enterprise_risks(category=None, status=None, source_module=None, board_
     try:
         where, params = [], []
         if category:
-            where.append("category=?"); params.append(category)
+            where.append("category=%s"); params.append(category)
         if status:
-            where.append("status=?"); params.append(status)
+            where.append("status=%s"); params.append(status)
         if source_module:
-            where.append("source_module=?"); params.append(source_module)
+            where.append("source_module=%s"); params.append(source_module)
         if board_only:
             where.append("board_visibility=1")
         clause = ("WHERE " + " AND ".join(where)) if where else ""
@@ -123,17 +123,17 @@ def update_enterprise_risk(risk_id, data):
                   "risk_statement", "workflow_step", "response_deadline", "effectiveness_rating",
                   "last_reviewed"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         # Auto-compute scores whenever likelihood/impact touched
         if any(k in data for k in ("likelihood", "impact", "residual_likelihood", "residual_impact")):
             inh, res, qual = _compute_scores(data, existing)
-            fields += ["inherent_score=?", "qualitative_score=?"]
+            fields += ["inherent_score=%s", "qualitative_score=%s"]
             vals   += [inh, qual]
             if res is not None:
-                fields.append("residual_score=?"); vals.append(res)
+                fields.append("residual_score=%s"); vals.append(res)
         if fields:
-            fields.append("updated_at=?"); vals.append(_now()); vals.append(risk_id)
-            db.execute(f"UPDATE erm_enterprise_risks SET {','.join(fields)} WHERE id=?", vals)
+            fields.append("updated_at=%s"); vals.append(_now()); vals.append(risk_id)
+            db.execute(f"UPDATE erm_enterprise_risks SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -184,11 +184,11 @@ def upsert_appetite(data):
             for k in ("appetite_level", "max_score", "description", "tolerance_notes",
                       "approved_by", "effective_date", "review_date"):
                 if k in data:
-                    fields.append(f"{k}=?"); vals.append(data[k])
+                    fields.append(f"{k}=%s"); vals.append(data[k])
             if fields:
-                fields.append("updated_at=?"); vals.append(_now())
+                fields.append("updated_at=%s"); vals.append(_now())
                 vals.append(existing[0])
-                db.execute(f"UPDATE erm_risk_appetite SET {','.join(fields)} WHERE id=?", vals)
+                db.execute(f"UPDATE erm_risk_appetite SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
             return existing[0]
         else:
@@ -256,7 +256,7 @@ def list_library(category=None, industry=None, limit=200):
     try:
         where, params = ["is_active=1"], []
         if category:
-            where.append("category=?"); params.append(category)
+            where.append("category=%s"); params.append(category)
         if industry:
             where.append("(applicable_industries LIKE %s OR applicable_industries='all')")
             params.append(f"%{industry}%")
@@ -285,10 +285,10 @@ def update_library_item(item_id, data):
                   "typical_treatment", "suggested_controls", "applicable_industries",
                   "regulatory_references", "tags", "is_active"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
             vals.append(item_id)
-            db.execute(f"UPDATE erm_risk_library SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE erm_risk_library SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -331,9 +331,9 @@ def list_obligations(status=None, regulator=None, limit=500):
     try:
         where, params = [], []
         if status:
-            where.append("o.status=?"); params.append(status)
+            where.append("o.status=%s"); params.append(status)
         if regulator:
-            where.append("o.regulator=?"); params.append(regulator)
+            where.append("o.regulator=%s"); params.append(regulator)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         return _dicts(db.execute(
             f"SELECT o.*, u.full_name AS owner_name "
@@ -381,10 +381,10 @@ def update_obligation(obl_id, data):
                   "evidence_required", "owner_id", "due_date", "status",
                   "linked_controls", "linked_erm_risk_id", "notes"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
-            fields.append("updated_at=?"); vals.append(_now()); vals.append(obl_id)
-            db.execute(f"UPDATE erm_regulatory_obligations SET {','.join(fields)} WHERE id=?", vals)
+            fields.append("updated_at=%s"); vals.append(_now()); vals.append(obl_id)
+            db.execute(f"UPDATE erm_regulatory_obligations SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -452,10 +452,10 @@ def update_assessment(assessment_id, data):
         fields, vals = [], []
         for k in ("title", "type", "description", "target_audience", "status", "due_date"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
-            fields.append("updated_at=?"); vals.append(_now()); vals.append(assessment_id)
-            db.execute(f"UPDATE erm_assessments SET {','.join(fields)} WHERE id=?", vals)
+            fields.append("updated_at=%s"); vals.append(_now()); vals.append(assessment_id)
+            db.execute(f"UPDATE erm_assessments SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -547,8 +547,8 @@ def get_unified_register(filters=None, limit=1000):
     try:
         # ── ERM enterprise risks ──────────────────────────────────────────
         erm_where, erm_params = [], []
-        if cat:    erm_where.append("category=?");  erm_params.append(cat)
-        if status: erm_where.append("status=?");    erm_params.append(status)
+        if cat:    erm_where.append("category=%s");  erm_params.append(cat)
+        if status: erm_where.append("status=%s");    erm_params.append(status)
         else:      erm_where.append("status != 'closed'")
         ew = ("WHERE " + " AND ".join(erm_where)) if erm_where else ""
         erm_rows = _dicts(db.execute(
@@ -565,8 +565,8 @@ def get_unified_register(filters=None, limit=1000):
 
         # ── Platform risk_register ────────────────────────────────────────
         rr_where, rr_params = [], []
-        if cat:    rr_where.append("r.category=?");  rr_params.append(cat)
-        if status: rr_where.append("r.status=?");    rr_params.append(status)
+        if cat:    rr_where.append("r.category=%s");  rr_params.append(cat)
+        if status: rr_where.append("r.status=%s");    rr_params.append(status)
         else:      rr_where.append("r.status != 'closed'")
         rw = ("WHERE " + " AND ".join(rr_where)) if rr_where else ""
         rr_rows = _dicts(db.execute(
@@ -816,7 +816,7 @@ def list_kris(linked_risk_id=None):
     try:
         where, params = [], []
         if linked_risk_id:
-            where.append("k.linked_risk_id=?"); params.append(linked_risk_id)
+            where.append("k.linked_risk_id=%s"); params.append(linked_risk_id)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = db.execute(
             f"SELECT k.*, u.full_name AS owner_name, r.title AS risk_title "
@@ -871,18 +871,18 @@ def update_kri(kri_id, data):
                   "threshold_warn", "threshold_crit", "unit", "frequency",
                   "owner_id", "status", "trend"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         # Handle value update: also record history
         if "current_value" in data:
-            fields.append("current_value=?"); vals.append(data["current_value"])
-            fields.append("last_updated=?"); vals.append(_now())
+            fields.append("current_value=%s"); vals.append(data["current_value"])
+            fields.append("last_updated=%s"); vals.append(_now())
             db.execute(
                 "INSERT INTO erm_kri_history (kri_id, value) VALUES (%s,%s)",
                 (kri_id, data["current_value"])
             )
         if fields:
-            fields.append("updated_at=?"); vals.append(_now()); vals.append(kri_id)
-            db.execute(f"UPDATE erm_kris SET {','.join(fields)} WHERE id=?", vals)
+            fields.append("updated_at=%s"); vals.append(_now()); vals.append(kri_id)
+            db.execute(f"UPDATE erm_kris SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -981,7 +981,7 @@ def list_statements(category=None, tags=None, limit=200):
     try:
         where, params = [], []
         if category:
-            where.append("category=?"); params.append(category)
+            where.append("category=%s"); params.append(category)
         if tags:
             where.append("tags LIKE %s"); params.append(f"%{tags}%")
         clause = ("WHERE " + " AND ".join(where)) if where else ""
@@ -1019,10 +1019,10 @@ def update_statement(stmt_id, data):
         fields, vals = [], []
         for k in ("category", "cause", "event", "consequence", "full_statement", "tags", "industry"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
             vals.append(stmt_id)
-            db.execute(f"UPDATE erm_risk_statements SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE erm_risk_statements SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()

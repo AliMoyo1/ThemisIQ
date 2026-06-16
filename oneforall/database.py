@@ -2677,13 +2677,12 @@ def _run_sqlite_alters(conn):
                 if existing:
                     cid = existing[0]
                 else:
-                    cur = conn.execute(
+                    cid = insert_returning_id(conn,
                         "INSERT INTO canonical_vendors (name, contact_email) VALUES (%s,%s)",
                         (row[1].strip(), row[2]),
                     )
-                    cid = cur.lastrowid
                 conn.execute(
-                    f"UPDATE {tbl} SET canonical_id=? WHERE id=?", (cid, row[0])
+                    f"UPDATE {tbl} SET canonical_id=%s WHERE id=%s", (cid, row[0])
                 )
         conn.commit()
     except Exception:

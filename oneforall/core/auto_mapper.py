@@ -306,7 +306,7 @@ async def run_auto_mapping(
         log.warning("auto_mapper: capped to first 6 frameworks")
 
     # ── Load controls ─────────────────────────────────────────────────────────
-    placeholders = ",".join("?" * len(framework_ids))
+    placeholders = ",".join("%s" * len(framework_ids))
     rows = db.execute(
         f"SELECT c.id, c.framework_id, c.ref, c.name, c.description, c.category, "
         f"       f.name AS fw_name "
@@ -488,7 +488,7 @@ def get_ims_status_bulk(
     ctrl_ids = [c["id"] for c in controls]
     ctrl_fw_map = {c["id"]: c.get("framework_id") for c in controls}
 
-    placeholders = ",".join("?" * len(ctrl_ids))
+    placeholders = ",".join("%s" * len(ctrl_ids))
 
     # Single query: for each control, get all the framework IDs it is mapped to
     mapping_rows = db.execute(f"""

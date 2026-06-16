@@ -108,7 +108,7 @@ def _generic_update(table, allowed, data, row_id, json_fields=None):
 def _generic_get(table, row_id, row_fn=None):
     db = get_db()
     try:
-        row = db.execute(f"SELECT * FROM {table} WHERE id=?", (row_id,)).fetchone()
+        row = db.execute(f"SELECT * FROM {table} WHERE id=%s", (row_id,)).fetchone()
     finally:
         db.close()
     if not row:
@@ -119,7 +119,7 @@ def _generic_get(table, row_id, row_fn=None):
 def _generic_delete(table, row_id):
     db = get_db()
     try:
-        db.execute(f"DELETE FROM {table} WHERE id=?", (row_id,))
+        db.execute(f"DELETE FROM {table} WHERE id=%s", (row_id,))
         db.commit()
     finally:
         db.close()
@@ -134,7 +134,7 @@ def _generic_list(table, filters=None, order="updated_at DESC", limit=500, row_f
             if val is not None and val != "":
                 if col == "q":
                     continue  # handled separately
-                sql += f" AND {col}=?"
+                sql += f" AND {col}=%s"
                 params.append(val)
     sql += f" ORDER BY {order} LIMIT %s"
     params.append(limit)
@@ -216,13 +216,13 @@ def list_ropa(search=None, regulation=None, status=None, risk=None, limit=500):
         like = f"%{search}%"
         params += [like, like, like]
     if regulation:
-        sql += " AND regulation=?"
+        sql += " AND regulation=%s"
         params.append(regulation)
     if status:
-        sql += " AND status=?"
+        sql += " AND status=%s"
         params.append(status)
     if risk:
-        sql += " AND risk_level=?"
+        sql += " AND risk_level=%s"
         params.append(risk)
     sql += " ORDER BY updated_at DESC LIMIT %s"
     params.append(limit)
@@ -277,10 +277,10 @@ def list_dpias(search=None, regulation=None, status=None, limit=500):
         like = f"%{search}%"
         params += [like, like, like]
     if regulation:
-        sql += " AND regulation=?"
+        sql += " AND regulation=%s"
         params.append(regulation)
     if status:
-        sql += " AND status=?"
+        sql += " AND status=%s"
         params.append(status)
     sql += " ORDER BY updated_at DESC LIMIT %s"
     params.append(limit)
@@ -339,10 +339,10 @@ def list_breaches(search=None, status=None, severity=None, limit=500):
         like = f"%{search}%"
         params += [like, like]
     if status:
-        sql += " AND status=?"
+        sql += " AND status=%s"
         params.append(status)
     if severity:
-        sql += " AND severity=?"
+        sql += " AND severity=%s"
         params.append(severity)
     sql += " ORDER BY updated_at DESC LIMIT %s"
     params.append(limit)
@@ -398,10 +398,10 @@ def list_dsrs(search=None, status=None, request_type=None, limit=500):
         like = f"%{search}%"
         params += [like, like, like]
     if status:
-        sql += " AND status=?"
+        sql += " AND status=%s"
         params.append(status)
     if request_type:
-        sql += " AND request_type=?"
+        sql += " AND request_type=%s"
         params.append(request_type)
     sql += " ORDER BY deadline_date ASC LIMIT %s"
     params.append(limit)
@@ -464,10 +464,10 @@ def list_vendors(search=None, risk=None, dpa_status=None, limit=500):
         like = f"%{search}%"
         params += [like, like, like]
     if risk:
-        sql += " AND risk_level=?"
+        sql += " AND risk_level=%s"
         params.append(risk)
     if dpa_status:
-        sql += " AND dpa_status=?"
+        sql += " AND dpa_status=%s"
         params.append(dpa_status)
     sql += " ORDER BY updated_at DESC LIMIT %s"
     params.append(limit)
@@ -537,7 +537,7 @@ def list_consent(search=None, status=None, limit=500):
         like = f"%{search}%"
         params += [like, like, like]
     if status:
-        sql += " AND status=?"
+        sql += " AND status=%s"
         params.append(status)
     sql += " ORDER BY created_at DESC LIMIT %s"
     params.append(limit)
@@ -688,10 +688,10 @@ def list_policies(search=None, status=None, policy_type=None, limit=500):
         like = f"%{search}%"
         params += [like, like, like]
     if status:
-        sql += " AND status=?"
+        sql += " AND status=%s"
         params.append(status)
     if policy_type:
-        sql += " AND type=?"   # DB column is 'type', not 'policy_type'
+        sql += " AND type=%s"   # DB column is 'type', not 'policy_type'
         params.append(policy_type)
     sql += " ORDER BY review_date ASC LIMIT %s"
     params.append(limit)
@@ -733,7 +733,7 @@ def list_training(search=None, department=None, limit=500):
         like = f"%{search}%"
         params += [like, like, like]
     if department:
-        sql += " AND department=?"
+        sql += " AND department=%s"
         params.append(department)
     sql += " ORDER BY expiry_date ASC LIMIT %s"
     params.append(limit)
@@ -927,10 +927,10 @@ def list_lia(ropa_id=None, result=None, limit=200):
           "LEFT JOIN sentinel_ropa r ON r.id=l.ropa_id WHERE 1=1"
     params = []
     if ropa_id:
-        sql += " AND l.ropa_id=?"
+        sql += " AND l.ropa_id=%s"
         params.append(ropa_id)
     if result:
-        sql += " AND l.overall_result=?"
+        sql += " AND l.overall_result=%s"
         params.append(result)
     sql += " ORDER BY l.updated_at DESC LIMIT %s"
     params.append(limit)

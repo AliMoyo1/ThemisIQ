@@ -30,13 +30,13 @@ def list_events(event_type=None, severity=None, status=None, department=None,
     try:
         where, params = [], []
         if event_type:
-            where.append("event_type=?"); params.append(event_type)
+            where.append("event_type=%s"); params.append(event_type)
         if severity:
-            where.append("severity=?"); params.append(severity)
+            where.append("severity=%s"); params.append(severity)
         if status:
-            where.append("status=?"); params.append(status)
+            where.append("status=%s"); params.append(status)
         if department:
-            where.append("department=?"); params.append(department)
+            where.append("department=%s"); params.append(department)
         if date_from:
             where.append("created_at >= %s"); params.append(date_from)
         if date_to:
@@ -118,12 +118,12 @@ def update_event(event_id, data):
                   "erm_risk_id", "workflow_step", "response_due_at", "resolution_due_at",
                   "basel_category"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if data.get("status") == "resolved" and "resolved_at" not in data:
-            fields.append("resolved_at=?"); vals.append(_now())
+            fields.append("resolved_at=%s"); vals.append(_now())
         if fields:
-            fields.append("updated_at=?"); vals.append(_now()); vals.append(event_id)
-            db.execute(f"UPDATE orm_events SET {','.join(fields)} WHERE id=?", vals)
+            fields.append("updated_at=%s"); vals.append(_now()); vals.append(event_id)
+            db.execute(f"UPDATE orm_events SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -197,13 +197,13 @@ def update_kri(kri_id, data, user_id=None):
         for k in ("name", "description", "metric_type", "threshold_warn", "threshold_crit",
                   "current_value", "unit", "frequency", "owner_id", "status", "trend"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         value_changed = "current_value" in data
         if value_changed:
-            fields.append("last_updated=?"); vals.append(_now())
+            fields.append("last_updated=%s"); vals.append(_now())
         if fields:
-            fields.append("updated_at=?"); vals.append(_now()); vals.append(kri_id)
-            db.execute(f"UPDATE orm_kris SET {','.join(fields)} WHERE id=?", vals)
+            fields.append("updated_at=%s"); vals.append(_now()); vals.append(kri_id)
+            db.execute(f"UPDATE orm_kris SET {','.join(fields)} WHERE id=%s", vals)
         if value_changed:
             # Record history row for sparkline / trend analysis
             db.execute(
@@ -238,9 +238,9 @@ def list_event_templates(category=None, is_active=True):
     try:
         where, params = [], []
         if is_active is not None:
-            where.append("is_active=?"); params.append(1 if is_active else 0)
+            where.append("is_active=%s"); params.append(1 if is_active else 0)
         if category:
-            where.append("category=?"); params.append(category)
+            where.append("category=%s"); params.append(category)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         return _dicts(db.execute(
             f"SELECT * FROM orm_event_templates {clause} "
@@ -292,10 +292,10 @@ def update_event_template(template_id, data):
                   "process_affected", "root_cause_category", "corrective_action",
                   "preventive_action", "basel_category", "tags", "is_active"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
             vals.append(template_id)
-            db.execute(f"UPDATE orm_event_templates SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE orm_event_templates SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -362,16 +362,16 @@ def transition_event_workflow(event_id, to_step, user_id=None, notes=None):
             return None
         from_step = ev["workflow_step"] if ev else None
         new_status = _STEP_STATUS_MAP.get(to_step)
-        update_fields = ["workflow_step=?", "updated_at=?"]
+        update_fields = ["workflow_step=%s", "updated_at=%s"]
         update_vals = [to_step, _now()]
         if new_status:
-            update_fields.append("status=?")
+            update_fields.append("status=%s")
             update_vals.append(new_status)
         if to_step == "closed":
-            update_fields.append("resolved_at=?")
+            update_fields.append("resolved_at=%s")
             update_vals.append(_now())
         update_vals.append(event_id)
-        db.execute(f"UPDATE orm_events SET {','.join(update_fields)} WHERE id=?", update_vals)
+        db.execute(f"UPDATE orm_events SET {','.join(update_fields)} WHERE id=%s", update_vals)
         db.execute(
             "INSERT INTO orm_event_workflow_history (event_id, from_step, to_step, changed_by, notes) "
             "VALUES (%s,%s,%s,%s,%s)",
@@ -488,10 +488,10 @@ def update_rcsa_assessment(assessment_id, data):
         for k in ("title", "scope", "period_start", "period_end", "status",
                   "owner_id", "due_date", "notes"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
-            fields.append("updated_at=?"); vals.append(_now()); vals.append(assessment_id)
-            db.execute(f"UPDATE orm_rcsa_assessments SET {','.join(fields)} WHERE id=?", vals)
+            fields.append("updated_at=%s"); vals.append(_now()); vals.append(assessment_id)
+            db.execute(f"UPDATE orm_rcsa_assessments SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -556,10 +556,10 @@ def update_rcsa_risk(risk_id, data):
         for k in ("title", "category", "inherent_likelihood", "inherent_impact",
                   "control_effectiveness", "residual_score", "owner_id", "notes"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
             vals.append(risk_id)
-            db.execute(f"UPDATE orm_rcsa_risks SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE orm_rcsa_risks SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -613,10 +613,10 @@ def update_rcsa_control(control_id, data):
         for k in ("name", "aria_control_id", "design_effectiveness", "operating_effectiveness",
                   "test_date", "tested_by", "evidence_notes", "gap_description"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
             vals.append(control_id)
-            db.execute(f"UPDATE orm_rcsa_controls SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE orm_rcsa_controls SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -677,10 +677,10 @@ def update_rcsa_action(action_id, data):
         fields, vals = [], []
         for k in ("title", "description", "owner_id", "due_date", "status", "notes"):
             if k in data:
-                fields.append(f"{k}=?"); vals.append(data[k])
+                fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
-            fields.append("updated_at=?"); vals.append(_now()); vals.append(action_id)
-            db.execute(f"UPDATE orm_rcsa_actions SET {','.join(fields)} WHERE id=?", vals)
+            fields.append("updated_at=%s"); vals.append(_now()); vals.append(action_id)
+            db.execute(f"UPDATE orm_rcsa_actions SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()

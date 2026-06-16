@@ -68,13 +68,13 @@ def update_bia(bia_id, data):
               "rpo_hours", "financial_impact_per_day", "operational_impact",
               "reputational_impact", "regulatory_impact", "criticality", "dependencies"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(bia_id)
-        db.execute(f"UPDATE bcm_bia_records SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_bia_records SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -123,16 +123,16 @@ def update_risk(risk_id, data):
     for k in ("title", "category", "description", "likelihood", "impact",
               "score", "treatment", "mitigation", "owner", "status", "due_date"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if "likelihood" in data and "impact" in data and "score" not in data:
-        fields.append("score=?")
+        fields.append("score=%s")
         vals.append(int(data["likelihood"]) * int(data["impact"]))
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(risk_id)
-        db.execute(f"UPDATE bcm_risks SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_risks SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -176,13 +176,13 @@ def update_plan(plan_id, data):
     for k in ("title", "scope", "owner", "version", "status", "content",
               "last_reviewed", "next_review"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(plan_id)
-        db.execute(f"UPDATE bcm_plans SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_plans SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -229,16 +229,16 @@ def update_incident(inc_id, data):
     for k in ("title", "description", "severity", "status", "commander",
               "affected_systems", "resolved_at"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if data.get("status") == "resolved" and "resolved_at" not in data:
-        fields.append("resolved_at=?")
+        fields.append("resolved_at=%s")
         vals.append(_now())
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(inc_id)
-        db.execute(f"UPDATE bcm_incidents SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_incidents SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -291,16 +291,16 @@ def update_incident_action(action_id, data):
     fields, vals = [], []
     for k in ("title", "owner", "status", "priority", "due_at", "notes", "completed_at"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if data.get("status") == "done" and "completed_at" not in data:
-        fields.append("completed_at=?")
+        fields.append("completed_at=%s")
         vals.append(_now())
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(action_id)
-        db.execute(f"UPDATE bcm_incident_actions SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_incident_actions SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -351,11 +351,11 @@ def update_incident_stakeholder(sh_id, data):
     fields, vals = [], []
     for k in ("role", "person", "channel", "notified_at", "ack_at", "notes"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
         vals.append(sh_id)
-        db.execute(f"UPDATE bcm_incident_stakeholders SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_incident_stakeholders SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -427,13 +427,13 @@ def update_exercise(ex_id, data):
               "facilitator", "participants", "objectives", "status", "outcome",
               "aar_summary", "aar_strengths", "aar_improvements", "aar_actions"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(ex_id)
-        db.execute(f"UPDATE bcm_exercises SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_exercises SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -491,13 +491,13 @@ def update_vendor(vid, data):
               "data_sensitivity", "sla", "contract_renewal", "risk_score",
               "status", "notes"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(vid)
-        db.execute(f"UPDATE bcm_vendors SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_vendors SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -565,13 +565,13 @@ def update_compliance_control(cid, data):
     for k in ("framework", "clause", "title", "description", "status",
               "owner", "evidence_notes", "last_reviewed", "next_review"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(cid)
-        db.execute(f"UPDATE bcm_compliance_controls SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_compliance_controls SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -698,13 +698,13 @@ def update_training_module(mid, data):
     for k in ("title", "description", "category", "required_roles", "duration_minutes",
               "owner", "content", "passing_score", "renewal_months", "status"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(mid)
-        db.execute(f"UPDATE bcm_training_modules SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_training_modules SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -776,11 +776,11 @@ def update_document(doc_id, data):
     fields, vals = [], []
     for k in ("title", "source_kind", "tags", "content", "chunk_count", "linked_plan_id"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
         vals.append(doc_id)
-        db.execute(f"UPDATE bcm_documents SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_documents SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -816,7 +816,7 @@ def save_chunks(doc_id, chunks):
 def get_chunks(doc_id=None, chunk_ids=None):
     db = get_db()
     if chunk_ids:
-        placeholders = ",".join("?" for _ in chunk_ids)
+        placeholders = ",".join("%s" for _ in chunk_ids)
         return _dicts(db.execute(
             f"SELECT * FROM bcm_document_chunks WHERE id IN ({placeholders}) ORDER BY chunk_index",
             chunk_ids).fetchall())
@@ -878,13 +878,13 @@ def update_dependency_node(nid, data):
     fields, vals = [], []
     for k in ("node_type", "name", "description", "criticality", "ref_table", "ref_id"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(nid)
-        db.execute(f"UPDATE bcm_dependency_nodes SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_dependency_nodes SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -1088,13 +1088,13 @@ def update_comm_template(tid, data):
     fields, vals = [], []
     for k in ("title", "category", "incident_types", "subject", "body", "variables", "is_active", "version"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(tid)
-        db.execute(f"UPDATE bcm_comm_templates SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_comm_templates SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 
@@ -1153,13 +1153,13 @@ def update_contact_node(nid, data):
     fields, vals = [], []
     for k in ("name", "role", "team", "email", "phone", "mobile", "escalation_level", "parent_id", "notes"):
         if k in data:
-            fields.append(f"{k}=?")
+            fields.append(f"{k}=%s")
             vals.append(data[k])
     if fields:
-        fields.append("updated_at=?")
+        fields.append("updated_at=%s")
         vals.append(_now())
         vals.append(nid)
-        db.execute(f"UPDATE bcm_contact_nodes SET {','.join(fields)} WHERE id=?", vals)
+        db.execute(f"UPDATE bcm_contact_nodes SET {','.join(fields)} WHERE id=%s", vals)
         db.commit()
 
 

@@ -942,7 +942,7 @@ def auto_resolve_grid_policy_requests(event_type, source_module, entity_type,
         )
         params = [framework]
         if control_ref:
-            q += " AND (pr.control_ref=? OR pr.control_ref IS NULL OR pr.control_ref='')"
+            q += " AND (pr.control_ref=%s OR pr.control_ref IS NULL OR pr.control_ref='')"
             params.append(control_ref)
 
         matches = db.execute(q, params).fetchall()

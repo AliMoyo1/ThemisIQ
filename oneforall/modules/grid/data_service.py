@@ -308,10 +308,10 @@ def update_audit(aid, data):
                     "scope", "objective", "criteria", "methodology", "conclusion",
                     "parent_audit_id"):
             if col in data:
-                fields.append(f"{col}=?"); vals.append(data[col])
+                fields.append(f"{col}=%s"); vals.append(data[col])
         if fields:
             vals.append(aid)
-            db.execute(f"UPDATE grid_audits SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE grid_audits SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -350,11 +350,11 @@ def list_controls(audit_id=None, status=None, risk_level=None):
                FROM grid_controls c LEFT JOIN users u ON c.assignee_id=u.id WHERE 1=1"""
         params = []
         if audit_id:
-            q += " AND c.audit_id=?"; params.append(audit_id)
+            q += " AND c.audit_id=%s"; params.append(audit_id)
         if status:
-            q += " AND c.status=?"; params.append(status)
+            q += " AND c.status=%s"; params.append(status)
         if risk_level:
-            q += " AND c.risk_level=?"; params.append(risk_level)
+            q += " AND c.risk_level=%s"; params.append(risk_level)
         q += " ORDER BY c.control_id"
         return _dicts(db.execute(q, params).fetchall())
     finally:
@@ -428,10 +428,10 @@ def update_control(cid, data):
         fields, vals = [], []
         for col in ("status", "assignee_id", "due_date", "notes", "name", "description", "risk_level", "control_id"):
             if col in data:
-                fields.append(f"{col}=?"); vals.append(data[col])
+                fields.append(f"{col}=%s"); vals.append(data[col])
         if fields:
             vals.append(cid)
-            db.execute(f"UPDATE grid_controls SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE grid_controls SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
         _auto_status_control(db, cid, data.get("status"))
     finally:
@@ -534,7 +534,7 @@ def get_evidence_items(control_id):
 
         # Fetch ALL related files in one query (fix N+1)
         item_ids = [i["id"] for i in items]
-        placeholders = ",".join("?" * len(item_ids))
+        placeholders = ",".join("%s" * len(item_ids))
         all_files = _dicts(db.execute(
             f"SELECT ef.id, ef.evidence_item_id, ef.original_name, ef.status, ef.file_size "
             f"FROM grid_evidence_files ef "
@@ -744,13 +744,13 @@ def list_ncs(audit_id=None, status=None, cap_status=None):
         )
         params = []
         if audit_id:
-            q += " AND nc.audit_id=?"
+            q += " AND nc.audit_id=%s"
             params.append(audit_id)
         if status:
-            q += " AND nc.status=?"
+            q += " AND nc.status=%s"
             params.append(status)
         if cap_status:
-            q += " AND nc.cap_status=?"
+            q += " AND nc.cap_status=%s"
             params.append(cap_status)
         q += " ORDER BY nc.created_at DESC"
         return _dicts(db.execute(q, params).fetchall())
@@ -808,7 +808,7 @@ def update_nc(ncid, data):
                      "verification_notes", "verified_by",
                      "response_deadline", "effectiveness_review"):
             if col in data:
-                fields.append(f"{col}=?")
+                fields.append(f"{col}=%s")
                 vals.append(data[col])
         # Auto-set timestamps based on cap_status transitions
         cap = data.get("cap_status")
@@ -822,7 +822,7 @@ def update_nc(ncid, data):
         if fields:
             vals.append(ncid)
             db.execute(
-                f"UPDATE grid_non_conformances SET {','.join(fields)} WHERE id=?",
+                f"UPDATE grid_non_conformances SET {','.join(fields)} WHERE id=%s",
                 vals,
             )
             db.commit()
@@ -846,16 +846,16 @@ def advance_cap_status(ncid, user_id=None):
         if idx >= len(_CAP_STATUSES) - 1:
             return current  # already at Closed
         next_status = _CAP_STATUSES[idx + 1]
-        sets = "cap_status=?"
+        sets = "cap_status=%s"
         params = [next_status]
         if next_status == "Verification" and user_id:
-            sets += ", verified_by=?, verified_at=CURRENT_TIMESTAMP"
+            sets += ", verified_by=%s, verified_at=CURRENT_TIMESTAMP"
             params.append(user_id)
         if next_status == "Closed":
             sets += ", closed_at=CURRENT_TIMESTAMP, status='closed'"
         params.append(ncid)
         db.execute(
-            f"UPDATE grid_non_conformances SET {sets} WHERE id=?", params
+            f"UPDATE grid_non_conformances SET {sets} WHERE id=%s", params
         )
         db.commit()
         return next_status
@@ -880,13 +880,13 @@ def revert_cap_status(ncid):
             return current  # already at Open
         prev_status = _CAP_STATUSES[idx - 1]
         # If reverting from Closed, re-open
-        sets = "cap_status=?"
+        sets = "cap_status=%s"
         params = [prev_status]
         if current == "Closed":
             sets += ", closed_at=NULL, status='open'"
         params.append(ncid)
         db.execute(
-            f"UPDATE grid_non_conformances SET {sets} WHERE id=?", params
+            f"UPDATE grid_non_conformances SET {sets} WHERE id=%s", params
         )
         db.commit()
         return prev_status
@@ -910,15 +910,15 @@ def submit_mgmt_response(ncid, user_id, status, response_text=None, response_dea
         if not row:
             return None
         sets = (
-            "mgmt_response_status=?, mgmt_response_by=?, "
+            "mgmt_response_status=%s, mgmt_response_by=%s, "
             "mgmt_response_at=CURRENT_TIMESTAMP"
         )
         params = [status, user_id]
         if response_text is not None:
-            sets += ", mgmt_response=?"
+            sets += ", mgmt_response=%s"
             params.append(response_text)
         if response_deadline is not None:
-            sets += ", response_deadline=?"
+            sets += ", response_deadline=%s"
             params.append(response_deadline)
         # On approval, advance to 'Approved' stage
         if status == "Approved":
@@ -928,7 +928,7 @@ def submit_mgmt_response(ncid, user_id, status, response_text=None, response_dea
             sets += ", cap_status='RCA'"
         params.append(ncid)
         db.execute(
-            f"UPDATE grid_non_conformances SET {sets} WHERE id=?", params
+            f"UPDATE grid_non_conformances SET {sets} WHERE id=%s", params
         )
         db.commit()
         # Return the new cap_status
@@ -978,14 +978,13 @@ def link_evidence_to_nc(ncid, evidence_file_id, linked_by=None, notes=None):
     """Link an evidence file to a non-conformance. Returns link id or None on duplicate."""
     db = get_db()
     try:
-        cur = db.execute(
+        row_id = insert_returning_id(db,
             "INSERT INTO grid_nc_evidence (nc_id, evidence_file_id, linked_by, notes) "
-            "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING RETURNING id",
+            "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
             (ncid, evidence_file_id, linked_by, notes),
         )
         db.commit()
-        row = cur.fetchone()
-        return row["id"] if row else None
+        return row_id
     finally:
         db.close()
 
@@ -1026,9 +1025,9 @@ def list_vendors(status=None, risk_level=None):
         q = "SELECT * FROM grid_vendors WHERE 1=1"
         params = []
         if status:
-            q += " AND status=?"; params.append(status)
+            q += " AND status=%s"; params.append(status)
         if risk_level:
-            q += " AND risk_level=?"; params.append(risk_level)
+            q += " AND risk_level=%s"; params.append(risk_level)
         q += " ORDER BY name"
         vendors = _dicts(db.execute(q, params).fetchall())
         for v in vendors:
@@ -1075,10 +1074,10 @@ def update_vendor(vid, data):
         fields, vals = [], []
         for col in ("name", "contact_name", "contact_email", "services", "risk_level", "status", "frameworks", "contract_expiry", "notes"):
             if col in data:
-                fields.append(f"{col}=?"); vals.append(data[col])
+                fields.append(f"{col}=%s"); vals.append(data[col])
         if fields:
             vals.append(vid)
-            db.execute(f"UPDATE grid_vendors SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE grid_vendors SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -1141,10 +1140,10 @@ def get_all_evidence(audit_id=None, status=None, mime_type=None):
         )
         params = []
         if audit_id:
-            q += " AND c.audit_id=?"
+            q += " AND c.audit_id=%s"
             params.append(audit_id)
         if status:
-            q += " AND ef.status=?"
+            q += " AND ef.status=%s"
             params.append(status)
         if mime_type:
             q += " AND ef.mime_type LIKE %s"
@@ -1429,10 +1428,10 @@ def update_timeline(tid, data):
         fields, vals = [], []
         for col in ("title", "date", "status"):
             if col in data:
-                fields.append(f"{col}=?"); vals.append(data[col])
+                fields.append(f"{col}=%s"); vals.append(data[col])
         if fields:
             vals.append(tid)
-            db.execute(f"UPDATE grid_timeline SET {','.join(fields)} WHERE id=?", vals)
+            db.execute(f"UPDATE grid_timeline SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
     finally:
         db.close()
@@ -1501,7 +1500,7 @@ def list_reports(audit_id=None, limit=50):
         )
         params = []
         if audit_id is not None:
-            q += " AND r.audit_id=?"
+            q += " AND r.audit_id=%s"
             params.append(audit_id)
         q += " ORDER BY r.generated_at DESC LIMIT %s"
         params.append(limit)
@@ -2022,13 +2021,13 @@ def list_aria_policies(framework_name=None, control_ref=None, status="Approved")
         )
         params = []
         if status:
-            q += " AND status=?"
+            q += " AND status=%s"
             params.append(status)
         if framework_name:
-            q += " AND framework=?"
+            q += " AND framework=%s"
             params.append(framework_name)
         if control_ref:
-            q += " AND control_ref=?"
+            q += " AND control_ref=%s"
             params.append(control_ref)
         q += " ORDER BY framework, control_ref, title"
         return _dicts(db.execute(q, params).fetchall())
@@ -2127,10 +2126,10 @@ def list_policy_requests(audit_id=None, status=None):
         )
         params = []
         if audit_id is not None:
-            q += " AND pr.audit_id=?"
+            q += " AND pr.audit_id=%s"
             params.append(audit_id)
         if status:
-            q += " AND pr.status=?"
+            q += " AND pr.status=%s"
             params.append(status)
         q += " ORDER BY pr.created_at DESC"
         return _dicts(db.execute(q, params).fetchall())
@@ -2289,7 +2288,7 @@ def list_vault_evidence(category=None, module=None, search=None, limit=100):
         )
         params = []
         if category:
-            q += " AND e.category=?"
+            q += " AND e.category=%s"
             params.append(category)
         if module:
             q += " AND e.id IN (SELECT evidence_id FROM evidence_links WHERE module=%s)"

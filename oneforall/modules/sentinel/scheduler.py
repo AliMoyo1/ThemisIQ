@@ -233,7 +233,7 @@ def _mark_breach_notified(bid: int, level: str) -> None:
     col = "breach_notified_24h" if level == "24h" else "breach_notified_6h"
     db = get_db()
     try:
-        db.execute(f"UPDATE sentinel_breaches SET {col}=1 WHERE id=?", (bid,))
+        db.execute(f"UPDATE sentinel_breaches SET {col}=1 WHERE id=%s", (bid,))
         db.commit()
     except Exception:
         pass

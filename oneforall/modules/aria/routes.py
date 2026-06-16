@@ -1532,7 +1532,7 @@ async def api_ims_status(request: Request):
 
     db = get_db()
     try:
-        placeholders = ",".join("?" * len(fw_ids))
+        placeholders = ",".join("%s" * len(fw_ids))
         rows = db.execute(
             f"SELECT c.id, c.framework_id, c.ref, c.name, c.description, c.category, "
             f"       f.name AS fw_name, f.color AS fw_color "
