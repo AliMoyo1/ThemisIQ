@@ -6,10 +6,9 @@ services:
       POSTGRES_DB: themisiq
       POSTGRES_USER: themisiq
       POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-    secrets:
-      - pg_password
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - /project/secrets/pg_password.txt:/run/secrets/pg_password:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U themisiq"]
       interval: 5s
@@ -37,8 +36,8 @@ services:
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 200
       DEFAULT_POOL_SIZE: 25
-    secrets:
-      - pg_password
+    volumes:
+      - /project/secrets/pg_password.txt:/run/secrets/pg_password:ro
     depends_on:
       db:
         condition: service_healthy
@@ -53,23 +52,22 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      # No password in the URL — app reads PGPASSWORD_FILE at startup.
+      # App connects via pgbouncer — password injected via file mount.
       DATABASE_URL: postgresql://themisiq@pgbouncer:5432/themisiq
       PGPASSWORD_FILE: /run/secrets/pg_password
-      # Conservative start: 2 workers × 10-conn pool = 20 backend conns.
+      # Conservative start: 2 workers x 10-conn pool = 20 backend conns.
       # Raise WORKERS to 4 only after observed p95 latency or queue buildup.
       WORKERS: "2"
     env_file:
       - oneforall/.env
-    secrets:
-      - pg_password
-    depends_on:
-      pgbouncer:
-        condition: service_started
     volumes:
+      - /project/secrets/pg_password.txt:/run/secrets/pg_password:ro
       - ./data/backups:/app/data/backups
       - ./data/grid_uploads:/app/data/grid_uploads
       - ./data/evidence:/app/data/evidence
+    depends_on:
+      pgbouncer:
+        condition: service_started
     mem_limit: 1g
     cpus: 2
     logging:
@@ -82,13 +80,6 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-
-secrets:
-  pg_password:
-    # Create this file on the VPS before first run:
-    #   mkdir -p secrets && openssl rand -base64 32 > secrets/pg_password.txt && chmod 600 secrets/pg_password.txt
-    # NEVER commit secrets/pg_password.txt to version control.
-    file: ./secrets/pg_password.txt
 
 volumes:
   pgdata:
