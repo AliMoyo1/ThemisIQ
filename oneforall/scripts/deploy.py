@@ -42,13 +42,47 @@ def run(cmd, check=True):
     return result
 
 
-# ── Step 1: Install Python dependencies ──────────────────────────────────────
+# ── Step 1: Check Python dependencies ────────────────────────────────────────
 
 print("=" * 60)
-print("Step 1: Installing Python dependencies...")
+print("Step 1: Checking Python dependencies...")
 print("=" * 60)
-run(f"{sys.executable} -m pip install -r {REQUIREMENTS} -q --break-system-packages")
-print("Dependencies installed.\n")
+
+REQUIRED_IMPORTS = [
+    ("fastapi", "fastapi"),
+    ("uvicorn", "uvicorn"),
+    ("psycopg2", "psycopg2-binary"),
+    ("dotenv", "python-dotenv"),
+    ("jinja2", "jinja2"),
+    ("bcrypt", "bcrypt"),
+    ("docx", "python-docx"),
+    ("apscheduler", "apscheduler"),
+    ("alembic", "alembic"),
+]
+
+missing = []
+for module_name, pip_name in REQUIRED_IMPORTS:
+    try:
+        __import__(module_name)
+        print(f"  {module_name}: OK")
+    except ImportError:
+        missing.append(pip_name)
+        print(f"  {module_name}: MISSING")
+
+if missing:
+    print(f"\n  Installing missing packages: {', '.join(missing)}")
+    result = run(
+        f"{sys.executable} -m pip install {' '.join(missing)} -q --break-system-packages",
+        check=False,
+    )
+    if result.returncode != 0:
+        print("\n  pip install failed. Install build dependencies first:")
+        print("    apt-get install -y libpq-dev python3-dev")
+        print("  Then re-run this script.")
+        sys.exit(1)
+else:
+    print("  All dependencies present.")
+print()
 
 
 # ── Step 2: Ensure secrets and env vars ──────────────────────────────────────
