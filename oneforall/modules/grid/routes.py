@@ -18,7 +18,7 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from database import get_db
+from database import get_db, insert_returning_id
 from core.middleware import require_module, require_capability
 from core.shell_context import shell_ctx
 from modules.grid import data_service as ds
@@ -1408,7 +1408,8 @@ async def api_remote_session_create(request: Request):
     from database import get_db
     db = get_db()
     try:
-        db.execute(
+        sid = insert_returning_id(
+            db,
             "INSERT INTO grid_remote_sessions "
             "(audit_id, title, description, session_type, scheduled_start, scheduled_end, "
             "meeting_link, auditor_id, created_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -1425,7 +1426,6 @@ async def api_remote_session_create(request: Request):
             )
         )
         db.commit()
-        sid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         # Add participants if provided
         participants = data.get("participants", [])
         for p in participants:
@@ -1544,7 +1544,8 @@ async def api_remote_finding_create(request: Request, sid: int):
     from database import get_db
     db = get_db()
     try:
-        db.execute(
+        fid = insert_returning_id(
+            db,
             "INSERT INTO grid_remote_findings "
             "(session_id, control_id, finding_type, severity, title, description, evidence_ref, raised_by) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -1560,7 +1561,6 @@ async def api_remote_finding_create(request: Request, sid: int):
             )
         )
         db.commit()
-        fid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     # Emit GRID_FINDING_CREATED so ERM/event handlers can auto-create risks
@@ -1617,12 +1617,12 @@ async def api_remote_note_create(request: Request, sid: int):
     from database import get_db
     db = get_db()
     try:
-        db.execute(
+        nid = insert_returning_id(
+            db,
             "INSERT INTO grid_remote_notes (session_id, user_id, content, timestamp_offset) VALUES (%s,%s,%s,%s)",
             (sid, _uid(request), data.get("content", ""), data.get("timestamp_offset", 0))
         )
         db.commit()
-        nid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     return JSONResponse({"id": nid}, status_code=201)
@@ -1638,13 +1638,13 @@ async def api_remote_participant_add(request: Request, sid: int):
     from database import get_db
     db = get_db()
     try:
-        db.execute(
+        pid = insert_returning_id(
+            db,
             "INSERT INTO grid_remote_participants (session_id, user_id, external_name, external_email, role) "
             "VALUES (%s,%s,%s,%s,%s)",
             (sid, data.get("user_id"), data.get("name", ""), data.get("email", ""), data.get("role", "auditee"))
         )
         db.commit()
-        pid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     return JSONResponse({"id": pid}, status_code=201)

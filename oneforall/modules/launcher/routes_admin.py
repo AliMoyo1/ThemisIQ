@@ -510,7 +510,8 @@ async def api_key_create(request: Request):
 
     db = get_db()
     try:
-        db.execute(
+        kid = insert_returning_id(
+            db,
             "INSERT INTO api_keys (name, key_hash, key_prefix, scopes, expires_at, created_by) "
             "VALUES (%s,%s,%s,%s,%s,%s)",
             (
@@ -523,7 +524,6 @@ async def api_key_create(request: Request):
             )
         )
         db.commit()
-        kid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     log_audit(request.state.user, "platform", "api_key_create", details=f"Created API key: {data.get('name')}")
@@ -582,7 +582,8 @@ async def api_webhook_create(request: Request):
 
     db = get_db()
     try:
-        db.execute(
+        wid = insert_returning_id(
+            db,
             "INSERT INTO webhooks (name, url, secret, events, created_by) VALUES (%s,%s,%s,%s,%s)",
             (
                 data.get("name", ""),
@@ -593,7 +594,6 @@ async def api_webhook_create(request: Request):
             )
         )
         db.commit()
-        wid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     return _JSONResp({"id": wid, "secret": webhook_secret}, status_code=201)

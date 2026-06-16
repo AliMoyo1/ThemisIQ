@@ -311,13 +311,13 @@ async def framework_detail(request: Request, fw_id: int,
              "FROM controls c WHERE c.framework_id=%s")
         params = [fw_id]
         if status:
-            q += " AND c.status=?"
+            q += " AND c.status=%s"
             params.append(status)
         if priority:
-            q += " AND c.priority=?"
+            q += " AND c.priority=%s"
             params.append(priority)
         if category:
-            q += " AND c.category=?"
+            q += " AND c.category=%s"
             params.append(category)
         if search:
             q += " AND (c.name LIKE %s OR c.ref LIKE %s OR c.description LIKE %s)"
@@ -384,10 +384,10 @@ async def update_control(request: Request, ctrl_id: int,
             ("version", version), ("evidence_ref", evidence_ref),
         ]:
             if val is not None:
-                updates.append(field + "=?")
+                updates.append(field + "=%s")
                 params.append(val)
         if updates:
-            updates.append("last_updated=?")
+            updates.append("last_updated=%s")
             params.append(datetime.now().strftime("%Y-%m-%d"))
             params.append(ctrl_id)
             db.execute(
@@ -647,13 +647,13 @@ async def documents_page(request: Request,
              "FROM aria_documents WHERE 1=1")
         params = []
         if framework:
-            q += " AND framework=?"
+            q += " AND framework=%s"
             params.append(framework)
         if status:
-            q += " AND status=?"
+            q += " AND status=%s"
             params.append(status)
         if doc_type:
-            q += " AND doc_type=?"
+            q += " AND doc_type=%s"
             params.append(doc_type)
         if search:
             q += " AND (title LIKE %s OR control_ref LIKE %s OR owner LIKE %s)"
@@ -805,10 +805,10 @@ async def update_document(request: Request, doc_id: str,
             ("location", location), ("comments", comments),
         ]:
             if val is not None:
-                updates.append(field + "=?")
+                updates.append(field + "=%s")
                 params.append(val)
         if updates:
-            updates.append("updated_at=?")
+            updates.append("updated_at=%s")
             params.append(datetime.now().isoformat())
             params.append(doc_id)
             db.execute(
@@ -1312,7 +1312,7 @@ async def update_risk(request: Request, risk_id: int,
             ("mitigation", mitigation), ("likelihood", likelihood), ("impact", impact),
         ]:
             if val is not None:
-                updates.append(field + "=?")
+                updates.append(field + "=%s")
                 params.append(val)
         if updates:
             params.append(risk_id)

@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_auth, require_capability
 from core.shell_context import shell_ctx
-from database import get_db, sql_date_offset
+from database import get_db, insert_returning_id, sql_date_offset
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 
@@ -195,7 +195,8 @@ async def api_evidence_upload(
                         (rid,),
                     )
 
-        db.execute(
+        eid = insert_returning_id(
+            db,
             "INSERT INTO evidence_items (title, description, file_path, file_name, file_size, "
             "file_hash, mime_type, category, tags, version, parent_id, uploaded_by) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -206,7 +207,6 @@ async def api_evidence_upload(
             )
         )
         db.commit()
-        eid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
 
@@ -435,12 +435,12 @@ async def api_evidence_link_create(request: Request, eid: int):
 
     db = get_db()
     try:
-        db.execute(
+        lid = insert_returning_id(
+            db,
             "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by) VALUES (%s,%s,%s,%s,%s)",
             (eid, module, entity_type, entity_id, user_id)
         )
         db.commit()
-        lid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         # ── IMS evidence inheritance ──────────────────────────────────────
         # When evidence is linked to a grid_control that is part of an IMS audit,
@@ -763,7 +763,7 @@ async def api_evidence_coverage(request: Request):
                 with_ev = db.execute(
                     f"SELECT COUNT(DISTINCT t.{id_col}) FROM {table} t "
                     f"JOIN evidence_links el ON el.entity_id=t.{id_col} "
-                    f"AND el.module=? AND el.entity_type=?",
+                    f"AND el.module=%s AND el.entity_type=%s",
                     (mod, etype),
                 ).fetchone()[0]
                 if mod not in coverage:

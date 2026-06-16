@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
-from database import sql_date_offset
+from database import insert_returning_id, sql_date_offset
 
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
@@ -286,7 +286,8 @@ async def api_calendar_event_create(request: Request):
     data = await request.json()
     db = get_db()
     try:
-        db.execute(
+        eid = insert_returning_id(
+            db,
             "INSERT INTO calendar_events (title, description, event_type, module, entity_type, "
             "entity_id, start_date, end_date, all_day, recurrence, assigned_to, created_by) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -306,7 +307,6 @@ async def api_calendar_event_create(request: Request):
             )
         )
         db.commit()
-        eid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     return _JSONResp({"id": eid}, status_code=201)
@@ -654,7 +654,8 @@ async def api_task_create(request: Request):
     data = await request.json()
     db = get_db()
     try:
-        db.execute(
+        tid = insert_returning_id(
+            db,
             "INSERT INTO task_board (title, description, module, entity_type, entity_id, "
             "assigned_to, priority, status, due_date, tags, created_by) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -673,7 +674,6 @@ async def api_task_create(request: Request):
             )
         )
         db.commit()
-        tid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     # Notify assignee

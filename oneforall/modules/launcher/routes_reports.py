@@ -6,6 +6,7 @@ import json as json_lib
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
+from database import insert_returning_id
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
     shell_ctx, shell_templates, get_db,
@@ -57,7 +58,8 @@ async def api_report_definition_create(request: Request):
     data = await request.json()
     db = get_db()
     try:
-        db.execute(
+        rid = insert_returning_id(
+            db,
             "INSERT INTO report_definitions (name, description, report_type, modules, parameters_json, schedule, created_by) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s)",
             (
@@ -71,7 +73,6 @@ async def api_report_definition_create(request: Request):
             )
         )
         db.commit()
-        rid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     log_audit(request.state.user, "platform", "report_create", details=f"Created report: {data.get('name')}")
@@ -128,12 +129,12 @@ async def api_report_run(request: Request, rid: int):
             return _JSONResp({"error": "Report not found"}, status_code=404)
 
         # Create a run record
-        db.execute(
+        run_id = insert_returning_id(
+            db,
             "INSERT INTO report_runs (definition_id, status, triggered_by) VALUES (%s,%s,%s)",
             (rid, "running", "manual")
         )
         db.commit()
-        run_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         # Generate report data based on type
         report_type = defn["report_type"]

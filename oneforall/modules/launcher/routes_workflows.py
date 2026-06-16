@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 
 from core.timeutils import utcnow
-from database import sql_now_offset
+from database import insert_returning_id, sql_now_offset
 
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
@@ -159,7 +159,8 @@ async def api_workflow_template_install(request: Request, template_id: str):
         ).fetchone()
         if existing:
             return _JSONResp({"id": existing[0], "already_exists": True})
-        db.execute(
+        wid = insert_returning_id(
+            db,
             "INSERT INTO workflow_definitions (name, description, trigger_module, trigger_action, steps_json, created_by) "
             "VALUES (%s,%s,%s,%s,%s,%s)",
             (
@@ -172,7 +173,6 @@ async def api_workflow_template_install(request: Request, template_id: str):
             )
         )
         db.commit()
-        wid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     log_audit(request.state.user, "platform", "workflow_template_install",
@@ -216,7 +216,8 @@ async def api_workflow_definition_create(request: Request):
     db = get_db()
     try:
         steps = data.get("steps", [])
-        db.execute(
+        wid = insert_returning_id(
+            db,
             "INSERT INTO workflow_definitions (name, description, trigger_module, trigger_action, steps_json, created_by) "
             "VALUES (%s,%s,%s,%s,%s,%s)",
             (
@@ -229,7 +230,6 @@ async def api_workflow_definition_create(request: Request):
             )
         )
         db.commit()
-        wid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     log_audit(request.state.user, "platform", "workflow_create", details=f"Created workflow: {data.get('name')}")
@@ -329,14 +329,14 @@ async def api_workflow_instance_start(request: Request):
         if not defn:
             return _JSONResp({"error": "Workflow definition not found or inactive"}, status_code=404)
 
-        db.execute(
+        iid = insert_returning_id(
+            db,
             "INSERT INTO workflow_instances (definition_id, entity_module, entity_type, entity_id, started_by) "
             "VALUES (%s,%s,%s,%s,%s)",
             (defn["id"], data.get("entity_module", ""), data.get("entity_type", ""),
              data.get("entity_id"), request.state.user["id"])
         )
         db.commit()
-        iid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         # Create first step action
         steps = json_lib.loads(defn["steps_json"]) if defn["steps_json"] else []
@@ -546,13 +546,13 @@ async def api_sla_definition_create(request: Request):
         return _JSONResp({"error": "Hours must be positive integers (1-8760)"}, status_code=400)
     db = get_db()
     try:
-        db.execute(
+        sid = insert_returning_id(
+            db,
             "INSERT INTO sla_definitions (name, module, entity_type, response_hours, resolution_hours, escalation_hours, priority) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s)",
             (name, module, entity_type, response_hours, resolution_hours, escalation_hours, priority)
         )
         db.commit()
-        sid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     log_audit(request.state.user, "platform", "sla_create", details=f"Created SLA: {name}")
@@ -606,7 +606,8 @@ async def api_sla_instance_start(request: Request):
         resolution_due = (now_dt + timedelta(hours=int(defn["resolution_hours"]))).strftime("%Y-%m-%d %H:%M:%S") if defn["resolution_hours"] else None
         escalation_due = (now_dt + timedelta(hours=int(defn["escalation_hours"]))).strftime("%Y-%m-%d %H:%M:%S") if defn["escalation_hours"] else None
 
-        db.execute(
+        iid = insert_returning_id(
+            db,
             "INSERT INTO sla_instances (definition_id, entity_module, entity_type, entity_id, "
             "started_at, response_due, resolution_due, escalation_due) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
@@ -614,7 +615,6 @@ async def api_sla_instance_start(request: Request):
              now, response_due, resolution_due, escalation_due)
         )
         db.commit()
-        iid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     return _JSONResp({"id": iid}, status_code=201)
@@ -848,7 +848,8 @@ async def api_comm_template_create(request: Request):
     data = await request.json()
     db = get_db()
     try:
-        db.execute(
+        tid = insert_returning_id(
+            db,
             "INSERT INTO comm_templates (name, category, module, subject_template, body_template, variables_json, created_by) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s)",
             (
@@ -862,7 +863,6 @@ async def api_comm_template_create(request: Request):
             )
         )
         db.commit()
-        tid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     return _JSONResp({"id": tid}, status_code=201)

@@ -5,6 +5,7 @@ APIs, cross-module links.
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from database import insert_returning_id
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, require_capability, has_capability, log_audit,
     shell_ctx, shell_templates, get_db,
@@ -63,12 +64,12 @@ async def admin_create_framework(request: Request):
         if existing:
             return _JSONResp({"error": "Framework already exists"}, status_code=409)
         # Insert into unified frameworks table (primary)
-        db.execute(
+        fw_id = insert_returning_id(
+            db,
             "INSERT INTO frameworks (name, description, color, relevant_modules, is_active) "
             "VALUES (%s, %s, %s, %s, 1)",
             (name, description, color, relevant_modules),
         )
-        fw_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         db.commit()
         log_audit(admin, "platform", "framework_created", details=f"Created framework: {name}")
     finally:

@@ -4,6 +4,7 @@ Launcher sub-router: Risk Register — page and CRUD APIs.
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 
+from database import insert_returning_id
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, shell_ctx, shell_templates, get_db,
 )
@@ -43,16 +44,16 @@ async def api_risks_list(request: Request):
             if module == "erm":
                 rr_where.append("0=1")           # exclude platform rows
             else:
-                rr_where.append("r.source_module=?"); rr_params.append(module)
+                rr_where.append("r.source_module=%s"); rr_params.append(module)
                 erm_where.append("0=1")           # exclude erm rows
         if status:
-            rr_where.append("r.status=?");    rr_params.append(status)
-            erm_where.append("e.status=?");   erm_params.append(status)
+            rr_where.append("r.status=%s");    rr_params.append(status)
+            erm_where.append("e.status=%s");   erm_params.append(status)
         if level:
             # platform register has risk_level text; erm has score
             score_map = {"critical": 20, "high": 12, "medium": 6, "low": 0}
             min_s = score_map.get(level, 0)
-            rr_where.append("r.risk_level=?");      rr_params.append(level)
+            rr_where.append("r.risk_level=%s");      rr_params.append(level)
             if level == "critical":
                 erm_where.append("(e.likelihood*e.impact)>=20")
             elif level == "high":
@@ -118,7 +119,8 @@ async def api_risk_create(request: Request):
         impact = int(data.get("impact", 3))
         score = likelihood * impact
         level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
-        db.execute(
+        rid = insert_returning_id(
+            db,
             "INSERT INTO risk_register (title, description, source_module, source_entity_type, "
             "source_entity_id, category, likelihood, impact, risk_level, owner_id, treatment, "
             "treatment_plan, status, review_date, created_by) "
@@ -140,7 +142,6 @@ async def api_risk_create(request: Request):
             )
         )
         db.commit()
-        rid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     finally:
         db.close()
     return _JSONResp({"id": rid, "risk_level": level, "risk_score": score}, status_code=201)
