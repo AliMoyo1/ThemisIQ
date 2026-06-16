@@ -1,37 +1,20 @@
 """
-ERM AI Service — AI-powered risk scoring, treatment suggestions, board narrative, chat.
+ERM AI Service - AI-powered risk scoring, treatment suggestions, board narrative, chat.
+
+Uses the unified core.ai_client for multi-provider support
+(Anthropic, DeepSeek, Gemini, OpenAI, Ollama).
 """
 import json
 import logging
-import os
-from typing import Any
+
+from core.ai_client import create_message, is_configured, provider_name, safe_json_parse
 
 log = logging.getLogger(__name__)
 
-_client = None
-
-def _get_client():
-    global _client
-    if _client is None:
-        try:
-            import anthropic
-            _client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        except ImportError:
-            log.warning("anthropic package not installed — ERM AI stubs will be used")
-    return _client
-
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
-
 
 def score_risk(title: str, description: str, category: str = "") -> dict:
-    """
-    AI-assisted risk scoring.
-    Returns {likelihood, impact, category, treatment, rationale}.
-    """
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return _stub_score(title)
-
     prompt = (
         f"You are an enterprise risk manager. Score this risk:\n\n"
         f"Title: {title}\n"
@@ -42,15 +25,8 @@ def score_risk(title: str, description: str, category: str = "") -> dict:
         '"treatment": "<mitigate|accept|avoid|transfer>", "rationale": "<1 sentence>"}'
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=512,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        text = resp.content[0].text.strip()
-        # Extract JSON
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        return json.loads(text[start:end])
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=512)
+        return safe_json_parse(text, _stub_score(title))
     except Exception as exc:
         log.error("ERM AI score failed: %s", exc)
         return _stub_score(title)
@@ -61,19 +37,13 @@ def _stub_score(title: str) -> dict:
         "likelihood": 3, "impact": 3,
         "category": "operational",
         "treatment": "mitigate",
-        "rationale": f"Stub scoring for '{title}' — configure ANTHROPIC_API_KEY for real AI scoring.",
+        "rationale": f"Stub scoring for '{title}'. Configure {provider_name()} API key for real AI scoring.",
     }
 
 
 def suggest_treatment(title: str, description: str, category: str, likelihood: int, impact: int) -> dict:
-    """
-    Suggest a treatment plan for a risk.
-    Returns {treatment, treatment_plan, suggested_controls, recommended_owner}.
-    """
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return _stub_treatment(title)
-
     score = likelihood * impact
     prompt = (
         f"Enterprise risk treatment request:\n\n"
@@ -86,13 +56,8 @@ def suggest_treatment(title: str, description: str, category: str, likelihood: i
         '"recommended_owner": "<job title best suited to own this risk>"}'
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=800,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        text = resp.content[0].text.strip()
-        start = text.find("{"); end = text.rfind("}") + 1
-        return json.loads(text[start:end])
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
+        return safe_json_parse(text, _stub_treatment(title))
     except Exception as exc:
         log.error("ERM treatment suggestion failed: %s", exc)
         return _stub_treatment(title)
@@ -108,11 +73,8 @@ def _stub_treatment(title: str) -> dict:
 
 
 def generate_board_narrative(stats: dict, appetite_status: list) -> str:
-    """Generate executive board narrative from live ERM stats."""
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return _stub_board_narrative(stats)
-
     breached = [a["category"] for a in appetite_status if a.get("breached")]
     prompt = (
         "You are writing the Enterprise Risk section of a board-level governance report. "
@@ -124,11 +86,7 @@ def generate_board_narrative(stats: dict, appetite_status: list) -> str:
         "Use professional tone. Format as plain paragraphs (no markdown headers)."
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=1500,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return resp.content[0].text
+        return create_message([{"role": "user", "content": prompt}], max_tokens=1500)
     except Exception as exc:
         log.error("ERM board narrative failed: %s", exc)
         return _stub_board_narrative(stats)
@@ -144,16 +102,13 @@ def _stub_board_narrative(stats: dict) -> str:
         f"{'Risk appetite is being breached in ' + str(breaches) + ' category/categories, requiring immediate board attention.' if breaches else 'All risks are currently within approved appetite thresholds.'}\n\n"
         "The Board is requested to note the current risk profile and approve the proposed treatment plans "
         "for any above-appetite exposures.\n\n"
-        "*[Full AI narrative requires ANTHROPIC_API_KEY to be configured.]*"
+        f"*[Full AI narrative requires {provider_name()} API key to be configured.]*"
     )
 
 
 def chat(history: list, stats: dict = None) -> str:
-    """ERM AI assistant — risk advice, treatment guidance, regulatory help."""
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return _stub_chat(history)
-
     system = (
         "You are an Enterprise Risk Management expert embedded in ThemisIQ. "
         "Help the user with risk identification, scoring, treatment planning, "
@@ -163,13 +118,8 @@ def chat(history: list, stats: dict = None) -> str:
     )
     if stats:
         system += f"\n\nCurrent platform risk stats: {json.dumps(stats, default=str)}"
-
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=2048, system=system,
-            messages=history
-        )
-        return resp.content[0].text
+        return create_message(history, system=system, max_tokens=2048)
     except Exception as exc:
         log.error("ERM chat failed: %s", exc)
         return _stub_chat(history)
@@ -179,18 +129,12 @@ def _stub_chat(history: list) -> str:
     last = history[-1]["content"] if history else ""
     return (
         f"[ERM AI stub] I received: \"{last[:80]}...\". "
-        "Configure ANTHROPIC_API_KEY for full AI assistance."
+        f"Configure {provider_name()} API key for full AI assistance."
     )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# RISK STATEMENT GENERATION
-# ═════════════════════════════════════════════════════════════════════════════
-
 def generate_risk_statement(category: str, description: str) -> dict:
-    """Generate a structured risk statement from category + description."""
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return {
             "cause": "inadequate controls",
             "event": "an adverse risk event materialises",
@@ -205,26 +149,15 @@ def generate_risk_statement(category: str, description: str) -> dict:
         '{"cause":"Due to [root cause / failure]","event":"there is a risk that [risk event]","consequence":"resulting in [impact/consequence]","full_statement":"[complete sentence combining all three]"}'
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=300,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = resp.content[0].text.strip()
-        start, end = raw.find("{"), raw.rfind("}") + 1
-        return json.loads(raw[start:end]) if start >= 0 else {"full_statement": raw}
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=300)
+        return safe_json_parse(text, {"full_statement": description})
     except Exception as exc:
         log.error("ERM generate_risk_statement failed: %s", exc)
         return {"full_statement": description}
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# SMART ASSESSMENT — SUGGEST QUESTIONS
-# ═════════════════════════════════════════════════════════════════════════════
-
 def suggest_assessment_questions(assessment_type: str, linked_risk_titles: list, existing_questions: list) -> list:
-    """Suggest up to 8 assessment questions based on type and linked risks."""
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return [
             {"question": "How effectively are current controls mitigating identified risks?", "question_type": "scale", "weight": 1.0},
             {"question": "Are risk owners clearly assigned and accountable?", "question_type": "yes_no", "weight": 1.0},
@@ -242,26 +175,15 @@ def suggest_assessment_questions(assessment_type: str, linked_risk_titles: list,
         '[{"question":"...","question_type":"scale|yes_no|text|multiple_choice","weight":1.0}]'
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=600,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = resp.content[0].text.strip()
-        start, end = raw.find("["), raw.rfind("]") + 1
-        return json.loads(raw[start:end]) if start >= 0 else []
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=600)
+        return safe_json_parse(text, [])
     except Exception as exc:
         log.error("ERM suggest_assessment_questions failed: %s", exc)
         return []
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# SMART ASSESSMENT — IDENTIFY RISKS FROM RESPONSES
-# ═════════════════════════════════════════════════════════════════════════════
-
 def identify_risks_from_responses(responses_text: str, assessment_title: str) -> list:
-    """Analyse assessment responses and identify candidate risk objects."""
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return [{"title": "Risk identified from assessment", "description": "Review assessment responses for details.",
                  "category": "operational", "likelihood": 3, "impact": 3, "treatment": "mitigate"}]
     prompt = (
@@ -273,26 +195,15 @@ def identify_risks_from_responses(responses_text: str, assessment_title: str) ->
         '[{"title":"...","description":"...","category":"strategic|operational|compliance|financial|reputational|technology|third_party|environmental","likelihood":3,"impact":3,"treatment":"mitigate|accept|avoid|transfer"}]'
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=800,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = resp.content[0].text.strip()
-        start, end = raw.find("["), raw.rfind("]") + 1
-        return json.loads(raw[start:end]) if start >= 0 else []
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
+        return safe_json_parse(text, [])
     except Exception as exc:
         log.error("ERM identify_risks_from_responses failed: %s", exc)
         return []
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# SMART REMEDIATION PLAN
-# ═════════════════════════════════════════════════════════════════════════════
-
 def smart_remediation_plan(title: str, description: str, category: str, score: int) -> dict:
-    """Generate a detailed step-by-step remediation plan for a risk."""
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return {
             "summary": "Implement standard risk controls for this category.",
             "steps": [
@@ -311,13 +222,8 @@ def smart_remediation_plan(title: str, description: str, category: str, score: i
         '{"summary":"...","steps":[{"step":1,"action":"...","timeline":"...","responsible":"..."}],"cost_tier":"low|medium|high","success_criteria":"..."}'
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=800,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = resp.content[0].text.strip()
-        start, end = raw.find("{"), raw.rfind("}") + 1
-        return json.loads(raw[start:end]) if start >= 0 else {"summary": raw}
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
+        return safe_json_parse(text, {"summary": "Unable to generate plan."})
     except Exception as exc:
         log.error("ERM smart_remediation_plan failed: %s", exc)
         return {"summary": "Unable to generate plan. Please configure AI provider."}

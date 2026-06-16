@@ -1,29 +1,19 @@
 """
 One For All - AI Control Generator.
 
-Uses Claude to generate compliance controls for frameworks that don't have
+Uses AI to generate compliance controls for frameworks that don't have
 pre-defined seed data (e.g. custom frameworks created by the user).
+
+Uses the unified core.ai_client for multi-provider support
+(Anthropic, DeepSeek, Gemini, OpenAI, Ollama).
 """
 import json
 import logging
-import os
 import re
 
+from core.ai_client import create_message, is_configured, provider_name
+
 log = logging.getLogger("oneforall.ai_controls")
-
-
-def _get_client():
-    """Get Anthropic client, raising clear error if not configured."""
-    try:
-        import anthropic
-    except ImportError:
-        raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
-    key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
-    if not key or key.startswith("your-"):
-        raise RuntimeError(
-            "API key not set. Set ANTHROPIC_API_KEY in your .env file."
-        )
-    return anthropic.Anthropic(api_key=key)
 
 
 def generate_controls_for_framework(
@@ -32,12 +22,10 @@ def generate_controls_for_framework(
     relevant_modules: str = "",
     count_hint: int = 15,
 ) -> list[dict]:
-    """
-    Use Claude to generate a set of compliance controls for a framework.
-
-    Returns a list of dicts with keys: ref, name, category, description, doc_type, priority.
-    """
-    client = _get_client()
+    if not is_configured():
+        raise RuntimeError(
+            f"{provider_name()} API key not set. Configure it in your .env file."
+        )
 
     system_prompt = (
         "You are a compliance and governance expert. Generate realistic, actionable "
@@ -68,23 +56,18 @@ def generate_controls_for_framework(
     )
 
     try:
-        resp = client.messages.create(
-            model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
-            max_tokens=4000,
+        text = create_message(
+            [{"role": "user", "content": user_msg}],
             system=system_prompt,
-            messages=[{"role": "user", "content": user_msg}],
+            max_tokens=4000,
         )
-        text = resp.content[0].text.strip()
-        # Strip markdown fences if present
         text = re.sub(r"```json\s*", "", text)
-        text = re.sub(r"```\s*", "", text)
-        text = text.strip()
+        text = re.sub(r"```\s*", "", text).strip()
 
         controls = json.loads(text)
         if not isinstance(controls, list):
             raise ValueError("AI response was not a JSON array")
 
-        # Validate and sanitize each control
         validated = []
         for ctrl in controls:
             if not isinstance(ctrl, dict):
@@ -104,10 +87,7 @@ def generate_controls_for_framework(
     except json.JSONDecodeError as e:
         log.error("AI returned invalid JSON for '%s': %s", framework_name, e)
         raise RuntimeError("AI generated invalid response. Please try again.")
+    except RuntimeError:
+        raise
     except Exception as e:
-        msg = str(e)
-        if "authentication_error" in msg or "invalid x-api-key" in msg:
-            raise RuntimeError("Invalid Anthropic API key. Check ANTHROPIC_API_KEY.")
-        if "rate_limit" in msg or "429" in msg:
-            raise RuntimeError("Rate limit reached. Wait a moment and try again.")
-        raise RuntimeError(f"AI generation failed: {msg}")
+        raise RuntimeError(f"AI generation failed: {e}")

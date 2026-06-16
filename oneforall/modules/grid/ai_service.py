@@ -1,92 +1,31 @@
 """
-GRID module — AI services.
+GRID module - AI services.
 
 Ported from AuditSphere's ai.js + checklistParser.js.
-Provides Claude-powered compliance analysis: checklist parsing, gap analysis,
+Provides AI-powered compliance analysis: checklist parsing, gap analysis,
 control suggestions, report narrative, and compliance chat.
+
+Uses the unified core.ai_client for multi-provider support
+(Anthropic, DeepSeek, Gemini, OpenAI, Ollama).
 """
 import io
 import json
-import os
 import re
 import csv
 from pathlib import Path
 
-import anthropic
+from core.ai_client import create_message, is_configured, provider_name, safe_json_parse
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Claude helpers
-# ═════════════════════════════════════════════════════════════════════════════
-
-def _get_client() -> anthropic.Anthropic:
-    key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
-    if not key or key.startswith("your-"):
-        raise RuntimeError(
-            "API key not set — set ANTHROPIC_API_KEY=sk-ant-... in your environment."
-        )
-    return anthropic.Anthropic(api_key=key)
+def _call_ai(messages: list, system: str = "", max_tokens: int = 2000) -> str:
+    text = create_message(messages, system=system, max_tokens=max_tokens)
+    return re.sub(r"```json|```", "", text).strip()
 
 
-def _friendly_error(err: Exception) -> str:
-    msg = str(err)
-    if "authentication_error" in msg or "invalid x-api-key" in msg:
-        return "Invalid Anthropic API key. Check ANTHROPIC_API_KEY."
-    if "rate_limit" in msg or "429" in msg:
-        return "Rate limit reached. Wait a moment and try again."
-    if "overloaded" in msg:
-        return "Anthropic API is temporarily overloaded. Please try again."
-    return msg
-
-
-def call_claude(messages: list, system: str | None = None, max_tokens: int = 2000) -> str:
-    """Call Claude and return stripped text (no markdown fences)."""
-    client = _get_client()
-    opts = dict(
-        model="claude-sonnet-4-20250514",
-        max_tokens=max_tokens,
-        messages=messages,
-    )
-    if system:
-        opts["system"] = system
-    try:
-        resp = client.messages.create(**opts)
-        text = resp.content[0].text.strip()
-        return re.sub(r"```json|```", "", text).strip()
-    except Exception as err:
-        raise RuntimeError(_friendly_error(err))
-
-
-def _safe_parse_json(text: str, fallback=None):
-    """Lenient JSON parser — tries direct parse, then regex extraction."""
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, TypeError):
-        pass
-    # Try extracting array
-    m = re.search(r"\[[\s\S]*\]", text)
-    if m:
-        try:
-            return json.loads(m.group(0))
-        except (json.JSONDecodeError, TypeError):
-            pass
-    # Try extracting object
-    m = re.search(r"\{[\s\S]*\}", text)
-    if m:
-        try:
-            return json.loads(m.group(0))
-        except (json.JSONDecodeError, TypeError):
-            pass
-    return fallback
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# AI functions
-# ═════════════════════════════════════════════════════════════════════════════
+# ---- AI functions ----
 
 def batch_risk_score(items: list, framework_name: str) -> dict:
-    """Score a batch of controls with risk levels and evidence requirements."""
-    text = call_claude([{
+    text = _call_ai([{
         "role": "user",
         "content": (
             f"You are a {framework_name} compliance expert. "
@@ -104,14 +43,12 @@ def batch_risk_score(items: list, framework_name: str) -> dict:
             '"evidence_items":["Policy doc","Approval record"]}}'
         ),
     }], max_tokens=4000)
-
-    parsed = _safe_parse_json(text, {})
+    parsed = safe_json_parse(text, {})
     return {int(k): v for k, v in parsed.items()} if isinstance(parsed, dict) else {}
 
 
 def parse_checklist_with_ai(raw_text: str, framework_name: str) -> list:
-    """Legacy fallback: parse plain-text checklist via AI."""
-    text = call_claude([{
+    text = _call_ai([{
         "role": "user",
         "content": (
             f"Parse this compliance checklist for {framework_name}. "
@@ -121,14 +58,13 @@ def parse_checklist_with_ai(raw_text: str, framework_name: str) -> list:
             '"evidence_items":["Item"]}]'
         ),
     }], max_tokens=4000)
-    parsed = _safe_parse_json(text, [])
+    parsed = safe_json_parse(text, [])
     if not isinstance(parsed, list):
         raise RuntimeError("AI returned invalid format")
     return parsed
 
 
 def generate_gap_analysis(controls: list, framework_name: str) -> dict:
-    """Analyse compliance gaps across controls."""
     summary = [
         {
             "id": c.get("control_id", ""),
@@ -140,7 +76,7 @@ def generate_gap_analysis(controls: list, framework_name: str) -> dict:
         }
         for c in controls
     ]
-    text = call_claude([{
+    text = _call_ai([{
         "role": "user",
         "content": (
             f"{framework_name} gap analysis for these controls: {json.dumps(summary)}\n"
@@ -150,7 +86,7 @@ def generate_gap_analysis(controls: list, framework_name: str) -> dict:
             '"estimated_completion":"X weeks"}'
         ),
     }])
-    return _safe_parse_json(text, {
+    return safe_json_parse(text, {
         "readiness_score": 0,
         "risk_summary": "Analysis unavailable",
         "critical_gaps": [],
@@ -160,8 +96,7 @@ def generate_gap_analysis(controls: list, framework_name: str) -> dict:
 
 
 def suggest_control_details(control_id: str, name: str, framework_name: str) -> dict:
-    """Suggest description, risk level, and evidence items for a control."""
-    text = call_claude([{
+    text = _call_ai([{
         "role": "user",
         "content": (
             f'{framework_name} control: ID="{control_id}" Name="{name}"\n'
@@ -171,7 +106,7 @@ def suggest_control_details(control_id: str, name: str, framework_name: str) -> 
             '"tips":"One practical tip"}'
         ),
     }])
-    return _safe_parse_json(text, {
+    return safe_json_parse(text, {
         "description": "",
         "risk_level": "Medium",
         "evidence_items": [],
@@ -180,8 +115,7 @@ def suggest_control_details(control_id: str, name: str, framework_name: str) -> 
 
 
 def generate_report_narrative(audit_data: dict) -> dict:
-    """Generate executive summary for an audit report."""
-    text = call_claude([{
+    text = _call_ai([{
         "role": "user",
         "content": (
             "Professional audit report executive summary:\n"
@@ -199,7 +133,7 @@ def generate_report_narrative(audit_data: dict) -> dict:
             '"key_findings":["f1","f2","f3"],"conclusion":"1-2 sentences"}'
         ),
     }], max_tokens=1500)
-    return _safe_parse_json(text, {
+    return safe_json_parse(text, {
         "executive_summary": "",
         "overall_status": "In Progress",
         "key_findings": [],
@@ -208,8 +142,7 @@ def generate_report_narrative(audit_data: dict) -> dict:
 
 
 def ask_compliance_ai(question: str, context: dict | None = None) -> str:
-    """Compliance assistant chat."""
-    return call_claude(
+    return _call_ai(
         [{"role": "user", "content": question}],
         system=(
             "You are G.R.I.D AI's compliance assistant. Help with ISO 27001, "
@@ -220,9 +153,7 @@ def ask_compliance_ai(question: str, context: dict | None = None) -> str:
     )
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Checklist parser (Excel / CSV)
-# ═════════════════════════════════════════════════════════════════════════════
+# ---- Checklist parser (Excel / CSV) ----
 
 def _clean(val) -> str:
     if val is None:
@@ -247,7 +178,6 @@ def _detect_columns(header_row: list, data_rows: list) -> dict:
             if any(p in h for p in patterns):
                 if key not in idx:
                     idx[key] = i
-    # First column numeric in first data row → ID column
     if data_rows and len(data_rows) > 0:
         first_val = str(data_rows[0][0] if data_rows[0] else "")
         if first_val.isdigit():
@@ -256,7 +186,6 @@ def _detect_columns(header_row: list, data_rows: list) -> dict:
 
 
 def _extract_rows_from_excel(file_bytes: bytes) -> list:
-    """Extract rows from Excel file using openpyxl."""
     import openpyxl
 
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
@@ -306,7 +235,6 @@ def _extract_rows_from_excel(file_bytes: bytes) -> list:
 
 
 def _extract_rows_from_csv(file_bytes: bytes) -> list:
-    """Extract rows from CSV/TXT file."""
     text = file_bytes.decode("utf-8", errors="replace")
     reader = csv.reader(io.StringIO(text))
     rows_data = [row for row in reader]
@@ -346,7 +274,6 @@ def _extract_rows_from_csv(file_bytes: bytes) -> list:
 
 
 def _score_risks_in_batches(rows: list, framework_name: str) -> list:
-    """Send batches of 40 rows to Claude for risk scoring."""
     BATCH = 40
     scored = []
 
@@ -360,7 +287,6 @@ def _score_risks_in_batches(rows: list, framework_name: str) -> list:
         try:
             risk_map = batch_risk_score(payload, framework_name)
         except Exception:
-            # Fallback: assign Medium risk
             risk_map = {
                 r["seq"]: {"risk_level": "Medium", "evidence_required": 1, "evidence_items": []}
                 for r in batch
@@ -387,10 +313,6 @@ def parse_checklist_file(
     skip_ai: bool = False,
     extension: str = "",
 ) -> list:
-    """
-    Main entry point: parse a checklist file (Excel, CSV, TXT) and optionally
-    score risks via AI in batches.
-    """
     ext = extension.lower()
     rows = []
 
@@ -408,14 +330,13 @@ def parse_checklist_file(
     elif ext in (".csv", ".tsv", ".txt"):
         rows = _extract_rows_from_csv(file_bytes)
     elif ext == ".pdf":
-        raise RuntimeError("PDF checklists not supported — export to Excel or CSV.")
+        raise RuntimeError("PDF checklists not supported. Export to Excel or CSV.")
     else:
         raise RuntimeError(f'Unsupported file type "{ext}". Upload .xlsx, .xls, or .csv')
 
     if not rows:
         raise RuntimeError("No data rows found. Check that the file has a header row and data.")
 
-    # Filter not-applicable rows
     applicable = [
         r for r in rows
         if "not applicable" not in r["applicable"] or len(r["name"]) > 5

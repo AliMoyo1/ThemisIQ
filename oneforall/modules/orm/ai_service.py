@@ -1,35 +1,20 @@
 """
-ORM AI Service — Root cause analysis, trend narrative, chat assistant.
+ORM AI Service - Root cause analysis, trend narrative, chat assistant.
+
+Uses the unified core.ai_client for multi-provider support
+(Anthropic, DeepSeek, Gemini, OpenAI, Ollama).
 """
 import json
 import logging
-import os
+
+from core.ai_client import create_message, is_configured, provider_name, safe_json_parse
 
 log = logging.getLogger(__name__)
-_client = None
-
-def _get_client():
-    global _client
-    if _client is None:
-        try:
-            import anthropic
-            _client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        except ImportError:
-            log.warning("anthropic not installed — ORM AI stubs active")
-    return _client
-
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
 
 def analyze_event(event: dict) -> dict:
-    """
-    AI root cause analysis + recommendations for an operational risk event.
-    Returns {root_cause_category, root_cause_analysis, corrective_action, preventive_action}.
-    """
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return _stub_analyze(event)
-
     prompt = (
         f"Operational risk event analysis:\n\n"
         f"Title: {event.get('title', '')}\n"
@@ -46,13 +31,8 @@ def analyze_event(event: dict) -> dict:
         '"preventive_action": "<action to prevent recurrence>"}'
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=800,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        text = resp.content[0].text.strip()
-        start = text.find("{"); end = text.rfind("}") + 1
-        return json.loads(text[start:end])
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
+        return safe_json_parse(text, _stub_analyze(event))
     except Exception as exc:
         log.error("ORM analyze failed: %s", exc)
         return _stub_analyze(event)
@@ -61,18 +41,15 @@ def analyze_event(event: dict) -> dict:
 def _stub_analyze(event: dict) -> dict:
     return {
         "root_cause_category": "process",
-        "root_cause_analysis": f"Stub analysis for '{event.get('title', '')}'. Configure ANTHROPIC_API_KEY for AI analysis.",
+        "root_cause_analysis": f"Stub analysis for '{event.get('title', '')}'. Configure {provider_name()} API key for AI analysis.",
         "corrective_action": "Investigate and document findings. Apply immediate fix.",
         "preventive_action": "Review process controls and implement preventive measures.",
     }
 
 
 def generate_trend_narrative(stats: dict) -> str:
-    """Generate board-level ORM trend narrative."""
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         return _stub_trend_narrative(stats)
-
     prompt = (
         "You are writing the Operational Risk section of a board report. "
         f"Write a professional 2-3 paragraph narrative covering the last {stats.get('period_days', 30)} days.\n\n"
@@ -81,11 +58,7 @@ def generate_trend_narrative(stats: dict) -> str:
         "key incidents, and operational risk outlook. Professional tone."
     )
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=1000,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return resp.content[0].text
+        return create_message([{"role": "user", "content": prompt}], max_tokens=1000)
     except Exception as exc:
         log.error("ORM trend narrative failed: %s", exc)
         return _stub_trend_narrative(stats)
@@ -102,17 +75,14 @@ def _stub_trend_narrative(stats: dict) -> str:
         f"resulting in a total financial impact of ${loss:,.0f}.\n\n"
         "The Board is requested to note the operational risk profile and approve "
         "any required remediation actions.\n\n"
-        "*[Full AI narrative requires ANTHROPIC_API_KEY.]*"
+        f"*[Full AI narrative requires {provider_name()} API key.]*"
     )
 
 
 def chat(history: list, stats: dict = None) -> str:
-    """ORM AI assistant."""
-    client = _get_client()
-    if not client or not os.getenv("ANTHROPIC_API_KEY"):
+    if not is_configured():
         last = history[-1]["content"] if history else ""
-        return f"[ORM AI stub] Received: \"{last[:80]}\". Configure ANTHROPIC_API_KEY for AI assistance."
-
+        return f"[ORM AI stub] Received: \"{last[:80]}\". Configure {provider_name()} API key for AI assistance."
     system = (
         "You are an Operational Risk Management expert. "
         "Help the user analyse operational risk events, identify root causes, "
@@ -121,13 +91,8 @@ def chat(history: list, stats: dict = None) -> str:
     )
     if stats:
         system += f"\n\nCurrent ORM stats: {json.dumps(stats, default=str)}"
-
     try:
-        resp = client.messages.create(
-            model=MODEL, max_tokens=2048, system=system,
-            messages=history
-        )
-        return resp.content[0].text
+        return create_message(history, system=system, max_tokens=2048)
     except Exception as exc:
         log.error("ORM chat failed: %s", exc)
         return "Sorry, I encountered an error. Please try again."
