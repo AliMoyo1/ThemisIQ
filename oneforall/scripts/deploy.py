@@ -54,10 +54,16 @@ REQUIRED_IMPORTS = [
     ("psycopg2", "psycopg2-binary"),
     ("dotenv", "python-dotenv"),
     ("jinja2", "jinja2"),
+    ("multipart", "python-multipart"),
     ("bcrypt", "bcrypt"),
     ("docx", "python-docx"),
     ("apscheduler", "apscheduler"),
     ("alembic", "alembic"),
+    ("itsdangerous", "itsdangerous"),
+    ("httpx", "httpx"),
+    ("aiofiles", "aiofiles"),
+    ("openpyxl", "openpyxl"),
+    ("reportlab", "reportlab"),
 ]
 
 missing = []
