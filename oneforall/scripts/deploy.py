@@ -194,9 +194,9 @@ Requires=docker.service
 
 [Service]
 Type=simple
-WorkingDirectory={PROJECT_DIR}
+WorkingDirectory={PROJECT_DIR}/oneforall
 {env_lines}
-ExecStart={sys.executable} -m uvicorn main:app --host 0.0.0.0 --port 8080 --app-dir oneforall --workers 2
+ExecStart={sys.executable} -m uvicorn main:app --host 0.0.0.0 --port 8080 --workers 2
 StandardOutput=append:/project/app.log
 StandardError=append:/project/app.log
 Restart=on-failure
