@@ -13,7 +13,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-    # Bind to loopback only — 5432 must never be reachable from outside the VPS.
+    # Bind to loopback only — not reachable from outside the VPS.
     ports:
       - "127.0.0.1:5432:5432"
     mem_limit: 1g
@@ -24,32 +24,11 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  pgbouncer:
-    image: edoburu/pgbouncer:1.21.0
-    restart: unless-stopped
-    environment:
-      DB_HOST: db
-      DB_USER: themisiq
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_NAME: themisiq
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: 200
-      DEFAULT_POOL_SIZE: 25
-    depends_on:
-      db:
-        condition: service_healthy
-    mem_limit: 128m
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "3"
-
   app:
     build: .
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://themisiq@pgbouncer:5432/themisiq
+      DATABASE_URL: postgresql://themisiq:${POSTGRES_PASSWORD}@db:5432/themisiq
       WORKERS: "2"
     env_file:
       - oneforall/.env
@@ -58,10 +37,12 @@ services:
       - ./data/grid_uploads:/app/data/grid_uploads
       - ./data/evidence:/app/data/evidence
     depends_on:
-      pgbouncer:
-        condition: service_started
+      db:
+        condition: service_healthy
     mem_limit: 1g
     cpus: 2
+    ports:
+      - "127.0.0.1:8080:8080"
     logging:
       driver: json-file
       options:
