@@ -46,8 +46,9 @@ def _json_body(request):
 @require_super_admin
 async def super_admin_dashboard(request: Request):
     return templates.TemplateResponse(
+        request,
         "super_admin.html",
-        {"request": request, "user": request.state.user},
+        {"user": request.state.user},
     )
 
 
