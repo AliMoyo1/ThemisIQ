@@ -648,9 +648,9 @@ def get_risk_feed(limit=20):
         rows = _dicts(db.execute(
             "SELECT event_type, source_module, source_entity_type, source_entity_id, "
             "payload, created_at FROM events "
-            "WHERE event_type LIKE '%.risk%' OR event_type LIKE '%breach%' "
-            "OR event_type LIKE '%incident%' OR event_type LIKE '%escalat%' "
-            "OR event_type LIKE 'erm.%' OR event_type LIKE 'orm.%' "
+            "WHERE event_type LIKE '%%.risk%%' OR event_type LIKE '%%breach%%' "
+            "OR event_type LIKE '%%incident%%' OR event_type LIKE '%%escalat%%' "
+            "OR event_type LIKE 'erm.%%' OR event_type LIKE 'orm.%%' "
             "ORDER BY created_at DESC LIMIT %s",
             (limit,)
         ).fetchall())

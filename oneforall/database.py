@@ -160,7 +160,9 @@ class _PgConnWrapper:
 
     def execute(self, sql: str, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        cur.execute(sql, params or ())
+        # Pass None (not empty tuple) when no params so psycopg2 skips
+        # its % formatter — literal LIKE '%value%' in SQL would otherwise crash.
+        cur.execute(sql, params if params else None)
         return _NormCursor(cur)
 
     def executemany(self, sql: str, seq):

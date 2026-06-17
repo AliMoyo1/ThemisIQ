@@ -583,7 +583,7 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
             "FROM evidence_items e "
             "JOIN evidence_links el ON e.id = el.evidence_id "
             "WHERE el.module = %s AND el.entity_type = %s AND el.entity_id = %s "
-            "AND e.tags LIKE '%auto%' AND e.status != 'archived' "
+            "AND e.tags LIKE '%%auto%%' AND e.status != 'archived' "
             "ORDER BY e.created_at DESC",
             (mod, etype, entity_id),
         ).fetchall()

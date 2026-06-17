@@ -2053,7 +2053,7 @@ def attach_aria_policy_as_evidence(control_id, aria_doc_id, user_id):
         # Check for duplicate — don't attach same policy twice to same control
         existing = db.execute(
             "SELECT id FROM grid_evidence_files "
-            "WHERE control_id=%s AND original_name=%s AND notes LIKE '%aria_doc_id=%'",
+            "WHERE control_id=%s AND original_name=%s AND notes LIKE '%%aria_doc_id=%%'",
             (control_id, doc["title"]),
         ).fetchone()
         if existing:
