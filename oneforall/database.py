@@ -372,7 +372,7 @@ def sql_now_offset(offset_expr: str) -> str:
     """SQL fragment for NOW() ± interval.  offset_expr e.g. '+30 days', '-7 days'."""
     if settings.is_postgres():
         sign, qty, unit = offset_expr[0], *offset_expr[1:].strip().split()
-        return f"(NOW() {sign} INTERVAL '{qty} {unit}')"
+        return f"(NOW() {sign} INTERVAL '{qty} {unit}')::text"
     return f"datetime('now', '{offset_expr}')"
 
 
@@ -380,7 +380,7 @@ def sql_date_offset(offset_expr: str) -> str:
     """SQL fragment for CURRENT_DATE ± interval."""
     if settings.is_postgres():
         sign, qty, unit = offset_expr[0], *offset_expr[1:].strip().split()
-        return f"(CURRENT_DATE {sign} INTERVAL '{qty} {unit}')"
+        return f"(CURRENT_DATE {sign} INTERVAL '{qty} {unit}')::text"
     return f"date('now', '{offset_expr}')"
 
 
