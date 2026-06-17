@@ -162,7 +162,18 @@ class _PgConnWrapper:
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         # Pass None (not empty tuple) when no params so psycopg2 skips
         # its % formatter — literal LIKE '%value%' in SQL would otherwise crash.
-        cur.execute(sql, params if params else None)
+        try:
+            cur.execute(sql, params if params else None)
+        except Exception:
+            # PostgreSQL marks the whole transaction as aborted after any error.
+            # Roll back so subsequent queries on this connection don't all fail
+            # with "current transaction is aborted". Re-raise so callers still
+            # see the original exception (their try/except blocks still fire).
+            try:
+                self._conn.rollback()
+            except Exception:
+                pass
+            raise
         return _NormCursor(cur)
 
     def executemany(self, sql: str, seq):
@@ -350,6 +361,19 @@ def sql_current_date() -> str:
     if settings.is_postgres():
         return "CURRENT_DATE::text"
     return "date('now')"
+
+
+def sql_current_timestamp() -> str:
+    """Current datetime as a text-compatible expression for TEXT datetime columns.
+
+    PostgreSQL NOW() is type 'timestamptz'; comparing it to a TEXT column
+    raises 'operator does not exist: text < timestamptz'. Casting to ::text
+    returns an ISO-format string comparable with datetime('now') values stored
+    as TEXT in both SQLite and PostgreSQL.
+    """
+    if settings.is_postgres():
+        return "NOW()::text"
+    return "datetime('now')"
 
 
 def sql_days_between(col1: str, col2: str) -> str:

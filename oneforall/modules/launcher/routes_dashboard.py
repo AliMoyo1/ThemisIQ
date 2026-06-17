@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from database import insert_returning_id, sql_now_offset, sql_date_offset, sql_current_date
+from database import insert_returning_id, sql_now_offset, sql_date_offset, sql_current_date, sql_current_timestamp
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, user_modules, user_capabilities,
     ROLE_LABELS, shell_ctx, templates, shell_templates, get_db,
@@ -255,7 +255,7 @@ async def api_command_centre_stats(request: Request):
             "       'high' AS priority "
             "FROM sla_instances si "
             "WHERE si.status = 'active' "
-            "  AND (si.breached = 1 OR si.resolution_due < CURRENT_TIMESTAMP) "
+            f"  AND (si.breached = 1 OR si.resolution_due < {sql_current_timestamp()}) "
             "ORDER BY si.resolution_due ASC LIMIT 20"
         ).fetchall()
         overdue_items = []
