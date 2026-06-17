@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_module, require_capability
 from core.shell_context import shell_ctx
-from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED
+from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED
 from modules.erm import data_service as ds
 from modules.erm import ai_service as ai
 
@@ -97,6 +97,21 @@ async def api_risk_create(request: Request):
     body = await _json_body(request)
     body["created_by"] = _uid(request)
     rid = ds.create_enterprise_risk(body)
+    emit(
+        ERM_RISK_IDENTIFIED,
+        source_module="erm",
+        entity_type="enterprise_risk",
+        entity_id=rid,
+        payload={
+            "title": body.get("title", ""),
+            "category": body.get("category", ""),
+            "severity": body.get("severity", "high"),
+            "likelihood": body.get("likelihood", 3),
+            "impact": body.get("impact", 3),
+            "erm_risk_id": rid,
+        },
+        user_id=body.get("created_by"),
+    )
     return JSONResponse({"id": rid}, status_code=201)
 
 

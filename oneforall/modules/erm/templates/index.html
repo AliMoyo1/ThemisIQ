@@ -1238,7 +1238,7 @@ window.ermSubmitBreachAction=async function(cat){
 
 window.ermOpenAppetiteModal=function(existing){
   var isEdit=!!(existing&&existing.id);
-  var cats=['strategic','operational','compliance','financial','reputational','technology','third_party','environmental'];
+  var cats=['strategic','operational','compliance','financial','reputational','technology','third_party','environmental','data_breach','privacy'];
   var html='<div class="erm-modal-overlay" id="ermApModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:520px">'+
     '<button class="modal-close" onclick="document.getElementById(\'ermApModal\').remove()">✕</button>'+
     '<div class="modal-title">'+(isEdit?'Edit':'Set')+' Risk Appetite</div>'+
@@ -1684,7 +1684,7 @@ window.ermBoardReport=async function(btn){
 /* ────────────────── RISK MODAL ────────────────── */
 window.ermOpenRiskModal=function(existing){
   var isEdit=!!(existing&&existing.id&&!existing._isNew);
-  var cats=['strategic','operational','compliance','financial','reputational','technology','third_party','environmental'];
+  var cats=['strategic','operational','compliance','financial','reputational','technology','third_party','environmental','data_breach','privacy'];
   var html='<div class="erm-modal-overlay" id="ermRiskModal" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
     '<button class="modal-close" onclick="document.getElementById(\'ermRiskModal\').remove()">✕</button>'+
     '<div class="modal-title">'+(isEdit?'Edit':'New')+' Enterprise Risk</div>'+
