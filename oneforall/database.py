@@ -114,7 +114,17 @@ class _PgConnWrapper:
         self._conn.rollback()
 
     def close(self):
-        _get_pg_pool().putconn(self._conn)
+        pool = _get_pg_pool()
+        try:
+            # Roll back any open or aborted transaction before returning to pool.
+            # This prevents a failed query from poisoning the pooled connection
+            # for the next caller. Rolled back reads are harmless; rolled back
+            # uncommitted writes are a caller bug (all callers must commit before close).
+            self._conn.rollback()
+        except Exception:
+            pool.closeconn(self._conn)
+            return
+        pool.putconn(self._conn)
 
     def __enter__(self):
         return self

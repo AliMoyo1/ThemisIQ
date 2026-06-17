@@ -53,6 +53,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def startup():
     log.info("Initialising database...")
     init_db()
+    from modules.aria.ask_service import init_index as _ask_init_index
+    try:
+        _ask_init_index()
+    except Exception as _e:
+        log.warning("aria_ask_index init skipped: %s", _e)
 
     # Auto-seed if no users exist
     db = get_db()
