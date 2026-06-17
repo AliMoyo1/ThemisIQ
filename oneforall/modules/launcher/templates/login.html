@@ -417,11 +417,14 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
           <div class="logo-area">
             <div class="logo-mark">
               <!-- ThemisIQ logo: real PNG from static/img/themisiq-logo.png -->
-              <img src="/static/img/themisiq-logo-clear.png"
-                   alt="ThemisIQ"
-                   id="tiq-logo-img"
-                   onload="document.getElementById('tiq-text-area').style.display='none'"
-                   onerror="this.style.display='none';document.getElementById('tiq-svg-fallback').style.display='block'">
+              <picture>
+                <source srcset="/static/img/themisiq-logo-clear.webp" type="image/webp">
+                <img src="/static/img/themisiq-logo-clear.png"
+                     alt="ThemisIQ"
+                     id="tiq-logo-img"
+                     onload="document.getElementById('tiq-text-area').style.display='none'"
+                     onerror="this.style.display='none';document.getElementById('tiq-svg-fallback').style.display='block'">
+              </picture>
               <!-- SVG fallback shown only if PNG not yet saved -->
               <svg id="tiq-svg-fallback" viewBox="0 0 220 190" fill="none" xmlns="http://www.w3.org/2000/svg"
                    width="154" height="133" style="display:none;margin:0 auto">

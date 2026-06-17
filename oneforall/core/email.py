@@ -273,6 +273,69 @@ def _send_graph(*, to: str, subject: str, body_html: str, cfg: dict) -> dict:
         return {"ok": False, "provider": "microsoft_graph", "error": str(exc)}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SendGrid REST API
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _sendgrid_config() -> dict:
+    raw_key = _get_setting("sendgrid_api_key_enc")
+    api_key = decrypt_setting(raw_key) if raw_key else (
+        os.getenv("SENDGRID_API_KEY") or getattr(settings, "SENDGRID_API_KEY", "")
+    )
+    from_addr = (
+        _get_setting("smtp_from")
+        or getattr(settings, "SMTP_FROM", "")
+        or os.getenv("SMTP_FROM", "noreply@themisiq.net")
+    )
+    return {"api_key": api_key, "from": from_addr}
+
+
+def _send_sendgrid(*, to: str, subject: str, body_html: str) -> dict:
+    cfg = _sendgrid_config()
+    if not cfg["api_key"]:
+        log.info("[email-sendgrid] API key not configured — falling back to console")
+        return _send_console(to=to, subject=subject, body_html=body_html)
+
+    from_parts = cfg["from"].strip()
+    if "<" in from_parts:
+        import re as _re
+        m = _re.match(r"^(.*?)\s*<(.+?)>", from_parts)
+        from_name, from_email = (m.group(1).strip(), m.group(2).strip()) if m else ("ThemisIQ", from_parts)
+    else:
+        from_name, from_email = "ThemisIQ", from_parts
+
+    payload = json.dumps({
+        "personalizations": [{"to": [{"email": to}]}],
+        "from": {"email": from_email, "name": from_name},
+        "subject": subject,
+        "content": [{"type": "text/html", "value": body_html}],
+    }).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(
+            "https://api.sendgrid.com/v3/mail/send",
+            data=payload,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {cfg['api_key']}",
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+            status = resp.status
+        if status not in (200, 202):
+            raise ValueError(f"Unexpected status {status}")
+        log.info("[email-sendgrid] Sent → %s | %s", to, subject)
+        return {"ok": True, "provider": "sendgrid"}
+    except urllib.error.HTTPError as exc:
+        err_body = exc.read().decode("utf-8", errors="replace")
+        log.warning("[email-sendgrid] Failed → %s | HTTP %s: %s", to, exc.code, err_body[:200])
+        return {"ok": False, "provider": "sendgrid", "error": f"HTTP {exc.code}: {err_body[:200]}"}
+    except Exception as exc:
+        log.warning("[email-sendgrid] Failed → %s: %s", to, exc)
+        return {"ok": False, "provider": "sendgrid", "error": str(exc)}
+
+
 def _send_console(*, to: str, subject: str, body_html: str) -> dict:
     """Log-only fallback. No credentials required. Always returns ok=True."""
     log.info(
@@ -305,6 +368,9 @@ def send_email(*, to: str, subject: str, body_html: str) -> dict:
     if provider == "microsoft_graph":
         return _send_graph(to=to, subject=subject, body_html=body_html, cfg=_graph_config())
 
+    if provider == "sendgrid":
+        return _send_sendgrid(to=to, subject=subject, body_html=body_html)
+
     if provider in ("google", "microsoft_smtp", "smtp"):
         cfg = _smtp_config()
         if not cfg["user"] or not cfg["password"]:
@@ -325,6 +391,13 @@ def test_connection() -> dict:
 
     if provider == "console":
         return {"ok": True, "provider": "console", "detail": "Console mode — no email will be sent"}
+
+    if provider == "sendgrid":
+        cfg = _sendgrid_config()
+        if not cfg["api_key"]:
+            return {"ok": False, "provider": "sendgrid", "detail": "SENDGRID_API_KEY not configured"}
+        return {"ok": True, "provider": "sendgrid",
+                "detail": f"API key present ({cfg['api_key'][:6]}...), from: {cfg['from']}"}
 
     if provider == "microsoft_graph":
         cfg = _graph_config()

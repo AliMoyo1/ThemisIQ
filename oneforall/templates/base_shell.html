@@ -522,9 +522,12 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
   <a href="/" class="icon-sidebar-logo" title="ThemisIQ — Home">
     <!-- ThemisIQ logo mark: crop to show just the circular head/emblem -->
     <div style="width:44px;height:44px;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;border-radius:12px">
-      <img src="/static/img/themisiq-logo-clear.png"
-           alt="ThemisIQ"
-           style="width:105px;margin-top:-3px;margin-left:-2px;flex-shrink:0;display:block">
+      <picture>
+        <source srcset="/static/img/themisiq-logo-clear.webp" type="image/webp">
+        <img src="/static/img/themisiq-logo-clear.png"
+             alt="ThemisIQ"
+             style="width:105px;margin-top:-3px;margin-left:-2px;flex-shrink:0;display:block">
+      </picture>
     </div>
   </a>
 
