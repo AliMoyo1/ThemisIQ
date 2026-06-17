@@ -193,8 +193,8 @@ def reindex_control(control_id: int):
     try:
         ctrl = db.execute(
             "SELECT c.*, f.name AS fw_name, f.id AS fw_id "
-            "FROM aria_controls c "
-            "JOIN aria_frameworks f ON c.framework_id = f.id "
+            "FROM controls c "
+            "JOIN frameworks f ON c.framework_id = f.id "
             "WHERE c.id=%s",
             (control_id,),
         ).fetchone()
@@ -293,7 +293,7 @@ def rebuild_all() -> int:
         ]
         ctrl_ids = [
             r["id"]
-            for r in db.execute("SELECT id FROM aria_controls").fetchall()
+            for r in db.execute("SELECT id FROM controls").fetchall()
         ]
         risk_ids = [
             r["risk_id"]

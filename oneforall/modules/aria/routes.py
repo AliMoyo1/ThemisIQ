@@ -1456,8 +1456,8 @@ async def api_create_control_mapping(request: Request):
               tgt["framework_id"], target_ctrl_id,
               mapping_type, notes, user["id"]))
         db.commit()
-        if new_id == 0:
-            # IGNORE triggered — already exists
+        if new_id is None:
+            # ON CONFLICT DO NOTHING fired — mapping already exists
             existing = db.execute(
                 "SELECT id FROM aria_control_mappings WHERE source_control_id=%s AND target_control_id=%s",
                 (source_ctrl_id, target_ctrl_id)
@@ -1532,7 +1532,7 @@ async def api_ims_status(request: Request):
 
     db = get_db()
     try:
-        placeholders = ",".join("%s" * len(fw_ids))
+        placeholders = ",".join(["%s"] * len(fw_ids))
         rows = db.execute(
             f"SELECT c.id, c.framework_id, c.ref, c.name, c.description, c.category, "
             f"       f.name AS fw_name, f.color AS fw_color "

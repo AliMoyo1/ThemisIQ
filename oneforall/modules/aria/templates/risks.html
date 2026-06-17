@@ -144,8 +144,8 @@ document.getElementById('addRiskForm').addEventListener('submit', async (e) => {
   const form = new FormData(e.target);
   const res = await fetch('/aria/risks/add', { method: 'POST', body: form });
   const data = await res.json();
-  if (data.success) { showToast('Risk added'); setTimeout(() => location.reload(), 1000); }
-  else showToast('Error adding risk', 'error');
+  if (data.ok) { showToast('Risk added'); setTimeout(() => location.reload(), 1000); }
+  else showToast(data.error || 'Error adding risk', 'error');
 });
 document.getElementById('addRiskModal').addEventListener('click', e => {
   if (e.target === document.getElementById('addRiskModal')) e.target.classList.remove('open');

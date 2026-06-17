@@ -418,7 +418,7 @@ async function applyTemplate() {
   try {
     var res = await fetch('/aria/documents/' + docId + '/apply-template', { method: 'POST', body: form });
     var data = await res.json();
-    if (data.success) {
+    if (data.ok) {
       statusEl.innerHTML = '<span style="color:var(--green-status,#16a34a)">✓ Template applied. Download the branded version below.</span>';
       document.getElementById('edit-download-row').style.display = 'block';
       document.getElementById('edit-download-link').href = '/aria/documents/' + docId + '/download';
@@ -449,7 +449,7 @@ async function submitAdd() {
   form.append('comments',       document.getElementById('add-comments').value);
   const res = await fetch('/aria/documents/add', { method:'POST', body:form });
   const data = await res.json();
-  if (data.success) { showToast('Document added: ' + data.doc_id); setTimeout(() => location.reload(), 1000); }
+  if (data.ok) { showToast('Document added: ' + data.doc_id); setTimeout(() => location.reload(), 1000); }
   else showToast(data.error || 'Failed', 'error');
 }
 async function submitEdit() {
@@ -466,14 +466,14 @@ async function submitEdit() {
   form.append('comments',       document.getElementById('edit-comments').value);
   const res = await fetch(`/aria/documents/update/${docId}`, { method:'POST', body:form });
   const data = await res.json();
-  if (data.success) { showToast('Document updated'); setTimeout(() => location.reload(), 1000); }
+  if (data.ok) { showToast('Document updated'); setTimeout(() => location.reload(), 1000); }
   else showToast(data.error || 'Failed', 'error');
 }
 async function deleteDoc(docId) {
   if (!confirm('Delete ' + docId + '? This cannot be undone.')) return;
   const res = await fetch(`/aria/documents/delete/${docId}`, { method:'POST' });
   const data = await res.json();
-  if (data.success) { document.getElementById('row-' + docId)?.remove(); showToast('Document deleted'); }
+  if (data.ok) { document.getElementById('row-' + docId)?.remove(); showToast('Document deleted'); }
   else showToast(data.error || 'Failed', 'error');
 }
 document.querySelectorAll('.modal-overlay').forEach(el => {

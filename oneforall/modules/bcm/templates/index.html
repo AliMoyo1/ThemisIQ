@@ -249,7 +249,7 @@
       <span style="font-size:13px;font-weight:700;color:#dc2626" id="activePlansAlertText">Plans are currently activated</span>
       <span style="font-size:12px;color:var(--muted);margin-left:8px">Your organisation has active continuity plans deployed.</span>
     </div>
-    <button class="btn btn-secondary" style="font-size:12px" onclick="bcmNav('/bcm/plans')">View Active Plans</button>
+    <button class="btn btn-secondary" style="font-size:12px" onclick="bcmRouter.navigate('/bcm/plans')">View Active Plans</button>
   </div>
 
   <!-- Sentinel Cross-Module: Active Data Breach Banner -->
@@ -1343,7 +1343,7 @@
       trainingCache=items;
       if(!items.length){body.innerHTML=emptyRow(6,'No training modules found');return;}
       body.innerHTML=items.map(function(t){
-        return '<tr><td>'+esc(t.title||t.name||'')+'</td><td>'+esc(t.category||'')+'</td><td>'+esc(t.duration||'—')+'</td><td>'+statusBadge(t.status||'active')+'</td><td>'+esc(t.completion_count||t.completions||0)+'</td><td>'+actionBtns('bcmEditTraining('+t.id+')','bcmDeleteRecord(\"training\",'+t.id+')')+'</td></tr>';
+        return '<tr><td>'+esc(t.title||t.name||'')+'</td><td>'+esc(t.category||'')+'</td><td>'+esc(t.duration_minutes?t.duration_minutes+'min':'—')+'</td><td>'+statusBadge(t.status||'active')+'</td><td>'+esc(t.completion_count||t.completions||0)+'</td><td>'+actionBtns('bcmEditTraining('+t.id+')','bcmDeleteRecord(\"training\",'+t.id+')')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(6,'Failed to load training modules');}
   };
@@ -2017,7 +2017,7 @@
       title:'Exercise',apiBase:'/bcm/api/exercises',
       fields:[
         {name:'title',label:'Exercise Name',type:'text',required:true},
-        {name:'exercise_type',label:'Type',type:'select',options:['Tabletop','Walkthrough','Functional','Full-Scale','Communication']},
+        {name:'type',label:'Type',type:'select',options:['Tabletop','Walkthrough','Functional','Full-Scale','Communication']},
         {name:'description',label:'Description',type:'textarea'},
         {name:'scenario',label:'Scenario',type:'textarea'},
         {name:'scheduled_date',label:'Scheduled Date',type:'date'},
@@ -2057,7 +2057,7 @@
         {name:'title',label:'Module Title',type:'text',required:true},
         {name:'description',label:'Description',type:'textarea'},
         {name:'category',label:'Category',type:'select',options:['Awareness','Technical','Management','Crisis Response','Tabletop Prep']},
-        {name:'duration',label:'Duration',type:'text',placeholder:'e.g. 2 hours'},
+        {name:'duration_minutes',label:'Duration (minutes)',type:'number',placeholder:'e.g. 60'},
         {name:'content',label:'Content / Material',type:'textarea'},
         {name:'status',label:'Status',type:'select',options:['active','draft','archived']}
       ]

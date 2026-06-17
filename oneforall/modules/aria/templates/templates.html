@@ -129,7 +129,7 @@ async function submitTemplateUpload(e){
   form.append('is_default',document.getElementById('tpl-default').value);
   var res=await fetch('/aria/api/templates',{method:'POST',body:form});
   var data=await res.json();
-  if(data.success){
+  if(data.ok){
     showToast('Template uploaded');
     setTimeout(function(){location.reload();},1000);
   }else{
@@ -141,7 +141,7 @@ async function deleteTemplate(id,name){
   if(!confirm('Delete template "'+name+'"? This cannot be undone.'))return;
   var res=await fetch('/aria/api/templates/'+id,{method:'DELETE'});
   var data=await res.json();
-  if(data.success){showToast('Template deleted');setTimeout(function(){location.reload();},800);}
+  if(data.ok){showToast('Template deleted');setTimeout(function(){location.reload();},800);}
   else showToast(data.error||'Failed','error');
 }
 </script>

@@ -889,6 +889,12 @@ async def api_training_list(request: Request):
     return JSONResponse(ds.list_training_modules())
 
 
+@router.get("/api/training/attestations/all")
+@require_capability("bcm.training.manage")
+async def api_attestation_log(request: Request):
+    return JSONResponse(ds.list_attestations())
+
+
 @router.get("/api/training/{mid}")
 @require_capability("module.bcm.access")
 async def api_training_detail(request: Request, mid: int):
@@ -940,12 +946,6 @@ async def api_training_attest(request: Request, mid: int):
     }
     aid = ds.create_attestation(data)
     return JSONResponse({"id": aid}, status_code=201)
-
-
-@router.get("/api/training/attestations/all")
-@require_capability("bcm.training.manage")
-async def api_attestation_log(request: Request):
-    return JSONResponse(ds.list_attestations())
 
 
 @router.get("/api/documents")

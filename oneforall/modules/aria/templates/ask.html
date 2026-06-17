@@ -421,8 +421,8 @@
       try {
         var r = await fetch('/aria/api/ask/rebuild', { method: 'POST' });
         var j = await r.json();
-        if (j.success) { if (typeof showToast === 'function') showToast('Indexed ' + j.chunks_indexed + ' chunks'); }
-        else           { if (typeof showToast === 'function') showToast(j.error || 'Rebuild failed', 'error'); }
+        if (j.ok) { if (typeof showToast === 'function') showToast('Indexed ' + j.chunks_indexed + ' chunks'); }
+        else       { if (typeof showToast === 'function') showToast(j.error || 'Rebuild failed', 'error'); }
       } catch (e) { if (typeof showToast === 'function') showToast(e.message, 'error'); }
       rebuildBtn.disabled = false;
       rebuildBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Rebuild Index';

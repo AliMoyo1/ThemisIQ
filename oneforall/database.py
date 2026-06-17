@@ -222,16 +222,17 @@ def get_db_background():
     return get_db(timeout=3)
 
 
-def insert_returning_id(db, sql: str, params) -> int:
+def insert_returning_id(db, sql: str, params):
     """Engine-portable INSERT that returns the new row's id.
 
     SQLite: uses cursor.lastrowid.
-    PostgreSQL (Phase F+): appends RETURNING id and reads it back.
-    Both paths are exercised by the test suite so regressions surface early.
+    PostgreSQL: appends RETURNING id and reads it back.
+    Returns None when ON CONFLICT DO NOTHING suppresses the insert.
     """
     if settings.is_postgres():
         cur = db.execute(sql.rstrip(" ;") + " RETURNING id", params)
-        return cur.fetchone()["id"]
+        row = cur.fetchone()
+        return row["id"] if row else None
     return db.execute(sql, params).lastrowid
 
 

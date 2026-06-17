@@ -534,7 +534,7 @@ def get_evidence_items(control_id):
 
         # Fetch ALL related files in one query (fix N+1)
         item_ids = [i["id"] for i in items]
-        placeholders = ",".join("%s" * len(item_ids))
+        placeholders = ",".join(["%s"] * len(item_ids))
         all_files = _dicts(db.execute(
             f"SELECT ef.id, ef.evidence_item_id, ef.original_name, ef.status, ef.file_size "
             f"FROM grid_evidence_files ef "
