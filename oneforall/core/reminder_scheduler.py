@@ -10,12 +10,14 @@ Reminder creation still happens via the /api/reminders endpoint.
 from __future__ import annotations
 
 import logging
+from datetime import timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from database import get_db_background as get_db  # scheduler: fail-fast, never block UI
 from core.email import send_email
+from core.timeutils import utcnow
 
 log = logging.getLogger("aegis.reminders")
 
@@ -53,10 +55,12 @@ def _process_due_reminders() -> None:
     """Send all email reminders whose remind_at has passed and reschedule recurring ones."""
     db = get_db()
     try:
+        _now_str = utcnow().strftime("%Y-%m-%d %H:%M:%S")
         due = db.execute(
             "SELECT * FROM email_reminders "
-            "WHERE is_sent = 0 AND remind_at <= CURRENT_TIMESTAMP "
-            "ORDER BY remind_at ASC LIMIT 50"
+            "WHERE is_sent = 0 AND remind_at <= %s "
+            "ORDER BY remind_at ASC LIMIT 50",
+            (_now_str,)
         ).fetchall()
 
         if not due:

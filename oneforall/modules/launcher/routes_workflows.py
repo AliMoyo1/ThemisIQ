@@ -784,10 +784,13 @@ async def api_sla_stats(request: Request):
             "SELECT COUNT(*) FROM sla_instances WHERE status = 'active' AND breached = 1"
         ).fetchone()[0]
         # At risk — due within 2 hours, not yet responded/resolved
+        # Use Python-formatted string for comparison against TEXT columns
+        _due_cutoff = (utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
         at_risk = db.execute(
             "SELECT COUNT(*) FROM sla_instances WHERE status = 'active' AND breached = 0 "
-            f"AND ((response_due IS NOT NULL AND responded_at IS NULL AND response_due <= {sql_now_offset('+2 hours')}) "
-            f" OR (resolution_due IS NOT NULL AND resolved_at IS NULL AND resolution_due <= {sql_now_offset('+2 hours')}))"
+            "AND ((response_due IS NOT NULL AND responded_at IS NULL AND response_due <= %s) "
+            " OR (resolution_due IS NOT NULL AND resolved_at IS NULL AND resolution_due <= %s))",
+            (_due_cutoff, _due_cutoff)
         ).fetchone()[0]
         # Compliance rate
         compliance_pct = round(((total - breached) / total * 100) if total > 0 else 100, 1)
