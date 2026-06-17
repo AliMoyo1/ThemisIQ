@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import get_db, init_db
+from database import get_db, init_db, insert_returning_id
 from core.auth import hash_password
 from core.rbac import SUPER_ADMIN, COMPLIANCE_MGR, DPO, AUDIT_LEAD, BCM_MANAGER
 
@@ -42,12 +42,12 @@ def seed_users(db):
 
     # Super Admin
     pw = hash_password("Admin@123!")
-    db.execute(
+    admin_id = insert_returning_id(
+        db,
         "INSERT INTO users (username, email, full_name, password_hash, avatar_initials) "
         "VALUES (%s, %s, %s, %s, %s)",
         ("admin", "admin@oneforall.local", "System Administrator", pw, "SA"),
     )
-    admin_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     db.execute(
         "INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
         (admin_id, SUPER_ADMIN),
@@ -55,33 +55,33 @@ def seed_users(db):
 
     # Compliance Manager
     pw2 = hash_password("Comply@123!")
-    db.execute(
+    cm_id = insert_returning_id(
+        db,
         "INSERT INTO users (username, email, full_name, password_hash, avatar_initials) "
         "VALUES (%s, %s, %s, %s, %s)",
         ("compliance", "compliance@oneforall.local", "Compliance Manager", pw2, "CM"),
     )
-    cm_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     for role in [COMPLIANCE_MGR, AUDIT_LEAD]:
         db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (cm_id, role))
 
     # DPO
     pw3 = hash_password("Privacy@123!")
-    db.execute(
+    dpo_id = insert_returning_id(
+        db,
         "INSERT INTO users (username, email, full_name, password_hash, avatar_initials) "
         "VALUES (%s, %s, %s, %s, %s)",
         ("dpo", "dpo@oneforall.local", "Data Protection Officer", pw3, "DP"),
     )
-    dpo_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (dpo_id, DPO))
 
     # BCM Manager
     pw4 = hash_password("Bcm@123!")
-    db.execute(
+    bcm_id = insert_returning_id(
+        db,
         "INSERT INTO users (username, email, full_name, password_hash, avatar_initials) "
         "VALUES (%s, %s, %s, %s, %s)",
         ("bcm", "bcm@oneforall.local", "BCM Manager", pw4, "BM"),
     )
-    bcm_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
     db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (bcm_id, BCM_MANAGER))
 
     db.commit()
