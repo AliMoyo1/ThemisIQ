@@ -158,7 +158,7 @@ async def update_org(request: Request, org_id: int):
                 "UPDATE organizations SET plan = %s WHERE id = %s",
                 (body["plan"], org_id),
             )
-        if "modules" in body or "seats" in body:
+        if "modules" in body or "seats" in body or "valid_until" in body:
             lic = db.execute(
                 "SELECT id FROM licenses WHERE org_id = %s ORDER BY id DESC LIMIT 1",
                 (org_id,),
@@ -174,7 +174,52 @@ async def update_org(request: Request, org_id: int):
                         "UPDATE licenses SET seats = %s WHERE id = %s",
                         (int(body["seats"]), lic["id"]),
                     )
+                if "valid_until" in body:
+                    vu = body["valid_until"] or None
+                    db.execute(
+                        "UPDATE licenses SET valid_until = %s WHERE id = %s",
+                        (vu, lic["id"]),
+                    )
         db.commit()
+        return JSONResponse({"ok": True})
+    finally:
+        db.close()
+
+
+@router.delete("/api/orgs/{org_id}")
+@require_super_admin
+async def delete_org(request: Request, org_id: int):
+    db = get_db()
+    try:
+        org = db.execute(
+            "SELECT slug FROM organizations WHERE id = %s", (org_id,)
+        ).fetchone()
+        if not org:
+            return JSONResponse({"error": "Organisation not found."}, status_code=404)
+        if org["slug"] == "public":
+            return JSONResponse(
+                {"error": "Cannot delete the default organisation."},
+                status_code=400,
+            )
+        users = db.execute(
+            "SELECT COUNT(*) AS c FROM users WHERE org_id = %s", (org_id,)
+        ).fetchone()
+        if users and users["c"] > 0:
+            return JSONResponse(
+                {"error": f"Org has {users['c']} users. Remove or reassign them first."},
+                status_code=409,
+            )
+        db.execute("DELETE FROM licenses WHERE org_id = %s", (org_id,))
+        db.execute("DELETE FROM organizations WHERE id = %s", (org_id,))
+        db.commit()
+        if settings.is_postgres():
+            safe = re.sub(r"[^a-z0-9_]", "", (org["slug"] or "").lower())
+            if safe:
+                try:
+                    db.execute(f"DROP SCHEMA IF EXISTS tenant_{safe} CASCADE")
+                    db.commit()
+                except Exception as exc:
+                    log.warning("Schema drop for %s failed: %s", safe, exc)
         return JSONResponse({"ok": True})
     finally:
         db.close()

@@ -5,64 +5,136 @@
 .sa-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:20px}
 .sa-table{width:100%;border-collapse:collapse;font-size:13px}
 .sa-table th{text-align:left;padding:8px 12px;background:var(--surface3);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
-.sa-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+.sa-table td{padding:12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
 .sa-table tr:last-child td{border-bottom:none}
 .sa-table tr:hover td{background:var(--surface3)}
-.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:600}
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:100px;font-size:11px;font-weight:600;line-height:18px}
 .badge-green{background:rgba(34,197,94,.15);color:#16a34a}
 .badge-red{background:rgba(239,68,68,.15);color:#dc2626}
+.badge-amber{background:rgba(245,158,11,.18);color:#b45309}
 .badge-blue{background:rgba(99,102,241,.15);color:#6366f1}
+.badge-violet{background:rgba(139,92,246,.18);color:#7c3aed}
+.badge-gold{background:rgba(202,138,4,.18);color:#a16207}
+.badge-slate{background:rgba(100,116,139,.18);color:#475569}
 .badge-gray{background:var(--surface3);color:var(--muted)}
 .sa-btn{padding:6px 14px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:monospace;text-transform:uppercase;letter-spacing:.05em;transition:opacity .15s}
 .sa-btn-primary{background:var(--accent);color:#fff}
 .sa-btn-primary:hover{opacity:.88}
 .sa-btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border)}
 .sa-btn-secondary:hover{background:var(--border)}
+.sa-btn-danger{background:rgba(239,68,68,.12);color:#dc2626;border:1px solid rgba(239,68,68,.3)}
+.sa-btn-danger:hover{background:rgba(239,68,68,.2)}
+.sa-btn-warn{background:rgba(245,158,11,.12);color:#b45309;border:1px solid rgba(245,158,11,.3)}
+.sa-btn-warn:hover{background:rgba(245,158,11,.2)}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center}
 .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;width:480px;max-width:95vw;position:relative}
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
 .form-group input,.form-group select{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px}
 .form-group input:focus,.form-group select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+
+/* Side panel */
+.side-panel{position:fixed;top:0;right:0;height:100vh;width:520px;max-width:100vw;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 24px rgba(0,0,0,.15);z-index:900;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease-out}
+.side-panel.open{transform:translateX(0)}
+.side-panel-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start}
+.side-panel-body{flex:1;overflow-y:auto;padding:20px 22px}
+.side-panel-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface2)}
+.tab-btn{flex:1;padding:12px 8px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:.04em}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--surface)}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* Module toggle card */
+.module-row{display:flex;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;background:var(--surface2);cursor:pointer;transition:all .15s}
+.module-row:hover{border-color:var(--accent)}
+.module-row.on{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05)}
+.module-row .icon{width:32px;height:32px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;margin-right:12px;color:var(--muted);font-weight:700}
+.module-row.on .icon{background:rgba(34,197,94,.18);color:#16a34a}
+.module-row .meta{flex:1}
+.module-row .meta .name{font-weight:700;color:var(--text);font-size:13px}
+.module-row .meta .desc{color:var(--muted);font-size:11px;margin-top:2px}
+.toggle-switch{position:relative;width:36px;height:20px;background:var(--border);border-radius:100px;transition:background .15s}
+.toggle-switch::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:2px;left:2px;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.module-row.on .toggle-switch{background:#16a34a}
+.module-row.on .toggle-switch::after{left:18px}
+
+/* Seats bar */
+.seats-bar{width:80px;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-top:3px}
+.seats-bar-fill{height:100%;background:var(--accent);transition:width .2s}
+.seats-bar-fill.warn{background:#f59e0b}
+.seats-bar-fill.full{background:#dc2626}
+
+/* Filter pills */
+.filter-pills{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.filter-pill{padding:6px 14px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:100px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.filter-pill:hover{border-color:var(--accent);color:var(--text)}
+.filter-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Expiry warning */
+.expiry-warn{color:#b45309;font-weight:600}
+.expiry-danger{color:#dc2626;font-weight:700}
+
+/* Section heading inside panel */
+.panel-section{margin-bottom:24px}
+.panel-section h4{margin:0 0 12px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 </style>
 
-<div style="max-width:1100px;margin:0 auto;padding:28px 20px">
+<div style="max-width:1180px;margin:0 auto;padding:28px 20px">
 
   <!-- Header -->
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
     <div>
       <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0">Super Admin</h1>
-      <p style="margin:4px 0 0;color:var(--muted);font-size:13px">Organisation and licence management</p>
+      <p style="margin:4px 0 0;color:var(--muted);font-size:13px">Tenant, subscription and licence management</p>
     </div>
     <button class="sa-btn sa-btn-primary" onclick="openCreateOrgModal()">+ New Organisation</button>
   </div>
 
-  <!-- Stats row -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px" id="statsRow">
-    <div class="sa-card" style="padding:16px 20px">
+  <!-- Stats -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px">
+    <div class="sa-card" style="padding:16px 20px;margin:0">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Organisations</div>
       <div id="statOrgs" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
     </div>
-    <div class="sa-card" style="padding:16px 20px">
+    <div class="sa-card" style="padding:16px 20px;margin:0">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Total Users</div>
       <div id="statUsers" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
     </div>
-    <div class="sa-card" style="padding:16px 20px">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Active Orgs</div>
+    <div class="sa-card" style="padding:16px 20px;margin:0">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Active Tenants</div>
       <div id="statActive" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
     </div>
+    <div class="sa-card" style="padding:16px 20px;margin:0">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Expiring &lt; 30 days</div>
+      <div id="statExpiring" style="font-size:28px;font-weight:800;color:#b45309;margin-top:4px">-</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-pills" id="filterPills">
+    <div class="filter-pill active" data-filter="all" onclick="setFilter('all')">All</div>
+    <div class="filter-pill" data-filter="active" onclick="setFilter('active')">Active</div>
+    <div class="filter-pill" data-filter="trial" onclick="setFilter('trial')">Trial</div>
+    <div class="filter-pill" data-filter="suspended" onclick="setFilter('suspended')">Suspended</div>
+    <div class="filter-pill" data-filter="expiring" onclick="setFilter('expiring')">Expiring soon</div>
   </div>
 
   <!-- Orgs table -->
   <div class="sa-card" style="padding:0;overflow:hidden">
-    <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
+    <div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
       <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--text)">Organisations</h2>
-      <input type="text" id="orgSearch" placeholder="Search..." onkeyup="renderOrgs()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:12px;width:200px"/>
+      <input type="text" id="orgSearch" placeholder="Search..." onkeyup="renderOrgs()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:12px;width:220px"/>
     </div>
     <table class="sa-table">
       <thead>
         <tr>
-          <th>Name</th><th>Slug</th><th>Plan</th><th>Modules</th><th>Users</th><th>Status</th><th>Actions</th>
+          <th>Organisation</th>
+          <th>Plan</th>
+          <th>Modules</th>
+          <th>Seats</th>
+          <th>Renewal</th>
+          <th>Status</th>
+          <th style="text-align:right">Actions</th>
         </tr>
       </thead>
       <tbody id="orgsBody">
@@ -71,15 +143,83 @@
     </table>
   </div>
 
-  <!-- Org detail panel -->
-  <div id="orgDetail" style="display:none;margin-top:20px"></div>
+</div>
 
+<!-- Side panel (Manage org) -->
+<div id="orgPanel" class="side-panel">
+  <div class="side-panel-header">
+    <div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Tenant</div>
+      <div id="panelTitle" style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px"></div>
+      <div id="panelSlug" style="font-size:12px;color:var(--muted);font-family:monospace;margin-top:2px"></div>
+    </div>
+    <button onclick="closePanel()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px">&times;</button>
+  </div>
+  <div class="side-panel-tabs">
+    <button class="tab-btn active" data-tab="subscription" onclick="switchTab('subscription')">Subscription</button>
+    <button class="tab-btn" data-tab="modules" onclick="switchTab('modules')">Modules</button>
+    <button class="tab-btn" data-tab="users" onclick="switchTab('users')">Users</button>
+  </div>
+  <div class="side-panel-body">
+
+    <!-- Subscription tab -->
+    <div class="tab-pane active" id="tab-subscription">
+      <div class="panel-section">
+        <h4>Plan</h4>
+        <select id="editPlan" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px">
+          <option value="trial">Trial</option>
+          <option value="starter">Starter</option>
+          <option value="professional">Professional</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+      </div>
+      <div class="panel-section">
+        <h4>Status</h4>
+        <select id="editStatus" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px">
+          <option value="active">Active</option>
+          <option value="suspended">Suspended</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="panel-section">
+        <h4>Seats</h4>
+        <input id="editSeats" type="number" min="1" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px"/>
+        <div id="seatHint" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+      </div>
+      <div class="panel-section">
+        <h4>Renewal Date</h4>
+        <input id="editValidUntil" type="date" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px"/>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">Leave blank for perpetual licence.</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:24px">
+        <button class="sa-btn sa-btn-primary" onclick="saveSubscription()" id="saveSubBtn" style="flex:1">Save Changes</button>
+        <button class="sa-btn sa-btn-danger" onclick="deleteOrg()" id="deleteOrgBtn">Delete</button>
+      </div>
+      <div id="subErr" style="color:#dc2626;font-size:12px;margin-top:10px;display:none"></div>
+    </div>
+
+    <!-- Modules tab -->
+    <div class="tab-pane" id="tab-modules">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Toggle modules for this tenant. Changes save instantly.</div>
+      <div id="moduleList"></div>
+    </div>
+
+    <!-- Users tab -->
+    <div class="tab-pane" id="tab-users">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--muted)">Tenant users and roles</div>
+        <button class="sa-btn sa-btn-primary" onclick="openCreateUserModal(window._currentOrg.id)">+ Add User</button>
+      </div>
+      <div id="usersList"></div>
+    </div>
+
+  </div>
 </div>
 
 <!-- Create Org Modal -->
 <div id="createOrgModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal-box">
-    <button onclick="document.getElementById('createOrgModal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    <button onclick="document.getElementById('createOrgModal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">&times;</button>
     <h3 style="margin:0 0 20px;font-size:16px;font-weight:700;color:var(--text)">New Organisation</h3>
     <div class="form-group">
       <label>Organisation Name</label>
@@ -88,6 +228,7 @@
     <div class="form-group">
       <label>Plan</label>
       <select id="newOrgPlan">
+        <option value="trial">Trial</option>
         <option value="starter">Starter</option>
         <option value="professional">Professional</option>
         <option value="enterprise" selected>Enterprise</option>
@@ -95,7 +236,8 @@
     </div>
     <div class="form-group">
       <label>Modules</label>
-      <input id="newOrgModules" type="text" value="aria,bcm,erm,grid,orm,sentinel" placeholder="comma-separated module keys"/>
+      <div id="newOrgModulesPicker" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+      <input id="newOrgModules" type="hidden" value="aria,bcm,erm,grid,orm,sentinel"/>
     </div>
     <div class="form-group">
       <label>Seats</label>
@@ -112,25 +254,13 @@
 <!-- Create User Modal -->
 <div id="createUserModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal-box">
-    <button onclick="document.getElementById('createUserModal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
-    <h3 style="margin:0 0 20px;font-size:16px;font-weight:700;color:var(--text)">Add User to Org</h3>
+    <button onclick="document.getElementById('createUserModal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">&times;</button>
+    <h3 style="margin:0 0 20px;font-size:16px;font-weight:700;color:var(--text)">Add User</h3>
     <input type="hidden" id="newUserOrgId"/>
-    <div class="form-group">
-      <label>Full Name</label>
-      <input id="newUserName" type="text" placeholder="Jane Smith"/>
-    </div>
-    <div class="form-group">
-      <label>Username</label>
-      <input id="newUserUsername" type="text" placeholder="jsmith"/>
-    </div>
-    <div class="form-group">
-      <label>Email</label>
-      <input id="newUserEmail" type="email" placeholder="jane@acmecorp.com"/>
-    </div>
-    <div class="form-group">
-      <label>Temporary Password</label>
-      <input id="newUserPassword" type="text" placeholder="User must change on first login"/>
-    </div>
+    <div class="form-group"><label>Full Name</label><input id="newUserName" type="text" placeholder="Jane Smith"/></div>
+    <div class="form-group"><label>Username</label><input id="newUserUsername" type="text" placeholder="jsmith"/></div>
+    <div class="form-group"><label>Email</label><input id="newUserEmail" type="email" placeholder="jane@acmecorp.com"/></div>
+    <div class="form-group"><label>Temporary Password</label><input id="newUserPassword" type="text" placeholder="User changes on first login"/></div>
     <div class="form-group">
       <label>Role</label>
       <select id="newUserRole">
@@ -149,89 +279,259 @@
 </div>
 
 <script>
-var _orgs = [];
+var MODULES = [
+  {key:'aria',     name:'ARIA',     desc:'Compliance and policy management'},
+  {key:'bcm',      name:'BCM',      desc:'Business continuity management'},
+  {key:'erm',      name:'ERM',      desc:'Enterprise risk management'},
+  {key:'grid',     name:'GRID',     desc:'Audits and inspections'},
+  {key:'orm',      name:'ORM',      desc:'Operational risk management'},
+  {key:'sentinel', name:'Sentinel', desc:'Privacy and data protection'},
+];
 
-async function apiFetch(url, opts) {
-  var res = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts || {}));
+var PLAN_BADGE = {
+  trial:        'badge-amber',
+  starter:      'badge-slate',
+  professional: 'badge-violet',
+  enterprise:   'badge-gold',
+};
+
+var _orgs = [];
+var _filter = 'all';
+window._currentOrg = null;
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function apiFetch(url, opts){
+  var res = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  if (res.status === 204) return {};
   return res.json();
 }
 
-async function loadOrgs() {
+async function loadOrgs(){
   _orgs = await apiFetch('/super-admin/api/orgs');
   var totalUsers = _orgs.reduce(function(s,o){return s+o.user_count},0);
   var activeOrgs = _orgs.filter(function(o){return o.status==='active'}).length;
+  var expiring = _orgs.filter(isExpiringSoon).length;
   document.getElementById('statOrgs').textContent = _orgs.length;
   document.getElementById('statUsers').textContent = totalUsers;
   document.getElementById('statActive').textContent = activeOrgs;
+  document.getElementById('statExpiring').textContent = expiring;
   renderOrgs();
 }
 
-function renderOrgs() {
+function daysUntil(dateStr){
+  if (!dateStr) return null;
+  var d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  var now = new Date();
+  return Math.floor((d - now) / 86400000);
+}
+
+function isExpiringSoon(o){
+  var d = daysUntil(o.valid_until);
+  return d !== null && d <= 30 && d >= 0;
+}
+
+function setFilter(f){
+  _filter = f;
+  document.querySelectorAll('.filter-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.filter === f);
+  });
+  renderOrgs();
+}
+
+function renderOrgs(){
   var q = (document.getElementById('orgSearch').value || '').toLowerCase();
-  var list = q ? _orgs.filter(function(o){return (o.name+o.slug+o.plan).toLowerCase().includes(q)}) : _orgs;
+  var list = _orgs.slice();
+  if (_filter === 'active')    list = list.filter(function(o){return o.status==='active'});
+  if (_filter === 'trial')     list = list.filter(function(o){return o.plan==='trial'});
+  if (_filter === 'suspended') list = list.filter(function(o){return o.status==='suspended' || o.status==='cancelled'});
+  if (_filter === 'expiring')  list = list.filter(isExpiringSoon);
+  if (q) list = list.filter(function(o){return (o.name+o.slug+o.plan).toLowerCase().includes(q)});
+
   var body = document.getElementById('orgsBody');
-  if (!list.length) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No organisations found.</td></tr>';
+  if (!list.length){
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No organisations match this filter.</td></tr>';
     return;
   }
-  body.innerHTML = list.map(function(o) {
-    var statusBadge = o.status === 'active'
-      ? '<span class="badge badge-green">Active</span>'
-      : '<span class="badge badge-red">'+o.status+'</span>';
-    var modBadges = (o.modules||[]).map(function(m){return '<span class="badge badge-blue" style="margin:1px">'+m+'</span>';}).join('');
+  body.innerHTML = list.map(function(o){
+    var planClass = PLAN_BADGE[o.plan] || 'badge-slate';
+    var statusBadge =
+        o.status === 'active'    ? '<span class="badge badge-green">Active</span>' :
+        o.status === 'suspended' ? '<span class="badge badge-amber">Suspended</span>' :
+        o.status === 'cancelled' ? '<span class="badge badge-red">Cancelled</span>' :
+                                   '<span class="badge badge-gray">'+esc(o.status)+'</span>';
+
+    var modCount = (o.modules||[]).length;
+    var modList  = (o.modules||[]).join(', ');
+
+    var seatPct = o.seats ? Math.min(100, Math.round(o.user_count * 100 / o.seats)) : 0;
+    var seatClass = seatPct >= 95 ? 'full' : seatPct >= 80 ? 'warn' : '';
+
+    var renewalCell;
+    if (o.valid_until){
+      var d = daysUntil(o.valid_until);
+      var dateStr = String(o.valid_until).slice(0,10);
+      if (d !== null && d < 0)       renewalCell = '<span class="expiry-danger">Expired '+(-d)+'d ago</span>';
+      else if (d !== null && d <= 7) renewalCell = '<span class="expiry-danger">'+dateStr+' &middot; '+d+'d</span>';
+      else if (d !== null && d <= 30)renewalCell = '<span class="expiry-warn">'+dateStr+' &middot; '+d+'d</span>';
+      else                           renewalCell = dateStr;
+    } else {
+      renewalCell = '<span style="color:var(--muted)">Perpetual</span>';
+    }
+
     return '<tr>'+
-      '<td style="font-weight:600">'+esc(o.name)+(o.slug==='public'?'<span class="badge badge-gray" style="margin-left:6px">default</span>':'')+'</td>'+
-      '<td style="font-family:monospace;font-size:12px">'+esc(o.slug)+'</td>'+
-      '<td style="text-transform:capitalize">'+esc(o.plan)+'</td>'+
-      '<td>'+modBadges+'</td>'+
-      '<td>'+o.user_count+' / '+o.seats+'</td>'+
+      '<td>'+
+        '<div style="font-weight:700;color:var(--text)">'+esc(o.name)+
+          (o.slug==='public'?'<span class="badge badge-gray" style="margin-left:6px">default</span>':'')+
+        '</div>'+
+        '<div style="font-family:monospace;font-size:11px;color:var(--muted);margin-top:2px">'+esc(o.slug)+'</div>'+
+      '</td>'+
+      '<td><span class="badge '+planClass+'" style="text-transform:capitalize">'+esc(o.plan)+'</span></td>'+
+      '<td title="'+esc(modList)+'">'+modCount+' of 6</td>'+
+      '<td>'+
+        '<div style="font-size:12px;font-weight:600">'+o.user_count+' / '+o.seats+'</div>'+
+        '<div class="seats-bar"><div class="seats-bar-fill '+seatClass+'" style="width:'+seatPct+'%"></div></div>'+
+      '</td>'+
+      '<td>'+renewalCell+'</td>'+
       '<td>'+statusBadge+'</td>'+
-      '<td><button class="sa-btn sa-btn-secondary" onclick="openOrgDetail('+o.id+')">Manage</button></td>'+
+      '<td style="text-align:right"><button class="sa-btn sa-btn-secondary" onclick="openPanel('+o.id+')">Manage</button></td>'+
     '</tr>';
   }).join('');
 }
 
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-async function openOrgDetail(orgId) {
+// ── Side panel ──────────────────────────────────────────────────────────────
+function openPanel(orgId){
   var org = _orgs.find(function(o){return o.id===orgId});
   if (!org) return;
-  var users = await apiFetch('/super-admin/api/orgs/'+orgId+'/users');
-  var panel = document.getElementById('orgDetail');
-  panel.style.display = 'block';
-  panel.innerHTML = '<div class="sa-card">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
-    '<h3 style="margin:0;font-size:15px;font-weight:700;color:var(--text)">'+esc(org.name)+' — Users</h3>'+
-    '<button class="sa-btn sa-btn-primary" onclick="openCreateUserModal('+orgId+')">+ Add User</button>'+
-    '</div>'+
-    '<table class="sa-table"><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>'+
-    '<tbody>'+
-    (users.length ? users.map(function(u){
-      return '<tr>'+
-        '<td>'+esc(u.full_name)+(u.is_super_admin?'<span class="badge badge-blue" style="margin-left:6px">super</span>':'')+'</td>'+
-        '<td style="font-family:monospace;font-size:12px">'+esc(u.username)+'</td>'+
-        '<td>'+esc(u.email)+'</td>'+
-        '<td>-</td>'+
-        '<td>'+(u.is_active?'<span class="badge badge-green">Active</span>':'<span class="badge badge-red">Inactive</span>')+'</td>'+
-      '</tr>';
-    }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">No users in this org.</td></tr>')+
-    '</tbody></table></div>';
-  panel.scrollIntoView({behavior:'smooth'});
+  window._currentOrg = org;
+  document.getElementById('panelTitle').textContent = org.name;
+  document.getElementById('panelSlug').textContent = org.slug;
+  document.getElementById('editPlan').value = org.plan || 'starter';
+  document.getElementById('editStatus').value = org.status || 'active';
+  document.getElementById('editSeats').value = org.seats || 10;
+  document.getElementById('editValidUntil').value = org.valid_until ? String(org.valid_until).slice(0,10) : '';
+  document.getElementById('seatHint').textContent = org.user_count + ' currently used';
+  renderModuleToggles(org);
+  document.getElementById('deleteOrgBtn').style.display = (org.slug === 'public') ? 'none' : '';
+  switchTab('subscription');
+  document.getElementById('orgPanel').classList.add('open');
+  loadUsersForPanel(orgId);
 }
 
-function openCreateOrgModal() {
+function closePanel(){
+  document.getElementById('orgPanel').classList.remove('open');
+  window._currentOrg = null;
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active', b.dataset.tab===name)});
+  document.querySelectorAll('.tab-pane').forEach(function(p){p.classList.toggle('active', p.id==='tab-'+name)});
+}
+
+function renderModuleToggles(org){
+  var enabled = new Set(org.modules || []);
+  var html = MODULES.map(function(m){
+    var on = enabled.has(m.key);
+    return '<div class="module-row '+(on?'on':'')+'" onclick="toggleModule(\''+m.key+'\')">'+
+      '<div class="icon">'+m.name.slice(0,1)+'</div>'+
+      '<div class="meta"><div class="name">'+m.name+'</div><div class="desc">'+m.desc+'</div></div>'+
+      '<div class="toggle-switch"></div>'+
+    '</div>';
+  }).join('');
+  document.getElementById('moduleList').innerHTML = html;
+}
+
+async function toggleModule(key){
+  var org = window._currentOrg;
+  if (!org) return;
+  var set = new Set(org.modules || []);
+  if (set.has(key)) set.delete(key); else set.add(key);
+  var newMods = Array.from(set);
+  var res = await apiFetch('/super-admin/api/orgs/'+org.id, {
+    method:'PUT', body:JSON.stringify({modules:newMods.join(',')})
+  });
+  if (res && res.error){ alert(res.error); return; }
+  org.modules = newMods;
+  renderModuleToggles(org);
+  await loadOrgs();
+  window._currentOrg = _orgs.find(function(o){return o.id===org.id});
+}
+
+async function saveSubscription(){
+  var org = window._currentOrg;
+  if (!org) return;
+  var btn = document.getElementById('saveSubBtn');
+  var err = document.getElementById('subErr');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    var res = await apiFetch('/super-admin/api/orgs/'+org.id, {
+      method:'PUT',
+      body: JSON.stringify({
+        plan: document.getElementById('editPlan').value,
+        status: document.getElementById('editStatus').value,
+        seats: parseInt(document.getElementById('editSeats').value)||1,
+        valid_until: document.getElementById('editValidUntil').value || null,
+      })
+    });
+    if (res && res.error){ err.textContent = res.error; err.style.display='block'; }
+    else { await loadOrgs(); window._currentOrg = _orgs.find(function(o){return o.id===org.id}); }
+  } catch(e){ err.textContent = 'Save failed.'; err.style.display='block'; }
+  btn.disabled = false; btn.textContent = 'Save Changes';
+}
+
+async function deleteOrg(){
+  var org = window._currentOrg;
+  if (!org) return;
+  if (!confirm('Delete "'+org.name+'"? This drops the tenant schema and cannot be undone.')) return;
+  var res = await fetch('/super-admin/api/orgs/'+org.id, {method:'DELETE'});
+  var data = await res.json();
+  if (!res.ok){ alert(data.error || 'Delete failed.'); return; }
+  closePanel();
+  await loadOrgs();
+}
+
+async function loadUsersForPanel(orgId){
+  var users = await apiFetch('/super-admin/api/orgs/'+orgId+'/users');
+  document.getElementById('usersList').innerHTML = users.length
+    ? '<table class="sa-table"><thead><tr><th>Name</th><th>Email</th><th>Status</th></tr></thead><tbody>'+
+        users.map(function(u){
+          return '<tr><td><div style="font-weight:600">'+esc(u.full_name)+
+            (u.is_super_admin?'<span class="badge badge-violet" style="margin-left:6px">super</span>':'')+'</div>'+
+            '<div style="font-family:monospace;font-size:11px;color:var(--muted)">'+esc(u.username)+'</div></td>'+
+            '<td>'+esc(u.email)+'</td>'+
+            '<td>'+(u.is_active?'<span class="badge badge-green">Active</span>':'<span class="badge badge-red">Inactive</span>')+'</td></tr>';
+        }).join('')+
+        '</tbody></table>'
+    : '<div style="text-align:center;color:var(--muted);padding:24px">No users yet.</div>';
+}
+
+// ── Create org modal ────────────────────────────────────────────────────────
+function openCreateOrgModal(){
   document.getElementById('createOrgErr').style.display = 'none';
+  document.getElementById('createOrgName').value = '';
+  // Build module checkbox picker
+  var picker = document.getElementById('newOrgModulesPicker');
+  picker.innerHTML = MODULES.map(function(m){
+    return '<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);font-size:12px;cursor:pointer">'+
+      '<input type="checkbox" value="'+m.key+'" checked onchange="updateNewOrgModules()"/>'+m.name+
+    '</label>';
+  }).join('');
+  updateNewOrgModules();
   document.getElementById('createOrgModal').style.display = 'flex';
 }
 
-async function submitCreateOrg() {
+function updateNewOrgModules(){
+  var keys = Array.from(document.querySelectorAll('#newOrgModulesPicker input:checked')).map(function(i){return i.value});
+  document.getElementById('newOrgModules').value = keys.join(',');
+}
+
+async function submitCreateOrg(){
   var btn = document.getElementById('createOrgBtn');
   var err = document.getElementById('createOrgErr');
   err.style.display = 'none';
-  btn.disabled = true;
-  btn.textContent = 'Creating...';
+  btn.disabled = true; btn.textContent = 'Creating...';
   try {
     var res = await apiFetch('/super-admin/api/orgs', {
       method:'POST',
@@ -242,58 +542,45 @@ async function submitCreateOrg() {
         seats: parseInt(document.getElementById('newOrgSeats').value)||10,
       })
     });
-    if (res.error) {
-      err.textContent = res.error;
-      err.style.display = 'block';
-    } else {
-      document.getElementById('createOrgModal').style.display = 'none';
-      await loadOrgs();
-    }
-  } catch(e) {
-    err.textContent = 'Request failed.';
-    err.style.display = 'block';
-  }
-  btn.disabled = false;
-  btn.textContent = 'Create';
+    if (res.error){ err.textContent = res.error; err.style.display = 'block'; }
+    else { document.getElementById('createOrgModal').style.display = 'none'; await loadOrgs(); }
+  } catch(e){ err.textContent = 'Request failed.'; err.style.display = 'block'; }
+  btn.disabled = false; btn.textContent = 'Create';
 }
 
-function openCreateUserModal(orgId) {
+function openCreateUserModal(orgId){
   document.getElementById('newUserOrgId').value = orgId;
   document.getElementById('createUserErr').style.display = 'none';
+  ['newUserName','newUserUsername','newUserEmail','newUserPassword'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
   document.getElementById('createUserModal').style.display = 'flex';
 }
 
-async function submitCreateUser() {
+async function submitCreateUser(){
   var btn = document.getElementById('createUserBtn');
   var err = document.getElementById('createUserErr');
   var orgId = parseInt(document.getElementById('newUserOrgId').value);
   err.style.display = 'none';
-  btn.disabled = true;
-  btn.textContent = 'Creating...';
+  btn.disabled = true; btn.textContent = 'Creating...';
   try {
     var res = await apiFetch('/super-admin/api/orgs/'+orgId+'/users', {
       method:'POST',
       body: JSON.stringify({
         full_name: document.getElementById('newUserName').value.trim(),
-        username: document.getElementById('newUserUsername').value.trim(),
-        email: document.getElementById('newUserEmail').value.trim(),
-        password: document.getElementById('newUserPassword').value.trim(),
-        role: document.getElementById('newUserRole').value,
+        username:  document.getElementById('newUserUsername').value.trim(),
+        email:     document.getElementById('newUserEmail').value.trim(),
+        password:  document.getElementById('newUserPassword').value.trim(),
+        role:      document.getElementById('newUserRole').value,
       })
     });
-    if (res.error) {
-      err.textContent = res.error;
-      err.style.display = 'block';
-    } else {
+    if (res.error){ err.textContent = res.error; err.style.display = 'block'; }
+    else {
       document.getElementById('createUserModal').style.display = 'none';
-      openOrgDetail(orgId);
+      loadUsersForPanel(orgId);
     }
-  } catch(e) {
-    err.textContent = 'Request failed.';
-    err.style.display = 'block';
-  }
-  btn.disabled = false;
-  btn.textContent = 'Create User';
+  } catch(e){ err.textContent = 'Request failed.'; err.style.display = 'block'; }
+  btn.disabled = false; btn.textContent = 'Create User';
 }
 
 loadOrgs();
