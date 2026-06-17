@@ -190,6 +190,12 @@ async def csrf_origin_middleware(request: Request, call_next):
 
 async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
+
+    # Long-lived cache for immutable static assets (JS, CSS, fonts, images).
+    # Auth pages set their own no-store header which takes precedence.
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"

@@ -11,6 +11,7 @@ import sys
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
+from starlette.middleware.gzip import GZipMiddleware
 
 from config import settings
 from database import init_db, get_db, OperationalError
@@ -38,6 +39,9 @@ app = FastAPI(
 )
 
 # -- Middleware ---------------------------------------------------------------
+# GZip: compresses all text responses >= 1 KB automatically.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Order matters: outermost first. Security headers wrap everything,
 # CSRF origin check runs before the route handler.
 app.middleware("http")(security_headers_middleware)

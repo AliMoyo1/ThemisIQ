@@ -2703,6 +2703,93 @@ def bcm_plan_deactivated_handler(event_type, source_module, entity_type,
         db.close()
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# XM-ERM-SENTINEL: ERM DATA BREACH RISK → SENTINEL PRIVACY BREACH
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_BREACH_CATEGORIES = {"data_breach", "privacy_breach", "privacy"}
+
+
+@on("erm.risk.identified")
+def erm_data_breach_risk_creates_sentinel_breach(event_type, source_module, entity_type,
+                                                  entity_id, payload, user_id, **kw):
+    """
+    XM-ERM-SEN: When an ERM risk with a privacy/data-breach category is created,
+    auto-create a Sentinel breach notification record so the 72h regulatory clock
+    starts immediately. Idempotent: skipped if a sentinel link already exists.
+    """
+    category = (payload.get("category") or "").lower().replace(" ", "_")
+    if category not in _BREACH_CATEGORIES:
+        return
+
+    db = get_db()
+    try:
+        erm_risk_id = payload.get("erm_risk_id") or entity_id
+
+        # Idempotency: skip if a sentinel breach was already linked to this ERM risk
+        existing = db.execute(
+            "SELECT id FROM cross_module_links "
+            "WHERE source_module='erm' AND source_type='enterprise_risk' "
+            "AND source_id=%s AND target_module='sentinel' AND target_type='breach'",
+            (erm_risk_id,),
+        ).fetchone()
+        if existing:
+            return
+
+        title = payload.get("title", f"ERM Data Breach Risk #{erm_risk_id}")
+        severity = (payload.get("severity") or "high").lower()
+        # Map ERM likelihood/impact score to breach severity
+        score = (payload.get("likelihood") or 3) * (payload.get("impact") or 3)
+        if score >= 20:
+            sev = "critical"
+        elif score >= 12:
+            sev = "high"
+        elif score >= 6:
+            sev = "medium"
+        else:
+            sev = severity
+
+        from modules.sentinel.data_service import create_breach
+        from core.timeutils import utcnow
+
+        breach_data = {
+            "title": title,
+            "breach_type": "unauthorized_access",
+            "severity": sev,
+            "status": "open",
+            "discovery_date": utcnow().strftime("%Y-%m-%d"),
+            "description": (
+                f"Auto-created from ERM risk #{erm_risk_id} (category: {category}). "
+                f"Review and complete breach details in Sentinel."
+            ),
+            "notification_required": 1,
+        }
+        breach_id = create_breach(breach_data)
+
+        create_cross_module_link(
+            "erm", "enterprise_risk", erm_risk_id,
+            "sentinel", "breach", breach_id,
+            relationship="triggers", user_id=user_id, db=db,
+        )
+        db.commit()
+
+        _notify_admins(
+            db, "sentinel",
+            f"Privacy Breach Opened: {title}",
+            f"ERM risk '{title}' (category: {category}) automatically created a "
+            f"Sentinel breach record. The 72h notification clock has started. "
+            f"Review and complete the breach details in Sentinel.",
+            "/sentinel/breaches",
+        )
+        db.commit()
+        log.info("XM-ERM-SEN: ERM risk %d (category=%s) → Sentinel breach #%d",
+                 erm_risk_id, category, breach_id)
+    except Exception as e:
+        log.warning("erm_data_breach_risk_creates_sentinel_breach error: %s", e)
+    finally:
+        db.close()
+
+
 @on("erm.appetite.breached")
 def appetite_breach_notify(event_type, source_module, entity_type,
                             entity_id, payload, user_id, **kw):
