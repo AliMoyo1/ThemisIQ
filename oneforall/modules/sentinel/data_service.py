@@ -68,7 +68,7 @@ def _generic_create(table, fields, data, ref_prefix=None, json_fields=None):
         params["ref_number"] = _gen_ref(ref_prefix)
     all_cols = list(params.keys())
     cols = ", ".join(all_cols)
-    vals = ", ".join(":" + k for k in all_cols)
+    vals = ", ".join("%(" + k + ")s" for k in all_cols)
     db = get_db()
     try:
         cur = insert_returning_id(db,f"INSERT INTO {table} ({cols}) VALUES ({vals})", params)
@@ -88,7 +88,7 @@ def _generic_update(table, allowed, data, row_id, json_fields=None):
     sets, params = [], {}
     for k, v in data.items():
         if k in allowed:
-            sets.append(f"{k}=:{k}")
+            sets.append(f"{k}=%({k})s")
             params[k] = v
     if not sets:
         return
@@ -97,7 +97,7 @@ def _generic_update(table, allowed, data, row_id, json_fields=None):
     db = get_db()
     try:
         db.execute(
-            f"UPDATE {table} SET {','.join(sets)},updated_at=:updated_at WHERE id=:id",
+            f"UPDATE {table} SET {','.join(sets)},updated_at=%(updated_at)s WHERE id=%(id)s",
             params,
         )
         db.commit()
@@ -999,9 +999,9 @@ def activate_jurisdiction(key: str, is_primary: bool = False, **config) -> None:
             "INSERT INTO sentinel_jurisdiction_config "
             "(jurisdiction_key, is_active, is_primary, regulator_contact, "
             " registration_number, dpo_name, dpo_email, notes, activated_at) "
-            "VALUES (:key,1,:pri,:rc,:rn,:dn,:de,:nt,:now) "
+            "VALUES (%(key)s,1,%(pri)s,%(rc)s,%(rn)s,%(dn)s,%(de)s,%(nt)s,%(now)s) "
             "ON CONFLICT(jurisdiction_key) DO UPDATE SET "
-            "is_active=1, is_primary=:pri, activated_at=:now",
+            "is_active=1, is_primary=%(pri)s, activated_at=%(now)s",
             {
                 "key": key, "pri": 1 if is_primary else 0,
                 "rc": config.get("regulator_contact"),
@@ -1037,7 +1037,7 @@ def update_jurisdiction_config(key: str, data: dict) -> None:
     sets, params = [], {}
     for k, v in data.items():
         if k in allowed:
-            sets.append(f"{k}=:{k}")
+            sets.append(f"{k}=%({k})s")
             params[k] = v
     if not sets:
         return
@@ -1048,7 +1048,7 @@ def update_jurisdiction_config(key: str, data: dict) -> None:
             db.execute("UPDATE sentinel_jurisdiction_config SET is_primary=0")
         db.execute(
             f"UPDATE sentinel_jurisdiction_config SET {','.join(sets)} "
-            "WHERE jurisdiction_key=:key",
+            "WHERE jurisdiction_key=%(key)s",
             params,
         )
         db.commit()

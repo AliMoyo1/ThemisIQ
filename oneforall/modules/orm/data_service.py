@@ -818,21 +818,15 @@ def has_active_bcm_incident():
 
 
 def has_active_sentinel_breach():
-    """Check if Sentinel has any active/open incidents or breaches."""
+    """Check if Sentinel has any active/open breaches."""
     db = get_db()
     try:
         row = db.execute(
-            "SELECT id FROM sentinel_incidents WHERE status NOT IN ('resolved','closed') LIMIT 1"
+            "SELECT id FROM sentinel_breaches WHERE status NOT IN ('resolved','closed') LIMIT 1"
         ).fetchone()
         return row is not None
     except Exception:
-        try:
-            row = db.execute(
-                "SELECT id FROM data_breaches WHERE status NOT IN ('resolved','closed') LIMIT 1"
-            ).fetchone()
-            return row is not None
-        except Exception:
-            return False
+        return False
     finally:
         db.close()
 

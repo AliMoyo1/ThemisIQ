@@ -5,7 +5,7 @@ erm_regulatory_obligations, erm_assessments, and the shared risk_register view.
 """
 from datetime import datetime
 from core.timeutils import utcnow
-from database import get_db, insert_returning_id, sql_now_offset, sql_days_between
+from database import get_db, insert_returning_id, sql_now_offset, sql_days_between, sql_date_offset
 
 
 def _dict(row):

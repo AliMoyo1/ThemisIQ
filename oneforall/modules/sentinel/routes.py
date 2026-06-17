@@ -441,7 +441,7 @@ async def api_dsr_update(request: Request, dsr_id: int):
     # Check if DSR is now overdue and emit event
     dsr = ds.get_dsr(dsr_id)
     if dsr:
-        deadline = dsr.get("deadline") or dsr.get("due_date") or ""
+        deadline = dsr.get("deadline_date") or ""
         status = (dsr.get("status") or "").lower()
         if deadline and status not in ("completed", "closed"):
             try:
