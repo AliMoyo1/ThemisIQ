@@ -13,24 +13,24 @@
       theme: {
         extend: {
           colors: {
-            primary:      '#4648d4',
-            'primary-container': '#6063ee',
+            primary:      '#374151',
+            'primary-container': '#4b5563',
             'on-primary': '#ffffff',
             secondary:    '#0058be',
             'secondary-container': '#2170e4',
             tertiary:     '#006c49',
             'tertiary-container': '#00885d',
-            surface:      '#faf8ff',
+            surface:      '#f8fafc',
             'surface-dim': '#d2d9f4',
-            'surface-container-low':    '#f2f3ff',
-            'surface-container':        '#eaedff',
-            'surface-container-high':   '#e2e7ff',
+            'surface-container-low':    '#f1f5f9',
+            'surface-container':        '#e2e8f0',
+            'surface-container-high':   '#e2e8f0',
             'surface-container-highest':'#dae2fd',
             'surface-container-lowest': '#ffffff',
             'on-surface':         '#131b2e',
             'on-surface-variant': '#464554',
             'inverse-surface':    '#283044',
-            'inverse-on-surface': '#eef0ff',
+            'inverse-on-surface': '#f1f5f9',
             outline:         '#767586',
             'outline-variant':'#c7c4d7',
             error:           '#ba1a1a',
@@ -65,7 +65,7 @@
     }
   </script>
   <style>
-    body { font-family: 'Inter', sans-serif; background-color: #faf8ff; color: #131b2e; overflow-x: hidden; }
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #131b2e; overflow-x: hidden; }
     .font-heading { font-family: 'Geist', sans-serif; }
     .font-mono    { font-family: 'JetBrains Mono', monospace; }
     .material-symbols-outlined {
@@ -74,17 +74,17 @@
     }
 
     /* NAV */
-    .nav-blur { backdrop-filter: blur(10px); background-color: rgba(250,248,255,0.85); }
+    .nav-blur { backdrop-filter: blur(10px); background-color: rgba(248,250,252,0.85); }
 
     /* HERO grid background */
     .hero-grid {
       background-image:
-        linear-gradient(rgba(70,72,212,0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(70,72,212,0.06) 1px, transparent 1px);
+        linear-gradient(rgba(55,65,81,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(55,65,81,0.06) 1px, transparent 1px);
       background-size: 40px 40px;
     }
     .hero-glow {
-      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(70,72,212,0.12) 0%, transparent 70%);
+      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(55,65,81,0.12) 0%, transparent 70%);
     }
 
     /* SPLINE 3D / SPOTLIGHT */
@@ -105,29 +105,29 @@
       transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s cubic-bezier(.4,0,.2,1), border-color 0.2s;
     }
     .module-card:hover { transform: translateY(-6px); }
-    .module-card.aria:hover     { border-color: #4648d4; box-shadow: 0 16px 32px -8px rgba(70,72,212,0.15); }
+    .module-card.aria:hover     { border-color: #374151; box-shadow: 0 16px 32px -8px rgba(55,65,81,0.15); }
     .module-card.grid-m:hover   { border-color: #006c49; box-shadow: 0 16px 32px -8px rgba(0,108,73,0.15); }
     .module-card.bcm:hover      { border-color: #0058be; box-shadow: 0 16px 32px -8px rgba(0,88,190,0.15); }
     .module-card.sentinel:hover { border-color: #2170e4; box-shadow: 0 16px 32px -8px rgba(33,112,228,0.15); }
     .module-card.erm:hover      { border-color: #ba1a1a; box-shadow: 0 16px 32px -8px rgba(186,26,26,0.15); }
     .module-card.orm:hover      { border-color: #9a3412; box-shadow: 0 16px 32px -8px rgba(154,52,18,0.15); }
-    .module-card.evidence:hover { border-color: #6063ee; box-shadow: 0 16px 32px -8px rgba(96,99,238,0.15); }
+    .module-card.evidence:hover { border-color: #4b5563; box-shadow: 0 16px 32px -8px rgba(75,85,99,0.15); }
 
     /* FEATURE CHIP */
     .feature-chip {
       display: inline-flex; align-items: center; padding: 4px 10px;
       border-radius: 9999px; border: 1px solid #c7c4d7;
-      background: #eaedff; font-size: 11px; font-family: 'JetBrains Mono', monospace;
+      background: #e2e8f0; font-size: 11px; font-family: 'JetBrains Mono', monospace;
       color: #464554; letter-spacing: 0.04em; font-weight: 500;
       transition: border-color 0.15s, color 0.15s;
     }
-    .feature-chip:hover { border-color: #4648d4; color: #4648d4; }
+    .feature-chip:hover { border-color: #374151; color: #374151; }
 
     /* AI BADGE */
     .ai-badge {
       display: inline-flex; align-items: center; gap: 4px;
       padding: 3px 10px; border-radius: 9999px;
-      background: linear-gradient(135deg, #4648d4 0%, #6063ee 100%);
+      background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
       color: #fff; font-size: 10px; font-family: 'JetBrains Mono', monospace;
       letter-spacing: 0.06em; font-weight: 500;
     }
@@ -137,7 +137,7 @@
 
     /* TIMELINE CONNECTOR */
     .step-connector {
-      width: 2px; height: 48px; background: linear-gradient(#c7c4d7, #4648d4);
+      width: 2px; height: 48px; background: linear-gradient(#c7c4d7, #374151);
       margin: 0 auto;
     }
 
@@ -170,7 +170,7 @@
       pointer-events: none;
       mix-blend-mode: multiply;
     }
-    :root { --particle-color-rgb: 70,72,212; }
+    :root { --particle-color-rgb: 55,65,81; }
 
     /* Lift content above canvas */
     header, section, footer { position: relative; z-index: 2; }
@@ -212,7 +212,7 @@
     }
     .marquee-sep {
       width: 5px; height: 5px; border-radius: 50%;
-      background: #c7c4d7; flex-shrink: 0; margin: 0 2.5rem;
+      background: rgba(156,163,175,0.3); flex-shrink: 0; margin: 0 2.5rem;
     }
 
     /* SOCIAL PROOF CARDS */
@@ -224,17 +224,70 @@
       transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
     }
     .proof-card:hover {
-      border-color: #4648d4;
-      box-shadow: 0 12px 32px -8px rgba(70,72,212,0.18);
+      border-color: #374151;
+      box-shadow: 0 12px 32px -8px rgba(55,65,81,0.18);
       transform: translateY(-3px);
     }
     .proof-stat {
       font-family: 'Geist', sans-serif;
       font-size: 44px; font-weight: 700;
       letter-spacing: -0.03em; line-height: 1;
-      background: linear-gradient(135deg, #4648d4 0%, #6063ee 100%);
+      background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       background-clip: text;
+    }
+
+    /* AI SECTION TUBES CANVAS */
+    .ai-tubes-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.65;
+    }
+
+    /* AI SECTION GLASS CARDS */
+    .ai-glass-card {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 1px 0 0 rgba(255, 255, 255, 0.06),
+        0 8px 32px rgba(0, 0, 0, 0.25);
+      transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .ai-glass-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .ai-glass-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(192, 193, 255, 0.28);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 1px 0 0 rgba(255, 255, 255, 0.08),
+        0 20px 48px rgba(70, 72, 212, 0.3);
+      transform: translateY(-4px);
+    }
+    .ai-icon-box {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: rgba(70, 72, 212, 0.2);
+      border: 1px solid rgba(192, 193, 255, 0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
     }
 
     /* GLASSMORPHISM PRICING */
@@ -248,25 +301,25 @@
     }
     .glass-card:hover {
       transform: translateY(-4px);
-      box-shadow: 0 20px 40px -12px rgba(70,72,212,0.12);
+      box-shadow: 0 20px 40px -12px rgba(55,65,81,0.12);
     }
     .glass-card-featured {
-      background: rgba(70,72,212,0.06);
+      background: rgba(55,65,81,0.06);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
-      border: 1.5px solid rgba(70,72,212,0.25);
+      border: 1.5px solid rgba(55,65,81,0.25);
       border-radius: 16px;
       transition: transform 0.25s, box-shadow 0.25s;
     }
     .glass-card-featured:hover {
       transform: translateY(-4px);
-      box-shadow: 0 24px 48px -12px rgba(70,72,212,0.22);
+      box-shadow: 0 24px 48px -12px rgba(55,65,81,0.22);
     }
     .pricing-bg {
       background:
-        radial-gradient(ellipse 50% 60% at 30% 20%, rgba(70,72,212,0.08) 0%, transparent 70%),
-        radial-gradient(ellipse 40% 50% at 75% 80%, rgba(96,99,238,0.06) 0%, transparent 70%),
-        linear-gradient(180deg, #faf8ff 0%, #f2f3ff 100%);
+        radial-gradient(ellipse 50% 60% at 30% 20%, rgba(55,65,81,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 50% at 75% 80%, rgba(75,85,99,0.06) 0%, transparent 70%),
+        linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
     }
     .pricing-toggle {
       background: rgba(255,255,255,0.6);
@@ -291,9 +344,9 @@
       color: #464554;
     }
     .pricing-toggle button.active {
-      background: #4648d4;
+      background: #374151;
       color: #ffffff;
-      box-shadow: 0 2px 8px rgba(70,72,212,0.3);
+      box-shadow: 0 2px 8px rgba(55,65,81,0.3);
     }
     .price-amount {
       font-family: 'Geist', sans-serif;
@@ -324,7 +377,7 @@
     .faq-chevron { transition: transform 0.26s ease-out; flex-shrink: 0; }
     .faq-item.open .faq-chevron { transform: rotate(180deg); }
     .faq-trigger { background: none; border: none; width: 100%; cursor: pointer; }
-    .faq-trigger:hover .faq-question { color: #4648d4; }
+    .faq-trigger:hover .faq-question { color: #374151; }
     .faq-question { transition: color 0.15s; }
   </style>
 </head>
@@ -338,7 +391,7 @@
   <div class="max-w-screen-xl mx-auto px-6 h-16 flex items-center justify-between">
     <!-- Logo -->
     <a href="#" class="flex items-center gap-3">
-      <img src="Themis Logo No Background.png" alt="ThemisIQ" class="h-10 w-auto object-contain"/>
+      <img src="Themis Logo No Background.png" alt="ThemisIQ" class="h-10 w-auto object-contain" style="filter: brightness(0) opacity(0.85)"/>
       <span class="font-heading font-bold text-h2 text-on-surface">Themis<span class="text-primary">IQ</span></span>
     </a>
 
@@ -352,7 +405,7 @@
 
     <!-- Desktop CTAs -->
     <div class="hidden md:flex items-center gap-3">
-      <button class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest px-3 py-2">Sign In</button>
+      <a href="https://app.themisiq.net/login" class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest px-3 py-2">Sign In</a>
       <a href="#demo" class="bg-primary text-on-primary px-4 py-2 rounded-lg text-label font-mono font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest">Request Demo</a>
     </div>
 
@@ -371,7 +424,7 @@
       <a href="#pricing"    class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest">Pricing</a>
     </nav>
     <div class="flex gap-3 mt-4">
-      <button class="flex-1 border border-outline-variant rounded-lg py-2 text-label font-mono text-on-surface-variant hover:bg-surface-container transition-colors">Sign In</button>
+      <a href="https://app.themisiq.net/login" class="flex-1 text-center border border-outline-variant rounded-lg py-2 text-label font-mono text-on-surface-variant hover:bg-surface-container transition-colors">Sign In</a>
       <a href="#demo" class="flex-1 text-center bg-primary text-on-primary rounded-lg py-2 text-label font-mono font-bold hover:opacity-90 transition-all">Request Demo</a>
     </div>
   </div>
@@ -385,12 +438,15 @@
   <div class="hero-grid absolute inset-0"></div>
   <div class="hero-glow absolute inset-0"></div>
 
-  <div class="relative max-w-screen-xl mx-auto px-6 pt-20 pb-16">
+  <div class="relative max-w-screen-xl mx-auto px-6 pt-10 pb-16">
     <!-- Hero split: text left, 3D robot right -->
     <div class="flex flex-col lg:flex-row items-center gap-8 lg:gap-12 mb-16">
 
       <!-- Left: text content -->
       <div class="flex-1 text-center lg:text-left">
+        <div class="mb-8 flex justify-center lg:justify-start">
+          <img src="Themis Logo No Background.png" alt="ThemisIQ" class="w-auto object-contain" style="height:190px; filter: drop-shadow(0 2px 10px rgba(0,0,0,0.12))"/>
+        </div>
         <div class="inline-flex items-center gap-2 mb-6">
           <div class="ai-badge">
             <span class="material-symbols-outlined text-[12px]" style="font-size:12px">auto_awesome</span>
@@ -425,7 +481,7 @@
         <div class="spline-container relative" style="height:560px">
           <svg class="hero-spotlight pointer-events-none absolute z-[1] h-[169%] w-[84%] opacity-0" style="top:-160px;left:40px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3787 2842" fill="none">
             <g filter="url(#spotlight-blur)">
-              <ellipse cx="1924.71" cy="273.501" rx="1924.71" ry="273.501" transform="matrix(-0.822377 -0.568943 -0.568943 0.822377 3631.88 2291.09)" fill="#6063ee" fill-opacity="0.21"/>
+              <ellipse cx="1924.71" cy="273.501" rx="1924.71" ry="273.501" transform="matrix(-0.822377 -0.568943 -0.568943 0.822377 3631.88 2291.09)" fill="#4b5563" fill-opacity="0.21"/>
             </g>
             <defs>
               <filter id="spotlight-blur" x="0.860352" y="0.838989" width="3785.16" height="2840.26" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
@@ -464,9 +520,9 @@
 
   <!-- Platform Preview -->
   <div class="relative max-w-screen-xl mx-auto px-6 mb-0">
-    <div class="relative rounded-2xl overflow-hidden border border-outline-variant" style="box-shadow: 0 30px 70px -20px rgba(70,72,212,0.25);">
+    <div class="relative rounded-2xl overflow-hidden border border-outline-variant" style="box-shadow: 0 30px 70px -20px rgba(55,65,81,0.25);">
       <img src="Screenshot 2026-06-09 205219.png" alt="ThemisIQ Command Centre" class="w-full h-auto block"/>
-      <div class="absolute inset-0 bg-gradient-to-t from-[#faf8ff] via-[#faf8ff]/10 to-transparent pointer-events-none"></div>
+      <div class="absolute inset-0 bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/10 to-transparent pointer-events-none"></div>
       <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-center bg-surface-container-lowest/80 backdrop-blur-sm px-5 py-2 rounded-full border border-outline-variant whitespace-nowrap">
         <p class="text-label-xs font-mono text-primary uppercase tracking-widest">Command Centre: Real-time cross-module GRC intelligence</p>
       </div>
@@ -478,68 +534,71 @@
 <!-- ═══════════════════════════════════════════
      TRUST BAND
 ════════════════════════════════════════════ -->
-<section id="frameworks" class="bg-surface-container-low border-y border-outline-variant py-10 overflow-hidden">
-  <p class="text-center text-label-xs font-mono text-outline uppercase tracking-widest mb-8">Built to meet the world's most rigorous frameworks</p>
-  <div class="marquee-fade overflow-hidden">
-    <div class="marquee-track">
-      <!-- Set 1 -->
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 27001</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">SOC 2 TYPE II</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">NIST CSF 2.0</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">GDPR</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">HIPAA</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">PCI DSS 4.0</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">DORA</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 31000</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">COBIT 2019</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">FCA / PRA</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">APRA CPS 234</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">NIS2</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">CMMC 2.0</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 22301</span>
-      <span class="marquee-sep"></span>
-      <!-- Set 2: duplicate for seamless loop -->
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 27001</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">SOC 2 TYPE II</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">NIST CSF 2.0</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">GDPR</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">HIPAA</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">PCI DSS 4.0</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">DORA</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 31000</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">COBIT 2019</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">FCA / PRA</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">APRA CPS 234</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">NIS2</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">CMMC 2.0</span>
-      <span class="marquee-sep"></span>
-      <span class="text-h2 font-heading font-bold text-on-surface-variant opacity-50 whitespace-nowrap">ISO 22301</span>
-      <span class="marquee-sep"></span>
+<section id="frameworks" class="bg-inverse-surface relative overflow-hidden py-10">
+  <canvas id="tubes-canvas-fw" class="ai-tubes-canvas" aria-hidden="true"></canvas>
+  <div class="relative" style="z-index:2">
+    <p class="text-center text-label-xs font-mono uppercase tracking-widest mb-8" style="color:rgba(156,163,175,0.5)">Built to meet the world's most rigorous frameworks</p>
+    <div class="marquee-fade overflow-hidden">
+      <div class="marquee-track">
+        <!-- Set 1 -->
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27001</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">SOC 2 TYPE II</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">NIST CSF 2.0</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">GDPR</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">HIPAA</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">PCI DSS 4.0</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">DORA</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 31000</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">COBIT 2019</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">FCA / PRA</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">APRA CPS 234</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">NIS2</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">CMMC 2.0</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 22301</span>
+        <span class="marquee-sep"></span>
+        <!-- Set 2: duplicate for seamless loop -->
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27001</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">SOC 2 TYPE II</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">NIST CSF 2.0</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">GDPR</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">HIPAA</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">PCI DSS 4.0</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">DORA</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 31000</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">COBIT 2019</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">FCA / PRA</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">APRA CPS 234</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">NIS2</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">CMMC 2.0</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 22301</span>
+        <span class="marquee-sep"></span>
+      </div>
     </div>
   </div>
 </section>
@@ -804,11 +863,10 @@
      AI INTELLIGENCE SECTION
 ════════════════════════════════════════════ -->
 <section class="py-20 bg-inverse-surface relative overflow-hidden">
-  <!-- Background pattern -->
-  <div class="absolute inset-0 opacity-10"
-    style="background-image: radial-gradient(circle, rgba(192,193,255,0.6) 1px, transparent 1px); background-size: 32px 32px;"></div>
+  <!-- Tubes animation canvas -->
+  <canvas id="tubes-canvas" class="ai-tubes-canvas" aria-hidden="true"></canvas>
 
-  <div class="relative max-w-screen-xl mx-auto px-6">
+  <div class="relative max-w-screen-xl mx-auto px-6" style="z-index:2">
     <div class="text-center mb-14">
       <div class="ai-badge inline-flex mb-4">
         <span class="material-symbols-outlined text-[12px]" style="font-size:12px">auto_awesome</span>
@@ -824,58 +882,58 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
-        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
-          <span class="material-symbols-outlined text-[#c0c1ff]">policy</span>
+      <div class="ai-glass-card">
+        <div class="ai-icon-box">
+          <span class="material-symbols-outlined text-[#9ca3af]">policy</span>
         </div>
         <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">Ask ARIA</h3>
-        <p class="text-body text-inverse-on-surface/70">RAG-powered search over your entire policy library. Ask natural language questions, get cited answers from your own documents.</p>
-        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Governance · ARIA</div>
+        <p class="text-body text-inverse-on-surface/80">RAG-powered search over your entire policy library. Ask natural language questions, get cited answers from your own documents.</p>
+        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Governance · ARIA</div>
       </div>
 
-      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
-        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
-          <span class="material-symbols-outlined text-[#c0c1ff]">description</span>
+      <div class="ai-glass-card">
+        <div class="ai-icon-box">
+          <span class="material-symbols-outlined text-[#9ca3af]">description</span>
         </div>
         <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Policy Generator</h3>
-        <p class="text-body text-inverse-on-surface/70">Draft framework-aligned policies in seconds. Select a framework, enter scope, receive a structured, editable policy document.</p>
-        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Governance · ARIA</div>
+        <p class="text-body text-inverse-on-surface/80">Draft framework-aligned policies in seconds. Select a framework, enter scope, receive a structured, editable policy document.</p>
+        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Governance · ARIA</div>
       </div>
 
-      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
-        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
-          <span class="material-symbols-outlined text-[#c0c1ff]">summarize</span>
+      <div class="ai-glass-card">
+        <div class="ai-icon-box">
+          <span class="material-symbols-outlined text-[#9ca3af]">summarize</span>
         </div>
         <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Audit Reports</h3>
-        <p class="text-body text-inverse-on-surface/70">Turn raw audit evidence and NC logs into polished executive findings reports, complete with observations, risk ratings, and recommendations.</p>
-        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Audit · GRID</div>
+        <p class="text-body text-inverse-on-surface/80">Turn raw audit evidence and NC logs into polished executive findings reports, complete with observations, risk ratings, and recommendations.</p>
+        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Audit · GRID</div>
       </div>
 
-      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
-        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
-          <span class="material-symbols-outlined text-[#c0c1ff]">gpp_maybe</span>
+      <div class="ai-glass-card">
+        <div class="ai-icon-box">
+          <span class="material-symbols-outlined text-[#9ca3af]">gpp_maybe</span>
         </div>
-        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI DPIA & Breach Analysis</h3>
-        <p class="text-body text-inverse-on-surface/70">AI-guided DPIAs surface hidden privacy risks. Breach triage analysis helps determine notifiability and GDPR Art 33 obligations within the 72-hour window.</p>
-        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Privacy · Sentinel</div>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI DPIA &amp; Breach Analysis</h3>
+        <p class="text-body text-inverse-on-surface/80">AI-guided DPIAs surface hidden privacy risks. Breach triage analysis determines notifiability and Art. 33 obligations within the 72-hour window.</p>
+        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Privacy · Sentinel</div>
       </div>
 
-      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
-        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
-          <span class="material-symbols-outlined text-[#c0c1ff]">emergency</span>
+      <div class="ai-glass-card">
+        <div class="ai-icon-box">
+          <span class="material-symbols-outlined text-[#9ca3af]">emergency</span>
         </div>
         <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Continuity Plans</h3>
-        <p class="text-body text-inverse-on-surface/70">Generate BIA-informed business continuity plans automatically. Input critical processes, get structured recovery procedures with RTOs and RPOs.</p>
-        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Resilience · BCM</div>
+        <p class="text-body text-inverse-on-surface/80">Generate BIA-informed business continuity plans automatically. Input critical processes, get structured recovery procedures with RTOs and RPOs.</p>
+        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Resilience · BCM</div>
       </div>
 
-      <div class="panel-card bg-inverse-on-surface/5 border border-inverse-on-surface/15 rounded-xl p-6 hover:bg-inverse-on-surface/10 transition-colors">
-        <div class="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mb-4">
-          <span class="material-symbols-outlined text-[#c0c1ff]">manage_search</span>
+      <div class="ai-glass-card">
+        <div class="ai-icon-box">
+          <span class="material-symbols-outlined text-[#9ca3af]">manage_search</span>
         </div>
         <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Root Cause Analysis</h3>
-        <p class="text-body text-inverse-on-surface/70">ORM's AI chat surfaces causal patterns in operational events, identifying systemic risks before they become incidents.</p>
-        <div class="mt-4 text-label-xs font-mono text-primary/80 uppercase tracking-widest">Operations Risk · ORM</div>
+        <p class="text-body text-inverse-on-surface/80">ORM's AI chat surfaces causal patterns in operational events, identifying systemic risks before they become incidents.</p>
+        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Operations Risk · ORM</div>
       </div>
 
     </div>
@@ -934,18 +992,29 @@
       </div>
       <div class="order-1 lg:order-2">
         <div class="feature-badge" style="color:#047857; border-color:#6ee7b7; background:#ecfdf5">Audit · GRID</div>
-        <h3 class="font-heading text-h1 text-on-surface mb-4">Surgical audit execution from schedule to sign-off.</h3>
-        <p class="text-body text-on-surface-variant mb-6">GRID manages the complete audit lifecycle: sampling, evidence collection, non-conformity tracking, compliance scoring, and AI-generated findings reports exported to PDF or DOCX.</p>
-        <div class="flex flex-wrap gap-2">
+        <h3 class="font-heading text-h1 text-on-surface mb-4">Full audit lifecycle, on-site or fully remote.</h3>
+        <p class="text-body text-on-surface-variant mb-6">GRID runs the complete audit lifecycle from scheduling to final sign-off: control sampling, remote or on-site evidence collection, NC tracking, compliance scoring, approval workflows, and AI-written findings reports in PDF or DOCX. When Sentinel confirms a breach, GRID auto-creates a post-incident audit.</p>
+        <div class="flex flex-wrap gap-2 mb-8">
+          <span class="feature-chip">Full remote audit capabilities</span>
           <span class="feature-chip">Audit scheduling &amp; sampling</span>
           <span class="feature-chip">Evidence capture &amp; versioning</span>
           <span class="feature-chip">NC tracking &amp; gap analysis</span>
           <span class="feature-chip">Compliance scoring</span>
-          <span class="feature-chip">PDF/DOCX reports</span>
-          <span class="feature-chip">Vendor profile integration</span>
+          <span class="feature-chip">PDF/DOCX report generation</span>
           <span class="feature-chip">Timeline &amp; approval workflows</span>
           <span class="feature-chip">AI finding write-ups</span>
           <span class="feature-chip">Post-incident audit creation</span>
+          <span class="feature-chip">Vendor profile integration</span>
+        </div>
+        <div class="flex gap-6">
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Report Format</div>
+            <div class="font-heading text-h1 mt-1" style="color:#047857">PDF + DOCX</div>
+          </div>
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Audit Mode</div>
+            <div class="font-heading text-h1 mt-1" style="color:#047857">Remote / On-site</div>
+          </div>
         </div>
       </div>
     </div>
@@ -954,27 +1023,32 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
       <div>
         <div class="feature-badge" style="color:#2170e4; border-color:#adc6ff; background:#dbe6ff">Privacy · Sentinel</div>
-        <h3 class="font-heading text-h1 text-on-surface mb-4">GDPR compliance with the 72-hour clock always running.</h3>
-        <p class="text-body text-on-surface-variant mb-6">Sentinel manages your complete data protection obligations: RoPA generation, automated DPIA workflows, DSR handling, consent tracking, and the critical 72-hour breach notification countdown required under GDPR Article 33.</p>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">Complete data protection, across 27 jurisdictions.</h3>
+        <p class="text-body text-on-surface-variant mb-6">Sentinel is a full privacy management suite covering GDPR, UK GDPR, LGPD, CCPA, CDPA, and 22 more jurisdictions. AI-assisted RoPA and DPIA creation, automated DSR workflows, consent and legal basis tracking, retention schedule enforcement, LIAs, international transfer mapping, and a 72-hour breach countdown that auto-starts on confirmation.</p>
         <div class="flex flex-wrap gap-2 mb-8">
-          <span class="feature-chip">RoPA management</span>
-          <span class="feature-chip">DPIA workflow</span>
+          <span class="feature-chip">RoPA creation &amp; management</span>
+          <span class="feature-chip">AI-assisted DPIA workflow</span>
           <span class="feature-chip">72-hour breach countdown</span>
-          <span class="feature-chip">DSR management</span>
+          <span class="feature-chip">DSR management &amp; deadlines</span>
           <span class="feature-chip">Consent &amp; legal basis tracking</span>
-          <span class="feature-chip">Retention policies</span>
+          <span class="feature-chip">Legitimate Interest Assessments</span>
+          <span class="feature-chip">Retention schedule enforcement</span>
           <span class="feature-chip">International transfer tracking</span>
+          <span class="feature-chip">Privacy notices &amp; controllers</span>
+          <span class="feature-chip">Security measures catalogue</span>
+          <span class="feature-chip">AI breach notifiability analysis</span>
           <span class="feature-chip">27 jurisdictions</span>
-          <span class="feature-chip">AI-assisted DPIA &amp; breach analysis</span>
         </div>
-        <!-- GDPR countdown visual -->
-        <div class="bg-surface-container border border-outline-variant rounded-lg p-4 inline-flex items-center gap-4">
-          <div class="w-12 h-12 rounded-full border-4 flex items-center justify-center" style="border-color:#2170e4">
-            <span class="font-mono text-label font-bold" style="color:#2170e4">72h</span>
+        <div class="flex gap-6">
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Jurisdictions</div>
+            <div class="font-heading text-h1 mt-1" style="color:#2170e4">27</div>
+            <div class="text-label-xs font-mono text-on-surface-variant mt-1">GDPR · UK GDPR · LGPD · CCPA · CDPA +</div>
           </div>
-          <div>
-            <div class="text-label-xs font-mono text-on-surface font-bold">GDPR Art. 33 Timer</div>
-            <div class="text-label-xs font-mono text-on-surface-variant">Auto-starts on breach confirmation</div>
+          <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Breach Timer</div>
+            <div class="font-heading text-h1 mt-1" style="color:#2170e4">72h</div>
+            <div class="text-label-xs font-mono text-on-surface-variant mt-1">Auto-starts on breach confirmation</div>
           </div>
         </div>
       </div>
@@ -990,26 +1064,30 @@
       </div>
       <div class="order-1 lg:order-2">
         <div class="feature-badge" style="color:#4338ca; border-color:#c7d2fe; background:#eef2ff">Resilience · BCM</div>
-        <h3 class="font-heading text-h1 text-on-surface mb-4">Business continuity from BIA to live incident command.</h3>
-        <p class="text-body text-on-surface-variant mb-6">BCM maps your critical processes and dependencies, scores them with BIA, and then activates structured recovery plans the moment an incident occurs. A live incident command channel keeps response teams coordinated and every action time-stamped for post-incident review.</p>
+        <h3 class="font-heading text-h1 text-on-surface mb-4">BIA to BCP to live command. AI-assisted at every step.</h3>
+        <p class="text-body text-on-surface-variant mb-6">BCM covers the full resilience lifecycle. Run Business Impact Analyses to score process criticality, then let AI generate structured Business Continuity Plans with RTOs, RPOs, and recovery procedures. When an incident occurs, activate the plan, open a real-time incident command channel, and auto-escalate SEV-1/2 events to Sentinel and ERM. Schedule exercises and plan reviews to stay audit-ready.</p>
         <div class="flex flex-wrap gap-2 mb-8">
-          <span class="feature-chip">Business Impact Analysis</span>
-          <span class="feature-chip">Dependency mapping</span>
-          <span class="feature-chip">AI recovery plan generation</span>
+          <span class="feature-chip">Business Impact Analysis (BIA)</span>
+          <span class="feature-chip">AI-assisted BCP generation</span>
+          <span class="feature-chip">Plan approval &amp; activation workflow</span>
           <span class="feature-chip">Live incident command channel</span>
-          <span class="feature-chip">BCP exercises &amp; testing</span>
-          <span class="feature-chip">Activation workflows</span>
+          <span class="feature-chip">Vendor &amp; dependency mapping</span>
+          <span class="feature-chip">Exercises &amp; training tracking</span>
+          <span class="feature-chip">Scheduled plan review reminders</span>
+          <span class="feature-chip">Auto-escalation to Sentinel &amp; ERM</span>
           <span class="feature-chip">ISO 22301 alignment</span>
           <span class="feature-chip">DORA operational resilience</span>
         </div>
         <div class="flex gap-6">
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
-            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">RTO Coverage</div>
-            <div class="font-heading text-h1 mt-1" style="color:#4338ca">100%</div>
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Plan Generation</div>
+            <div class="font-heading text-h1 mt-1" style="color:#4338ca">AI</div>
+            <div class="text-label-xs font-mono text-on-surface-variant mt-1">BIA-informed RTOs &amp; RPOs</div>
           </div>
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
-            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Avg. Plan Activation</div>
-            <div class="font-heading text-h1 mt-1" style="color:#4338ca">&lt; 4 min</div>
+            <div class="text-label-xs font-mono text-outline uppercase tracking-widest">SEV-1/2 Escalation</div>
+            <div class="font-heading text-h1 mt-1" style="color:#4338ca">Auto</div>
+            <div class="text-label-xs font-mono text-on-surface-variant mt-1">Sentinel + ERM notified instantly</div>
           </div>
         </div>
       </div>
@@ -1082,7 +1160,7 @@
     <!-- Row 7: Evidence Vault (text left, visual right) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
       <div>
-        <div class="feature-badge" style="color:#4648d4; border-color:#c7c4d7; background:#eaedff">Cross-Module · Evidence Vault</div>
+        <div class="feature-badge" style="color:#374151; border-color:#c7c4d7; background:#e2e8f0">Cross-Module · Evidence Vault</div>
         <h3 class="font-heading text-h1 text-on-surface mb-4">One evidence upload. Every framework satisfied.</h3>
         <p class="text-body text-on-surface-variant mb-6">The Evidence Vault is the connective tissue of ThemisIQ: a single, versioned, tamper-evident repository shared by every module. Upload an asset once, tag it to a control, and it automatically satisfies the same control across every mapped framework. No copies, no drift, no duplication.</p>
         <div class="flex flex-wrap gap-2 mb-8">
@@ -1115,39 +1193,40 @@
 <!-- ═══════════════════════════════════════════
      HOW IT WORKS
 ════════════════════════════════════════════ -->
-<section class="py-20 bg-surface-container-low border-y border-outline-variant">
-  <div class="max-w-screen-xl mx-auto px-6">
+<section class="py-20 bg-inverse-surface relative overflow-hidden">
+  <canvas id="tubes-canvas-hiw" class="ai-tubes-canvas" aria-hidden="true"></canvas>
+  <div class="relative max-w-screen-xl mx-auto px-6" style="z-index:2">
     <div class="text-center mb-16">
-      <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-2">Getting Started</p>
-      <h2 class="font-heading text-display-sm text-on-surface">Enterprise-ready in 48 hours.</h2>
+      <p class="text-label-xs font-mono uppercase tracking-widest mb-2" style="color:#9ca3af">Getting Started</p>
+      <h2 class="font-heading text-display-sm text-inverse-on-surface">Enterprise-ready in 48 hours.</h2>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
       <!-- Connector lines (desktop only) -->
-      <div class="hidden md:block absolute top-8 left-1/3 right-1/3 h-px bg-outline-variant" style="top:2.5rem"></div>
+      <div class="hidden md:block absolute left-1/3 right-1/3 h-px bg-white/20" style="top:2.5rem"></div>
 
       <div class="text-center">
-        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6 shadow-lg" style="box-shadow:0 0 0 8px #e2e7ff">
+        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6" style="box-shadow:0 0 0 8px rgba(156,163,175,0.15)">
           <span class="font-heading font-bold text-h2">1</span>
         </div>
-        <h3 class="font-heading text-h2 text-on-surface mb-2">Onboard &amp; Configure</h3>
-        <p class="text-body text-on-surface-variant">Connect your organization structure, import frameworks, and configure RBAC roles. Our setup script handles deployment in minutes.</p>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">Onboard &amp; Configure</h3>
+        <p class="text-body" style="color:rgba(241,245,249,0.65)">Connect your organization structure, import frameworks, and configure RBAC roles. Our setup script handles deployment in minutes.</p>
       </div>
 
       <div class="text-center">
-        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6 shadow-lg" style="box-shadow:0 0 0 8px #e2e7ff">
+        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6" style="box-shadow:0 0 0 8px rgba(156,163,175,0.15)">
           <span class="font-heading font-bold text-h2">2</span>
         </div>
-        <h3 class="font-heading text-h2 text-on-surface mb-2">Activate Modules</h3>
-        <p class="text-body text-on-surface-variant">Enable the GRC modules your organization needs, from Governance to Privacy. All modules share a single data model and evidence vault.</p>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">Activate Modules</h3>
+        <p class="text-body" style="color:rgba(241,245,249,0.65)">Enable the GRC modules your organization needs, from Governance to Privacy. All modules share a single data model and evidence vault.</p>
       </div>
 
       <div class="text-center">
-        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6 shadow-lg" style="box-shadow:0 0 0 8px #e2e7ff">
+        <div class="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center mx-auto mb-6" style="box-shadow:0 0 0 8px rgba(156,163,175,0.15)">
           <span class="font-heading font-bold text-h2">3</span>
         </div>
-        <h3 class="font-heading text-h2 text-on-surface mb-2">Monitor &amp; Respond</h3>
-        <p class="text-body text-on-surface-variant">Cross-module event bus surfaces risks in real time. KRI breaches, privacy incidents, and audit NCs auto-escalate across modules.</p>
+        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">Monitor &amp; Respond</h3>
+        <p class="text-body" style="color:rgba(241,245,249,0.65)">Cross-module event bus surfaces risks in real time. KRI breaches, privacy incidents, and audit NCs auto-escalate across modules.</p>
       </div>
     </div>
   </div>
@@ -1230,7 +1309,7 @@
       </div>
 
       <!-- Professional (featured) -->
-      <div class="glass-card-featured p-8 flex flex-col relative" style="margin-top:-8px;margin-bottom:-8px;box-shadow: 0 24px 48px -12px rgba(70,72,212,0.18)">
+      <div class="glass-card-featured p-8 flex flex-col relative" style="margin-top:-8px;margin-bottom:-8px;box-shadow: 0 24px 48px -12px rgba(55,65,81,0.18)">
         <div class="absolute -top-3.5 left-1/2 -translate-x-1/2">
           <div class="ai-badge" style="padding:5px 14px;font-size:11px">
             <span class="material-symbols-outlined" style="font-size:12px">star</span>
@@ -1240,7 +1319,7 @@
 
         <div class="mb-6 pt-2">
           <div class="flex items-center gap-2 mb-4">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(70,72,212,0.12)">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(55,65,81,0.12)">
               <span class="material-symbols-outlined text-primary" style="font-size:18px">verified_user</span>
             </div>
             <span class="font-heading font-semibold text-on-surface text-base">Professional</span>
@@ -1286,7 +1365,7 @@
           </li>
         </ul>
 
-        <a href="#demo" class="block text-center bg-primary text-on-primary rounded-xl py-3 text-label font-mono font-bold hover:opacity-90 active:scale-[0.98] transition-all uppercase tracking-widest" style="box-shadow:0 4px 14px rgba(70,72,212,0.35)">
+        <a href="#demo" class="block text-center bg-primary text-on-primary rounded-xl py-3 text-label font-mono font-bold hover:opacity-90 active:scale-[0.98] transition-all uppercase tracking-widest" style="box-shadow:0 4px 14px rgba(55,65,81,0.35)">
           Request Demo
         </a>
       </div>
@@ -1523,8 +1602,8 @@
       <!-- Brand -->
       <div class="col-span-2">
         <a href="#" class="block mb-4">
-          <img src="Themis Logo 2D.png" alt="ThemisIQ"
-               style="height:88px; width:auto; filter:brightness(0) invert(1); opacity:0.88;"/>
+          <img src="Themis Logo No Background.png" alt="ThemisIQ"
+               style="height:80px; width:auto; object-fit:contain; filter:brightness(0) invert(1); opacity:0.9;"/>
         </a>
         <p class="text-body text-inverse-on-surface/60 max-w-xs">
           Precision-engineered GRC for regulated enterprises. Six intelligent modules, one unified platform.
@@ -1713,10 +1792,10 @@ if (nextBtn) nextBtn.addEventListener('click', () => carousel.scrollBy({ left:  
 
   var ctx = canvas.getContext('2d');
   var W = 0, H = 0, particles = [], mouse = { x: -9999, y: -9999 }, animId = null;
-  var colorRGB = '70,72,212';
+  var colorRGB = '55,65,81';
 
   function readColor() {
-    colorRGB = getComputedStyle(document.body).getPropertyValue('--particle-color-rgb').trim() || '70,72,212';
+    colorRGB = getComputedStyle(document.body).getPropertyValue('--particle-color-rgb').trim() || '55,65,81';
   }
   readColor();
   new MutationObserver(readColor).observe(document.body, { attributes: true });
@@ -1823,7 +1902,7 @@ function toggleBilling(mode) {
       const x = (e.clientX - r.left) / r.width  - 0.5;
       const y = (e.clientY - r.top)  / r.height - 0.5;
       card.style.transform = `perspective(600px) rotateX(${-y * 8}deg) rotateY(${x * 8}deg)${isPanel ? ' translateY(-4px)' : ''}`;
-      if (isPanel) card.style.boxShadow = '0 18px 40px -12px rgba(70,72,212,0.28)';
+      if (isPanel) card.style.boxShadow = '0 18px 40px -12px rgba(55,65,81,0.28)';
     });
     card.addEventListener('mouseleave', () => {
       card.style.transform = '';
@@ -1833,6 +1912,93 @@ function toggleBilling(mode) {
   document.querySelectorAll('.stat-card, .panel-card').forEach(applyTilt);
 })();
 </script>
+<script type="module">
+(async function(){
+  var canvas = document.getElementById('tubes-canvas');
+  if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  var section = canvas.parentElement;
+  function syncSize() {
+    canvas.width  = section.offsetWidth;
+    canvas.height = section.offsetHeight;
+  }
+  syncSize();
+
+  try {
+    var mod = await import('https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js');
+    var TubesCursor = mod.default;
+    var app = TubesCursor(canvas, {
+      tubes: {
+        colors: ['#374151', '#4b5563', '#9ca3af'],
+        lights: {
+          intensity: 180,
+          colors: ['#374151', '#6b7280', '#9ca3af', '#2170e4']
+        }
+      }
+    });
+
+    document.addEventListener('pointermove', function(e) {
+      if (e.target === canvas) return;
+      canvas.dispatchEvent(new PointerEvent('pointermove', {
+        clientX: e.clientX, clientY: e.clientY,
+        pointerId: 1, pointerType: 'mouse', bubbles: false
+      }));
+    });
+
+    window.addEventListener('resize', syncSize);
+  } catch(err) {
+    console.warn('Tubes animation failed to load:', err);
+  }
+})();
+</script>
+
+<script type="module">
+(function(){
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  var TUBES_OPTIONS = {
+    tubes: {
+      colors: ['#374151', '#4b5563', '#9ca3af'],
+      lights: { intensity: 180, colors: ['#374151', '#6b7280', '#9ca3af', '#2170e4'] }
+    }
+  };
+
+  async function initTubes(canvasId) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    var section = canvas.parentElement;
+    function syncSize() {
+      canvas.width  = section.offsetWidth;
+      canvas.height = section.offsetHeight;
+    }
+    syncSize();
+    try {
+      var mod = await import('https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js');
+      var app = mod.default(canvas, TUBES_OPTIONS);
+      document.addEventListener('pointermove', function(e) {
+        if (e.target === canvas) return;
+        canvas.dispatchEvent(new PointerEvent('pointermove', {
+          clientX: e.clientX, clientY: e.clientY,
+          pointerId: 1, pointerType: 'mouse', bubbles: false
+        }));
+      });
+      window.addEventListener('resize', syncSize);
+    } catch(err) {
+      console.warn('Tubes init failed for', canvasId, err);
+    }
+  }
+
+  ['tubes-canvas-fw', 'tubes-canvas-hiw'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var obs = new IntersectionObserver(function(entries, o) {
+      if (entries[0].isIntersecting) { o.disconnect(); initTubes(id); }
+    }, { rootMargin: '200px' });
+    obs.observe(el);
+  });
+})();
+</script>
+
 <script type="module">
 import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.82/build/runtime.js';
 (async function(){
