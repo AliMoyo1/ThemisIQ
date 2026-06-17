@@ -780,12 +780,14 @@ def get_nc(ncid):
 def create_nc(data):
     db = get_db()
     try:
-        _assert_not_locked(data["audit_id"], db)
+        audit_id = data.get("audit_id")
+        if audit_id:
+            _assert_not_locked(audit_id, db)
         cur = insert_returning_id(db,
             "INSERT INTO grid_non_conformances "
             "(audit_id, control_id, title, description, severity, assigned_to, due_date, cap_status) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-            (data["audit_id"], data.get("control_id"),
+            (audit_id, data.get("control_id"),
              data.get("title", "Untitled NC"), data.get("description", ""),
              data.get("severity", "minor"), data.get("assigned_to"),
              data.get("due_date"), "Open"))
