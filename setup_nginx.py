@@ -68,12 +68,15 @@ def main():
     os.symlink(conf_path, link)
     print("    Symlink created:", link)
 
-    print("[4] Creating web root and copying landing page...")
-    os.makedirs("/var/www/themisiq", exist_ok=True)
-    html_src = os.path.join(repo_root, "landing_page", "index.html")
-    html_dst = "/var/www/themisiq/index.html"
-    shutil.copy2(html_src, html_dst)
-    print("    Copied:", html_dst)
+    print("[4] Copying landing page folder (HTML + all images)...")
+    src_dir = os.path.join(repo_root, "landing_page")
+    web_root = "/var/www/themisiq"
+    os.makedirs(web_root, exist_ok=True)
+    for fname in os.listdir(src_dir):
+        src = os.path.join(src_dir, fname)
+        if os.path.isfile(src) and not fname.endswith(".docx"):
+            shutil.copy2(src, os.path.join(web_root, fname))
+            print("    Copied:", fname)
 
     print("[5] Testing Nginx config...")
     rc = run("nginx -t")
