@@ -215,6 +215,56 @@ async def ready():
         )
 
 
+_DEMO_CORS = {"Access-Control-Allow-Origin": "https://themisiq.net",
+               "Access-Control-Allow-Methods": "POST, OPTIONS",
+               "Access-Control-Allow-Headers": "Content-Type"}
+
+
+@app.options("/api/demo-request")
+async def demo_request_preflight():
+    return JSONResponse({}, headers=_DEMO_CORS)
+
+
+@app.post("/api/demo-request")
+async def demo_request(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid request."}, status_code=400, headers=_DEMO_CORS)
+
+    name    = (body.get("name") or "").strip()
+    email   = (body.get("email") or "").strip()
+    company = (body.get("company") or "").strip()
+    plan    = (body.get("plan") or "").strip()
+
+    if not name or not email or "@" not in email:
+        return JSONResponse({"ok": False, "error": "Name and valid email are required."}, status_code=422, headers=_DEMO_CORS)
+
+    log.info("Demo request: name=%s email=%s company=%s plan=%s", name, email, company, plan)
+
+    try:
+        from core.email import send_email
+        admin_to = settings.ADMIN_EMAIL or settings.SMTP_USER
+        if admin_to:
+            plan_line = f"<p><strong>Plan interested in:</strong> {plan}</p>" if plan else ""
+            send_email(
+                to=admin_to,
+                subject=f"Demo Request: {name} ({company or 'no company'})",
+                body_html=(
+                    f"<h2>New Demo Request</h2>"
+                    f"<p><strong>Name:</strong> {name}</p>"
+                    f"<p><strong>Email:</strong> {email}</p>"
+                    f"<p><strong>Company:</strong> {company or 'Not provided'}</p>"
+                    f"{plan_line}"
+                ),
+                body_text=f"Demo request\nName: {name}\nEmail: {email}\nCompany: {company}\nPlan: {plan}",
+            )
+    except Exception as exc:
+        log.warning("Demo request email failed (request still logged): %s", exc)
+
+    return JSONResponse({"ok": True}, headers=_DEMO_CORS)
+
+
 # -- Routers ------------------------------------------------------------------
 from modules.launcher.routes import router as launcher_router
 from modules.aria.routes import router as aria_router

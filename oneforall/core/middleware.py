@@ -175,8 +175,9 @@ async def csrf_origin_middleware(request: Request, call_next):
     """
     if request.method in ("POST", "PUT", "DELETE", "PATCH"):
         path = request.url.path
-        # Allow login (no session to protect) and file uploads via share links
-        if path not in ("/login",):
+        # Public endpoints with no session to protect
+        _CSRF_EXEMPT = {"/login", "/api/demo-request"}
+        if path not in _CSRF_EXEMPT:
             if not _is_same_origin(request):
                 from fastapi.responses import JSONResponse
                 return JSONResponse(

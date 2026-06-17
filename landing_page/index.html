@@ -1443,14 +1443,18 @@
       <p class="text-body text-on-surface-variant max-w-lg mx-auto mb-10">
         Join leading financial institutions and technology enterprises who rely on ThemisIQ for continuous GRC intelligence.
       </p>
-      <form class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-4" onsubmit="return false">
-        <input type="email" placeholder="Enter work email"
-          class="flex-1 border border-outline-variant rounded-lg px-4 py-3 text-body bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-on-surface-variant/50"/>
-        <button type="submit" class="bg-primary text-on-primary px-6 py-3 rounded-lg text-label font-mono font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest whitespace-nowrap">
-          Get Started
+      <form id="demoForm" class="flex flex-col gap-3 max-w-md mx-auto mb-4" onsubmit="submitDemo(event)">
+        <input id="demoName" type="text" placeholder="Full name" required
+          class="border border-outline-variant rounded-lg px-4 py-3 text-body bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-on-surface-variant/50"/>
+        <input id="demoEmail" type="email" placeholder="Work email" required
+          class="border border-outline-variant rounded-lg px-4 py-3 text-body bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-on-surface-variant/50"/>
+        <input id="demoCompany" type="text" placeholder="Company name"
+          class="border border-outline-variant rounded-lg px-4 py-3 text-body bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-on-surface-variant/50"/>
+        <button type="submit" id="demoBtn" class="bg-primary text-on-primary px-6 py-3 rounded-lg text-label font-mono font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest">
+          Request Demo
         </button>
       </form>
-      <p class="text-label-xs font-mono text-outline">No credit card required. We'll contact you within 24 hours.</p>
+      <p id="demoMsg" class="text-label-xs font-mono text-outline" style="min-height:1.2em">No credit card required. We will contact you within 24 hours.</p>
     </div>
   </div>
 </section>
@@ -1644,10 +1648,9 @@
       <div>
         <h5 class="text-label-xs font-mono text-inverse-on-surface/40 uppercase tracking-widest mb-4">Legal</h5>
         <ul class="flex flex-col gap-3">
-          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Privacy Policy</a></li>
-          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Terms of Service</a></li>
-          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Security Overview</a></li>
-          <li><a href="#" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Cookie Policy</a></li>
+          <li><a href="privacy.html" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Privacy Policy</a></li>
+          <li><a href="terms.html" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Terms of Service</a></li>
+          <li><a href="privacy.html#cookies" class="text-body text-inverse-on-surface/70 hover:text-inverse-on-surface transition-colors">Cookie Policy</a></li>
         </ul>
       </div>
 
@@ -2019,6 +2022,71 @@ import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.82/build/
     }));
   });
 })();
+</script>
+
+<!-- Demo request form handler -->
+<script>
+async function submitDemo(e) {
+  e.preventDefault();
+  var btn = document.getElementById('demoBtn');
+  var msg = document.getElementById('demoMsg');
+  var name    = document.getElementById('demoName').value.trim();
+  var email   = document.getElementById('demoEmail').value.trim();
+  var company = document.getElementById('demoCompany').value.trim();
+  var plan    = (window._demoPlan || '');
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  msg.style.color = '';
+  msg.textContent = '';
+
+  try {
+    var res = await fetch('https://app.themisiq.net/api/demo-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email, company: company, plan: plan })
+    });
+    var data = await res.json();
+    if (data.ok) {
+      msg.style.color = '#16a34a';
+      msg.textContent = 'Request received. We will contact you within 24 hours.';
+      document.getElementById('demoForm').reset();
+      window._demoPlan = '';
+    } else {
+      msg.style.color = '#dc2626';
+      msg.textContent = data.error || 'Something went wrong. Please try again.';
+    }
+  } catch (_) {
+    msg.style.color = '#dc2626';
+    msg.textContent = 'Could not connect. Please email hello@themisiq.net directly.';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Request Demo';
+}
+</script>
+
+<!-- Cookie consent banner -->
+<div id="cookieBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1e293b;color:#f1f5f9;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 -4px 24px rgba(0,0,0,0.3)">
+  <p style="margin:0;font-size:13px;line-height:1.5;max-width:640px">
+    We use essential cookies to keep this site working and analytics cookies to understand how it is used.
+    See our <a href="privacy.html#cookies" style="color:#818cf8;text-decoration:underline">Cookie Policy</a>.
+  </p>
+  <div style="display:flex;gap:10px;flex-shrink:0">
+    <button onclick="setCookieConsent('necessary')" style="padding:8px 16px;border:1px solid rgba(241,245,249,0.3);border-radius:8px;background:transparent;color:#f1f5f9;font-size:13px;cursor:pointer">Necessary only</button>
+    <button onclick="setCookieConsent('all')" style="padding:8px 16px;border:none;border-radius:8px;background:#6366f1;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Accept all</button>
+  </div>
+</div>
+<script>
+(function() {
+  if (!localStorage.getItem('cookie_consent')) {
+    document.getElementById('cookieBanner').style.display = 'flex';
+  }
+})();
+function setCookieConsent(choice) {
+  localStorage.setItem('cookie_consent', choice);
+  document.getElementById('cookieBanner').style.display = 'none';
+}
 </script>
 </body>
 </html>

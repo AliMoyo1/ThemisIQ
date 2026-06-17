@@ -82,6 +82,10 @@ class Settings:
     MS_CLIENT_ID:     str = os.getenv("MS_CLIENT_ID", "")
     MS_CLIENT_SECRET: str = os.getenv("MS_CLIENT_SECRET", "")
 
+    # Admin contact email — receives demo requests and system alerts.
+    # Falls back to SMTP_USER if not explicitly set.
+    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "") or os.getenv("SMTP_USER", "")
+
     # ── PostgreSQL (production) ───────────────────────────────────────────────
     # Set DATABASE_URL to switch from SQLite to PostgreSQL.
     # Example: postgresql://themisiq@pgbouncer:5432/themisiq
