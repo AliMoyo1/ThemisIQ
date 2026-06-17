@@ -745,6 +745,42 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 
   <!-- MAIN CONTENT -->
   <div class="main-content" id="mainContent">
+    {% if license_status and license_status.days_remaining is defined %}
+    {% set ls_days = license_status.days_remaining %}
+    {% set ls_critical = license_status.expired or ls_days <= 7 %}
+    <div id="licenseBanner"
+         data-expiry="{{ license_status.valid_until }}"
+         style="display:none;align-items:center;gap:12px;padding:10px 16px;margin:0 0 16px;border-radius:10px;border:1px solid {% if ls_critical %}#fca5a5{% else %}#fcd34d{% endif %};background:{% if ls_critical %}#fef2f2{% else %}#fffbeb{% endif %};color:{% if ls_critical %}#991b1b{% else %}#92400e{% endif %};font-size:13px">
+      <span style="font-size:16px;line-height:1">{% if ls_critical %}&#9888;{% else %}&#128276;{% endif %}</span>
+      <div style="flex:1">
+        {% if license_status.expired %}
+          <strong>Subscription expired</strong> on {{ license_status.valid_until }} ({{ -ls_days }} day{{ '' if ls_days == -1 else 's' }} ago).
+          Contact <a href="mailto:hello@themisiq.net" style="color:inherit;text-decoration:underline">hello@themisiq.net</a> to renew.
+        {% elif ls_days == 0 %}
+          <strong>Subscription renews today</strong> ({{ license_status.valid_until }}).
+          Contact <a href="mailto:hello@themisiq.net" style="color:inherit;text-decoration:underline">hello@themisiq.net</a> to confirm renewal.
+        {% else %}
+          <strong>Subscription renews in {{ ls_days }} day{{ '' if ls_days == 1 else 's' }}</strong> on {{ license_status.valid_until }}.
+          Contact <a href="mailto:hello@themisiq.net" style="color:inherit;text-decoration:underline">hello@themisiq.net</a> to renew.
+        {% endif %}
+      </div>
+      <button onclick="dismissLicenseBanner()" aria-label="Dismiss"
+              style="background:none;border:none;color:inherit;font-size:18px;line-height:1;cursor:pointer;padding:2px 6px;opacity:.7">&times;</button>
+    </div>
+    <script>
+      (function(){
+        var b = document.getElementById('licenseBanner');
+        if (!b) return;
+        var key = 'licenseBannerDismissed:' + b.dataset.expiry;
+        if (sessionStorage.getItem(key) === '1') return;
+        b.style.display = 'flex';
+        window.dismissLicenseBanner = function(){
+          sessionStorage.setItem(key, '1');
+          b.style.display = 'none';
+        };
+      })();
+    </script>
+    {% endif %}
     {% block content %}{% endblock %}
   </div>
 </div>
