@@ -171,9 +171,9 @@ async def api_report_run(request: Request, rid: int):
 
         elif report_type == "audit_status":
             result["total_audits"] = db.execute("SELECT COUNT(*) FROM grid_audits").fetchone()[0]
-            result["active"] = db.execute("SELECT COUNT(*) FROM grid_audits WHERE status IN ('planning','in_progress')").fetchone()[0]
-            result["completed"] = db.execute("SELECT COUNT(*) FROM grid_audits WHERE status = 'completed'").fetchone()[0]
-            result["open_ncs"] = db.execute("SELECT COUNT(*) FROM grid_nonconformities WHERE status = 'open'").fetchone()[0]
+            result["active"] = db.execute("SELECT COUNT(*) FROM grid_audits WHERE status IN ('Planning','Active')").fetchone()[0]
+            result["completed"] = db.execute("SELECT COUNT(*) FROM grid_audits WHERE status IN ('Completed','Complete')").fetchone()[0]
+            result["open_ncs"] = db.execute("SELECT COUNT(*) FROM grid_non_conformances WHERE status = 'open'").fetchone()[0]
 
         elif report_type == "privacy_overview":
             result["ropa_count"] = db.execute("SELECT COUNT(*) FROM sentinel_ropa").fetchone()[0]

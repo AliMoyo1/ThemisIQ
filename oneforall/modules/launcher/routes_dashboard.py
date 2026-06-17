@@ -168,7 +168,7 @@ async def api_command_centre_stats(request: Request):
         # GRID — audit completion
         grid_total = db.execute("SELECT COUNT(*) FROM grid_audits").fetchone()[0]
         grid_done = db.execute(
-            "SELECT COUNT(*) FROM grid_audits WHERE status = 'completed'"
+            "SELECT COUNT(*) FROM grid_audits WHERE status IN ('Completed','Complete')"
         ).fetchone()[0]
         grid_pct = round((grid_done / grid_total) * 100) if grid_total else 0
         module_health.append({"key": "grid", "name": "Audit", "pct": grid_pct})
@@ -554,7 +554,7 @@ async def api_my_dashboard_data(request: Request):
                 "SELECT COUNT(*) FROM aria_controls WHERE status = 'compliant'"
             ).fetchone()[0]
             data["grid_audits_active"] = db.execute(
-                "SELECT COUNT(*) FROM grid_audits WHERE status IN ('planning','in_progress')"
+                "SELECT COUNT(*) FROM grid_audits WHERE status IN ('Planning','Active')"
             ).fetchone()[0]
             data["bcm_plans_total"] = db.execute("SELECT COUNT(*) FROM bcm_plans").fetchone()[0]
             data["sentinel_breaches_open"] = db.execute(

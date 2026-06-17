@@ -384,8 +384,8 @@ async def api_analytics_capture_snapshot(request: Request):
         metrics.append(("risks_critical", risks_critical, "platform"))
 
         # Audit metrics
-        audits_active = db.execute("SELECT COUNT(*) FROM grid_audits WHERE status IN ('planning','in_progress')").fetchone()[0]
-        ncs_open = db.execute("SELECT COUNT(*) FROM grid_nonconformities WHERE status = 'open'").fetchone()[0]
+        audits_active = db.execute("SELECT COUNT(*) FROM grid_audits WHERE status IN ('Planning','Active')").fetchone()[0]
+        ncs_open = db.execute("SELECT COUNT(*) FROM grid_non_conformances WHERE status = 'open'").fetchone()[0]
         metrics.append(("audits_active", audits_active, "grid"))
         metrics.append(("ncs_open", ncs_open, "grid"))
 
@@ -556,11 +556,11 @@ async def api_bulk_import(request: Request, entity_type: str):
             for i, rec in enumerate(records):
                 try:
                     db.execute(
-                        "INSERT INTO sentinel_ropa (ref_number, name, purpose, lawful_basis, "
+                        "INSERT INTO sentinel_ropa (ref_number, processing_name, purpose, legal_basis, "
                         "data_subjects, data_categories, status) "
                         "VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                        (rec.get("ref_number", ""), rec.get("name", ""), rec.get("purpose", ""),
-                         rec.get("lawful_basis", ""), rec.get("data_subjects", ""),
+                        (rec.get("ref_number", ""), rec.get("processing_name") or rec.get("name", ""), rec.get("purpose", ""),
+                         rec.get("legal_basis") or rec.get("lawful_basis", ""), rec.get("data_subjects", ""),
                          rec.get("data_categories", ""), rec.get("status", "active"))
                     )
                     imported += 1
