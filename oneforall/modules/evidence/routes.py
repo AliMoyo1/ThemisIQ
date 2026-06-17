@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_auth, require_capability
 from core.shell_context import shell_ctx
-from database import get_db, insert_returning_id, sql_date_offset
+from database import get_db, insert_returning_id, sql_date_offset, sql_current_date
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 
@@ -73,7 +73,7 @@ async def api_evidence_list(request: Request):
         if view == "expiring":
             where.append(
                 f"e.expiry_date IS NOT NULL AND e.expiry_date <= {sql_date_offset('+30 days')} "
-                "AND e.expiry_date > CURRENT_DATE AND e.status = 'current'"
+                f"AND e.expiry_date > {sql_current_date()} AND e.status = 'current'"
             )
         elif view == "unlinked":
             where.append(
@@ -800,7 +800,7 @@ async def api_evidence_stats(request: Request):
         expiring_soon = db.execute(
             "SELECT COUNT(*) FROM evidence_items WHERE status = 'current' "
             f"AND expiry_date IS NOT NULL AND expiry_date <= {sql_date_offset('+30 days')} "
-            "AND expiry_date > CURRENT_DATE"
+            f"AND expiry_date > {sql_current_date()}"
         ).fetchone()[0]
         total_links = db.execute("SELECT COUNT(*) FROM evidence_links").fetchone()[0]
         unlinked = db.execute(
@@ -819,7 +819,7 @@ async def api_evidence_stats(request: Request):
         expiring_7 = db.execute(
             "SELECT COUNT(*) FROM evidence_items WHERE status = 'current' "
             f"AND expiry_date IS NOT NULL AND expiry_date <= {sql_date_offset('+7 days')} "
-            "AND expiry_date > CURRENT_DATE"
+            f"AND expiry_date > {sql_current_date()}"
         ).fetchone()[0]
         # Recently added (last 5 non-archived)
         recent_rows = db.execute(

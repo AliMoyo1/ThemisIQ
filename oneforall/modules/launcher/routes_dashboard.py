@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from database import insert_returning_id, sql_now_offset, sql_date_offset
+from database import insert_returning_id, sql_now_offset, sql_date_offset, sql_current_date
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, user_modules, user_capabilities,
     ROLE_LABELS, shell_ctx, templates, shell_templates, get_db,
@@ -154,7 +154,7 @@ async def api_command_centre_stats(request: Request):
         evidence_expiring = db.execute(
             "SELECT COUNT(*) FROM evidence_items "
             "WHERE status = 'current' AND expiry_date IS NOT NULL "
-            f"  AND expiry_date <= {sql_date_offset('+30 days')} AND expiry_date >= CURRENT_DATE"
+            f"  AND expiry_date <= {sql_date_offset('+30 days')} AND expiry_date >= {sql_current_date()}"
         ).fetchone()[0]
 
         # ── Module health (compliance % per module) ──
@@ -276,7 +276,7 @@ async def api_command_centre_stats(request: Request):
             "       t.due_date AS due, t.priority, u.full_name AS assigned_name "
             "FROM task_board t LEFT JOIN users u ON t.assigned_to = u.id "
             "WHERE t.status != 'done' AND t.due_date IS NOT NULL "
-            "  AND t.due_date < CURRENT_DATE "
+            f"  AND t.due_date < {sql_current_date()} "
             "ORDER BY t.due_date ASC LIMIT 20"
         ).fetchall()
         for r in task_rows:
@@ -293,7 +293,7 @@ async def api_command_centre_stats(request: Request):
         try:
             erm_obl_rows = db.execute(
                 "SELECT id, regulation_name, due_date FROM erm_regulatory_obligations "
-                "WHERE status NOT IN ('compliant') AND due_date < CURRENT_DATE "
+                f"WHERE status NOT IN ('compliant') AND due_date < {sql_current_date()} "
                 "ORDER BY due_date ASC LIMIT 10"
             ).fetchall()
             for r in erm_obl_rows:
@@ -338,7 +338,7 @@ async def api_command_centre_stats(request: Request):
         ).fetchone()[0]
         task_overdue_count = db.execute(
             "SELECT COUNT(*) FROM task_board "
-            "WHERE status != 'done' AND due_date IS NOT NULL AND due_date < CURRENT_DATE"
+            f"WHERE status != 'done' AND due_date IS NOT NULL AND due_date < {sql_current_date()}"
         ).fetchone()[0]
         overdue_count = sla_overdue_count + task_overdue_count
 

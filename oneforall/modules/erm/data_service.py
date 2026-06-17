@@ -5,7 +5,7 @@ erm_regulatory_obligations, erm_assessments, and the shared risk_register view.
 """
 from datetime import datetime
 from core.timeutils import utcnow
-from database import get_db, insert_returning_id, sql_now_offset, sql_days_between, sql_date_offset
+from database import get_db, insert_returning_id, sql_now_offset, sql_days_between, sql_date_offset, sql_current_date
 
 
 def _dict(row):
@@ -681,7 +681,7 @@ def get_dashboard_stats():
         ).fetchone()[0]
         overdue_obligations = db.execute(
             "SELECT COUNT(*) FROM erm_regulatory_obligations "
-            "WHERE status NOT IN ('compliant') AND due_date < CURRENT_DATE"
+            f"WHERE status NOT IN ('compliant') AND due_date < {sql_current_date()}"
         ).fetchone()[0]
         open_assessments = db.execute(
             "SELECT COUNT(*) FROM erm_assessments WHERE status='active'"
@@ -733,7 +733,7 @@ def get_dashboard_stats():
         # Past review date
         overdue_review = _dicts(db.execute(
             "SELECT id, title FROM erm_enterprise_risks "
-            "WHERE review_date < CURRENT_DATE AND status IN ('open','under_review') "
+            f"WHERE review_date < {sql_current_date()} AND status IN ('open','under_review') "
             "AND review_date IS NOT NULL LIMIT 5"
         ).fetchall())
         for r in overdue_review:
@@ -743,7 +743,7 @@ def get_dashboard_stats():
         # Overdue obligations
         overdue_obls = _dicts(db.execute(
             "SELECT id, regulation_name FROM erm_regulatory_obligations "
-            "WHERE status NOT IN ('compliant') AND due_date < CURRENT_DATE LIMIT 5"
+            f"WHERE status NOT IN ('compliant') AND due_date < {sql_current_date()} LIMIT 5"
         ).fetchall())
         for o in overdue_obls:
             actions.append({"type": "overdue_obligation", "id": o["id"],
@@ -1124,7 +1124,7 @@ def get_executive_dashboard():
         actions = _dicts(db.execute(
             "SELECT id, title, category, qualitative_score, owner_id "
             "FROM erm_enterprise_risks "
-            "WHERE (owner_id IS NULL OR review_date < CURRENT_DATE) "
+            f"WHERE (owner_id IS NULL OR review_date < {sql_current_date()}) "
             "AND status NOT IN ('closed','accepted') LIMIT 3"
         ).fetchall())
         total = db.execute(

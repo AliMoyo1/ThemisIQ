@@ -339,6 +339,19 @@ def sql_date_offset(offset_expr: str) -> str:
     return f"date('now', '{offset_expr}')"
 
 
+def sql_current_date() -> str:
+    """Current date as a text-compatible expression for TEXT date columns.
+
+    PostgreSQL CURRENT_DATE is type 'date'; comparing it to a TEXT column
+    raises 'operator does not exist: text < date'. Casting to ::text makes
+    the comparison work correctly for ISO-format dates stored as TEXT.
+    SQLite's date('now') already returns a text string.
+    """
+    if settings.is_postgres():
+        return "CURRENT_DATE::text"
+    return "date('now')"
+
+
 def sql_days_between(col1: str, col2: str) -> str:
     """SQL fragment returning the number of days between two date/timestamp cols."""
     if settings.is_postgres():

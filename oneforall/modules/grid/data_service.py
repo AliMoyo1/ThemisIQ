@@ -10,7 +10,7 @@ import secrets
 from datetime import datetime, timedelta
 from core.timeutils import utcnow, to_dt
 
-from database import get_db, insert_returning_id
+from database import get_db, insert_returning_id, sql_current_date
 
 
 import re as _re
@@ -1381,7 +1381,7 @@ def get_audit_stats(audit_id):
         total = db.execute("SELECT COUNT(*) FROM grid_controls WHERE audit_id=%s", (audit_id,)).fetchone()[0]
         complete = db.execute("SELECT COUNT(*) FROM grid_controls WHERE audit_id=%s AND status='Complete'", (audit_id,)).fetchone()[0]
         in_progress = db.execute("SELECT COUNT(*) FROM grid_controls WHERE audit_id=%s AND status='In Progress'", (audit_id,)).fetchone()[0]
-        overdue = db.execute("SELECT COUNT(*) FROM grid_controls WHERE audit_id=%s AND due_date < CURRENT_DATE AND status!='Complete'", (audit_id,)).fetchone()[0]
+        overdue = db.execute(f"SELECT COUNT(*) FROM grid_controls WHERE audit_id=%s AND due_date < {sql_current_date()} AND status!='Complete'", (audit_id,)).fetchone()[0]
         ev_total = db.execute("SELECT COUNT(*) FROM grid_evidence_items ei JOIN grid_controls c ON ei.control_id=c.id WHERE c.audit_id=%s", (audit_id,)).fetchone()[0]
         ev_uploaded = db.execute("SELECT COUNT(*) FROM grid_evidence_files ef JOIN grid_controls c ON ef.control_id=c.id WHERE c.audit_id=%s", (audit_id,)).fetchone()[0]
         audit = _dict(db.execute("SELECT audit_date FROM grid_audits WHERE id=%s", (audit_id,)).fetchone())
@@ -1943,14 +1943,14 @@ def get_program_dashboard():
     db = get_db()
     try:
         # Per-audit stats
-        audits = _dicts(db.execute("""
+        audits = _dicts(db.execute(f"""
             SELECT a.id, a.name, a.status, a.audit_date, a.is_locked,
                    a.parent_audit_id,
                    f.name AS framework_name, f.color AS framework_color,
                    u.full_name AS lead_name,
                    COUNT(c.id) AS total_controls,
                    SUM(CASE WHEN c.status='Complete' THEN 1 ELSE 0 END) AS complete_controls,
-                   SUM(CASE WHEN c.due_date < CURRENT_DATE AND c.status!='Complete'
+                   SUM(CASE WHEN c.due_date < {sql_current_date()} AND c.status!='Complete'
                        THEN 1 ELSE 0 END) AS overdue_controls
             FROM grid_audits a
             LEFT JOIN grid_frameworks f ON a.framework_id=f.id

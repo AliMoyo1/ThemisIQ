@@ -10,7 +10,7 @@ import random
 import string
 from datetime import datetime, timedelta
 from core.timeutils import utcnow, to_dt
-from database import get_db, insert_returning_id
+from database import get_db, insert_returning_id, sql_current_date
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -835,7 +835,7 @@ def get_stats():
         breach_critical = db.execute("SELECT COUNT(*) FROM sentinel_breaches WHERE severity='critical'").fetchone()[0]
         dsr_open = db.execute("SELECT COUNT(*) FROM sentinel_dsr WHERE status='open'").fetchone()[0]
         dsr_overdue = db.execute(
-            "SELECT COUNT(*) FROM sentinel_dsr WHERE status='open' AND deadline_date < CURRENT_DATE"
+            f"SELECT COUNT(*) FROM sentinel_dsr WHERE status='open' AND deadline_date < {sql_current_date()}"
         ).fetchone()[0]
         vendor_total = db.execute("SELECT COUNT(*) FROM sentinel_vendors").fetchone()[0]
         high_risk_ropa = db.execute(
