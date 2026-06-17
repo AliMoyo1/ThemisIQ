@@ -198,11 +198,15 @@ def create_plan(data):
     try:
         cur = insert_returning_id(db,
             """INSERT INTO bcm_plans
-               (title, scope, owner, version, status, content, last_reviewed, next_review)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (data.get("title"), data.get("scope"), data.get("owner"),
+               (title, plan_type, department, scope, owner, version, status,
+                content, description, review_frequency, last_reviewed, next_review)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (data.get("title"), data.get("plan_type"), data.get("department"),
+             data.get("scope"), data.get("owner"),
              data.get("version", "1.0"), data.get("status", "draft"),
-             data.get("content"), data.get("last_reviewed"), data.get("next_review")))
+             data.get("content") or data.get("description"),
+             data.get("description"), data.get("review_frequency"),
+             data.get("last_reviewed"), data.get("next_review")))
         db.commit()
         return cur
     finally:
@@ -213,7 +217,8 @@ def update_plan(plan_id, data):
     db = get_db()
     try:
         fields, vals = [], []
-        for k in ("title", "scope", "owner", "version", "status", "content",
+        for k in ("title", "plan_type", "department", "scope", "owner", "version",
+                  "status", "content", "description", "review_frequency",
                   "last_reviewed", "next_review"):
             if k in data:
                 fields.append(f"{k}=%s")
@@ -267,10 +272,12 @@ def create_incident(data):
     try:
         cur = insert_returning_id(db,
             """INSERT INTO bcm_incidents
-               (title, description, severity, status, commander, affected_systems)
-               VALUES (%s,%s,%s,%s,%s,%s)""",
+               (title, description, severity, status, commander, affected_systems,
+                impact, assigned_to, declared_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (data.get("title"), data.get("description"), data.get("severity", "medium"),
-             data.get("status", "open"), data.get("commander"), data.get("affected_systems")))
+             data.get("status", "open"), data.get("commander"), data.get("affected_systems"),
+             data.get("impact"), data.get("assigned_to"), data.get("declared_at")))
         db.commit()
         return cur
     finally:
@@ -282,7 +289,8 @@ def update_incident(inc_id, data):
     try:
         fields, vals = [], []
         for k in ("title", "description", "severity", "status", "commander",
-                  "affected_systems", "resolved_at"):
+                  "affected_systems", "impact", "assigned_to", "declared_at",
+                  "resolved_at"):
             if k in data:
                 fields.append(f"{k}=%s")
                 vals.append(data[k])
