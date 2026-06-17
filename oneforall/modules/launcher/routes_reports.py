@@ -193,11 +193,11 @@ async def api_report_run(request: Request, rid: int):
             result["resolved"] = db.execute("SELECT COUNT(*) FROM sla_instances WHERE status = 'resolved'").fetchone()[0]
 
         elif report_type == "executive_brief":
-            result["controls_total"] = db.execute("SELECT COUNT(*) FROM aria_controls").fetchone()[0]
-            result["controls_compliant"] = db.execute("SELECT COUNT(*) FROM aria_controls WHERE status = 'compliant'").fetchone()[0]
+            result["controls_total"] = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
+            result["controls_compliant"] = db.execute("SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Compliant','Complete')").fetchone()[0]
             result["risks_critical"] = db.execute("SELECT COUNT(*) FROM risk_register WHERE risk_level = 'critical' AND status != 'closed'").fetchone()[0]
             result["risks_high"] = db.execute("SELECT COUNT(*) FROM risk_register WHERE risk_level = 'high' AND status != 'closed'").fetchone()[0]
-            result["audits_active"] = db.execute("SELECT COUNT(*) FROM grid_audits WHERE status IN ('planning','in_progress')").fetchone()[0]
+            result["audits_active"] = db.execute("SELECT COUNT(*) FROM grid_audits WHERE status IN ('Planning','Active')").fetchone()[0]
             result["breaches_open"] = db.execute("SELECT COUNT(*) FROM sentinel_breaches WHERE status != 'closed'").fetchone()[0]
             result["sla_breaches"] = db.execute("SELECT COUNT(*) FROM sla_instances WHERE breached = 1 AND status = 'active'").fetchone()[0]
 

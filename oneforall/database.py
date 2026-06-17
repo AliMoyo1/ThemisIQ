@@ -8,6 +8,7 @@ import sqlite3
 import os
 import re
 import threading
+import datetime as _dt
 from pathlib import Path
 from config import settings
 
@@ -75,6 +76,78 @@ def _get_pg_pool() -> "psycopg2.pool.ThreadedConnectionPool":
     return _pg_pool
 
 
+def _pg_normalise_value(v):
+    """Convert PostgreSQL datetime/date/timedelta to ISO strings, matching SQLite TEXT output."""
+    if isinstance(v, _dt.datetime):
+        return v.isoformat(sep=' ')[:19]
+    if isinstance(v, _dt.date):
+        return v.isoformat()
+    if isinstance(v, _dt.timedelta):
+        return str(v)
+    return v
+
+
+class _NormRow:
+    """Wraps a psycopg2 DictRow, coercing datetime/date values to ISO strings.
+
+    Supports both dict-style (row["col"]) and positional (row[0]) access,
+    so every existing call site works without modification.
+    """
+    __slots__ = ('_r',)
+
+    def __init__(self, row):
+        self._r = row
+
+    def __getitem__(self, key):
+        return _pg_normalise_value(self._r[key])
+
+    def get(self, key, default=None):
+        v = self._r.get(key, default)
+        return _pg_normalise_value(v)
+
+    def keys(self):
+        return self._r.keys()
+
+    def values(self):
+        return [_pg_normalise_value(v) for v in self._r.values()]
+
+    def items(self):
+        return [(k, _pg_normalise_value(v)) for k, v in self._r.items()]
+
+    def __iter__(self):
+        return iter(self._r.keys())
+
+    def __len__(self):
+        return len(self._r)
+
+    def __contains__(self, key):
+        return key in self._r
+
+    def __repr__(self):
+        return repr(dict(self.items()))
+
+
+class _NormCursor:
+    """Cursor wrapper that applies _NormRow to all fetched rows."""
+
+    def __init__(self, cur):
+        self._cur = cur
+
+    def fetchone(self):
+        r = self._cur.fetchone()
+        return _NormRow(r) if r is not None else None
+
+    def fetchall(self):
+        return [_NormRow(r) for r in self._cur.fetchall()]
+
+    def __iter__(self):
+        for r in self._cur:
+            yield _NormRow(r)
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
+
+
 class _PgConnWrapper:
     """Mimics the sqlite3.Connection interface over a pooled psycopg2 connection.
 
@@ -88,7 +161,7 @@ class _PgConnWrapper:
     def execute(self, sql: str, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cur.execute(sql, params or ())
-        return cur
+        return _NormCursor(cur)
 
     def executemany(self, sql: str, seq):
         cur = self._conn.cursor()
