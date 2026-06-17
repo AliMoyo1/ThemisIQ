@@ -26,4 +26,5 @@ def shell_ctx(request, active_module: str = "platform",
         "active_section": active_section,
         "show_sidebar": show_sidebar,
         "is_admin": has_capability(user, "platform.manage_users"),
+        "is_super_admin": bool(user.get("is_super_admin")),
     }

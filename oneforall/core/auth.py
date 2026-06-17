@@ -80,8 +80,10 @@ def get_session_user(token: str) -> Optional[dict]:
             return None
 
         user = db.execute(
-            "SELECT id, username, email, full_name, is_active, must_change_password, "
-            "avatar_initials FROM users WHERE id = %s",
+            "SELECT u.id, u.username, u.email, u.full_name, u.is_active, "
+            "u.must_change_password, u.avatar_initials, u.org_id, "
+            "COALESCE(u.is_super_admin, 0) AS is_super_admin "
+            "FROM users u WHERE u.id = %s",
             (row["user_id"],),
         ).fetchone()
         if not user or not user["is_active"]:
@@ -95,6 +97,18 @@ def get_session_user(token: str) -> Optional[dict]:
             ).fetchall()
         ]
 
+        # Resolve the org slug so middleware can set the correct search_path.
+        org_slug = "public"
+        org_name = "Default"
+        if user["org_id"]:
+            org_row = db.execute(
+                "SELECT slug, name FROM organizations WHERE id = %s",
+                (user["org_id"],),
+            ).fetchone()
+            if org_row:
+                org_slug = org_row["slug"]
+                org_name = org_row["name"]
+
         return {
             "id": user["id"],
             "username": user["username"],
@@ -103,6 +117,10 @@ def get_session_user(token: str) -> Optional[dict]:
             "avatar_initials": user["avatar_initials"] or _initials(user["full_name"]),
             "must_change_password": bool(user["must_change_password"]),
             "roles": roles,
+            "org_id": user["org_id"],
+            "org_slug": org_slug,
+            "org_name": org_name,
+            "is_super_admin": bool(user["is_super_admin"]),
         }
     finally:
         db.close()

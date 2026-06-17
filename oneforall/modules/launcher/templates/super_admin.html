@@ -1,0 +1,301 @@
+{% extends "base_shell.html" %}
+{% block title %}Super Admin — ThemisIQ{% endblock %}
+{% block content %}
+<style>
+.sa-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:20px}
+.sa-table{width:100%;border-collapse:collapse;font-size:13px}
+.sa-table th{text-align:left;padding:8px 12px;background:var(--surface3);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+.sa-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+.sa-table tr:last-child td{border-bottom:none}
+.sa-table tr:hover td{background:var(--surface3)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(34,197,94,.15);color:#16a34a}
+.badge-red{background:rgba(239,68,68,.15);color:#dc2626}
+.badge-blue{background:rgba(99,102,241,.15);color:#6366f1}
+.badge-gray{background:var(--surface3);color:var(--muted)}
+.sa-btn{padding:6px 14px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:monospace;text-transform:uppercase;letter-spacing:.05em;transition:opacity .15s}
+.sa-btn-primary{background:var(--accent);color:#fff}
+.sa-btn-primary:hover{opacity:.88}
+.sa-btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border)}
+.sa-btn-secondary:hover{background:var(--border)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;width:480px;max-width:95vw;position:relative}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.form-group input,.form-group select{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:13px}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+</style>
+
+<div style="max-width:1100px;margin:0 auto;padding:28px 20px">
+
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
+    <div>
+      <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0">Super Admin</h1>
+      <p style="margin:4px 0 0;color:var(--muted);font-size:13px">Organisation and licence management</p>
+    </div>
+    <button class="sa-btn sa-btn-primary" onclick="openCreateOrgModal()">+ New Organisation</button>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px" id="statsRow">
+    <div class="sa-card" style="padding:16px 20px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Organisations</div>
+      <div id="statOrgs" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
+    </div>
+    <div class="sa-card" style="padding:16px 20px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Total Users</div>
+      <div id="statUsers" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
+    </div>
+    <div class="sa-card" style="padding:16px 20px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Active Orgs</div>
+      <div id="statActive" style="font-size:28px;font-weight:800;color:var(--text);margin-top:4px">-</div>
+    </div>
+  </div>
+
+  <!-- Orgs table -->
+  <div class="sa-card" style="padding:0;overflow:hidden">
+    <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
+      <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--text)">Organisations</h2>
+      <input type="text" id="orgSearch" placeholder="Search..." onkeyup="renderOrgs()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:12px;width:200px"/>
+    </div>
+    <table class="sa-table">
+      <thead>
+        <tr>
+          <th>Name</th><th>Slug</th><th>Plan</th><th>Modules</th><th>Users</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="orgsBody">
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Org detail panel -->
+  <div id="orgDetail" style="display:none;margin-top:20px"></div>
+
+</div>
+
+<!-- Create Org Modal -->
+<div id="createOrgModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <button onclick="document.getElementById('createOrgModal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    <h3 style="margin:0 0 20px;font-size:16px;font-weight:700;color:var(--text)">New Organisation</h3>
+    <div class="form-group">
+      <label>Organisation Name</label>
+      <input id="newOrgName" type="text" placeholder="Acme Corp"/>
+    </div>
+    <div class="form-group">
+      <label>Plan</label>
+      <select id="newOrgPlan">
+        <option value="starter">Starter</option>
+        <option value="professional">Professional</option>
+        <option value="enterprise" selected>Enterprise</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Modules</label>
+      <input id="newOrgModules" type="text" value="aria,bcm,erm,grid,orm,sentinel" placeholder="comma-separated module keys"/>
+    </div>
+    <div class="form-group">
+      <label>Seats</label>
+      <input id="newOrgSeats" type="number" value="10" min="1"/>
+    </div>
+    <div id="createOrgErr" style="color:#dc2626;font-size:13px;margin-bottom:10px;display:none"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+      <button class="sa-btn sa-btn-secondary" onclick="document.getElementById('createOrgModal').style.display='none'">Cancel</button>
+      <button class="sa-btn sa-btn-primary" onclick="submitCreateOrg()" id="createOrgBtn">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create User Modal -->
+<div id="createUserModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal-box">
+    <button onclick="document.getElementById('createUserModal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    <h3 style="margin:0 0 20px;font-size:16px;font-weight:700;color:var(--text)">Add User to Org</h3>
+    <input type="hidden" id="newUserOrgId"/>
+    <div class="form-group">
+      <label>Full Name</label>
+      <input id="newUserName" type="text" placeholder="Jane Smith"/>
+    </div>
+    <div class="form-group">
+      <label>Username</label>
+      <input id="newUserUsername" type="text" placeholder="jsmith"/>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input id="newUserEmail" type="email" placeholder="jane@acmecorp.com"/>
+    </div>
+    <div class="form-group">
+      <label>Temporary Password</label>
+      <input id="newUserPassword" type="text" placeholder="User must change on first login"/>
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select id="newUserRole">
+        <option value="admin">Admin</option>
+        <option value="manager">Manager</option>
+        <option value="analyst">Analyst</option>
+        <option value="viewer" selected>Viewer</option>
+      </select>
+    </div>
+    <div id="createUserErr" style="color:#dc2626;font-size:13px;margin-bottom:10px;display:none"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">
+      <button class="sa-btn sa-btn-secondary" onclick="document.getElementById('createUserModal').style.display='none'">Cancel</button>
+      <button class="sa-btn sa-btn-primary" onclick="submitCreateUser()" id="createUserBtn">Create User</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var _orgs = [];
+
+async function apiFetch(url, opts) {
+  var res = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts || {}));
+  return res.json();
+}
+
+async function loadOrgs() {
+  _orgs = await apiFetch('/super-admin/api/orgs');
+  var totalUsers = _orgs.reduce(function(s,o){return s+o.user_count},0);
+  var activeOrgs = _orgs.filter(function(o){return o.status==='active'}).length;
+  document.getElementById('statOrgs').textContent = _orgs.length;
+  document.getElementById('statUsers').textContent = totalUsers;
+  document.getElementById('statActive').textContent = activeOrgs;
+  renderOrgs();
+}
+
+function renderOrgs() {
+  var q = (document.getElementById('orgSearch').value || '').toLowerCase();
+  var list = q ? _orgs.filter(function(o){return (o.name+o.slug+o.plan).toLowerCase().includes(q)}) : _orgs;
+  var body = document.getElementById('orgsBody');
+  if (!list.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No organisations found.</td></tr>';
+    return;
+  }
+  body.innerHTML = list.map(function(o) {
+    var statusBadge = o.status === 'active'
+      ? '<span class="badge badge-green">Active</span>'
+      : '<span class="badge badge-red">'+o.status+'</span>';
+    var modBadges = (o.modules||[]).map(function(m){return '<span class="badge badge-blue" style="margin:1px">'+m+'</span>';}).join('');
+    return '<tr>'+
+      '<td style="font-weight:600">'+esc(o.name)+(o.slug==='public'?'<span class="badge badge-gray" style="margin-left:6px">default</span>':'')+'</td>'+
+      '<td style="font-family:monospace;font-size:12px">'+esc(o.slug)+'</td>'+
+      '<td style="text-transform:capitalize">'+esc(o.plan)+'</td>'+
+      '<td>'+modBadges+'</td>'+
+      '<td>'+o.user_count+' / '+o.seats+'</td>'+
+      '<td>'+statusBadge+'</td>'+
+      '<td><button class="sa-btn sa-btn-secondary" onclick="openOrgDetail('+o.id+')">Manage</button></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function openOrgDetail(orgId) {
+  var org = _orgs.find(function(o){return o.id===orgId});
+  if (!org) return;
+  var users = await apiFetch('/super-admin/api/orgs/'+orgId+'/users');
+  var panel = document.getElementById('orgDetail');
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="sa-card">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'+
+    '<h3 style="margin:0;font-size:15px;font-weight:700;color:var(--text)">'+esc(org.name)+' — Users</h3>'+
+    '<button class="sa-btn sa-btn-primary" onclick="openCreateUserModal('+orgId+')">+ Add User</button>'+
+    '</div>'+
+    '<table class="sa-table"><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>'+
+    '<tbody>'+
+    (users.length ? users.map(function(u){
+      return '<tr>'+
+        '<td>'+esc(u.full_name)+(u.is_super_admin?'<span class="badge badge-blue" style="margin-left:6px">super</span>':'')+'</td>'+
+        '<td style="font-family:monospace;font-size:12px">'+esc(u.username)+'</td>'+
+        '<td>'+esc(u.email)+'</td>'+
+        '<td>-</td>'+
+        '<td>'+(u.is_active?'<span class="badge badge-green">Active</span>':'<span class="badge badge-red">Inactive</span>')+'</td>'+
+      '</tr>';
+    }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">No users in this org.</td></tr>')+
+    '</tbody></table></div>';
+  panel.scrollIntoView({behavior:'smooth'});
+}
+
+function openCreateOrgModal() {
+  document.getElementById('createOrgErr').style.display = 'none';
+  document.getElementById('createOrgModal').style.display = 'flex';
+}
+
+async function submitCreateOrg() {
+  var btn = document.getElementById('createOrgBtn');
+  var err = document.getElementById('createOrgErr');
+  err.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  try {
+    var res = await apiFetch('/super-admin/api/orgs', {
+      method:'POST',
+      body: JSON.stringify({
+        name: document.getElementById('newOrgName').value.trim(),
+        plan: document.getElementById('newOrgPlan').value,
+        modules: document.getElementById('newOrgModules').value.trim(),
+        seats: parseInt(document.getElementById('newOrgSeats').value)||10,
+      })
+    });
+    if (res.error) {
+      err.textContent = res.error;
+      err.style.display = 'block';
+    } else {
+      document.getElementById('createOrgModal').style.display = 'none';
+      await loadOrgs();
+    }
+  } catch(e) {
+    err.textContent = 'Request failed.';
+    err.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Create';
+}
+
+function openCreateUserModal(orgId) {
+  document.getElementById('newUserOrgId').value = orgId;
+  document.getElementById('createUserErr').style.display = 'none';
+  document.getElementById('createUserModal').style.display = 'flex';
+}
+
+async function submitCreateUser() {
+  var btn = document.getElementById('createUserBtn');
+  var err = document.getElementById('createUserErr');
+  var orgId = parseInt(document.getElementById('newUserOrgId').value);
+  err.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  try {
+    var res = await apiFetch('/super-admin/api/orgs/'+orgId+'/users', {
+      method:'POST',
+      body: JSON.stringify({
+        full_name: document.getElementById('newUserName').value.trim(),
+        username: document.getElementById('newUserUsername').value.trim(),
+        email: document.getElementById('newUserEmail').value.trim(),
+        password: document.getElementById('newUserPassword').value.trim(),
+        role: document.getElementById('newUserRole').value,
+      })
+    });
+    if (res.error) {
+      err.textContent = res.error;
+      err.style.display = 'block';
+    } else {
+      document.getElementById('createUserModal').style.display = 'none';
+      openOrgDetail(orgId);
+    }
+  } catch(e) {
+    err.textContent = 'Request failed.';
+    err.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Create User';
+}
+
+loadOrgs();
+</script>
+{% endblock %}

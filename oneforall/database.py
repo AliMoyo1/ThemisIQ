@@ -9,6 +9,7 @@ import os
 import re
 import threading
 import datetime as _dt
+from contextvars import ContextVar
 from pathlib import Path
 from config import settings
 
@@ -39,6 +40,20 @@ _DB_PATH = str(
 
 _pg_pool: "psycopg2.pool.ThreadedConnectionPool | None" = None
 _pg_pool_lock = threading.Lock()
+
+# Per-request tenant context. Set by tenant middleware after session validation.
+# ContextVar is propagated correctly across asyncio tasks unlike thread-local.
+_current_tenant: ContextVar = ContextVar("current_tenant", default=None)
+
+
+def set_current_tenant(slug: str):
+    """Set the tenant for the current async context (called by middleware)."""
+    _current_tenant.set(slug)
+
+
+def get_current_tenant() -> str:
+    """Return the slug of the current request's tenant, or None for public schema."""
+    return _current_tenant.get()
 
 
 def _ensure_dir():
@@ -193,6 +208,21 @@ class _PgConnWrapper:
                 cur.execute(stmt)
         return cur
 
+    def set_tenant(self, slug: str):
+        """Set search_path for this connection to the tenant's schema.
+
+        slug='public' keeps the default public schema (used by the default org
+        so existing data needs no migration). Any other slug resolves to
+        tenant_{slug} with public as fallback (for shared tables like users).
+        """
+        if slug == "public":
+            cur = self._conn.cursor()
+            cur.execute("SET search_path TO public")
+            return
+        safe = re.sub(r"[^a-z0-9_]", "", slug.lower())
+        cur = self._conn.cursor()
+        cur.execute(f"SET search_path TO tenant_{safe}, public")
+
     def commit(self):
         self._conn.commit()
 
@@ -296,7 +326,11 @@ def get_db(timeout: int = 15):
     if settings.is_postgres():
         conn = _get_pg_pool().getconn()
         conn.autocommit = False
-        return _PgConnWrapper(conn)
+        wrapper = _PgConnWrapper(conn)
+        slug = _current_tenant.get()
+        if slug:
+            wrapper.set_tenant(slug)
+        return wrapper
     conn = sqlite3.connect(_DB_PATH, timeout=timeout)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -388,6 +422,29 @@ def sql_days_between(col1: str, col2: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 _SHARED_TABLES = """
+-- ── Multi-tenancy: Organisations & Licences ─────────────────────────────────
+-- These tables always live in the public schema.
+-- Each org's module data lives in its own tenant_{slug} schema.
+-- The "public" slug is special: maps to the public schema directly (default org).
+CREATE TABLE IF NOT EXISTS organizations (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    slug       TEXT UNIQUE NOT NULL,
+    plan       TEXT DEFAULT 'starter',
+    status     TEXT DEFAULT 'active',
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS licenses (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id      INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    module_keys TEXT NOT NULL DEFAULT 'aria,bcm,erm,grid,orm,sentinel',
+    seats       INTEGER DEFAULT 10,
+    valid_from  TEXT DEFAULT (datetime('now')),
+    valid_until TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
 -- ── Users & Auth ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2534,6 +2591,8 @@ _COLUMN_MIGRATIONS = [
         ("aria_frameworks", "relevant_modules", "TEXT DEFAULT ''"),
         ("users", "avatar_initials", "TEXT"),
         ("users", "must_change_password", "INTEGER DEFAULT 0"),
+        ("users", "org_id", "INTEGER REFERENCES organizations(id)"),
+        ("users", "is_super_admin", "INTEGER DEFAULT 0"),
         ("controls", "document_title", "TEXT DEFAULT ''"),
         ("controls", "version", "TEXT DEFAULT '1.0'"),
         ("sla_instances", "escalation_due", "TEXT"),
@@ -3451,6 +3510,50 @@ def _run_pg_alters(conn) -> None:
         except Exception:
             pass
     conn.commit()
+
+
+def provision_tenant_schema(slug: str) -> None:
+    """Create a new tenant schema with all module tables and baseline seed data.
+
+    Only runs on PostgreSQL. Safe to call multiple times (CREATE IF NOT EXISTS).
+    slug='public' is the default org and maps to the existing public schema;
+    no schema creation is needed for it.
+    """
+    if not settings.is_postgres():
+        return
+    if slug == "public":
+        return
+
+    safe = re.sub(r"[^a-z0-9_]", "", slug.lower())
+    schema_name = f"tenant_{safe}"
+
+    # Use a raw pool connection so we can control search_path manually.
+    pg_conn = _get_pg_pool().getconn()
+    pg_conn.autocommit = False
+    conn = _PgConnWrapper(pg_conn)
+    try:
+        conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+        conn.commit()
+        # Switch into the new schema.
+        pg_conn.cursor().execute(f"SET search_path TO {schema_name}, public")
+        # Create module tables inside the tenant schema.
+        conn.executescript(_ARIA_TABLES_PG)
+        conn.executescript(_GRID_TABLES_PG)
+        conn.executescript(_BCM_TABLES_PG)
+        conn.executescript(_SENTINEL_TABLES_PG)
+        conn.executescript(_ERM_ORM_TABLES_PG)
+        conn.commit()
+        # Apply column migrations (idempotent — catches column-already-exists errors).
+        _run_pg_alters(conn)
+        # Seed baseline reference data (frameworks, regulations, etc.).
+        _seed_baseline_data(conn)
+        conn.commit()
+    finally:
+        try:
+            pg_conn.rollback()
+        except Exception:
+            pass
+        _get_pg_pool().putconn(pg_conn)
 
 
 def init_db():

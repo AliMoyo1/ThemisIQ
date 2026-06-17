@@ -15,7 +15,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from config import settings
 from database import init_db, get_db, OperationalError
-from core.middleware import security_headers_middleware, csrf_origin_middleware
+from core.middleware import security_headers_middleware, csrf_origin_middleware, tenant_context_middleware
 import core.event_handlers  # noqa: F401 - registers cross-module event handlers
 
 # -- Logging ------------------------------------------------------------------
@@ -46,6 +46,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # CSRF origin check runs before the route handler.
 app.middleware("http")(security_headers_middleware)
 app.middleware("http")(csrf_origin_middleware)
+app.middleware("http")(tenant_context_middleware)
 
 # -- Static files -------------------------------------------------------------
 os.makedirs("static", exist_ok=True)
@@ -74,6 +75,47 @@ async def startup():
         log.info("No users found - running seed...")
         from seeds.seed import run_seed
         run_seed()
+
+    # Ensure the default organisation exists and all users are assigned to it.
+    # This is idempotent — safe to run on every startup.
+    if settings.is_postgres():
+        db3 = get_db()
+        try:
+            org = db3.execute(
+                "SELECT id FROM organizations WHERE slug = 'public'"
+            ).fetchone()
+            if not org:
+                db3.execute(
+                    "INSERT INTO organizations (name, slug, plan, status) "
+                    "VALUES ('Default', 'public', 'enterprise', 'active') "
+                    "ON CONFLICT (slug) DO NOTHING"
+                )
+                db3.commit()
+                org = db3.execute(
+                    "SELECT id FROM organizations WHERE slug = 'public'"
+                ).fetchone()
+                db3.execute(
+                    "INSERT INTO licenses (org_id, module_keys, seats) "
+                    "VALUES (%s, 'aria,bcm,erm,grid,orm,sentinel', 999) "
+                    "ON CONFLICT DO NOTHING",
+                    (org["id"],),
+                )
+                db3.commit()
+                log.info("Created default organisation (slug=public)")
+            # Assign any users with no org to the default org.
+            if org:
+                db3.execute(
+                    "UPDATE users SET org_id = %s WHERE org_id IS NULL",
+                    (org["id"],),
+                )
+                db3.commit()
+        except Exception as exc:
+            log.warning("Default org seed failed (non-fatal): %s", exc)
+        finally:
+            db3.close()
+
+    if False:
+        pass
     else:
         # Migrate: ensure unified frameworks table is populated from legacy table
         db2 = get_db()
@@ -267,6 +309,7 @@ async def demo_request(request: Request):
 
 # -- Routers ------------------------------------------------------------------
 from modules.launcher.routes import router as launcher_router
+from modules.launcher.routes_super_admin import router as super_admin_router
 from modules.aria.routes import router as aria_router
 from modules.grid.routes import router as grid_router
 from modules.bcm.routes import router as bcm_router
@@ -275,6 +318,7 @@ from modules.evidence.routes import router as evidence_router
 from modules.erm.routes import router as erm_router
 from modules.orm.routes import router as orm_router
 
+app.include_router(super_admin_router)
 app.include_router(launcher_router)
 app.include_router(aria_router)
 app.include_router(grid_router)

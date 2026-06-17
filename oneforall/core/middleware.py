@@ -220,6 +220,28 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
+# ── Tenant Context ────────────────────────────────────────────────────────────
+
+async def tenant_context_middleware(request: Request, call_next):
+    """Set the current tenant from the authenticated user's org_slug.
+
+    Must run AFTER session validation. Super admins default to public schema
+    unless they have explicitly switched org context (future feature).
+    """
+    token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if token:
+        try:
+            from core.auth import get_session_user
+            from database import set_current_tenant
+            user = get_session_user(token)
+            if user and user.get("org_slug"):
+                set_current_tenant(user["org_slug"])
+                request.state.org_slug = user["org_slug"]
+        except Exception:
+            pass
+    return await call_next(request)
+
+
 # ── Audit Logging ────────────────────────────────────────────────────────────
 
 def log_audit(user: Optional[dict], module: str, action: str,
