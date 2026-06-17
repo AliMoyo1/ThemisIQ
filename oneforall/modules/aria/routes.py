@@ -472,6 +472,25 @@ async def api_stats(request: Request):
     return JSONResponse(data)
 
 
+@router.get("/api/dashboard")
+@require_module("aria")
+async def api_dashboard(request: Request):
+    """Dashboard summary used by the live-refresh poll every 5 minutes."""
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT COUNT(*) as total, "
+            "SUM(CASE WHEN status IN ('Implemented','Approved') THEN 1 ELSE 0 END) as compliant "
+            "FROM controls c JOIN frameworks f ON f.id=c.framework_id WHERE f.is_active=1"
+        ).fetchone()
+        total = row["total"] or 0
+        compliant = row["compliant"] or 0
+        overall_pct = round(compliant / total * 100) if total else 0
+    finally:
+        db.close()
+    return JSONResponse({"totals": {"overall_pct": overall_pct, "total": total, "compliant": compliant}})
+
+
 @router.get("/api/controls/{fw_id}")
 @require_module("aria")
 async def api_controls(request: Request, fw_id: int):
@@ -2018,6 +2037,63 @@ async def api_gap_analysis(request: Request,
                   "Generated gap analysis for " + fw["name"],
                   "framework", framework_id)
     return JSONResponse(result)
+
+
+@router.post("/api/export-word")
+@require_module("aria")
+async def export_word(request: Request, control_id: str = Form(""), content: str = Form(...), org_name: str = Form("Your Organisation")):
+    """Convert AI-generated policy markdown to a .docx download."""
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = Document()
+    style = doc.styles["Normal"]
+    style.font.name = "Calibri"
+    style.font.size = Pt(11)
+
+    db = get_db()
+    try:
+        ctrl_row = db.execute("SELECT ref, title FROM controls WHERE id=%s", (control_id,)).fetchone() if control_id else None
+    finally:
+        db.close()
+
+    ctrl_label = f"{ctrl_row['ref']} - {ctrl_row['title']}" if ctrl_row else "Policy Document"
+
+    heading = doc.add_heading(f"{org_name}", level=0)
+    heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    sub = doc.add_heading(ctrl_label, level=1)
+    sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+    doc.add_paragraph("")
+
+    for line in content.splitlines():
+        stripped = line.rstrip()
+        if stripped.startswith("### "):
+            doc.add_heading(stripped[4:], level=3)
+        elif stripped.startswith("## "):
+            doc.add_heading(stripped[3:], level=2)
+        elif stripped.startswith("# "):
+            doc.add_heading(stripped[2:], level=1)
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            doc.add_paragraph(stripped[2:], style="List Bullet")
+        elif stripped == "":
+            doc.add_paragraph("")
+        else:
+            doc.add_paragraph(stripped)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+
+    safe_ref = (ctrl_row["ref"].replace(".", "_") if ctrl_row else "policy")
+    filename = f"ARIA_{safe_ref}_Policy.docx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # -- Ask ARIA -----------------------------------------------------------------
