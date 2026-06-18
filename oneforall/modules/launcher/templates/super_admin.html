@@ -264,10 +264,14 @@
     <div class="form-group">
       <label>Role</label>
       <select id="newUserRole">
-        <option value="admin">Admin</option>
-        <option value="manager">Manager</option>
-        <option value="analyst">Analyst</option>
-        <option value="viewer" selected>Viewer</option>
+        <option value="super_admin">Super Administrator</option>
+        <option value="compliance_manager" selected>Compliance Manager</option>
+        <option value="dpo">Data Protection Officer</option>
+        <option value="audit_lead">Audit Lead</option>
+        <option value="bcm_manager">BCM Manager</option>
+        <option value="policy_author">Policy Author</option>
+        <option value="risk_owner">Risk Owner</option>
+        <option value="employee">Employee (read-only)</option>
       </select>
     </div>
     <div id="createUserErr" style="color:#dc2626;font-size:13px;margin-bottom:10px;display:none"></div>
