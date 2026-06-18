@@ -247,12 +247,23 @@ def any_capability(user: dict | None, caps: Iterable[str]) -> bool:
 
 
 def user_modules(user: dict | None) -> list[str]:
-    """Return list of module keys the user can access."""
-    modules = []
+    """Return list of module keys the user can access.
+
+    Combines the role-based capability check with the org's licensed modules:
+    a user only sees a module if their role grants access AND their tenant has
+    a licence for it. Super admins bypass the licence check.
+    """
+    role_grants = []
     for mod in ("aria", "grid", "bcm", "sentinel", "erm", "orm"):
         if has_capability(user, f"module.{mod}.access"):
-            modules.append(mod)
-    return modules
+            role_grants.append(mod)
+    if not user or user.get("is_super_admin"):
+        return role_grants
+    licensed = user.get("licensed_modules")
+    if licensed is None:
+        return role_grants
+    licensed_set = set(licensed)
+    return [m for m in role_grants if m in licensed_set]
 
 
 def user_capabilities(user: dict | None) -> set[str]:

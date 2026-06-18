@@ -100,6 +100,7 @@ def get_session_user(token: str) -> Optional[dict]:
         # Resolve the org slug so middleware can set the correct search_path.
         org_slug = "public"
         org_name = "Default"
+        licensed_modules = None
         if user["org_id"]:
             org_row = db.execute(
                 "SELECT slug, name FROM organizations WHERE id = %s",
@@ -108,6 +109,15 @@ def get_session_user(token: str) -> Optional[dict]:
             if org_row:
                 org_slug = org_row["slug"]
                 org_name = org_row["name"]
+            lic_row = db.execute(
+                "SELECT module_keys FROM licenses WHERE org_id = %s "
+                "ORDER BY id DESC LIMIT 1",
+                (user["org_id"],),
+            ).fetchone()
+            if lic_row and lic_row["module_keys"]:
+                licensed_modules = [
+                    m.strip() for m in lic_row["module_keys"].split(",") if m.strip()
+                ]
 
         return {
             "id": user["id"],
@@ -121,6 +131,7 @@ def get_session_user(token: str) -> Optional[dict]:
             "org_slug": org_slug,
             "org_name": org_name,
             "is_super_admin": bool(user["is_super_admin"]),
+            "licensed_modules": licensed_modules,
         }
     finally:
         db.close()

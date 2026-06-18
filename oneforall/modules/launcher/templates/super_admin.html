@@ -510,7 +510,7 @@ async function loadUsersForPanel(orgId){
 // ── Create org modal ────────────────────────────────────────────────────────
 function openCreateOrgModal(){
   document.getElementById('createOrgErr').style.display = 'none';
-  document.getElementById('createOrgName').value = '';
+  document.getElementById('newOrgName').value = '';
   // Build module checkbox picker
   var picker = document.getElementById('newOrgModulesPicker');
   picker.innerHTML = MODULES.map(function(m){

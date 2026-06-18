@@ -101,13 +101,8 @@ async def launcher(request: Request):
         available.append({"key": mod_key, **info})
 
     return shell_templates.TemplateResponse(request, "command_centre.html", {
-        "user": user,
+        **shell_ctx(request, active_module="platform", active_section="overview"),
         "modules": available,
-        "user_modules": mods,
-        "active_module": "platform",
-        "active_section": "overview",
-        "show_sidebar": True,
-        "is_admin": has_capability(user, "platform.manage_users"),
         "role_labels": ROLE_LABELS,
     })
 

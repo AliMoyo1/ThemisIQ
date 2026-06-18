@@ -73,6 +73,20 @@ def require_capability(*capabilities: str):
                 return RedirectResponse("/change-password", status_code=303)
             if not any(has_capability(user, c) for c in capabilities):
                 raise HTTPException(status_code=403, detail="Insufficient permissions")
+            # Licence check: a module capability requires the tenant licence too
+            # (super admins bypass).
+            if not user.get("is_super_admin"):
+                licensed = user.get("licensed_modules")
+                if licensed is not None:
+                    licensed_set = set(licensed)
+                    for cap in capabilities:
+                        if cap.startswith("module.") and cap.endswith(".access"):
+                            mod = cap.split(".")[1]
+                            if mod not in licensed_set:
+                                raise HTTPException(
+                                    status_code=403,
+                                    detail=f"Your organisation does not have a licence for the {mod.upper()} module.",
+                                )
             request.state.user = user
             return await func(request, *args, **kwargs)
         return wrapper
