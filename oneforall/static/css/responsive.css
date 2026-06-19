@@ -1,0 +1,128 @@
+/* ThemisIQ — shared responsive overrides.
+   Loaded after each template's own styles so these rules win at narrow
+   viewports. Touches only layout/visibility/spacing, never colour. */
+
+/* ── Tablet ───────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+
+  /* Topbar: shrink search, drop the placeholder hint */
+  .topbar-search { width: 160px; }
+  .topbar-search:focus { width: 200px; }
+
+  /* Module sidebar (full text labels) becomes a slide-in drawer.
+     The icon sidebar at 64px stays as the primary nav. */
+  .module-sidebar {
+    position: fixed; top: var(--topbar-h); bottom: 0; left: var(--icon-sidebar-w);
+    z-index: 600; transform: translateX(-105%); transition: transform .22s ease-out;
+    box-shadow: 8px 0 24px rgba(0,0,0,.12);
+  }
+  .module-sidebar.open { transform: translateX(0); }
+  body.has-drawer-open { overflow: hidden; }
+
+  /* Main content gets the icon sidebar's width back when drawer is closed */
+  .main-content { padding: 18px 16px; }
+
+  /* Stat grids collapse from 4 to 2 columns */
+  .stat-grid,
+  [style*="grid-template-columns:repeat(4"],
+  [style*="grid-template-columns: repeat(4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+
+  /* Topbar: hide the search input, leave just the action icons */
+  .topbar-search { display: none; }
+  .topbar { padding: 0 12px; }
+  .topbar-right { gap: 4px; }
+  .topbar-right .topbar-icon-btn { width: 36px; height: 36px; }
+
+  /* Icon sidebar also folds into a drawer toggled by a hamburger */
+  .icon-sidebar {
+    position: fixed; top: var(--topbar-h); bottom: 0; left: 0;
+    z-index: 700; transform: translateX(-105%); transition: transform .22s ease-out;
+    box-shadow: 8px 0 24px rgba(0,0,0,.18);
+  }
+  .icon-sidebar.open { transform: translateX(0); }
+  .module-sidebar { left: 0; }  /* sits behind the icon drawer when open */
+  .main-content { margin-left: 0 !important; padding: 14px 12px; }
+
+  /* Drawer backdrop helper — shells should add/remove .drawer-open on body */
+  body.drawer-open::after {
+    content: ""; position: fixed; inset: var(--topbar-h) 0 0 0;
+    background: rgba(15, 23, 42, .35); z-index: 550;
+  }
+
+  /* All tables get a horizontal-scroll wrapper. Apply to existing tables
+     by their commonly-used class names; lift selectors as you find more. */
+  .sa-table, .data-table, .grid-table, table.list, .table-wrap > table {
+    min-width: 540px;
+  }
+  .table-wrap,
+  .sa-table-wrap,
+  .module-content table:not([data-no-scroll]) {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modals become near-full-screen sheets */
+  .modal-box, .modal {
+    width: 100% !important; max-width: 100% !important;
+    border-radius: 12px 12px 0 0 !important;
+    max-height: 92vh; overflow-y: auto;
+  }
+  .modal-overlay { align-items: flex-end !important; }
+
+  /* Side panel (super admin) slides over the whole viewport */
+  .side-panel { width: 100% !important; }
+
+  /* Card grids: 2-col → 1-col */
+  .stat-grid,
+  [style*="grid-template-columns:repeat(2"],
+  [style*="grid-template-columns: repeat(2"],
+  [style*="grid-template-columns:repeat(auto-fit,minmax(180"],
+  [style*="grid-template-columns:repeat(auto-fit,minmax(220"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Forms / button rows stack */
+  .form-row, .filter-pills, .header-actions {
+    flex-direction: column; align-items: stretch !important;
+  }
+  .form-row > *, .header-actions > * { width: 100%; }
+
+  /* Input minimums removed so they don't overflow */
+  input, select, textarea { min-width: 0 !important; }
+
+  /* Section header reflows */
+  .section-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+
+  /* User dropdown takes more room and disables backdrop blur for perf */
+  .user-dropdown { min-width: 220px; right: 4px; }
+}
+
+/* ── Small mobile ─────────────────────────────────────────────────────── */
+@media (max-width: 440px) {
+  body { font-size: 13px; }
+  .main-content { padding: 12px 10px; }
+  h1 { font-size: 18px !important; }
+  h2 { font-size: 15px !important; }
+  .modal, .modal-box { border-radius: 0 !important; max-height: 100vh; }
+}
+
+/* ── Mobile hamburger button (shells add this; hidden on desktop) ────── */
+.mobile-nav-toggle {
+  display: none; background: none; border: none; cursor: pointer;
+  padding: 0 8px; color: var(--text);
+}
+.mobile-nav-toggle svg { width: 22px; height: 22px; }
+@media (max-width: 600px) {
+  .mobile-nav-toggle { display: inline-flex; align-items: center; }
+}
+
+/* ── Print: hide drawers, restore flow ───────────────────────────────── */
+@media print {
+  .module-sidebar, .icon-sidebar, .topbar { display: none !important; }
+  .main-content { margin: 0 !important; padding: 0 !important; }
+}
