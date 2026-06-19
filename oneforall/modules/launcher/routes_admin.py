@@ -563,11 +563,13 @@ async def api_key_revoke(request: Request, kid: int):
     """Revoke an API key."""
     db = get_db()
     try:
+        row = db.execute("SELECT name, key_prefix FROM api_keys WHERE id = %s", (kid,)).fetchone()
         db.execute("UPDATE api_keys SET is_active = 0 WHERE id = %s", (kid,))
         db.commit()
     finally:
         db.close()
-    log_audit(request.state.user, "platform", "api_key_revoke", details=f"Revoked API key ID: {kid}")
+    label = f"{row['name']} ({row['key_prefix']}...)" if row else str(kid)
+    log_audit(request.state.user, "platform", "api_key_revoke", details=f"Revoked API key: {label}")
     return _JSONResp({"success": True})
 
 
@@ -658,10 +660,13 @@ async def api_webhook_delete(request: Request, wid: int):
     """Delete a webhook."""
     db = get_db()
     try:
+        row = db.execute("SELECT name, url FROM webhooks WHERE id = %s", (wid,)).fetchone()
         db.execute("DELETE FROM webhooks WHERE id = %s", (wid,))
         db.commit()
     finally:
         db.close()
+    label = f"{row['name']} ({row['url']})" if row else str(wid)
+    log_audit(request.state.user, "platform", "webhook_delete", details=f"Deleted webhook: {label}")
     return _JSONResp({"success": True})
 
 
@@ -723,7 +728,7 @@ async def api_email_config_get(request: Request):
 
     def _masked(key: str) -> str:
         val = _get_setting(key, "")
-        return "••••••••" if val else ""
+        return "__unchanged__" if val else ""
 
     cfg = {
         "provider":          _get_setting("email_provider", ""),
@@ -768,11 +773,11 @@ async def api_email_config_save(request: Request):
 
         # Only update passwords if a non-masked value was submitted
         raw_pass = data.get("smtp_pass", "")
-        if raw_pass and raw_pass != "••••••••":
+        if raw_pass and raw_pass != "__unchanged__":
             _save("smtp_pass_enc", encrypt_setting(raw_pass))
 
         raw_secret = data.get("ms_client_secret", "")
-        if raw_secret and raw_secret != "••••••••":
+        if raw_secret and raw_secret != "__unchanged__":
             _save("ms_client_secret_enc", encrypt_setting(raw_secret))
 
         db.commit()

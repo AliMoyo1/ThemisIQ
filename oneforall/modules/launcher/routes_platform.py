@@ -502,80 +502,76 @@ async def api_bulk_import(request: Request, entity_type: str):
     if not records:
         return _JSONResp({"error": "No records provided"}, status_code=400)
 
-    db = get_db()
-    imported = 0
-    errors = []
+    if entity_type not in ("controls", "risks", "evidence", "ropa"):
+        return _JSONResp({"error": f"Import not supported for: {entity_type}"}, status_code=400)
 
+    # Validation pass: check types without touching the DB
+    val_errors = []
+    for i, rec in enumerate(records):
+        if entity_type == "risks":
+            try:
+                int(rec.get("likelihood", 3))
+                int(rec.get("impact", 3))
+            except (TypeError, ValueError):
+                val_errors.append({"row": i, "error": "likelihood and impact must be integers"})
+        if not rec.get("title") and entity_type != "controls":
+            val_errors.append({"row": i, "error": "title is required"})
+    if val_errors:
+        return _JSONResp({"error": "Validation failed", "errors": val_errors, "imported": 0}, status_code=400)
+
+    db = get_db()
     try:
         if entity_type == "controls":
-            for i, rec in enumerate(records):
-                try:
-                    db.execute(
-                        "INSERT INTO aria_controls (framework_id, control_id, title, description, status, evidence_notes) "
-                        "VALUES (%s,%s,%s,%s,%s,%s)",
-                        (rec.get("framework_id", 1), rec.get("control_id", ""), rec.get("title", ""),
-                         rec.get("description", ""), rec.get("status", "not_implemented"), rec.get("evidence_notes", ""))
-                    )
-                    imported += 1
-                except Exception as e:
-                    errors.append({"row": i, "error": str(e)})
-
+            for rec in records:
+                db.execute(
+                    "INSERT INTO aria_controls (framework_id, control_id, title, description, status, evidence_notes) "
+                    "VALUES (%s,%s,%s,%s,%s,%s)",
+                    (rec.get("framework_id", 1), rec.get("control_id", ""), rec.get("title", ""),
+                     rec.get("description", ""), rec.get("status", "not_implemented"), rec.get("evidence_notes", ""))
+                )
         elif entity_type == "risks":
-            for i, rec in enumerate(records):
-                try:
-                    lh = int(rec.get("likelihood", 3))
-                    imp = int(rec.get("impact", 3))
-                    score = lh * imp
-                    level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
-                    db.execute(
-                        "INSERT INTO risk_register (title, description, source_module, category, "
-                        "likelihood, impact, risk_level, treatment, status, created_by) "
-                        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                        (rec.get("title", ""), rec.get("description", ""), rec.get("source_module", ""),
-                         rec.get("category", "operational"), lh, imp, level,
-                         rec.get("treatment", "mitigate"), rec.get("status", "open"), request.state.user["id"])
-                    )
-                    imported += 1
-                except Exception as e:
-                    errors.append({"row": i, "error": str(e)})
-
+            for rec in records:
+                lh = int(rec.get("likelihood", 3))
+                imp = int(rec.get("impact", 3))
+                score = lh * imp
+                level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
+                db.execute(
+                    "INSERT INTO risk_register (title, description, source_module, category, "
+                    "likelihood, impact, risk_level, treatment, status, created_by) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (rec.get("title", ""), rec.get("description", ""), rec.get("source_module", ""),
+                     rec.get("category", "operational"), lh, imp, level,
+                     rec.get("treatment", "mitigate"), rec.get("status", "open"), request.state.user["id"])
+                )
         elif entity_type == "evidence":
-            for i, rec in enumerate(records):
-                try:
-                    db.execute(
-                        "INSERT INTO evidence_items (title, description, category, tags, created_by) "
-                        "VALUES (%s,%s,%s,%s,%s)",
-                        (rec.get("title", ""), rec.get("description", ""), rec.get("category", "policy"),
-                         rec.get("tags", ""), request.state.user["id"])
-                    )
-                    imported += 1
-                except Exception as e:
-                    errors.append({"row": i, "error": str(e)})
-
+            for rec in records:
+                db.execute(
+                    "INSERT INTO evidence_items (title, description, category, tags, created_by) "
+                    "VALUES (%s,%s,%s,%s,%s)",
+                    (rec.get("title", ""), rec.get("description", ""), rec.get("category", "policy"),
+                     rec.get("tags", ""), request.state.user["id"])
+                )
         elif entity_type == "ropa":
-            for i, rec in enumerate(records):
-                try:
-                    db.execute(
-                        "INSERT INTO sentinel_ropa (ref_number, processing_name, purpose, legal_basis, "
-                        "data_subjects, data_categories, status) "
-                        "VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                        (rec.get("ref_number", ""), rec.get("processing_name") or rec.get("name", ""), rec.get("purpose", ""),
-                         rec.get("legal_basis") or rec.get("lawful_basis", ""), rec.get("data_subjects", ""),
-                         rec.get("data_categories", ""), rec.get("status", "active"))
-                    )
-                    imported += 1
-                except Exception as e:
-                    errors.append({"row": i, "error": str(e)})
-        else:
-            return _JSONResp({"error": f"Import not supported for: {entity_type}"}, status_code=400)
-
+            for rec in records:
+                db.execute(
+                    "INSERT INTO sentinel_ropa (ref_number, processing_name, purpose, legal_basis, "
+                    "data_subjects, data_categories, status) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                    (rec.get("ref_number", ""), rec.get("processing_name") or rec.get("name", ""), rec.get("purpose", ""),
+                     rec.get("legal_basis") or rec.get("lawful_basis", ""), rec.get("data_subjects", ""),
+                     rec.get("data_categories", ""), rec.get("status", "active"))
+                )
         db.commit()
+    except Exception as e:
+        db.rollback()
+        return _JSONResp({"error": str(e), "imported": 0}, status_code=500)
     finally:
         db.close()
 
+    imported = len(records)
     log_audit(request.state.user, "platform", "bulk_import",
-              details=f"Imported {imported} {entity_type} records ({len(errors)} errors)")
-    return _JSONResp({"imported": imported, "errors": errors, "total": len(records)})
+              details=f"Imported {imported} {entity_type} records")
+    return _JSONResp({"imported": imported, "errors": [], "total": imported})
 
 
 # ═════════════════════════════════════════════════════════════════════════════

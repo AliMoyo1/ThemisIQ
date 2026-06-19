@@ -85,8 +85,9 @@ async def login_submit(request: Request,
 
     user = authenticate_user(username.strip(), password)
     if not user:
-        # Only record FAILED attempts for rate limiting
         record_failed_login(client_ip)
+        log_audit(None, "platform", "login_failed",
+                  details=f"username={username.strip()}", ip=client_ip)
         csrf = generate_csrf_token()
         resp = templates.TemplateResponse(request, "login.html", {
             "error": "Invalid username or password.",
