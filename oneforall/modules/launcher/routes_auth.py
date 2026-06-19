@@ -1,7 +1,10 @@
 """
 Launcher sub-router: Authentication — Login, Logout, Change Password, /api/auth/me.
 """
+import hashlib
+import hmac
 import re
+import secrets
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -16,6 +19,21 @@ from modules.launcher._route_helpers import (
 router = APIRouter()
 
 _SECURE = not settings.DEBUG  # Require HTTPS cookies in production
+
+
+def _pw_change_csrf(request: Request) -> str:
+    """Derive a CSRF token for the change-password page from the session cookie.
+
+    Uses HMAC so the token is bound to the session without needing a separate
+    CSRF cookie — avoids breakage when the cookie is stripped by a proxy or
+    lost in the redirect chain.
+    """
+    session_tok = request.cookies.get(settings.SESSION_COOKIE_NAME, "")
+    return hmac.new(
+        settings.SECRET_KEY.encode(),
+        f"change-password:{session_tok}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 # ── Password complexity ─────────────────────────────────────────────────────
@@ -69,7 +87,7 @@ async def login_submit(request: Request,
             "error": "Invalid request. Please try again.",
             "csrf_token": csrf,
         })
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
     # Rate limit
@@ -80,7 +98,7 @@ async def login_submit(request: Request,
             "error": "Too many login attempts. Please wait 5 minutes.",
             "csrf_token": csrf,
         })
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
     user = authenticate_user(username.strip(), password)
@@ -93,7 +111,7 @@ async def login_submit(request: Request,
             "error": "Invalid username or password.",
             "csrf_token": csrf,
         })
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
     # Successful login — clear rate limit history for this IP
@@ -161,12 +179,11 @@ async def logout_get(request: Request):
 @require_auth
 async def change_password_page(request: Request):
     user = request.state.user
-    csrf = generate_csrf_token()
+    csrf = _pw_change_csrf(request)
     ctx = shell_ctx(request, active_module="platform", active_section="", show_sidebar=False)
     ctx["forced"] = _must_change_pw(user["id"])
     ctx["csrf_token"] = csrf
     response = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-    response.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     return response
@@ -184,29 +201,31 @@ async def change_password_submit(request: Request,
     ctx = shell_ctx(request, active_module="platform", active_section="", show_sidebar=False)
     ctx["forced"] = forced
 
-    # CSRF validation
-    if not validate_csrf(request, csrf_token):
-        csrf = generate_csrf_token()
-        ctx["csrf_token"] = csrf
+    # CSRF: token is derived from the session cookie via HMAC, so no separate
+    # CSRF cookie is needed and cookie-delivery issues can't break this.
+    expected_csrf = _pw_change_csrf(request)
+    if not secrets.compare_digest(expected_csrf, csrf_token or ""):
+        ctx["csrf_token"] = expected_csrf
         ctx["error"] = "Invalid request. Please try again."
         resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
         return resp
 
-    # Generate new CSRF for re-render
-    csrf = generate_csrf_token()
+    # Re-derive for re-renders on later validation errors.
+    csrf = expected_csrf
     ctx["csrf_token"] = csrf
 
     if not forced and not check_rate_limit(f"pw:{user['id']}"):
         ctx["error"] = "Too many failed attempts. Please wait 5 minutes."
         resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
     if new_password != confirm_password:
         ctx["error"] = "The two new password fields don't match."
         resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
     # Password complexity check
@@ -214,7 +233,7 @@ async def change_password_submit(request: Request,
     if pw_error:
         ctx["error"] = pw_error
         resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
     db = get_db()
