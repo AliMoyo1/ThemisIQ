@@ -61,13 +61,23 @@ def _must_change_pw(uid: int) -> bool:
 def _render_admin_users(request, user, flash=None):
     db = get_db()
     try:
-        users = db.execute("""
-            SELECT id, username, email, full_name, is_active,
-                   must_change_password, created_at, last_login, avatar_initials
-            FROM users ORDER BY is_active DESC, username
-        """).fetchall()
+        # Platform super-admins see everyone; org-level admins see only their org.
+        caller_org_id = None if user.get("is_super_admin") else user.get("org_id")
+        if caller_org_id is not None:
+            raw_users = db.execute(
+                "SELECT id, username, email, full_name, is_active, "
+                "must_change_password, created_at, last_login, avatar_initials "
+                "FROM users WHERE org_id=%s ORDER BY is_active DESC, username",
+                (caller_org_id,),
+            ).fetchall()
+        else:
+            raw_users = db.execute(
+                "SELECT id, username, email, full_name, is_active, "
+                "must_change_password, created_at, last_login, avatar_initials "
+                "FROM users ORDER BY is_active DESC, username"
+            ).fetchall()
         rows = []
-        for u in users:
+        for u in raw_users:
             role_rows = db.execute(
                 "SELECT role_key FROM user_roles WHERE user_id=%s ORDER BY role_key",
                 (u["id"],),

@@ -22,6 +22,22 @@ router = APIRouter()
 _SSRF_BLOCKED_PREFIXES = ("127.", "0.", "169.254.", "10.", "192.168.", "172.")
 
 
+def _target_user(db, uid: int, admin: dict):
+    """Return user row scoped to admin's org, or None if not found / wrong org.
+
+    Platform super-admins (is_super_admin=1) bypass the org filter so they can
+    act on any user. Org-level admins are restricted to their own org_id.
+    """
+    if admin.get("is_super_admin"):
+        return db.execute(
+            "SELECT id, username, full_name, org_id FROM users WHERE id=%s", (uid,)
+        ).fetchone()
+    return db.execute(
+        "SELECT id, username, full_name, org_id FROM users WHERE id=%s AND org_id=%s",
+        (uid, admin.get("org_id")),
+    ).fetchone()
+
+
 def _validate_webhook_url(url: str) -> None:
     """Raise HTTP 400 if the URL is not HTTPS or resolves to a private/loopback address."""
     parsed = urlparse(url)
@@ -81,12 +97,13 @@ async def admin_create_user(request: Request,
 
         temp_pw = _gen_temp_password()
         initials = "".join(w[0].upper() for w in full_name.split()[:2]) or "?"
-        new_id = insert_returning_id(db,"""
+        new_id = insert_returning_id(db, """
             INSERT INTO users
             (username, email, full_name, password_hash, is_active,
-             must_change_password, avatar_initials)
-            VALUES (%s, %s, %s, %s, 1, 1, %s)
-        """, (username, email, full_name, hash_password(temp_pw), initials))
+             must_change_password, avatar_initials, org_id)
+            VALUES (%s, %s, %s, %s, 1, 1, %s, %s)
+        """, (username, email, full_name, hash_password(temp_pw), initials,
+              admin.get("org_id")))
         db.execute(
             "INSERT INTO user_roles (user_id, role_key, granted_by) "
             "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
@@ -121,9 +138,7 @@ async def admin_grant_role(request: Request, uid: int,
             {"type": "error", "message": "Unknown role: " + role_key})
     db = get_db()
     try:
-        target = db.execute(
-            "SELECT username FROM users WHERE id=%s", (uid,)
-        ).fetchone()
+        target = _target_user(db, uid, admin)
         if not target:
             return _render_admin_users(request, admin,
                 {"type": "error", "message": "User not found."})
@@ -152,19 +167,20 @@ async def admin_revoke_role(request: Request, uid: int,
             {"type": "error", "message": "Invalid request. Please try again."})
     db = get_db()
     try:
-        target = db.execute(
-            "SELECT username FROM users WHERE id=%s", (uid,)
-        ).fetchone()
+        target = _target_user(db, uid, admin)
         if not target:
             return _render_admin_users(request, admin,
                 {"type": "error", "message": "User not found."})
 
-        # Safety: never let the last admin lose their role
+        # Safety: never let the last org-level admin lose their role.
         from core.rbac import SUPER_ADMIN
         if role_key == SUPER_ADMIN:
+            scope_org_id = target["org_id"]
             others = db.execute(
-                "SELECT COUNT(*) FROM user_roles WHERE role_key=%s AND user_id!=%s",
-                (SUPER_ADMIN, uid),
+                "SELECT COUNT(*) FROM user_roles ur "
+                "JOIN users u ON u.id = ur.user_id "
+                "WHERE ur.role_key=%s AND ur.user_id!=%s AND u.org_id=%s",
+                (SUPER_ADMIN, uid, scope_org_id),
             ).fetchone()[0]
             if others == 0:
                 return _render_admin_users(request, admin, {
@@ -176,7 +192,7 @@ async def admin_revoke_role(request: Request, uid: int,
             "DELETE FROM user_roles WHERE user_id=%s AND role_key=%s",
             (uid, role_key),
         )
-        # Ensure every user keeps at least one role
+        # Ensure every user keeps at least one role.
         remaining = db.execute(
             "SELECT 1 FROM user_roles WHERE user_id=%s LIMIT 1", (uid,)
         ).fetchone()
@@ -208,9 +224,7 @@ async def admin_deactivate_user(request: Request, uid: int,
             {"type": "error", "message": "You cannot deactivate your own account."})
     db = get_db()
     try:
-        target = db.execute(
-            "SELECT username FROM users WHERE id=%s", (uid,)
-        ).fetchone()
+        target = _target_user(db, uid, admin)
         if not target:
             return _render_admin_users(request, admin,
                 {"type": "error", "message": "User not found."})
@@ -221,11 +235,12 @@ async def admin_deactivate_user(request: Request, uid: int,
             (uid, SUPER_ADMIN),
         ).fetchone()
         if is_target_admin:
+            scope_org_id = target["org_id"]
             other_active = db.execute("""
                 SELECT COUNT(*) FROM users u
                 JOIN user_roles ur ON ur.user_id=u.id
-                WHERE ur.role_key=%s AND u.is_active=1 AND u.id!=%s
-            """, (SUPER_ADMIN, uid)).fetchone()[0]
+                WHERE ur.role_key=%s AND u.is_active=1 AND u.id!=%s AND u.org_id=%s
+            """, (SUPER_ADMIN, uid, scope_org_id)).fetchone()[0]
             if other_active == 0:
                 return _render_admin_users(request, admin, {
                     "type": "error",
@@ -252,9 +267,7 @@ async def admin_activate_user(request: Request, uid: int,
             {"type": "error", "message": "Invalid request. Please try again."})
     db = get_db()
     try:
-        target = db.execute(
-            "SELECT username FROM users WHERE id=%s", (uid,)
-        ).fetchone()
+        target = _target_user(db, uid, admin)
         if not target:
             return _render_admin_users(request, admin,
                 {"type": "error", "message": "User not found."})
@@ -278,9 +291,7 @@ async def admin_reset_password(request: Request, uid: int,
             {"type": "error", "message": "Invalid request. Please try again."})
     db = get_db()
     try:
-        target = db.execute(
-            "SELECT username, full_name FROM users WHERE id=%s", (uid,)
-        ).fetchone()
+        target = _target_user(db, uid, admin)
         if not target:
             return _render_admin_users(request, admin,
                 {"type": "error", "message": "User not found."})
@@ -332,9 +343,7 @@ async def api_admin_patch_user(request: Request, uid: int):
 
     db = get_db()
     try:
-        target = db.execute(
-            "SELECT id, username FROM users WHERE id=%s", (uid,)
-        ).fetchone()
+        target = _target_user(db, uid, admin)
         if not target:
             return _JSONResp({"success": False, "error": "User not found."}, status_code=404)
 
