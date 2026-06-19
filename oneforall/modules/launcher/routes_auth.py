@@ -167,6 +167,8 @@ async def change_password_page(request: Request):
     ctx["csrf_token"] = csrf
     response = shell_templates.TemplateResponse(request, "change_password.html", ctx)
     response.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
     return response
 
 
