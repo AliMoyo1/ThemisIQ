@@ -339,9 +339,22 @@ async def delete_org_user(request: Request, org_id: int, user_id: int):
             except Exception:
                 pass
 
-        # Delete records that are owned by (not just created by) the user.
+        # NULL out nullable user_id columns that are references, not ownership.
+        for tbl in (
+            "audit_log",
+            "grid_control_comments", "grid_remote_participants",
+            "grid_remote_notes", "bcm_training_attestations",
+        ):
+            try:
+                db.execute(f"UPDATE {tbl} SET user_id=NULL WHERE user_id=%s", (uid,))
+            except Exception:
+                pass
+
+        # Delete records owned by the user.
         for tbl in ("notifications", "user_preferences", "grid_reminders",
                     "grid_audit_signoffs", "bcm_chat_messages",
+                    "erm_chat_messages", "orm_chat_messages",
+                    "grid_digest_subscriptions",
                     "user_roles", "sessions"):
             try:
                 db.execute(f"DELETE FROM {tbl} WHERE user_id=%s", (uid,))
