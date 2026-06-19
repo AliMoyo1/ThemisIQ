@@ -209,6 +209,10 @@ async def delete_org(request: Request, org_id: int):
                 {"error": f"Org has {users['c']} users. Remove or reassign them first."},
                 status_code=409,
             )
+        # Null out org references in tables that preserve their rows after org removal.
+        db.execute("UPDATE audit_log SET org_id=NULL WHERE org_id=%s", (org_id,))
+        # Remove API keys that belonged to this org.
+        db.execute("DELETE FROM api_keys WHERE org_id=%s", (org_id,))
         db.execute("DELETE FROM licenses WHERE org_id = %s", (org_id,))
         db.execute("DELETE FROM organizations WHERE id = %s", (org_id,))
         db.commit()
