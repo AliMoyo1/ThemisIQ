@@ -16,12 +16,15 @@
 .code-form button{padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer}
 .code-form button:hover{opacity:.9}
 .backup-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-family:monospace;font-size:14px;background:var(--surface2);padding:14px 18px;border-radius:10px;margin-top:10px}
-.notice-ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.notice-ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
 .notice-bad{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
 .disable-form{display:flex;gap:8px;margin-top:14px;align-items:center}
 .disable-form input{flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)}
 .disable-form button{padding:10px 18px;background:rgba(220,38,38,.1);color:#dc2626;border:1px solid rgba(220,38,38,.3);border-radius:8px;font-weight:700;font-size:13px;cursor:pointer}
 .print-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:8px}
+.status-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:700}
+.status-pill.on{background:#dcfce7;color:#166534}
+.status-pill.off{background:#fee2e2;color:#991b1b}
 @media print{.no-print{display:none}}
 </style>
 
@@ -40,51 +43,70 @@
     <div class="notice-bad">Password didn't match. MFA is still enabled.</div>
   {% endif %}
 
-  <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0 0 6px">Two-Factor Authentication</h1>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:10px">
+    <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0">Two-Factor Authentication</h1>
+    {% if mfa_active %}
+      <span class="status-pill on">&#10003; Active</span>
+    {% else %}
+      <span class="status-pill off">Not enabled</span>
+    {% endif %}
+  </div>
   <p style="color:var(--muted);font-size:13px;margin-bottom:22px">Add a second step at sign-in using an authenticator app (Google Authenticator, 1Password, Authy, etc.).</p>
 
-  <div class="mfa-card">
-    <h2><span class="step">1</span> Scan this QR code</h2>
-    <p>Open your authenticator app and scan the code. If you can't scan, enter the secret manually instead.</p>
-    <div class="mfa-row">
-      <div class="qr-box"><img src="{{ qr }}" alt="TOTP QR code"></div>
-      <div style="flex:1;min-width:240px">
-        <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Secret</div>
-        <div class="secret">{{ secret }}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:8px">Issuer: <strong>ThemisIQ</strong> &nbsp;|&nbsp; Account: <strong>{{ user.username }}</strong></div>
+  {% if mfa_active %}
+
+    <div class="mfa-card">
+      <h2>Two-factor authentication is active</h2>
+      <p>You'll be prompted for a code from your authenticator app every time you sign in.{% if enrolled_at %} Enrolled on {{ enrolled_at[:10] }}.{% endif %}</p>
+      <p>If you replace your device, disable 2FA below using your password, then enroll the new device from this page.</p>
+    </div>
+
+    <div class="mfa-card" style="border-color:rgba(220,38,38,.2)">
+      <h2 style="color:#dc2626">Disable 2FA</h2>
+      <p>Re-enter your current password to turn 2FA off. Your backup codes will be revoked.</p>
+      <form method="post" action="/mfa/disable" class="disable-form" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="password" name="password" placeholder="Current password" autocomplete="current-password">
+        <button type="submit" onclick="return confirm('Turn off two-factor authentication?')">Disable</button>
+      </form>
+    </div>
+
+  {% else %}
+
+    <div class="mfa-card">
+      <h2><span class="step">1</span> Scan this QR code</h2>
+      <p>Open your authenticator app and scan the code. If you can't scan, enter the secret manually instead.</p>
+      <div class="mfa-row">
+        <div class="qr-box"><img src="{{ qr }}" alt="TOTP QR code"></div>
+        <div style="flex:1;min-width:240px">
+          <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Secret</div>
+          <div class="secret">{{ secret }}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:8px">Issuer: <strong>ThemisIQ</strong> &nbsp;|&nbsp; Account: <strong>{{ user.username }}</strong></div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="mfa-card">
-    <h2><span class="step">2</span> Save your backup codes</h2>
-    <p>Each code works once. Store them somewhere safe. They are the only way back in if you lose your authenticator device.</p>
-    <div class="backup-grid">
-      {% for c in backup_codes %}<div>{{ c }}</div>{% endfor %}
+    <div class="mfa-card">
+      <h2><span class="step">2</span> Save your backup codes</h2>
+      <p>Each code works once. Store them somewhere safe. They are the only way back in if you lose your authenticator device.</p>
+      <div class="backup-grid">
+        {% for c in backup_codes %}<div>{{ c }}</div>{% endfor %}
+      </div>
+      <button class="print-btn no-print" onclick="window.print()">Print these codes</button>
     </div>
-    <button class="print-btn no-print" onclick="window.print()">Print these codes</button>
-  </div>
 
-  <div class="mfa-card">
-    <h2><span class="step">3</span> Confirm with a code from your app</h2>
-    <p>Enter the current 6-digit code to finish enrolling.</p>
-    <form method="post" action="/mfa/enable" class="code-form" autocomplete="off">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="text" name="code" placeholder="000000" inputmode="numeric" maxlength="6"
-             autocomplete="one-time-code">
-      <button type="submit">Enable 2FA</button>
-    </form>
-  </div>
+    <div class="mfa-card">
+      <h2><span class="step">3</span> Confirm with a code from your app</h2>
+      <p>Enter the current 6-digit code to finish enrolling.</p>
+      <form method="post" action="/mfa/enable" class="code-form" autocomplete="off">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="code" placeholder="000000" inputmode="numeric" maxlength="6"
+               autocomplete="one-time-code">
+        <button type="submit">Enable 2FA</button>
+      </form>
+    </div>
 
-  <div class="mfa-card" style="border-color:rgba(220,38,38,.2)">
-    <h2 style="color:#dc2626">Disable 2FA</h2>
-    <p>Re-enter your current password to turn 2FA off. Your backup codes will be revoked.</p>
-    <form method="post" action="/mfa/disable" class="disable-form" autocomplete="off">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="password" name="password" placeholder="Current password" autocomplete="current-password">
-      <button type="submit" onclick="return confirm('Turn off two-factor authentication?')">Disable</button>
-    </form>
-  </div>
+  {% endif %}
 
 </div>
 {% endblock %}

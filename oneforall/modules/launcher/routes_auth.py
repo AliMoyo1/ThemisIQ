@@ -317,16 +317,18 @@ async def mfa_verify_submit(request: Request,
 @require_auth
 async def mfa_setup_page(request: Request):
     user = request.state.user
-    secret, codes = mfa_helper.start_enrollment(user["id"])
-    qr = mfa_helper.qr_png_data_uri(user["username"], secret)
     csrf = generate_csrf_token()
     ctx = shell_ctx(request, active_module="platform", active_section="security")
-    ctx.update({
-        "secret": secret,
-        "qr": qr,
-        "backup_codes": codes,
-        "csrf_token": csrf,
-    })
+    ctx["csrf_token"] = csrf
+    ctx["mfa_active"] = mfa_helper.is_enabled(user["id"])
+    if ctx["mfa_active"]:
+        row = mfa_helper.get_mfa_row(user["id"]) or {}
+        ctx["enrolled_at"] = row.get("enrolled_at")
+    else:
+        secret, codes = mfa_helper.start_enrollment(user["id"])
+        ctx["secret"] = secret
+        ctx["qr"] = mfa_helper.qr_png_data_uri(user["username"], secret)
+        ctx["backup_codes"] = codes
     resp = shell_templates.TemplateResponse(request, "mfa_setup.html", ctx)
     resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
                     path="/", max_age=3600)
