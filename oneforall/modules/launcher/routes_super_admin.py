@@ -308,3 +308,23 @@ async def create_org_user(request: Request, org_id: int):
         return JSONResponse({"id": user_id}, status_code=201)
     finally:
         db.close()
+
+
+@router.delete("/api/orgs/{org_id}/users/{user_id}")
+@require_super_admin
+async def delete_org_user(request: Request, org_id: int, user_id: int):
+    db = get_db()
+    try:
+        user = db.execute(
+            "SELECT id FROM users WHERE id=%s AND org_id=%s",
+            (user_id, org_id),
+        ).fetchone()
+        if not user:
+            return JSONResponse({"error": "User not found in this organisation."}, status_code=404)
+        db.execute("DELETE FROM user_roles WHERE user_id=%s", (user_id,))
+        db.execute("DELETE FROM sessions WHERE user_id=%s", (user_id,))
+        db.execute("DELETE FROM users WHERE id=%s AND org_id=%s", (user_id, org_id))
+        db.commit()
+        return JSONResponse({"ok": True})
+    finally:
+        db.close()

@@ -499,16 +499,28 @@ async function deleteOrg(){
 async function loadUsersForPanel(orgId){
   var users = await apiFetch('/super-admin/api/orgs/'+orgId+'/users');
   document.getElementById('usersList').innerHTML = users.length
-    ? '<table class="sa-table"><thead><tr><th>Name</th><th>Email</th><th>Status</th></tr></thead><tbody>'+
+    ? '<table class="sa-table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody>'+
         users.map(function(u){
           return '<tr><td><div style="font-weight:600">'+esc(u.full_name)+
             (u.is_super_admin?'<span class="badge badge-violet" style="margin-left:6px">super</span>':'')+'</div>'+
             '<div style="font-family:monospace;font-size:11px;color:var(--muted)">'+esc(u.username)+'</div></td>'+
             '<td>'+esc(u.email)+'</td>'+
-            '<td>'+(u.is_active?'<span class="badge badge-green">Active</span>':'<span class="badge badge-red">Inactive</span>')+'</td></tr>';
+            '<td>'+(u.is_active?'<span class="badge badge-green">Active</span>':'<span class="badge badge-red">Inactive</span>')+'</td>'+
+            '<td style="text-align:right"><button class="sa-btn sa-btn-danger" style="font-size:11px;padding:4px 10px" onclick="deleteOrgUser('+orgId+','+u.id+',\''+esc(u.username)+'\')">Remove</button></td>'+
+            '</tr>';
         }).join('')+
         '</tbody></table>'
     : '<div style="text-align:center;color:var(--muted);padding:24px">No users yet.</div>';
+}
+
+async function deleteOrgUser(orgId, userId, username){
+  if (!confirm('Remove user "'+username+'" and delete their account? This cannot be undone.')) return;
+  var res = await fetch('/super-admin/api/orgs/'+orgId+'/users/'+userId, {method:'DELETE'});
+  var data = await res.json();
+  if (!res.ok){ alert(data.error || 'Delete failed.'); return; }
+  loadUsersForPanel(orgId);
+  await loadOrgs();
+  window._currentOrg = _orgs.find(function(o){return o.id===orgId}) || window._currentOrg;
 }
 
 // ── Create org modal ────────────────────────────────────────────────────────
