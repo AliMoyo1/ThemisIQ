@@ -186,7 +186,7 @@
     </p>
   </div>
   <button class="btn btn-primary" style="gap:6px; display:inline-flex; align-items:center;"
-          onclick="document.getElementById('newUserModal').classList.add('open')">
+          onclick="document.getElementById('newUserModal').classList.add('show')">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
       <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
     </svg>
@@ -534,7 +534,7 @@
    NEW USER MODAL
    ════════════════════════════════════════════════════════════════════════════ #}
 <div class="modal-overlay" id="newUserModal"
-     onclick="if(event.target.id==='newUserModal') this.classList.remove('open')">
+     onclick="if(event.target.id==='newUserModal') this.classList.remove('show')">
   <div class="modal" style="max-width:500px; width:90vw;">
     <div class="modal-title" style="margin-bottom:4px;">👤 New User</div>
     <p style="font-size:13px; color:var(--muted); margin:0 0 18px;">
@@ -560,7 +560,7 @@
       </div>
       <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
         <button type="button" class="btn btn-ghost"
-                onclick="document.getElementById('newUserModal').classList.remove('open')">
+                onclick="document.getElementById('newUserModal').classList.remove('show')">
           Cancel
         </button>
         <button type="submit" class="btn btn-primary">Create User</button>
