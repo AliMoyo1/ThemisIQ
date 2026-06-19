@@ -148,14 +148,17 @@ def get_session_user(token: str) -> Optional[dict]:
                 org_slug = org_row["slug"]
                 org_name = org_row["name"]
             lic_row = db.execute(
-                "SELECT module_keys FROM licenses WHERE org_id = %s "
+                "SELECT module_keys, valid_until FROM licenses WHERE org_id = %s "
                 "ORDER BY id DESC LIMIT 1",
                 (user["org_id"],),
             ).fetchone()
             if lic_row and lic_row["module_keys"]:
-                licensed_modules = [
-                    m.strip() for m in lic_row["module_keys"].split(",") if m.strip()
-                ]
+                if lic_row["valid_until"] and lic_row["valid_until"] < utcnow().isoformat():
+                    licensed_modules = []  # licence expired: revoke module access
+                else:
+                    licensed_modules = [
+                        m.strip() for m in lic_row["module_keys"].split(",") if m.strip()
+                    ]
 
         return {
             "id": user["id"],

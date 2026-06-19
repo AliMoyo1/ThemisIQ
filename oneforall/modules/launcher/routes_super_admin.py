@@ -272,6 +272,21 @@ async def create_org_user(request: Request, org_id: int):
 
     db = get_db()
     try:
+        lic = db.execute(
+            "SELECT seats FROM licenses WHERE org_id=%s ORDER BY id DESC LIMIT 1",
+            (org_id,),
+        ).fetchone()
+        if lic and lic["seats"]:
+            current_count = db.execute(
+                "SELECT COUNT(*) FROM users WHERE org_id=%s AND is_active=1",
+                (org_id,),
+            ).fetchone()[0]
+            if current_count >= lic["seats"]:
+                return JSONResponse(
+                    {"error": f"Seat limit ({lic['seats']}) reached for this organisation."},
+                    status_code=422,
+                )
+
         existing = db.execute(
             "SELECT id FROM users WHERE username = %s OR email = %s",
             (username, email),

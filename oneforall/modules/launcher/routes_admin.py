@@ -396,8 +396,18 @@ async def admin_api_logs(request: Request):
         page = int(request.query_params.get("page", "1"))
         per_page = int(request.query_params.get("per_page", "50"))
 
+        caller = getattr(request.state, "user", {}) or {}
+        is_super = caller.get("is_super_admin")
+        caller_org_id = caller.get("org_id")
+
         where_clauses = []
         params = []
+
+        # Org isolation: non-super-admins only see their own org's events.
+        if not is_super and caller_org_id is not None:
+            where_clauses.append("(al.org_id = %s OR al.org_id IS NULL)")
+            params.append(caller_org_id)
+
         if module:
             where_clauses.append("al.module = %s")
             params.append(module)
@@ -429,8 +439,11 @@ async def admin_api_logs(request: Request):
             params + [per_page, offset]
         ).fetchall()
 
-        # Get distinct modules for filter dropdown
-        modules = db.execute("SELECT DISTINCT module FROM audit_log WHERE module IS NOT NULL ORDER BY module").fetchall()
+        # Get distinct modules for filter dropdown (scoped to visible logs).
+        modules = db.execute(
+            f"SELECT DISTINCT al.module FROM audit_log al WHERE {where_sql} AND al.module IS NOT NULL ORDER BY al.module",
+            params
+        ).fetchall()
     finally:
         db.close()
 
@@ -454,8 +467,17 @@ async def admin_api_logs_export(request: Request):
         date_from = request.query_params.get("from", "")
         date_to = request.query_params.get("to", "")
 
+        caller = getattr(request.state, "user", {}) or {}
+        is_super = caller.get("is_super_admin")
+        caller_org_id = caller.get("org_id")
+
         where_clauses = []
         params = []
+
+        if not is_super and caller_org_id is not None:
+            where_clauses.append("(al.org_id = %s OR al.org_id IS NULL)")
+            params.append(caller_org_id)
+
         if module:
             where_clauses.append("al.module = %s")
             params.append(module)
@@ -512,11 +534,14 @@ async def api_keys_list(request: Request):
     """List all API keys (without exposing full key)."""
     db = get_db()
     try:
+        org_id = request.state.user.get("org_id")
         rows = db.execute(
             "SELECT ak.id, ak.name, ak.key_prefix, ak.scopes, ak.is_active, "
             "ak.last_used_at, ak.expires_at, ak.created_at, u.full_name as creator_name "
             "FROM api_keys ak LEFT JOIN users u ON ak.created_by = u.id "
-            "ORDER BY ak.created_at DESC"
+            "WHERE (ak.org_id = %s OR (ak.org_id IS NULL AND %s IS NULL)) "
+            "ORDER BY ak.created_at DESC",
+            (org_id, org_id),
         ).fetchall()
     finally:
         db.close()
@@ -538,8 +563,8 @@ async def api_key_create(request: Request):
     try:
         kid = insert_returning_id(
             db,
-            "INSERT INTO api_keys (name, key_hash, key_prefix, scopes, expires_at, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO api_keys (name, key_hash, key_prefix, scopes, expires_at, created_by, org_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s)",
             (
                 data.get("name", "Unnamed Key"),
                 key_hash,
@@ -547,6 +572,7 @@ async def api_key_create(request: Request):
                 data.get("scopes", "read"),
                 data.get("expires_at"),
                 request.state.user["id"],
+                request.state.user.get("org_id"),
             )
         )
         db.commit()

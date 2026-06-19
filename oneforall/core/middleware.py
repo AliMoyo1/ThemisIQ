@@ -317,12 +317,13 @@ async def tenant_context_middleware(request: Request, call_next):
 
 def log_audit(user: Optional[dict], module: str, action: str,
               entity_type: str = "", entity_id: int = 0,
-              details: str = "", ip: str = ""):
+              details: str = "", ip: str = "", org_id: Optional[int] = None):
+    effective_org_id = org_id if org_id is not None else (user.get("org_id") if user else None)
     db = get_db()
     try:
         db.execute(
             "INSERT INTO audit_log (user_id, username, module, action, entity_type, "
-            "entity_id, details, ip_address) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            "entity_id, details, ip_address, org_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 user["id"] if user else None,
                 user["username"] if user else "system",
@@ -332,6 +333,7 @@ def log_audit(user: Optional[dict], module: str, action: str,
                 entity_id,
                 details,
                 ip,
+                effective_org_id,
             ),
         )
         db.commit()

@@ -923,6 +923,379 @@ CREATE TABLE IF NOT EXISTS rate_limit_attempts (
 CREATE INDEX IF NOT EXISTS idx_rl_key_time ON rate_limit_attempts(key, attempted_at);
 """
 
+# Per-tenant platform tables: created in every tenant schema by provision_tenant_schema().
+# These tables hold org-specific data. The global/public schema also gets them via
+# init_db() (for the default org), but new orgs get isolated copies in tenant_{slug}.
+_PLATFORM_TABLES = """
+-- ── Notifications ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS notifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    module      TEXT,
+    title       TEXT NOT NULL,
+    message     TEXT,
+    link        TEXT,
+    is_read     INTEGER DEFAULT 0,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
+
+-- ── Platform Settings ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS settings (
+    key     TEXT PRIMARY KEY,
+    value   TEXT,
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ── Evidence Repository ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS evidence_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    file_path       TEXT,
+    file_name       TEXT,
+    file_size       INTEGER,
+    file_hash       TEXT,
+    mime_type       TEXT,
+    category        TEXT DEFAULT 'general',
+    tags            TEXT DEFAULT '',
+    version         INTEGER DEFAULT 1,
+    parent_id       INTEGER REFERENCES evidence_items(id),
+    status          TEXT DEFAULT 'current',
+    expiry_date     TEXT,
+    uploaded_by     INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS evidence_links (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    evidence_id     INTEGER NOT NULL REFERENCES evidence_items(id) ON DELETE CASCADE,
+    module          TEXT NOT NULL,
+    entity_type     TEXT NOT NULL,
+    entity_id       INTEGER NOT NULL,
+    linked_by       INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidence_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
+CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
+
+-- ── Cross-Module Risk Register ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS risk_register (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    source_module   TEXT,
+    source_entity_type TEXT,
+    source_entity_id INTEGER,
+    category        TEXT DEFAULT 'operational',
+    likelihood      INTEGER DEFAULT 3,
+    impact          INTEGER DEFAULT 3,
+    risk_score      INTEGER GENERATED ALWAYS AS (likelihood * impact) STORED,
+    risk_level      TEXT,
+    owner_id        INTEGER REFERENCES users(id),
+    treatment       TEXT DEFAULT 'mitigate',
+    treatment_plan  TEXT,
+    status          TEXT DEFAULT 'open',
+    review_date     TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_risk_register_module ON risk_register(source_module);
+CREATE INDEX IF NOT EXISTS idx_risk_register_status ON risk_register(status);
+
+-- ── Workflow Engine ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS workflow_definitions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    trigger_module  TEXT,
+    trigger_action  TEXT,
+    steps_json      TEXT NOT NULL,
+    is_active       INTEGER DEFAULT 1,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS workflow_instances (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    definition_id   INTEGER NOT NULL REFERENCES workflow_definitions(id),
+    entity_module   TEXT,
+    entity_type     TEXT,
+    entity_id       INTEGER,
+    current_step    INTEGER DEFAULT 0,
+    status          TEXT DEFAULT 'active',
+    started_by      INTEGER REFERENCES users(id),
+    started_at      TEXT DEFAULT (datetime('now')),
+    completed_at    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS workflow_actions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    instance_id     INTEGER NOT NULL REFERENCES workflow_instances(id),
+    step_index      INTEGER NOT NULL,
+    action_type     TEXT DEFAULT 'approve',
+    assigned_to     INTEGER REFERENCES users(id),
+    status          TEXT DEFAULT 'pending',
+    comment         TEXT,
+    acted_at        TEXT,
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_instances_status ON workflow_instances(status);
+CREATE INDEX IF NOT EXISTS idx_workflow_actions_assigned ON workflow_actions(assigned_to, status);
+
+-- ── SLA Engine ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS sla_definitions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    module          TEXT NOT NULL,
+    entity_type     TEXT NOT NULL,
+    response_hours  INTEGER,
+    resolution_hours INTEGER,
+    escalation_hours INTEGER,
+    priority        TEXT DEFAULT 'normal',
+    is_active       INTEGER DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sla_instances (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    definition_id   INTEGER NOT NULL REFERENCES sla_definitions(id),
+    entity_module   TEXT,
+    entity_type     TEXT,
+    entity_id       INTEGER,
+    started_at      TEXT DEFAULT (datetime('now')),
+    response_due    TEXT,
+    resolution_due  TEXT,
+    escalation_due  TEXT,
+    responded_at    TEXT,
+    resolved_at     TEXT,
+    escalated_at    TEXT,
+    status          TEXT DEFAULT 'active',
+    breached        INTEGER DEFAULT 0,
+    breach_type     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_sla_instances_status ON sla_instances(status, breached);
+
+-- ── Communication Templates ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS comm_templates (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    category        TEXT DEFAULT 'general',
+    module          TEXT,
+    subject_template TEXT,
+    body_template   TEXT NOT NULL,
+    variables_json  TEXT,
+    version         INTEGER DEFAULT 1,
+    is_active       INTEGER DEFAULT 1,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_comm_templates_category ON comm_templates(category, module);
+
+-- ── User Preferences ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL REFERENCES users(id),
+    pref_key        TEXT NOT NULL,
+    pref_value      TEXT,
+    updated_at      TEXT DEFAULT (datetime('now')),
+    UNIQUE(user_id, pref_key)
+);
+
+-- ── Reporting Engine ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS report_definitions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    report_type     TEXT NOT NULL DEFAULT 'compliance_summary',
+    modules         TEXT,
+    parameters_json TEXT,
+    schedule        TEXT,
+    is_active       INTEGER DEFAULT 1,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS report_runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    definition_id   INTEGER NOT NULL REFERENCES report_definitions(id),
+    status          TEXT DEFAULT 'pending',
+    started_at      TEXT DEFAULT (datetime('now')),
+    completed_at    TEXT,
+    result_json     TEXT,
+    file_path       TEXT,
+    error           TEXT,
+    triggered_by    TEXT DEFAULT 'manual'
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_runs_def ON report_runs(definition_id, started_at DESC);
+
+-- ── Webhooks ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS webhooks (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    url             TEXT NOT NULL,
+    secret          TEXT,
+    events          TEXT NOT NULL,
+    is_active       INTEGER DEFAULT 1,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS webhook_logs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    webhook_id      INTEGER NOT NULL REFERENCES webhooks(id),
+    event           TEXT NOT NULL,
+    payload_json    TEXT,
+    response_code   INTEGER,
+    response_body   TEXT,
+    success         INTEGER DEFAULT 0,
+    attempted_at    TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_logs_wh ON webhook_logs(webhook_id, attempted_at DESC);
+
+-- ── Compliance Calendar ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    event_type      TEXT NOT NULL,
+    module          TEXT,
+    entity_type     TEXT,
+    entity_id       INTEGER,
+    start_date      TEXT NOT NULL,
+    end_date        TEXT,
+    all_day         INTEGER DEFAULT 1,
+    recurrence      TEXT,
+    assigned_to     INTEGER REFERENCES users(id),
+    status          TEXT DEFAULT 'scheduled',
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_dates ON calendar_events(start_date, end_date);
+
+-- ── Analytics Snapshots ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS analytics_snapshots (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_date   TEXT NOT NULL,
+    metric_name     TEXT NOT NULL,
+    metric_value    REAL NOT NULL,
+    module          TEXT,
+    metadata_json   TEXT,
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_analytics_unique ON analytics_snapshots(snapshot_date, metric_name, module);
+
+-- ── Cross-Module Task Board ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS task_board (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    module          TEXT,
+    entity_type     TEXT,
+    entity_id       INTEGER,
+    assigned_to     INTEGER REFERENCES users(id),
+    priority        TEXT DEFAULT 'medium',
+    status          TEXT DEFAULT 'todo',
+    due_date        TEXT,
+    tags            TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_board_assigned ON task_board(assigned_to, status);
+CREATE INDEX IF NOT EXISTS idx_task_board_due ON task_board(due_date, status);
+
+-- ── Email Reminders ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS email_reminders (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    module          TEXT NOT NULL,
+    entity_type     TEXT,
+    entity_id       INTEGER,
+    title           TEXT NOT NULL,
+    message         TEXT,
+    recipient_id    INTEGER REFERENCES users(id),
+    recipient_email TEXT NOT NULL,
+    remind_at       TEXT NOT NULL,
+    repeat_interval TEXT DEFAULT 'none',
+    is_sent         INTEGER DEFAULT 0,
+    sent_at         TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_reminders_pending ON email_reminders(remind_at, is_sent);
+
+-- ── Unified Frameworks ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS frameworks (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT UNIQUE NOT NULL,
+    description     TEXT,
+    color           TEXT DEFAULT '#1E3A5F',
+    type            TEXT DEFAULT 'Security',
+    relevant_modules TEXT DEFAULT '',
+    is_active       INTEGER DEFAULT 1,
+    total_controls  INTEGER DEFAULT 0,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_frameworks_active ON frameworks(is_active);
+
+-- ── Unified Controls ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS controls (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_id    INTEGER NOT NULL REFERENCES frameworks(id) ON DELETE CASCADE,
+    ref             TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    category        TEXT,
+    doc_type        TEXT DEFAULT 'Policy',
+    status          TEXT DEFAULT 'Not Started',
+    priority        TEXT DEFAULT 'High',
+    owner           TEXT DEFAULT '',
+    evidence_ref    TEXT DEFAULT '',
+    document_title  TEXT DEFAULT '',
+    version         TEXT DEFAULT '1.0',
+    target_date     TEXT,
+    review_date     TEXT,
+    last_updated    TEXT DEFAULT (datetime('now')),
+    notes           TEXT DEFAULT '',
+    UNIQUE(framework_id, ref)
+);
+CREATE INDEX IF NOT EXISTS idx_controls_framework ON controls(framework_id);
+CREATE INDEX IF NOT EXISTS idx_controls_status ON controls(status);
+
+-- ── Cross-module links ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cross_module_links (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_module   TEXT NOT NULL,
+    source_type     TEXT NOT NULL,
+    source_id       INTEGER NOT NULL,
+    target_module   TEXT NOT NULL,
+    target_type     TEXT NOT NULL,
+    target_id       INTEGER NOT NULL,
+    relationship    TEXT DEFAULT 'related',
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_xlinks_source ON cross_module_links(source_module, source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_xlinks_target ON cross_module_links(target_module, target_type, target_id);
+"""
+
 _ARIA_TABLES = """
 -- ── ARIA: Frameworks ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS aria_frameworks (
@@ -2598,12 +2971,13 @@ def _to_pg_schema(sql: str) -> str:
     return sql
 
 
-_SHARED_TABLES_PG   = _to_pg_schema(_SHARED_TABLES)
-_ARIA_TABLES_PG     = _to_pg_schema(_ARIA_TABLES)
-_GRID_TABLES_PG     = _to_pg_schema(_GRID_TABLES)
-_BCM_TABLES_PG      = _to_pg_schema(_BCM_TABLES)
-_SENTINEL_TABLES_PG = _to_pg_schema(_SENTINEL_TABLES)
-_ERM_ORM_TABLES_PG  = _to_pg_schema(_ERM_ORM_TABLES)
+_SHARED_TABLES_PG    = _to_pg_schema(_SHARED_TABLES)
+_PLATFORM_TABLES_PG  = _to_pg_schema(_PLATFORM_TABLES)
+_ARIA_TABLES_PG      = _to_pg_schema(_ARIA_TABLES)
+_GRID_TABLES_PG      = _to_pg_schema(_GRID_TABLES)
+_BCM_TABLES_PG       = _to_pg_schema(_BCM_TABLES)
+_SENTINEL_TABLES_PG  = _to_pg_schema(_SENTINEL_TABLES)
+_ERM_ORM_TABLES_PG   = _to_pg_schema(_ERM_ORM_TABLES)
 
 
 _COLUMN_MIGRATIONS = [
@@ -2614,6 +2988,8 @@ _COLUMN_MIGRATIONS = [
         ("users", "must_change_password", "INTEGER DEFAULT 0"),
         ("users", "org_id", "INTEGER REFERENCES organizations(id)"),
         ("users", "is_super_admin", "INTEGER DEFAULT 0"),
+        ("api_keys", "org_id", "INTEGER REFERENCES organizations(id)"),
+        ("audit_log", "org_id", "INTEGER REFERENCES organizations(id)"),
         ("sessions", "mfa_pending", "INTEGER DEFAULT 0"),
         ("controls", "document_title", "TEXT DEFAULT ''"),
         ("controls", "version", "TEXT DEFAULT '1.0'"),
@@ -3558,7 +3934,8 @@ def provision_tenant_schema(slug: str) -> None:
         conn.commit()
         # Switch into the new schema.
         pg_conn.cursor().execute(f"SET search_path TO {schema_name}, public")
-        # Create module tables inside the tenant schema.
+        # Create platform + module tables inside the tenant schema.
+        conn.executescript(_PLATFORM_TABLES_PG)
         conn.executescript(_ARIA_TABLES_PG)
         conn.executescript(_GRID_TABLES_PG)
         conn.executescript(_BCM_TABLES_PG)

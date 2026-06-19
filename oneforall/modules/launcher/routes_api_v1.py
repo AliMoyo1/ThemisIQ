@@ -12,7 +12,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
-from database import get_db
+from database import get_db, set_current_tenant
 
 log = logging.getLogger(__name__)
 
@@ -41,8 +41,9 @@ async def _require_read_key(x_api_key: str = Header(None, alias="X-API-Key")):
     db = get_db()
     try:
         row = db.execute(
-            "SELECT id, scopes, expires_at FROM api_keys"
-            " WHERE key_hash=%s AND is_active=1",
+            "SELECT ak.id, ak.scopes, ak.expires_at, ak.org_id, o.slug AS org_slug"
+            " FROM api_keys ak LEFT JOIN organizations o ON o.id = ak.org_id"
+            " WHERE ak.key_hash=%s AND ak.is_active=1",
             (key_hash,),
         ).fetchone()
         if not row:
@@ -59,6 +60,9 @@ async def _require_read_key(x_api_key: str = Header(None, alias="X-API-Key")):
             db.commit()
         except Exception as exc:
             log.warning("[api-v1] last_used_at update failed: %s", exc)
+        # Set tenant context so subsequent get_db() calls use the right schema.
+        slug = row["org_slug"] or "public"
+        set_current_tenant(slug)
         return dict(row)
     finally:
         db.close()
