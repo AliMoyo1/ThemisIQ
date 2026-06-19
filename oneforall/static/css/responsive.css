@@ -38,6 +38,8 @@
   .topbar { padding: 0 12px; }
   .topbar-right { gap: 4px; }
   .topbar-right .topbar-icon-btn { width: 36px; height: 36px; }
+  /* Hide the desktop sidebar-collapse toggle so only the mobile-nav-toggle shows */
+  .sidebar-toggle { display: none !important; }
 
   /* Icon sidebar also folds into a drawer toggled by a hamburger */
   .icon-sidebar {
@@ -46,7 +48,12 @@
     box-shadow: 8px 0 24px rgba(0,0,0,.18);
   }
   .icon-sidebar.open { transform: translateX(0); }
-  .module-sidebar { left: 0; }  /* sits behind the icon drawer when open */
+  /* Module sidebar sits to the right of the icon drawer so labels are visible.
+     Constrain its width so it doesn't run off-screen. */
+  .module-sidebar {
+    left: var(--icon-sidebar-w);
+    width: min(220px, calc(100vw - var(--icon-sidebar-w) - 24px));
+  }
   .main-content { margin-left: 0 !important; padding: 14px 12px; }
 
   /* Drawer backdrop helper — shells should add/remove .drawer-open on body */
