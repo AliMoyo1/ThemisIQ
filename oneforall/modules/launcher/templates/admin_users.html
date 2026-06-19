@@ -535,35 +535,87 @@
    ════════════════════════════════════════════════════════════════════════════ #}
 <div class="modal-overlay" id="newUserModal"
      onclick="if(event.target.id==='newUserModal') this.classList.remove('show')">
-  <div class="modal" style="max-width:500px; width:90vw;">
-    <div class="modal-title" style="margin-bottom:4px;">👤 New User</div>
-    <p style="font-size:13px; color:var(--muted); margin:0 0 18px;">
-      Creates an account with the <strong>Employee</strong> role and a one-time
-      temporary password. Grant additional roles after creation.
-    </p>
+  <div class="modal" style="max-width:480px; width:94vw;">
+    <div class="modal-header">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:38px; height:38px; border-radius:10px; flex-shrink:0;
+                    background:rgba(var(--accent-rgb),0.12);
+                    display:flex; align-items:center; justify-content:center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+            <line x1="12" y1="3" x2="12" y2="1"/>
+            <line x1="19" y1="10" x2="21" y2="10"/>
+          </svg>
+        </div>
+        <div>
+          <div class="modal-title">New User</div>
+          <div style="font-size:12px; color:var(--muted); margin-top:1px;">
+            Creates an account with the <strong>Employee</strong> role
+          </div>
+        </div>
+      </div>
+      <button type="button" class="modal-close"
+              onclick="document.getElementById('newUserModal').classList.remove('show')"
+              title="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
     <form method="post" action="/admin/users/create">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="form-group">
-        <label class="form-label">Full Name</label>
-        <input type="text" name="full_name" required placeholder="e.g. Tatenda Chikomba">
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
-        <div class="form-group">
-          <label class="form-label">Username</label>
-          <input type="text" name="username" required pattern="[A-Za-z0-9_.-]{3,32}"
-                 placeholder="tatenda.c" autocomplete="off">
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:4px;">
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" type="text" name="full_name" required
+                 placeholder="e.g. Tatenda Chikomba">
         </div>
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" name="email" required placeholder="user@example.com">
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Username</label>
+            <input class="form-input" type="text" name="username" required
+                   pattern="[A-Za-z0-9_.-]{3,32}" placeholder="tatenda.c" autocomplete="off">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Email</label>
+            <input class="form-input" type="email" name="email" required
+                   placeholder="user@example.com">
+          </div>
+        </div>
+
+        <div style="padding:11px 14px; border-radius:var(--radius);
+                    background:rgba(var(--accent-rgb),0.06);
+                    border:1px solid rgba(var(--accent-rgb),0.15);
+                    font-size:12px; color:var(--muted); display:flex; gap:8px; align-items:flex-start;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)"
+               stroke-width="2" style="flex-shrink:0; margin-top:1px;">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          A temporary password will be generated and shown once after creation.
+          The user must change it at first login.
         </div>
       </div>
-      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
+
+      <div class="modal-footer">
         <button type="button" class="btn btn-ghost"
                 onclick="document.getElementById('newUserModal').classList.remove('show')">
           Cancel
         </button>
-        <button type="submit" class="btn btn-primary">Create User</button>
+        <button type="submit" class="btn btn-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" style="margin-right:5px;">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          Create User
+        </button>
       </div>
     </form>
   </div>
