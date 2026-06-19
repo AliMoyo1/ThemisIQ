@@ -604,6 +604,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
           <div style="font-size:11px;color:var(--muted)">{{ user.email }}</div>
         </div>
         <a href="/change-password">Change Password</a>
+        <a href="/mfa/setup">Two-Factor Authentication</a>
         {% if is_super_admin %}<a href="/super-admin/" style="color:var(--accent)">Super Admin</a>{% endif %}
         {% if is_admin %}<a href="/admin/users">User Management</a>{% endif %}
         {% if is_admin %}<a href="/admin/frameworks">Framework Activation</a>{% endif %}

@@ -96,12 +96,23 @@ async def login_submit(request: Request,
     # Successful login — clear rate limit history for this IP
     clear_login_attempts(client_ip)
 
-    token = create_session(user["id"], ip=client_ip,
-                           user_agent=request.headers.get("user-agent", ""))
-    log_audit(user, "platform", "login", ip=client_ip)
+    from core import mfa as mfa_helper
+    needs_mfa = mfa_helper.is_enabled(user["id"])
 
-    # Redirect to change-password if forced, else to dashboard
-    target = "/change-password" if user.get("must_change_password") else "/"
+    token = create_session(
+        user["id"], ip=client_ip,
+        user_agent=request.headers.get("user-agent", ""),
+        mfa_pending=needs_mfa,
+    )
+    log_audit(user, "platform", "login_pending_mfa" if needs_mfa else "login",
+              ip=client_ip)
+
+    if needs_mfa:
+        target = "/mfa/verify"
+    elif user.get("must_change_password"):
+        target = "/change-password"
+    else:
+        target = "/"
     response = RedirectResponse(target, status_code=303)
     response.set_cookie(
         settings.SESSION_COOKIE_NAME, token,
@@ -241,3 +252,118 @@ async def api_auth_me(request: Request):
         "email": u.get("email", ""),
         "avatar_initials": u.get("avatar_initials", ""),
     })
+
+
+# ── Two-Factor Authentication ───────────────────────────────────────────────
+
+from core import mfa as mfa_helper
+from core.auth import promote_mfa_session
+
+
+@router.get("/mfa/verify", response_class=HTMLResponse)
+async def mfa_verify_page(request: Request):
+    user = await get_current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    if not user.get("mfa_pending"):
+        return RedirectResponse("/", status_code=303)
+    csrf = generate_csrf_token()
+    resp = templates.TemplateResponse(request, "mfa_verify.html", {
+        "csrf_token": csrf,
+    })
+    resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
+                    path="/", max_age=3600)
+    return resp
+
+
+@router.post("/mfa/verify", response_class=HTMLResponse)
+async def mfa_verify_submit(request: Request,
+                             code: str = Form(...),
+                             csrf_token: str = Form("")):
+    user = await get_current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    if not user.get("mfa_pending"):
+        return RedirectResponse("/", status_code=303)
+
+    if not validate_csrf(request, csrf_token):
+        csrf = generate_csrf_token()
+        resp = templates.TemplateResponse(request, "mfa_verify.html", {
+            "csrf_token": csrf,
+            "error": "Invalid request. Please try again.",
+        })
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
+                        path="/", max_age=3600)
+        return resp
+
+    if not mfa_helper.verify_code(user["id"], code):
+        csrf = generate_csrf_token()
+        resp = templates.TemplateResponse(request, "mfa_verify.html", {
+            "csrf_token": csrf,
+            "error": "That code didn't match. Try again or use a backup code.",
+        })
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
+                        path="/", max_age=3600)
+        return resp
+
+    token = request.cookies.get(settings.SESSION_COOKIE_NAME, "")
+    promote_mfa_session(token)
+    log_audit(user, "platform", "mfa_verified", "user", user["id"])
+    target = "/change-password" if user.get("must_change_password") else "/"
+    return RedirectResponse(target, status_code=303)
+
+
+@router.get("/mfa/setup", response_class=HTMLResponse)
+@require_auth
+async def mfa_setup_page(request: Request):
+    user = request.state.user
+    secret, codes = mfa_helper.start_enrollment(user["id"])
+    qr = mfa_helper.qr_png_data_uri(user["username"], secret)
+    csrf = generate_csrf_token()
+    ctx = shell_ctx(request, active_module="platform", active_section="security")
+    ctx.update({
+        "secret": secret,
+        "qr": qr,
+        "backup_codes": codes,
+        "csrf_token": csrf,
+    })
+    resp = shell_templates.TemplateResponse(request, "mfa_setup.html", ctx)
+    resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
+                    path="/", max_age=3600)
+    return resp
+
+
+@router.post("/mfa/enable", response_class=HTMLResponse)
+@require_auth
+async def mfa_enable_submit(request: Request,
+                             code: str = Form(...),
+                             csrf_token: str = Form("")):
+    user = request.state.user
+    if not validate_csrf(request, csrf_token):
+        return RedirectResponse("/mfa/setup", status_code=303)
+    if mfa_helper.confirm_enrollment(user["id"], code):
+        log_audit(user, "platform", "mfa_enabled", "user", user["id"])
+        return RedirectResponse("/mfa/setup?ok=1", status_code=303)
+    return RedirectResponse("/mfa/setup?bad=1", status_code=303)
+
+
+@router.post("/mfa/disable", response_class=HTMLResponse)
+@require_auth
+async def mfa_disable_submit(request: Request,
+                              password: str = Form(...),
+                              csrf_token: str = Form("")):
+    user = request.state.user
+    if not validate_csrf(request, csrf_token):
+        return RedirectResponse("/mfa/setup", status_code=303)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT password_hash FROM users WHERE id=%s", (int(user["id"]),)
+        ).fetchone()
+    finally:
+        db.close()
+    if not row or not verify_password(password, row["password_hash"]):
+        return RedirectResponse("/mfa/setup?badpw=1", status_code=303)
+    mfa_helper.disable(user["id"])
+    log_audit(user, "platform", "mfa_disabled", "user", user["id"])
+    return RedirectResponse("/mfa/setup?off=1", status_code=303)

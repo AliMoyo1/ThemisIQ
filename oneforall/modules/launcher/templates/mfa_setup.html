@@ -1,0 +1,90 @@
+{% extends "base_shell.html" %}
+{% block title %}Two-Factor Setup — ThemisIQ{% endblock %}
+{% block content %}
+<style>
+.mfa-wrap{max-width:680px;margin:24px auto;padding:0 16px}
+.mfa-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:18px}
+.mfa-card h2{font-size:15px;font-weight:700;color:var(--text);margin:0 0 14px;display:flex;align-items:center;gap:8px}
+.mfa-card h2 .step{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:800}
+.mfa-card p{color:var(--muted);font-size:13px;margin-bottom:12px;line-height:1.55}
+.mfa-row{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap}
+.qr-box{background:#fff;padding:12px;border-radius:12px;border:1px solid var(--border)}
+.qr-box img{width:200px;height:200px;display:block}
+.secret{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:monospace;font-size:13px;letter-spacing:1px;color:var(--text);user-select:all;word-break:break-all}
+.code-form{margin-top:18px;display:flex;gap:8px}
+.code-form input{flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:18px;letter-spacing:4px;font-family:monospace;text-align:center;background:var(--surface2);color:var(--text)}
+.code-form button{padding:10px 22px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer}
+.code-form button:hover{opacity:.9}
+.backup-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-family:monospace;font-size:14px;background:var(--surface2);padding:14px 18px;border-radius:10px;margin-top:10px}
+.notice-ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.notice-bad{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
+.disable-form{display:flex;gap:8px;margin-top:14px;align-items:center}
+.disable-form input{flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text)}
+.disable-form button{padding:10px 18px;background:rgba(220,38,38,.1);color:#dc2626;border:1px solid rgba(220,38,38,.3);border-radius:8px;font-weight:700;font-size:13px;cursor:pointer}
+.print-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:8px}
+@media print{.no-print{display:none}}
+</style>
+
+<div class="mfa-wrap">
+
+  {% if request.query_params.get('ok') %}
+    <div class="notice-ok">Two-factor authentication is now active on your account.</div>
+  {% endif %}
+  {% if request.query_params.get('off') %}
+    <div class="notice-ok">Two-factor authentication has been disabled.</div>
+  {% endif %}
+  {% if request.query_params.get('bad') %}
+    <div class="notice-bad">That code didn't verify. Generate a fresh code from your app and try again.</div>
+  {% endif %}
+  {% if request.query_params.get('badpw') %}
+    <div class="notice-bad">Password didn't match. MFA is still enabled.</div>
+  {% endif %}
+
+  <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0 0 6px">Two-Factor Authentication</h1>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:22px">Add a second step at sign-in using an authenticator app (Google Authenticator, 1Password, Authy, etc.).</p>
+
+  <div class="mfa-card">
+    <h2><span class="step">1</span> Scan this QR code</h2>
+    <p>Open your authenticator app and scan the code. If you can't scan, enter the secret manually instead.</p>
+    <div class="mfa-row">
+      <div class="qr-box"><img src="{{ qr }}" alt="TOTP QR code"></div>
+      <div style="flex:1;min-width:240px">
+        <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Secret</div>
+        <div class="secret">{{ secret }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">Issuer: <strong>ThemisIQ</strong> &nbsp;|&nbsp; Account: <strong>{{ user.username }}</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mfa-card">
+    <h2><span class="step">2</span> Save your backup codes</h2>
+    <p>Each code works once. Store them somewhere safe. They are the only way back in if you lose your authenticator device.</p>
+    <div class="backup-grid">
+      {% for c in backup_codes %}<div>{{ c }}</div>{% endfor %}
+    </div>
+    <button class="print-btn no-print" onclick="window.print()">Print these codes</button>
+  </div>
+
+  <div class="mfa-card">
+    <h2><span class="step">3</span> Confirm with a code from your app</h2>
+    <p>Enter the current 6-digit code to finish enrolling.</p>
+    <form method="post" action="/mfa/enable" class="code-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="text" name="code" placeholder="000000" inputmode="numeric" maxlength="6"
+             autocomplete="one-time-code">
+      <button type="submit">Enable 2FA</button>
+    </form>
+  </div>
+
+  <div class="mfa-card" style="border-color:rgba(220,38,38,.2)">
+    <h2 style="color:#dc2626">Disable 2FA</h2>
+    <p>Re-enter your current password to turn 2FA off. Your backup codes will be revoked.</p>
+    <form method="post" action="/mfa/disable" class="disable-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="password" name="password" placeholder="Current password" autocomplete="current-password">
+      <button type="submit" onclick="return confirm('Turn off two-factor authentication?')">Disable</button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

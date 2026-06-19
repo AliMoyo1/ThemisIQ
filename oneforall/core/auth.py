@@ -39,26 +39,62 @@ def _hash_token(token: str) -> str:
 
 # ── Session management ───────────────────────────────────────────────────────
 
-def create_session(user_id: int, ip: str = "", user_agent: str = "") -> str:
-    """Create a session and return the raw token (only the hash is stored)."""
+def create_session(user_id: int, ip: str = "", user_agent: str = "",
+                    mfa_pending: bool = False) -> str:
+    """Create a session and return the raw token (only the hash is stored).
+
+    When mfa_pending=True the session can only reach /mfa/verify and /logout;
+    require_auth/require_capability redirect it elsewhere.
+    """
     token = secrets.token_urlsafe(48)
     token_hash = _hash_token(token)
-    expires = (utcnow() + timedelta(seconds=settings.SESSION_MAX_AGE)).isoformat()
+    # MFA-pending sessions have a 10-minute TTL so they can't linger after a
+    # half-finished login. Promoted sessions get the full TTL on confirmation.
+    ttl = 600 if mfa_pending else settings.SESSION_MAX_AGE
+    expires = (utcnow() + timedelta(seconds=ttl)).isoformat()
     db = get_db()
     try:
         db.execute(
-            "INSERT INTO sessions (token, user_id, ip_address, user_agent, expires_at) "
-            "VALUES (%s, %s, %s, %s, %s)",
-            (token_hash, user_id, ip, user_agent[:500] if user_agent else "", expires),
+            "INSERT INTO sessions (token, user_id, ip_address, user_agent, "
+            "expires_at, mfa_pending) VALUES (%s, %s, %s, %s, %s, %s)",
+            (token_hash, user_id, ip, user_agent[:500] if user_agent else "",
+             expires, 1 if mfa_pending else 0),
         )
-        db.execute(
-            "UPDATE users SET last_login = %s WHERE id = %s",
-            (utcnow().isoformat(), user_id),
-        )
+        if not mfa_pending:
+            db.execute(
+                "UPDATE users SET last_login = %s WHERE id = %s",
+                (utcnow().isoformat(), user_id),
+            )
         db.commit()
     finally:
         db.close()
     return token
+
+
+def promote_mfa_session(token: str) -> bool:
+    """Mark an mfa_pending session as fully authenticated and extend its TTL."""
+    token_hash = _hash_token(token)
+    expires = (utcnow() + timedelta(seconds=settings.SESSION_MAX_AGE)).isoformat()
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, user_id FROM sessions WHERE token = %s",
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            return False
+        db.execute(
+            "UPDATE sessions SET mfa_pending = 0, expires_at = %s WHERE id = %s",
+            (expires, row["id"]),
+        )
+        db.execute(
+            "UPDATE users SET last_login = %s WHERE id = %s",
+            (utcnow().isoformat(), row["user_id"]),
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
 
 
 def get_session_user(token: str) -> Optional[dict]:
@@ -69,7 +105,9 @@ def get_session_user(token: str) -> Optional[dict]:
     db = get_db()
     try:
         row = db.execute(
-            "SELECT s.user_id, s.expires_at FROM sessions s WHERE s.token = %s",
+            "SELECT s.user_id, s.expires_at, "
+            "COALESCE(s.mfa_pending, 0) AS mfa_pending "
+            "FROM sessions s WHERE s.token = %s",
             (token_hash,),
         ).fetchone()
         if not row:
@@ -132,6 +170,7 @@ def get_session_user(token: str) -> Optional[dict]:
             "org_name": org_name,
             "is_super_admin": bool(user["is_super_admin"]),
             "licensed_modules": licensed_modules,
+            "mfa_pending": bool(row.get("mfa_pending")),
         }
     finally:
         db.close()

@@ -483,6 +483,19 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
 CREATE INDEX IF NOT EXISTS idx_sessions_user  ON sessions(user_id);
 
+-- ── Two-Factor Authentication (TOTP) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_mfa (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    totp_secret   TEXT NOT NULL,
+    backup_codes  TEXT NOT NULL DEFAULT '[]',
+    is_enabled    INTEGER DEFAULT 0,
+    enrolled_at   TEXT,
+    last_used_at  TEXT,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_user_mfa_user ON user_mfa(user_id);
+
 -- ── Platform Audit Log ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2593,6 +2606,7 @@ _COLUMN_MIGRATIONS = [
         ("users", "must_change_password", "INTEGER DEFAULT 0"),
         ("users", "org_id", "INTEGER REFERENCES organizations(id)"),
         ("users", "is_super_admin", "INTEGER DEFAULT 0"),
+        ("sessions", "mfa_pending", "INTEGER DEFAULT 0"),
         ("controls", "document_title", "TEXT DEFAULT ''"),
         ("controls", "version", "TEXT DEFAULT '1.0'"),
         ("sla_instances", "escalation_due", "TEXT"),

@@ -26,6 +26,7 @@ from database import get_db
 # ── Paths exempt from forced password change ────────────────────────────────
 _PW_CHANGE_EXEMPT = {"/change-password", "/logout", "/api/auth/me",
                      "/static", "/favicon.ico"}
+_MFA_PENDING_EXEMPT = {"/mfa/verify", "/logout", "/static", "/favicon.ico"}
 
 
 # ── Auth dependency ──────────────────────────────────────────────────────────
@@ -40,14 +41,17 @@ async def get_current_user(request: Request) -> Optional[dict]:
 
 def require_auth(func):
     """Decorator: redirect to login if not authenticated.
-    Also enforces must_change_password redirect."""
+    Also enforces must_change_password and mfa_pending redirects."""
     @wraps(func)
     async def wrapper(request: Request, *args, **kwargs):
         user = await get_current_user(request)
         if not user:
             return RedirectResponse("/login", status_code=303)
-        # Enforce password change before any other page
         path = request.url.path
+        if user.get("mfa_pending") and not any(
+            path.startswith(p) for p in _MFA_PENDING_EXEMPT
+        ):
+            return RedirectResponse("/mfa/verify", status_code=303)
         if user.get("must_change_password") and not any(
             path.startswith(p) for p in _PW_CHANGE_EXEMPT
         ):
@@ -65,8 +69,11 @@ def require_capability(*capabilities: str):
             user = await get_current_user(request)
             if not user:
                 return RedirectResponse("/login", status_code=303)
-            # Enforce password change
             path = request.url.path
+            if user.get("mfa_pending") and not any(
+                path.startswith(p) for p in _MFA_PENDING_EXEMPT
+            ):
+                return RedirectResponse("/mfa/verify", status_code=303)
             if user.get("must_change_password") and not any(
                 path.startswith(p) for p in _PW_CHANGE_EXEMPT
             ):
