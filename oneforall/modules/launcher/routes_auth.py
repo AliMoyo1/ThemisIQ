@@ -194,6 +194,12 @@ async def change_password_submit(request: Request,
     csrf = generate_csrf_token()
     ctx["csrf_token"] = csrf
 
+    if not forced and not check_rate_limit(f"pw:{user['id']}"):
+        ctx["error"] = "Too many failed attempts. Please wait 5 minutes."
+        resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
+        return resp
+
     if new_password != confirm_password:
         ctx["error"] = "The two new password fields don't match."
         resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
@@ -215,6 +221,7 @@ async def change_password_submit(request: Request,
         ).fetchone()
         if not forced:
             if not current_password or not verify_password(current_password, row["password_hash"]):
+                record_failed_login(f"pw:{user['id']}")
                 ctx["error"] = "Current password is incorrect."
                 resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
                 resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
@@ -232,6 +239,7 @@ async def change_password_submit(request: Request,
             (hash_password(new_password), int(user["id"])),
         )
         db.commit()
+        clear_login_attempts(f"pw:{user['id']}")
         log_audit(user, "platform", "Changed own password",
                   "user", user["id"])
     finally:
@@ -288,6 +296,17 @@ async def mfa_verify_submit(request: Request,
     if not user.get("mfa_pending"):
         return RedirectResponse("/", status_code=303)
 
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(f"mfa:{client_ip}"):
+        csrf = generate_csrf_token()
+        resp = templates.TemplateResponse(request, "mfa_verify.html", {
+            "csrf_token": csrf,
+            "error": "Too many failed attempts. Please wait 5 minutes.",
+        })
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
+                        path="/", max_age=3600, secure=_SECURE)
+        return resp
+
     if not validate_csrf(request, csrf_token):
         csrf = generate_csrf_token()
         resp = templates.TemplateResponse(request, "mfa_verify.html", {
@@ -299,6 +318,7 @@ async def mfa_verify_submit(request: Request,
         return resp
 
     if not mfa_helper.verify_code(user["id"], code):
+        record_failed_login(f"mfa:{client_ip}")
         csrf = generate_csrf_token()
         resp = templates.TemplateResponse(request, "mfa_verify.html", {
             "csrf_token": csrf,
@@ -308,6 +328,7 @@ async def mfa_verify_submit(request: Request,
                         path="/", max_age=3600, secure=_SECURE)
         return resp
 
+    clear_login_attempts(f"mfa:{client_ip}")
     token = request.cookies.get(settings.SESSION_COOKIE_NAME, "")
     promote_mfa_session(token)
     log_audit(user, "platform", "mfa_verified", "user", user["id"])

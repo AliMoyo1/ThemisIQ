@@ -4,6 +4,7 @@ One For All - seed script.
 Creates the default admin user and framework data for ARIA.
 Run automatically on first startup if no users exist.
 """
+import secrets
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -40,52 +41,55 @@ def seed_users(db):
     if count > 0:
         return
 
+    admin_pw = secrets.token_urlsafe(16)
+    cm_pw    = secrets.token_urlsafe(16)
+    dpo_pw   = secrets.token_urlsafe(16)
+    bcm_pw   = secrets.token_urlsafe(16)
+
     # Super Admin
-    pw = hash_password("Admin@123!")
     admin_id = insert_returning_id(
         db,
-        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials) "
-        "VALUES (%s, %s, %s, %s, %s)",
-        ("admin", "admin@oneforall.local", "System Administrator", pw, "SA"),
+        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials, must_change_password) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
+        ("admin", "admin@oneforall.local", "System Administrator", hash_password(admin_pw), "SA", 1),
     )
-    db.execute(
-        "INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
-        (admin_id, SUPER_ADMIN),
-    )
+    db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (admin_id, SUPER_ADMIN))
 
     # Compliance Manager
-    pw2 = hash_password("Comply@123!")
     cm_id = insert_returning_id(
         db,
-        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials) "
-        "VALUES (%s, %s, %s, %s, %s)",
-        ("compliance", "compliance@oneforall.local", "Compliance Manager", pw2, "CM"),
+        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials, must_change_password) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
+        ("compliance", "compliance@oneforall.local", "Compliance Manager", hash_password(cm_pw), "CM", 1),
     )
     for role in [COMPLIANCE_MGR, AUDIT_LEAD]:
         db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (cm_id, role))
 
     # DPO
-    pw3 = hash_password("Privacy@123!")
     dpo_id = insert_returning_id(
         db,
-        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials) "
-        "VALUES (%s, %s, %s, %s, %s)",
-        ("dpo", "dpo@oneforall.local", "Data Protection Officer", pw3, "DP"),
+        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials, must_change_password) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
+        ("dpo", "dpo@oneforall.local", "Data Protection Officer", hash_password(dpo_pw), "DP", 1),
     )
     db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (dpo_id, DPO))
 
     # BCM Manager
-    pw4 = hash_password("Bcm@123!")
     bcm_id = insert_returning_id(
         db,
-        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials) "
-        "VALUES (%s, %s, %s, %s, %s)",
-        ("bcm", "bcm@oneforall.local", "BCM Manager", pw4, "BM"),
+        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials, must_change_password) "
+        "VALUES (%s, %s, %s, %s, %s, %s)",
+        ("bcm", "bcm@oneforall.local", "BCM Manager", hash_password(bcm_pw), "BM", 1),
     )
     db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (bcm_id, BCM_MANAGER))
 
     db.commit()
     print("  Seeded 4 default users")
+    print("  SAVE THESE INITIAL PASSWORDS (users must change on first login):")
+    print(f"    admin:      {admin_pw}")
+    print(f"    compliance: {cm_pw}")
+    print(f"    dpo:        {dpo_pw}")
+    print(f"    bcm:        {bcm_pw}")
 
 
 def seed_frameworks(db):
