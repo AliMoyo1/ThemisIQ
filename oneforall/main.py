@@ -310,6 +310,7 @@ async def demo_request(request: Request):
 # -- Routers ------------------------------------------------------------------
 from modules.launcher.routes import router as launcher_router
 from modules.launcher.routes_super_admin import router as super_admin_router
+from modules.launcher.routes_api_v1 import router as api_v1_router
 from modules.aria.routes import router as aria_router
 from modules.grid.routes import router as grid_router
 from modules.bcm.routes import router as bcm_router
@@ -319,6 +320,7 @@ from modules.erm.routes import router as erm_router
 from modules.orm.routes import router as orm_router
 
 app.include_router(super_admin_router)
+app.include_router(api_v1_router)
 app.include_router(launcher_router)
 app.include_router(aria_router)
 app.include_router(grid_router)
