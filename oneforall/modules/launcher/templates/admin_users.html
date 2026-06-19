@@ -141,6 +141,45 @@
                border:1px solid rgba(165,80,60,0.35); border-radius:var(--radius); }
 .flash-ok    { padding:22px 24px; margin-bottom:20px; background:var(--good-soft);
                border:1px solid rgba(94,122,58,0.35); border-radius:var(--radius); }
+
+/* ── Organization section (super-admin grouped view) ─────────────────────── */
+.org-section { background:var(--surface); border:1px solid var(--border);
+               border-radius:var(--radius); overflow:hidden; margin-bottom:16px; }
+.org-section.collapsed .org-body { display:none; }
+.org-section.collapsed .org-chevron { transform:rotate(-90deg); }
+.org-head { display:flex; align-items:center; gap:14px; padding:14px 18px;
+            background:linear-gradient(180deg, var(--surface2) 0%, var(--surface) 100%);
+            border-bottom:1px solid var(--border); cursor:pointer;
+            user-select:none; transition:background 0.14s; }
+.org-head:hover { background:var(--surface2); }
+.org-section.collapsed .org-head { border-bottom:none; }
+.org-chevron { width:16px; height:16px; color:var(--muted); flex-shrink:0;
+               transition:transform 0.18s; }
+.org-icon { width:34px; height:34px; border-radius:9px; flex-shrink:0;
+            background:rgba(var(--accent-rgb),0.1); color:var(--accent);
+            display:flex; align-items:center; justify-content:center;
+            font-weight:800; font-size:13px; letter-spacing:0.5px; }
+.org-meta { flex:1; min-width:0; }
+.org-name { font-size:14px; font-weight:700; color:var(--text);
+            letter-spacing:-0.01em; line-height:1.3; }
+.org-sub  { font-size:11.5px; color:var(--muted); margin-top:1px;
+            font-family:var(--mono); }
+.org-stats { display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+             font-size:11px; }
+.org-pill { display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
+            border-radius:999px; font-weight:700; font-size:10.5px;
+            text-transform:uppercase; letter-spacing:0.3px; white-space:nowrap; }
+.org-pill.users  { background:rgba(var(--accent-rgb),0.1); color:var(--accent); }
+.org-pill.active { background:var(--good-soft); color:var(--good); }
+.org-pill.inact  { background:var(--surface2); color:var(--muted);
+                   border:1px solid var(--border); }
+.org-pill.pwrst  { background:var(--warn-soft); color:var(--amber); }
+.org-pill.plan   { background:rgba(122,90,138,0.12); color:var(--purple); }
+.org-body { padding:0; }
+.org-empty { padding:36px; text-align:center; color:var(--muted); font-size:13px; }
+
+/* Section in-view hidden by filter */
+.org-section.s-hidden { display:none; }
 </style>
 {% endblock %}
 
@@ -240,7 +279,18 @@
 {% endif %}
 
 {# ── Stats strip ───────────────────────────────────────────────────────────── #}
-<div class="au-stats">
+<div class="au-stats"{% if is_super %} style="grid-template-columns:repeat(5,1fr);"{% endif %}>
+  {% if is_super %}
+  <div class="au-stat">
+    <div class="au-stat-label">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/>
+      </svg>
+      Organizations
+    </div>
+    <div class="au-stat-val" style="color:var(--accent);">{{ stat_orgs }}</div>
+  </div>
+  {% endif %}
   <div class="au-stat">
     <div class="au-stat-label">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -293,153 +343,230 @@
     <option value="{{ rk }}">{{ role_labels.get(rk, rk) }}</option>
     {% endfor %}
   </select>
+  {% if is_super and orgs_grouped|length > 1 %}
+  <select id="orgFilter" class="au-role-sel" onchange="filterUsers()" style="min-width:160px;">
+    <option value="">All Organizations</option>
+    {% for og in orgs_grouped %}
+    <option value="{{ og.org_id or 0 }}">{{ og.org_name }}</option>
+    {% endfor %}
+  </select>
+  <button class="f-chip" type="button" onclick="toggleAllOrgs()"
+          id="collapseToggleBtn" title="Collapse / expand all organizations">
+    Collapse All
+  </button>
+  {% endif %}
 </div>
 
-{# ── Users table ────────────────────────────────────────────────────────────── #}
+{# ── User row macro: reused by both grouped and flat layouts ─────────────── #}
+{% macro user_row(u) %}
+{% set is_self = (u.id|string == user.id|string) %}
+<tr data-user-id="{{ u.id }}"
+    data-org-id="{{ u.org_id or 0 }}"
+    data-searchtext="{{ ((u.full_name or '') ~ ' ' ~ u.username ~ ' ' ~ (u.email or ''))|lower }}"
+    data-status="{{ 'active' if u.is_active else 'inactive' }}"
+    data-roles="{{ u.role_keys|join(' ') }}">
+
+  {# ── User cell ── #}
+  <td>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div id="avatar-{{ u.id }}" class="ua-circle">
+        {{ u.avatar_initials or ((u.full_name or u.username or '?')[0]|upper) }}
+      </div>
+      <div style="min-width:0;">
+        <div style="font-weight:600; color:var(--text); font-size:13.5px;
+                    display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+          <span id="fullname-{{ u.id }}">{{ u.full_name or u.username }}</span>
+          {% if is_self %}<span class="b-you">you</span>{% endif %}
+          {% if u.must_change_password %}<span class="b-pwrst" title="Must change password at next login">pw reset</span>{% endif %}
+        </div>
+        <div style="font-size:11.5px; color:var(--muted); font-family:var(--mono); margin-top:2px;">
+          @{{ u.username }}
+          <span style="margin:0 4px; color:var(--dim);">·</span>
+          <span id="email-{{ u.id }}">{{ u.email or '—' }}</span>
+        </div>
+      </div>
+    </div>
+  </td>
+
+  {# ── Roles cell ── #}
+  <td>
+    <div style="display:flex; flex-wrap:wrap; gap:5px; max-width:320px;">
+      {% for rk in u.role_keys %}
+        {% set tone = role_chip_tone.get(rk, 'neutral') %}
+        <form method="post" action="/admin/users/{{ u.id }}/roles/revoke"
+              style="display:inline-block;"
+              onsubmit="return confirm('Revoke the {{ role_labels.get(rk, rk)|e }} role from {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="role_key" value="{{ rk }}">
+          <button type="submit" class="role-chip" title="Click to revoke"
+                  style="background:{{ tone_bg[tone] }};
+                         color:{{ tone_fg[tone] }};
+                         border:1px solid {{ tone_bd[tone] }};">
+            {{ role_labels.get(rk, rk) }}
+            <span style="margin-left:5px; opacity:0.5; font-weight:700;">×</span>
+          </button>
+        </form>
+      {% else %}
+        <span style="font-size:11.5px; color:var(--muted); font-style:italic;">no roles</span>
+      {% endfor %}
+      {# ── Add-role picker ── #}
+      {% set ns = namespace(has_missing=false) %}
+      {% for rk in all_roles %}{% if rk not in u.role_keys %}{% set ns.has_missing = true %}{% endif %}{% endfor %}
+      {% if ns.has_missing %}
+      <form method="post" action="/admin/users/{{ u.id }}/roles/grant"
+            style="display:inline-flex;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <select name="role_key" onchange="this.form.submit()"
+                class="role-add-select" aria-label="Grant role">
+          <option value="" disabled selected>+ grant…</option>
+          {% for rk in all_roles %}{% if rk not in u.role_keys %}
+            <option value="{{ rk }}">{{ role_labels.get(rk, rk) }}</option>
+          {% endif %}{% endfor %}
+        </select>
+      </form>
+      {% endif %}
+    </div>
+  </td>
+
+  {# ── Status cell ── #}
+  <td style="text-align:center;">
+    {% if u.is_active %}
+      <span class="b-active">Active</span>
+    {% else %}
+      <span class="b-inactive">Inactive</span>
+    {% endif %}
+  </td>
+
+  {# ── Last Login cell ── #}
+  <td style="font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap;">
+    {{ (u.last_login or '—')[:16] }}
+  </td>
+
+  {# ── Actions cell ── #}
+  <td style="text-align:right; white-space:nowrap;">
+    {# Edit profile button #}
+    <button type="button" class="au-edit-btn" title="Edit name / email"
+            data-uid="{{ u.id }}"
+            data-name="{{ u.full_name or '' }}"
+            data-email="{{ u.email or '' }}"
+            data-username="{{ u.username }}"
+            data-created="{{ u.created_at or '' }}"
+            onclick="openEditDrawerBtn(this)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+    </button>
+    {# Reset password #}
+    <form method="post" action="/admin/users/{{ u.id }}/reset-password"
+          style="display:inline-block; margin-left:4px;"
+          onsubmit="return confirm('Reset password for {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nA new temporary password will be shown once.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px;">
+        Reset PW
+      </button>
+    </form>
+    {# Deactivate / Reactivate #}
+    {% if u.is_active %}
+      {% if not is_self %}
+      <form method="post" action="/admin/users/{{ u.id }}/deactivate"
+            style="display:inline-block;"
+            onsubmit="return confirm('Deactivate {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nThey will no longer be able to log in.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);">
+          Deactivate
+        </button>
+      </form>
+      {% endif %}
+    {% else %}
+      <form method="post" action="/admin/users/{{ u.id }}/activate"
+            style="display:inline-block;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--good);">
+          Reactivate
+        </button>
+      </form>
+    {% endif %}
+  </td>
+</tr>
+{% endmacro %}
+
+{# ── Table head shared by both layouts ───────────────────────────────────── #}
+{% macro users_thead() %}
+<thead>
+  <tr>
+    <th>User</th>
+    <th style="min-width:180px;">Roles</th>
+    <th style="text-align:center; width:100px;">Status</th>
+    <th style="white-space:nowrap; width:130px;">Last Login</th>
+    <th style="text-align:right; width:240px;">Actions</th>
+  </tr>
+</thead>
+{% endmacro %}
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   SUPER ADMIN VIEW: Users grouped by organization
+   ═══════════════════════════════════════════════════════════════════════════ #}
+{% if is_super and orgs_grouped %}
+<div id="orgSectionsHost">
+{% for og in orgs_grouped %}
+<div class="org-section" data-org-id="{{ og.org_id or 0 }}" data-org-key="{{ og.org_slug or '' }}">
+  <div class="org-head" onclick="this.parentElement.classList.toggle('collapsed')">
+    <svg class="org-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+    <div class="org-icon">{{ (og.org_name or '?')[0]|upper }}</div>
+    <div class="org-meta">
+      <div class="org-name">{{ og.org_name }}</div>
+      <div class="org-sub">
+        {% if og.org_slug %}tenant_{{ og.org_slug }}{% else %}no schema{% endif %}
+      </div>
+    </div>
+    <div class="org-stats">
+      <span class="org-pill users">{{ og.users|length }} {% if og.users|length == 1 %}user{% else %}users{% endif %}</span>
+      {% if og.active_count %}<span class="org-pill active">{{ og.active_count }} active</span>{% endif %}
+      {% if og.inactive_count %}<span class="org-pill inact">{{ og.inactive_count }} inactive</span>{% endif %}
+      {% if og.pw_pending_count %}<span class="org-pill pwrst">{{ og.pw_pending_count }} pw reset</span>{% endif %}
+      {% if og.org_plan %}<span class="org-pill plan">{{ og.org_plan }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="org-body">
+    <div class="au-table-wrap">
+      <table class="au-table">
+        {{ users_thead() }}
+        <tbody>
+          {% for u in og.users %}
+            {{ user_row(u) }}
+          {% else %}
+            <tr><td colspan="5" class="org-empty">No users in this organization.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endfor %}
+</div>
+
+{# Empty state for filtered results #}
+<div id="filterEmptyHost" style="display:none; padding:48px; text-align:center;
+     color:var(--muted); background:var(--surface); border:1px solid var(--border);
+     border-radius:var(--radius); margin-bottom:20px;">
+  No users match the current filters.
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   ORG-ADMIN VIEW: Single flat table
+   ═══════════════════════════════════════════════════════════════════════════ #}
+{% else %}
 <div style="background:var(--surface); border:1px solid var(--border);
             border-radius:var(--radius); overflow:hidden; margin-bottom:20px;">
   <div class="au-table-wrap">
     <table class="au-table" id="usersTable">
-      <thead>
-        <tr>
-          <th>User</th>
-          <th style="min-width:180px;">Roles</th>
-          <th style="text-align:center; width:100px;">Status</th>
-          <th style="white-space:nowrap; width:130px;">Last Login</th>
-          <th style="text-align:right; width:240px;">Actions</th>
-        </tr>
-      </thead>
+      {{ users_thead() }}
       <tbody>
         {% for u in users %}
-        {% set is_self = (u.id|string == user.id|string) %}
-        <tr data-user-id="{{ u.id }}"
-            data-searchtext="{{ ((u.full_name or '') ~ ' ' ~ u.username ~ ' ' ~ (u.email or ''))|lower }}"
-            data-status="{{ 'active' if u.is_active else 'inactive' }}"
-            data-roles="{{ u.role_keys|join(' ') }}">
-
-          {# ── User cell ── #}
-          <td>
-            <div style="display:flex; align-items:center; gap:10px;">
-              <div id="avatar-{{ u.id }}" class="ua-circle">
-                {{ u.avatar_initials or ((u.full_name or u.username or '?')[0]|upper) }}
-              </div>
-              <div style="min-width:0;">
-                <div style="font-weight:600; color:var(--text); font-size:13.5px;
-                            display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
-                  <span id="fullname-{{ u.id }}">{{ u.full_name or u.username }}</span>
-                  {% if is_self %}<span class="b-you">you</span>{% endif %}
-                  {% if u.must_change_password %}<span class="b-pwrst" title="Must change password at next login">pw reset</span>{% endif %}
-                </div>
-                <div style="font-size:11.5px; color:var(--muted); font-family:var(--mono); margin-top:2px;">
-                  @{{ u.username }}
-                  <span style="margin:0 4px; color:var(--dim);">·</span>
-                  <span id="email-{{ u.id }}">{{ u.email or '—' }}</span>
-                </div>
-              </div>
-            </div>
-          </td>
-
-          {# ── Roles cell ── #}
-          <td>
-            <div style="display:flex; flex-wrap:wrap; gap:5px; max-width:320px;">
-              {% for rk in u.role_keys %}
-                {% set tone = role_chip_tone.get(rk, 'neutral') %}
-                <form method="post" action="/admin/users/{{ u.id }}/roles/revoke"
-                      style="display:inline-block;"
-                      onsubmit="return confirm('Revoke the {{ role_labels.get(rk, rk)|e }} role from {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?');">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                  <input type="hidden" name="role_key" value="{{ rk }}">
-                  <button type="submit" class="role-chip" title="Click to revoke"
-                          style="background:{{ tone_bg[tone] }};
-                                 color:{{ tone_fg[tone] }};
-                                 border:1px solid {{ tone_bd[tone] }};">
-                    {{ role_labels.get(rk, rk) }}
-                    <span style="margin-left:5px; opacity:0.5; font-weight:700;">×</span>
-                  </button>
-                </form>
-              {% else %}
-                <span style="font-size:11.5px; color:var(--muted); font-style:italic;">no roles</span>
-              {% endfor %}
-              {# ── Add-role picker ── #}
-              {% set ns = namespace(has_missing=false) %}
-              {% for rk in all_roles %}{% if rk not in u.role_keys %}{% set ns.has_missing = true %}{% endif %}{% endfor %}
-              {% if ns.has_missing %}
-              <form method="post" action="/admin/users/{{ u.id }}/roles/grant"
-                    style="display:inline-flex;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <select name="role_key" onchange="this.form.submit()"
-                        class="role-add-select" aria-label="Grant role">
-                  <option value="" disabled selected>+ grant…</option>
-                  {% for rk in all_roles %}{% if rk not in u.role_keys %}
-                    <option value="{{ rk }}">{{ role_labels.get(rk, rk) }}</option>
-                  {% endif %}{% endfor %}
-                </select>
-              </form>
-              {% endif %}
-            </div>
-          </td>
-
-          {# ── Status cell ── #}
-          <td style="text-align:center;">
-            {% if u.is_active %}
-              <span class="b-active">Active</span>
-            {% else %}
-              <span class="b-inactive">Inactive</span>
-            {% endif %}
-          </td>
-
-          {# ── Last Login cell ── #}
-          <td style="font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap;">
-            {{ (u.last_login or '—')[:16] }}
-          </td>
-
-          {# ── Actions cell ── #}
-          <td style="text-align:right; white-space:nowrap;">
-            {# Edit profile button #}
-            <button type="button" class="au-edit-btn" title="Edit name / email"
-                    data-uid="{{ u.id }}"
-                    data-name="{{ u.full_name or '' }}"
-                    data-email="{{ u.email or '' }}"
-                    data-username="{{ u.username }}"
-                    data-created="{{ u.created_at or '' }}"
-                    onclick="openEditDrawerBtn(this)">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
-            {# Reset password #}
-            <form method="post" action="/admin/users/{{ u.id }}/reset-password"
-                  style="display:inline-block; margin-left:4px;"
-                  onsubmit="return confirm('Reset password for {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nA new temporary password will be shown once.');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px;">
-                Reset PW
-              </button>
-            </form>
-            {# Deactivate / Reactivate #}
-            {% if u.is_active %}
-              {% if not is_self %}
-              <form method="post" action="/admin/users/{{ u.id }}/deactivate"
-                    style="display:inline-block;"
-                    onsubmit="return confirm('Deactivate {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nThey will no longer be able to log in.');">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);">
-                  Deactivate
-                </button>
-              </form>
-              {% endif %}
-            {% else %}
-              <form method="post" action="/admin/users/{{ u.id }}/activate"
-                    style="display:inline-block;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--good);">
-                  Reactivate
-                </button>
-              </form>
-            {% endif %}
-          </td>
-        </tr>
+          {{ user_row(u) }}
         {% else %}
         <tr><td colspan="5" style="text-align:center; padding:48px; color:var(--muted);">
           No users yet. Create the first user with the button above.
@@ -449,6 +576,7 @@
     </table>
   </div>
 </div>
+{% endif %}
 
 {# ── Role legend ────────────────────────────────────────────────────────────── #}
 <div style="background:var(--surface); border:1px solid var(--border);
@@ -495,13 +623,13 @@
     <div id="drawerError" class="ed-error"></div>
     <div class="form-group">
       <label class="form-label">Full Name</label>
-      <input type="text" id="drawerFullName" class="form-control"
+      <input type="text" id="drawerFullName" class="form-input"
              placeholder="e.g. Tatenda Chikomba" maxlength="120" autocomplete="off"
              style="width:100%; box-sizing:border-box;">
     </div>
     <div class="form-group" style="margin-top:14px;">
       <label class="form-label">Email Address</label>
-      <input type="email" id="drawerEmail" class="form-control"
+      <input type="email" id="drawerEmail" class="form-input"
              placeholder="user@example.com" maxlength="254" autocomplete="off"
              style="width:100%; box-sizing:border-box;">
     </div>
@@ -510,7 +638,7 @@
         Username
         <span style="font-size:11px; font-weight:400; color:var(--muted);">(read-only)</span>
       </label>
-      <input type="text" id="drawerUsername" class="form-control ed-ro"
+      <input type="text" id="drawerUsername" class="form-input ed-ro"
              readonly style="width:100%; box-sizing:border-box;">
     </div>
     <div class="form-group" style="margin-top:14px;">
@@ -518,7 +646,7 @@
         Account Created
         <span style="font-size:11px; font-weight:400; color:var(--muted);">(read-only)</span>
       </label>
-      <input type="text" id="drawerCreated" class="form-control ed-ro"
+      <input type="text" id="drawerCreated" class="form-input ed-ro"
              readonly style="width:100%; box-sizing:border-box;">
     </div>
   </div>
@@ -568,6 +696,19 @@
     <form method="post" action="/admin/users/create">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="modal-body" style="display:flex; flex-direction:column; gap:4px;">
+
+        {% if is_super and all_orgs %}
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Organization</label>
+          <select class="form-input" name="target_org_id" required>
+            {% for og in all_orgs %}
+              <option value="{{ og.id }}"{% if og.id == user.org_id %} selected{% endif %}>
+                {{ og.name }}{% if og.slug %} (tenant_{{ og.slug }}){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
 
         <div class="form-group" style="margin-bottom:0;">
           <label class="form-label">Full Name</label>
@@ -758,6 +899,8 @@ function setStatusFilter(val) {
 function filterUsers() {
   var q      = (document.getElementById('userSearch').value || '').toLowerCase().trim();
   var role   = (document.getElementById('roleFilter').value || '').trim();
+  var orgSel = document.getElementById('orgFilter');
+  var orgVal = orgSel ? (orgSel.value || '').trim() : '';
   var rows   = document.querySelectorAll('tr[data-user-id]');
   var visible = 0;
 
@@ -765,31 +908,65 @@ function filterUsers() {
     var text   = (row.dataset.searchtext || '').toLowerCase();
     var status = row.dataset.status || 'active';
     var roles  = (row.dataset.roles  || '');
+    var orgId  = (row.dataset.orgId  || '0');
 
-    var ok = (!q    || text.includes(q))
+    var ok = (!q     || text.includes(q))
           && (_statusFilter === 'all' || status === _statusFilter)
-          && (!role || roles.split(' ').indexOf(role) !== -1);
+          && (!role   || roles.split(' ').indexOf(role) !== -1)
+          && (!orgVal || orgId === orgVal);
 
     row.classList.toggle('u-hidden', !ok);
     if (ok) visible++;
   });
 
-  // Empty state
-  var empty = document.getElementById('filterEmptyRow');
-  if (visible === 0 && rows.length > 0) {
-    if (!empty) {
-      empty = document.createElement('tr');
-      empty.id = 'filterEmptyRow';
-      empty.innerHTML = '<td colspan="5" style="text-align:center;padding:40px;color:var(--muted);">'
-                      + 'No users match the current filters.'
-                      + '</td>';
-      var tbody = document.querySelector('#usersTable tbody');
-      if (tbody) tbody.appendChild(empty);
+  // Hide org sections whose visible row count is 0
+  var sections = document.querySelectorAll('.org-section');
+  sections.forEach(function(sec) {
+    var anyVisible = sec.querySelectorAll('tr[data-user-id]:not(.u-hidden)').length > 0;
+    sec.classList.toggle('s-hidden', !anyVisible);
+    // Auto-expand sections that have matches when filtering, so users find results
+    if (anyVisible && (q || role || orgVal || _statusFilter !== 'all')) {
+      sec.classList.remove('collapsed');
     }
-    empty.style.display = '';
-  } else if (empty) {
-    empty.style.display = 'none';
+  });
+
+  // Flat-table empty state
+  var flatEmpty = document.getElementById('filterEmptyRow');
+  var flatTbody = document.querySelector('#usersTable tbody');
+  if (flatTbody) {
+    if (visible === 0 && rows.length > 0) {
+      if (!flatEmpty) {
+        flatEmpty = document.createElement('tr');
+        flatEmpty.id = 'filterEmptyRow';
+        flatEmpty.innerHTML = '<td colspan="5" style="text-align:center;padding:40px;color:var(--muted);">'
+                        + 'No users match the current filters.'
+                        + '</td>';
+        flatTbody.appendChild(flatEmpty);
+      }
+      flatEmpty.style.display = '';
+    } else if (flatEmpty) {
+      flatEmpty.style.display = 'none';
+    }
   }
+
+  // Grouped-view empty state
+  var groupedEmpty = document.getElementById('filterEmptyHost');
+  if (groupedEmpty) {
+    groupedEmpty.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
+  }
+}
+
+// ── Collapse / expand all org sections ──────────────────────────────────────
+function toggleAllOrgs() {
+  var sections = document.querySelectorAll('.org-section');
+  var anyOpen = false;
+  sections.forEach(function(s) { if (!s.classList.contains('collapsed')) anyOpen = true; });
+  sections.forEach(function(s) {
+    if (anyOpen) s.classList.add('collapsed');
+    else         s.classList.remove('collapsed');
+  });
+  var btn = document.getElementById('collapseToggleBtn');
+  if (btn) btn.textContent = anyOpen ? 'Expand All' : 'Collapse All';
 }
 
 // ── Copy temporary password ─────────────────────────────────────────────────

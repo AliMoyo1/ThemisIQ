@@ -73,6 +73,7 @@ async def admin_create_user(request: Request,
                              username: str = Form(...),
                              email: str = Form(...),
                              full_name: str = Form(...),
+                             target_org_id: str = Form(""),
                              csrf_token: str = Form("")):
     admin = request.state.user
     if not validate_csrf(request, csrf_token):
@@ -85,8 +86,28 @@ async def admin_create_user(request: Request,
         return _render_admin_users(request, admin,
             {"type": "error", "message": "Username, email, and full name are all required."})
 
+    # Determine target org. Super admins may target any active org; other admins
+    # can only create users in their own org.
+    target_oid = admin.get("org_id")
+    if admin.get("is_super_admin") and target_org_id:
+        try:
+            target_oid = int(target_org_id)
+        except (TypeError, ValueError):
+            return _render_admin_users(request, admin,
+                {"type": "error", "message": "Invalid organization selection."})
+
     db = get_db()
     try:
+        # Validate target org exists and is active (super admins only path).
+        if admin.get("is_super_admin"):
+            org_row = db.execute(
+                "SELECT id FROM organizations WHERE id=%s AND status='active'",
+                (target_oid,),
+            ).fetchone()
+            if not org_row:
+                return _render_admin_users(request, admin,
+                    {"type": "error", "message": "Target organization not found or inactive."})
+
         dup = db.execute(
             "SELECT id FROM users WHERE username=%s OR email=%s",
             (username, email),
@@ -103,7 +124,7 @@ async def admin_create_user(request: Request,
              must_change_password, avatar_initials, org_id)
             VALUES (%s, %s, %s, %s, 1, 1, %s, %s)
         """, (username, email, full_name, hash_password(temp_pw), initials,
-              admin.get("org_id")))
+              target_oid))
         db.execute(
             "INSERT INTO user_roles (user_id, role_key, granted_by) "
             "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",

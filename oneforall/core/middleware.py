@@ -7,6 +7,8 @@ One For All — security middleware.
 - Rate limiting (login endpoint)
 - Audit logging helper
 """
+import hashlib
+import hmac
 import time
 import secrets
 from datetime import datetime
@@ -111,12 +113,40 @@ def generate_csrf_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def session_csrf_token(request: Request) -> str:
+    """Derive a CSRF token from the session cookie via HMAC.
+
+    The token is bound to the user's session, so an attacker without the
+    session cookie cannot forge a valid token. This avoids breakage when
+    a separate CSRF cookie is stripped by a proxy or lost in a redirect
+    chain.
+    """
+    session_tok = request.cookies.get(settings.SESSION_COOKIE_NAME, "")
+    if not session_tok:
+        return ""
+    return hmac.new(
+        settings.SECRET_KEY.encode(),
+        f"csrf:{session_tok}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
 def validate_csrf(request: Request, form_token: str) -> bool:
-    """Validate CSRF token from form against session."""
-    session_token = request.cookies.get("csrf_token")
-    if not session_token or not form_token:
+    """Validate a CSRF token from a form against the session.
+
+    Accepts either a session-derived HMAC token (preferred) or the legacy
+    double-submit cookie token. The HMAC path is robust against cookies
+    being stripped by a proxy.
+    """
+    if not form_token:
         return False
-    return secrets.compare_digest(session_token, form_token)
+    expected_hmac = session_csrf_token(request)
+    if expected_hmac and secrets.compare_digest(expected_hmac, form_token):
+        return True
+    cookie_tok = request.cookies.get("csrf_token", "")
+    if cookie_tok and secrets.compare_digest(cookie_tok, form_token):
+        return True
+    return False
 
 
 # ── Rate Limiting ────────────────────────────────────────────────────────────
