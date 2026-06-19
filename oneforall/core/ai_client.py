@@ -186,7 +186,11 @@ def _gemini(messages, system, max_tokens, model):
     key = _key("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY not configured")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    headers = {
+        "x-goog-api-key": key,
+        "Content-Type": "application/json",
+    }
     parts_text = ""
     if system:
         parts_text += system + "\n\n"
@@ -197,7 +201,7 @@ def _gemini(messages, system, max_tokens, model):
         "generationConfig": {"maxOutputTokens": max_tokens},
     }
     with httpx.Client(timeout=120) as client:
-        r = client.post(url, json=body)
+        r = client.post(url, headers=headers, json=body)
         r.raise_for_status()
         return r.json()["candidates"][0]["content"]["parts"][0]["text"]
 

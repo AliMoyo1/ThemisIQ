@@ -1,7 +1,10 @@
 """
 Admin routes — user management, audit logs, API keys, webhooks.
 """
-from fastapi import APIRouter, Request, Form
+import ipaddress
+from urllib.parse import urlparse
+
+from fastapi import APIRouter, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from database import insert_returning_id
@@ -15,6 +18,29 @@ from modules.launcher._route_helpers import (
 )
 
 router = APIRouter()
+
+_SSRF_BLOCKED_PREFIXES = ("127.", "0.", "169.254.", "10.", "192.168.", "172.")
+
+
+def _validate_webhook_url(url: str) -> None:
+    """Raise HTTP 400 if the URL is not HTTPS or resolves to a private/loopback address."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="Webhook URL must use HTTPS")
+    host = parsed.hostname or ""
+    if not host:
+        raise HTTPException(status_code=400, detail="Invalid webhook URL")
+    if host in ("localhost", "::1", "0.0.0.0"):
+        raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
+    for prefix in _SSRF_BLOCKED_PREFIXES:
+        if host.startswith(prefix):
+            raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
+    except ValueError:
+        pass  # domain name, not an IP literal
 
 
 # ── Admin User Management ───────────────────────────────────────────────────
@@ -578,6 +604,7 @@ async def api_webhooks_list(request: Request):
 async def api_webhook_create(request: Request):
     """Create a webhook."""
     data = await request.json()
+    _validate_webhook_url(data.get("url", ""))
     webhook_secret = secrets.token_urlsafe(24)
 
     db = get_db()
@@ -610,6 +637,7 @@ async def api_webhook_update(request: Request, wid: int):
         if "name" in data:
             fields.append("name = %s"); params.append(data["name"])
         if "url" in data:
+            _validate_webhook_url(data["url"])
             fields.append("url = %s"); params.append(data["url"])
         if "events" in data:
             fields.append("events = %s"); params.append(",".join(data["events"]))

@@ -2,6 +2,7 @@
 Launcher sub-router: Workflows, SLA engine, Communication templates.
 Process automation routes.
 """
+import html
 import json as json_lib
 from datetime import timedelta
 
@@ -928,8 +929,8 @@ async def api_comm_template_render(request: Request, tid: int):
     variables = data.get("variables", {})
     subject = tmpl["subject_template"] or ""
     body = tmpl["body_template"] or ""
-    # Simple placeholder replacement: {{var_name}}
     for key, val in variables.items():
-        subject = subject.replace("{{" + key + "}}", str(val))
-        body = body.replace("{{" + key + "}}", str(val))
+        escaped = html.escape(str(val))
+        subject = subject.replace("{{" + key + "}}", escaped)
+        body = body.replace("{{" + key + "}}", escaped)
     return _JSONResp({"subject": subject, "body": body})

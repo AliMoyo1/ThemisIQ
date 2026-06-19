@@ -15,6 +15,8 @@ from modules.launcher._route_helpers import (
 
 router = APIRouter()
 
+_SECURE = not settings.DEBUG  # Require HTTPS cookies in production
+
 
 # ── Password complexity ─────────────────────────────────────────────────────
 
@@ -49,7 +51,7 @@ async def login_page(request: Request):
         "error": None,
         "csrf_token": csrf,
     })
-    response.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+    response.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     return response
@@ -67,7 +69,7 @@ async def login_submit(request: Request,
             "error": "Invalid request. Please try again.",
             "csrf_token": csrf,
         })
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         return resp
 
     # Rate limit
@@ -78,7 +80,7 @@ async def login_submit(request: Request,
             "error": "Too many login attempts. Please wait 5 minutes.",
             "csrf_token": csrf,
         })
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         return resp
 
     user = authenticate_user(username.strip(), password)
@@ -90,7 +92,7 @@ async def login_submit(request: Request,
             "error": "Invalid username or password.",
             "csrf_token": csrf,
         })
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         return resp
 
     # Successful login — clear rate limit history for this IP
@@ -116,8 +118,8 @@ async def login_submit(request: Request,
     response = RedirectResponse(target, status_code=303)
     response.set_cookie(
         settings.SESSION_COOKIE_NAME, token,
-        httponly=True, samesite="strict",
-        max_age=settings.SESSION_MAX_AGE,
+        httponly=True, samesite="strict", path="/",
+        secure=_SECURE, max_age=settings.SESSION_MAX_AGE,
     )
     return response
 
@@ -163,7 +165,7 @@ async def change_password_page(request: Request):
     ctx["forced"] = _must_change_pw(user["id"])
     ctx["csrf_token"] = csrf
     response = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-    response.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+    response.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
     return response
 
 
@@ -185,7 +187,7 @@ async def change_password_submit(request: Request,
         ctx["csrf_token"] = csrf
         ctx["error"] = "Invalid request. Please try again."
         resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         return resp
 
     # Generate new CSRF for re-render
@@ -195,7 +197,7 @@ async def change_password_submit(request: Request,
     if new_password != confirm_password:
         ctx["error"] = "The two new password fields don't match."
         resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         return resp
 
     # Password complexity check
@@ -203,7 +205,7 @@ async def change_password_submit(request: Request,
     if pw_error:
         ctx["error"] = pw_error
         resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         return resp
 
     db = get_db()
@@ -215,14 +217,14 @@ async def change_password_submit(request: Request,
             if not current_password or not verify_password(current_password, row["password_hash"]):
                 ctx["error"] = "Current password is incorrect."
                 resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-                resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+                resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
                 return resp
 
         # Prevent reusing the same password
         if verify_password(new_password, row["password_hash"]):
             ctx["error"] = "New password must be different from your current password."
             resp = shell_templates.TemplateResponse(request, "change_password.html", ctx)
-            resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600)
+            resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
             return resp
 
         db.execute(
@@ -272,7 +274,7 @@ async def mfa_verify_page(request: Request):
         "csrf_token": csrf,
     })
     resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
-                    path="/", max_age=3600)
+                    path="/", max_age=3600, secure=_SECURE)
     return resp
 
 
@@ -293,7 +295,7 @@ async def mfa_verify_submit(request: Request,
             "error": "Invalid request. Please try again.",
         })
         resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
-                        path="/", max_age=3600)
+                        path="/", max_age=3600, secure=_SECURE)
         return resp
 
     if not mfa_helper.verify_code(user["id"], code):
@@ -303,7 +305,7 @@ async def mfa_verify_submit(request: Request,
             "error": "That code didn't match. Try again or use a backup code.",
         })
         resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
-                        path="/", max_age=3600)
+                        path="/", max_age=3600, secure=_SECURE)
         return resp
 
     token = request.cookies.get(settings.SESSION_COOKIE_NAME, "")
@@ -331,7 +333,7 @@ async def mfa_setup_page(request: Request):
         ctx["backup_codes"] = codes
     resp = shell_templates.TemplateResponse(request, "mfa_setup.html", ctx)
     resp.set_cookie("csrf_token", csrf, httponly=True, samesite="lax",
-                    path="/", max_age=3600)
+                    path="/", max_age=3600, secure=_SECURE)
     return resp
 
 
