@@ -913,6 +913,14 @@ CREATE TABLE IF NOT EXISTS cross_module_links (
 );
 CREATE INDEX IF NOT EXISTS idx_xlinks_source ON cross_module_links(source_module, source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_xlinks_target ON cross_module_links(target_module, target_type, target_id);
+
+-- ── Rate Limit Attempts ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS rate_limit_attempts (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    key          TEXT NOT NULL,
+    attempted_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_rl_key_time ON rate_limit_attempts(key, attempted_at);
 """
 
 _ARIA_TABLES = """

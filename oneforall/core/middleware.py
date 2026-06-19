@@ -119,7 +119,10 @@ def validate_csrf(request: Request, form_token: str) -> bool:
     return secrets.compare_digest(session_token, form_token)
 
 
-# ── Rate Limiting (in-memory, per-IP) ────────────────────────────────────────
+# ── Rate Limiting ────────────────────────────────────────────────────────────
+
+import logging as _log_rl
+_rl_log = _log_rl.getLogger(__name__)
 
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 _MAX_LOGIN_ATTEMPTS = 5
@@ -127,33 +130,78 @@ _WINDOW_SECONDS = 300  # 5 minutes
 _LAST_CLEANUP = 0.0
 
 
-def check_rate_limit(ip: str) -> bool:
+def _use_db_rate_limit() -> bool:
+    return settings.is_postgres()
+
+
+def check_rate_limit(key: str) -> bool:
     """Return True if the request is allowed, False if rate-limited."""
     global _LAST_CLEANUP
-    now = time.time()
-    # Periodically clean up stale IPs (every 10 min)
-    if now - _LAST_CLEANUP > 600:
-        stale = [k for k, v in _login_attempts.items()
-                 if not v or now - v[-1] > _WINDOW_SECONDS]
-        for k in stale:
-            del _login_attempts[k]
-        _LAST_CLEANUP = now
-    attempts = _login_attempts[ip]
-    # Remove old attempts
-    _login_attempts[ip] = [t for t in attempts if now - t < _WINDOW_SECONDS]
-    if len(_login_attempts[ip]) >= _MAX_LOGIN_ATTEMPTS:
-        return False
-    return True
+    if not _use_db_rate_limit():
+        now = time.time()
+        if now - _LAST_CLEANUP > 600:
+            stale = [k for k, v in _login_attempts.items()
+                     if not v or now - v[-1] > _WINDOW_SECONDS]
+            for k in stale:
+                del _login_attempts[k]
+            _LAST_CLEANUP = now
+        _login_attempts[key] = [t for t in _login_attempts[key] if now - t < _WINDOW_SECONDS]
+        return len(_login_attempts[key]) < _MAX_LOGIN_ATTEMPTS
+    try:
+        db = get_db()
+        try:
+            row = db.execute(
+                "SELECT COUNT(*) FROM rate_limit_attempts"
+                " WHERE key=%s AND attempted_at > NOW() - INTERVAL %s",
+                (key, f"{_WINDOW_SECONDS} seconds"),
+            ).fetchone()
+            count = row[0] if row else 0
+            db.execute(
+                "DELETE FROM rate_limit_attempts"
+                " WHERE attempted_at < NOW() - INTERVAL %s",
+                (f"{_WINDOW_SECONDS * 2} seconds",),
+            )
+            db.commit()
+            return count < _MAX_LOGIN_ATTEMPTS
+        finally:
+            db.close()
+    except Exception:
+        _rl_log.warning("[rate-limit] DB check failed, failing open")
+        return True
 
 
-def record_failed_login(ip: str):
-    """Record a FAILED login attempt for rate-limiting purposes."""
-    _login_attempts[ip].append(time.time())
+def record_failed_login(key: str):
+    """Record a failed login attempt for rate-limiting purposes."""
+    if not _use_db_rate_limit():
+        _login_attempts[key].append(time.time())
+        return
+    try:
+        db = get_db()
+        try:
+            db.execute("INSERT INTO rate_limit_attempts (key) VALUES (%s)", (key,))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        _rl_log.warning("[rate-limit] DB record failed: %s", exc)
+        _login_attempts[key].append(time.time())
 
 
-def clear_login_attempts(ip: str):
+def clear_login_attempts(key: str):
     """Clear rate limit history on successful login."""
-    _login_attempts.pop(ip, None)
+    if not _use_db_rate_limit():
+        _login_attempts.pop(key, None)
+        return
+    try:
+        db = get_db()
+        try:
+            db.execute("DELETE FROM rate_limit_attempts WHERE key=%s", (key,))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        _rl_log.warning("[rate-limit] DB clear failed: %s", exc)
+        _login_attempts.pop(key, None)
 
 
 # ── CSRF Origin Check ────────────────────────────────────────────────────────
