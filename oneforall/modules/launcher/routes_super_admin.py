@@ -321,9 +321,34 @@ async def delete_org_user(request: Request, org_id: int, user_id: int):
         ).fetchone()
         if not user:
             return JSONResponse({"error": "User not found in this organisation."}, status_code=404)
-        db.execute("DELETE FROM user_roles WHERE user_id=%s", (user_id,))
-        db.execute("DELETE FROM sessions WHERE user_id=%s", (user_id,))
-        db.execute("DELETE FROM users WHERE id=%s AND org_id=%s", (user_id, org_id))
+
+        uid = user_id
+
+        # NULL out nullable created_by columns so historical records are preserved.
+        for tbl in (
+            "events", "risk_register", "workflow_definitions", "comm_templates",
+            "report_definitions", "api_keys", "webhooks", "calendar_events",
+            "task_board", "email_reminders", "cross_module_links",
+            "aria_doc_templates", "aria_control_mappings",
+            "grid_share_links", "grid_remote_sessions",
+            "sentinel_lia", "erm_enterprise_risks",
+            "erm_regulatory_obligations", "erm_assessments", "orm_rcsa_assessments",
+        ):
+            try:
+                db.execute(f"UPDATE {tbl} SET created_by=NULL WHERE created_by=%s", (uid,))
+            except Exception:
+                pass
+
+        # Delete records that are owned by (not just created by) the user.
+        for tbl in ("notifications", "user_preferences", "grid_reminders",
+                    "grid_audit_signoffs", "bcm_chat_messages",
+                    "user_roles", "sessions"):
+            try:
+                db.execute(f"DELETE FROM {tbl} WHERE user_id=%s", (uid,))
+            except Exception:
+                pass
+
+        db.execute("DELETE FROM users WHERE id=%s AND org_id=%s", (uid, org_id))
         db.commit()
         return JSONResponse({"ok": True})
     finally:
