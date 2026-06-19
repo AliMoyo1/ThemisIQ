@@ -844,7 +844,7 @@ def _save_test_result(detail: str, ok: bool):
     db = get_db()
     try:
         for key, val in [
-            ("email_last_test_result", ("✓ " if ok else "✗ ") + detail[:200]),
+            ("email_last_test_result", (("OK " if ok else "FAIL ") + detail[:200])),
             ("email_last_test_at",     _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")),
         ]:
             db.execute(
@@ -855,3 +855,110 @@ def _save_test_result(detail: str, ok: bool):
         db.commit()
     finally:
         db.close()
+
+
+@router.get("/admin/connectors", response_class=HTMLResponse)
+@_require_cap("platform.manage_users")
+async def admin_connectors_page(request: Request):
+    """Slack and Teams webhook configuration page."""
+    ctx = shell_ctx(request, active_module="platform", active_section="connectors")
+    return shell_templates.TemplateResponse(request, "admin_connectors.html", ctx)
+
+
+# ── Connectors (Slack / Teams) ────────────────────────────────────────────────
+
+def _connectors_get_setting(key: str) -> str:
+    db = get_db()
+    try:
+        row = db.execute("SELECT value FROM settings WHERE key=%s", (key,)).fetchone()
+        return row[0] if row else ""
+    finally:
+        db.close()
+
+
+def _connectors_save(key: str, val: str):
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO settings(key,value) VALUES(%s,%s) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, val),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+@router.get("/api/admin/connectors")
+@_require_cap("platform.manage_users")
+async def api_connectors_get(request: Request):
+    """Return current Slack and Teams webhook config (URLs masked for display)."""
+    def _masked(key: str) -> str:
+        val = _connectors_get_setting(key)
+        return "__unchanged__" if val else ""
+
+    return _JSONResp({
+        "slack_webhook_url":  _masked("slack_webhook_url"),
+        "teams_webhook_url":  _masked("teams_webhook_url"),
+        "slack_configured":   bool(_connectors_get_setting("slack_webhook_url")),
+        "teams_configured":   bool(_connectors_get_setting("teams_webhook_url")),
+    })
+
+
+@router.post("/api/admin/connectors")
+@_require_cap("platform.manage_users")
+async def api_connectors_save(request: Request):
+    """Save Slack and Teams webhook URLs to the settings table."""
+    data = await request.json()
+
+    slack_url = data.get("slack_webhook_url", "")
+    if slack_url and slack_url != "__unchanged__":
+        if slack_url and not slack_url.startswith("https://"):
+            return _JSONResp({"ok": False, "detail": "Slack webhook URL must start with https://"}, status_code=400)
+        _connectors_save("slack_webhook_url", slack_url.strip())
+
+    teams_url = data.get("teams_webhook_url", "")
+    if teams_url and teams_url != "__unchanged__":
+        if teams_url and not teams_url.startswith("https://"):
+            return _JSONResp({"ok": False, "detail": "Teams webhook URL must start with https://"}, status_code=400)
+        _connectors_save("teams_webhook_url", teams_url.strip())
+
+    log_audit(request.state.user, "platform", "connectors_updated",
+              details="Slack/Teams webhook URLs updated")
+    return _JSONResp({"ok": True})
+
+
+@router.delete("/api/admin/connectors/slack")
+@_require_cap("platform.manage_users")
+async def api_connectors_delete_slack(request: Request):
+    """Remove the Slack webhook URL."""
+    _connectors_save("slack_webhook_url", "")
+    log_audit(request.state.user, "platform", "connectors_updated", details="Slack webhook removed")
+    return _JSONResp({"ok": True})
+
+
+@router.delete("/api/admin/connectors/teams")
+@_require_cap("platform.manage_users")
+async def api_connectors_delete_teams(request: Request):
+    """Remove the Teams webhook URL."""
+    _connectors_save("teams_webhook_url", "")
+    log_audit(request.state.user, "platform", "connectors_updated", details="Teams webhook removed")
+    return _JSONResp({"ok": True})
+
+
+@router.post("/api/admin/connectors/test-slack")
+@_require_cap("platform.manage_users")
+async def api_connectors_test_slack(request: Request):
+    """Send a test message to the configured Slack webhook."""
+    from core.notifications import send_slack
+    ok = send_slack("[ThemisIQ] Slack connector test — configuration is working.")
+    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+
+
+@router.post("/api/admin/connectors/test-teams")
+@_require_cap("platform.manage_users")
+async def api_connectors_test_teams(request: Request):
+    """Send a test message to the configured Teams webhook."""
+    from core.notifications import send_teams
+    ok = send_teams("[ThemisIQ] Teams connector test — configuration is working.")
+    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})

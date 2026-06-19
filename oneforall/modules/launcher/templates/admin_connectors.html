@@ -1,0 +1,187 @@
+{% extends "platform_base.html" %}
+{% block title %}Connectors — ThemisIQ{% endblock %}
+
+{% block head %}
+<style>
+.conn-field{margin-bottom:16px}
+.conn-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:5px}
+.conn-input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box;outline:none;transition:border-color .15s}
+.conn-input:focus{border-color:var(--accent)}
+.conn-hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+.conn-status{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.conn-status.on{background:rgba(22,163,74,.1);color:var(--green-status);border:1px solid rgba(22,163,74,.2)}
+.conn-status.off{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.test-msg{padding:10px 14px;border-radius:7px;font-size:13px;margin-top:10px;display:none}
+.test-msg.ok{background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.2);color:var(--green-status)}
+.test-msg.fail{background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:var(--red)}
+.info-box{background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--accent-rgb),.15);border-radius:8px;padding:14px 16px;font-size:12px;color:var(--text);line-height:1.6;margin-bottom:16px}
+.info-box strong{color:var(--accent)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section-header animate-fade-up">
+  <div>
+    <div class="section-title">Connectors</div>
+    <div class="section-sub">Configure Slack and Microsoft Teams webhooks for critical GRC alerts</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start" class="animate-fade-up anim-1">
+
+  <div>
+
+    <!-- Slack -->
+    <div class="panel-card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="panel-title" style="margin-bottom:0">Slack</div>
+        <span class="conn-status off" id="slackStatus">Not configured</span>
+      </div>
+      <div class="info-box">
+        <strong>Incoming Webhook URL required.</strong>
+        In your Slack workspace go to <strong>Apps > Incoming Webhooks</strong>, create a new webhook
+        for the channel you want to receive alerts, and paste the URL below.
+        No OAuth or bot token needed.
+      </div>
+      <div class="conn-field">
+        <label class="conn-label" for="slackUrl">Webhook URL</label>
+        <input id="slackUrl" type="password" class="conn-input" placeholder="https://hooks.slack.com/services/..." autocomplete="off"/>
+        <div class="conn-hint">Leave blank to keep the existing URL unchanged.</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-primary" onclick="testSlack()">Send test message</button>
+        <button class="btn btn-danger" onclick="removeSlack()" id="slackRemoveBtn" style="display:none">Remove</button>
+      </div>
+      <div class="test-msg" id="slackTestMsg"></div>
+    </div>
+
+    <!-- Teams -->
+    <div class="panel-card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="panel-title" style="margin-bottom:0">Microsoft Teams</div>
+        <span class="conn-status off" id="teamsStatus">Not configured</span>
+      </div>
+      <div class="info-box">
+        <strong>Incoming Webhook connector URL required.</strong>
+        In your Teams channel click the three-dot menu, choose <strong>Connectors</strong>,
+        find <strong>Incoming Webhook</strong>, configure it, and paste the URL below.
+        No app registration or OAuth needed.
+      </div>
+      <div class="conn-field">
+        <label class="conn-label" for="teamsUrl">Webhook URL</label>
+        <input id="teamsUrl" type="password" class="conn-input" placeholder="https://...webhook.office.com/webhookb2/..." autocomplete="off"/>
+        <div class="conn-hint">Leave blank to keep the existing URL unchanged.</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-primary" onclick="testTeams()">Send test message</button>
+        <button class="btn btn-danger" onclick="removeTeams()" id="teamsRemoveBtn" style="display:none">Remove</button>
+      </div>
+      <div class="test-msg" id="teamsTestMsg"></div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveConnectors()" style="width:100%;padding:11px">Save Changes</button>
+    <div class="test-msg" id="saveMsg" style="margin-top:10px"></div>
+
+  </div>
+
+  <!-- Right: event triggers info -->
+  <div>
+    <div class="panel-card">
+      <div class="panel-title">Alert triggers</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.8">
+        Configured connectors send a message on:
+        <ul style="margin:10px 0 0 16px;padding:0;color:var(--muted)">
+          <li>Data breach confirmed (Sentinel)</li>
+          <li>ERM risk with data-breach category created</li>
+          <li>Risk appetite threshold exceeded (ERM)</li>
+        </ul>
+        <div style="margin-top:12px;font-size:11px;color:var(--muted)">
+          Messages include a direct link to the relevant module.
+          Test before saving to confirm delivery.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const csrf = () => document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrf_token='))?.split('=')[1] || '';
+
+async function _post(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRF-Token': csrf()},
+    body: JSON.stringify(body),
+  });
+  return r.json();
+}
+
+async function loadStatus() {
+  const d = await fetch('/api/admin/connectors').then(r=>r.json());
+  setStatus('slack', d.slack_configured);
+  setStatus('teams', d.teams_configured);
+}
+
+function setStatus(which, on) {
+  const el = document.getElementById(which === 'slack' ? 'slackStatus' : 'teamsStatus');
+  const removeBtn = document.getElementById(which === 'slack' ? 'slackRemoveBtn' : 'teamsRemoveBtn');
+  if (on) {
+    el.textContent = 'Configured';
+    el.className = 'conn-status on';
+    removeBtn.style.display = '';
+  } else {
+    el.textContent = 'Not configured';
+    el.className = 'conn-status off';
+    removeBtn.style.display = 'none';
+  }
+}
+
+function showMsg(id, ok, text) {
+  const el = document.getElementById(id);
+  el.className = 'test-msg ' + (ok ? 'ok' : 'fail');
+  el.textContent = text;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 5000);
+}
+
+async function saveConnectors() {
+  const slack = document.getElementById('slackUrl').value.trim();
+  const teams = document.getElementById('teamsUrl').value.trim();
+  const d = await _post('/api/admin/connectors', {
+    slack_webhook_url: slack || '__unchanged__',
+    teams_webhook_url: teams || '__unchanged__',
+  });
+  showMsg('saveMsg', d.ok, d.ok ? 'Saved.' : (d.detail || 'Save failed.'));
+  if (d.ok) {
+    document.getElementById('slackUrl').value = '';
+    document.getElementById('teamsUrl').value = '';
+    loadStatus();
+  }
+}
+
+async function testSlack() {
+  const d = await _post('/api/admin/connectors/test-slack', {});
+  showMsg('slackTestMsg', d.ok, d.ok ? 'Test message sent to Slack.' : (d.detail || 'Failed.'));
+}
+
+async function testTeams() {
+  const d = await _post('/api/admin/connectors/test-teams', {});
+  showMsg('teamsTestMsg', d.ok, d.ok ? 'Test message sent to Teams.' : (d.detail || 'Failed.'));
+}
+
+async function removeSlack() {
+  if (!confirm('Remove Slack webhook?')) return;
+  await fetch('/api/admin/connectors/slack', {method:'DELETE', headers:{'X-CSRF-Token': csrf()}});
+  loadStatus();
+}
+
+async function removeTeams() {
+  if (!confirm('Remove Teams webhook?')) return;
+  await fetch('/api/admin/connectors/teams', {method:'DELETE', headers:{'X-CSRF-Token': csrf()}});
+  loadStatus();
+}
+
+loadStatus();
+</script>
+{% endblock %}

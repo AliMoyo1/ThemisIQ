@@ -86,6 +86,11 @@ class Settings:
     # Falls back to SMTP_USER if not explicitly set.
     ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "") or os.getenv("SMTP_USER", "")
 
+    # ── Slack / Teams connectors ──────────────────────────────────────────────
+    # Override in Admin > Connectors (values stored in settings table take priority).
+    SLACK_WEBHOOK_URL: str = os.getenv("SLACK_WEBHOOK_URL", "")
+    TEAMS_WEBHOOK_URL: str = os.getenv("TEAMS_WEBHOOK_URL", "")
+
     # ── PostgreSQL (production) ───────────────────────────────────────────────
     # Set DATABASE_URL to switch from SQLite to PostgreSQL.
     # Example: postgresql://themisiq@pgbouncer:5432/themisiq

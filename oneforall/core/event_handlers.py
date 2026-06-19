@@ -19,6 +19,7 @@ from core.events import (
     BCM_PLAN_DEACTIVATED,
 )
 from core.links import create_cross_module_link
+from core.notifications import notify_connectors
 from database import get_db_background as get_db  # handlers must fail-fast, never queue behind user writes
 from database import insert_returning_id
 from config import settings
@@ -1577,6 +1578,11 @@ def breach_creates_risk_and_task(event_type, source_module, entity_type,
             log.warning("Could not create jurisdiction obligation for breach: %s", ob_exc)
 
         db.commit()
+        notify_connectors(
+            f"[ThemisIQ] BREACH CONFIRMED: {title} — severity: {severity}, "
+            f"affected records: {affected}. {regulation} deadline: {breach_hours}h. "
+            f"Review: /sentinel/#breaches"
+        )
     except Exception as e:
         log.warning("Could not create entries from breach: %s", e)
     finally:
@@ -2784,6 +2790,11 @@ def erm_data_breach_risk_creates_sentinel_breach(event_type, source_module, enti
         db.commit()
         log.info("XM-ERM-SEN: ERM risk %d (category=%s) → Sentinel breach #%d",
                  erm_risk_id, category, breach_id)
+        notify_connectors(
+            f"[ThemisIQ] DATA BREACH RISK: {title} (category: {category}) — "
+            f"Sentinel breach #{breach_id} created. 72h notification clock started. "
+            f"Review: /sentinel/#breaches"
+        )
     except Exception as e:
         log.warning("erm_data_breach_risk_creates_sentinel_breach error: %s", e)
     finally:
@@ -2823,6 +2834,11 @@ def appetite_breach_notify(event_type, source_module, entity_type,
         )
         db.commit()
         log.info("ERM appetite breach in '%s': notified %d owner(s)", category, len(rows))
+        notify_connectors(
+            f"[ThemisIQ] RISK APPETITE BREACH: {category.capitalize()} — "
+            f"score {current_score} exceeds threshold {max_score}. "
+            f"Review: /erm/appetite"
+        )
     except Exception as e:
         log.warning("appetite_breach_notify error: %s", e)
     finally:
