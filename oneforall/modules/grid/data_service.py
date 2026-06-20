@@ -1948,8 +1948,8 @@ def get_program_dashboard():
         audits = _dicts(db.execute(f"""
             SELECT a.id, a.name, a.status, a.audit_date, a.is_locked,
                    a.parent_audit_id,
-                   f.name AS framework_name, f.color AS framework_color,
-                   u.full_name AS lead_name,
+                   MAX(f.name) AS framework_name, MAX(f.color) AS framework_color,
+                   MAX(u.full_name) AS lead_name,
                    COUNT(c.id) AS total_controls,
                    SUM(CASE WHEN c.status='Complete' THEN 1 ELSE 0 END) AS complete_controls,
                    SUM(CASE WHEN c.due_date < {sql_current_date()} AND c.status!='Complete'
@@ -1958,7 +1958,9 @@ def get_program_dashboard():
             LEFT JOIN grid_frameworks f ON a.framework_id=f.id
             LEFT JOIN users u ON a.lead_id=u.id
             LEFT JOIN grid_controls c ON c.audit_id=a.id
-            GROUP BY a.id ORDER BY a.created_at DESC
+            GROUP BY a.id, a.name, a.status, a.audit_date, a.is_locked,
+                     a.parent_audit_id, a.created_at
+            ORDER BY a.created_at DESC
         """).fetchall())
 
         for a in audits:
