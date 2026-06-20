@@ -3191,6 +3191,8 @@ _COLUMN_MIGRATIONS = [
         # ── Sentinel vendor extra fields in _VENDOR_FIELDS ────────────────────
         ("sentinel_vendors", "website",    "TEXT"),
         ("sentinel_vendors", "regulation", "TEXT DEFAULT 'GDPR'"),
+        # ── Webhook org isolation ──────────────────────────────────────────────
+        ("webhooks", "org_id", "INTEGER REFERENCES organizations(id)"),
 ]
 
 

@@ -24,10 +24,14 @@ templates = Jinja2Templates(directory=["modules/launcher/templates", "templates"
 def require_super_admin(func):
     @wraps(func)
     async def wrapper(request: Request, *args, **kwargs):
+        from fastapi.responses import RedirectResponse
         user = await get_current_user(request)
         if not user:
-            from fastapi.responses import RedirectResponse
             return RedirectResponse("/login", status_code=303)
+        if user.get("mfa_pending"):
+            return RedirectResponse("/mfa/verify", status_code=303)
+        if user.get("must_change_password"):
+            return RedirectResponse("/change-password", status_code=303)
         if not user.get("is_super_admin"):
             raise HTTPException(status_code=403, detail="Super admin access required.")
         request.state.user = user

@@ -423,8 +423,8 @@ async def admin_api_logs(request: Request):
         user_filter = request.query_params.get("user", "")
         date_from = request.query_params.get("from", "")
         date_to = request.query_params.get("to", "")
-        page = int(request.query_params.get("page", "1"))
-        per_page = int(request.query_params.get("per_page", "50"))
+        page = max(1, int(request.query_params.get("page", "1")))
+        per_page = min(500, max(1, int(request.query_params.get("per_page", "50"))))
 
         caller = getattr(request.state, "user", {}) or {}
         is_super = caller.get("is_super_admin")
@@ -616,16 +616,26 @@ async def api_key_create(request: Request):
 @router.delete("/api/admin/api-keys/{kid}")
 @_require_cap("platform.manage_users")
 async def api_key_revoke(request: Request, kid: int):
-    """Revoke an API key."""
+    """Revoke an API key (org-scoped)."""
+    user = request.state.user
+    org_id = user.get("org_id")
     db = get_db()
     try:
-        row = db.execute("SELECT name, key_prefix FROM api_keys WHERE id = %s", (kid,)).fetchone()
+        if user.get("is_super_admin"):
+            row = db.execute("SELECT name, key_prefix FROM api_keys WHERE id = %s", (kid,)).fetchone()
+        else:
+            row = db.execute(
+                "SELECT name, key_prefix FROM api_keys WHERE id = %s AND org_id = %s",
+                (kid, org_id),
+            ).fetchone()
+        if not row:
+            return _JSONResp({"success": False, "error": "Not found"}, status_code=404)
         db.execute("UPDATE api_keys SET is_active = 0 WHERE id = %s", (kid,))
         db.commit()
     finally:
         db.close()
-    label = f"{row['name']} ({row['key_prefix']}...)" if row else str(kid)
-    log_audit(request.state.user, "platform", "api_key_revoke", details=f"Revoked API key: {label}")
+    label = f"{row['name']} ({row['key_prefix']}...)"
+    log_audit(user, "platform", "api_key_revoke", details=f"Revoked API key: {label}")
     return _JSONResp({"success": True})
 
 
@@ -644,14 +654,24 @@ async def admin_webhooks_page(request: Request):
 @router.get("/api/admin/webhooks")
 @_require_cap("platform.manage_users")
 async def api_webhooks_list(request: Request):
-    """List webhooks."""
+    """List webhooks scoped to the caller's org."""
+    user = request.state.user
+    org_id = user.get("org_id")
     db = get_db()
     try:
-        rows = db.execute(
-            "SELECT w.*, u.full_name as creator_name "
-            "FROM webhooks w LEFT JOIN users u ON w.created_by = u.id "
-            "ORDER BY w.created_at DESC"
-        ).fetchall()
+        if user.get("is_super_admin"):
+            rows = db.execute(
+                "SELECT w.*, u.full_name as creator_name "
+                "FROM webhooks w LEFT JOIN users u ON w.created_by = u.id "
+                "ORDER BY w.created_at DESC"
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT w.*, u.full_name as creator_name "
+                "FROM webhooks w LEFT JOIN users u ON w.created_by = u.id "
+                "WHERE w.org_id = %s ORDER BY w.created_at DESC",
+                (org_id,),
+            ).fetchall()
     finally:
         db.close()
     return _JSONResp([dict(r) for r in rows])
@@ -669,13 +689,14 @@ async def api_webhook_create(request: Request):
     try:
         wid = insert_returning_id(
             db,
-            "INSERT INTO webhooks (name, url, secret, events, created_by) VALUES (%s,%s,%s,%s,%s)",
+            "INSERT INTO webhooks (name, url, secret, events, created_by, org_id) VALUES (%s,%s,%s,%s,%s,%s)",
             (
                 data.get("name", ""),
                 data.get("url", ""),
                 webhook_secret,
                 ",".join(data.get("events", [])),
                 request.state.user["id"],
+                request.state.user.get("org_id"),
             )
         )
         db.commit()
@@ -684,13 +705,26 @@ async def api_webhook_create(request: Request):
     return _JSONResp({"id": wid, "secret": webhook_secret}, status_code=201)
 
 
+def _get_webhook_for_admin(db, wid: int, user: dict):
+    """Return webhook row only if the caller owns it (or is super admin)."""
+    if user.get("is_super_admin"):
+        return db.execute("SELECT * FROM webhooks WHERE id = %s", (wid,)).fetchone()
+    return db.execute(
+        "SELECT * FROM webhooks WHERE id = %s AND org_id = %s",
+        (wid, user.get("org_id")),
+    ).fetchone()
+
+
 @router.put("/api/admin/webhooks/{wid}")
 @_require_cap("platform.manage_users")
 async def api_webhook_update(request: Request, wid: int):
     """Update a webhook."""
     data = await request.json()
+    user = request.state.user
     db = get_db()
     try:
+        if not _get_webhook_for_admin(db, wid, user):
+            return _JSONResp({"error": "Not found"}, status_code=404)
         fields, params = [], []
         if "name" in data:
             fields.append("name = %s"); params.append(data["name"])
@@ -714,15 +748,18 @@ async def api_webhook_update(request: Request, wid: int):
 @_require_cap("platform.manage_users")
 async def api_webhook_delete(request: Request, wid: int):
     """Delete a webhook."""
+    user = request.state.user
     db = get_db()
     try:
-        row = db.execute("SELECT name, url FROM webhooks WHERE id = %s", (wid,)).fetchone()
+        row = _get_webhook_for_admin(db, wid, user)
+        if not row:
+            return _JSONResp({"error": "Not found"}, status_code=404)
         db.execute("DELETE FROM webhooks WHERE id = %s", (wid,))
         db.commit()
     finally:
         db.close()
-    label = f"{row['name']} ({row['url']})" if row else str(wid)
-    log_audit(request.state.user, "platform", "webhook_delete", details=f"Deleted webhook: {label}")
+    label = f"{row['name']} ({row['url']})"
+    log_audit(user, "platform", "webhook_delete", details=f"Deleted webhook: {label}")
     return _JSONResp({"success": True})
 
 
@@ -730,8 +767,11 @@ async def api_webhook_delete(request: Request, wid: int):
 @_require_cap("platform.manage_users")
 async def api_webhook_logs(request: Request, wid: int):
     """Get delivery logs for a webhook."""
+    user = request.state.user
     db = get_db()
     try:
+        if not _get_webhook_for_admin(db, wid, user):
+            return _JSONResp({"error": "Not found"}, status_code=404)
         rows = db.execute(
             "SELECT * FROM webhook_logs WHERE webhook_id = %s ORDER BY attempted_at DESC LIMIT 50",
             (wid,)
@@ -745,9 +785,10 @@ async def api_webhook_logs(request: Request, wid: int):
 @_require_cap("platform.manage_users")
 async def api_webhook_test(request: Request, wid: int):
     """Send a test ping to a webhook."""
+    user = request.state.user
     db = get_db()
     try:
-        wh = db.execute("SELECT * FROM webhooks WHERE id = %s", (wid,)).fetchone()
+        wh = _get_webhook_for_admin(db, wid, user)
         if not wh:
             return _JSONResp({"error": "Not found"}, status_code=404)
 
@@ -969,14 +1010,18 @@ async def api_connectors_save(request: Request):
 
     slack_url = data.get("slack_webhook_url", "")
     if slack_url and slack_url != "__unchanged__":
-        if slack_url and not slack_url.startswith("https://"):
-            return _JSONResp({"ok": False, "detail": "Slack webhook URL must start with https://"}, status_code=400)
+        try:
+            _validate_webhook_url(slack_url.strip())
+        except HTTPException as exc:
+            return _JSONResp({"ok": False, "detail": f"Slack URL: {exc.detail}"}, status_code=400)
         _connectors_save("slack_webhook_url", slack_url.strip())
 
     teams_url = data.get("teams_webhook_url", "")
     if teams_url and teams_url != "__unchanged__":
-        if teams_url and not teams_url.startswith("https://"):
-            return _JSONResp({"ok": False, "detail": "Teams webhook URL must start with https://"}, status_code=400)
+        try:
+            _validate_webhook_url(teams_url.strip())
+        except HTTPException as exc:
+            return _JSONResp({"ok": False, "detail": f"Teams URL: {exc.detail}"}, status_code=400)
         _connectors_save("teams_webhook_url", teams_url.strip())
 
     log_audit(request.state.user, "platform", "connectors_updated",

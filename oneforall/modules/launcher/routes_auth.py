@@ -161,16 +161,12 @@ async def logout(request: Request):
 
 @router.get("/logout")
 async def logout_get(request: Request):
-    """GET /logout — redirect to login (no direct logout via GET for CSRF safety)."""
-    token = request.cookies.get(settings.SESSION_COOKIE_NAME)
-    user = await get_current_user(request)
-    if user:
-        log_audit(user, "platform", "logout",
-                  ip=request.client.host if request.client else "")
-    destroy_session(token)
-    response = RedirectResponse("/login", status_code=303)
-    response.delete_cookie(settings.SESSION_COOKIE_NAME)
-    return response
+    """GET /logout — redirect to login without destroying the session.
+
+    Destroying the session on GET is vulnerable to logout-CSRF via <img> tags.
+    Users must POST to /logout (from the sidebar button) to actually sign out.
+    """
+    return RedirectResponse("/login", status_code=303)
 
 
 # ── Change Password ─────────────────────────────────────────────────────────
