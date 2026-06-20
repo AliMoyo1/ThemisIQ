@@ -150,7 +150,8 @@ def _render_admin_users(request, user, flash=None):
     response = shell_templates.TemplateResponse(request, "admin_users.html", ctx)
     # Legacy double-submit cookie for any forms still using it.
     response.set_cookie("csrf_token", csrf_token,
-                        httponly=True, samesite="lax", path="/", max_age=3600)
+                        httponly=True, samesite="lax", path="/", max_age=3600,
+                        secure=not settings.DEBUG)
     return response
 
 

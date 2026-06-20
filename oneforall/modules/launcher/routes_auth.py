@@ -155,7 +155,7 @@ async def logout(request: Request):
               ip=request.client.host if request.client else "")
     destroy_session(token)
     response = RedirectResponse("/login", status_code=303)
-    response.delete_cookie(settings.SESSION_COOKIE_NAME)
+    response.delete_cookie(settings.SESSION_COOKIE_NAME, path="/", samesite="strict", secure=_SECURE)
     return response
 
 

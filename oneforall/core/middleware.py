@@ -302,6 +302,8 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    if not settings.DEBUG:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     # Fonts are self-hosted under /static/fonts/ so no CDN allowlist is needed.
     # unsafe-inline is retained until inline styles/scripts are extracted to
