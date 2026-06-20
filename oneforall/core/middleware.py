@@ -308,11 +308,14 @@ async def security_headers_middleware(request: Request, call_next):
     # static files; that refactor is tracked separately.
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com "
+            "https://us.i.posthog.com https://eu.i.posthog.com "
+            "https://us-assets.i.posthog.com https://eu-assets.i.posthog.com; "
         "style-src 'self' 'unsafe-inline'; "
         "font-src 'self'; "
         "img-src 'self' data:; "
-        "connect-src 'self'; "
+        "connect-src 'self' https://us.i.posthog.com https://eu.i.posthog.com "
+            "https://app.posthog.com https://*.sentry.io https://*.ingest.sentry.io; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "form-action 'self'; "

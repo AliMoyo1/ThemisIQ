@@ -65,14 +65,20 @@ async def login_page(request: Request):
     if user:
         return RedirectResponse("/", status_code=303)
     csrf = generate_csrf_token()
-    response = templates.TemplateResponse(request, "login.html", {
-        "error": None,
-        "csrf_token": csrf,
-    })
+    response = templates.TemplateResponse(request, "login.html", _login_ctx(csrf))
     response.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     return response
+
+
+def _login_ctx(csrf: str, error: str | None = None) -> dict:
+    return {
+        "error": error,
+        "csrf_token": csrf,
+        "posthog_api_key": settings.POSTHOG_API_KEY,
+        "posthog_host": settings.POSTHOG_HOST,
+    }
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -83,10 +89,8 @@ async def login_submit(request: Request,
     # CSRF check
     if not validate_csrf(request, csrf_token):
         csrf = generate_csrf_token()
-        resp = templates.TemplateResponse(request, "login.html", {
-            "error": "Invalid request. Please try again.",
-            "csrf_token": csrf,
-        })
+        resp = templates.TemplateResponse(request, "login.html",
+                                          _login_ctx(csrf, "Invalid request. Please try again."))
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
@@ -94,10 +98,8 @@ async def login_submit(request: Request,
     client_ip = request.client.host if request.client else "unknown"
     if not check_rate_limit(client_ip):
         csrf = generate_csrf_token()
-        resp = templates.TemplateResponse(request, "login.html", {
-            "error": "Too many login attempts. Please wait 5 minutes.",
-            "csrf_token": csrf,
-        })
+        resp = templates.TemplateResponse(request, "login.html",
+                                          _login_ctx(csrf, "Too many login attempts. Please wait 5 minutes."))
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
@@ -107,10 +109,8 @@ async def login_submit(request: Request,
         log_audit(None, "platform", "login_failed",
                   details=f"username={username.strip()}", ip=client_ip)
         csrf = generate_csrf_token()
-        resp = templates.TemplateResponse(request, "login.html", {
-            "error": "Invalid username or password.",
-            "csrf_token": csrf,
-        })
+        resp = templates.TemplateResponse(request, "login.html",
+                                          _login_ctx(csrf, "Invalid username or password."))
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 

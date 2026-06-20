@@ -56,6 +56,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.on_event("startup")
 async def startup():
+    from core.monitoring import init_monitoring
+    init_monitoring(settings)
+
     log.info("Initialising database...")
     init_db()
     from modules.aria.ask_service import init_index as _ask_init_index

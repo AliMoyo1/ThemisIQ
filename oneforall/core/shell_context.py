@@ -81,4 +81,6 @@ def shell_ctx(request, active_module: str = "platform",
         "is_admin": has_capability(user, "platform.manage_users"),
         "is_super_admin": bool(user.get("is_super_admin")),
         "license_status": _license_status(user),
+        "posthog_api_key": settings.POSTHOG_API_KEY,
+        "posthog_host": settings.POSTHOG_HOST,
     }
