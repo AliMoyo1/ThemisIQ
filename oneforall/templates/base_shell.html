@@ -665,6 +665,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
           <div style="font-size:13px;font-weight:700;color:var(--text)">{{ user.full_name }}</div>
           <div style="font-size:11px;color:var(--muted)">{{ user.email }}</div>
         </div>
+        <a href="/profile">My Profile</a>
         <a href="/change-password">Change Password</a>
         <a href="/mfa/setup">Two-Factor Authentication</a>
         {% if is_super_admin %}<a href="/super-admin/" style="color:var(--accent)">Super Admin</a>{% endif %}
@@ -1113,6 +1114,60 @@ setInterval(async()=>{
   // Re-run after SPA content injections
   var mc = document.getElementById('mainContent');
   if(mc){ new MutationObserver(initTilts).observe(mc,{childList:true,subtree:false}); }
+})();
+
+// ── Keyboard Shortcuts Panel ──────────────────────────────────────
+(function(){
+  var panel=document.createElement('div');
+  panel.id='shortcutsPanel';
+  panel.style.cssText='display:none;position:fixed;inset:0;z-index:10001;align-items:center;justify-content:center';
+  panel.innerHTML='<div style="position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)" onclick="document.getElementById(\'shortcutsPanel\').style.display=\'none\'"></div>'+
+    '<div style="position:relative;background:var(--surface);border-radius:16px;padding:28px;width:440px;max-width:92vw;box-shadow:var(--shadow-lg)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'+
+        '<h3 style="font-size:16px;font-weight:800;color:var(--text);margin:0">Keyboard Shortcuts</h3>'+
+        '<button onclick="document.getElementById(\'shortcutsPanel\').style.display=\'none\'" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer">&times;</button>'+
+      '</div>'+
+      '<div style="display:grid;gap:8px;font-size:13px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Show this panel</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">?</kbd></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Global search</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">Ctrl + K</kbd></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Command Centre</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then H</kbd></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Task Board</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then T</kbd></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">Go to Audit Log</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">G then L</kbd></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="color:var(--text)">New item (primary action)</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">N</kbd></div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><span style="color:var(--text)">Close modal / panel</span><kbd style="padding:3px 8px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-family:var(--mono);color:var(--muted)">Escape</kbd></div>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(panel);
+
+  var lastKey='';var lastKeyTime=0;
+  document.addEventListener('keydown',function(e){
+    var tag=e.target.tagName;
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||e.target.isContentEditable) return;
+    var now=Date.now();
+    if(e.key==='?'&&!e.ctrlKey&&!e.metaKey){
+      e.preventDefault();
+      var sp=document.getElementById('shortcutsPanel');
+      sp.style.display=sp.style.display==='flex'?'none':'flex';
+      return;
+    }
+    if(e.key==='Escape'){
+      document.getElementById('shortcutsPanel').style.display='none';
+      return;
+    }
+    if(e.key==='n'&&!e.ctrlKey&&!e.metaKey){
+      var btn=document.querySelector('.header-actions .btn-primary, .topbar-actions .btn-primary');
+      if(btn){e.preventDefault();btn.click();}
+      return;
+    }
+    if(lastKey==='g'&&(now-lastKeyTime)<1000){
+      if(e.key==='h'){e.preventDefault();window.location.href='/dashboard';}
+      else if(e.key==='t'){e.preventDefault();window.location.href='/tasks';}
+      else if(e.key==='l'){e.preventDefault();window.location.href='/admin/logs';}
+      lastKey='';return;
+    }
+    if(e.key==='g'&&!e.ctrlKey&&!e.metaKey){lastKey='g';lastKeyTime=now;return;}
+    lastKey='';
+  });
 })();
 </script>
 

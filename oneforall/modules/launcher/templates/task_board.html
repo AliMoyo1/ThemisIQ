@@ -83,6 +83,16 @@
 .fm-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 .fm-field{margin-bottom:12px}
 
+/* Bulk select mode */
+.task-card .tc-checkbox{display:none;position:absolute;top:8px;right:8px;z-index:2}
+body.tb-select-mode .task-card .tc-checkbox{display:block}
+body.tb-select-mode .task-card{padding-right:34px}
+.task-card.selected{border-color:var(--accent);background:rgba(var(--accent-rgb),.06)}
+.bulk-bar{position:fixed;bottom:0;left:0;right:0;z-index:1050;background:var(--surface);border-top:2px solid var(--accent);padding:10px 20px;display:none;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 -4px 20px rgba(0,0,0,.12)}
+.bulk-bar.visible{display:flex}
+.bulk-bar .bb-count{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap}
+.bulk-bar .bb-sep{width:1px;height:24px;background:var(--border);flex-shrink:0}
+
 @media(max-width:900px){.kanban-board{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.kanban-board{grid-template-columns:1fr}.task-drawer{width:100vw;right:-100vw}}
 </style>
@@ -95,7 +105,14 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17" style="vertical-align:-3px;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
     Task Board
   </span>
-  <div class="topbar-actions">
+  <div class="topbar-actions" style="display:flex;gap:8px">
+    <button class="btn btn-secondary" id="aiPriBtn" onclick="aiPrioritize()" title="AI-powered priority suggestions">
+      <span style="font-size:14px">&#10038;</span> AI Prioritize
+    </button>
+    <button class="btn btn-secondary" id="selectModeBtn" onclick="toggleSelectMode()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/></svg>
+      Select
+    </button>
     <button class="btn btn-primary" onclick="openNewTaskModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Task
@@ -181,6 +198,27 @@
 
   </div>
 </div><!-- /.content -->
+
+<!-- Bulk Actions Bar -->
+<div class="bulk-bar" id="bulkBar">
+  <span class="bb-count" id="bbCount">0 selected</span>
+  <div class="bb-sep"></div>
+  <select id="bbStatus" class="tb-select" style="font-size:12px" onchange="bulkSetField('status',this.value);this.selectedIndex=0">
+    <option value="">Move to...</option>
+    <option value="todo">To Do</option>
+    <option value="in_progress">In Progress</option>
+    <option value="review">Review</option>
+    <option value="done">Done</option>
+  </select>
+  <select id="bbPriority" class="tb-select" style="font-size:12px" onchange="bulkSetField('priority',this.value);this.selectedIndex=0">
+    <option value="">Set Priority...</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
+  <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px" onclick="bulkDeselectAll()">Deselect All</button>
+</div>
 
 
 <!-- ── New Task Modal ──────────────────────────────────────────────────────── -->
@@ -404,11 +442,13 @@ function renderCard(t){
   const init    = initials(t.assigned_name);
   const avColor = avatarColor(t.assigned_name);
 
-  return `<div class="task-card ${esc(priCls)}"
+  var sel = selectedTasks.has(t.id) ? ' selected' : '';
+  return `<div class="task-card ${esc(priCls)}${sel}"
                data-id="${t.id}"
                draggable="true"
                ondragstart="onDragStart(event,${t.id})"
                onclick="onCardClick(event,${t.id})">
+    <input type="checkbox" class="tc-checkbox" ${selectedTasks.has(t.id)?'checked':''} onclick="event.stopPropagation();toggleTaskSelect(${t.id},this)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
     <div class="tc-title">${esc(t.title)}</div>
     <div class="tc-meta">
       ${ml ? `<span class="tc-mod" style="background:${mc}18;color:${mc}">${esc(ml)}</span>` : ''}
@@ -458,9 +498,138 @@ window.applyFilters = function(){
   renderBoard();
 };
 
+// ── Bulk Select Mode ─────────────────────────────────────────────────────────
+var selectedTasks = new Set();
+
+window.toggleSelectMode = function(){
+  document.body.classList.toggle('tb-select-mode');
+  var btn = document.getElementById('selectModeBtn');
+  var active = document.body.classList.contains('tb-select-mode');
+  btn.style.borderColor = active ? 'var(--accent)' : '';
+  btn.style.color = active ? 'var(--accent)' : '';
+  if(!active){
+    selectedTasks.clear();
+    updateBulkBar();
+    renderBoard();
+  }
+};
+
+window.toggleTaskSelect = function(id, cb){
+  if(cb.checked) selectedTasks.add(id);
+  else selectedTasks.delete(id);
+  var card = cb.closest('.task-card');
+  if(card) card.classList.toggle('selected', cb.checked);
+  updateBulkBar();
+};
+
+function updateBulkBar(){
+  var bar = document.getElementById('bulkBar');
+  var count = selectedTasks.size;
+  document.getElementById('bbCount').textContent = count + ' selected';
+  bar.classList.toggle('visible', count > 0);
+}
+
+window.bulkDeselectAll = function(){
+  selectedTasks.clear();
+  updateBulkBar();
+  renderBoard();
+};
+
+window.bulkSetField = async function(field, value){
+  if(!value || selectedTasks.size === 0) return;
+  try{
+    var resp = await fetch('/api/tasks/bulk', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ids: Array.from(selectedTasks), updates: {[field]: value}})
+    });
+    if(resp.ok){
+      var result = await resp.json();
+      if(typeof showToast === 'function') showToast('Updated ' + result.updated + ' tasks');
+      selectedTasks.clear();
+      updateBulkBar();
+      await loadTasks();
+    } else {
+      if(typeof showToast === 'function') showToast('Bulk update failed', 'error');
+    }
+  }catch(e){
+    if(typeof showToast === 'function') showToast('Bulk update failed', 'error');
+  }
+};
+
+// ── AI Prioritize ────────────────────────────────────────────────────────────
+window.aiPrioritize = async function(){
+  var btn=document.getElementById('aiPriBtn');
+  btn.disabled=true;btn.textContent='Analyzing...';
+  try{
+    var r=await fetch('/api/tasks/ai-prioritize',{method:'POST'});
+    if(!r.ok){if(typeof showToast==='function')showToast('AI not available','error');return;}
+    var data=await r.json();
+    var ranked=data.ranked||[];
+    if(!ranked.length){if(typeof showToast==='function')showToast('No prioritization suggestions','info');return;}
+    showAiPriPanel(ranked);
+  }catch(e){
+    if(typeof showToast==='function')showToast('AI prioritization failed','error');
+  }finally{
+    btn.disabled=false;btn.innerHTML='<span style="font-size:14px">&#10038;</span> AI Prioritize';
+  }
+};
+
+function showAiPriPanel(ranked){
+  var existing=document.getElementById('aiPriPanel');
+  if(existing)existing.remove();
+  var panel=document.createElement('div');
+  panel.id='aiPriPanel';
+  panel.className='card';
+  panel.style.cssText='padding:16px 20px;margin-bottom:16px;border-left:3px solid var(--accent)';
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+    '<div style="font-size:14px;font-weight:700;color:var(--text)">&#10038; AI Priority Suggestions</div>'+
+    '<div style="display:flex;gap:8px">'+
+      '<button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="applyAiPriorities()">Apply All</button>'+
+      '<button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="document.getElementById(\'aiPriPanel\').remove()">Dismiss</button>'+
+    '</div></div>';
+  html+='<div style="max-height:200px;overflow-y:auto">';
+  ranked.forEach(function(r,i){
+    var task=allTasks.find(function(t){return t.id===r.task_id;});
+    var priColor={'critical':'var(--red)','high':'#f97316','medium':'var(--amber)','low':'var(--green-status)'}[r.suggested_priority]||'var(--muted)';
+    html+='<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-soft);font-size:12px" data-ai-task="'+r.task_id+'" data-ai-pri="'+esc(r.suggested_priority)+'">'+
+      '<span style="width:20px;font-weight:800;color:var(--accent)">#'+(r.rank||i+1)+'</span>'+
+      '<span style="flex:1;font-weight:600;color:var(--text)">'+esc(task?task.title:'Task #'+r.task_id)+'</span>'+
+      '<span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+priColor+'18;color:'+priColor+'">'+esc(r.suggested_priority)+'</span>'+
+      '<span style="color:var(--muted);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.rationale||'')+'">'+esc(r.rationale||'')+'</span>'+
+    '</div>';
+  });
+  html+='</div>';
+  panel.innerHTML=html;
+  window._aiRanked=ranked;
+  var board=document.querySelector('.kanban-board');
+  board.parentNode.insertBefore(panel,board);
+}
+
+window.applyAiPriorities = async function(){
+  var ranked=window._aiRanked||[];
+  if(!ranked.length)return;
+  var updates=ranked.map(function(r){return{id:r.task_id,priority:r.suggested_priority};});
+  try{
+    for(var i=0;i<updates.length;i++){
+      await fetch('/api/tasks/'+updates[i].id,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({priority:updates[i].priority})
+      });
+    }
+    if(typeof showToast==='function')showToast('Applied AI priorities to '+updates.length+' tasks');
+    document.getElementById('aiPriPanel').remove();
+    await loadTasks();
+  }catch(e){
+    if(typeof showToast==='function')showToast('Failed to apply priorities','error');
+  }
+};
+
 // ── Task Detail Drawer ────────────────────────────────────────────────────────
 window.onCardClick = function(e, taskId){
   if(isDragging) return;
+  if(document.body.classList.contains('tb-select-mode')) return;
   openDrawer(taskId);
 };
 

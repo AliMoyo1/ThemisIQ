@@ -475,7 +475,8 @@ async function openDetail(eid){
   }
 
   /* Linked Entities */
-  html+='<div class="ev-section"><div class="ev-section-title">Linked Entities ('+links.length+')</div>';
+  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between;align-items:center">Linked Entities ('+links.length+') <button onclick="aiSuggestLinks('+eid+')" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;border-radius:12px;display:inline-flex;align-items:center;gap:4px"><span style="font-size:13px">&#10038;</span> AI Suggest</button></div>';
+  html+='<div id="aiSuggestBox" style="display:none;margin-bottom:8px"></div>';
   if(links.length){
     // Resolve link names
     var specs=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
@@ -494,7 +495,7 @@ async function openDetail(eid){
       '</div>';
     }).join('');
   }else{
-    html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to…" to connect this evidence.</div>';
+    html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
   }
   html+='</div>';
 
@@ -665,6 +666,52 @@ async function unlinkEvidence(linkId,eid){
   if(!confirm('Remove this link?'))return;
   await fetch('/evidence/api/links/'+linkId,{method:'DELETE'});
   openDetail(eid);loadStats();
+}
+
+/* ── AI Suggest Links ── */
+async function aiSuggestLinks(eid){
+  var box=document.getElementById('aiSuggestBox');
+  if(!box)return;
+  box.style.display='block';
+  box.innerHTML='<div style="padding:10px;text-align:center;color:var(--accent);font-size:12px"><div class="spinner" style="margin:0 auto 6px;width:18px;height:18px"></div>Analyzing evidence for link suggestions...</div>';
+  try{
+    var r=await fetch('/evidence/api/items/'+eid+'/suggest-links',{method:'POST'});
+    if(!r.ok){box.innerHTML='<div style="padding:8px;color:var(--bad,#dc2626);font-size:12px">AI not available</div>';return;}
+    var data=await r.json();
+    var suggestions=data.suggestions||[];
+    if(!suggestions.length){
+      box.innerHTML='<div style="padding:8px;color:var(--muted);font-size:12px">No additional link suggestions found.</div>';
+      return;
+    }
+    box.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">AI Suggestions</div>'+
+      suggestions.map(function(s){
+        var mc=modColors[s.module]||'#6b7280';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:rgba(79,142,247,.04);border:1px solid var(--border-soft);margin-bottom:4px;font-size:12px">'+
+          '<span style="width:8px;height:8px;border-radius:50%;background:'+mc+';flex-shrink:0"></span>'+
+          '<span style="font-weight:600;color:var(--text)">'+escHtml(s.entity_name||'')+'</span>'+
+          '<span style="color:var(--muted);font-size:11px">'+escHtml(s.module)+' / '+escHtml(s.entity_type)+'</span>'+
+          '<span style="flex:1;color:var(--muted);font-size:10px;text-align:right" title="'+escHtml(s.reason||'')+'">'+escHtml((s.reason||'').substring(0,60))+'</span>'+
+          '<button onclick="applyAiLink('+eid+',\''+escHtml(s.module)+'\',\''+escHtml(s.entity_type)+'\','+s.entity_id+',this)" class="btn btn-primary" style="font-size:10px;padding:2px 8px;border-radius:10px">Link</button>'+
+        '</div>';
+      }).join('');
+  }catch(e){
+    box.innerHTML='<div style="padding:8px;color:var(--bad,#dc2626);font-size:12px">Failed to get suggestions</div>';
+  }
+}
+
+async function applyAiLink(eid,module,entityType,entityId,btn){
+  btn.disabled=true;btn.textContent='...';
+  try{
+    await fetch('/evidence/api/items/'+eid+'/links',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({module:module,entity_type:entityType,entity_id:entityId})
+    });
+    btn.textContent='Linked';btn.style.background='var(--green-status)';
+    openDetail(eid);loadStats();
+  }catch(e){
+    btn.textContent='Error';btn.disabled=false;
+  }
 }
 
 /* ── Link-to Modal ── */

@@ -711,3 +711,36 @@ async def api_remediation_plan(request: Request, risk_id: int):
         risk.get("category", ""), score
     )
     return JSONResponse({"ok": True, **plan})
+
+
+# ── CSV Export ────────────────────────────────────────────────────────────────
+
+@router.get("/api/export/csv")
+@require_capability("erm.risk.view")
+async def api_export_csv(request: Request):
+    import csv
+    import io
+    from starlette.responses import StreamingResponse
+    from database import get_db
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT name, category, risk_level, status, likelihood, impact, "
+            "owner_name, source_module, created_at, updated_at "
+            "FROM risk_register ORDER BY created_at DESC"
+        ).fetchall()
+    finally:
+        db.close()
+    columns = ["name", "category", "risk_level", "status", "likelihood", "impact",
+               "owner_name", "source_module", "created_at", "updated_at"]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(columns)
+    for r in rows:
+        writer.writerow([r[c] if c in r.keys() else "" for c in columns])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=erm_risk_register.csv"},
+    )

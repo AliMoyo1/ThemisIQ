@@ -514,6 +514,64 @@ async def api_evidence_link_delete(request: Request, lid: int):
     return JSONResponse({"success": True})
 
 
+@router.post("/api/items/{eid}/suggest-links")
+@require_auth
+async def api_evidence_suggest_links(request: Request, eid: int):
+    """AI-powered suggestion of relevant controls and entities to link evidence to."""
+    from core.ai_client import is_configured, create_message, safe_json_parse
+    if not is_configured():
+        return JSONResponse({"error": "AI not configured"}, status_code=503)
+    db = get_db()
+    try:
+        item = db.execute(
+            "SELECT id, title, description, category, tags FROM evidence_items WHERE id = %s", (eid,)
+        ).fetchone()
+        if not item:
+            raise HTTPException(404, "Evidence not found")
+        existing = [dict(r) for r in db.execute(
+            "SELECT module, entity_type, entity_id FROM evidence_links WHERE evidence_id = %s AND deleted_at IS NULL", (eid,)
+        ).fetchall()]
+        controls = [dict(r) for r in db.execute(
+            "SELECT id, reference_code, title, framework_name FROM aria_controls LIMIT 100"
+        ).fetchall()]
+        audits = [dict(r) for r in db.execute(
+            "SELECT id, name, framework_name FROM grid_audits WHERE status != 'closed' LIMIT 30"
+        ).fetchall()]
+        risks = [dict(r) for r in db.execute(
+            "SELECT id, name, category FROM erm_risks LIMIT 50"
+        ).fetchall()]
+    finally:
+        db.close()
+    evidence_info = dict(item)
+    prompt = (
+        "Evidence item:\n"
+        f"Title: {evidence_info.get('title','')}\n"
+        f"Description: {evidence_info.get('description','')}\n"
+        f"Category: {evidence_info.get('category','')}\n"
+        f"Tags: {evidence_info.get('tags','')}\n\n"
+        f"Already linked to: {existing}\n\n"
+        f"Available controls: {controls[:50]}\n\n"
+        f"Available audits: {audits[:20]}\n\n"
+        f"Available risks: {risks[:30]}\n\n"
+        "Suggest up to 5 linkages. Return JSON array of objects with keys: "
+        "module (aria/grid/erm), entity_type (control/audit/risk), entity_id (int), "
+        "entity_name (str), reason (str, one sentence). "
+        "Do NOT suggest items already linked. Only suggest high-confidence matches."
+    )
+    try:
+        raw = create_message(
+            [{"role": "user", "content": prompt}],
+            system="You are a GRC evidence linking assistant. Respond ONLY with a JSON array, no other text.",
+            max_tokens=800,
+        )
+        suggestions = safe_json_parse(raw)
+        if not isinstance(suggestions, list):
+            suggestions = []
+    except Exception:
+        suggestions = []
+    return JSONResponse({"suggestions": suggestions})
+
+
 @router.get("/api/items/{eid}/audit")
 @require_auth
 async def api_evidence_audit(request: Request, eid: int):

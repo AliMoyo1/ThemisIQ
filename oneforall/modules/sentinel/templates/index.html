@@ -389,6 +389,19 @@
     </div>
   </div>
 
+  <!-- Onboarding Banner -->
+  <div id="snOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Sentinel</h3>
+      <button onclick="this.closest('#snOnboardBanner').style.display='none';localStorage.setItem('hide_sn_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Create your first RoPA record <a href="#" onclick="event.preventDefault();sentinelRouter.navigate('/sentinel/ropa')" style="color:var(--accent)">Open RoPA</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Run a Data Protection Impact Assessment <a href="#" onclick="event.preventDefault();sentinelRouter.navigate('/sentinel/dpia')" style="color:var(--accent)">Start DPIA</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Set up vendor privacy assessments <a href="#" onclick="event.preventDefault();sentinelRouter.navigate('/sentinel/vendors')" style="color:var(--accent)">Vendor privacy</a></label>
+    </div>
+  </div>
+
   <!-- 3-Column Cards -->
   <div class="three-col animate-fade-up anim-2">
     <div class="panel-card">
@@ -1250,6 +1263,12 @@
     var nd=document.getElementById('sideNavDpia');if(nd)nd.textContent=dpia.total||dpia.active;
     var ns=document.getElementById('sideNavDsr');if(ns)ns.textContent=(dsr.open||0)+(dsr.in_progress||0);
     var nb=document.getElementById('sideNavBreaches');if(nb&&bc>0){nb.textContent=bc;nb.style.display='inline-block';}
+    // Onboarding banner
+    var ob=document.getElementById('snOnboardBanner');
+    if(ob&&!localStorage.getItem('hide_sn_onboard')){ob.style.display=(ropa.count===0&&(dpia.total||0)===0&&(dsr.total||0)===0)?'':'none';}
+    // Quick-add link on zero-count hero card
+    var qa=document.getElementById('snRopaCount');
+    if(qa&&ropa.count===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();sentinelRouter.navigate(\'/sentinel/ropa\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add first record</a>');}
   }
   function populateDsrStatus(dsr){
     var el=document.getElementById('snDsrStatus');

@@ -242,6 +242,9 @@
       <div class="section-sub">Enterprise risk profile · All modules · Updated <span id="ermLastUpdated">—</span></div>
     </div>
     <div class="header-actions">
+      <a href="/erm/api/export/csv" class="btn btn-secondary" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
+      </a>
       <button class="btn btn-secondary" onclick="ermNav('/erm/register')">View Register</button>
       <button class="btn btn-primary" onclick="ermOpenRiskModal()">+ Add Risk</button>
     </div>
@@ -273,6 +276,20 @@
       <div class="stat-label">Board-Visible</div>
       <div class="stat-value" id="dBoardRisks">—</div>
       <div class="stat-sub">flagged for executive</div>
+    </div>
+  </div>
+
+  <!-- Getting Started banner (shown when no risks exist) -->
+  <div id="ermOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Enterprise Risk</h3>
+      <button onclick="this.closest('#ermOnboardBanner').style.display='none';localStorage.setItem('hide_erm_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Define your risk appetite categories <a href="#" onclick="event.preventDefault();ermRouter.navigate('/erm/appetite')" style="color:var(--accent)">Set up now</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Add your first enterprise risk <a href="#" onclick="event.preventDefault();ermOpenRiskModal()" style="color:var(--accent)">Add risk</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Browse the risk library for templates <a href="#" onclick="event.preventDefault();ermRouter.navigate('/erm/library')" style="color:var(--accent)">Open library</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Create compliance obligations <a href="#" onclick="event.preventDefault();ermRouter.navigate('/erm/obligations')" style="color:var(--accent)">View obligations</a></label>
     </div>
   </div>
 
@@ -706,6 +723,12 @@ async function ermLoadDashboard(){
     ermRenderTopCritical(d.top_critical_risks||[]);
     ermRenderActionsRequired(d.actions_required||[]);
     ermRenderFeedPanel(d.risk_feed||[]);
+    // Onboarding banner
+    var ob=document.getElementById('ermOnboardBanner');
+    if(ob&&!localStorage.getItem('hide_erm_onboard')){ob.style.display=(d.total_risks||0)===0?'':'none';}
+    // Quick-add links on zero-count stat cards
+    var qa=document.getElementById('dTotalRisks');
+    if(qa&&(d.total_risks||0)===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();ermOpenRiskModal()" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add your first</a>');}
   }catch(e){console.error('ERM dashboard',e);}
 }
 

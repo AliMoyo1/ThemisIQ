@@ -171,6 +171,9 @@
       <div class="section-sub">Operational risk events &middot; Last 30 days &middot; Updated <span id="ormLastUpdated">&mdash;</span></div>
     </div>
     <div class="header-actions">
+      <a href="/orm/api/export/csv" class="btn btn-secondary" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
+      </a>
       <button class="btn btn-primary" onclick="ormOpenEventModal()">+ Log Event</button>
     </div>
   </div>
@@ -227,6 +230,19 @@
       <div class="stat-label">Downtime Hours</div>
       <div class="stat-value" id="dDowntime">&mdash;</div>
       <div class="orm-trend" id="dDownDelta"></div>
+    </div>
+  </div>
+
+  <!-- Getting Started banner -->
+  <div id="ormOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Operational Risk</h3>
+      <button onclick="this.closest('#ormOnboardBanner').style.display='none';localStorage.setItem('hide_orm_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Log your first operational event <a href="#" onclick="event.preventDefault();ormOpenLogModal()" style="color:var(--accent)">Log event</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Set up Key Risk Indicators <a href="#" onclick="event.preventDefault();ormRouter.navigate('/orm/indicators')" style="color:var(--accent)">Configure KRIs</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Review the RCSA framework <a href="#" onclick="event.preventDefault();ormRouter.navigate('/orm/rcsa')" style="color:var(--accent)">Open RCSA</a></label>
     </div>
   </div>
 
@@ -759,6 +775,12 @@ async function ormLoadDashboard(){
         '</tr>';
       }).join('');}
     }
+    // Onboarding banner
+    var ob=document.getElementById('ormOnboardBanner');
+    if(ob&&!localStorage.getItem('hide_orm_onboard')){ob.style.display=(d.total_events||0)===0?'':'none';}
+    // Quick-add link on zero-count stat card
+    var qa=document.getElementById('dTotalEvts');
+    if(qa&&(d.total_events||0)===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();ormOpenLogModal()" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Log your first</a>');}
   }catch(e){console.error('ORM dashboard error',e);}
 }
 

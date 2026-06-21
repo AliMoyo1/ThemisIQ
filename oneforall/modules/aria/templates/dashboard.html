@@ -85,6 +85,9 @@
     <div class="stat-label">Active Frameworks</div>
     <div class="stat-value">{{ fw_stats|length }}</div>
     <div class="stat-sub">Regulatory & standard frameworks</div>
+    {% if fw_stats|length == 0 %}
+    <a href="/aria/frameworks" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add first framework</a>
+    {% endif %}
   </div>
 
   <!-- Controls Implemented -->
@@ -101,6 +104,22 @@
     <div class="stat-sub">{{ totals.in_progress }} in progress &middot; {{ totals.not_started }} not started</div>
   </div>
 </div>
+
+<!-- Onboarding Banner -->
+{% if fw_stats|length == 0 %}
+<div id="ariaOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with ARIA</h3>
+    <button onclick="this.closest('#ariaOnboardBanner').style.display='none';localStorage.setItem('hide_aria_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+  </div>
+  <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
+    <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Add a compliance framework <a href="/aria/frameworks" style="color:var(--accent)">Browse frameworks</a></label>
+    <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Map controls to your organisation <a href="/aria/mapping" style="color:var(--accent)">Control mapping</a></label>
+    <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Generate your first compliance report <a href="#" onclick="event.preventDefault();generateAriaReport()" style="color:var(--accent)">Generate report</a></label>
+  </div>
+</div>
+<script>if(localStorage.getItem('hide_aria_onboard')){var ab=document.getElementById('ariaOnboardBanner');if(ab)ab.style.display='none';}</script>
+{% endif %}
 
 <!-- 3-Column Cards: Framework Health, Control Status, Recent Activity -->
 <div class="three-col animate-fade-up anim-2">

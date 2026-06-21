@@ -26,7 +26,24 @@
       <button class="btn btn-secondary" onclick="quickRun('bcm_readiness')">BCM Readiness</button>
       <button class="btn btn-secondary" onclick="quickRun('sla_performance')">SLA Performance</button>
       <button class="btn btn-secondary" onclick="quickRun('executive_brief')">Executive Brief</button>
+      <button class="btn btn-primary" onclick="generateExecSummary()" style="display:inline-flex;align-items:center;gap:4px">
+        <span style="font-size:14px">&#10038;</span> AI Executive Summary
+      </button>
     </div>
+  </div>
+
+  <!-- AI Executive Summary Panel -->
+  <div id="execSummaryPanel" class="card" style="padding:24px;margin-bottom:16px;display:none;border-left:3px solid var(--accent)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:700;color:var(--text)">&#10038; Executive Board Summary</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="window.print()" style="font-size:12px">Print</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('execSummaryPanel').style.display='none'" style="font-size:12px">Close</button>
+      </div>
+    </div>
+    <div id="execSummaryStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:20px"></div>
+    <div id="execSummaryNarrative" style="font-size:14px;color:var(--text);line-height:1.7"></div>
+    <div id="execSummaryMeta" style="margin-top:16px;font-size:11px;color:var(--muted)"></div>
   </div>
 
   <!-- Tabs -->
@@ -295,6 +312,40 @@ function timeAgo(dt) {
 }
 
 function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+async function generateExecSummary() {
+  var panel = document.getElementById('execSummaryPanel');
+  panel.style.display = 'block';
+  document.getElementById('execSummaryNarrative').innerHTML = '<div style="text-align:center;padding:20px;color:var(--accent)"><div class="spinner" style="margin:0 auto 8px;width:20px;height:20px"></div>Generating AI executive summary...</div>';
+  document.getElementById('execSummaryStats').innerHTML = '';
+  document.getElementById('execSummaryMeta').textContent = '';
+  try {
+    var r = await fetch('/api/reports/executive-summary', {method:'POST'});
+    if (!r.ok) { document.getElementById('execSummaryNarrative').innerHTML = '<div style="color:var(--bad)">AI not available. Configure an AI provider to use this feature.</div>'; return; }
+    var data = await r.json();
+    var s = data.stats || {};
+    var statItems = [
+      {label:'Compliance', value:s.compliance_pct+'%', color:s.compliance_pct>=80?'var(--green-status)':s.compliance_pct>=60?'var(--amber)':'var(--red)'},
+      {label:'Open Risks', value:s.risks_open, color:s.risks_critical>0?'var(--red)':'var(--text)'},
+      {label:'Critical Risks', value:s.risks_critical, color:s.risks_critical>0?'var(--red)':'var(--green-status)'},
+      {label:'Active Audits', value:s.audits_active, color:'var(--accent)'},
+      {label:'Open Breaches', value:s.breaches_open, color:s.breaches_open>0?'var(--red)':'var(--green-status)'},
+      {label:'Open DSRs', value:s.dsrs_open, color:'var(--amber)'},
+      {label:'Active Incidents', value:s.incidents_active, color:s.incidents_active>0?'var(--red)':'var(--green-status)'},
+      {label:'Tasks Overdue', value:s.tasks_overdue, color:s.tasks_overdue>0?'var(--red)':'var(--green-status)'},
+    ];
+    document.getElementById('execSummaryStats').innerHTML = statItems.map(function(si){
+      return '<div style="text-align:center;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">'+
+        '<div style="font-size:22px;font-weight:800;color:'+si.color+'">'+si.value+'</div>'+
+        '<div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:3px">'+si.label+'</div></div>';
+    }).join('');
+    var paragraphs = (data.narrative||'').split('\n\n').filter(function(p){return p.trim();});
+    document.getElementById('execSummaryNarrative').innerHTML = paragraphs.map(function(p){return '<p style="margin:0 0 12px">'+p.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>';}).join('');
+    document.getElementById('execSummaryMeta').textContent = 'Generated: ' + (data.generated_at||'just now');
+  } catch(e) {
+    document.getElementById('execSummaryNarrative').innerHTML = '<div style="color:var(--bad)">Failed to generate summary.</div>';
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => { loadStats(); loadRuns(); });
 </script>

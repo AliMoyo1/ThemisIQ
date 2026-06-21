@@ -44,6 +44,16 @@
     </div>
   </div>
 
+  <!-- Quick Filters -->
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;border-radius:20px" onclick="quickFilter('login_failed')">Login Failures</button>
+    <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;border-radius:20px" onclick="quickFilter('delete')">Deletions</button>
+    <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;border-radius:20px" onclick="quickFilter('export')">Exports</button>
+    <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;border-radius:20px" onclick="quickFilter('create')">Creations</button>
+    <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;border-radius:20px" onclick="quickFilter('today')">Today</button>
+    <button class="btn btn-secondary" style="padding:5px 12px;font-size:12px;border-radius:20px" onclick="quickFilter('week')">This Week</button>
+  </div>
+
   <!-- Log Table -->
   <div class="card" style="padding:0; overflow:hidden;">
     <div id="logTableWrap" style="overflow-x:auto;">
@@ -179,6 +189,31 @@ function updatePagination(data) {
 
 function prevPage() { if (currentPage > 1) loadLogs(currentPage - 1); }
 function nextPage() { if (currentPage < totalPages) loadLogs(currentPage + 1); }
+
+function quickFilter(preset) {
+  document.getElementById('filterModule').value = '';
+  document.getElementById('filterAction').value = '';
+  document.getElementById('filterUser').value = '';
+  document.getElementById('filterFrom').value = '';
+  document.getElementById('filterTo').value = '';
+  if (preset === 'login_failed') {
+    document.getElementById('filterAction').value = 'login_failed';
+  } else if (preset === 'delete') {
+    document.getElementById('filterAction').value = 'delete';
+  } else if (preset === 'export') {
+    document.getElementById('filterAction').value = 'export';
+  } else if (preset === 'create') {
+    document.getElementById('filterAction').value = 'create';
+  } else if (preset === 'today') {
+    document.getElementById('filterFrom').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('filterTo').value = new Date().toISOString().slice(0, 10);
+  } else if (preset === 'week') {
+    var d = new Date(); d.setDate(d.getDate() - 7);
+    document.getElementById('filterFrom').value = d.toISOString().slice(0, 10);
+    document.getElementById('filterTo').value = new Date().toISOString().slice(0, 10);
+  }
+  loadLogs(1);
+}
 
 function clearFilters() {
   document.getElementById('filterModule').value = '';

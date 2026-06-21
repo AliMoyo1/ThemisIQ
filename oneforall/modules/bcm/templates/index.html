@@ -235,6 +235,9 @@
       <div class="section-sub">Business continuity programme overview &middot; Last updated <span id="bcmLastUpdated">&mdash;</span></div>
     </div>
     <div class="header-actions">
+      <a href="/bcm/api/export/csv" class="btn btn-secondary" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
+      </a>
       <button class="btn btn-secondary" onclick="bcmExport()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export Report
@@ -287,6 +290,19 @@
       <div class="stat-label">Exercise Completion</div>
       <div class="stat-value" id="bcmExPct">&mdash;</div>
       <div class="pbar"><div class="pbar-fill" id="bcmExBar" style="width:0;background:var(--accent)"></div></div>
+    </div>
+  </div>
+
+  <!-- Getting Started banner -->
+  <div id="bcmOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Business Continuity</h3>
+      <button onclick="this.closest('#bcmOnboardBanner').style.display='none';localStorage.setItem('hide_bcm_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Run a Business Impact Analysis <a href="#" onclick="event.preventDefault();bcmRouter.navigate('/bcm/bia')" style="color:var(--accent)">Start BIA</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Create your first continuity plan <a href="#" onclick="event.preventDefault();bcmRouter.navigate('/bcm/plans')" style="color:var(--accent)">View plans</a></label>
+      <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Schedule a tabletop exercise <a href="#" onclick="event.preventDefault();bcmRouter.navigate('/bcm/exercises')" style="color:var(--accent)">Set up exercise</a></label>
     </div>
   </div>
 
@@ -1035,6 +1051,12 @@
         alertEl.classList.remove('visible');
       }
     }
+    // Onboarding banner
+    var ob=document.getElementById('bcmOnboardBanner');
+    if(ob&&!localStorage.getItem('hide_bcm_onboard')){ob.style.display=((d.plans||0)===0&&(d.open_incidents||0)===0)?'':'none';}
+    // Quick-add link
+    var qa=document.getElementById('bcmPlanCount');
+    if(qa&&(d.plans||0)===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();bcmRouter.navigate(\'/bcm/plans\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Create first plan</a>');}
   }
   function populatePlanStatus(plans){
     var el=document.getElementById('bcmPlanStatus');

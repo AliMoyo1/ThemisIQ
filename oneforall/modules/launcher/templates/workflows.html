@@ -487,9 +487,11 @@
   /* ════════════════════════════════════════════════════════════════════════
      STATS
      ════════════════════════════════════════════════════════════════════════ */
+  var installedDefNames=[];
   async function loadStats(){
     try{
       var defs=await apiFetch('/api/workflows/definitions');
+      installedDefNames=defs.map(function(d){return(d.name||'').toLowerCase();});
       var active=await apiFetch('/api/workflows/instances?status=active');
       var all=await apiFetch('/api/workflows/instances');
       var actions=await apiFetch('/api/workflows/my-actions');
@@ -608,7 +610,7 @@
           '<span style="color:var(--border)">&middot;</span>'+
           '<span>'+t.steps.length+' steps</span>'+
         '</div>'+
-        '<div style="margin-top:14px"><button class="btn btn-sm btn-primary" onclick="wfInstallTpl(\''+esc(t.id)+'\')">Install Workflow</button></div>'+
+        '<div style="margin-top:14px">'+(installedDefNames.indexOf((t.name||'').toLowerCase())>-1?'<span style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:var(--radius);font-size:12px;font-weight:700;background:rgba(34,197,94,.1);color:var(--green-status)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg> Installed</span>':'<button class="btn btn-sm btn-primary" onclick="wfInstallTpl(\''+esc(t.id)+'\')">Install Workflow</button>')+'</div>'+
       '</div>';
     }).join('');
   }
@@ -620,7 +622,8 @@
         if(typeof showToast==='function') showToast('This template is already installed','info');
       } else {
         if(typeof showToast==='function') showToast('Workflow installed — view it in Definitions');
-        loadStats();
+        await loadStats();
+        renderTemplates();
       }
     }catch(e){
       if(typeof showToast==='function') showToast('Failed to install template','error');

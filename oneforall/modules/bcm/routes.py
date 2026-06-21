@@ -1179,6 +1179,38 @@ async def api_ai_save_generated_plan(request: Request):
     return JSONResponse({"id": pid}, status_code=201)
 
 
+# ── CSV Export ────────────────────────────────────────────────────────────────
+
+@router.get("/api/export/csv")
+@require_capability("module.bcm.access")
+async def api_export_csv(request: Request):
+    import csv
+    import io
+    from starlette.responses import StreamingResponse
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT title, description, severity, status, commander, "
+            "affected_systems, impact, assigned_to, declared_at, resolved_at, created_at "
+            "FROM bcm_incidents ORDER BY created_at DESC"
+        ).fetchall()
+    finally:
+        db.close()
+    columns = ["title", "description", "severity", "status", "commander",
+               "affected_systems", "impact", "assigned_to", "declared_at", "resolved_at", "created_at"]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(columns)
+    for r in rows:
+        writer.writerow([r[c] if c in r.keys() else "" for c in columns])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=bcm_incidents_export.csv"},
+    )
+
+
 @router.get("/api/reports/summary")
 @require_capability("module.bcm.access")
 async def api_reports_summary(request: Request):

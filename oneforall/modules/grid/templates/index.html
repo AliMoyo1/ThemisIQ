@@ -301,6 +301,19 @@
       </div>
     </div>
 
+    <!-- Onboarding Banner -->
+    <div id="gridOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with GRID</h3>
+        <button onclick="this.closest('#gridOnboardBanner').style.display='none';localStorage.setItem('hide_grid_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
+      </div>
+      <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
+        <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Map a compliance framework <a href="#" onclick="event.preventDefault();gridRouter.navigate('/grid/frameworks')" style="color:var(--accent)">Browse frameworks</a></label>
+        <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Create your first audit <a href="#" onclick="event.preventDefault();gridRouter.navigate('/grid/audits');setTimeout(function(){openNewAuditModal()},100)" style="color:var(--accent)">New audit</a></label>
+        <label style="display:block;cursor:pointer"><input type="checkbox" onchange="this.parentElement.style.opacity=this.checked?.5:1"> Upload evidence documents <a href="#" onclick="event.preventDefault();gridRouter.navigate('/grid/evidence')" style="color:var(--accent)">Evidence vault</a></label>
+      </div>
+    </div>
+
     <!-- 3-Column: Audit Status, Evidence, Recent Activity -->
     <div class="three-col animate-fade-up anim-2">
       <div class="panel-card">
@@ -754,6 +767,12 @@
     loadProgramDashboard();
     // Sentinel cross-module: check for active data breach
     gridCheckSentinelBreach();
+    // Onboarding banner
+    var ob=document.getElementById('gridOnboardBanner');
+    if(ob&&!localStorage.getItem('hide_grid_onboard')){ob.style.display=(data&&(data.totalAudits||0)===0)?'':'none';}
+    // Quick-add link on zero-count stat card
+    var qa=document.getElementById('gridActiveAudits');
+    if(qa&&(data&&(data.totalAudits||0)===0)&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();gridRouter.navigate(\'/grid/audits\');setTimeout(function(){openNewAuditModal()},100)" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Create first audit</a>');}
   }
 
   async function gridCheckSentinelBreach(){

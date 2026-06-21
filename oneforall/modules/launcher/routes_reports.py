@@ -260,3 +260,60 @@ async def api_report_run_get(request: Request, run_id: int):
         result["result"] = None
         result.pop("result_json", None)
     return _JSONResp(result)
+
+
+@router.post("/api/reports/executive-summary")
+@require_auth
+async def api_executive_summary(request: Request):
+    """AI-generated cross-module executive summary."""
+    from core.ai_client import is_configured, create_message
+    if not is_configured():
+        return _JSONResp({"error": "AI not configured"}, 503)
+    db = get_db()
+    try:
+        stats = {}
+        for q, k in [
+            ("SELECT COUNT(*) FROM controls", "controls_total"),
+            ("SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Compliant','Complete')", "controls_compliant"),
+            ("SELECT COUNT(*) FROM risk_register WHERE status != 'closed'", "risks_open"),
+            ("SELECT COUNT(*) FROM risk_register WHERE risk_level = 'critical' AND status != 'closed'", "risks_critical"),
+            ("SELECT COUNT(*) FROM grid_audits WHERE status IN ('Planning','Active')", "audits_active"),
+            ("SELECT COUNT(*) FROM sentinel_breaches WHERE status != 'closed'", "breaches_open"),
+            ("SELECT COUNT(*) FROM sentinel_dsr WHERE status NOT IN ('completed','closed')", "dsrs_open"),
+            ("SELECT COUNT(*) FROM bcm_incidents WHERE status IN ('open','responding')", "incidents_active"),
+            ("SELECT COUNT(*) FROM bcm_plans", "bcm_plans"),
+            ("SELECT COUNT(*) FROM task_board WHERE status NOT IN ('done','cancelled')", "tasks_open"),
+            ("SELECT COUNT(*) FROM task_board WHERE due_date < CURRENT_DATE AND status NOT IN ('done','cancelled')", "tasks_overdue"),
+        ]:
+            try:
+                stats[k] = db.execute(q).fetchone()[0]
+            except Exception:
+                stats[k] = 0
+        if stats["controls_total"]:
+            stats["compliance_pct"] = round(stats["controls_compliant"] / stats["controls_total"] * 100)
+        else:
+            stats["compliance_pct"] = 0
+    finally:
+        db.close()
+    prompt = (
+        f"Compliance stats:\n{json_lib.dumps(stats)}\n\n"
+        "Write a 3-4 paragraph executive summary for a board of directors. "
+        "Cover: overall compliance posture, key risks, active audits, privacy status, "
+        "and business continuity readiness. Use professional tone. "
+        "Highlight urgent items requiring board attention. "
+        "Do NOT use markdown or bullet points. Plain prose paragraphs only."
+    )
+    try:
+        narrative = create_message(
+            [{"role": "user", "content": prompt}],
+            system="You are a GRC reporting assistant writing for a board of directors. Be concise and professional.",
+            max_tokens=1500,
+        )
+    except Exception:
+        narrative = "AI narrative generation failed. Please review the metrics below."
+    from core.timeutils import utcnow
+    return _JSONResp({
+        "stats": stats,
+        "narrative": narrative,
+        "generated_at": utcnow().isoformat(),
+    })

@@ -554,3 +554,34 @@ async def api_rcsa_action_update(request: Request, action_id: int):
 async def api_rcsa_action_delete(request: Request, action_id: int):
     ds.delete_rcsa_action(action_id)
     return JSONResponse({"ok": True})
+
+
+@router.get("/api/export/csv")
+@require_capability("orm.event.view")
+async def api_export_csv(request: Request):
+    import csv
+    import io
+    from starlette.responses import StreamingResponse
+    from database import get_db
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT title, event_type, severity, status, department, financial_impact, "
+            "root_cause, reporter_name, created_at, resolved_at "
+            "FROM orm_events ORDER BY created_at DESC"
+        ).fetchall()
+    finally:
+        db.close()
+    columns = ["title", "event_type", "severity", "status", "department",
+               "financial_impact", "root_cause", "reporter_name", "created_at", "resolved_at"]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(columns)
+    for r in rows:
+        writer.writerow([r[c] if c in r.keys() else "" for c in columns])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=orm_events.csv"},
+    )

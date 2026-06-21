@@ -169,6 +169,31 @@ async def logout_get(request: Request):
     return RedirectResponse("/login", status_code=303)
 
 
+# ── Profile Page ─────────────────────────────────────────────────────────────
+
+@router.get("/profile", response_class=HTMLResponse)
+@require_auth
+async def profile_page(request: Request):
+    user = request.state.user
+    db = get_db()
+    try:
+        sessions = db.execute(
+            "SELECT id, created_at, last_active FROM sessions WHERE user_id = %s ORDER BY last_active DESC LIMIT 10",
+            (user["id"],)
+        ).fetchall()
+        session_count = len(sessions)
+    except Exception:
+        sessions = []
+        session_count = 0
+    finally:
+        db.close()
+    ctx = shell_ctx(request, active_module="platform", active_section="profile", show_sidebar=False)
+    ctx["profile_user"] = user
+    ctx["sessions"] = [dict(s) for s in sessions]
+    ctx["session_count"] = session_count
+    return shell_templates.TemplateResponse(request, "profile.html", ctx)
+
+
 # ── Change Password ─────────────────────────────────────────────────────────
 
 @router.get("/change-password", response_class=HTMLResponse)

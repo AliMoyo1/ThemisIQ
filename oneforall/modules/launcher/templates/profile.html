@@ -1,0 +1,97 @@
+{% extends "platform_base.html" %}
+{% block title %}My Profile — ThemisIQ{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <span class="page-title">My Profile</span>
+</div>
+
+<div class="content" style="max-width:720px">
+
+  <!-- Profile Card -->
+  <div class="card" style="padding:24px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:20px;margin-bottom:20px">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:white;flex-shrink:0">
+        {{ (profile_user.full_name or profile_user.username or '?')[:1]|upper }}{{ (profile_user.full_name or '').split(' ')[-1][:1]|upper if ' ' in (profile_user.full_name or '') else '' }}
+      </div>
+      <div>
+        <div style="font-size:18px;font-weight:700;color:var(--text)">{{ profile_user.full_name or profile_user.username }}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:2px">{{ profile_user.email or 'No email set' }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">
+          <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;background:rgba(79,142,247,.1);color:var(--accent)">{{ profile_user.role or 'user' }}</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:13px">
+      <span style="color:var(--muted);font-weight:600">Username</span>
+      <span style="color:var(--text)">{{ profile_user.username }}</span>
+      <span style="color:var(--muted);font-weight:600">Full Name</span>
+      <span style="color:var(--text)">{{ profile_user.full_name or 'Not set' }}</span>
+      <span style="color:var(--muted);font-weight:600">Email</span>
+      <span style="color:var(--text)">{{ profile_user.email or 'Not set' }}</span>
+      <span style="color:var(--muted);font-weight:600">Role</span>
+      <span style="color:var(--text)">{{ profile_user.role or 'user' }}</span>
+    </div>
+  </div>
+
+  <!-- Security -->
+  <div class="card" style="padding:24px;margin-bottom:16px">
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px">Security</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      <a href="/change-password" class="btn btn-secondary" style="text-decoration:none;font-size:13px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        Change Password
+      </a>
+      <a href="/mfa/setup" class="btn btn-secondary" style="text-decoration:none;font-size:13px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        MFA Settings
+      </a>
+    </div>
+  </div>
+
+  <!-- Active Sessions -->
+  <div class="card" style="padding:24px;margin-bottom:16px">
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px">Active Sessions ({{ session_count }})</div>
+    {% if sessions %}
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Session ID</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Created</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Last Active</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sessions %}
+          <tr style="border-bottom:1px solid var(--border-soft)">
+            <td style="padding:8px 10px;font-family:monospace;color:var(--muted)">...{{ (s.id|string)[-8:] }}</td>
+            <td style="padding:8px 10px;color:var(--text)">{{ (s.created_at or '')[:16] }}</td>
+            <td style="padding:8px 10px;color:var(--text)">{{ (s.last_active or '')[:16] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="color:var(--muted);font-size:13px">No active sessions found.</div>
+    {% endif %}
+  </div>
+
+  <!-- Quick Links -->
+  <div class="card" style="padding:24px">
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px">Quick Links</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      {% if profile_user.role == 'admin' or profile_user.role == 'super_admin' %}
+      <a href="/admin/users" class="btn btn-secondary" style="text-decoration:none;font-size:13px">User Management</a>
+      <a href="/admin/logs" class="btn btn-secondary" style="text-decoration:none;font-size:13px">Audit Log</a>
+      <a href="/admin/api-keys" class="btn btn-secondary" style="text-decoration:none;font-size:13px">API Keys</a>
+      {% endif %}
+      <a href="/tasks" class="btn btn-secondary" style="text-decoration:none;font-size:13px">Task Board</a>
+      <a href="/workflows" class="btn btn-secondary" style="text-decoration:none;font-size:13px">Workflows</a>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
