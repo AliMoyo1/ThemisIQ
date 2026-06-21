@@ -25,7 +25,7 @@ from config import settings
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from database import get_db_background as get_db, sql_now_offset, sql_date_offset  # scheduler: fail-fast, never block UI
+from database import get_db_background as get_db, sql_now_offset, sql_date_offset, sql_current_date  # scheduler: fail-fast, never block UI
 from modules.grid.email_service import (
     send_email,
     reminder_email_html,
@@ -497,7 +497,7 @@ def process_vault_expiry_notifications() -> None:
             LEFT JOIN users u ON e.uploaded_by = u.id
             WHERE e.status = 'current'
               AND e.expiry_date IS NOT NULL
-              AND e.expiry_date > CURRENT_DATE
+              AND e.expiry_date > {sql_current_date()}
               AND e.expiry_date <= {sql_date_offset('+30 days')}
             LIMIT 50
         """).fetchall()
@@ -619,7 +619,7 @@ def enforce_retention_policy() -> None:
         result = db.execute(
             "UPDATE evidence_items SET status='archived', updated_at=CURRENT_TIMESTAMP "
             "WHERE status='current' AND expiry_date IS NOT NULL "
-            "AND expiry_date < CURRENT_DATE"
+            f"AND expiry_date < {sql_current_date()}"
         )
         count = result.rowcount
         db.commit()
