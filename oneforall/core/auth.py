@@ -173,7 +173,7 @@ def get_session_user(token: str) -> Optional[dict]:
             "org_name": org_name,
             "is_super_admin": bool(user["is_super_admin"]),
             "licensed_modules": licensed_modules,
-            "mfa_pending": bool(row.get("mfa_pending")),
+            "mfa_pending": bool(row["mfa_pending"]),
         }
     finally:
         db.close()

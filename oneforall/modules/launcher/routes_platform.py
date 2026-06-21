@@ -751,33 +751,580 @@ async def api_tasks_stats(request: Request):
 #  PLATFORM TRAINER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Knowledge base for the platform trainer — answers about features and navigation
-_TRAINER_KB = {
-    "/": "The Command Centre is your home dashboard showing key metrics across all modules. Use the icon sidebar on the left to navigate between modules.",
-    "/aria": "ARIA is the policy & compliance module. Here you manage frameworks (ISO 27001, SOC 2, etc.), controls, policies, documents, and track implementation status.",
-    "/grid": "GRID is the audit management module. Create and run audits, track findings, manage non-conformities, and collect evidence.",
-    "/bcm": "BCM handles business continuity management. Build BIAs, recovery plans, run exercises, track incidents, and manage dependencies.",
-    "/sentinel": "Sentinel manages data protection. Handle DPIAs, breach reporting, DSR tracking, RoPA records, vendor assessments, and consent management.",
-    "workflows": "Workflows let you define multi-step approval chains. Create a definition with steps, then start instances that route through approvers.",
-    "reports": "The reporting engine generates compliance reports on demand. Supported types include compliance summary, risk register, SLA performance, and audit status.",
-    "task board": "The Task Board is a kanban-style view. Drag tasks between columns (To Do, In Progress, Review, Done) to update their status.",
-    "calendar": "The Compliance Calendar shows upcoming events — audits, reviews, training sessions, deadlines, and exercises across all modules.",
-    "analytics": "Analytics captures daily snapshots of your compliance metrics and shows trend charts over time. Click Capture Snapshot to record today's data.",
-    "api keys": "API keys allow external systems to authenticate with the platform. Generate a key, copy it immediately (it won't be shown again), and use it as a Bearer token.",
-    "webhooks": "Webhooks send HTTP POST notifications to external URLs when events occur — e.g., when a risk is created or an SLA is breached.",
-    "notifications": "Click the bell icon in the topbar to see notifications. The system generates alerts for task assignments, workflow decisions, SLA breaches, and more.",
-    "search": "Use the global search in the topbar to find risks, controls, documents, audits, and other entities across all modules.",
-    "sla": "SLA definitions set response and resolution time targets. When an SLA instance is created, the system tracks whether targets are met or breached.",
-    "dark mode": "Use the theme toggle in the topbar to switch between light and dark mode.",
-    "tooltip mode": "Tooltip mode highlights interactive elements on the page. Hover over highlighted items to see explanations of what they do.",
-    "import export": "Bulk import/export supports JSON format. Export entities to back up data, import to populate the system from external sources.",
+# Knowledge base for the platform trainer.
+# Each entry: list of keyword tags, then the answer text.
+# The matcher scores tag overlap with the question tokens, plus synonym expansion.
+_TRAINER_ENTRIES = [
+    # ── Platform / Command Centre ──────────────────────────────────────────
+    (["home", "command", "centre", "center", "overview", "dashboard", "main"],
+     "The Command Centre is your home dashboard showing key metrics across all modules. "
+     "Use the icon sidebar on the far left to switch between modules. "
+     "The platform sidebar (right of the icons) has links to My Dashboard, Risk Register, "
+     "Evidence Vault, Workflows, Reports, Task Board, Calendar, and Analytics."),
+
+    (["dashboard", "personal", "assigned", "tasks"],
+     "My Dashboard shows your personal view: tasks assigned to you, recent activity, "
+     "upcoming deadlines, and quick links. Navigate to it from the platform sidebar."),
+
+    (["navigate", "switch", "module", "sidebar", "menu", "icon"],
+     "The far-left icon sidebar lets you switch between modules. Each icon represents "
+     "a module: ARIA (governance), GRID (audit), BCM (continuity), Sentinel (privacy), "
+     "ERM (enterprise risk), and ORM (operational risk). Click an icon to enter that module."),
+
+    (["dark", "mode", "theme", "light", "toggle", "appearance"],
+     "Click the theme toggle icon in the topbar (sun/moon icon) to switch between "
+     "light and dark mode. Your preference is saved automatically."),
+
+    (["search", "find", "global", "lookup"],
+     "Use the global search bar in the topbar to find risks, controls, documents, "
+     "audits, vendors, and other entities across all modules. Type at least 2 characters "
+     "and results appear grouped by module."),
+
+    (["notification", "bell", "alert", "message"],
+     "Click the bell icon in the topbar to view notifications. The system generates "
+     "alerts for task assignments, workflow approvals, SLA breaches, and other events. "
+     "Unread notifications show a red badge on the bell."),
+
+    (["change", "password", "reset"],
+     "Go to Change Password in the platform sidebar. Enter your current password, "
+     "then your new password twice. Passwords must be at least 8 characters with "
+     "uppercase, lowercase, digit, and special character."),
+
+    (["mfa", "two", "factor", "2fa", "totp", "authenticator"],
+     "To set up two-factor authentication: go to your profile or the MFA Setup page. "
+     "Scan the QR code with an authenticator app (Google Authenticator, Authy, etc.), "
+     "then enter the 6-digit code to confirm. Save your backup codes somewhere safe."),
+
+    (["tooltip", "tips", "help", "hover", "explain"],
+     "Tooltip Mode highlights interactive elements on the page. Click the eye icon "
+     "in the Themis header to toggle it on. Hover over highlighted elements "
+     "to see explanations of what they do."),
+
+    # ── Workflows ──────────────────────────────────────────────────────────
+    (["workflow", "approval", "chain", "approve", "step"],
+     "Workflows let you define multi-step approval chains. "
+     "To create a workflow: go to Workflows in the platform sidebar, click New Definition, "
+     "name it, then add steps with approvers. Once defined, start an instance from any "
+     "module to route items through the approval chain. Each approver gets a notification."),
+
+    (["create", "workflow", "definition", "approval"],
+     "To create a workflow: 1) Go to Workflows in the platform sidebar. "
+     "2) Click 'New Definition'. 3) Enter a name and description. "
+     "4) Add approval steps, each with a designated approver. "
+     "5) Save. You can then start instances of this workflow from any module."),
+
+    # ── Reports ────────────────────────────────────────────────────────────
+    (["report", "generate", "compliance", "summary", "export"],
+     "The Reports page generates compliance reports on demand. Go to Reports in the "
+     "platform sidebar, select a report type (Compliance Summary, Risk Register, "
+     "SLA Performance, Audit Status), choose filters, and click Generate. "
+     "Reports can be exported or printed."),
+
+    # ── Task Board ─────────────────────────────────────────────────────────
+    (["task", "board", "kanban", "todo", "assign"],
+     "The Task Board is a kanban-style view with columns: To Do, In Progress, Review, "
+     "and Done. To create a task: click '+ New Task', fill in the title, assignee, "
+     "due date, and module. Drag cards between columns to update status. "
+     "Tasks can be assigned to any user in your organisation."),
+
+    (["create", "task", "assign", "priority"],
+     "To create a task: go to Task Board in the platform sidebar, click '+ New Task', "
+     "fill in the title, description, assignee, due date, and priority, then save. "
+     "The assignee will receive a notification."),
+
+    # ── Calendar ───────────────────────────────────────────────────────────
+    (["calendar", "schedule", "event", "deadline", "upcoming"],
+     "The Compliance Calendar shows upcoming events across all modules: audit dates, "
+     "review deadlines, training sessions, exercise schedules, and SLA deadlines. "
+     "Click any event to see details. You can filter by module using the dropdown."),
+
+    # ── Analytics ──────────────────────────────────────────────────────────
+    (["analytics", "trend", "snapshot", "metric", "chart", "graph"],
+     "Analytics captures daily snapshots of your compliance metrics and shows trend "
+     "charts over time. Click 'Capture Snapshot' to record today's data point. "
+     "The dashboard shows compliance scores, risk trends, and control coverage "
+     "as line and bar charts."),
+
+    # ── Evidence Vault ─────────────────────────────────────────────────────
+    (["evidence", "vault", "file", "upload", "attachment", "proof"],
+     "The Evidence Vault stores supporting documents for controls, audits, and risks. "
+     "To upload evidence: go to Evidence Vault in the platform sidebar, click Upload, "
+     "select files, tag them with the relevant entity (control, audit, etc.), and save. "
+     "Evidence files are linked across modules."),
+
+    # ── Risk Register (Platform) ───────────────────────────────────────────
+    (["risk", "register", "cross", "module"],
+     "The cross-module Risk Register aggregates risks from all modules into one view. "
+     "Access it from the platform sidebar. You can filter by module, severity, status, "
+     "and owner. Click any risk to see its full details and linked controls."),
+
+    # ── SLA ────────────────────────────────────────────────────────────────
+    (["sla", "service", "level", "response", "resolution", "target", "breach"],
+     "SLA definitions set response and resolution time targets. When an SLA instance "
+     "is triggered, the system tracks elapsed time and flags breaches. "
+     "To create an SLA: define the target hours for response and resolution, "
+     "assign it to a module, and the system tracks compliance automatically."),
+
+    # ── API Keys ───────────────────────────────────────────────────────────
+    (["api", "key", "token", "external", "integration", "rest"],
+     "API keys let external systems authenticate with the platform. "
+     "To create one: go to Admin > API Keys (admin only), click Generate New Key, "
+     "enter a label. Copy the key immediately; it will not be shown again. "
+     "Use it as a Bearer token in the Authorization header of HTTP requests."),
+
+    # ── Webhooks ───────────────────────────────────────────────────────────
+    (["webhook", "hook", "callback", "notify", "post"],
+     "Webhooks send HTTP POST notifications to external URLs when events occur. "
+     "To set up a webhook: go to Admin > Webhooks, click Add Webhook, enter the "
+     "target URL (must be HTTPS), select which events to trigger on, and save. "
+     "The platform logs delivery status for each webhook call."),
+
+    # ── Connectors (Slack/Teams) ───────────────────────────────────────────
+    (["slack", "teams", "connector", "chat", "notification", "channel"],
+     "Connectors send notifications to Slack or Teams channels. "
+     "Go to Admin > Connectors, click Add Connector, choose Slack or Teams, "
+     "paste your incoming webhook URL, and select which event types to forward. "
+     "Test the connection with the Test button before saving."),
+
+    # ── Import / Export ────────────────────────────────────────────────────
+    (["import", "export", "bulk", "json", "csv", "data"],
+     "Bulk import/export uses JSON format. To export: go to the module's list view "
+     "and click the Export button. To import: click Import, upload a JSON file "
+     "matching the expected schema. The system validates all rows before committing "
+     "so partial imports never happen."),
+
+    # ── User Management ────────────────────────────────────────────────────
+    (["user", "management", "manage", "create", "add", "invite", "admin"],
+     "To manage users: go to Admin > User Management (admin only). "
+     "Click '+ New User' to create a user: enter username, email, full name, "
+     "select roles, and choose their organisation. The system generates a temporary "
+     "password they must change on first login."),
+
+    (["role", "permission", "capability", "access", "rbac"],
+     "Roles control what users can see and do. Assign roles in User Management. "
+     "Available roles include Admin, Auditor, Compliance Officer, Risk Manager, "
+     "DPO, and more. Each role grants specific capabilities (e.g., module access, "
+     "edit permissions, admin functions)."),
+
+    (["deactivate", "disable", "remove", "delete", "user"],
+     "To deactivate a user: go to User Management, find the user, and toggle their "
+     "Active status off. Deactivated users cannot log in but their data and audit "
+     "trail are preserved. Admins can also delete users if needed."),
+
+    # ── Email Configuration ────────────────────────────────────────────────
+    (["email", "smtp", "configuration", "mail", "send"],
+     "Email settings are managed by admins under Admin > Email Configuration. "
+     "Enter your SMTP host, port, username, and password. Test the connection "
+     "with the Send Test Email button. The platform uses email for notifications, "
+     "reminders, and password resets."),
+
+    # ── Framework Management ───────────────────────────────────────────────
+    (["framework", "iso", "soc", "nist", "standard", "regulation"],
+     "Frameworks represent compliance standards (ISO 27001, SOC 2, NIST, GDPR, etc.). "
+     "Admin > Frameworks lets you create, edit, and activate frameworks. "
+     "Each framework contains controls that map to your organisation's compliance needs. "
+     "Modules like ARIA and GRID reference these frameworks."),
+
+    # ── Audit Log ──────────────────────────────────────────────────────────
+    (["audit", "log", "history", "activity", "trail", "who", "changed"],
+     "The Audit Log records all user actions: logins, data changes, deletions, and "
+     "approvals. Access it from Admin > Audit Log (admin only). "
+     "Filter by user, action type, module, and date range. "
+     "Every entry shows who did what, when, and from which IP address."),
+
+    # ── Vendor Directory ───────────────────────────────────────────────────
+    (["vendor", "directory", "supplier", "third", "party"],
+     "The Vendor Directory is a cross-module view of all third-party vendors. "
+     "Access it from the platform sidebar. It shows vendor name, risk rating, "
+     "assessment status, and which modules reference them. "
+     "Click a vendor to see their full profile and linked assessments."),
+
+    # ═══ ARIA (Governance) ═════════════════════════════════════════════════
+    (["aria", "governance", "policy", "compliance"],
+     "ARIA is the Governance module for policy and compliance management. "
+     "It covers: Frameworks, Policies and Documents, Risk Register, Control Mapping, "
+     "Document Templates, AI Policy Generator, and Ask ARIA AI. "
+     "Use the ARIA sidebar to navigate between these sections."),
+
+    (["aria", "framework", "control", "requirement"],
+     "In ARIA, Frameworks contain controls that represent compliance requirements. "
+     "To add a control: open a framework, click '+ Add Control', fill in the name, "
+     "description, status, and assign an owner. Controls track implementation progress."),
+
+    (["aria", "policy", "document", "create", "upload"],
+     "In ARIA Policies and Documents: click '+ New Document' to create a policy. "
+     "Enter the title, select the type (policy, procedure, standard, guideline), "
+     "choose a framework, set the owner and review date. "
+     "You can write content directly or upload an existing file."),
+
+    (["aria", "risk", "add", "create"],
+     "In ARIA Risk Register: click '+ New Risk' to log a risk. "
+     "Set the title, description, likelihood, impact, risk owner, and link it "
+     "to relevant controls. The heat map on the dashboard updates automatically."),
+
+    (["aria", "mapping", "control", "link"],
+     "Control Mapping in ARIA lets you link controls across frameworks. "
+     "This shows which controls satisfy multiple standards at once, "
+     "reducing duplication. Click 'Map Control' to create a cross-reference."),
+
+    (["aria", "template", "document", "generate"],
+     "Document Templates in ARIA provide pre-built formats for common policies. "
+     "Select a template, customize the placeholders, and generate a ready-to-use "
+     "policy document linked to the relevant framework."),
+
+    (["aria", "ai", "generator", "policy", "generate", "write"],
+     "The AI Policy Generator in ARIA uses AI to draft policy documents. "
+     "Select a framework and control, describe what you need, and the AI generates "
+     "a policy draft you can review, edit, and publish."),
+
+    (["aria", "ask", "chat", "question", "help"],
+     "Ask ARIA AI is a conversational assistant within the ARIA module. "
+     "Type compliance questions and it provides guidance based on your "
+     "frameworks, controls, and policies."),
+
+    (["aria", "export", "excel", "spreadsheet"],
+     "To export ARIA data to Excel: click 'Export to Excel' at the bottom of the "
+     "ARIA sidebar. This generates a spreadsheet with all frameworks, controls, "
+     "and their statuses."),
+
+    # ═══ GRID (Audit) ══════════════════════════════════════════════════════
+    (["grid", "audit", "management"],
+     "GRID is the Audit Management module. It covers: Audits, Controls, Evidence, "
+     "Findings, Frameworks, Vendors, and Reports. Use it to plan audits, "
+     "track findings, collect evidence, and manage non-conformities."),
+
+    (["grid", "create", "audit", "new", "plan", "start"],
+     "To create an audit in GRID: go to GRID > Audits, click '+ New Audit'. "
+     "Select the framework, set the audit date, assign a lead auditor, "
+     "and optionally link it to a parent audit. The audit appears on the "
+     "Program Dashboard with progress tracking."),
+
+    (["grid", "finding", "non", "conformity", "observation", "issue"],
+     "To log a finding in GRID: open an audit, go to the Findings tab, "
+     "click '+ New Finding'. Set the severity (critical, major, minor, observation), "
+     "describe the finding, assign a corrective action owner, and set a due date. "
+     "Track resolution status from the findings list."),
+
+    (["grid", "evidence", "collect", "attach", "proof"],
+     "In GRID Evidence: upload supporting documents for audit controls. "
+     "Click '+ Upload Evidence', select files, and tag them to the relevant "
+     "control and audit. Evidence is versioned and timestamped."),
+
+    (["grid", "control", "implement", "status"],
+     "GRID Controls track implementation status for each audit scope item. "
+     "Update a control's status (Not Started, In Progress, Complete) and "
+     "attach evidence to demonstrate compliance."),
+
+    (["grid", "program", "dashboard", "overview", "progress"],
+     "The GRID Program Dashboard shows all audits at a glance: total controls, "
+     "completion percentage, overdue items, and framework distribution. "
+     "Click any audit card to drill into its details."),
+
+    # ═══ BCM (Business Continuity) ═════════════════════════════════════════
+    (["bcm", "business", "continuity", "resilience"],
+     "BCM is the Business Continuity module. It covers: BIA (Business Impact Analysis), "
+     "Continuity Plans, Incidents, Exercises, Risk Assessment, Dependencies, Training, "
+     "Crisis Comms, Emergency Contacts, Scenario Library, Documents, Compliance Controls, "
+     "and Vendors."),
+
+    (["bcm", "bia", "business", "impact", "analysis", "create"],
+     "To create a BIA in BCM: go to BCM > Business Impact Analysis, "
+     "click '+ New BIA'. Identify the business process, set the criticality level, "
+     "define RTO (Recovery Time Objective) and RPO (Recovery Point Objective), "
+     "and document dependencies. BIAs drive your continuity planning."),
+
+    (["bcm", "plan", "continuity", "recovery", "create"],
+     "To create a Continuity Plan: go to BCM > Continuity Plans, click '+ New Plan'. "
+     "Link it to a BIA, define recovery steps, assign team members, "
+     "set activation criteria, and document communication procedures. "
+     "Plans can be tested through the Exercises section."),
+
+    (["bcm", "incident", "log", "report", "crisis"],
+     "To log an incident in BCM: go to BCM > Incidents, click '+ New Incident'. "
+     "Classify the incident type, set severity, describe the impact, "
+     "activate the relevant continuity plan, and track resolution steps. "
+     "Active incidents show a badge in the sidebar."),
+
+    (["bcm", "exercise", "test", "drill", "simulate"],
+     "To run an exercise in BCM: go to Exercises and Testing, click '+ New Exercise'. "
+     "Choose the type (tabletop, walkthrough, full simulation), link to a scenario "
+     "and continuity plan, set the date, and assign participants. "
+     "After the exercise, record outcomes and lessons learned."),
+
+    (["bcm", "crisis", "comms", "communication", "emergency"],
+     "Crisis Comms in BCM manages crisis communication templates and distribution lists. "
+     "Pre-define message templates for different scenario types, "
+     "set up notification chains, and maintain emergency contact lists."),
+
+    (["bcm", "contact", "emergency", "phone", "call", "tree"],
+     "Emergency Contacts in BCM stores key personnel for crisis response. "
+     "Add contacts with name, role, phone, and email. "
+     "Organise them into call trees for different incident types."),
+
+    (["bcm", "scenario", "library", "threat"],
+     "The Scenario Library in BCM contains predefined threat scenarios "
+     "(cyber attack, natural disaster, supply chain failure, etc.). "
+     "Use them to plan exercises and map continuity plans to specific threats."),
+
+    (["bcm", "dependency", "dependencies", "upstream", "downstream"],
+     "Dependencies in BCM tracks what your critical processes depend on: "
+     "systems, vendors, teams, facilities. Map upstream and downstream dependencies "
+     "to understand cascade effects during disruptions."),
+
+    (["bcm", "training", "record", "awareness"],
+     "BCM Training tracks staff training on business continuity procedures. "
+     "Record training sessions, attendance, topics covered, and schedule refreshers."),
+
+    # ═══ Sentinel (Data Protection) ════════════════════════════════════════
+    (["sentinel", "privacy", "data", "protection", "gdpr"],
+     "Sentinel is the Data Protection and Privacy module. It covers: RoPA, DPIA, "
+     "Data Breaches, Subject Requests (DSR), Vendor Management, Consent Management, "
+     "Legitimate Interest assessments, International Transfers, Retention, "
+     "Security Measures, Privacy Policies, Notices, Data Flows, Controllers, "
+     "Training Records, and Jurisdiction Manager."),
+
+    (["sentinel", "ropa", "record", "processing", "activity", "register"],
+     "RoPA (Record of Processing Activities) in Sentinel documents every data "
+     "processing activity. To create one: go to Sentinel > RoPA Records, "
+     "click '+ New Record'. Enter the processing purpose, legal basis, "
+     "data categories, retention period, and data recipients. "
+     "This is a GDPR Article 30 requirement."),
+
+    (["sentinel", "dpia", "impact", "assessment", "privacy", "create"],
+     "To create a DPIA: go to Sentinel > DPIA Assessments, click '+ New DPIA'. "
+     "Describe the processing, identify risks to data subjects, "
+     "assess necessity and proportionality, and document mitigations. "
+     "DPIAs are required for high-risk processing under GDPR Article 35."),
+
+    (["sentinel", "breach", "data", "report", "notify", "incident"],
+     "To report a data breach: go to Sentinel > Data Breaches, click '+ New Breach'. "
+     "Record the date discovered, nature of the breach, data subjects affected, "
+     "categories of data, and notification status. "
+     "GDPR requires notifying the supervisory authority within 72 hours."),
+
+    (["sentinel", "dsr", "subject", "request", "access", "erasure", "right"],
+     "To handle a Data Subject Request: go to Sentinel > Subject Requests, "
+     "click '+ New DSR'. Select the request type (access, erasure, portability, etc.), "
+     "enter the data subject's details, and track fulfilment steps. "
+     "The system tracks response deadlines (typically 30 days under GDPR)."),
+
+    (["sentinel", "consent", "manage", "opt", "preference"],
+     "Consent Management in Sentinel tracks consent records. "
+     "Create consent definitions with purpose and legal basis, "
+     "then record individual consent decisions. "
+     "Track withdrawals and ensure processing stops when consent is revoked."),
+
+    (["sentinel", "transfer", "international", "cross", "border", "adequacy"],
+     "International Transfers in Sentinel documents cross-border data transfers. "
+     "Record the destination country, transfer mechanism (adequacy decision, SCCs, BCRs), "
+     "and safeguards in place."),
+
+    (["sentinel", "retention", "schedule", "delete", "dispose"],
+     "Retention in Sentinel manages data retention schedules. "
+     "Define retention periods by data category and legal basis. "
+     "The system flags records approaching their retention deadline."),
+
+    (["sentinel", "vendor", "assessment", "processor", "third"],
+     "Vendor Management in Sentinel assesses data processors. "
+     "Create vendor profiles, conduct privacy impact assessments, "
+     "track DPA (Data Processing Agreement) status, and set review dates."),
+
+    (["sentinel", "lia", "legitimate", "interest", "balancing"],
+     "Legitimate Interest Assessments (LIA) in Sentinel document the balancing test "
+     "required when relying on legitimate interest as a legal basis. "
+     "Record the purpose, necessity, and balancing against data subject rights."),
+
+    (["sentinel", "policy", "privacy", "notice"],
+     "Privacy Policies and Notices in Sentinel store your organisation's privacy "
+     "documentation. Create and version privacy policies, cookie policies, "
+     "and privacy notices. Track publication dates and review schedules."),
+
+    (["sentinel", "dataflow", "flow", "map", "diagram"],
+     "Data Flows in Sentinel map how personal data moves through your organisation. "
+     "Document source, processing stages, storage locations, and recipients "
+     "to visualise your data landscape."),
+
+    (["sentinel", "controller", "processor", "joint"],
+     "Controllers in Sentinel records data controller and joint controller "
+     "relationships. Document controller details, responsibilities, "
+     "and agreements for joint controllership arrangements."),
+
+    (["sentinel", "jurisdiction", "law", "regulation", "country"],
+     "The Jurisdiction Manager in Sentinel configures which data protection laws "
+     "apply to your organisation (GDPR, CCPA, POPIA, etc.). "
+     "Each jurisdiction can have its own requirements and response deadlines."),
+
+    # ═══ ERM (Enterprise Risk Management) ══════════════════════════════════
+    (["erm", "enterprise", "risk", "management"],
+     "ERM is the Enterprise Risk Management module. It covers: Risk Register, "
+     "Risk Appetite, Risk Library, Obligations, Key Risk Indicators (KRI), "
+     "Assessments, and Reports."),
+
+    (["erm", "risk", "create", "add", "new", "register"],
+     "To add an enterprise risk: go to ERM > Risk Register, click '+ New Risk'. "
+     "Enter the risk title, category, likelihood and impact scores, owner, "
+     "and link mitigating controls. The risk matrix updates automatically."),
+
+    (["erm", "appetite", "tolerance", "threshold", "limit"],
+     "Risk Appetite in ERM defines your organisation's tolerance thresholds. "
+     "Set acceptable risk levels by category. Risks exceeding the appetite "
+     "threshold are flagged with warning badges."),
+
+    (["erm", "library", "catalog", "template", "predefined"],
+     "The Risk Library in ERM contains predefined risk templates by category "
+     "(operational, financial, strategic, compliance, reputational). "
+     "Use library items as starting points when adding risks to your register."),
+
+    (["erm", "obligation", "regulatory", "requirement", "comply"],
+     "Obligations in ERM tracks regulatory and contractual requirements. "
+     "Create obligations linked to frameworks, assign owners, "
+     "and track compliance status."),
+
+    (["erm", "indicator", "kri", "metric", "monitor", "threshold"],
+     "Key Risk Indicators (KRI) in ERM are metrics that signal risk changes. "
+     "Define indicators with green/amber/red thresholds. "
+     "Record values regularly; breached thresholds trigger alerts. "
+     "KRIs can auto-update based on events logged in ORM."),
+
+    (["erm", "assessment", "evaluate", "review"],
+     "Risk Assessments in ERM are structured evaluations of your risk landscape. "
+     "Create an assessment, select risks to evaluate, score them, "
+     "and document treatment decisions."),
+
+    # ═══ ORM (Operational Risk Management) ═════════════════════════════════
+    (["orm", "operational", "risk"],
+     "ORM is the Operational Risk Management module. It covers: Events (loss events), "
+     "KRI Indicators, RCSA (Risk and Control Self-Assessment), and Reports."),
+
+    (["orm", "event", "loss", "incident", "log", "create"],
+     "To log an operational risk event: go to ORM > Events, click '+ Log Event'. "
+     "Enter the event date, category (from Basel II categories), description, "
+     "financial impact, root cause, and corrective actions. "
+     "Events feed into KRI indicators and RCSA assessments."),
+
+    (["orm", "kri", "indicator", "key", "risk", "operational"],
+     "ORM KRI Indicators track operational risk metrics. "
+     "Define an indicator with thresholds, link it to risk categories, "
+     "and record periodic values. Breaches show warning badges in the sidebar. "
+     "KRIs can auto-increment when matching events are logged."),
+
+    (["orm", "rcsa", "self", "assessment", "control"],
+     "RCSA (Risk and Control Self-Assessment) in ORM lets business units "
+     "self-assess their operational risks and control effectiveness. "
+     "Create an RCSA, list risks and controls, score each, "
+     "and document action plans for gaps."),
+
+    # ── General how-to patterns ────────────────────────────────────────────
+    (["start", "begin", "started", "new", "first", "getting"],
+     "Welcome to ThemisGRC. Start by exploring the modules from the icon sidebar on the left. "
+     "Each module has its own dashboard with key metrics. "
+     "Common first steps: set up your frameworks in ARIA, configure users in Admin, "
+     "and create your first audit in GRID or risk register entries in ERM."),
+
+    (["help", "support", "stuck", "confused", "lost"],
+     "You can ask me anything about using the platform. Try questions like: "
+     "'How do I create an audit?', 'How do I log a data breach?', "
+     "'How do I set up workflows?', or 'What is the Risk Register?'. "
+     "You can also turn on Tooltip Mode to see explanations when hovering over elements."),
+
+    (["print", "pdf", "download", "save"],
+     "To print or save as PDF: most reports and views have a Print or Export button. "
+     "For any page, you can also use your browser's Print function (Ctrl+P) "
+     "which will use a print-friendly layout."),
+]
+
+# Synonym map: expand question tokens so "policy" also checks "document", etc.
+_TRAINER_SYNONYMS = {
+    "policy": ["document", "procedure", "standard"],
+    "document": ["policy", "file"],
+    "breach": ["incident", "violation"],
+    "incident": ["breach", "event", "crisis"],
+    "audit": ["review", "assessment", "inspection"],
+    "risk": ["threat", "hazard", "exposure"],
+    "user": ["account", "person", "staff", "employee"],
+    "create": ["add", "new", "make", "set up", "setup"],
+    "delete": ["remove", "deactivate", "disable"],
+    "dpia": ["impact", "assessment", "privacy"],
+    "ropa": ["record", "processing", "activity"],
+    "dsr": ["subject", "request", "access", "erasure"],
+    "bia": ["impact", "analysis", "business"],
+    "kri": ["indicator", "metric", "threshold"],
+    "rcsa": ["self", "assessment", "control"],
+}
+
+
+_TRAINER_STOP_WORDS = frozenset({
+    "how", "do", "i", "a", "an", "the", "is", "it", "to", "in", "on", "of",
+    "my", "me", "can", "what", "where", "when", "why", "which", "who",
+    "does", "did", "will", "would", "should", "could", "am", "are", "was",
+    "were", "be", "been", "have", "has", "had", "this", "that", "with",
+    "for", "from", "about", "use", "up", "out", "go", "get", "set",
+})
+
+
+def _stem_token(t: str) -> str:
+    """Minimal English stemmer for KB matching."""
+    if t.endswith("ment") and len(t) > 5:
+        return t[:-4]
+    if t.endswith("ing") and len(t) > 5:
+        return t[:-3]
+    if t.endswith("tion") and len(t) > 5:
+        return t[:-4]
+    if t.endswith("ies") and len(t) > 4:
+        return t[:-3] + "y"
+    if t.endswith("es") and len(t) > 4:
+        return t[:-2]
+    if t.endswith("s") and not t.endswith("ss") and len(t) > 3:
+        return t[:-1]
+    return t
+
+
+def _normalize_tokens(raw_tokens: set[str]) -> set[str]:
+    """Remove stop words and apply stemming."""
+    out = set()
+    for t in raw_tokens:
+        if t in _TRAINER_STOP_WORDS:
+            continue
+        out.add(t)
+        stemmed = _stem_token(t)
+        if stemmed != t:
+            out.add(stemmed)
+    return out
+
+
+def _score_entry(tags: list[str], tokens: set[str]) -> float:
+    """Score a KB entry against the user's question tokens.
+
+    Direct tag hits score 2 each. Synonym-expanded hits score 1.
+    Multi-tag hits get a bonus so specific entries outrank generic ones.
+    """
+    direct = sum(1 for t in tags if t in tokens)
+    synonym_hits = 0
+    for t in tags:
+        for syn_key, syn_list in _TRAINER_SYNONYMS.items():
+            if t == syn_key and any(s in tokens for s in syn_list):
+                synonym_hits += 1
+                break
+            if t in syn_list and syn_key in tokens:
+                synonym_hits += 1
+                break
+    score = direct * 2.0 + synonym_hits * 1.0
+    if direct >= 2:
+        score += direct * 0.5
+    return score
+
+
+# Page-path to module mapping for context-aware fallback
+_PAGE_MODULE_MAP = {
+    "/aria": "aria", "/grid": "grid", "/bcm": "bcm",
+    "/sentinel": "sentinel", "/erm": "erm", "/orm": "orm",
 }
 
 
 @router.post("/api/trainer/ask")
 @require_auth
 async def api_trainer_ask(request: Request):
-    """Platform Trainer — answer questions about how to use the platform."""
+    """Platform Trainer: answer questions about how to use the platform."""
     data = await request.json()
     question = (data.get("question") or "").strip().lower()
     page = data.get("page", "/")
@@ -785,36 +1332,52 @@ async def api_trainer_ask(request: Request):
     if not question:
         return _JSONResp({"answer": "Please ask a question about the platform."})
 
-    # Simple keyword matching against the knowledge base
-    best_answer = None
-    best_score = 0
+    import re as _re
+    raw_tokens = set(_re.findall(r"[a-z0-9]+", question))
+    tokens = _normalize_tokens(raw_tokens)
 
-    for key, answer in _TRAINER_KB.items():
-        # Score based on keyword overlap
-        key_words = key.lower().replace("/", " ").split()
-        score = sum(1 for w in key_words if w in question)
-        # Bonus for exact key match in question
-        if key.strip("/") and key.strip("/").lower() in question:
-            score += 3
+    # Add the current page's module as a context token so answers are biased
+    # toward the module the user is currently viewing
+    for prefix, mod in _PAGE_MODULE_MAP.items():
+        if page.startswith(prefix):
+            tokens.add(mod)
+            break
+
+    # Score every KB entry
+    best_answer = None
+    best_score = 0.0
+    for tags, answer in _TRAINER_ENTRIES:
+        score = _score_entry(tags, tokens)
         if score > best_score:
             best_score = score
             best_answer = answer
 
-    # Context-aware fallback using current page
-    if best_score < 1:
-        page_key = page.rstrip("/")
-        for key, answer in _TRAINER_KB.items():
-            if key in page_key or page_key in key:
-                best_answer = f"You're currently on the {key.strip('/').upper() or 'home'} page. {answer}"
+    # Fallback: if nothing scored above threshold, give a context hint
+    if best_score < 2.0:
+        for prefix, mod in _PAGE_MODULE_MAP.items():
+            if page.startswith(prefix):
+                for tags, answer in _TRAINER_ENTRIES:
+                    if mod in tags and len(tags) <= 4:
+                        best_answer = (
+                            f"I'm not sure about that specific question, but you're "
+                            f"in the {mod.upper()} module. {answer} "
+                            f"Try asking something more specific, like "
+                            f"'How do I create...' or 'What is...'."
+                        )
+                        break
                 break
 
     if not best_answer:
         best_answer = (
-            "I'm not sure about that specific feature. Here are some things I can help with: "
-            "navigating between modules (ARIA, GRID, BCM, Sentinel), using workflows and approvals, "
-            "the task board, compliance calendar, analytics, API keys, webhooks, notifications, "
-            "search, SLA tracking, import/export, and tooltip mode. "
-            "Try asking about any of these topics!"
+            "I can help with any feature on the platform. Try asking things like:\n"
+            "- 'How do I create an audit?'\n"
+            "- 'How do I log a data breach?'\n"
+            "- 'How do I set up a workflow?'\n"
+            "- 'What is the Risk Register?'\n"
+            "- 'How do I create a user?'\n"
+            "- 'How do I run a BIA?'\n\n"
+            "You can also turn on Tooltip Mode to see explanations when "
+            "hovering over elements."
         )
 
     return _JSONResp({"answer": best_answer})

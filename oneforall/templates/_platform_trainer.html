@@ -1,6 +1,6 @@
 <!-- ═══ PLATFORM TRAINER — AI Help Bubble + Tooltip Mode ═══ -->
 <div id="trainerBubble" class="trainer-bubble">
-  <div class="trainer-icon" onclick="toggleTrainer()" title="Platform Trainer">
+  <div class="trainer-icon" onclick="toggleTrainer()" title="Themis">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     <span class="trainer-pulse"></span>
   </div>
@@ -10,7 +10,7 @@
     <div class="trainer-header">
       <div style="display:flex;align-items:center;gap:8px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <span style="font-weight:600;font-size:14px;">Platform Trainer</span>
+        <span style="font-weight:600;font-size:14px;">Themis</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="trainer-mode-btn" id="tooltipToggle" onclick="toggleTooltipMode()" title="Toggle tooltip mode">
@@ -22,7 +22,7 @@
     </div>
     <div class="trainer-messages" id="trainerMessages">
       <div class="trainer-msg bot">
-        <div class="trainer-msg-content">Hi! I'm your Platform Trainer. Ask me anything about how to use AegisGRC — features, navigation, module workflows, or any button you see. You can also turn on <strong>Tooltip Mode</strong> to see explanations when you hover over elements.</div>
+        <div class="trainer-msg-content">Hi! I'm Themis, your platform guide. Ask me <strong>how to do anything</strong> in ThemisGRC. For example:<br><br>&bull; "How do I create an audit?"<br>&bull; "How do I log a data breach?"<br>&bull; "How do I set up a workflow?"<br>&bull; "What is the Risk Register?"<br><br>I cover all 6 modules: ARIA, GRID, BCM, Sentinel, ERM, and ORM. You can also turn on <strong>Tooltip Mode</strong> to see explanations when you hover over elements.</div>
       </div>
     </div>
     <div class="trainer-input-wrap">
@@ -137,7 +137,9 @@ function appendMsg(type, content) {
   const msgs = document.getElementById('trainerMessages');
   const div = document.createElement('div');
   div.className = 'trainer-msg ' + type;
-  div.innerHTML = '<div class="trainer-msg-content">' + escTrainer(content) + '</div>';
+  var safe = escTrainer(content);
+  safe = safe.replace(/\n- /g, '<br>&bull; ').replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+  div.innerHTML = '<div class="trainer-msg-content">' + safe + '</div>';
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -146,13 +148,21 @@ function appendMsg(type, content) {
 // Automatically annotates known elements with data-trainer-tip
 function injectTrainerTips() {
   const tips = {
-    '.icon-sidebar': 'Module switcher — click icons to navigate between ARIA, GRID, BCM, and Sentinel modules',
-    '.page-title': 'Current page title — shows which section you are viewing',
-    '.topbar-search': 'Global search — find risks, controls, documents, and more across all modules',
-    '#notifBell': 'Notifications — view alerts, approvals, and system messages',
-    '.btn-primary': 'Primary action button — performs the main action for this page',
-    '.sidebar-section': 'Navigation section — expand to see sub-pages within this module',
-    '[data-status]': 'Status indicator — shows the current state of this item',
+    '.icon-sidebar': 'Module switcher: click icons to navigate between ARIA, GRID, BCM, Sentinel, ERM, and ORM modules',
+    '.icon-nav-item': 'Module icon: click to switch to this module',
+    '.topbar-search': 'Global search: find risks, controls, documents, and more across all modules',
+    '.topbar-search input': 'Type at least 2 characters to search across all modules',
+    '#notifBell': 'Notifications: view alerts, approvals, task assignments, and system messages',
+    '.btn-primary': 'Primary action button: performs the main action for this page',
+    '.sidebar-section .nav-item': 'Navigation link: click to go to this section',
+    '[data-status]': 'Status indicator: shows the current state of this item',
+    '.module-sidebar-header': 'Current module: shows which module you are working in',
+    '.breadcrumb': 'Breadcrumb trail: shows your current location in the platform',
+    '.sidebar-toggle': 'Toggle sidebar: click to show or hide the navigation sidebar',
+    '.stat-card': 'Metric card: shows a key performance indicator for this module',
+    '.theme-toggle': 'Theme toggle: switch between light and dark mode',
+    '.btn-export': 'Export: download this data as a file',
+    '.mobile-nav-toggle': 'Menu: open the navigation sidebar on mobile',
   };
   for (const [selector, tip] of Object.entries(tips)) {
     document.querySelectorAll(selector).forEach(el => {
