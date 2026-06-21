@@ -112,7 +112,7 @@ def process_expiry_alerts() -> None:
             JOIN grid_controls c ON ef.control_id = c.id
             LEFT JOIN users    u ON c.assignee_id = u.id
             WHERE ef.expires_at IS NOT NULL
-              AND ef.expires_at > CURRENT_DATE
+              AND ef.expires_at > {sql_current_date()}
               AND ef.expires_at <= {sql_date_offset('+30 days')}
               AND ef.expiry_notified = 0
               AND ef.status != 'Rejected'
