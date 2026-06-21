@@ -272,7 +272,7 @@ async def api_calendar_events(request: Request):
         rows = db.execute(
             f"SELECT ce.*, u.full_name as assigned_name "
             f"FROM calendar_events ce LEFT JOIN users u ON ce.assigned_to = u.id "
-            f"WHERE {' AND '.join(where)} ORDER BY ce.start_date",
+            f"WHERE {' AND '.join(where)} ORDER BY ce.start_date LIMIT 500",
             params
         ).fetchall()
     finally:

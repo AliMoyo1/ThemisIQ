@@ -1032,9 +1032,22 @@ def list_vendors(status=None, risk_level=None):
             q += " AND risk_level=%s"; params.append(risk_level)
         q += " ORDER BY name"
         vendors = _dicts(db.execute(q, params).fetchall())
-        for v in vendors:
-            latest = _dict(db.execute("SELECT * FROM grid_vendor_assessments WHERE vendor_id=%s ORDER BY assessment_date DESC LIMIT 1", (v["id"],)).fetchone())
-            v["latest_assessment"] = latest
+        if vendors:
+            vids = [v["id"] for v in vendors]
+            placeholders = ", ".join(["%s"] * len(vids))
+            all_assessments = _dicts(db.execute(
+                f"SELECT * FROM grid_vendor_assessments "
+                f"WHERE vendor_id IN ({placeholders}) "
+                f"ORDER BY assessment_date DESC, id DESC",
+                vids,
+            ).fetchall())
+            latest_map = {}
+            for a in all_assessments:
+                vid = a["vendor_id"]
+                if vid not in latest_map:
+                    latest_map[vid] = a
+            for v in vendors:
+                v["latest_assessment"] = latest_map.get(v["id"])
         return vendors
     finally:
         db.close()
