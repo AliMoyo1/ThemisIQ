@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ status_code }} - ThemisIQ</title>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.error-container{text-align:center;max-width:480px;padding:48px 32px}
+.error-code{font-size:96px;font-weight:800;color:#1e293b;letter-spacing:-2px;line-height:1;margin-bottom:8px;
+  background:linear-gradient(135deg,#334155,#64748b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.error-title{font-size:22px;font-weight:600;margin-bottom:12px;color:#f1f5f9}
+.error-message{font-size:14px;color:#94a3b8;line-height:1.6;margin-bottom:32px}
+.error-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s}
+.btn-primary{background:#1e293b;color:#e2e8f0;border:1px solid #334155}
+.btn-primary:hover{background:#334155}
+.btn-secondary{background:transparent;color:#94a3b8;border:1px solid #334155}
+.btn-secondary:hover{color:#e2e8f0;border-color:#64748b}
+.logo{margin-bottom:32px;font-size:18px;font-weight:700;color:#64748b;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="error-container">
+  <div class="logo">THEMISIQ</div>
+  <div class="error-code">{{ status_code }}</div>
+  <h1 class="error-title">{{ title }}</h1>
+  <p class="error-message">{{ message }}</p>
+  <div class="error-actions">
+    <a href="/" class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 12l9-9 9 9"/><path d="M9 21V9h6v12"/></svg>
+      Go Home
+    </a>
+    <a href="javascript:history.back()" class="btn btn-secondary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Go Back
+    </a>
+  </div>
+</div>
+</body>
+</html>

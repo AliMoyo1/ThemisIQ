@@ -15,7 +15,10 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from config import settings
 from database import init_db, get_db, OperationalError
-from core.middleware import security_headers_middleware, csrf_origin_middleware, tenant_context_middleware
+from core.middleware import (
+    security_headers_middleware, csrf_origin_middleware, tenant_context_middleware,
+    cors_block_middleware, body_size_limit_middleware, sanitize_json_middleware,
+)
 import core.event_handlers  # noqa: F401 - registers cross-module event handlers
 
 # -- Logging ------------------------------------------------------------------
@@ -45,7 +48,10 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Order matters: outermost first. Security headers wrap everything,
 # CSRF origin check runs before the route handler.
 app.middleware("http")(security_headers_middleware)
+app.middleware("http")(body_size_limit_middleware)
+app.middleware("http")(cors_block_middleware)
 app.middleware("http")(csrf_origin_middleware)
+app.middleware("http")(sanitize_json_middleware)
 app.middleware("http")(tenant_context_middleware)
 
 # -- Static files -------------------------------------------------------------
@@ -256,7 +262,7 @@ async def ready():
         log.warning("Readiness probe failed: %s", exc)
         return JSONResponse(
             status_code=503,
-            content={"status": "not_ready", "detail": str(exc)},
+            content={"status": "not_ready"},
         )
 
 
@@ -385,6 +391,16 @@ async def orm_spa_fallback(request: Request, path: str):
 
 # -- Global error handler ----------------------------------------------------
 
+def _wants_json(request: Request) -> bool:
+    """Return True if the client expects JSON (API call) rather than HTML."""
+    accept = request.headers.get("accept", "")
+    if request.url.path.startswith("/api/"):
+        return True
+    if "application/json" in accept:
+        return True
+    xhr = request.headers.get("x-requested-with", "").lower()
+    return xhr == "xmlhttprequest"
+
 @app.exception_handler(OperationalError)
 async def db_lock_handler(request: Request, exc: OperationalError):
     """Convert SQLite write-lock timeouts into a friendly 503 so the UI
@@ -412,18 +428,56 @@ async def db_lock_handler(request: Request, exc: OperationalError):
 
 @app.exception_handler(403)
 async def forbidden_handler(request: Request, exc):
-    return JSONResponse(
-        status_code=403,
-        content={"detail": "You do not have permission to access this resource."},
-    )
+    if _wants_json(request):
+        return JSONResponse(status_code=403, content={"detail": "Access denied."})
+    from fastapi.templating import Jinja2Templates
+    _err_tpl = Jinja2Templates(directory="templates")
+    return _err_tpl.TemplateResponse("error.html", {
+        "request": request, "status_code": 403,
+        "title": "Access Denied",
+        "message": "You do not have permission to access this resource.",
+    }, status_code=403)
 
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
-    return JSONResponse(
-        status_code=404,
-        content={"detail": "The requested resource was not found."},
-    )
+    if _wants_json(request):
+        return JSONResponse(status_code=404, content={"detail": "Not found."})
+    from fastapi.templating import Jinja2Templates
+    _err_tpl = Jinja2Templates(directory="templates")
+    return _err_tpl.TemplateResponse("error.html", {
+        "request": request, "status_code": 404,
+        "title": "Page Not Found",
+        "message": "The page you are looking for does not exist or has been moved.",
+    }, status_code=404)
+
+
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc):
+    log.exception("Unhandled error on %s %s", request.method, request.url.path)
+    if _wants_json(request):
+        return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred."})
+    from fastapi.templating import Jinja2Templates
+    _err_tpl = Jinja2Templates(directory="templates")
+    return _err_tpl.TemplateResponse("error.html", {
+        "request": request, "status_code": 500,
+        "title": "Something Went Wrong",
+        "message": "An unexpected error occurred. Please try again or contact support if the problem persists.",
+    }, status_code=500)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    log.exception("Unhandled exception on %s %s: %s", request.method, request.url.path, type(exc).__name__)
+    if _wants_json(request):
+        return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred."})
+    from fastapi.templating import Jinja2Templates
+    _err_tpl = Jinja2Templates(directory="templates")
+    return _err_tpl.TemplateResponse("error.html", {
+        "request": request, "status_code": 500,
+        "title": "Something Went Wrong",
+        "message": "An unexpected error occurred. Please try again or contact support if the problem persists.",
+    }, status_code=500)
 
 
 # -- Run ------------------------------------------------------------------

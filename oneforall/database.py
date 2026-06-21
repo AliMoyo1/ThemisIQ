@@ -3244,6 +3244,21 @@ def _run_sqlite_alters(conn):
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_bcm_comms_title ON bcm_comm_templates(title)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_bcm_scenario_title ON bcm_scenario_library(title)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_erm_library_title ON erm_risk_library(title)",
+        # Security hardening: indexes for high-traffic query patterns
+        "CREATE INDEX IF NOT EXISTS idx_bcm_exercises_status ON bcm_exercises(status)",
+        "CREATE INDEX IF NOT EXISTS idx_bcm_vendors_status ON bcm_vendors(status)",
+        "CREATE INDEX IF NOT EXISTS idx_bcm_training_status ON bcm_training_modules(status)",
+        "CREATE INDEX IF NOT EXISTS idx_bcm_chat_user ON bcm_chat_messages(user_id, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_bcm_attest_user ON bcm_training_attestations(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_erm_risks_status ON erm_risks(status)",
+        "CREATE INDEX IF NOT EXISTS idx_erm_risks_module ON erm_risks(module)",
+        "CREATE INDEX IF NOT EXISTS idx_orm_events_status ON orm_events(status)",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)",
+        "CREATE INDEX IF NOT EXISTS idx_task_board_status ON task_board(status)",
+        "CREATE INDEX IF NOT EXISTS idx_task_board_created_by ON task_board(created_by)",
+        "CREATE INDEX IF NOT EXISTS idx_workflow_inst_def ON workflow_instances(definition_id)",
+        "CREATE INDEX IF NOT EXISTS idx_calendar_assigned ON calendar_events(assigned_to)",
+        "CREATE INDEX IF NOT EXISTS idx_calendar_created_by ON calendar_events(created_by)",
     ]
     for idx_sql in _POST_MIGRATION_INDEXES:
         try:

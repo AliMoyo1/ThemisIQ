@@ -351,6 +351,105 @@ async def tenant_context_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+# ── Global Input Sanitization ────────────────────────────────────────────────
+
+import re as _re
+import html as _html
+
+_HTML_TAG_RE = _re.compile(r"<[^>]+>")
+
+
+def _strip_tags_deep(obj):
+    """Recursively strip HTML tags from all string values in a JSON structure."""
+    if isinstance(obj, str):
+        cleaned = _html.unescape(obj)
+        cleaned = _HTML_TAG_RE.sub("", cleaned)
+        if len(cleaned) > 50000:
+            cleaned = cleaned[:50000]
+        return cleaned
+    if isinstance(obj, dict):
+        return {k: _strip_tags_deep(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_strip_tags_deep(item) for item in obj[:1000]]
+    return obj
+
+
+async def sanitize_json_middleware(request: Request, call_next):
+    """Strip HTML tags from all string values in JSON request bodies.
+
+    This provides blanket XSS prevention at the input layer, complementing
+    Jinja2 autoescape on output. Only applies to application/json bodies.
+    """
+    content_type = request.headers.get("content-type", "")
+    if request.method in ("POST", "PUT", "PATCH") and "application/json" in content_type:
+        body_bytes = await request.body()
+        if body_bytes:
+            try:
+                import json as _json
+                parsed = _json.loads(body_bytes)
+                sanitized = _strip_tags_deep(parsed)
+                sanitized_bytes = _json.dumps(sanitized).encode("utf-8")
+
+                async def receive():
+                    return {"type": "http.request", "body": sanitized_bytes}
+                request._receive = receive
+            except (ValueError, UnicodeDecodeError):
+                pass
+    return await call_next(request)
+
+
+# ── Request Body Size Limit ──────────────────────────────────────────────────
+
+_MAX_BODY_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+async def body_size_limit_middleware(request: Request, call_next):
+    """Reject oversized request bodies to prevent DoS via large payloads."""
+    cl = request.headers.get("content-length")
+    if cl:
+        try:
+            if int(cl) > _MAX_BODY_BYTES:
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body too large."},
+                )
+        except ValueError:
+            pass
+    return await call_next(request)
+
+
+# ── CORS Blocking ────────────────────────────────────────────────────────────
+
+_CORS_ALLOWED_ORIGINS = {
+    "https://app.themisiq.net",
+    "https://themisiq.net",
+    "https://www.themisiq.net",
+}
+
+
+async def cors_block_middleware(request: Request, call_next):
+    """Block cross-origin requests from unauthorized domains.
+
+    Rejects any request with an Origin header that does not match
+    our allowed origins. Same-origin requests (no Origin header) pass through.
+    Handles OPTIONS preflight for the demo endpoint.
+    """
+    origin = request.headers.get("origin")
+    if origin:
+        if settings.DEBUG and origin.startswith(("http://localhost", "http://127.0.0.1")):
+            response = await call_next(request)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            return response
+        if origin not in _CORS_ALLOWED_ORIGINS:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Origin not allowed."},
+            )
+    return await call_next(request)
+
+
 # ── Audit Logging ────────────────────────────────────────────────────────────
 
 def log_audit(user: Optional[dict], module: str, action: str,
