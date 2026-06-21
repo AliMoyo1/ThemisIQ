@@ -5,7 +5,7 @@ erm_regulatory_obligations, erm_assessments, and the shared risk_register view.
 """
 from datetime import datetime
 from core.timeutils import utcnow
-from database import get_db, insert_returning_id, sql_now_offset, sql_days_between, sql_date_offset, sql_current_date
+from database import get_db, insert_returning_id, sql_now_offset, sql_now_ts, sql_days_between, sql_date_offset, sql_date_ts, sql_current_date
 
 
 def _dict(row):
@@ -693,11 +693,11 @@ def get_dashboard_stats():
         # Trend: compare current open count to 30 days ago
         erm_30d = db.execute(
             "SELECT COUNT(*) FROM erm_enterprise_risks WHERE status!='closed' "
-            f"AND created_at < {sql_now_offset('-30 days')}"
+            f"AND created_at < {sql_now_ts('-30 days')}"
         ).fetchone()[0]
         rr_30d = db.execute(
             "SELECT COUNT(*) FROM risk_register WHERE status!='closed' "
-            f"AND created_at < {sql_now_offset('-30 days')}"
+            f"AND created_at < {sql_now_ts('-30 days')}"
         ).fetchone()[0]
         total_30d = erm_30d + rr_30d
         trend_total = (total_erm + total_rr) - total_30d
@@ -705,7 +705,7 @@ def get_dashboard_stats():
         crit_30d = db.execute(
             "SELECT COUNT(*) FROM erm_enterprise_risks "
             "WHERE (likelihood*impact)>=20 AND status!='closed' "
-            f"AND created_at < {sql_now_offset('-30 days')}"
+            f"AND created_at < {sql_now_ts('-30 days')}"
         ).fetchone()[0]
         trend_critical = critical - crit_30d
 
@@ -1061,7 +1061,7 @@ def get_trend_data(period_days=30):
         rows = db.execute(
             f"SELECT date(created_at) AS day, COUNT(*) AS new_risks "
             f"FROM erm_enterprise_risks "
-            f"WHERE created_at >= {sql_date_offset(f'-{int(period_days)} days')} "
+            f"WHERE created_at >= {sql_date_ts(f'-{int(period_days)} days')} "
             f"GROUP BY day ORDER BY day ASC"
         ).fetchall()
         # Also get total open per day using current status snapshot

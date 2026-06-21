@@ -25,7 +25,7 @@ import math
 import logging
 from datetime import datetime
 from core.timeutils import utcnow
-from database import sql_days_between, sql_date_offset
+from database import sql_days_between, sql_date_offset, sql_date_ts
 
 log = logging.getLogger("oneforall.predictive_risk")
 
@@ -108,7 +108,7 @@ def collect_telemetry(db) -> dict:
             f"""  CAST({sql_days_between("'now'", "COALESCE(discovered_date, created_at)")} AS REAL) AS days_ago """
             "FROM sentinel_breaches "
             "WHERE status != 'closed' "
-            f"""  AND COALESCE(discovered_date, created_at) >= {sql_date_offset('-30 days')}"""
+            f"""  AND COALESCE(discovered_date, created_at::text) >= {sql_date_offset('-30 days')}"""
         ).fetchall()
         B = sum(_sev_weight(r["severity"]) * _recency_decay(r["days_ago"]) for r in rows)
         metrics["breach_raw_count"] = len(rows)
@@ -156,7 +156,7 @@ def collect_telemetry(db) -> dict:
     try:
         orm_count = db.execute(
             "SELECT COUNT(*) FROM orm_events "
-            f"WHERE is_recurring = 1 AND created_at >= {sql_date_offset('-30 days')}"
+            f"WHERE is_recurring = 1 AND created_at >= {sql_date_ts('-30 days')}"
         ).fetchone()[0]
         metrics["orm_recurring"] = int(orm_count)
         O = float(orm_count)

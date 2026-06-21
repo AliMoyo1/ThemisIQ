@@ -369,18 +369,42 @@ def insert_returning_id(db, sql: str, params):
 # ── Engine-portable date/time SQL helpers ─────────────────────────────────────
 
 def sql_now_offset(offset_expr: str) -> str:
-    """SQL fragment for NOW() ± interval.  offset_expr e.g. '+30 days', '-7 days'."""
+    """SQL fragment for NOW() ± interval, cast to text.
+    Use only for TEXT columns (e.g. last_sent TEXT).
+    For TIMESTAMPTZ columns use sql_now_ts()."""
     if settings.is_postgres():
         sign, qty, unit = offset_expr[0], *offset_expr[1:].strip().split()
         return f"(NOW() {sign} INTERVAL '{qty} {unit}')::text"
     return f"datetime('now', '{offset_expr}')"
 
 
+def sql_now_ts(offset_expr: str) -> str:
+    """SQL fragment for NOW() ± interval returning a native timestamp.
+    Use for columns that are TIMESTAMPTZ in PostgreSQL, i.e. those declared
+    TEXT DEFAULT (datetime('now')) in the shared schema — _to_pg_schema
+    rewrites those to TIMESTAMPTZ DEFAULT NOW()."""
+    if settings.is_postgres():
+        sign, qty, unit = offset_expr[0], *offset_expr[1:].strip().split()
+        return f"(NOW() {sign} INTERVAL '{qty} {unit}')"
+    return f"datetime('now', '{offset_expr}')"
+
+
 def sql_date_offset(offset_expr: str) -> str:
-    """SQL fragment for CURRENT_DATE ± interval."""
+    """SQL fragment for CURRENT_DATE ± interval, cast to text.
+    Use only for TEXT date columns.
+    For TIMESTAMPTZ or DATE columns use sql_date_ts()."""
     if settings.is_postgres():
         sign, qty, unit = offset_expr[0], *offset_expr[1:].strip().split()
         return f"(CURRENT_DATE {sign} INTERVAL '{qty} {unit}')::text"
+    return f"date('now', '{offset_expr}')"
+
+
+def sql_date_ts(offset_expr: str) -> str:
+    """SQL fragment for CURRENT_DATE ± interval returning a native date/timestamp.
+    Use for columns that are TIMESTAMPTZ or DATE in PostgreSQL."""
+    if settings.is_postgres():
+        sign, qty, unit = offset_expr[0], *offset_expr[1:].strip().split()
+        return f"(CURRENT_DATE {sign} INTERVAL '{qty} {unit}')"
     return f"date('now', '{offset_expr}')"
 
 

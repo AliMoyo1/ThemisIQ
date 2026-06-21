@@ -10,6 +10,7 @@ import sys
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -57,6 +58,8 @@ app.middleware("http")(tenant_context_middleware)
 # -- Static files -------------------------------------------------------------
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+_err_tpl = Jinja2Templates(directory="templates")
 
 # -- Startup ------------------------------------------------------------------
 
@@ -430,10 +433,8 @@ async def db_lock_handler(request: Request, exc: OperationalError):
 async def forbidden_handler(request: Request, exc):
     if _wants_json(request):
         return JSONResponse(status_code=403, content={"detail": "Access denied."})
-    from fastapi.templating import Jinja2Templates
-    _err_tpl = Jinja2Templates(directory="templates")
-    return _err_tpl.TemplateResponse("error.html", {
-        "request": request, "status_code": 403,
+    return _err_tpl.TemplateResponse(request, "error.html", {
+        "status_code": 403,
         "title": "Access Denied",
         "message": "You do not have permission to access this resource.",
     }, status_code=403)
@@ -443,10 +444,8 @@ async def forbidden_handler(request: Request, exc):
 async def not_found_handler(request: Request, exc):
     if _wants_json(request):
         return JSONResponse(status_code=404, content={"detail": "Not found."})
-    from fastapi.templating import Jinja2Templates
-    _err_tpl = Jinja2Templates(directory="templates")
-    return _err_tpl.TemplateResponse("error.html", {
-        "request": request, "status_code": 404,
+    return _err_tpl.TemplateResponse(request, "error.html", {
+        "status_code": 404,
         "title": "Page Not Found",
         "message": "The page you are looking for does not exist or has been moved.",
     }, status_code=404)
@@ -457,10 +456,8 @@ async def internal_error_handler(request: Request, exc):
     log.exception("Unhandled error on %s %s", request.method, request.url.path)
     if _wants_json(request):
         return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred."})
-    from fastapi.templating import Jinja2Templates
-    _err_tpl = Jinja2Templates(directory="templates")
-    return _err_tpl.TemplateResponse("error.html", {
-        "request": request, "status_code": 500,
+    return _err_tpl.TemplateResponse(request, "error.html", {
+        "status_code": 500,
         "title": "Something Went Wrong",
         "message": "An unexpected error occurred. Please try again or contact support if the problem persists.",
     }, status_code=500)
@@ -471,10 +468,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     log.exception("Unhandled exception on %s %s: %s", request.method, request.url.path, type(exc).__name__)
     if _wants_json(request):
         return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred."})
-    from fastapi.templating import Jinja2Templates
-    _err_tpl = Jinja2Templates(directory="templates")
-    return _err_tpl.TemplateResponse("error.html", {
-        "request": request, "status_code": 500,
+    return _err_tpl.TemplateResponse(request, "error.html", {
+        "status_code": 500,
         "title": "Something Went Wrong",
         "message": "An unexpected error occurred. Please try again or contact support if the problem persists.",
     }, status_code=500)

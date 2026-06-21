@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from database import insert_returning_id, sql_now_offset, sql_date_offset, sql_current_date, sql_current_timestamp
+from database import insert_returning_id, sql_now_offset, sql_now_ts, sql_date_offset, sql_date_ts, sql_current_date, sql_current_timestamp
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, user_modules, user_capabilities,
     ROLE_LABELS, shell_ctx, templates, shell_templates, get_db,
@@ -432,7 +432,7 @@ async def api_command_centre_stats(request: Request):
             orm_open_events = db.execute(
                 "SELECT COUNT(*) FROM orm_events "
                 "WHERE status IN ('open','investigating') "
-                f"AND created_at >= {sql_date_offset('-30 days')}"
+                f"AND created_at >= {sql_date_ts('-30 days')}"
             ).fetchone()[0]
         except Exception:
             pass
@@ -713,7 +713,7 @@ async def api_predictive_risk(request: Request, background_tasks: BackgroundTask
         if not force:
             cached = db.execute(
                 "SELECT * FROM ai_risk_predictions WHERE is_active = 1 "
-                f"AND computed_at > {sql_now_offset(f'-{CACHE_TTL_MINUTES} minutes')} ORDER BY id DESC LIMIT 1",
+                f"AND computed_at > {sql_now_ts(f'-{CACHE_TTL_MINUTES} minutes')} ORDER BY id DESC LIMIT 1",
             ).fetchone()
             if cached:
                 history = _prediction_history(db)
