@@ -1,4 +1,4 @@
-<!-- ═══ PLATFORM TRAINER — AI Help Bubble + Tooltip Mode ═══ -->
+<!-- ═══ THEMIS — AI Help Bubble + Tooltip Mode ═══ -->
 <div id="trainerBubble" class="trainer-bubble">
   <div class="trainer-icon" onclick="toggleTrainer()" title="Themis">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -34,8 +34,15 @@
   </div>
 </div>
 
-<!-- Tooltip Overlay (shown in tooltip mode) -->
-<div class="trainer-tooltip" id="trainerTooltip" style="display:none;"></div>
+<!-- Tooltip (positioned by JS, not CSS ::after) -->
+<div class="trainer-tooltip" id="trainerTooltip"></div>
+
+<!-- Tooltip mode banner -->
+<div class="trainer-banner" id="trainerBanner">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+  <span>Tooltip Mode active. Hover over <strong>glowing elements</strong> for explanations.</span>
+  <button onclick="toggleTooltipMode()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:2px 10px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;">Exit</button>
+</div>
 
 <style>
 .trainer-bubble{position:fixed;bottom:24px;right:24px;z-index:9999;}
@@ -68,22 +75,61 @@
 .trainer-send{width:34px;height:34px;border-radius:8px;background:var(--accent,#1e293b);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity 0.15s;}
 .trainer-send:hover{opacity:0.85;}
 
-/* Tooltip mode overlay */
-.trainer-tooltip{position:fixed;z-index:99999;background:var(--accent-dark,#0f172a);color:#fff;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,0.25);pointer-events:none;transition:opacity 0.15s;}
-.trainer-tooltip::after{content:'';position:absolute;bottom:-6px;left:20px;width:12px;height:12px;background:var(--accent-dark,#0f172a);transform:rotate(45deg);}
+.ai-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:1px 5px;border-radius:3px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;margin-left:6px;vertical-align:middle;}
 
-/* Tooltip mode highlight */
-[data-trainer-tip]{position:relative;}
-body.tooltip-mode [data-trainer-tip]:hover{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;cursor:help;}
-body.tooltip-mode [data-trainer-tip]:hover::after{content:attr(data-trainer-tip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--accent-dark,#0f172a);color:#fff;padding:8px 12px;border-radius:6px;font-size:11px;white-space:nowrap;max-width:240px;white-space:normal;z-index:99999;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.2);line-height:1.4;}
+/* ── Tooltip Mode Banner ── */
+.trainer-banner{
+  position:fixed;top:-50px;left:50%;transform:translateX(-50%);z-index:99998;
+  display:flex;align-items:center;gap:8px;
+  padding:8px 18px;border-radius:0 0 10px 10px;
+  background:var(--accent,#1e293b);color:#fff;
+  font-size:13px;white-space:nowrap;
+  box-shadow:0 4px 20px rgba(0,0,0,0.25);
+  transition:top 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+body.tooltip-mode .trainer-banner{top:0;}
+
+/* ── JS-positioned tooltip ── */
+.trainer-tooltip{
+  position:fixed;z-index:99999;
+  background:var(--accent-dark,#0f172a);color:#fff;
+  padding:10px 14px;border-radius:8px;
+  font-size:12px;line-height:1.5;max-width:300px;
+  box-shadow:0 6px 24px rgba(0,0,0,0.3);
+  pointer-events:none;
+  opacity:0;transform:translateY(4px);
+  transition:opacity 0.18s ease, transform 0.18s ease;
+}
+.trainer-tooltip.visible{opacity:1;transform:translateY(0);}
+.trainer-tooltip .tt-label{
+  font-size:10px;text-transform:uppercase;letter-spacing:0.5px;
+  opacity:0.65;margin-bottom:4px;display:block;
+}
+
+/* ── Tippable element glow ── */
+body.tooltip-mode [data-trainer-tip]{
+  outline:2px solid transparent;outline-offset:2px;border-radius:4px;
+  animation:tipGlow 2s ease-in-out infinite;
+  cursor:help;
+  transition:outline-color 0.2s, box-shadow 0.2s;
+}
+body.tooltip-mode [data-trainer-tip]:hover{
+  outline-color:var(--accent,#1e293b);
+  box-shadow:0 0 0 4px rgba(var(--accent-rgb,30,58,91),0.15);
+  animation:none;
+}
+@keyframes tipGlow{
+  0%,100%{outline-color:rgba(var(--accent-rgb,30,58,91),0.15);}
+  50%{outline-color:rgba(var(--accent-rgb,30,58,91),0.5);}
+}
 </style>
 
 <script>
 function escTrainer(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
 
-// ── Platform Trainer Logic ──
-let trainerOpen = false;
-let tooltipMode = false;
+// ── Themis Trainer Logic ──
+var trainerOpen = false;
+var tooltipMode = false;
 
 function toggleTrainer() {
   trainerOpen = !trainerOpen;
@@ -96,17 +142,18 @@ function toggleTooltipMode() {
   document.getElementById('tooltipToggle').classList.toggle('active', tooltipMode);
   if (tooltipMode) {
     injectTrainerTips();
+  } else {
+    hideTrainerTooltip();
   }
 }
 
 function sendTrainerMsg() {
-  const input = document.getElementById('trainerInput');
-  const msg = input.value.trim();
+  var input = document.getElementById('trainerInput');
+  var msg = input.value.trim();
   if (!msg) return;
   input.value = '';
 
   appendMsg('user', msg);
-  // Add typing indicator with raw HTML (safe — hardcoded)
   var typingDiv = document.createElement('div');
   typingDiv.className = 'trainer-msg bot';
   typingDiv.id = 'trainerTyping';
@@ -119,57 +166,311 @@ function sendTrainerMsg() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ question: msg, page: window.location.pathname })
   })
-  .then(r => r.json())
-  .then(data => {
-    // Remove thinking indicator
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
     var typing = document.getElementById('trainerTyping');
     if (typing) typing.remove();
-    appendMsg('bot', data.answer || 'Sorry, I could not find an answer for that.');
+    appendMsg('bot', data.answer || 'Sorry, I could not find an answer for that.', data.source === 'ai');
   })
-  .catch(() => {
+  .catch(function() {
     var typing = document.getElementById('trainerTyping');
     if (typing) typing.remove();
-    appendMsg('bot', 'Connection error — please try again.');
+    appendMsg('bot', 'Connection error. Please try again.');
   });
 }
 
-function appendMsg(type, content) {
-  const msgs = document.getElementById('trainerMessages');
-  const div = document.createElement('div');
+function appendMsg(type, content, isAI) {
+  var msgs = document.getElementById('trainerMessages');
+  var div = document.createElement('div');
   div.className = 'trainer-msg ' + type;
   var safe = escTrainer(content);
   safe = safe.replace(/\n- /g, '<br>&bull; ').replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
-  div.innerHTML = '<div class="trainer-msg-content">' + safe + '</div>';
+  var badge = (type === 'bot' && isAI) ? '<span class="ai-badge">AI</span>' : '';
+  div.innerHTML = '<div class="trainer-msg-content">' + safe + badge + '</div>';
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+// ── Tooltip positioning ──
+var _ttEl = null;
+var _ttTimeout = null;
+
+function showTrainerTooltip(target) {
+  if (!tooltipMode) return;
+  var tip = target.getAttribute('data-trainer-tip');
+  var category = target.getAttribute('data-trainer-cat') || '';
+  if (!tip) return;
+
+  clearTimeout(_ttTimeout);
+  var tt = document.getElementById('trainerTooltip');
+  var label = category ? '<span class="tt-label">' + escTrainer(category) + '</span>' : '';
+  tt.innerHTML = label + escTrainer(tip);
+  tt.classList.remove('visible');
+  tt.style.display = 'block';
+
+  var rect = target.getBoundingClientRect();
+  var ttRect = tt.getBoundingClientRect();
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+
+  var left = rect.left + (rect.width / 2) - (ttRect.width / 2);
+  var top = rect.top - ttRect.height - 10;
+
+  if (top < 8) {
+    top = rect.bottom + 10;
+  }
+  if (left < 8) left = 8;
+  if (left + ttRect.width > vw - 8) left = vw - ttRect.width - 8;
+  if (top + ttRect.height > vh - 8) top = vh - ttRect.height - 8;
+
+  tt.style.left = left + 'px';
+  tt.style.top = top + 'px';
+
+  requestAnimationFrame(function(){
+    tt.classList.add('visible');
+  });
+  _ttEl = target;
+}
+
+function hideTrainerTooltip() {
+  var tt = document.getElementById('trainerTooltip');
+  tt.classList.remove('visible');
+  _ttTimeout = setTimeout(function(){ tt.style.display = 'none'; }, 180);
+  _ttEl = null;
+}
+
+document.addEventListener('mouseover', function(e) {
+  if (!tooltipMode) return;
+  var el = e.target.closest('[data-trainer-tip]');
+  if (el && el !== _ttEl) showTrainerTooltip(el);
+});
+document.addEventListener('mouseout', function(e) {
+  if (!tooltipMode) return;
+  var el = e.target.closest('[data-trainer-tip]');
+  if (el) {
+    var related = e.relatedTarget;
+    if (!related || !el.contains(related)) hideTrainerTooltip();
+  }
+});
+
 // ── Tooltip Tips Injection ──
-// Automatically annotates known elements with data-trainer-tip
-function injectTrainerTips() {
-  const tips = {
-    '.icon-sidebar': 'Module switcher: click icons to navigate between ARIA, GRID, BCM, Sentinel, ERM, and ORM modules',
-    '.icon-nav-item': 'Module icon: click to switch to this module',
-    '.topbar-search': 'Global search: find risks, controls, documents, and more across all modules',
-    '.topbar-search input': 'Type at least 2 characters to search across all modules',
-    '#notifBell': 'Notifications: view alerts, approvals, task assignments, and system messages',
-    '.btn-primary': 'Primary action button: performs the main action for this page',
-    '.sidebar-section .nav-item': 'Navigation link: click to go to this section',
-    '[data-status]': 'Status indicator: shows the current state of this item',
-    '.module-sidebar-header': 'Current module: shows which module you are working in',
-    '.breadcrumb': 'Breadcrumb trail: shows your current location in the platform',
-    '.sidebar-toggle': 'Toggle sidebar: click to show or hide the navigation sidebar',
-    '.stat-card': 'Metric card: shows a key performance indicator for this module',
-    '.theme-toggle': 'Theme toggle: switch between light and dark mode',
-    '.btn-export': 'Export: download this data as a file',
-    '.mobile-nav-toggle': 'Menu: open the navigation sidebar on mobile',
-  };
-  for (const [selector, tip] of Object.entries(tips)) {
-    document.querySelectorAll(selector).forEach(el => {
-      if (!el.getAttribute('data-trainer-tip')) {
-        el.setAttribute('data-trainer-tip', tip);
+function _tipSel(selector, cat, tip) {
+  try {
+    var els = document.querySelectorAll(selector);
+    for (var j = 0; j < els.length; j++) {
+      if (!els[j].getAttribute('data-trainer-tip')) {
+        els[j].setAttribute('data-trainer-tip', tip);
+        els[j].setAttribute('data-trainer-cat', cat);
       }
-    });
+    }
+  } catch(e) {}
+}
+
+function _tipByLabel(labelText, cat, tip) {
+  var labels = document.querySelectorAll('.stat-label');
+  for (var i = 0; i < labels.length; i++) {
+    var clean = labels[i].textContent.replace(/[^\w\s%()]/g, '').trim();
+    if (clean === labelText) {
+      var card = labels[i].closest('.stat-card');
+      if (card && !card.getAttribute('data-trainer-tip')) {
+        card.setAttribute('data-trainer-tip', tip);
+        card.setAttribute('data-trainer-cat', cat);
+      }
+    }
+  }
+}
+
+function _tipBtnText(text, cat, tip) {
+  var btns = document.querySelectorAll('button, .btn, a.btn');
+  for (var i = 0; i < btns.length; i++) {
+    var t = btns[i].textContent.replace(/\s+/g, ' ').trim();
+    if (t.indexOf(text) !== -1 && !btns[i].getAttribute('data-trainer-tip')) {
+      btns[i].setAttribute('data-trainer-tip', tip);
+      btns[i].setAttribute('data-trainer-cat', cat);
+    }
+  }
+}
+
+function injectTrainerTips() {
+  var path = window.location.pathname;
+
+  // ── 1. Platform-wide: icon sidebar ──
+  _tipSel('.icon-sidebar-logo', 'Home', 'Click to return to the Command Centre dashboard.');
+  _tipSel('.icon-nav-item[title="Command Centre"]', 'Command Centre', 'Cross-module dashboard showing overall compliance percentage, open risks, breaches, and overdue tasks across all six modules.');
+  _tipSel('.icon-nav-item[title="Governance"]', 'ARIA: Governance', 'Manage compliance frameworks (ISO 27001, SOC 2, NIST), map controls, create policies, and track governance risks.');
+  _tipSel('.icon-nav-item[title="Audit"]', 'GRID: Audit', 'Plan and execute internal/external audits, track findings and non-conformances, manage evidence collection.');
+  _tipSel('.icon-nav-item[title="Resilience"]', 'BCM: Business Continuity', 'Business Impact Analysis, recovery plans, exercises, and incident response. Ensures your organisation can recover from disruptions.');
+  _tipSel('.icon-nav-item[title="Privacy"]', 'Sentinel: Data Protection', 'GDPR compliance: Records of Processing (RoPA), Data Protection Impact Assessments (DPIA), breach management, and subject access requests.');
+  _tipSel('.icon-nav-item[title="Enterprise Risk"]', 'ERM: Enterprise Risk', 'Organisation-wide risk register with risk appetite thresholds, Key Risk Indicators (KRIs), and structured risk assessments.');
+  _tipSel('.icon-nav-item[title="Operations Risk"]', 'ORM: Operational Risk', 'Track operational loss events with Basel II categories, monitor Key Risk Indicators, and run Risk Control Self-Assessments (RCSA).');
+  _tipSel('.icon-nav-item[title="Admin"]', 'Administration', 'Manage users, roles, framework activation, audit logs, API keys, webhooks, and email settings.');
+  _tipSel('.icon-nav-item[title="Super Admin"]', 'Super Admin', 'Multi-tenant management: create organisations, manage subscriptions, and configure global platform settings.');
+
+  // ── 2. Platform-wide: topbar ──
+  _tipSel('.topbar-search, .search-wrap', 'Global Search (Ctrl+K)', 'Searches across all modules at once. Finds risks, controls, policies, audits, vendors, and more. Results are grouped by module.');
+  _tipSel('#notifBtn, #notifBell', 'Notifications', 'Shows task assignments, workflow approvals, SLA breaches, and system alerts. The red badge shows your unread count.');
+  _tipSel('#themeToggle', 'Light/Dark Theme', 'Toggle between light and dark mode. Your choice is saved and persists across sessions.');
+  _tipSel('.sidebar-toggle', 'Collapse Sidebar', 'Hide the navigation sidebar to use the full screen width for content.');
+  _tipSel('.breadcrumb', 'Navigation Path', 'Shows where you are in the platform. Click any segment to jump back to that level.');
+  _tipSel('.icon-sidebar-user', 'Your Account', 'Access your profile, change your password, set up multi-factor authentication, or sign out.');
+
+  // ── 3. Platform-wide: common elements (low priority, applied last) ──
+  _tipSel('table thead, .data-table thead', 'Data Table', 'Column headers for this dataset. Click a header to sort by that column where supported.');
+  _tipSel('[data-status]', 'Status', 'Current status of this item. Colour indicates urgency: green = resolved, yellow = in progress, red = needs attention.');
+
+  // ── 4. Page-specific tips ──
+
+  // Command Centre dashboard
+  if (path === '/' || path.indexOf('/command') === 0) {
+    _tipByLabel('Overall Compliance', 'Compliance Score', 'Percentage of controls marked Implemented or Compliant out of all controls across your active frameworks. Target: 100%.');
+    _tipByLabel('Active Projects', 'Projects', 'Number of compliance certification projects currently in progress (e.g. ISO 27001 certification, SOC 2 audit).');
+    _tipByLabel('Overdue Actions', 'Overdue Items', 'Tasks and actions past their due date. These need immediate attention to avoid compliance gaps.');
+    _tipByLabel('Evidence Collected', 'Evidence', 'Total evidence items uploaded to the Evidence Repository. Evidence supports audit findings and control implementation.');
+    _tipByLabel('Open Breaches', 'Data Breaches', 'Active data breaches not yet closed. GDPR requires notification within 72 hours of discovery. Click to view in Sentinel.');
+    _tipByLabel('Appetite Breaches', 'Risk Appetite', 'Number of risks exceeding your defined risk appetite thresholds. These risks need treatment plans or board escalation.');
+    _tipByLabel('Open Events 30d', 'Operational Events', 'Operational risk events logged in the last 30 days that are still open. Click to view in ORM.');
+    _tipByLabel('Active Incidents', 'BCM Incidents', 'Business continuity incidents currently being managed (status: open or responding). Click to view in BCM.');
+    _tipByLabel('Integrated Controls', 'Control Integration', 'Controls mapped across multiple frameworks. A single control can satisfy requirements in ISO 27001, SOC 2, and NIST simultaneously.');
+    _tipByLabel('Unique Controls', 'Unique Controls', 'Controls that are framework-specific and not shared. High counts may indicate opportunities for control mapping.');
+    _tipByLabel('Active Frameworks', 'Frameworks', 'Number of compliance frameworks currently active in ARIA (e.g. ISO 27001, SOC 2, GDPR, NIST CSF).');
+    _tipByLabel('Testing Effort Saved', 'Efficiency Gain', 'Percentage of testing effort saved through integrated control mapping. Shared controls only need testing once.');
+    _tipSel('.nav-item[href="/"]', 'Overview', 'Main dashboard with compliance metrics aggregated from all six modules.');
+    _tipSel('.nav-item[href="/my-dashboard"]', 'My Dashboard', 'Personal view showing tasks assigned to you, your recent activity, and upcoming deadlines.');
+    _tipSel('.nav-item[href*="projects"]', 'Compliance Projects', 'Track certification projects (ISO 27001, SOC 2) with milestones, evidence collection, and team assignments.');
+    _tipSel('.nav-item[href*="evidence"]', 'Evidence Repository', 'Central vault for all compliance evidence. Upload documents, tag them, and link to controls and audit findings.');
+    _tipSel('.nav-item[href*="workflow"]', 'Workflows', 'Automated multi-step approval chains for policies, risk treatments, and change requests.');
+    _tipSel('.nav-item[href*="task"]', 'Task Board', 'Kanban board with To Do, In Progress, Review, and Done columns. Supports bulk operations and AI prioritisation.');
+    _tipSel('.nav-item[href*="report"]', 'Reports', 'Generate compliance reports: Compliance Summary, Risk Report, Audit Status, Executive Brief, and more.');
+    _tipSel('.nav-item[href*="calendar"]', 'Calendar', 'Visual calendar of audit dates, policy review deadlines, training sessions, and BCM exercise schedules.');
+    _tipSel('.nav-item[href*="analytics"]', 'Analytics', 'Historical trend charts showing how your compliance posture changes over time with daily snapshots.');
+    _tipSel('.nav-item[href*="framework"]', 'Frameworks', 'Activate and manage compliance frameworks. Each framework brings its own controls and requirements.');
+    _tipSel('.nav-item[href*="risk-register"]', 'Risk Register', 'Aggregated view of all risks from ARIA, ERM, and ORM modules in one place.');
+    _tipSel('.nav-item[href*="vendor"]', 'Vendor Directory', 'All third-party vendors with risk scores, assessment status, and contract details across modules.');
+    _tipSel('.nav-item[href*="users"]', 'User Management', 'Create and manage user accounts. Assign roles (Admin, Auditor, User) and module-level permissions.');
+    _tipSel('.nav-item[href*="api-keys"]', 'API Keys', 'Generate API keys for integrating ThemisIQ with external tools (SIEM, ticketing, CI/CD pipelines).');
+    _tipSel('.nav-item[href*="webhook"]', 'Webhooks', 'Send HTTP POST notifications to external URLs when events occur (e.g. risk escalated, breach logged).');
+    _tipSel('.nav-item[href*="logs"]', 'Audit Log', 'Immutable record of every user action: logins, data changes, deletions, exports, and approval decisions.');
+    _tipBtnText('Export Report', 'Export', 'Download the Command Centre dashboard data as a formatted report.');
+    _tipBtnText('Generate Board Report', 'AI Report', 'Use AI to generate an executive summary for your board of directors, covering compliance posture, risks, and action items.');
+  }
+
+  // ARIA
+  if (path.indexOf('/aria') === 0) {
+    _tipSel('.nav-item[href="/aria/"]', 'Dashboard', 'Governance overview: compliance scores by framework, policy health, and control implementation progress.');
+    _tipSel('.nav-item[href*="framework"]', 'Frameworks', 'Browse and manage your active compliance frameworks and their control requirements.');
+    _tipSel('.nav-item[href*="policies"]', 'Policies', 'Create governance documents with version control, approval workflows, and scheduled reviews.');
+    _tipSel('.nav-item[href*="mapping"]', 'Control Mapping', 'Map controls across frameworks to eliminate duplicate testing. A single firewall control can cover ISO 27001 A.13 and SOC 2 CC6.');
+    _tipSel('.nav-item[href*="risk"]', 'Risk Register', 'Governance-level risks with likelihood, impact scoring, and linked mitigating controls.');
+    _tipSel('.nav-item[href*="ai-generator"]', 'AI Policy Generator', 'AI drafts policy documents based on your selected framework, industry, and organisational context.');
+    _tipSel('.nav-item[href*="ask-aria"]', 'Ask ARIA', 'AI-powered Q&A for compliance questions. Ask about specific framework requirements, regulations, or best practices.');
+    _tipSel('.nav-item[href*="templates"]', 'Templates', 'Pre-built document templates for common policies, procedures, and compliance reports.');
+    _tipByLabel('Compliance Score', 'Compliance', 'Percentage of controls in Implemented/Compliant status across all active frameworks.');
+    _tipByLabel('Total Controls', 'Controls', 'Total number of compliance controls tracked across all your active frameworks.');
+    _tipByLabel('Policies', 'Policies', 'Number of governance policies. Includes approved, draft, and under-review policies.');
+    _tipByLabel('Frameworks', 'Frameworks', 'Active compliance frameworks. Each defines a set of controls your organisation must implement.');
+  }
+
+  // GRID
+  if (path.indexOf('/grid') === 0) {
+    _tipSel('.nav-item[href="/grid/"]', 'Dashboard', 'Audit programme overview: active audits, open findings, non-conformance tracking, and evidence coverage.');
+    _tipSel('.nav-item[href*="audits"]', 'Audits', 'Create and manage audits. Assign lead auditors, set scope and timeline, link to frameworks.');
+    _tipSel('.nav-item[href*="finding"]', 'Findings', 'Track audit findings by severity (critical, major, minor, observation). Assign remediation owners and deadlines.');
+    _tipSel('.nav-item[href*="program"]', 'Audit Programs', 'Group related audits into programmes for annual or recurring audit cycles.');
+    _tipSel('.nav-item[href*="evidence"]', 'Evidence', 'Upload and manage audit evidence. Link files to specific findings and controls for traceability.');
+    _tipByLabel('Active Audits', 'Audits', 'Audits currently in Planning or Active status. These need attention and progress tracking.');
+    _tipByLabel('Open Findings', 'Findings', 'Audit findings not yet resolved. High severity findings should be prioritised.');
+    _tipByLabel('Non-Conformances', 'NCs', 'Formal non-conformances raised during audits. These require corrective action plans with deadlines.');
+    _tipByLabel('Evidence Items', 'Evidence', 'Total evidence files uploaded and linked to audit findings and controls.');
+  }
+
+  // BCM
+  if (path.indexOf('/bcm') === 0) {
+    _tipSel('.nav-item[href="/bcm/"]', 'Dashboard', 'Business continuity overview: plan readiness, active incidents, BIA coverage, and exercise schedule.');
+    _tipSel('.nav-item[href*="bia"]', 'Business Impact Analysis', 'Identify critical business processes, set Recovery Time Objectives (RTO) and Recovery Point Objectives (RPO), and assess disruption impact.');
+    _tipSel('.nav-item[href*="plans"]', 'Recovery Plans', 'Document step-by-step recovery procedures for each critical process. Include roles, contacts, and resource requirements.');
+    _tipSel('.nav-item[href*="exercise"]', 'Exercises & Drills', 'Schedule and record tabletop exercises, simulation drills, and full tests of your recovery plans. Track lessons learned.');
+    _tipSel('.nav-item[href*="incident"]', 'Incidents', 'Log and manage business continuity incidents with severity, commander assignment, and real-time timeline tracking.');
+    _tipByLabel('Recovery Plans', 'Plans', 'Total business continuity and disaster recovery plans. Status shows how many are approved vs. draft.');
+    _tipByLabel('Active Incidents', 'Incidents', 'Business continuity incidents currently being managed. Severity levels: critical, high, medium, low.');
+    _tipByLabel('Exercises', 'Exercises', 'Total exercises conducted. Regular exercises validate your plans and identify gaps before a real incident.');
+    _tipByLabel('BIA Records', 'BIA', 'Business Impact Analysis records documenting critical processes and their recovery requirements.');
+  }
+
+  // Sentinel
+  if (path.indexOf('/sentinel') === 0) {
+    _tipSel('.nav-item[href="/sentinel/"]', 'Dashboard', 'Data protection overview: RoPA records, DPIA progress, open breaches, pending DSRs, and vendor privacy status.');
+    _tipSel('.nav-item[href*="ropa"]', 'RoPA', 'Record of Processing Activities (GDPR Article 30). Document every data processing activity: purpose, legal basis, data categories, and retention period.');
+    _tipSel('.nav-item[href*="dpia"]', 'DPIA', 'Data Protection Impact Assessments (GDPR Article 35). Required before high-risk processing. Identify and mitigate privacy risks.');
+    _tipSel('.nav-item[href*="breach"]', 'Breaches', 'Data breach register. Log discovery date, affected individuals, data categories, and track the 72-hour notification deadline.');
+    _tipSel('.nav-item[href*="dsr"]', 'Subject Requests', 'Data Subject Access Requests (DSAR). Handle access, erasure, portability, and rectification requests within legal deadlines.');
+    _tipSel('.nav-item[href*="consent"]', 'Consent Management', 'Track consent records by purpose and legal basis. Manage withdrawals and re-consent campaigns.');
+    _tipSel('.nav-item[href*="transfer"]', 'Data Transfers', 'International data transfers with legal mechanisms: Standard Contractual Clauses (SCCs), Binding Corporate Rules (BCRs), or adequacy decisions.');
+    _tipSel('.nav-item[href*="retention"]', 'Retention Schedules', 'Data retention policies by category. Tracks records approaching their deletion deadline.');
+    _tipSel('.nav-item[href*="vendor"]', 'Privacy Vendors', 'Data processor assessments. Track Data Processing Agreement (DPA) status and privacy compliance of each vendor.');
+    _tipByLabel('RoPA Records', 'RoPA', 'Total Records of Processing Activities. Each record documents one data processing activity and its legal basis.');
+    _tipByLabel('Open DSRs', 'Subject Requests', 'Data subject requests awaiting response. GDPR requires response within 30 days (extendable to 90).');
+    _tipByLabel('Active Breaches', 'Breaches', 'Data breaches not yet closed. Check notification deadlines, as GDPR requires DPA notification within 72 hours.');
+    _tipByLabel('DPIAs', 'DPIA', 'Data Protection Impact Assessments completed or in progress. Required before starting high-risk data processing.');
+  }
+
+  // ERM
+  if (path.indexOf('/erm') === 0) {
+    _tipSel('.nav-item[href="/erm/"]', 'Dashboard', 'Enterprise risk overview: risk heatmap, appetite breaches, KRI status, and risk trend analysis.');
+    _tipSel('.nav-item[href*="register"]', 'Risk Register', 'Log enterprise risks with likelihood and impact scores (1-5 scale), risk categories, owners, and treatment plans.');
+    _tipSel('.nav-item[href*="appetite"]', 'Risk Appetite', 'Define acceptable risk levels per category. Risks exceeding these thresholds are flagged for board attention.');
+    _tipSel('.nav-item[href*="library"]', 'Risk Library', 'Pre-built risk templates organised by category (cyber, operational, strategic). Add to your register with one click.');
+    _tipSel('.nav-item[href*="obligation"]', 'Obligations', 'Track regulatory and contractual compliance obligations with deadlines, owners, and completion status.');
+    _tipSel('.nav-item[href*="kri"]', 'Key Risk Indicators', 'Quantitative metrics that signal changes in risk levels. Each KRI has green/amber/red thresholds that trigger alerts.');
+    _tipSel('.nav-item[href*="assessment"]', 'Risk Assessments', 'Structured risk evaluations: select risks, score likelihood and impact, document treatment decisions and residual risk.');
+    _tipByLabel('Total Risks', 'Risks', 'All risks in the enterprise risk register, including open, mitigated, and closed risks.');
+    _tipByLabel('Critical Risks', 'Critical', 'Risks rated Critical (likelihood x impact in the top band). These require immediate treatment plans and board visibility.');
+    _tipByLabel('High Risks', 'High', 'Risks rated High. Should have active treatment plans and regular review cycles.');
+    _tipByLabel('Open Risks', 'Open', 'Risks with status Open or In Treatment. Excludes closed and accepted risks.');
+    _tipByLabel('KRI Alerts', 'KRI', 'Key Risk Indicators currently in amber or red status, signalling risk levels above normal thresholds.');
+    _tipByLabel('Appetite Breaches', 'Appetite', 'Risks exceeding your defined risk appetite. These need escalation or additional treatment.');
+  }
+
+  // ORM
+  if (path.indexOf('/orm') === 0) {
+    _tipSel('.nav-item[href="/orm/"]', 'Dashboard', 'Operational risk overview: event counts, financial impact, KRI status, and RCSA completion rates.');
+    _tipSel('.nav-item[href*="event"]', 'Loss Events', 'Log operational risk events with Basel II/III categories, financial impact, root cause analysis, and corrective actions.');
+    _tipSel('.nav-item[href*="kri"]', 'Key Risk Indicators', 'Operational KRIs linked to risk categories. Some auto-increment when matching events are logged.');
+    _tipSel('.nav-item[href*="rcsa"]', 'RCSA', 'Risk and Control Self-Assessment: business units evaluate their own risks and rate the effectiveness of their controls.');
+    _tipByLabel('Open Events', 'Events', 'Operational risk events not yet resolved. Each event should have root cause analysis and corrective actions.');
+    _tipByLabel('Total Financial Impact', 'Financial', 'Cumulative financial impact of all logged operational risk events.');
+    _tipByLabel('Events 30d', 'Recent', 'Operational risk events logged in the last 30 days.');
+    _tipByLabel('KRI Breaches', 'KRI', 'Key Risk Indicators currently exceeding their defined thresholds.');
+    _tipByLabel('Open Events 30d', 'Recent Events', 'Operational events from the last 30 days still open or under investigation.');
+  }
+
+  // Workflows page
+  if (path.indexOf('/workflow') === 0) {
+    _tipByLabel('Active', 'Active Workflows', 'Workflow instances currently in progress, waiting for approval or action.');
+    _tipByLabel('Completed', 'Completed', 'Workflows that have finished all steps and received final approval.');
+    _tipByLabel('Templates', 'Templates', 'Number of workflow templates installed. Templates define the steps and approvers for each workflow type.');
+  }
+
+  // Task Board
+  if (path.indexOf('/task') === 0) {
+    _tipByLabel('To Do', 'Backlog', 'Tasks not yet started. Use AI Prioritise to rank these by urgency and compliance impact.');
+    _tipByLabel('In Progress', 'Active Work', 'Tasks currently being worked on by team members.');
+    _tipByLabel('Review', 'Pending Review', 'Completed tasks awaiting review or approval before they can be marked done.');
+    _tipByLabel('Done', 'Completed', 'Tasks that have been completed and verified.');
+    _tipBtnText('AI Prioriti', 'AI Feature', 'AI analyses your open tasks and suggests a priority ranking based on compliance deadlines, risk severity, and dependencies.');
+    _tipBtnText('Select', 'Bulk Mode', 'Enter selection mode to check multiple tasks and apply bulk status or priority changes.');
+  }
+
+  // Reports page
+  if (path.indexOf('/report') === 0) {
+    _tipBtnText('Executive Summary', 'AI Report', 'AI generates a board-ready narrative covering compliance posture, key risks, and action items across all modules.');
+  }
+
+  // Admin pages
+  if (path.indexOf('/admin') === 0) {
+    _tipSel('.nav-item[href*="users"]', 'Users', 'Create and manage user accounts. Assign roles (Super Admin, Admin, Auditor, User) and control module access.');
+    _tipSel('.nav-item[href*="logs"]', 'Audit Log', 'Tamper-evident record of every user action. Filter by user, action type, module, and date range.');
+    _tipSel('.nav-item[href*="api-keys"]', 'API Keys', 'Generate keys for external system integration. Each key has scoped permissions and can be revoked.');
+    _tipSel('.nav-item[href*="webhook"]', 'Webhooks', 'HTTP callbacks triggered by platform events. Use for Slack notifications, ticketing integration, or custom automation.');
   }
 }
 </script>
