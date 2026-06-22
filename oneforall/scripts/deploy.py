@@ -227,6 +227,35 @@ print(f"  Installed: {_logrotate_dst}")
 print()
 
 
+# ── Step 4c: Install nginx config with rate limiting ─────────────────────────
+
+print("=" * 60)
+print("Step 4c: Installing nginx config...")
+print("=" * 60)
+
+_nginx_dir = os.path.join(os.path.dirname(__file__), "nginx")
+
+_zones_src = os.path.join(_nginx_dir, "themisiq-zones.conf")
+_zones_dst = "/etc/nginx/conf.d/themisiq-zones.conf"
+_shutil.copy(_zones_src, _zones_dst)
+print(f"  Installed: {_zones_dst}")
+
+_site_src = os.path.join(_nginx_dir, "themisiq")
+_site_dst = "/etc/nginx/sites-enabled/themisiq"
+_shutil.copy(_site_src, _site_dst)
+print(f"  Installed: {_site_dst}")
+
+_test = subprocess.run("nginx -t", shell=True, capture_output=True, text=True)
+if _test.returncode != 0:
+    print(f"  ERROR: nginx config test failed:\n{_test.stderr.strip()}")
+    sys.exit(1)
+print("  nginx -t: OK")
+
+subprocess.run("systemctl reload nginx", shell=True, check=True)
+print("  nginx reloaded.")
+print()
+
+
 # ── Step 5: Start the service ────────────────────────────────────────────────
 
 print("=" * 60)
