@@ -1,0 +1,10 @@
+/project/app.log
+/project/shadow.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

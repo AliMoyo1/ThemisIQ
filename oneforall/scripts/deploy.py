@@ -7,6 +7,7 @@ Does everything needed to get the app running on production PostgreSQL:
   2. Ensures SECRET_KEY exists in /project/.env
   3. Verifies PostgreSQL is reachable on localhost:5432
   4. Writes a systemd service file for the app
+  4b. Installs logrotate config to /etc/logrotate.d/themisiq
   5. Starts (or restarts) the service
 
 Run from /project:
@@ -209,6 +210,20 @@ WantedBy=multi-user.target
 with open(SERVICE_FILE, "w") as f:
     f.write(service_content)
 print(f"  Written: {SERVICE_FILE}")
+print()
+
+
+# ── Step 4b: Install logrotate config ────────────────────────────────────────
+
+print("=" * 60)
+print("Step 4b: Installing logrotate config...")
+print("=" * 60)
+
+import shutil as _shutil
+_logrotate_src = os.path.join(os.path.dirname(__file__), "logrotate.d", "themisiq")
+_logrotate_dst = "/etc/logrotate.d/themisiq"
+_shutil.copy(_logrotate_src, _logrotate_dst)
+print(f"  Installed: {_logrotate_dst}")
 print()
 
 
