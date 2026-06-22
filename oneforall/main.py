@@ -247,12 +247,12 @@ async def shutdown():
 # Unauthenticated by design — used by load balancers / orchestrators.
 # /health is liveness (process up); /ready is readiness (DB reachable).
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     return {"status": "ok"}
 
 
-@app.get("/ready")
+@app.api_route("/ready", methods=["GET", "HEAD"])
 async def ready():
     try:
         db = get_db()
