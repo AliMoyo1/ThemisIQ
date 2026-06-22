@@ -4,6 +4,7 @@ Monitoring integration — Sentry (error tracking) and PostHog (analytics).
 Both are optional: functions are no-ops when env vars are not configured.
 """
 import logging
+import subprocess
 
 _log = logging.getLogger("oneforall.monitoring")
 _posthog = None
@@ -18,14 +19,25 @@ def init_monitoring(settings) -> None:
             import sentry_sdk
             from sentry_sdk.integrations.fastapi import FastApiIntegration
             from sentry_sdk.integrations.starlette import StarletteIntegration
+
+            try:
+                _release = subprocess.check_output(
+                    ["git", "rev-parse", "--short", "HEAD"],
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                ).strip()
+            except Exception:
+                _release = None
+
             sentry_sdk.init(
                 dsn=settings.SENTRY_DSN,
                 integrations=[StarletteIntegration(), FastApiIntegration()],
                 traces_sample_rate=0.05,
                 environment=settings.SENTRY_ENVIRONMENT,
+                release=_release,
                 send_default_pii=False,
             )
-            _log.info("Sentry enabled (environment=%s)", settings.SENTRY_ENVIRONMENT)
+            _log.info("Sentry enabled (environment=%s, release=%s)", settings.SENTRY_ENVIRONMENT, _release)
         except Exception as exc:
             _log.warning("Sentry init failed (non-fatal): %s", exc)
 
