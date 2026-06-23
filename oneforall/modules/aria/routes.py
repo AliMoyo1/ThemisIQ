@@ -667,8 +667,8 @@ async def documents_page(request: Request,
              "FROM aria_documents WHERE 1=1")
         params = []
         if framework:
-            q += " AND framework=%s"
-            params.append(framework)
+            q += " AND framework LIKE %s"
+            params.append("%" + framework + "%")
         if status:
             q += " AND status=%s"
             params.append(status)
@@ -682,7 +682,7 @@ async def documents_page(request: Request,
         docs = [dict(r) for r in db.execute(q, params).fetchall()]
 
         frameworks = db.execute(
-            "SELECT DISTINCT name FROM frameworks WHERE is_active = 1 ORDER BY name"
+            "SELECT id, name FROM frameworks WHERE is_active = 1 ORDER BY name"
         ).fetchall()
 
         total = db.execute("SELECT COUNT(*) FROM aria_documents").fetchone()[0]

@@ -240,13 +240,17 @@
         <label class="form-label">Document Title *</label>
         <input type="text" id="add-title" placeholder="e.g. Information Security Policy">
       </div>
-      <div class="form-group">
-        <label class="form-label">Framework *</label>
-        <select id="add-framework">
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label">Frameworks *</label>
+        <div id="add-fw-checks" style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)">
           {% for fw in frameworks %}
-          <option value="{{ fw.name }}">{{ fw.name }}</option>
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" class="add-fw-cb" value="{{ fw.name }}" data-fw-id="{{ fw.id }}"
+                   onchange="onAddFwChange()"{% if loop.first %} checked{% endif %}>
+            {{ fw.name }}
+          </label>
           {% endfor %}
-        </select>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Document Type</label>
@@ -278,19 +282,36 @@
       </div>
       <div class="form-group">
         <label class="form-label">Effective Date</label>
-        <input type="date" id="add-effective-date">
+        <input type="date" id="add-effective-date" onchange="calcReviewDate()">
       </div>
       <div class="form-group">
+        <label class="form-label">Review Cycle</label>
+        <select id="add-review-cycle" onchange="calcReviewDate()">
+          <option value="">Manual</option>
+          <option value="90">Quarterly</option>
+          <option value="182">Bi-annually</option>
+          <option value="365" selected>Annually</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
         <label class="form-label">Next Review Date</label>
-        <input type="date" id="add-review-date"
-               style="border-color:var(--accent)" title="A reminder will be emailed 30 and 7 days before this date">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="date" id="add-review-date"
+                 style="flex:1;border-color:var(--accent)" title="A reminder will be emailed 30 and 7 days before this date">
+          <span id="add-review-hint" style="font-size:11px;color:var(--muted);white-space:nowrap"></span>
+        </div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">
           Reminders sent 30 and 7 days before this date
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Control Reference</label>
-        <input type="text" id="add-control-ref" placeholder="e.g. A.5.1">
+        <select id="add-control-ref" style="max-width:100%">
+          <option value="">Select a control...</option>
+        </select>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">
+          Controls load from selected frameworks
+        </div>
       </div>
       <div class="form-group" style="grid-column:1/-1">
         <label class="form-label">Document Location / URL</label>
@@ -383,11 +404,23 @@
       </div>
       <div class="form-group">
         <label class="form-label">Effective Date</label>
-        <input type="date" id="edit-effective-date">
+        <input type="date" id="edit-effective-date" onchange="calcEditReviewDate()">
       </div>
       <div class="form-group">
+        <label class="form-label">Review Cycle</label>
+        <select id="edit-review-cycle" onchange="calcEditReviewDate()">
+          <option value="">Manual</option>
+          <option value="90">Quarterly</option>
+          <option value="182">Bi-annually</option>
+          <option value="365">Annually</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
         <label class="form-label">Next Review Date</label>
-        <input type="date" id="edit-review-date" style="border-color:var(--accent)">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="date" id="edit-review-date" style="flex:1;border-color:var(--accent)">
+          <span id="edit-review-hint" style="font-size:11px;color:var(--muted);white-space:nowrap"></span>
+        </div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">Reminders sent 30 and 7 days before</div>
       </div>
       <div class="form-group" style="grid-column:1/-1">
@@ -416,6 +449,91 @@
 </style>
 
 <script>
+// ── Framework checkbox + control ref logic ──────────────────────────────────
+var _controlCache = {};
+
+function getCheckedFwIds() {
+  var ids = [];
+  document.querySelectorAll('.add-fw-cb:checked').forEach(function(cb) {
+    ids.push(cb.getAttribute('data-fw-id'));
+  });
+  return ids;
+}
+function getCheckedFwNames() {
+  var names = [];
+  document.querySelectorAll('.add-fw-cb:checked').forEach(function(cb) {
+    names.push(cb.value);
+  });
+  return names;
+}
+
+async function onAddFwChange() {
+  var sel = document.getElementById('add-control-ref');
+  sel.innerHTML = '<option value="">Loading controls...</option>';
+  var fwIds = getCheckedFwIds();
+  if (!fwIds.length) {
+    sel.innerHTML = '<option value="">Select a framework first</option>';
+    return;
+  }
+  var allControls = [];
+  for (var i = 0; i < fwIds.length; i++) {
+    var fid = fwIds[i];
+    if (!_controlCache[fid]) {
+      try {
+        var res = await fetch('/aria/api/controls/' + fid);
+        _controlCache[fid] = await res.json();
+      } catch(e) { _controlCache[fid] = []; }
+    }
+    var fwName = '';
+    var cb = document.querySelector('.add-fw-cb[data-fw-id="'+fid+'"]');
+    if (cb) fwName = cb.value;
+    _controlCache[fid].forEach(function(c) {
+      allControls.push({ ref: c.ref, name: c.name, fw: fwName });
+    });
+  }
+  sel.innerHTML = '<option value="">Select a control...</option>';
+  allControls.forEach(function(c) {
+    var label = c.ref + ' - ' + c.name;
+    if (fwIds.length > 1) label += ' (' + c.fw + ')';
+    var opt = document.createElement('option');
+    opt.value = c.ref;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Review cycle auto-calc ──────────────────────────────────────────────────
+function calcReviewDate() {
+  var eff = document.getElementById('add-effective-date').value;
+  var cycle = document.getElementById('add-review-cycle').value;
+  var hint = document.getElementById('add-review-hint');
+  if (!eff || !cycle) { hint.textContent = ''; return; }
+  var d = new Date(eff + 'T00:00:00');
+  d.setDate(d.getDate() + parseInt(cycle));
+  var iso = d.toISOString().split('T')[0];
+  document.getElementById('add-review-date').value = iso;
+  var labels = {'90':'Quarterly','182':'Bi-annually','365':'Annually'};
+  hint.textContent = labels[cycle] + ' from effective date';
+}
+
+function calcEditReviewDate() {
+  var eff = document.getElementById('edit-effective-date').value;
+  var cycle = document.getElementById('edit-review-cycle').value;
+  var hint = document.getElementById('edit-review-hint');
+  if (!eff || !cycle) { hint.textContent = ''; return; }
+  var d = new Date(eff + 'T00:00:00');
+  d.setDate(d.getDate() + parseInt(cycle));
+  var iso = d.toISOString().split('T')[0];
+  document.getElementById('edit-review-date').value = iso;
+  var labels = {'90':'Quarterly','182':'Bi-annually','365':'Annually'};
+  hint.textContent = labels[cycle] + ' from effective date';
+}
+
+// Init control dropdown on page load
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(onAddFwChange, 300);
+});
+
 // ── Drop zone logic ─────────────────────────────────────────────────────────
 var _addFile = null;
 
@@ -507,13 +625,19 @@ async function analyseFile() {
 
 // ── Modal open / close ──────────────────────────────────────────────────────
 function openAddModal() {
-  ['add-title','add-control-ref','add-owner','add-approver',
+  ['add-title','add-owner','add-approver',
    'add-effective-date','add-review-date','add-location','add-comments'].forEach(function(id) {
     document.getElementById(id).value = '';
   });
+  document.getElementById('add-control-ref').selectedIndex = 0;
   document.getElementById('add-version').value = '1.0';
   document.getElementById('add-status').selectedIndex = 0;
   document.getElementById('add-doc-type').selectedIndex = 0;
+  document.getElementById('add-review-cycle').value = '365';
+  document.getElementById('add-review-hint').textContent = '';
+  var cbs = document.querySelectorAll('.add-fw-cb');
+  cbs.forEach(function(cb, i) { cb.checked = (i === 0); });
+  onAddFwChange();
   dzClearFile({ stopPropagation: function(){} });
   document.getElementById('analyseStatus').textContent = 'Select a file to auto-fill details from the document';
   document.getElementById('addModal').classList.add('open');
@@ -528,6 +652,8 @@ async function openEditModal(doc) {
   document.getElementById('edit-approver').value        = doc.approver || '';
   document.getElementById('edit-effective-date').value  = doc.effective_date || '';
   document.getElementById('edit-review-date').value     = doc.review_date || '';
+  document.getElementById('edit-review-cycle').value    = '';
+  document.getElementById('edit-review-hint').textContent = '';
   document.getElementById('edit-location').value        = doc.location || '';
   document.getElementById('edit-comments').value        = doc.comments || '';
   document.getElementById('edit-revision-file').value   = '';
@@ -620,9 +746,12 @@ async function submitAdd() {
   btn.disabled = true;
   btn.textContent = _addFile ? 'Uploading...' : 'Saving...';
 
+  var fwNames = getCheckedFwNames();
+  if (!fwNames.length) { showToast('Select at least one framework', 'error'); btn.disabled = false; btn.textContent = 'Save Document'; return; }
+
   var form = new FormData();
   if (_addFile) form.append('file', _addFile);
-  form.append('framework',      document.getElementById('add-framework').value);
+  form.append('framework',      fwNames.join(', '));
   form.append('control_ref',    document.getElementById('add-control-ref').value);
   form.append('title',          title);
   form.append('doc_type',       document.getElementById('add-doc-type').value);
