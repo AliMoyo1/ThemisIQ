@@ -155,6 +155,15 @@ document.getElementById('fwSelector').addEventListener('change', function(){
   document.getElementById('autoGenBtn').disabled = count < 2;
 });
 
+// ── Helper: parse JSON response safely ───────────────────────────────────────
+async function safeJson(res, label) {
+  var ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    throw new Error(label + ' returned HTTP ' + res.status + ' (not JSON). Check server logs.');
+  }
+  return await res.json();
+}
+
 // ── Auto-map selected frameworks ─────────────────────────────────────────────
 async function runAutoMap() {
   const sel = document.getElementById('fwSelector');
@@ -166,29 +175,27 @@ async function runAutoMap() {
   document.getElementById('progressWrap').style.display = 'block';
   document.getElementById('autoGenBtn').disabled = true;
   document.getElementById('progressMsg').textContent = useAi
-    ? 'Running text matching + AI semantic analysis… (this may take a minute)'
-    : 'Running text matching…';
+    ? 'Running text matching + AI semantic analysis... (this may take a minute)'
+    : 'Running text matching...';
 
   try {
-    // Step 1: Auto-generate mappings
     const genRes = await fetch('/aria/api/control-mappings/auto-generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ framework_ids: fwIds, use_ai: useAi })
     });
-    const genData = await genRes.json();
+    const genData = await safeJson(genRes, 'Auto-generate');
     if (!genData.ok) {
       if(typeof showToast==='function') showToast(genData.error || 'Auto-mapping failed', 'error');
       return;
     }
 
-    document.getElementById('progressMsg').textContent = `Mapped ${genData.created} control pairs — loading IMS status…`;
+    document.getElementById('progressMsg').textContent = 'Mapped ' + genData.created + ' control pairs. Loading IMS status...';
 
-    // Step 2: Load IMS status
     await loadImsStatus(fwIds);
 
     if(typeof showToast==='function')
-      showToast(`Auto-mapping complete — ${genData.created} new mappings (${genData.ai_calls} AI calls)`);
+      showToast('Auto-mapping complete: ' + genData.created + ' new mappings (' + genData.ai_calls + ' AI calls)');
   } catch(e) {
     if(typeof showToast==='function') showToast('Error: ' + e.message, 'error');
   } finally {
@@ -208,7 +215,8 @@ async function viewExisting() {
 // ── Load and render IMS status ────────────────────────────────────────────────
 async function loadImsStatus(fwIds) {
   const res  = await fetch('/aria/api/control-mappings/ims-status?fw_ids=' + fwIds.join(','));
-  const data = await res.json();
+  const data = await safeJson(res, 'IMS status');
+  if (data.error) throw new Error(data.error);
 
   const st = data.stats || {};
   document.getElementById('statsStrip').style.display = 'block';

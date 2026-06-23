@@ -1806,34 +1806,35 @@ async def api_auto_generate_mappings(request: Request):
     Body: {"framework_ids": [1, 4, 7], "use_ai": true}
     Returns: {"ok": true, "created": N, "skipped": M, "ai_calls": K}
     """
-    user = request.state.user
-    body = await request.json()
-    fw_ids = body.get("framework_ids", [])
-    use_ai = bool(body.get("use_ai", False))
-
-    if len(fw_ids) < 2:
-        return JSONResponse({"ok": False, "error": "Select at least 2 frameworks"}, status_code=400)
-    if len(fw_ids) > 6:
-        return JSONResponse({"ok": False, "error": "Maximum 6 frameworks per run"}, status_code=400)
-
-    from core.auto_mapper import run_auto_mapping
-    db = get_db()
     try:
-        result = await run_auto_mapping(
-            framework_ids=[int(f) for f in fw_ids],
-            user_id=user["id"],
-            db=db,
-            use_ai=use_ai,
-        )
+        user = request.state.user
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "Invalid request body"}, status_code=400)
+        fw_ids = body.get("framework_ids", [])
+        use_ai = bool(body.get("use_ai", False))
+
+        if len(fw_ids) < 2:
+            return JSONResponse({"ok": False, "error": "Select at least 2 frameworks"}, status_code=400)
+        if len(fw_ids) > 6:
+            return JSONResponse({"ok": False, "error": "Maximum 6 frameworks per run"}, status_code=400)
+
+        from core.auto_mapper import run_auto_mapping
+        db = get_db()
+        try:
+            result = await run_auto_mapping(
+                framework_ids=[int(f) for f in fw_ids],
+                user_id=user["id"],
+                db=db,
+                use_ai=use_ai,
+            )
+        finally:
+            db.close()
+        return JSONResponse({"ok": True, **result})
     except Exception as exc:
-        log.exception("Auto-mapping failed for frameworks %s: %s", fw_ids, exc)
-        return JSONResponse(
-            {"ok": False, "error": f"Auto-mapping failed: {exc}"},
-            status_code=500,
-        )
-    finally:
-        db.close()
-    return JSONResponse({"ok": True, **result})
+        log.exception("auto-generate failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 @router.get("/api/control-mappings/ims-status")
@@ -1844,60 +1845,66 @@ async def api_ims_status(request: Request):
     Query param: fw_ids=1,2,3
     Returns three sections: integrated, partial, unique — each a list of control dicts.
     """
-    fw_ids_param = request.query_params.get("fw_ids", "")
+    _empty = {"integrated": [], "partial": [], "unique": [], "fw_ids": [], "stats": {
+        "total": 0, "integrated": 0, "partial": 0, "unique": 0, "effort_saved_pct": 0}}
     try:
-        fw_ids = [int(x) for x in fw_ids_param.split(",") if x.strip().isdigit()]
-    except ValueError:
-        fw_ids = []
+        fw_ids_param = request.query_params.get("fw_ids", "")
+        try:
+            fw_ids = [int(x) for x in fw_ids_param.split(",") if x.strip().isdigit()]
+        except ValueError:
+            fw_ids = []
 
-    if len(fw_ids) < 2:
-        return JSONResponse({"integrated": [], "partial": [], "unique": [], "fw_ids": fw_ids})
+        if len(fw_ids) < 2:
+            return JSONResponse({**_empty, "fw_ids": fw_ids})
 
-    db = get_db()
-    try:
-        placeholders = ",".join(["%s"] * len(fw_ids))
-        rows = db.execute(
-            f"SELECT c.id, c.framework_id, c.ref, c.name, c.description, c.category, "
-            f"       f.name AS fw_name, f.color AS fw_color "
-            f"FROM controls c JOIN frameworks f ON f.id=c.framework_id "
-            f"WHERE c.framework_id IN ({placeholders}) ORDER BY f.name, c.ref",
-            fw_ids,
-        ).fetchall()
-        controls = [dict(r) for r in rows]
+        db = get_db()
+        try:
+            placeholders = ",".join(["%s"] * len(fw_ids))
+            rows = db.execute(
+                f"SELECT c.id, c.framework_id, c.ref, c.name, c.description, c.category, "
+                f"       f.name AS fw_name, f.color AS fw_color "
+                f"FROM controls c JOIN frameworks f ON f.id=c.framework_id "
+                f"WHERE c.framework_id IN ({placeholders}) ORDER BY f.name, c.ref",
+                fw_ids,
+            ).fetchall()
+            controls = [dict(r) for r in rows]
 
-        from core.auto_mapper import get_ims_status_bulk
-        statuses = get_ims_status_bulk(controls, fw_ids, db)
-    finally:
-        db.close()
+            from core.auto_mapper import get_ims_status_bulk
+            statuses = get_ims_status_bulk(controls, fw_ids, db)
+        finally:
+            db.close()
 
-    integrated, partial, unique = [], [], []
-    for ctrl in controls:
-        st = statuses.get(ctrl["id"], {})
-        ctrl["ims_status"]      = st.get("status", "unique")
-        ctrl["mapped_fw_ids"]   = st.get("mapped_fw_ids", [])
-        ctrl["mapped_fw_names"] = st.get("mapped_fw_names", [])
-        if ctrl["ims_status"] == "integrated":
-            integrated.append(ctrl)
-        elif ctrl["ims_status"] == "partial":
-            partial.append(ctrl)
-        else:
-            unique.append(ctrl)
+        integrated, partial, unique = [], [], []
+        for ctrl in controls:
+            st = statuses.get(ctrl["id"], {})
+            ctrl["ims_status"]      = st.get("status", "unique")
+            ctrl["mapped_fw_ids"]   = st.get("mapped_fw_ids", [])
+            ctrl["mapped_fw_names"] = st.get("mapped_fw_names", [])
+            if ctrl["ims_status"] == "integrated":
+                integrated.append(ctrl)
+            elif ctrl["ims_status"] == "partial":
+                partial.append(ctrl)
+            else:
+                unique.append(ctrl)
 
-    return JSONResponse({
-        "integrated": integrated,
-        "partial":    partial,
-        "unique":     unique,
-        "fw_ids":     fw_ids,
-        "stats": {
-            "total":      len(controls),
-            "integrated": len(integrated),
-            "partial":    len(partial),
-            "unique":     len(unique),
-            "effort_saved_pct": (
-                round((len(integrated) * 100) / len(controls) / 2) if controls else 0
-            ),
-        },
-    })
+        return JSONResponse({
+            "integrated": integrated,
+            "partial":    partial,
+            "unique":     unique,
+            "fw_ids":     fw_ids,
+            "stats": {
+                "total":      len(controls),
+                "integrated": len(integrated),
+                "partial":    len(partial),
+                "unique":     len(unique),
+                "effort_saved_pct": (
+                    round((len(integrated) * 100) / len(controls) / 2) if controls else 0
+                ),
+            },
+        })
+    except Exception as exc:
+        log.exception("ims-status failed: %s", exc)
+        return JSONResponse({**_empty, "error": str(exc)}, status_code=500)
 
 
 # -- Excel Export -------------------------------------------------------------
