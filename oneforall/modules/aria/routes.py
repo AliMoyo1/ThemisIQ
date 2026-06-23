@@ -7,13 +7,14 @@ cross-mapping, export, AI generator, Ask ARIA, audit log.
 import io
 import json
 import logging
-from datetime import datetime
+import re as _re
+from datetime import datetime, timedelta
 from core.timeutils import utcnow
 from typing import Optional
 
 log = logging.getLogger("oneforall.aria")
 
-from fastapi import APIRouter, Request, Form, HTTPException
+from fastapi import APIRouter, Request, Form, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
@@ -695,6 +696,13 @@ async def documents_page(request: Request,
             "SELECT COUNT(*) FROM aria_documents "
             "WHERE comments LIKE '%AI Generated%'"
         ).fetchone()[0]
+        in_30 = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        review_due = db.execute(
+            "SELECT COUNT(*) FROM aria_documents "
+            "WHERE review_date IS NOT NULL AND review_date != '' "
+            "AND status != 'Retired' AND review_date <= %s",
+            (in_30,),
+        ).fetchone()[0]
     finally:
         db.close()
 
@@ -707,7 +715,7 @@ async def documents_page(request: Request,
         },
         "stats": {
             "total": total, "approved": approved,
-            "draft": draft, "ai_gen": ai_gen,
+            "draft": draft, "ai_gen": ai_gen, "review_due": review_due,
         },
     }, active_section="documents")
 
@@ -751,8 +759,13 @@ async def add_document(request: Request,
               owner, approver, effective_date or None, review_date or None,
               location, comments, now, now))
         db.commit()
+
+        if review_date:
+            _schedule_review_reminder(db, new_id, doc_id, title, review_date, user)
+            db.commit()
+
         log_audit(user, "aria", "Added document " + doc_id + ": " + title,
-                  "document", 0, doc_id)
+                  "document", new_id, doc_id)
 
         # Emit policy published event when created as Approved
         if status == "Approved":
@@ -765,6 +778,112 @@ async def add_document(request: Request,
                     "doc_id": doc_id, "title": title,
                     "doc_type": doc_type, "framework": framework,
                     "control_ref": control_ref, "version": version,
+                },
+                user_id=user["id"],
+            )
+    finally:
+        db.close()
+
+    return JSONResponse({"ok": True, "doc_id": doc_id})
+
+
+@router.post("/documents/parse-upload")
+@require_module("aria")
+async def parse_document_upload(request: Request, file: UploadFile = File(...)):
+    """Extract metadata from an uploaded file without saving anything."""
+    content = await file.read()
+    if len(content) > ARIA_MAX_FILE:
+        return JSONResponse({"error": "File too large (max 50 MB)"}, 413)
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in _ALLOWED_DOC_EXT:
+        return JSONResponse({"error": f"File type '{ext}' not allowed"}, 400)
+    meta = _extract_document_metadata(content, ext, file.filename or "untitled")
+    return JSONResponse({"ok": True, **meta})
+
+
+@router.post("/documents/upload-new")
+@require_module("aria")
+async def upload_new_document(
+    request: Request,
+    file: UploadFile = File(None),
+    framework: str = Form(...),
+    control_ref: str = Form(""),
+    title: str = Form(...),
+    doc_type: str = Form("Policy"),
+    version: str = Form("1.0"),
+    status: str = Form("Draft"),
+    owner: str = Form(""),
+    approver: str = Form(""),
+    effective_date: str = Form(""),
+    review_date: str = Form(""),
+    location: str = Form(""),
+    comments: str = Form(""),
+):
+    """Create a new document record from an uploaded file plus metadata."""
+    user = request.state.user
+    if not has_capability(user, "aria.policy.create"):
+        return JSONResponse(
+            {"error": "You need policy author or compliance manager role."}, 403
+        )
+    if status == "Approved" and not has_capability(user, "aria.policy.approve"):
+        status = "Draft"
+
+    db = get_db()
+    try:
+        count = db.execute("SELECT COUNT(*) FROM aria_documents").fetchone()[0]
+        doc_id = "DOC-%04d" % (count + 1)
+        now = datetime.now().isoformat()
+
+        stored_name = None
+        orig_filename = None
+        file_size = 0
+        if file and file.filename:
+            content = await file.read()
+            if len(content) > ARIA_MAX_FILE:
+                return JSONResponse({"error": "File too large (max 50 MB)"}, 413)
+            ext = Path(file.filename).suffix.lower()
+            if ext not in _ALLOWED_DOC_EXT:
+                return JSONResponse({"error": f"File type '{ext}' not allowed"}, 400)
+            ARIA_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            stored_name = f"{uuid.uuid4().hex}{ext}"
+            (ARIA_UPLOAD_DIR / stored_name).write_bytes(content)
+            orig_filename = file.filename
+            file_size = len(content)
+
+        source_tag = "Uploaded" if stored_name else "Manual"
+        comments_tagged = (
+            (comments + "\n[" + source_tag + "]").strip() if comments
+            else "[" + source_tag + "]"
+        )
+
+        new_id = insert_returning_id(db, """
+            INSERT INTO aria_documents
+            (doc_id, framework, control_ref, title, doc_type, version, status,
+             owner, approver, effective_date, review_date, location, comments,
+             file_path, file_name, file_size, created_at, updated_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            doc_id, framework, control_ref, title, doc_type, version, status,
+            owner, approver, effective_date or None, review_date or None,
+            location, comments_tagged,
+            stored_name, orig_filename, file_size, now, now,
+        ))
+        db.commit()
+
+        if review_date:
+            _schedule_review_reminder(db, new_id, doc_id, title, review_date, user)
+            db.commit()
+
+        log_audit(user, "aria", f"Added document {doc_id}: {title}",
+                  "document", new_id, doc_id)
+
+        if status == "Approved":
+            emit(
+                ARIA_POLICY_PUBLISHED,
+                source_module="aria", entity_type="document", entity_id=new_id,
+                payload={
+                    "doc_id": doc_id, "title": title, "doc_type": doc_type,
+                    "framework": framework, "version": version,
                 },
                 user_id=user["id"],
             )
@@ -835,8 +954,17 @@ async def update_document(request: Request, doc_id: str,
                 params,
             )
             db.commit()
+
+            if review_date and review_date != (doc.get("review_date") or ""):
+                _schedule_review_reminder(
+                    db, doc["id"], doc_id,
+                    title or doc.get("title", ""),
+                    review_date, user,
+                )
+                db.commit()
+
             log_audit(user, "aria", "Updated document " + doc_id,
-                      "document", 0, doc_id)
+                      "document", doc["id"], doc_id)
 
             # Emit policy events on status change
             old_status = doc.get("status", "")
@@ -888,13 +1016,183 @@ import os
 import uuid
 import hashlib
 from pathlib import Path
-from fastapi import UploadFile, File
 
 ARIA_UPLOAD_DIR = Path(os.getenv("ARIA_UPLOAD_DIR", "data/aria_uploads"))
 ARIA_TEMPLATE_DIR = Path(os.getenv("ARIA_TEMPLATE_DIR", "data/aria_templates"))
 ARIA_MAX_FILE = 50 * 1024 * 1024  # 50 MB
 
 _ALLOWED_DOC_EXT = frozenset({".docx", ".doc", ".pdf", ".odt", ".xlsx", ".pptx"})
+
+# ── Document metadata extraction helpers ──────────────────────────────────────
+
+_MONTH_MAP = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def _parse_date_str(raw: str) -> str:
+    """Best-effort conversion of a human date string to YYYY-MM-DD."""
+    raw = raw.strip()
+    m = _re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", raw)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    m = _re.match(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})", raw)
+    if m:
+        a, b, y = int(m.group(1)), int(m.group(2)), m.group(3)
+        if a > 12:
+            return f"{y}-{b:02d}-{a:02d}"
+        return f"{y}-{a:02d}-{b:02d}"
+    m = _re.match(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", raw)
+    if m:
+        day, mon, yr = int(m.group(1)), m.group(2)[:3].lower(), m.group(3)
+        if mon in _MONTH_MAP:
+            return f"{yr}-{_MONTH_MAP[mon]:02d}-{day:02d}"
+    m = _re.match(r"([A-Za-z]+)\s+(\d{4})", raw)
+    if m:
+        mon, yr = m.group(1)[:3].lower(), m.group(2)
+        if mon in _MONTH_MAP:
+            return f"{yr}-{_MONTH_MAP[mon]:02d}-01"
+    return ""
+
+
+def _scan_text_for_metadata(text: str) -> dict:
+    """Scan document body text for common policy metadata patterns."""
+    result: dict = {}
+    _date_pat = (
+        r"(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}"
+        r"|\d{4}[/-]\d{2}[/-]\d{2}"
+        r"|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\.?\s+\d{4}"
+        r"|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\.?\s+\d{4})"
+    )
+    m = _re.search(r"[Vv]ersion[:\s]+(\d+\.\d+(?:\.\d+)?)", text)
+    if m:
+        result["version"] = m.group(1)
+
+    m = _re.search(r"(?:Next\s+)?[Rr]eview\s+[Dd]ate[:\s]+" + _date_pat, text)
+    if m:
+        parsed = _parse_date_str(m.group(1))
+        if parsed:
+            result["review_date"] = parsed
+
+    m = _re.search(r"[Ee]ffective\s+(?:[Dd]ate|[Ff]rom)[:\s]+" + _date_pat, text)
+    if m:
+        parsed = _parse_date_str(m.group(1))
+        if parsed:
+            result["effective_date"] = parsed
+
+    m = _re.search(
+        r"(?:[Dd]ocument\s+)?[Oo]wner[:\s]+([A-Z][a-zA-Z ]{2,40}?)(?:\n|,|\|)", text
+    )
+    if not m:
+        m = _re.search(r"[Pp]repared\s+[Bb]y[:\s]+([A-Z][a-zA-Z ]{2,40}?)(?:\n|,|\|)", text)
+    if m:
+        result["owner"] = m.group(1).strip()
+
+    m = _re.search(r"[Aa]pproved?\s+[Bb]y[:\s]+([A-Z][a-zA-Z ]{2,40}?)(?:\n|,|\|)", text)
+    if m:
+        result["approver"] = m.group(1).strip()
+
+    for dtype in ("Procedure", "Standard", "Guideline", "Template", "Record", "Plan"):
+        if _re.search(r"\b" + dtype + r"\b", text[:800]):
+            result["doc_type"] = dtype
+            break
+
+    return result
+
+
+def _extract_document_metadata(content: bytes, ext: str, filename: str) -> dict:
+    """Extract metadata from a document file without saving it."""
+    stem = Path(filename).stem.replace("_", " ").replace("-", " ")
+    result: dict = {
+        "title": stem, "version": "", "review_date": "",
+        "effective_date": "", "owner": "", "approver": "", "doc_type": "Policy",
+    }
+    if ext == ".docx":
+        try:
+            from docx import Document
+            doc = Document(io.BytesIO(content))
+            props = doc.core_properties
+            if props.title:
+                result["title"] = props.title
+            if props.version:
+                result["version"] = props.version
+            if props.last_modified_by:
+                result["owner"] = result["owner"] or props.last_modified_by
+            full_text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            result.update(_scan_text_for_metadata(full_text))
+        except Exception as exc:
+            log.debug("DOCX metadata extract failed: %s", exc)
+    elif ext == ".pdf":
+        try:
+            raw = content.decode("latin-1", errors="ignore")
+            for pdf_key, field in [("/Title", "title"), ("/Author", "owner")]:
+                m = _re.search(_re.escape(pdf_key) + r"\s*\(([^)]{1,200})\)", raw)
+                if m and m.group(1).strip():
+                    result[field] = result[field] or m.group(1).strip()
+            text_chunks = _re.findall(r"\(([^)]{4,200})\)", raw)
+            combined = " ".join(text_chunks[:300])
+            result.update({k: v for k, v in _scan_text_for_metadata(combined).items() if v})
+        except Exception as exc:
+            log.debug("PDF metadata extract failed: %s", exc)
+    return result
+
+
+def _schedule_review_reminder(db, doc_int_id: int, doc_id: str, title: str,
+                               review_date_str: str, user: dict) -> None:
+    """Insert 30-day and 7-day ahead email reminders for a document review date."""
+    from datetime import date
+    if not review_date_str:
+        return
+    try:
+        rd = date.fromisoformat(review_date_str)
+    except (ValueError, TypeError):
+        return
+    today = date.today()
+    if rd <= today:
+        return
+    email = (user.get("email") or "").strip()
+    if not email:
+        try:
+            row = db.execute(
+                "SELECT email FROM users WHERE id=%s", (user["id"],)
+            ).fetchone()
+            if row:
+                email = (row["email"] or "").strip()
+        except Exception:
+            pass
+    if not email:
+        return
+    from datetime import date, timedelta
+    for days_before in (30, 7):
+        remind_date = rd - timedelta(days=days_before)
+        if remind_date <= today:
+            continue
+        remind_at = remind_date.isoformat() + " 09:00:00"
+        existing = db.execute(
+            "SELECT id FROM email_reminders "
+            "WHERE module='aria' AND entity_type='document' AND entity_id=%s "
+            "AND is_sent=0 AND remind_at=%s",
+            (doc_int_id, remind_at),
+        ).fetchone()
+        if existing:
+            continue
+        db.execute(
+            "INSERT INTO email_reminders "
+            "(module, entity_type, entity_id, title, message, "
+            " recipient_email, remind_at, created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            (
+                "aria", "document", doc_int_id,
+                f"Policy Review Due: {title}",
+                (
+                    f"The document '{title}' ({doc_id}) is due for review in "
+                    f"{days_before} days, on {review_date_str}. "
+                    f"Please log in to ThemisIQ to review and update the document."
+                ),
+                email, remind_at, user["id"],
+            ),
+        )
 
 
 @router.post("/documents/{doc_id}/upload-revision")
