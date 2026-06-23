@@ -248,7 +248,55 @@ async def frameworks_list(request: Request):
         frameworks = db.execute(
             "SELECT * FROM frameworks WHERE is_active = 1 ORDER BY name"
         ).fetchall()
+
+        # Document coverage per framework
+        doc_counts = {}
+        try:
+            doc_rows = db.execute(
+                "SELECT framework, COUNT(*) as cnt, "
+                "COUNT(DISTINCT control_ref) as ctrl_covered "
+                "FROM aria_documents GROUP BY framework"
+            ).fetchall()
+            for dr in doc_rows:
+                doc_counts[dr["framework"]] = {
+                    "docs": dr["cnt"], "ctrls_covered": dr["ctrl_covered"]
+                }
+        except Exception:
+            pass
+
+        # Evidence counts per framework
+        ev_counts = {}
+        try:
+            ev_rows = db.execute(
+                "SELECT c.framework_id, COUNT(DISTINCT el.id) as ev_count "
+                "FROM evidence_links el "
+                "JOIN controls c ON c.id = el.entity_id "
+                "WHERE el.module = 'aria' AND el.entity_type = 'control' "
+                "GROUP BY c.framework_id"
+            ).fetchall()
+            for er in ev_rows:
+                ev_counts[er["framework_id"]] = er["ev_count"]
+        except Exception:
+            pass
+
+        # IMS mapping counts per framework (how many controls are mapped to another fw)
+        mapped_counts = {}
+        try:
+            map_rows = db.execute(
+                "SELECT c.framework_id, COUNT(DISTINCT c.id) as mapped "
+                "FROM controls c "
+                "WHERE c.framework_id IN (SELECT id FROM frameworks WHERE is_active=1) "
+                "AND (c.id IN (SELECT source_control_id FROM aria_control_mappings) "
+                "     OR c.id IN (SELECT target_control_id FROM aria_control_mappings)) "
+                "GROUP BY c.framework_id"
+            ).fetchall()
+            for mr in map_rows:
+                mapped_counts[mr["framework_id"]] = mr["mapped"]
+        except Exception:
+            pass
+
         fw_list = []
+        fw_ids = [fw["id"] for fw in frameworks]
         for fw in frameworks:
             stats = db.execute("""
                 SELECT COUNT(*) as total,
@@ -260,16 +308,44 @@ async def frameworks_list(request: Request):
             total = stats["total"] or 0
             impl = stats["implemented"] or 0
             pct = round((impl / total * 100) if total > 0 else 0, 1)
+            dc = doc_counts.get(fw["name"], {})
+            doc_total = dc.get("docs", 0)
+            ctrls_with_docs = dc.get("ctrls_covered", 0)
+            doc_pct = round((ctrls_with_docs / total * 100) if total > 0 else 0)
+            ev_total = ev_counts.get(fw["id"], 0)
+            mapped = mapped_counts.get(fw["id"], 0)
             fw_list.append({
                 "id": fw["id"], "name": fw["name"], "color": fw["color"],
                 "description": fw["description"], "total": total,
                 "implemented": impl, "in_progress": stats["in_progress"] or 0,
                 "not_started": stats["not_started"] or 0, "pct": pct,
+                "doc_total": doc_total, "doc_pct": doc_pct,
+                "ctrls_with_docs": ctrls_with_docs,
+                "evidence_count": ev_total, "mapped_controls": mapped,
             })
+
+        # IMS summary: cross-framework mapping stats
+        ims_summary = None
+        if len(fw_ids) >= 2:
+            try:
+                total_mappings = db.execute(
+                    "SELECT COUNT(*) FROM aria_control_mappings"
+                ).fetchone()[0]
+                total_ctrls = sum(f["total"] for f in fw_list)
+                total_mapped = sum(f["mapped_controls"] for f in fw_list)
+                ims_summary = {
+                    "framework_count": len(fw_ids),
+                    "total_mappings": total_mappings,
+                    "total_controls": total_ctrls,
+                    "mapped_controls": total_mapped,
+                }
+            except Exception:
+                pass
     finally:
         db.close()
     return _aria_render(request, "frameworks.html", {
         "user": user, "module": "aria", "fw_list": fw_list,
+        "ims_summary": ims_summary,
     }, active_section="frameworks")
 
 
@@ -1878,6 +1954,16 @@ async def api_ims_status(request: Request):
 
             from core.auto_mapper import get_ims_status_bulk
             statuses = get_ims_status_bulk(controls, fw_ids, db)
+
+            doc_refs = set()
+            try:
+                doc_rows = db.execute(
+                    "SELECT DISTINCT framework, control_ref FROM aria_documents"
+                ).fetchall()
+                for dr in doc_rows:
+                    doc_refs.add((dr["framework"], dr["control_ref"]))
+            except Exception:
+                pass
         finally:
             db.close()
 
@@ -1887,6 +1973,7 @@ async def api_ims_status(request: Request):
             ctrl["ims_status"]      = st.get("status", "unique")
             ctrl["mapped_fw_ids"]   = st.get("mapped_fw_ids", [])
             ctrl["mapped_fw_names"] = st.get("mapped_fw_names", [])
+            ctrl["has_doc"] = (ctrl.get("fw_name", ""), ctrl.get("ref", "")) in doc_refs
             if ctrl["ims_status"] == "integrated":
                 integrated.append(ctrl)
             elif ctrl["ims_status"] == "partial":

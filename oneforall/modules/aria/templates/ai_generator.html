@@ -447,6 +447,25 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('orgName').addEventListener('input', function () {
     localStorage.setItem('aria_org_name', this.value);
   });
+
+  // Pre-fill from query params (e.g. from Control Mapping page)
+  var params = new URLSearchParams(window.location.search);
+  var prefillFwId = params.get('fw_id');
+  var prefillRef  = params.get('control_ref');
+  if (prefillFwId) {
+    var fwSel = document.getElementById('fwSelect');
+    fwSel.value = prefillFwId;
+    if (fwSel.value === prefillFwId) {
+      loadControls().then(function() {
+        if (prefillRef) {
+          var match = allControls.find(function(c) { return c.ref === prefillRef; });
+          if (match) {
+            selectControl(match.id, match.ref, match.name, match.description || '');
+          }
+        }
+      });
+    }
+  }
 });
 
 /* ── Tab switching ─────────────────────────────────────────────────────── */

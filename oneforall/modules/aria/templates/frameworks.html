@@ -3,20 +3,40 @@
 
 {% block extra_styles %}
 <style>
-.fw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px}
+.fw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:20px}
 .fw-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;transition:all 0.2s;cursor:pointer;text-decoration:none;color:var(--text);display:block}
 .fw-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-2px)}
 .fw-card-top{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
 .fw-color-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-top:4px}
 .fw-card-name{font-size:16px;font-weight:700;color:var(--text);line-height:1.3}
 .fw-card-desc{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
-.fw-card-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
-.fw-mini{text-align:center;padding:8px;background:var(--surface2);border-radius:var(--radius-md)}
-.fw-mini-val{font-size:18px;font-weight:800;font-family:var(--mono)}
-.fw-mini-lbl{font-size:10px;color:var(--muted);margin-top:2px;font-weight:600;letter-spacing:0.3px}
-.fw-pbar{height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.fw-card-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px}
+.fw-mini{text-align:center;padding:8px 4px;background:var(--surface2);border-radius:var(--radius-md)}
+.fw-mini-val{font-size:16px;font-weight:800;font-family:var(--mono)}
+.fw-mini-lbl{font-size:9px;color:var(--muted);margin-top:2px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase}
+.fw-pbar{height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;margin-bottom:4px}
 .fw-pbar-fill{height:100%;border-radius:3px;transition:width 0.6s ease}
-.fw-pct{font-size:12px;font-weight:700;font-family:var(--mono);text-align:right;margin-top:6px}
+.fw-bars{display:flex;gap:8px;align-items:center;margin-top:10px}
+.fw-bar-item{flex:1}
+.fw-bar-label{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.fw-bar-track{height:4px;background:var(--surface3);border-radius:2px;overflow:hidden}
+.fw-bar-fill{height:100%;border-radius:2px;transition:width 0.6s ease}
+.fw-bar-val{font-size:10px;font-weight:700;font-family:var(--mono);margin-top:2px}
+.fw-actions{display:flex;gap:6px;margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+.fw-action{flex:1;text-align:center;padding:6px 4px;font-size:11px;font-weight:600;color:var(--text-mid);border-radius:var(--radius);transition:all 0.15s}
+.fw-action:hover{background:rgba(var(--accent-rgb),0.08);color:var(--accent)}
+.fw-action svg{width:14px;height:14px;display:block;margin:0 auto 3px}
+
+.ims-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:24px}
+.ims-panel-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.ims-panel-sub{font-size:12px;color:var(--muted);margin-bottom:16px}
+.ims-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.ims-stat{text-align:center;padding:12px 8px;background:var(--surface2);border-radius:var(--radius-md)}
+.ims-stat-val{font-size:22px;font-weight:800;font-family:var(--mono);color:var(--accent)}
+.ims-stat-lbl{font-size:10px;color:var(--muted);margin-top:2px;font-weight:600}
+.ims-fw-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ims-fw-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600}
+.ims-fw-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 </style>
 {% endblock %}
 
@@ -38,35 +58,133 @@
   </div>
 </div>
 
-<div class="fw-grid animate-fade-up anim-1">
+{% if ims_summary and ims_summary.framework_count >= 2 %}
+<div class="ims-panel animate-fade-up anim-1">
+  <div class="ims-panel-title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+    Integrated Management System (IMS)
+  </div>
+  <div class="ims-panel-sub">
+    {{ ims_summary.framework_count }} frameworks are active. Controls mapped across frameworks can share documentation, evidence, and audit testing.
+  </div>
+  <div class="ims-stats">
+    <div class="ims-stat">
+      <div class="ims-stat-val">{{ ims_summary.framework_count }}</div>
+      <div class="ims-stat-lbl">Frameworks</div>
+    </div>
+    <div class="ims-stat">
+      <div class="ims-stat-val">{{ ims_summary.total_controls }}</div>
+      <div class="ims-stat-lbl">Total Controls</div>
+    </div>
+    <div class="ims-stat">
+      <div class="ims-stat-val" style="color:var(--green-status)">{{ ims_summary.mapped_controls }}</div>
+      <div class="ims-stat-lbl">Mapped Controls</div>
+    </div>
+    <div class="ims-stat">
+      <div class="ims-stat-val">{{ ims_summary.total_mappings }}</div>
+      <div class="ims-stat-lbl">Cross-Mappings</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div class="ims-fw-chips">
+      {% for fw in fw_list %}
+      <span class="ims-fw-chip">
+        <span class="ims-fw-dot" style="background:{{ fw.color }}"></span>
+        {{ fw.name }}
+        <span style="font-size:10px;color:var(--muted);font-weight:400">{{ fw.mapped_controls }} mapped</span>
+      </span>
+      {% endfor %}
+    </div>
+    <a href="/aria/mapping" style="margin-left:auto;font-size:12px;font-weight:600;color:var(--accent);text-decoration:none;">
+      View Control Mapping &#8250;
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<div class="fw-grid animate-fade-up anim-{% if ims_summary %}2{% else %}1{% endif %}">
   {% for fw in fw_list %}
-  <a href="/aria/framework/{{ fw.id }}" class="fw-card">
-    <div class="fw-card-top">
-      <div class="fw-color-dot" style="background:{{ fw.color }}"></div>
-      <div>
-        <div class="fw-card-name">{{ fw.name }}</div>
-        <div class="fw-card-desc">{{ fw.description }}</div>
+  <div class="fw-card" style="cursor:default;">
+    <a href="/aria/framework/{{ fw.id }}" style="text-decoration:none;color:inherit;display:block;">
+      <div class="fw-card-top">
+        <div class="fw-color-dot" style="background:{{ fw.color }}"></div>
+        <div>
+          <div class="fw-card-name">{{ fw.name }}</div>
+          <div class="fw-card-desc">{{ fw.description }}</div>
+        </div>
       </div>
+      <div class="fw-card-stats">
+        <div class="fw-mini">
+          <div class="fw-mini-val">{{ fw.total }}</div>
+          <div class="fw-mini-lbl">Controls</div>
+        </div>
+        <div class="fw-mini">
+          <div class="fw-mini-val" style="color:var(--green-status)">{{ fw.implemented }}</div>
+          <div class="fw-mini-lbl">Implemented</div>
+        </div>
+        <div class="fw-mini">
+          <div class="fw-mini-val" style="color:var(--amber)">{{ fw.in_progress }}</div>
+          <div class="fw-mini-lbl">In Progress</div>
+        </div>
+        <div class="fw-mini">
+          <div class="fw-mini-val" style="color:var(--accent)">{{ fw.doc_total }}</div>
+          <div class="fw-mini-lbl">Documents</div>
+        </div>
+        <div class="fw-mini">
+          <div class="fw-mini-val" style="color:var(--text-mid)">{{ fw.evidence_count }}</div>
+          <div class="fw-mini-lbl">Evidence</div>
+        </div>
+      </div>
+
+      <!-- Implementation progress -->
+      <div class="fw-bars">
+        <div class="fw-bar-item">
+          <div class="fw-bar-label">Implementation</div>
+          <div class="fw-bar-track">
+            <div class="fw-bar-fill" style="width:{{ fw.pct }}%;background:{{ fw.color }}"></div>
+          </div>
+          <div class="fw-bar-val" style="color:{% if fw.pct >= 80 %}var(--green-status){% elif fw.pct >= 50 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.pct }}%</div>
+        </div>
+        <div class="fw-bar-item">
+          <div class="fw-bar-label">Doc Coverage</div>
+          <div class="fw-bar-track">
+            <div class="fw-bar-fill" style="width:{{ fw.doc_pct }}%;background:var(--accent)"></div>
+          </div>
+          <div class="fw-bar-val" style="color:{% if fw.doc_pct >= 80 %}var(--green-status){% elif fw.doc_pct >= 50 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.doc_pct }}%</div>
+        </div>
+        {% if fw.mapped_controls > 0 %}
+        <div class="fw-bar-item">
+          <div class="fw-bar-label">IMS Mapped</div>
+          <div class="fw-bar-track">
+            {% set map_pct = ((fw.mapped_controls / fw.total * 100) | round) if fw.total > 0 else 0 %}
+            <div class="fw-bar-fill" style="width:{{ map_pct }}%;background:var(--green-status)"></div>
+          </div>
+          <div class="fw-bar-val" style="color:var(--green-status)">{{ map_pct | int }}%</div>
+        </div>
+        {% endif %}
+      </div>
+    </a>
+
+    <!-- Quick action links -->
+    <div class="fw-actions">
+      <a href="/aria/framework/{{ fw.id }}" class="fw-action" onclick="event.stopPropagation()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        Controls
+      </a>
+      <a href="/aria/ai-generator?fw_id={{ fw.id }}" class="fw-action" onclick="event.stopPropagation()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Generate Policy
+      </a>
+      <a href="/aria/documents?search={{ fw.name | urlencode }}" class="fw-action" onclick="event.stopPropagation()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Documents
+      </a>
+      <a href="/aria/mapping" class="fw-action" onclick="event.stopPropagation()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+        IMS Mapping
+      </a>
     </div>
-    <div class="fw-card-stats">
-      <div class="fw-mini">
-        <div class="fw-mini-val">{{ fw.total }}</div>
-        <div class="fw-mini-lbl">Controls</div>
-      </div>
-      <div class="fw-mini">
-        <div class="fw-mini-val" style="color:var(--green-status)">{{ fw.implemented }}</div>
-        <div class="fw-mini-lbl">Implemented</div>
-      </div>
-      <div class="fw-mini">
-        <div class="fw-mini-val" style="color:var(--amber)">{{ fw.in_progress }}</div>
-        <div class="fw-mini-lbl">In Progress</div>
-      </div>
-    </div>
-    <div class="fw-pbar">
-      <div class="fw-pbar-fill" style="width:{{ fw.pct }}%;background:{{ fw.color }}"></div>
-    </div>
-    <div class="fw-pct" style="color:{% if fw.pct >= 80 %}var(--green-status){% elif fw.pct >= 50 %}var(--amber){% else %}var(--red){% endif %}">{{ fw.pct }}% Complete</div>
-  </a>
+  </div>
   {% endfor %}
   {% if not fw_list %}
   <div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--muted)">
