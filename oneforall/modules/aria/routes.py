@@ -1857,6 +1857,13 @@ async def api_ims_status(request: Request):
         if len(fw_ids) < 2:
             return JSONResponse({**_empty, "fw_ids": fw_ids})
 
+        # Pre-seed curated mappings from official standard annexes
+        try:
+            from seeds.framework_controls import seed_curated_mappings
+            seed_curated_mappings()
+        except Exception:
+            pass
+
         db = get_db()
         try:
             placeholders = ",".join(["%s"] * len(fw_ids))

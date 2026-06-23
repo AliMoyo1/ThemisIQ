@@ -398,6 +398,134 @@ FRAMEWORK_CONTROLS = {
 }
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Curated cross-framework control mappings
+# Based on official standard annexes (e.g. ISO 42001 Annex B mapping to ISO 27001)
+# Key: (fw_name_a, fw_name_b)  Value: list of (ref_a, ref_b) pairs
+# ═══════════════════════════════════════════════════════════════════════════════
+CURATED_MAPPINGS = {
+    ("ISO 27001:2022", "ISO 42001"): [
+        # ISO 42001 clause 5 (Leadership) -> ISO 27001 Annex A organisational
+        ("A.5.1",  "5.2"),    # Policies for information security <-> AI policy
+        ("A.5.2",  "5.3"),    # Info security roles <-> Roles, responsibilities, authorities
+        ("A.5.4",  "5.1"),    # Management responsibilities <-> Leadership and commitment
+        # ISO 42001 clause 6 (Planning) -> ISO 27001 risk/planning related
+        ("A.5.7",  "6.1"),    # Threat intelligence <-> Actions to address risks and opportunities
+        ("A.5.8",  "6.2"),    # Info security in project management <-> AI objectives and planning
+        # ISO 42001 Annex A core controls -> ISO 27001 Annex A
+        ("A.5.12", "A.4"),    # Classification of information <-> Data management
+        ("A.5.14", "A.4"),    # Information transfer <-> Data management
+        ("A.5.15", "A.8"),    # Access control <-> Human oversight
+        ("A.5.23", "A.10"),   # Cloud services <-> Third-party AI
+        ("A.5.31", "A.2"),    # Legal/regulatory requirements <-> AI impact assessment
+        ("A.5.34", "A.2"),    # Privacy and PII <-> AI impact assessment
+        ("A.5.35", "9.2"),    # Independent review <-> Internal audit
+        ("A.5.36", "10.1"),   # Compliance with policies <-> Nonconformity and corrective action
+        ("A.6.3",  "A.5"),    # Security awareness/training <-> AI transparency
+        ("A.6.3",  "A.6"),    # Security awareness/training <-> AI explainability
+        ("A.8.5",  "A.9"),    # Secure authentication <-> AI security
+        ("A.8.7",  "A.9"),    # Protection against malware <-> AI security
+        ("A.8.8",  "A.9"),    # Technical vulnerability management <-> AI security
+        ("A.8.9",  "A.3"),    # Configuration management <-> AI system lifecycle
+        ("A.8.16", "9.1"),    # Monitoring activities <-> Monitoring/measurement/analysis
+        ("A.8.25", "A.3"),    # Secure development lifecycle <-> AI system lifecycle
+        ("A.8.28", "A.3"),    # Secure coding <-> AI system lifecycle
+        ("A.5.24", "A.2"),    # Incident management planning <-> AI impact assessment
+        ("A.5.9",  "A.4"),    # Inventory of assets <-> Data management
+        ("A.5.10", "A.4"),    # Acceptable use of assets <-> Data management
+        ("A.5.25", "A.7"),    # Assessment of security events <-> Bias and fairness
+        ("A.5.29", "A.3"),    # Info security during disruption <-> AI system lifecycle
+        ("A.5.30", "A.3"),    # ICT readiness for continuity <-> AI system lifecycle
+        ("A.8.12", "A.4"),    # Data leakage prevention <-> Data management
+        ("A.8.13", "A.3"),    # Information backup <-> AI system lifecycle
+        ("A.8.15", "9.1"),    # Logging <-> Monitoring/measurement/analysis
+        ("A.8.20", "A.9"),    # Network security <-> AI security
+        ("A.8.24", "A.9"),    # Use of cryptography <-> AI security
+    ],
+}
+
+
+def seed_curated_mappings():
+    """Insert curated cross-framework control mappings that are missing."""
+    from database import get_db, insert_returning_id
+    db = get_db()
+    try:
+        for (fw_name_a, fw_name_b), pairs in CURATED_MAPPINGS.items():
+            fw_a = db.execute(
+                "SELECT id FROM frameworks WHERE name=%s AND is_active=1", (fw_name_a,)
+            ).fetchone()
+            fw_b = db.execute(
+                "SELECT id FROM frameworks WHERE name=%s AND is_active=1", (fw_name_b,)
+            ).fetchone()
+            if not fw_a or not fw_b:
+                continue
+            fw_a_id, fw_b_id = fw_a[0], fw_b[0]
+
+            ctrl_a_map = {}
+            for r in db.execute(
+                "SELECT id, ref FROM controls WHERE framework_id=%s", (fw_a_id,)
+            ).fetchall():
+                ctrl_a_map[r[1]] = r[0]
+
+            ctrl_b_map = {}
+            for r in db.execute(
+                "SELECT id, ref FROM controls WHERE framework_id=%s", (fw_b_id,)
+            ).fetchall():
+                ctrl_b_map[r[1]] = r[0]
+
+            existing = set()
+            for r in db.execute(
+                "SELECT source_control_id, target_control_id FROM aria_control_mappings"
+            ).fetchall():
+                existing.add((min(r[0], r[1]), max(r[0], r[1])))
+
+            created = 0
+            for ref_a, ref_b in pairs:
+                cid_a = ctrl_a_map.get(ref_a)
+                cid_b = ctrl_b_map.get(ref_b)
+                if not cid_a or not cid_b:
+                    continue
+                pair_key = (min(cid_a, cid_b), max(cid_a, cid_b))
+                if pair_key in existing:
+                    continue
+
+                _has_extra = True
+                try:
+                    db.execute(
+                        "SELECT auto_generated FROM aria_control_mappings LIMIT 0"
+                    )
+                except Exception:
+                    _has_extra = False
+
+                if _has_extra:
+                    insert_returning_id(db,
+                        "INSERT INTO aria_control_mappings "
+                        "(source_framework_id, source_control_id, "
+                        " target_framework_id, target_control_id, "
+                        " mapping_type, confidence, auto_generated, match_method) "
+                        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                        (fw_a_id, cid_a, fw_b_id, cid_b,
+                         "equivalent", 0.95, 1, "curated"))
+                else:
+                    insert_returning_id(db,
+                        "INSERT INTO aria_control_mappings "
+                        "(source_framework_id, source_control_id, "
+                        " target_framework_id, target_control_id, "
+                        " mapping_type, confidence) "
+                        "VALUES (%s,%s,%s,%s,%s,%s)",
+                        (fw_a_id, cid_a, fw_b_id, cid_b,
+                         "equivalent", 0.95))
+                existing.add(pair_key)
+                created += 1
+
+            if created:
+                db.commit()
+                log.info("Seeded %d curated mappings for %s <-> %s",
+                         created, fw_name_a, fw_name_b)
+    finally:
+        db.close()
+
+
 def seed_all_controls():
     """Populate controls for all frameworks that have no controls yet."""
     frameworks = list_frameworks(active_only=False)

@@ -300,6 +300,13 @@ async def run_auto_mapping(
     if len(framework_ids) < 2:
         return {"created": 0, "skipped": 0, "ai_calls": 0, "errors": ["Need at least 2 frameworks"]}
 
+    # Pre-seed curated mappings from official standard annexes
+    try:
+        from seeds.framework_controls import seed_curated_mappings
+        seed_curated_mappings()
+    except Exception as exc:
+        log.debug("Curated mapping seed skipped: %s", exc)
+
     # Cap for performance
     if len(framework_ids) > 6:
         framework_ids = framework_ids[:6]
