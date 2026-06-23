@@ -614,13 +614,22 @@ async def api_bulk_import(request: Request, entity_type: str):
 @router.get("/api/platform/users")
 @require_auth
 async def api_platform_users(request: Request):
-    """Return active users for assignment dropdowns (platform-wide)."""
+    """Return active users for assignment dropdowns (scoped to caller's org)."""
+    user = request.state.user
+    org_id = user.get("org_id")
     db = get_db()
     try:
-        rows = db.execute(
-            "SELECT id, username, full_name, email "
-            "FROM users WHERE is_active = 1 ORDER BY full_name"
-        ).fetchall()
+        if org_id:
+            rows = db.execute(
+                "SELECT id, username, full_name, email "
+                "FROM users WHERE is_active = 1 AND org_id=%s ORDER BY full_name",
+                (org_id,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id, username, full_name, email "
+                "FROM users WHERE is_active = 1 ORDER BY full_name"
+            ).fetchall()
         return _JSONResp([dict(r) for r in rows])
     finally:
         db.close()

@@ -703,11 +703,20 @@ async def api_comments_add(request: Request, cid: int):
 @router.get("/api/users")
 @require_capability("module.grid.access")
 async def api_users_list(request: Request):
+    user = request.state.user
+    org_id = user.get("org_id")
     db = get_db()
     try:
-        rows = db.execute(
-            "SELECT id, username, full_name, email FROM users ORDER BY full_name"
-        ).fetchall()
+        if org_id:
+            rows = db.execute(
+                "SELECT id, username, full_name, email FROM users "
+                "WHERE is_active=1 AND org_id=%s ORDER BY full_name", (org_id,)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id, username, full_name, email FROM users "
+                "WHERE is_active=1 ORDER BY full_name"
+            ).fetchall()
         return JSONResponse([dict(r) for r in rows])
     finally:
         db.close()

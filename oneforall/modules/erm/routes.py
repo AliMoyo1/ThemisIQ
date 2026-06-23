@@ -415,12 +415,21 @@ async def api_submit_response(request: Request, assessment_id: int):
 @router.get("/api/users")
 @require_capability("module.erm.access")
 async def api_users_list(request: Request):
+    user = request.state.user
+    org_id = user.get("org_id")
     from database import get_db as _gdb
     db = _gdb()
     try:
-        rows = db.execute(
-            "SELECT id, full_name, email FROM users WHERE is_active=1 ORDER BY full_name"
-        ).fetchall()
+        if org_id:
+            rows = db.execute(
+                "SELECT id, full_name, email FROM users "
+                "WHERE is_active=1 AND org_id=%s ORDER BY full_name", (org_id,)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id, full_name, email FROM users "
+                "WHERE is_active=1 ORDER BY full_name"
+            ).fetchall()
         return JSONResponse([dict(r) for r in rows])
     finally:
         db.close()
