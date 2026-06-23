@@ -134,9 +134,10 @@ def delete_framework(fid):
 
 
 def list_audits():
+    import json as _json
     db = get_db()
     try:
-        return _dicts(db.execute("""
+        rows = _dicts(db.execute("""
             SELECT a.*, f.name AS framework_name, f.color AS framework_color,
                    u.full_name AS lead_name,
                    (SELECT COUNT(*) FROM grid_controls WHERE audit_id=a.id) AS total_controls,
@@ -146,10 +147,27 @@ def list_audits():
             LEFT JOIN users u ON a.lead_id=u.id
             ORDER BY a.created_at DESC
         """).fetchall())
+        for row in rows:
+            if row.get("is_integrated") and row.get("framework_ids"):
+                try:
+                    fw_ids = _json.loads(row["framework_ids"])
+                    if fw_ids:
+                        ph = ",".join(["%s"] * len(fw_ids))
+                        names = db.execute(
+                            f"SELECT name FROM frameworks WHERE id IN ({ph}) ORDER BY name",
+                            [int(x) for x in fw_ids],
+                        ).fetchall()
+                        row["framework_names"] = [r[0] for r in names]
+                except (ValueError, TypeError):
+                    pass
+            if "framework_names" not in row:
+                row["framework_names"] = []
+        return rows
     finally:
         db.close()
 
 def get_audit(aid):
+    import json as _json
     db = get_db()
     try:
         audit = _dict(db.execute("""
@@ -158,6 +176,23 @@ def get_audit(aid):
             WHERE a.id=%s""", (aid,)).fetchone())
         if not audit:
             return None
+
+        # For IMS audits, resolve all framework names from the stored IDs
+        if audit.get("is_integrated") and audit.get("framework_ids"):
+            try:
+                fw_ids = _json.loads(audit["framework_ids"])
+                if fw_ids:
+                    ph = ",".join(["%s"] * len(fw_ids))
+                    names = db.execute(
+                        f"SELECT name FROM frameworks WHERE id IN ({ph}) ORDER BY name",
+                        [int(x) for x in fw_ids],
+                    ).fetchall()
+                    audit["framework_names"] = [r[0] for r in names]
+            except (ValueError, TypeError):
+                audit["framework_names"] = []
+        if "framework_names" not in audit:
+            audit["framework_names"] = []
+
         controls = _dicts(db.execute("""
             SELECT c.*, u.full_name AS assignee_name,
                    (SELECT COUNT(*) FROM grid_evidence_items WHERE control_id=c.id) AS evidence_total,

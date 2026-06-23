@@ -618,6 +618,7 @@
      HELPERS
      ═══════════════════════════════════════════════════════════════════════ */
   function esc(s){if(!s)return '';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+  function fwLabel(a){return a.framework_names&&a.framework_names.length?a.framework_names.join(' + '):a.framework_name||'';}
   function fmtDate(ts){
     if(!ts) return '—';
     try{const d=new Date(ts.includes('T')?ts:ts+'T00:00:00');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
@@ -798,7 +799,7 @@
     el.innerHTML=audits.slice(0,5).map(a =>
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="gridRouter.navigate(\'/grid/audits/'+a.id+'\')">'+
         '<div><div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(a.name)+'</div>'+
-        '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(a.framework_name||'—')+'</div></div>'+
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(fwLabel(a)||'—')+'</div></div>'+
         statusBadge(a.status)+'</div>'
     ).join('');
   }
@@ -838,7 +839,7 @@
       const pct=r.total_controls?Math.round((r.complete_controls||0)/r.total_controls*100):0;
       return '<tr style="cursor:pointer" onclick="gridRouter.navigate(\'/grid/audits/'+r.id+'\')">'+
         '<td style="font-weight:600">'+esc(r.name)+'</td>'+
-        '<td>'+esc(r.framework_name||'—')+'</td>'+
+        '<td>'+esc(fwLabel(r)||'—')+'</td>'+
         '<td>'+statusBadge(r.status)+'</td>'+
         '<td><div style="display:flex;align-items:center;gap:8px"><div class="pbar" style="flex:1;max-width:100px"><div class="pbar-fill" style="width:'+pct+'%"></div></div><span style="font-size:12px;font-family:var(--mono);color:var(--muted)">'+pct+'%</span></div></td>'+
         '<td style="font-family:var(--mono);font-size:12px">'+fmtDate(r.audit_date)+'</td>'+
@@ -892,7 +893,7 @@
             '<div style="width:'+pct+'%;height:100%;background:'+barCol+';border-radius:4px;transition:width .5s"></div>'+
           '</div>'+
           '<div style="width:40px;text-align:right;font-size:12px;font-family:var(--mono);color:var(--muted)">'+pct+'%</div>'+
-          '<div style="width:60px;font-size:11px;color:var(--muted)">'+esc(a.framework_name||'')+'</div>'+
+          '<div style="font-size:11px;color:var(--muted);white-space:nowrap">'+esc(fwLabel(a))+'</div>'+
         '</div>';
       });
       html+='</div>';
@@ -955,7 +956,7 @@
         :'';
       return '<div class="audit-card" onclick="gridRouter.navigate(\'/grid/audits/'+a.id+'\')">'+
         '<div class="audit-card-header"><div><div class="audit-card-name">'+esc(a.name)+'</div>'+
-        '<div class="audit-card-fw">'+esc(a.framework_name||'No framework')+'</div></div>'+
+        '<div class="audit-card-fw">'+esc(fwLabel(a)||'No framework')+'</div></div>'+
         '<div style="display:flex;align-items:center;gap:8px">'+statusBadge(a.status)+delBtn+'</div></div>'+
         '<div class="pbar"><div class="pbar-fill" style="width:'+pct+'%"></div></div>'+
         '<div class="audit-card-stats">'+
@@ -1097,7 +1098,7 @@
       /* ── Header ── */
       '<div class="section-header"><div><div class="section-title">'+esc(audit.name)+'</div>'+
       '<div class="audit-detail-meta">'+
-        '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/></svg>'+esc(audit.framework_name||'No framework')+'</span>'+
+        '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/></svg>'+esc(fwLabel(audit)||'No framework')+'</span>'+
         '<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg>'+esc(audit.audit_type||'External')+'</span>'+
         (audit.start_date?'<span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'+fmtDate(audit.start_date)+(audit.end_date?' — '+fmtDate(audit.end_date):'')+'</span>':'')+
         (audit.audit_date?'<span>Due '+fmtDate(audit.audit_date)+'</span>':'')+
@@ -1186,7 +1187,7 @@
       /* ── Controls list ── */
       '<div class="card"><div class="card-header"><div class="card-title">Controls ('+total+')</div>'+
       '<div style="display:flex;gap:6px">'+
-        '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="openChecklistImportModal('+id+',\''+(audit.framework_name||'ISO 27001').replace(/'/g,"\\'")+'\')">'+
+        '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="openChecklistImportModal('+id+',\''+(fwLabel(audit)||'ISO 27001').replace(/'/g,"\\'")+'\')">'+
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>'+
           'Import Checklist</button>'+
         (!controls.length?'<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="populateAuditControls('+id+')">Load Framework Controls</button>':'')+
@@ -2263,7 +2264,7 @@
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">'+
           '<div style="flex:1;min-width:0">'+
             '<div class="audit-card-name" style="margin-bottom:4px">'+esc(a.name)+'</div>'+
-            '<div style="font-size:12px;color:var(--muted)">'+esc(a.framework_name||'')+(a.audit_type?' &middot; '+esc(a.audit_type):'')+'</div>'+
+            '<div style="font-size:12px;color:var(--muted)">'+esc(fwLabel(a))+(a.audit_type?' &middot; '+esc(a.audit_type):'')+'</div>'+
           '</div>'+
           '<div style="font-size:24px;font-weight:800;color:'+barCol+';margin-left:12px">'+pct+'%</div>'+
         '</div>'+
@@ -3125,7 +3126,7 @@
     if(ctrl){
       // Get audit to find framework name
       var audit=await api('/grid/api/audits/'+(ctrl.audit_id||auditId));
-      if(audit)fwName=audit.framework_name||'';
+      if(audit)fwName=fwLabel(audit);
     }
     var params=fwName?'?framework='+encodeURIComponent(fwName):'';
     var policies=await api('/grid/api/aria-policies'+params)||[];
@@ -3189,7 +3190,7 @@
   window.showRequestPolicyModal=async function(cid,auditId){
     var ctrl=await api('/grid/api/controls/'+cid);
     var audit=await api('/grid/api/audits/'+auditId);
-    var fwName=(audit&&audit.framework_name)||'';
+    var fwName=audit?fwLabel(audit):'';
     var ctrlRef=(ctrl&&ctrl.control_id)||'';
     var ctrlName=(ctrl&&ctrl.name)||'';
     showModal(
