@@ -3331,7 +3331,7 @@ def _seed_baseline_data(conn):
     # ── Data migration: ensure all expected frameworks exist ──
     _EXPECTED_FRAMEWORKS = [
         ("ISO 27001:2022", "Information Security Management System", "#1E3A5F", "aria,grid"),
-        ("ISO 42001", "Artificial Intelligence Management System", "#6A0572", "aria"),
+        ("ISO 42001", "Artificial Intelligence Management System", "#6A0572", "aria,grid"),
         ("SOC 2 Type II", "Service Organization Control 2", "#0B5345", "aria,grid"),
         ("PCI DSS v4.0", "Payment Card Industry Data Security Standard", "#7D6608", "aria,grid"),
         ("GDPR", "General Data Protection Regulation (EU) 2016/679", "#154360", "sentinel,aria"),
@@ -3348,15 +3348,22 @@ def _seed_baseline_data(conn):
     ]
     # Seed unified frameworks table
     try:
-        existing = {row[0] for row in conn.execute(
-            "SELECT name FROM frameworks"
-        ).fetchall()}
+        existing = {}
+        for row in conn.execute(
+            "SELECT name, relevant_modules FROM frameworks"
+        ).fetchall():
+            existing[row[0]] = row[1] or ""
         for name, desc, color, modules in _EXPECTED_FRAMEWORKS:
             if name not in existing:
                 conn.execute(
                     "INSERT INTO frameworks (name, description, color, relevant_modules, is_active) "
                     "VALUES (%s, %s, %s, %s, 1)",
                     (name, desc, color, modules),
+                )
+            elif existing[name] != modules:
+                conn.execute(
+                    "UPDATE frameworks SET relevant_modules=%s WHERE name=%s",
+                    (modules, name),
                 )
         conn.commit()
     except Exception:

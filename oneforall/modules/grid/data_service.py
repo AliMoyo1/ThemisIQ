@@ -199,10 +199,17 @@ def create_audit(data):
         def _insert_controls_for_grid_fw(gfid):
             gf = db.execute("SELECT name FROM grid_frameworks WHERE id=%s", (gfid,)).fetchone()
             if not gf:
-                return []
+                return {}
             uf_id = _find_unified_framework(db, gf[0])
             if not uf_id:
-                return []
+                return {}
+            return _insert_controls_for_unified_fw(uf_id, gfid)
+
+        def _insert_controls_for_unified_fw(uf_id, display_fw_id=None):
+            """Insert controls from the unified controls table into this audit.
+            uf_id: the unified frameworks.id
+            display_fw_id: the grid_frameworks.id for display grouping (falls back to uf_id)
+            """
             unified_ctrls = db.execute(
                 "SELECT ref, name, description, priority "
                 "FROM controls WHERE framework_id=%s ORDER BY ref",
@@ -214,18 +221,24 @@ def create_audit(data):
                     "INSERT INTO grid_controls "
                     "(audit_id, framework_id, control_id, name, description, risk_level) "
                     "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (aid, gfid, c[0], c[1], c[2], c[3] or "Medium"),
+                    (aid, display_fw_id or uf_id, c[0], c[1], c[2], c[3] or "Medium"),
                 )
-                # Map unified control ref → new grid_controls.id
                 inserted_ids[(uf_id, c[0])] = (new_id, uf_id)
             return inserted_ids
 
         if is_integrated and framework_ids_json:
-            # IMS mode: insert controls for ALL selected frameworks
+            # IMS mode: framework_ids are unified frameworks.id values
             all_fw_ids = _json.loads(framework_ids_json)
-            all_inserted = {}  # (unified_fw_id, ref) → (grid_control_id, unified_fw_id)
-            for fid in all_fw_ids:
-                inserted = _insert_controls_for_grid_fw(int(fid))
+            all_inserted = {}
+            for uf_id in all_fw_ids:
+                uf_id = int(uf_id)
+                # Find or create a matching grid_framework for display grouping
+                uf_row = db.execute("SELECT name FROM frameworks WHERE id=%s", (uf_id,)).fetchone()
+                gf_id = None
+                if uf_row:
+                    gf_row = db.execute("SELECT id FROM grid_frameworks WHERE name=%s", (uf_row[0],)).fetchone()
+                    gf_id = gf_row[0] if gf_row else None
+                inserted = _insert_controls_for_unified_fw(uf_id, gf_id)
                 all_inserted.update(inserted)
 
             # Auto-create grid_control_mappings from aria_control_mappings for mapped pairs
