@@ -340,21 +340,19 @@ async def run_auto_mapping(
     to_insert: list[dict] = []
     ai_calls = 0
     skipped = 0
+    ai_candidates: list[tuple[dict, dict, float]] = []
+    _AI_CAP = 40
 
     fw_pairs = list(combinations(framework_ids, 2))
     for fw_a_id, fw_b_id in fw_pairs:
         ctrls_a = by_fw.get(fw_a_id, [])
         ctrls_b = by_fw.get(fw_b_id, [])
 
-        # Index ctrls_b by domain for fast lookup
         domain_b: dict[str, list[dict]] = {}
         for c in ctrls_b:
             d = _normalise_domain(c["category"])
             domain_b.setdefault(d, []).append(c)
 
-        # Detect whether the two frameworks share ANY canonical domains.
-        # If they have zero overlap (e.g. ISO 27001 "Organizational" vs ISO 42001 "Core"),
-        # fall back to comparing all controls (domain grouping isn't helping).
         domains_a = {_normalise_domain(c["category"]) for c in ctrls_a} - {"general"}
         domains_in_b = set(domain_b.keys()) - {"general"}
         no_domain_overlap = not (domains_a & domains_in_b)
@@ -363,26 +361,20 @@ async def run_auto_mapping(
             domain = _normalise_domain(ctrl_a["category"])
 
             if no_domain_overlap:
-                # No shared domains — compare against ALL fw_b controls
                 candidates = ctrls_b
             else:
                 candidates = domain_b.get(domain, []) + domain_b.get("general", [])
                 if not candidates:
-                    # Domain exists in fw_a but not in fw_b — broaden to all
                     candidates = ctrls_b
 
             if not candidates:
                 continue
 
-            # Pre-score all candidates to prioritise AI calls on the best matches
-            # Secondary sort key is ctrl ID (stable, avoids dict comparison error)
             scored = sorted(
                 ((control_similarity(ctrl_a, c), c["id"], c) for c in candidates),
                 reverse=True,
             )
 
-            # For AI mode: only evaluate the top-3 scoring candidates per control.
-            # This keeps AI call count manageable (max_per_fw_pair ≈ fw_a_size × 3).
             ai_budget = 3 if use_ai else 0
             ai_used_this_ctrl = 0
 
@@ -393,22 +385,45 @@ async def run_auto_mapping(
                     continue
 
                 if score >= 0.60:
-                    mapping_type = "equivalent"
-                    confidence = min(score, 0.99)
-                    method = "text"
-                elif use_ai and score >= 0.15 and ai_used_this_ctrl < ai_budget:
-                    # Ambiguous — let AI decide
-                    mapping_type, confidence = await _ai_classify_pair(ctrl_a, ctrl_b)
-                    ai_calls += 1
+                    to_insert.append({
+                        "source_framework_id": ctrl_a["framework_id"],
+                        "source_control_id":   ctrl_a["id"],
+                        "target_framework_id": ctrl_b["framework_id"],
+                        "target_control_id":   ctrl_b["id"],
+                        "mapping_type":        "equivalent",
+                        "confidence":          round(min(score, 0.99), 3),
+                        "auto_generated":      1,
+                        "match_method":        "text",
+                        "created_by":          user_id,
+                    })
+                    existing_pairs.add(pair_key)
+                elif use_ai and score >= 0.15 and ai_used_this_ctrl < ai_budget and len(ai_candidates) < _AI_CAP:
+                    ai_candidates.append((ctrl_a, ctrl_b, score))
                     ai_used_this_ctrl += 1
-                    method = "ai"
-                    if mapping_type == "none":
-                        skipped += 1
-                        continue
+                    existing_pairs.add(pair_key)
                 else:
                     skipped += 1
-                    continue
 
+    # ── Run AI classification in parallel batches ─────────────────────────────
+    if ai_candidates:
+        import asyncio
+        _BATCH = 10
+        for i in range(0, len(ai_candidates), _BATCH):
+            batch = ai_candidates[i:i + _BATCH]
+            results = await asyncio.gather(
+                *(_ai_classify_pair(a, b) for a, b, _ in batch),
+                return_exceptions=True,
+            )
+            for (ctrl_a, ctrl_b, score), result in zip(batch, results):
+                ai_calls += 1
+                if isinstance(result, Exception):
+                    log.debug("AI classify failed for pair: %s", result)
+                    skipped += 1
+                    continue
+                mapping_type, confidence = result
+                if mapping_type == "none":
+                    skipped += 1
+                    continue
                 to_insert.append({
                     "source_framework_id": ctrl_a["framework_id"],
                     "source_control_id":   ctrl_a["id"],
@@ -417,10 +432,9 @@ async def run_auto_mapping(
                     "mapping_type":        mapping_type,
                     "confidence":          round(confidence, 3),
                     "auto_generated":      1,
-                    "match_method":        method,
+                    "match_method":        "ai",
                     "created_by":          user_id,
                 })
-                existing_pairs.add(pair_key)
 
     # ── Bulk insert ───────────────────────────────────────────────────────────
     # Check which optional columns actually exist (handles fresh DB before migration).
