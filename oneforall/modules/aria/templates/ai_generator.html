@@ -785,25 +785,45 @@ function copyToClipboard() {
     .then(function () { if (typeof showToast === 'function') showToast('Copied to clipboard!'); });
 }
 
-async function downloadWord() {
+function downloadWord() {
   var ctrlId  = document.getElementById('ctrlId').value;
   var orgName = document.getElementById('orgName').value || 'Your Organisation';
   if (!lastGenerated) { if (typeof showToast === 'function') showToast('Generate a policy first.', 'warn'); return; }
   if (typeof showToast === 'function') showToast('Building Word document...');
-  var form = new FormData();
-  form.append('control_id', ctrlId || '1');
-  form.append('content', lastGenerated);
-  form.append('org_name', orgName);
-  try {
-    var resp = await fetch('/aria/api/export-word', { method: 'POST', body: form });
-    if (!resp.ok) { var err = await resp.json(); if (typeof showToast === 'function') showToast(err.error || 'Export failed', 'error'); return; }
-    var blob = await resp.blob();
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'ARIA_' + ((selectedControl ? selectedControl.ref : 'policy').replace(/\./g, '_')) + '_Policy.docx';
-    a.click();
+
+  // Use a native form POST targeting a hidden iframe so the page does not
+  // navigate away. This keeps the user-gesture context intact on iOS Safari,
+  // which rejects programmatic blob-URL downloads that follow an awaited fetch.
+  var iframeId = '_aria_dl_frame';
+  var existing = document.getElementById(iframeId);
+  if (existing) existing.remove();
+  var iframe = document.createElement('iframe');
+  iframe.id = iframeId;
+  iframe.name = iframeId;
+  iframe.style.display = 'none';
+  document.body.appendChild(iframe);
+
+  var form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/aria/api/export-word';
+  form.target = iframeId;
+
+  var fields = { control_id: ctrlId || '1', content: lastGenerated, org_name: orgName };
+  Object.keys(fields).forEach(function(k) {
+    var inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = k; inp.value = fields[k];
+    form.appendChild(inp);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+
+  setTimeout(function() {
+    var f = document.getElementById(iframeId);
+    if (f) f.remove();
     if (typeof showToast === 'function') showToast('Word document downloaded!');
-  } catch (e) { if (typeof showToast === 'function') showToast('Download failed: ' + e.message, 'error'); }
+  }, 3000);
 }
 
 function downloadMd() {
