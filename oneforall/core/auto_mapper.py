@@ -423,11 +423,13 @@ async def run_auto_mapping(
                 existing_pairs.add(pair_key)
 
     # ── Bulk insert ───────────────────────────────────────────────────────────
-    # Check which optional columns actually exist (handles fresh DB before migration)
+    # Check which optional columns actually exist (handles fresh DB before migration).
+    # Catch Exception broadly: SQLite raises OperationalError but PostgreSQL raises
+    # ProgrammingError (UndefinedColumn) for a missing column — both must be handled.
     _has_extra_cols = True
     try:
         db.execute("SELECT auto_generated, match_method FROM aria_control_mappings LIMIT 0")
-    except OperationalError:
+    except Exception:
         _has_extra_cols = False
         log.warning("auto_mapper: auto_generated/match_method columns missing — using minimal INSERT")
 

@@ -1825,6 +1825,12 @@ async def api_auto_generate_mappings(request: Request):
             db=db,
             use_ai=use_ai,
         )
+    except Exception as exc:
+        log.exception("Auto-mapping failed for frameworks %s: %s", fw_ids, exc)
+        return JSONResponse(
+            {"ok": False, "error": f"Auto-mapping failed: {exc}"},
+            status_code=500,
+        )
     finally:
         db.close()
     return JSONResponse({"ok": True, **result})
