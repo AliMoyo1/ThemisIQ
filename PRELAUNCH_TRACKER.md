@@ -1,6 +1,6 @@
 # ThemisIQ Pre-Launch Tracker
 
-**Last updated:** 2026-06-20
+**Last updated:** 2026-06-25
 **Target URL:** https://themisiq.net / https://app.themisiq.net
 **Stack:** FastAPI, PostgreSQL, Nginx, Cloudflare, Hetzner VPS
 
@@ -54,6 +54,18 @@
 - [x] OWASP ZAP baseline scan 1 executed: 0 High, 59 Pass, 8 Warn
 - [x] HSTS enabled via Cloudflare (6 months, includeSubDomains)
 - [x] OWASP ZAP baseline scan 2 executed: HSTS warnings reduced from 3 to 1
+
+### Phase 8: CodeQL Static Analysis Remediation (2026-06-24)
+- [x] SQL injection: tenant schema DDL uses psycopg2.sql.Identifier (database.py)
+- [x] Path traversal: report file serving validates paths within REPORTS_DIR (grid/routes.py)
+- [x] Weak hashing: API key hash upgraded from SHA-256 to HMAC-SHA256 (routes_api_v1.py)
+- [x] Incomplete JS string escaping: added backslash escape in 11 onclick handlers
+- [x] DOM XSS: notification link validated as internal path (base_shell.html)
+- [x] DOM XSS: server error messages escaped before innerHTML (documents.html)
+- [x] ReDoS: email validation regex tightened (routes_admin.py)
+- [x] Clear-text logging: DATABASE_URL redacted in startup output (start_app.py)
+- [x] Information exposure: 10+ API error responses replaced str(exc) with generic messages
+- [x] Legacy code removal: 10auditsphere, complianceos, BCM, Sentinel folders removed from repo
 
 ---
 
@@ -122,6 +134,14 @@
 - [x] Backup script at /project/backup_db.sh, cron configured
 - [x] Static asset caching (1 year, immutable for /static/)
 
+### Version Control (2026-06-24)
+- [x] Git tagging strategy implemented (semantic versioning)
+- [x] v1.0.0: Pre-launch release (all modules, IMS, AI generator)
+- [x] v1.0.1: Repo cleanup + Sentry bug fixes
+- [x] v1.0.2: Security hardening (CodeQL alerts)
+- [x] Production deploys via tagged versions (git checkout v1.0.2)
+- [x] Rollback procedure documented (checkout previous tag, restart service)
+
 ### Remaining
 - [ ] Log rotation: configure logrotate for app logs and backup logs
 - [ ] Uptime monitoring: set up external ping (UptimeRobot or similar)
@@ -163,8 +183,12 @@ Cloudflare provides the following protections at the edge:
 - [x] Sentry SDK integrated in application
 - [x] CSP updated: sentry.io domains in connect-src
 - [x] Test event verified in Sentry dashboard (19 June 2026)
+- [x] Sentry PYTHON-FASTAPI-H fixed: closeconn AttributeError (pool.putconn)
+- [x] Sentry PYTHON-FASTAPI-G fixed: SSL stale connection (_ensure_alive ping)
+- [x] Sentry PYTHON-FASTAPI-F fixed: UndefinedColumn title in evidence resolvers
+- [x] Sentry PYTHON-FASTAPI-C fixed: UndefinedColumn owner in sentinel retention
 - [ ] Alert rules: configure notifications for new errors
-- [ ] Release tracking: tag deploys with git commit hash
+- [x] Release tracking: git tags v1.0.0, v1.0.1, v1.0.2 pushed and deployed
 
 ---
 
@@ -191,6 +215,10 @@ Cloudflare provides the following protections at the edge:
 - [x] Mobile sidebar drawer positioning
 - [x] Super-admin TemplateResponse Starlette API change
 - [x] New User modal CSS class name typo
+- [x] Sentry PYTHON-FASTAPI-H: closeconn AttributeError on pooled connections
+- [x] Sentry PYTHON-FASTAPI-G: SSL stale connection (added _ensure_alive ping)
+- [x] Sentry PYTHON-FASTAPI-F: UndefinedColumn "title" in evidence resolvers
+- [x] Sentry PYTHON-FASTAPI-C: UndefinedColumn "owner" in sentinel retention
 
 ---
 
@@ -204,6 +232,10 @@ Cloudflare provides the following protections at the edge:
 - [x] Per-tenant licence enforcement with renewal banner
 - [x] User management: org grouping, robust CSRF, polished UX
 - [x] Luminous GRC glassmorphism aesthetic redesign
+- [x] ARIA IMS: multi-framework integration, curated control mappings (22 framework pairs)
+- [x] ARIA Document Register: multi-framework, review cycle, control dropdown
+- [x] Control card actions, clear button, policy pre-fill
+- [x] Enhanced frameworks page with integrable framework pairs
 
 ---
 
@@ -217,6 +249,11 @@ Cloudflare provides the following protections at the edge:
 - [x] Sentry error tracking active
 - [x] PostHog analytics active
 - [x] Deploy latest code to VPS (cookie hardening commit, pulled 2026-06-20)
+- [x] CodeQL static analysis: all high/medium alerts remediated (2026-06-24)
+- [x] Git version control: semantic versioning with tagged releases (v1.0.0 - v1.0.2)
+- [x] Legacy code cleanup: removed 5 defunct project folders (9,750 files)
+- [x] Sentry production errors: all 4 active errors fixed
+- [ ] Deploy v1.0.2 to VPS (security hardening release)
 - [ ] Run full test suite on production after deploy
 - [ ] Verify email delivery works end-to-end
 - [ ] Configure Sentry alert rules
@@ -238,3 +275,17 @@ Cloudflare provides the following protections at the edge:
 - [ ] HSTS preload submission (after stable HSTS period)
 - [ ] Security re-test: quarterly ZAP scans
 - [ ] SOC 2 / ISO 27001 evidence collection (audit logs, access controls)
+
+---
+
+## 14. Release History
+
+| Version | Date | Description |
+|---------|------|-------------|
+| v1.0.0 | 2026-06-21 | Pre-launch release: all modules, IMS, AI generator, Sentry bug fixes |
+| v1.0.1 | 2026-06-21 | Repo cleanup: removed 5 legacy project folders (9,750 files) |
+| v1.0.2 | 2026-06-25 | Security hardening: CodeQL alerts fixed (SQL injection, XSS, path traversal, info exposure) |
+
+**VPS running:** v1.0.1 (v1.0.2 pushed, pending deploy)
+
+**Note:** v1.0.2 HMAC migration will invalidate existing API keys. Regenerate keys after deploy.
