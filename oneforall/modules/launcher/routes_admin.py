@@ -901,8 +901,8 @@ async def api_email_test(request: Request):
     # First validate config without sending
     check = test_connection()
     if not check["ok"] and check["provider"] not in ("console",):
-        _save_test_result(check["detail"], ok=False)
-        return _JSONResp(check)
+        _save_test_result(check.get("detail", "Connection failed"), ok=False)
+        return _JSONResp({"ok": False, "provider": check.get("provider", "unknown"), "detail": "Email connection test failed"})
 
     # Send a real test message
     body_html = f"""
@@ -928,11 +928,13 @@ async def api_email_test(request: Request):
         body_html=body_html,
     )
 
-    detail = result.get("error") or check.get("detail") or ("Sent via " + result.get("provider","?"))
-    _save_test_result(detail, ok=result["ok"])
+    ok = result["ok"]
+    provider = result.get("provider", "unknown")
+    detail = ("Sent via " + provider) if ok else "Email delivery failed"
+    _save_test_result(result.get("error") or detail, ok=ok)
     log_audit(request.state.user, "platform", "email_test",
-              details=f"Test email to {admin_email}: {'ok' if result['ok'] else 'failed'}")
-    return _JSONResp({**result, "detail": detail, "to": admin_email})
+              details=f"Test email to {admin_email}: {'ok' if ok else 'failed'}")
+    return _JSONResp({"ok": ok, "provider": provider, "detail": detail, "to": admin_email})
 
 
 def _save_test_result(detail: str, ok: bool):

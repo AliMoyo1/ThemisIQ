@@ -743,9 +743,10 @@ async function searchEntities(){
   if(!items.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No entities found</div>';return;}
   var eid=document.getElementById('linkEvidenceId').value;
   el.innerHTML=items.map(function(e){
-    return '<div style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px" onclick="createLink('+eid+',\''+mod+'\',\''+etype+'\','+e.id+')" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+
+    var safeId=parseInt(e.id,10)||0;
+    return '<div style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px" onclick="createLink('+parseInt(eid,10)+',\''+escHtml(mod)+'\',\''+escHtml(etype)+'\','+safeId+')" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+
       '<span style="font-weight:600;color:var(--text)">'+escHtml(e.name)+'</span>'+
-      '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+e.id+'</span></div>';
+      '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+safeId+'</span></div>';
   }).join('');
 }
 async function createLink(eid,mod,etype,entityId){

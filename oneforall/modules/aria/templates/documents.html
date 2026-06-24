@@ -592,7 +592,7 @@ async function analyseFile() {
     var res = await fetch('/aria/documents/parse-upload', { method: 'POST', body: form });
     var data = await res.json();
     if (!data.ok) {
-      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">Could not extract: ' + (data.error || 'unknown error') + '</span>';
+      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">Could not extract: ' + esc(data.error || 'unknown error') + '</span>';
       return;
     }
 

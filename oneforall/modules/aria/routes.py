@@ -2605,6 +2605,9 @@ async def api_ask(request: Request,
     result = await ask_policy(question, user=user,
                                framework_filter=(framework_filter or "").strip())
     log_audit(user, "aria", "Asked ARIA: " + question[:80], "ask")
+    if not result.get("ok", True) and "error" in result:
+        log.error("ARIA ask failed: %s", result["error"])
+        result["error"] = "AI processing failed"
     return JSONResponse(result)
 
 

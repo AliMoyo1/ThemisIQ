@@ -872,15 +872,16 @@ window.ermRenderRegister=function(){
     var resScore=r.residual_likelihood&&r.residual_impact?(r.residual_likelihood*r.residual_impact):'—';
     var reviewDays=daysUntil(r.review_date);
     var reviewStr=reviewDays===null?'—':reviewDays<0?'<span style="color:var(--red);font-weight:700">'+Math.abs(reviewDays)+'d overdue</span>':'<span style="color:var(--good,#16a34a)">'+reviewDays+'d</span>';
-    var chk='<input type="checkbox" class="reg-chk" data-id="'+r.id+'" onchange="ermToggleSelect(this)" style="cursor:pointer"'+(regSelIds.has(r.id)?' checked':'')+'>';
-    var aiBtn=isErm?'<button class="btn-erm-ai" onclick="event.stopPropagation();ermAiScoreRisk('+r.id+',this)" title="AI score">🤖</button>':'';
-    var editBtn=isErm?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();ermEditRisk('+r.id+')" style="padding:3px 7px" title="Edit">✎</button>':'';
-    var delBtn=ERM_IS_ADMIN?'<button onclick="event.stopPropagation();ermDeleteRisk('+r.id+',\''+esc(r.register_source||'erm')+'\')" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" onmouseenter="this.style.color=\'#ef4444\';this.style.borderColor=\'rgba(239,68,68,.3)\'" onmouseleave="this.style.color=\'var(--muted)\';this.style.borderColor=\'transparent\'" title="Delete risk">🗑</button>':'';
+    var rid=parseInt(r.id,10)||0;
+    var chk='<input type="checkbox" class="reg-chk" data-id="'+rid+'" onchange="ermToggleSelect(this)" style="cursor:pointer"'+(regSelIds.has(r.id)?' checked':'')+'>';
+    var aiBtn=isErm?'<button class="btn-erm-ai" onclick="event.stopPropagation();ermAiScoreRisk('+rid+',this)" title="AI score">🤖</button>':'';
+    var editBtn=isErm?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();ermEditRisk('+rid+')" style="padding:3px 7px" title="Edit">✎</button>':'';
+    var delBtn=ERM_IS_ADMIN?'<button onclick="event.stopPropagation();ermDeleteRisk('+rid+',\''+esc(r.register_source||'erm')+'\')" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" onmouseenter="this.style.color=\'#ef4444\';this.style.borderColor=\'rgba(239,68,68,.3)\'" onmouseleave="this.style.color=\'var(--muted)\';this.style.borderColor=\'transparent\'" title="Delete risk">🗑</button>':'';
     var ql=r.qualitative_score||lvl;
-    var qChip='<span class="q-chip q-chip-'+ql+'">'+ql+'</span>';
+    var qChip='<span class="q-chip q-chip-'+esc(ql)+'">'+esc(ql)+'</span>';
     var wfStep=r.workflow_step||'draft';
-    var wfChip='<span class="wf-chip wf-chip-'+wfStep+'">'+wfStep+'</span>';
-    return'<tr onclick="ermOpenRiskDrawer('+r.id+')" style="cursor:pointer">'+
+    var wfChip='<span class="wf-chip wf-chip-'+esc(wfStep)+'">'+esc(wfStep)+'</span>';
+    return'<tr onclick="ermOpenRiskDrawer('+rid+')" style="cursor:pointer">'+
       '<td onclick="event.stopPropagation()">'+chk+'</td>'+
       '<td style="font-weight:600;max-width:200px">'+boardBadge+esc(r.title||'')+'</td>'+
       '<td style="text-transform:capitalize;font-size:12px">'+esc(r.category||'')+'</td>'+

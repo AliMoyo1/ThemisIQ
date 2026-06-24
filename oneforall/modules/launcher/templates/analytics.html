@@ -546,7 +546,7 @@ function runInsightEngine(){
   const mh = d.module_health||[];
   const lowMod = mh.filter(m=>parseInt(m.pct)<60);
   if(lowMod.length){
-    insights.push({sev:'amber', text:`<strong>${lowMod.map(m=>m.name).join(', ')} health below 60%.</strong> These modules have the most incomplete controls or unresolved findings. Prioritise in next sprint.`});
+    insights.push({sev:'amber', text:`<strong>${esc(lowMod.map(m=>m.name).join(', '))} health below 60%.</strong> These modules have the most incomplete controls or unresolved findings. Prioritise in next sprint.`});
   }
 
   // 6. Trends (if we have trend data)
@@ -648,7 +648,7 @@ window.askAnalytics = function(){
     if(mh.length){
       response = 'Module health scores:<br>' + mh.map(m=>{
         const c = m.pct>=80?'green':m.pct>=60?'amber':'red';
-        return `<span style="color:var(--${c==='green'?'green-status':c==='amber'?'amber':'red'})">${m.name}: ${m.pct}%</span>`;
+        return `<span style="color:var(--${c==='green'?'green-status':c==='amber'?'amber':'red'})">${esc(m.name)}: ${parseInt(m.pct)||0}%</span>`;
       }).join(' · ');
     } else {
       response = 'No module health data available. Ensure the platform has data in each module.';
