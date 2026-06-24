@@ -1343,7 +1343,8 @@ async def api_ai_research(request: Request):
     from modules.sentinel.ai_service import ai_research
     text, err = await ai_research(activity, regulation, context)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     return JSONResponse({"research": text})
 
 
@@ -1356,7 +1357,8 @@ async def api_ai_generate(request: Request, dpia_id: int):
     from modules.sentinel.ai_service import ai_generate_full_dpia
     text, err = await ai_generate_full_dpia(dpia)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     ds.update_dpia(dpia_id, {"ai_full_dpia": text})
     return JSONResponse({"content": text})
 
@@ -1373,7 +1375,8 @@ async def api_ai_risks(request: Request):
     from modules.sentinel.ai_service import ai_suggest_risks
     risks, err = await ai_suggest_risks(activity, regulation, categories)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     return JSONResponse({"risks": risks})
 
 
@@ -1386,7 +1389,8 @@ async def api_ai_score_ropa(request: Request, ropa_id: int):
     from modules.sentinel.ai_service import ai_score_ropa
     result, err = await ai_score_ropa(entry)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     update_data = {
         "risk_score": result.get("risk_score", "medium"),
         "ai_risk_notes": result.get("rationale", ""),
@@ -1406,7 +1410,8 @@ async def api_ai_breach_impact(request: Request, breach_id: int):
     from modules.sentinel.ai_service import ai_assess_breach
     text, err = await ai_assess_breach(breach)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     ds.update_breach(breach_id, {"ai_assessment": text})
     return JSONResponse({"assessment": text})
 
@@ -1420,7 +1425,8 @@ async def api_ai_dsr_draft(request: Request, dsr_id: int):
     from modules.sentinel.ai_service import ai_draft_dsr_response
     text, err = await ai_draft_dsr_response(dsr)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     ds.update_dsr(dsr_id, {"ai_draft": text})
     return JSONResponse({"draft": text})
 
@@ -1436,7 +1442,8 @@ async def api_ai_privacy_notice(request: Request):
     from modules.sentinel.ai_service import ai_generate_privacy_notice
     text, err = await ai_generate_privacy_notice(body)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     return JSONResponse({"notice": text})
 
 
@@ -1449,7 +1456,8 @@ async def api_ai_vendor_check(request: Request, vendor_id: int):
     from modules.sentinel.ai_service import ai_vendor_check
     text, err = await ai_vendor_check(vendor)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     ds.update_vendor(vendor_id, {"ai_assessment": text})
     return JSONResponse({"assessment": text})
 
@@ -1466,7 +1474,8 @@ async def api_ai_chat(request: Request):
     from modules.sentinel.ai_service import ai_chat
     text, err = await ai_chat(message, regulation=regulation, history=history)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     return JSONResponse({"response": text})
 
 
@@ -1480,7 +1489,8 @@ async def api_ai_gap_analysis(request: Request):
     from modules.sentinel.ai_service import ai_gap_analysis
     text, err = await ai_gap_analysis(reg_from, reg_to, activities)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     return JSONResponse({"analysis": text})
 
 
@@ -1503,5 +1513,6 @@ async def api_ai_generate_policy(request: Request):
     from modules.sentinel.ai_service import ai_chat
     text, err = await ai_chat(user_msg, regulation=regulation)
     if err:
-        raise HTTPException(500, err)
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, "AI processing failed")
     return JSONResponse({"content": text})

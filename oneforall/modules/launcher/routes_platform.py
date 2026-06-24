@@ -597,7 +597,8 @@ async def api_bulk_import(request: Request, entity_type: str):
         db.commit()
     except Exception as e:
         db.rollback()
-        return _JSONResp({"error": str(e), "imported": 0}, status_code=500)
+        log.error("Bulk import failed: %s", e)
+        return _JSONResp({"error": "Import failed", "imported": 0}, status_code=500)
     finally:
         db.close()
 

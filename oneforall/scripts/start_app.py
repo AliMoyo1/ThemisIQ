@@ -25,7 +25,7 @@ db_url = os.environ.get("DATABASE_URL", "(not set)")
 has_secret = bool(os.environ.get("SECRET_KEY"))
 
 print("Starting ThemisIQ on port 8080...")
-print("DATABASE_URL:", db_url[:40] + "..." if len(db_url) > 40 else db_url)
+print("DATABASE_URL:", "****" if db_url != "(not set)" else "(not set)")
 print("SECRET_KEY set:", has_secret)
 
 if not has_secret:

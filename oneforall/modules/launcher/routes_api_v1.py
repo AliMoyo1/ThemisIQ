@@ -6,7 +6,9 @@ All endpoints are read-only and require scope 'read'.
 Docs available at /docs (FastAPI OpenAPI UI).
 """
 import hashlib
+import hmac
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -21,9 +23,11 @@ router = APIRouter(prefix="/api/v1", tags=["REST API v1"])
 _MAX_LIMIT = 200
 _DEFAULT_LIMIT = 50
 
+_HMAC_SECRET = os.environ.get("SECRET_KEY", "fallback-hmac-key").encode()
+
 
 def _hash_key(raw: str) -> str:
-    return hashlib.sha256(raw.encode()).hexdigest()
+    return hmac.new(_HMAC_SECRET, raw.encode(), hashlib.sha256).hexdigest()
 
 
 def _now_iso() -> str:

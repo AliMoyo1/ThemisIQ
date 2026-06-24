@@ -1702,15 +1702,20 @@ async def api_report_pdf(request: Request, audit_id: int):
 
     result = rpt.generate_pdf_report(audit_id, narrative)
 
+    safe_dir = str(Path(rpt.REPORTS_DIR).resolve())
+    file_path = str(Path(result["filePath"]).resolve())
+    if not file_path.startswith(safe_dir):
+        raise HTTPException(500, "Invalid report path")
+
     # Auto-save report record
     try:
-        fp = Path(result["filePath"])
+        fp = Path(file_path)
         ds.create_report({
             "audit_id": audit_id,
             "report_type": "pdf",
-            "title": f"{audit.get('name', 'Audit')} — PDF Report",
+            "title": f"{audit.get('name', 'Audit')} - PDF Report",
             "filename": result["fileName"],
-            "file_path": result["filePath"],
+            "file_path": file_path,
             "file_size": fp.stat().st_size if fp.exists() else 0,
             "generated_by": _uid(request),
         })
@@ -1718,7 +1723,7 @@ async def api_report_pdf(request: Request, audit_id: int):
         pass  # Best-effort persistence
 
     return FileResponse(
-        result["filePath"],
+        file_path,
         media_type="application/pdf",
         filename=result["fileName"],
     )
@@ -1765,15 +1770,20 @@ async def api_report_docx(request: Request, audit_id: int):
 
     result = rpt.generate_docx_report(audit_id, narrative)
 
+    safe_dir = str(Path(rpt.REPORTS_DIR).resolve())
+    file_path = str(Path(result["filePath"]).resolve())
+    if not file_path.startswith(safe_dir):
+        raise HTTPException(500, "Invalid report path")
+
     # Auto-save report record
     try:
-        fp = Path(result["filePath"])
+        fp = Path(file_path)
         ds.create_report({
             "audit_id": audit_id,
             "report_type": "docx",
-            "title": f"{audit.get('name', 'Audit')} — DOCX Report",
+            "title": f"{audit.get('name', 'Audit')} - DOCX Report",
             "filename": result["fileName"],
-            "file_path": result["filePath"],
+            "file_path": file_path,
             "file_size": fp.stat().st_size if fp.exists() else 0,
             "generated_by": _uid(request),
         })
@@ -1781,7 +1791,7 @@ async def api_report_docx(request: Request, audit_id: int):
         pass  # Best-effort persistence
 
     return FileResponse(
-        result["filePath"],
+        file_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=result["fileName"],
     )

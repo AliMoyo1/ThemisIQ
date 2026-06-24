@@ -305,7 +305,8 @@ async def api_framework_ai_generate_controls(request: Request, fid: int):
             "framework": fw["name"],
         })
     except RuntimeError as e:
-        return _JSONResp({"error": str(e)}, 500)
+        log.error("AI control generation failed: %s", e)
+        return _JSONResp({"error": "Control generation failed"}, 500)
 
 
 # ── Cross-Module Links ──────────────────────────────────────────────────────

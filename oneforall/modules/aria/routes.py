@@ -694,7 +694,8 @@ async def api_force_seed_controls(request: Request, fw_id: int):
         })
     except Exception as exc:
         log.exception("Force-seed failed: %s", exc)
-        return JSONResponse({"error": str(exc), "seeded": 0}, 500)
+        log.exception("Seeding failed")
+        return JSONResponse({"error": "Seeding failed", "seeded": 0}, 500)
     finally:
         db.close()
 
@@ -1910,7 +1911,7 @@ async def api_auto_generate_mappings(request: Request):
         return JSONResponse({"ok": True, **result})
     except Exception as exc:
         log.exception("auto-generate failed: %s", exc)
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+        return JSONResponse({"ok": False, "error": "Auto-generation failed"}, status_code=500)
 
 
 @router.get("/api/control-mappings/ims-status")
@@ -1998,7 +1999,7 @@ async def api_ims_status(request: Request):
         })
     except Exception as exc:
         log.exception("ims-status failed: %s", exc)
-        return JSONResponse({**_empty, "error": str(exc)}, status_code=500)
+        return JSONResponse({**_empty, "error": "IMS status check failed"}, status_code=500)
 
 
 # -- Excel Export -------------------------------------------------------------
@@ -2642,4 +2643,5 @@ async def api_ask_rebuild(request: Request):
                   "ask_index")
         return JSONResponse({"ok": True, "chunks_indexed": n})
     except Exception as e:
-        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+        log.exception("Index rebuild failed")
+        return JSONResponse({"success": False, "error": "Index rebuild failed"}, status_code=500)

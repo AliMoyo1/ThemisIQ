@@ -137,7 +137,7 @@ async def create_org(request: Request):
             except Exception as exc:
                 log.error("Schema provision failed for %s: %s", slug, exc)
                 return JSONResponse(
-                    {"error": f"Org created but schema provisioning failed: {exc}"},
+                    {"error": "Org created but schema provisioning failed"},
                     status_code=500,
                 )
 

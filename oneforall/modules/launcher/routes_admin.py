@@ -357,7 +357,7 @@ async def api_admin_patch_user(request: Request, uid: int):
         return _JSONResp({"success": False, "error": "Full name cannot be empty."})
     if len(full_name) > 120:
         return _JSONResp({"success": False, "error": "Full name must be 120 characters or fewer."})
-    if not email or not _re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+    if not email or not _re.match(r"^[^@\s]+@[^@\s.]+\.[^@\s]+$", email):
         return _JSONResp({"success": False, "error": "Enter a valid email address."})
     if len(email) > 254:
         return _JSONResp({"success": False, "error": "Email address is too long."})

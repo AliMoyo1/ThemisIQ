@@ -3990,10 +3990,10 @@ def provision_tenant_schema(slug: str) -> None:
     pg_conn.autocommit = False
     conn = _PgConnWrapper(pg_conn)
     try:
-        conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+        from psycopg2 import sql as psql
+        pg_conn.cursor().execute(psql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(psql.Identifier(schema_name)))
         conn.commit()
-        # Switch into the new schema.
-        pg_conn.cursor().execute(f"SET search_path TO {schema_name}, public")
+        pg_conn.cursor().execute(psql.SQL("SET search_path TO {}, public").format(psql.Identifier(schema_name)))
         # Create platform + module tables inside the tenant schema.
         conn.executescript(_PLATFORM_TABLES_PG)
         conn.executescript(_ARIA_TABLES_PG)
