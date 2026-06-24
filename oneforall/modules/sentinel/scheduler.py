@@ -365,7 +365,7 @@ def _retention_review_check() -> None:
     db = get_db()
     try:
         due = db.execute(
-            "SELECT id, category, data_type, retention_period, owner, review_date "
+            "SELECT id, category, data_type, retention_period, responsible, review_date "
             "FROM sentinel_retention "
             "WHERE review_date IS NOT NULL "
             f"AND review_date <= {sql_date_offset('+30 days')}"

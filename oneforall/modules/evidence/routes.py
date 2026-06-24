@@ -661,12 +661,12 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
 # Mapping: (module, entity_type) → (table_name, name_column, url_template)
 # url_template uses {id} as placeholder for the entity_id
 _ENTITY_RESOLVERS: dict[tuple[str, str], tuple[str, str, str]] = {
-    ("aria", "control"):    ("aria_controls",       "title",  "/aria#controls/{id}"),
+    ("aria", "control"):    ("aria_controls",       "name",   "/aria#controls/{id}"),
     ("aria", "document"):   ("aria_documents",      "title",  "/aria#documents/{id}"),
     ("aria", "risk"):       ("aria_risks",          "title",  "/aria#risks/{id}"),
     ("aria", "framework"):  ("aria_frameworks",     "name",   "/aria#frameworks/{id}"),
     ("grid", "audit"):      ("grid_audits",         "name",   "/grid#audits/{id}"),
-    ("grid", "control"):    ("grid_controls",       "title",  "/grid#controls/{id}"),
+    ("grid", "control"):    ("grid_controls",       "name",   "/grid#controls/{id}"),
     ("grid", "nc"):         ("grid_non_conformances", "title", "/grid#ncs/{id}"),
     ("bcm", "plan"):        ("bcm_plans",           "name",   "/bcm#plans/{id}"),
     ("bcm", "incident"):    ("bcm_incidents",       "title",  "/bcm#incidents/{id}"),
@@ -755,7 +755,7 @@ async def api_search_entities(request: Request):
 
     # Map (module, entity_type) → (table, name_col, id_col)
     entity_map = {
-        ("aria", "control"): ("aria_controls", "title", "id"),
+        ("aria", "control"): ("aria_controls", "name", "id"),
         ("aria", "document"): ("aria_documents", "title", "id"),
         ("aria", "risk"): ("aria_risks", "title", "id"),
         ("aria", "framework"): ("aria_frameworks", "name", "id"),

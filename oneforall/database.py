@@ -172,6 +172,18 @@ class _PgConnWrapper:
 
     def __init__(self, pgconn):
         self._conn = pgconn
+        self._ensure_alive()
+
+    def _ensure_alive(self):
+        """Verify the pooled connection is still usable (catches stale SSL)."""
+        try:
+            self._conn.cursor().execute("SELECT 1")
+            self._conn.rollback()
+        except Exception:
+            try:
+                self._conn.reset()
+            except Exception:
+                pass
 
     def execute(self, sql: str, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -238,7 +250,7 @@ class _PgConnWrapper:
             # uncommitted writes are a caller bug (all callers must commit before close).
             self._conn.rollback()
         except Exception:
-            pool.closeconn(self._conn)
+            pool.putconn(self._conn, close=True)
             return
         pool.putconn(self._conn)
 
