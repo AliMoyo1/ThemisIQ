@@ -2308,7 +2308,7 @@ window.ormOpenTemplatePickerModal=function(){
           '<details style="margin-bottom:10px"><summary style="font-size:11px;color:var(--accent);cursor:pointer">Preview risks &#9660;</summary>'+
             '<ul style="margin:6px 0 0 0;padding-left:16px">'+t.risks.map(function(r){return'<li style="font-size:11px;color:var(--muted);margin-bottom:2px">'+esc(r.title)+'</li>';}).join('')+'</ul>'+
           '</details>'+
-          '<button class="btn btn-primary" style="width:100%" onclick="(function(){window._selectedRcsaTemplate=RCSA_TEMPLATES.find(function(x){return x.id===\''+t.id+'\'});document.getElementById(\'tmplPickerModal\').remove();ormOpenRcsaModal({title:\''+t.title.replace(/'/g,"\\'")+'—RCSA\',scope:\''+t.scope.replace(/'/g,"\\'")+'\'});})()">Use this template &#8594;</button>'+
+          '<button class="btn btn-primary" style="width:100%" onclick="(function(){window._selectedRcsaTemplate=RCSA_TEMPLATES.find(function(x){return x.id===\''+t.id+'\'});document.getElementById(\'tmplPickerModal\').remove();ormOpenRcsaModal({title:\''+t.title.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'- RCSA\',scope:\''+t.scope.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\'});})()">Use this template &#8594;</button>'+
         '</div>';
       }).join('')+
       '</div>'+

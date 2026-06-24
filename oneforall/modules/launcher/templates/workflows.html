@@ -551,7 +551,7 @@
             '<span style="font-size:11px;color:var(--muted)">· '+timeAgo(a.created_at)+'</span>'+
           '</div>'+
         '</div>'+
-        '<button class="btn btn-sm btn-primary" onclick="wfOpenDecision('+a.id+','+a.instance_id+',\''+esc(a.workflow_name).replace(/'/g,"\\'")+'\',"'+(esc(stepName).replace(/"/g,'&quot;'))+'")">'+
+        '<button class="btn btn-sm btn-primary" onclick="wfOpenDecision('+a.id+','+a.instance_id+',\''+esc(a.workflow_name).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\',"'+(esc(stepName).replace(/"/g,'&quot;'))+'")">'+
           'Decide &#9658;'+
         '</button>'+
       '</div>';
@@ -672,7 +672,7 @@
           '<td style="text-align:center">'+statusBadge(d.is_active?'active':'disabled')+'</td>'+
           '<td style="text-align:center">'+
             '<div style="display:flex;gap:4px;justify-content:center">'+
-              '<button class="btn btn-sm btn-primary" onclick="wfStartInstanceModal('+d.id+',\''+esc(d.name).replace(/'/g,"\\'")+'\')">Start</button>'+
+              '<button class="btn btn-sm btn-primary" onclick="wfStartInstanceModal('+d.id+',\''+esc(d.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">Start</button>'+
               '<button class="btn btn-sm btn-secondary" onclick="wfOpenEditDef('+d.id+')" title="Edit definition">Edit</button>'+
               '<button class="btn btn-sm btn-secondary" onclick="wfToggleDef('+d.id+','+d.is_active+')" title="'+(d.is_active?'Disable':'Enable')+'" style="'+(d.is_active?'color:var(--muted)':'')+'">'+(d.is_active?'Disable':'Enable')+'</button>'+
             '</div>'+
@@ -949,7 +949,7 @@
       var decideFooter='';
       if(myAction&&inst.status==='active'){
         decideFooter='<button class="btn btn-primary" onclick="wfOpenDecision('+myAction.id+','+iid+',\''+
-          esc(inst.workflow_name||'').replace(/'/g,"\\'")+'\',\'Current step\')">Decide on This Flow</button>';
+          esc(inst.workflow_name||'').replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\',\'Current step\')">Decide on This Flow</button>';
       }
 
       root.querySelector('.drawer-header span').textContent=inst.workflow_name||'Instance #'+iid;

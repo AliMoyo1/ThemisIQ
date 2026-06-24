@@ -971,7 +971,7 @@ async function loadNotifications(){
 
 async function handleNotifClick(nid, link){
   await fetch('/api/notifications/'+nid+'/read', {method:'POST'});
-  if(link) window.location.href=link;
+  if(link && link.startsWith('/')) window.location.href=link;
   else loadNotifications();
 }
 

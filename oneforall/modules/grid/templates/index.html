@@ -950,7 +950,7 @@
     grid.innerHTML=audits.map(a=>{
       const pct=a.total_controls?Math.round((a.complete_controls||0)/a.total_controls*100):0;
       const delBtn=GRID_IS_ADMIN
-        ?'<button class="btn-audit-delete" title="Delete audit" onclick="event.stopPropagation();deleteAudit('+a.id+',\''+esc(a.name).replace(/'/g,"\\'")+'\')">'
+        ?'<button class="btn-audit-delete" title="Delete audit" onclick="event.stopPropagation();deleteAudit('+a.id+',\''+esc(a.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'
           +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
           +'</button>'
         :'';
@@ -1110,7 +1110,7 @@
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/></svg> Follow-up</button>'+
       ' <button class="btn btn-secondary" onclick="showCrossCycleView('+id+')" title="Cross-cycle NC comparison">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 012 2v7"/><path d="M11 18H8a2 2 0 01-2-2V9"/></svg> Compare Cycles</button>'+
-      (GRID_IS_ADMIN?' <button class="btn btn-danger" onclick="deleteAudit('+id+',\''+esc(audit.name).replace(/'/g,"\\'")+'\',true)" title="Delete this audit">'+
+      (GRID_IS_ADMIN?' <button class="btn btn-danger" onclick="deleteAudit('+id+',\''+esc(audit.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\',true)" title="Delete this audit">'+
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg> Delete Audit</button>':'')+
       '</div></div>'+
 
@@ -1187,7 +1187,7 @@
       /* ── Controls list ── */
       '<div class="card"><div class="card-header"><div class="card-title">Controls ('+total+')</div>'+
       '<div style="display:flex;gap:6px">'+
-        '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="openChecklistImportModal('+id+',\''+(fwLabel(audit)||'ISO 27001').replace(/'/g,"\\'")+'\')">'+
+        '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="openChecklistImportModal('+id+',\''+(fwLabel(audit)||'ISO 27001').replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'+
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>'+
           'Import Checklist</button>'+
         (!controls.length?'<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="populateAuditControls('+id+')">Load Framework Controls</button>':'')+
@@ -1988,7 +1988,7 @@
     const fws=await api('/grid/api/frameworks')||[];
     if(!fws.length){grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-title">No frameworks</div><div class="empty-state-text">Activate frameworks from the admin panel to see them here.</div></div>';return;}
     grid.innerHTML=fws.map(f=>
-      '<div class="audit-card" style="border-left:4px solid '+(f.color||'var(--accent)')+';cursor:pointer" onclick="startAuditForFramework('+f.id+',\''+esc(f.name).replace(/'/g,"\\'")+'\')">'+
+      '<div class="audit-card" style="border-left:4px solid '+(f.color||'var(--accent)')+';cursor:pointer" onclick="startAuditForFramework('+f.id+',\''+esc(f.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'+
         '<div class="audit-card-name">'+esc(f.name)+'</div>'+
         '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+esc(f.type||'Standard')+'</div>'+
         '<div style="font-size:13px;color:var(--text);margin-top:8px;line-height:1.5">'+esc(f.description||'')+'</div>'+

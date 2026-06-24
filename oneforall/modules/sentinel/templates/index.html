@@ -2950,7 +2950,7 @@
           banner.style.display='flex';
           banner.innerHTML='💡 <strong style="margin-right:4px">Suggested from your RoPA:</strong>'+
             missing.slice(0,4).map(function(c){
-              return '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px" onclick="snOpenModal(\'retention\',{category:\''+c.replace(/'/g,'\\\'')+'\'})">'+esc(c)+'</button>';
+              return '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px" onclick="snOpenModal(\'retention\',{category:\''+c.replace(/\\/g,'\\\\').replace(/'/g,'\\\'')+'\'})">'+esc(c)+'</button>';
             }).join('')+
             (missing.length>4?'<span style="font-size:12px;opacity:.7">+'+(missing.length-4)+' more</span>':'')+'<span style="opacity:.7;font-size:12px"> have no retention schedule yet.</span>'+
             '<button onclick="this.closest(\'.sn-suggestion-banner\').style.display=\'none\'" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;color:currentColor;opacity:.6">×</button>';
@@ -3118,8 +3118,8 @@
         banner.style.display='flex';
         banner.innerHTML='⚠ <strong>'+thirdCountryFlows.length+' data flow'+(thirdCountryFlows.length>1?'s flow':' flows')+' to third countries.</strong> Ensure International Transfer records exist. '+
           thirdCountryFlows.slice(0,2).map(function(f){
-            var dest=(f.destination||'').replace(/'/g,'\\\'');
-            var src=(f.source_system||f.source||'').replace(/'/g,'\\\'');
+            var dest=(f.destination||'').replace(/\\/g,'\\\\').replace(/'/g,'\\\'');
+            var src=(f.source_system||f.source||'').replace(/\\/g,'\\\\').replace(/'/g,'\\\'');
             return '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px" onclick="snOpenModal(\'transfer\',{destination:\''+dest+'\',recipient:\''+src+'\'})">+ Transfer for '+esc((f.destination||'').substring(0,20))+'</button>';
           }).join(' ');
       }else if(banner){banner.style.display='none';}

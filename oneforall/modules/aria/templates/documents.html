@@ -704,7 +704,7 @@ async function uploadRevision() {
       document.getElementById('edit-status').value = 'Under Review';
       showToast('Revision uploaded — v' + data.version);
     } else {
-      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">' + (data.error || 'Failed') + '</span>';
+      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">' + esc(data.error || 'Failed') + '</span>';
     }
   } catch(e) {
     statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">Upload failed</span>';
@@ -728,7 +728,7 @@ async function applyTemplate() {
       document.getElementById('edit-download-link').href = '/aria/documents/' + docId + '/download';
       showToast('Branding template applied');
     } else {
-      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">' + (data.error || 'Failed') + '</span>';
+      statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">' + esc(data.error || 'Failed') + '</span>';
     }
   } catch(e) {
     statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">Template application failed</span>';
