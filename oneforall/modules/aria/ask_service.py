@@ -18,11 +18,14 @@ Engine-specific entry points:
 """
 from __future__ import annotations
 
+import logging
 import re
 import json
 import httpx
 from datetime import datetime
 from typing import Optional
+
+log = logging.getLogger("oneforall.aria")
 
 from config import settings
 from database import get_db, insert_returning_id, OperationalError
@@ -537,19 +540,21 @@ async def ask(question: str, user: Optional[dict] = None,
             _ASK_SYSTEM_PROMPT, user_msg, max_tokens=1200
         )
         raw = raw_text.strip()
-    except RuntimeError as e:
+    except RuntimeError:
+        log.exception("Ask ARIA runtime error during AI call")
         return {
             "success": False, "covered": False, "answer": "",
             "citations": [], "nearest_owner": None, "framework": None,
             "chunks_retrieved": len(chunks), "latency_ms": ms(),
-            "error": str(e), "log_id": None,
+            "error": "AI processing failed", "log_id": None,
         }
-    except Exception as e:
+    except Exception:
+        log.exception("Ask ARIA unexpected error during AI call")
         return {
             "success": False, "covered": False, "answer": "",
             "citations": [], "nearest_owner": None, "framework": None,
             "chunks_retrieved": len(chunks), "latency_ms": ms(),
-            "error": str(e), "log_id": None,
+            "error": "AI processing failed", "log_id": None,
         }
 
     # ── Parse response ────────────────────────────────────────────────────
