@@ -26,7 +26,7 @@ has_secret = bool(os.environ.get("SECRET_KEY"))
 
 print("Starting ThemisIQ on port 8080...")
 print("DATABASE_URL:", "****" if db_url != "(not set)" else "(not set)")
-print("SECRET_KEY set:", has_secret)
+
 
 if not has_secret:
     print("ERROR: SECRET_KEY not found in .env files. Run:")
