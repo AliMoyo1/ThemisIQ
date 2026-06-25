@@ -1702,18 +1702,20 @@ async def api_report_pdf(request: Request, audit_id: int):
 
     result = rpt.generate_pdf_report(audit_id, narrative)
 
-    filename = Path(result["fileName"]).name
     reports_root = Path(rpt.REPORTS_DIR).resolve()
-    candidate_path = (reports_root / filename).resolve()
+    candidate_path = Path(result["filePath"]).resolve()
     try:
         candidate_path.relative_to(reports_root)
     except ValueError:
         raise HTTPException(400, "Invalid report path")
+    if not candidate_path.exists() or not candidate_path.is_file():
+        raise HTTPException(404, "Generated report not found")
+    filename = candidate_path.name
     file_path = str(candidate_path)
 
     # Auto-save report record
     try:
-        fp = Path(file_path)
+        fp = candidate_path
         ds.create_report({
             "audit_id": audit_id,
             "report_type": "pdf",
@@ -1774,18 +1776,20 @@ async def api_report_docx(request: Request, audit_id: int):
 
     result = rpt.generate_docx_report(audit_id, narrative)
 
-    filename = Path(result["fileName"]).name
     reports_root = Path(rpt.REPORTS_DIR).resolve()
-    candidate_path = (reports_root / filename).resolve()
+    candidate_path = Path(result["filePath"]).resolve()
     try:
         candidate_path.relative_to(reports_root)
     except ValueError:
         raise HTTPException(400, "Invalid report path")
+    if not candidate_path.exists() or not candidate_path.is_file():
+        raise HTTPException(404, "Generated report not found")
+    filename = candidate_path.name
     file_path = str(candidate_path)
 
     # Auto-save report record
     try:
-        fp = Path(file_path)
+        fp = candidate_path
         ds.create_report({
             "audit_id": audit_id,
             "report_type": "docx",
