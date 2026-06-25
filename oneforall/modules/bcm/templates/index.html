@@ -874,19 +874,23 @@
   var _bcmDocContent='';
   window.bcmOpenDocViewer=function(title,content){
     _bcmDocContent=content||'';
-    document.getElementById('bcmDocViewerRoot').innerHTML=
+    var root=document.getElementById('bcmDocViewerRoot');
+    root.innerHTML=
       '<div class="bcm-doc-overlay" onclick="if(event.target===this)bcmCloseDocViewer()">'+
       '<div class="bcm-doc-panel">'+
         '<div class="bcm-doc-head">'+
-          '<div style="font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(title)+'</div>'+
+          '<div style="font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="bcmDocTitle"></div>'+
           '<div style="display:flex;gap:6px;flex-shrink:0" id="bcmDocHeadBtns">'+
             '<button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText(_bcmDocContent).then(function(){typeof showToast===\'function\'&&showToast(\'Copied!\')})">Copy</button>'+
-            '<button class="btn btn-sm btn-secondary" onclick="bcmDownloadDoc('+JSON.stringify(title)+')">Download</button>'+
+            '<button class="btn btn-sm btn-secondary" id="bcmDocDlBtn">Download</button>'+
             '<button class="btn btn-sm btn-secondary" onclick="bcmCloseDocViewer()">&#10005;</button>'+
           '</div>'+
         '</div>'+
-        '<div class="bcm-doc-body" id="bcmDocViewerBody">'+esc(content)+'</div>'+
+        '<div class="bcm-doc-body" id="bcmDocViewerBody"></div>'+
       '</div></div>';
+    document.getElementById('bcmDocTitle').textContent=title;
+    document.getElementById('bcmDocViewerBody').textContent=content||'';
+    document.getElementById('bcmDocDlBtn').onclick=function(){bcmDownloadDoc(title);};
   };
   window.bcmCloseDocViewer=function(){document.getElementById('bcmDocViewerRoot').innerHTML='';};
   window.bcmDownloadDoc=function(name){
