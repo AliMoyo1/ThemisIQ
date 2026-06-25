@@ -2024,7 +2024,8 @@ async def export_excel(request: Request):
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
         for fw in frameworks:
-            ws = wb.create_sheet(fw["name"][:31])
+            safe_title = _re.sub(r'[\\/*?\[\]:]', '-', fw["name"])[:31]
+            ws = wb.create_sheet(safe_title)
             ws.sheet_view.showGridLines = False
             headers = [
                 "Ref", "Control Name", "Category", "Doc Type",
