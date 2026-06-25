@@ -2485,8 +2485,32 @@ async def export_word(request: Request, control_id: str = Form(""), content: str
 
     doc.add_paragraph("")
 
-    for line in content.splitlines():
-        stripped = line.rstrip()
+    import re as _re
+
+    def _add_formatted_runs(paragraph, text):
+        """Parse inline markdown (bold, italic) into Word runs."""
+        parts = _re.split(r'(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*)', text)
+        for part in parts:
+            if not part:
+                continue
+            if part.startswith("***") and part.endswith("***"):
+                run = paragraph.add_run(part[3:-3])
+                run.bold = True
+                run.italic = True
+            elif part.startswith("**") and part.endswith("**"):
+                run = paragraph.add_run(part[2:-2])
+                run.bold = True
+            elif part.startswith("*") and part.endswith("*"):
+                run = paragraph.add_run(part[1:-1])
+                run.italic = True
+            else:
+                paragraph.add_run(part)
+
+    lines = content.splitlines()
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].rstrip()
+
         if stripped.startswith("### "):
             doc.add_heading(stripped[4:], level=3)
         elif stripped.startswith("## "):
@@ -2494,11 +2518,40 @@ async def export_word(request: Request, control_id: str = Form(""), content: str
         elif stripped.startswith("# "):
             doc.add_heading(stripped[2:], level=1)
         elif stripped.startswith("- ") or stripped.startswith("* "):
-            doc.add_paragraph(stripped[2:], style="List Bullet")
+            p = doc.add_paragraph(style="List Bullet")
+            _add_formatted_runs(p, stripped[2:])
+        elif _re.match(r'^\d+[\.\)]\s', stripped):
+            p = doc.add_paragraph(style="List Number")
+            _add_formatted_runs(p, _re.sub(r'^\d+[\.\)]\s', '', stripped))
+        elif stripped.startswith("|") and stripped.endswith("|"):
+            table_lines = []
+            while i < len(lines) and lines[i].rstrip().startswith("|") and lines[i].rstrip().endswith("|"):
+                row_text = lines[i].rstrip()
+                if not _re.match(r'^\|[\s\-:|]+\|$', row_text):
+                    cells = [c.strip() for c in row_text.strip("|").split("|")]
+                    table_lines.append(cells)
+                i += 1
+            if table_lines:
+                cols = max(len(r) for r in table_lines)
+                tbl = doc.add_table(rows=len(table_lines), cols=cols, style="Table Grid")
+                for ri, row_cells in enumerate(table_lines):
+                    for ci, cell_text in enumerate(row_cells):
+                        if ci < cols:
+                            cell = tbl.cell(ri, ci)
+                            cell.text = ""
+                            p = cell.paragraphs[0]
+                            _add_formatted_runs(p, cell_text)
+                            if ri == 0:
+                                for run in p.runs:
+                                    run.bold = True
+            continue
         elif stripped == "":
             doc.add_paragraph("")
         else:
-            doc.add_paragraph(stripped)
+            p = doc.add_paragraph()
+            _add_formatted_runs(p, stripped)
+
+        i += 1
 
     buf = io.BytesIO()
     doc.save(buf)
