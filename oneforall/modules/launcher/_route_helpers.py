@@ -156,4 +156,6 @@ def _render_admin_users(request, user, flash=None):
 
 
 def _hash_api_key(key: str) -> str:
-    return hashlib.sha256(key.encode()).hexdigest()
+    import os
+    salt = os.environ.get("SECRET_KEY", "fallback-hmac-key").encode()
+    return hashlib.pbkdf2_hmac("sha256", key.encode(), salt, 100_000).hex()
