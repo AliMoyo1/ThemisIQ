@@ -129,7 +129,7 @@ with open(ENV_FILE, "w") as f:
         f.write(f"{k}={v}\n")
 print(f"  Saved {ENV_FILE} ({len(env_vars)} vars)")
 
-# Also ensure oneforall/.env has DATABASE_URL and SECRET_KEY
+# Also normalize oneforall/.env, but do not persist sensitive values there.
 app_vars = {}
 if os.path.exists(APP_ENV_FILE):
     for line in open(APP_ENV_FILE):
@@ -140,13 +140,17 @@ if os.path.exists(APP_ENV_FILE):
 
 pw = env_vars["POSTGRES_PASSWORD"]
 db_url = f"postgresql://themisiq:{pw}@localhost:5432/themisiq"
-app_vars["DATABASE_URL"] = db_url
-app_vars["SECRET_KEY"] = env_vars["SECRET_KEY"]
+env_vars["DATABASE_URL"] = db_url
+
+# Keep secrets in /project/.env and /project/secrets only.
+sensitive_keys = {"DATABASE_URL", "SECRET_KEY", "POSTGRES_PASSWORD"}
 
 with open(APP_ENV_FILE, "w") as f:
     for k, v in app_vars.items():
+        if k in sensitive_keys:
+            continue
         f.write(f"{k}={v}\n")
-print(f"  Saved {APP_ENV_FILE} ({len(app_vars)} vars)")
+print(f"  Saved {APP_ENV_FILE} ({len([k for k in app_vars if k not in sensitive_keys])}) vars")
 print()
 
 
