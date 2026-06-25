@@ -91,6 +91,7 @@ async def login_submit(request: Request,
         csrf = generate_csrf_token()
         resp = templates.TemplateResponse(request, "login.html",
                                           _login_ctx(csrf, "Invalid request. Please try again."))
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
@@ -100,6 +101,7 @@ async def login_submit(request: Request,
         csrf = generate_csrf_token()
         resp = templates.TemplateResponse(request, "login.html",
                                           _login_ctx(csrf, "Too many login attempts. Please wait 5 minutes."))
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
@@ -111,6 +113,7 @@ async def login_submit(request: Request,
         csrf = generate_csrf_token()
         resp = templates.TemplateResponse(request, "login.html",
                                           _login_ctx(csrf, "Invalid username or password."))
+        resp.set_cookie("csrf_token", csrf, httponly=True, samesite="strict", path="/", max_age=3600, secure=_SECURE)
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
