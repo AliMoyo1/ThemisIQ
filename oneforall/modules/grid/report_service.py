@@ -240,6 +240,8 @@ def generate_pdf_report(audit_id: int, narrative: dict | None = None) -> dict:
     nar = narrative or {}
     timestamp = int(utcnow().timestamp())
     filename = f"grid-report-{audit_id}-{timestamp}.pdf"
+    if not re.fullmatch(r"grid-report-\d+-\d+\.pdf", filename):
+        raise ValueError("Unsafe report filename generated")
     filepath = REPORTS_DIR / filename
 
     buf = io.BytesIO()
@@ -537,6 +539,8 @@ def generate_docx_report(audit_id: int, narrative: dict | None = None) -> dict:
     nar = narrative or {}
     timestamp = int(utcnow().timestamp())
     filename = f"grid-report-{audit_id}-{timestamp}.docx"
+    if not re.fullmatch(r"grid-report-\d+-\d+\.docx", filename):
+        raise ValueError("Unsafe report filename generated")
     filepath = REPORTS_DIR / filename
     gen_date = utcnow().strftime("%d %B %Y")
 
