@@ -4,8 +4,21 @@ Input sanitization, validation, and IDOR protection utilities.
 import re
 import html
 
-_TAG_RE = re.compile(r"<[^>]+>")
 _MULTI_SPACE_RE = re.compile(r"\s+")
+
+
+def _strip_tags(text: str) -> str:
+    """Remove HTML/XML tags without regex backtracking risk."""
+    out = []
+    in_tag = False
+    for ch in text:
+        if ch == "<":
+            in_tag = True
+        elif ch == ">":
+            in_tag = False
+        elif not in_tag:
+            out.append(ch)
+    return "".join(out)
 
 
 def sanitize_text(value, max_length: int = 5000) -> str:
@@ -13,7 +26,7 @@ def sanitize_text(value, max_length: int = 5000) -> str:
     if not value or not isinstance(value, str):
         return ""
     value = html.unescape(value)
-    value = _TAG_RE.sub("", value)
+    value = _strip_tags(value)
     value = _MULTI_SPACE_RE.sub(" ", value).strip()
     return value[:max_length]
 
