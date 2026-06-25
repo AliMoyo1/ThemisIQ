@@ -1602,6 +1602,7 @@ async def apply_template_to_document(request: Request, doc_id: str,
             doc_id=doc_id,
             version=doc.get("version", "1.0"),
             framework=doc.get("framework", ""),
+            author_name=user.get("full_name", ""),
         )
 
         # Update document record
