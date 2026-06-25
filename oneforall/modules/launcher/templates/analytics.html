@@ -503,23 +503,23 @@ function runInsightEngine(){
   // 1. Overall compliance
   const comp = d.compliance_pct||0;
   if(comp >= 85){
-    insights.push({sev:'green', text:`<strong>Compliance at ${comp}%</strong> — above the 80% operational threshold. Continue control assurance programme.`});
+    insights.push({sev:'green', title:'Compliance at '+comp+'%', body:'Above the 80% operational threshold. Continue control assurance programme.'});
   } else if(comp >= 70){
-    insights.push({sev:'amber', text:`<strong>Compliance at ${comp}%</strong> — approaching the 80% threshold. Review and accelerate implementation of ${Math.ceil((80-comp)/100*(d.compliance_pct||1))} outstanding controls.`});
+    insights.push({sev:'amber', title:'Compliance at '+comp+'%', body:'Approaching the 80% threshold. Review and accelerate implementation of '+Math.ceil((80-comp)/100*(d.compliance_pct||1))+' outstanding controls.'});
   } else {
-    insights.push({sev:'red', text:`<strong>Compliance at ${comp}%</strong> — below acceptable threshold. Immediate executive review of control gaps required.`});
+    insights.push({sev:'red', title:'Compliance at '+comp+'%', body:'Below acceptable threshold. Immediate executive review of control gaps required.'});
   }
 
   // 2. Critical risks
   const crit = d.risk_counts?.critical||0;
   const high = d.risk_counts?.high||0;
   if(crit > 0){
-    insights.push({sev:'red', text:`<strong>${crit} critical risk${crit>1?'s':''} unresolved.</strong> These require immediate mitigation plans and executive sign-off before quarter close.`});
+    insights.push({sev:'red', title:crit+' critical risk'+(crit>1?'s':'')+' unresolved.', body:'These require immediate mitigation plans and executive sign-off before quarter close.'});
   } else if(high > 3){
-    insights.push({sev:'amber', text:`<strong>${high} high-priority risks open.</strong> No critical risks — good. Review mitigation adequacy for the high-risk items before next board cycle.`});
+    insights.push({sev:'amber', title:high+' high-priority risks open.', body:'No critical risks. Review mitigation adequacy for the high-risk items before next board cycle.'});
   } else {
     const total = (d.risk_counts?.medium||0)+(d.risk_counts?.low||0);
-    insights.push({sev:'green', text:`<strong>Risk posture healthy.</strong> No critical risks. ${high} high, ${total} medium/low risks tracked and managed.`});
+    insights.push({sev:'green', title:'Risk posture healthy.', body:'No critical risks. '+high+' high, '+total+' medium/low risks tracked and managed.'});
   }
 
   // 3. SLA performance
@@ -527,26 +527,26 @@ function runInsightEngine(){
   const slaBr   = d.sla?.breached||0;
   const slaRisk = d.sla?.at_risk||0;
   if(slaBr > 0){
-    insights.push({sev:'red', text:`<strong>${slaBr} SLA breach${slaBr>1?'es':''} active.</strong> Response or resolution deadlines have been missed. Navigate to Workflows → SLA → Breach Monitor to resolve.`});
+    insights.push({sev:'red', title:slaBr+' SLA breach'+(slaBr>1?'es':'')+' active.', body:'Response or resolution deadlines have been missed. Navigate to Workflows, SLA, Breach Monitor to resolve.'});
   } else if(slaRisk > 2){
-    insights.push({sev:'amber', text:`<strong>${slaRisk} SLAs at risk</strong> of breach within 2 hours. Assign response owners immediately to avoid formal breaches.`});
+    insights.push({sev:'amber', title:slaRisk+' SLAs at risk', body:'Breach within 2 hours. Assign response owners immediately to avoid formal breaches.'});
   } else {
-    insights.push({sev:'green', text:`<strong>SLA compliance at ${slaPct}%.</strong> ${slaBr===0?'No active breaches.':''} Response and resolution deadlines on track.`});
+    insights.push({sev:'green', title:'SLA compliance at '+slaPct+'%.', body:(slaBr===0?'No active breaches. ':'')+' Response and resolution deadlines on track.'});
   }
 
   // 4. Evidence vault
   const evExp = d.evidence_expiring||0;
   if(evExp > 0){
-    insights.push({sev:'amber', text:`<strong>${evExp} evidence item${evExp>1?'s':''} expiring within 30 days.</strong> Renew or archive these items to maintain audit trail integrity. Review in Evidence Repository.`});
+    insights.push({sev:'amber', title:evExp+' evidence item'+(evExp>1?'s':'')+' expiring within 30 days.', body:'Renew or archive these items to maintain audit trail integrity. Review in Evidence Repository.'});
   } else {
-    insights.push({sev:'green', text:`<strong>Evidence vault in good standing.</strong> No items expiring in the next 30 days. Coverage spans ${Object.keys(d.module_health||{}).length} modules.`});
+    insights.push({sev:'green', title:'Evidence vault in good standing.', body:'No items expiring in the next 30 days. Coverage spans '+Object.keys(d.module_health||{}).length+' modules.'});
   }
 
-  // 5. Module health — flag any low-performing module
+  // 5. Module health
   const mh = d.module_health||[];
   const lowMod = mh.filter(m=>parseInt(m.pct)<60);
   if(lowMod.length){
-    insights.push({sev:'amber', text:`<strong>${esc(lowMod.map(m=>m.name).join(', '))} health below 60%.</strong> These modules have the most incomplete controls or unresolved findings. Prioritise in next sprint.`});
+    insights.push({sev:'amber', title:lowMod.map(m=>m.name).join(', ')+' health below 60%.', body:'These modules have the most incomplete controls or unresolved findings. Prioritise in next sprint.'});
   }
 
   // 6. Trends (if we have trend data)
@@ -555,11 +555,12 @@ function runInsightEngine(){
     const first = compTrend[0].value;
     const last  = compTrend[compTrend.length-1].value;
     const diff  = +(last-first).toFixed(1);
-    const days  = document.getElementById('trendDays').value;
+    const days  = Math.max(1, parseInt(document.getElementById('trendDays').value, 10) || 30);
     if(Math.abs(diff)>=1){
       const dir = diff>0;
       insights.push({sev:dir?'blue':'amber',
-        text:`<strong>Compliance trend:</strong> ${dir?'↑ improved':'↓ declined'} by ${Math.abs(diff)}% over the last ${days} days. `+
+        title:'Compliance trend:',
+        body:(dir?'Improved':'Declined')+' by '+Math.abs(diff)+'% over the last '+days+' days. '+
           (dir?'Maintain momentum.':'Investigate root cause of the decline.')});
     }
   }
@@ -567,16 +568,26 @@ function runInsightEngine(){
   // 7. Active workflows
   const wf = d.workflow_active||0;
   if(wf>0){
-    insights.push({sev:'blue', text:`<strong>${wf} workflow${wf>1?'s':''} in progress.</strong> Approval chains active. Check Workflows → Active Flows for pending decisions that may be blocking operations.`});
+    insights.push({sev:'blue', title:wf+' workflow'+(wf>1?'s':'')+' in progress.', body:'Approval chains active. Check Workflows, Active Flows for pending decisions that may be blocking operations.'});
   }
 
-  // Render
-  el.innerHTML = insights.map(i=>`
-    <div class="ai-insight">
-      <div class="ai-dot ${i.sev}"></div>
-      <div class="ai-insight-text">${i.text}</div>
-    </div>
-  `).join('');
+  // Render using DOM APIs (no innerHTML with user data)
+  el.replaceChildren();
+  insights.forEach(i=>{
+    const row = document.createElement('div');
+    row.className = 'ai-insight';
+    const dot = document.createElement('div');
+    dot.className = 'ai-dot '+i.sev;
+    const text = document.createElement('div');
+    text.className = 'ai-insight-text';
+    const strong = document.createElement('strong');
+    strong.textContent = i.title || '';
+    text.appendChild(strong);
+    text.appendChild(document.createTextNode(' ' + (i.body || '')));
+    row.appendChild(dot);
+    row.appendChild(text);
+    el.appendChild(row);
+  });
 }
 
 /* ── Ask Analytics Q&A ────────────────────────────────────────────────────── */
