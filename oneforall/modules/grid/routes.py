@@ -1703,7 +1703,13 @@ async def api_report_pdf(request: Request, audit_id: int):
     result = rpt.generate_pdf_report(audit_id, narrative)
 
     filename = Path(result["fileName"]).name
-    file_path = str((Path(rpt.REPORTS_DIR) / filename).resolve())
+    reports_root = Path(rpt.REPORTS_DIR).resolve()
+    candidate_path = (reports_root / filename).resolve()
+    try:
+        candidate_path.relative_to(reports_root)
+    except ValueError:
+        raise HTTPException(400, "Invalid report path")
+    file_path = str(candidate_path)
 
     # Auto-save report record
     try:
@@ -1769,7 +1775,13 @@ async def api_report_docx(request: Request, audit_id: int):
     result = rpt.generate_docx_report(audit_id, narrative)
 
     filename = Path(result["fileName"]).name
-    file_path = str((Path(rpt.REPORTS_DIR) / filename).resolve())
+    reports_root = Path(rpt.REPORTS_DIR).resolve()
+    candidate_path = (reports_root / filename).resolve()
+    try:
+        candidate_path.relative_to(reports_root)
+    except ValueError:
+        raise HTTPException(400, "Invalid report path")
+    file_path = str(candidate_path)
 
     # Auto-save report record
     try:
