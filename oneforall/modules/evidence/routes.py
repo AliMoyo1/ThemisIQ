@@ -401,18 +401,25 @@ async def api_evidence_download_pdf(request: Request, eid: int):
     mime = (item["mime_type"] or "").lower()
     fname = item["file_name"] or "document"
 
+    # Detect actual file type from extension when MIME is missing or invalid
+    ext = file_path.suffix.lower()
+    ext_to_mime = {
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".doc": "application/msword",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".xls": "application/vnd.ms-excel",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".ppt": "application/vnd.ms-powerpoint",
+        ".pdf": "application/pdf",
+    }
+    if ext in ext_to_mime:
+        mime = ext_to_mime[ext]
+
     if mime == "application/pdf":
         return FileResponse(str(file_path), filename=fname, media_type="application/pdf")
 
-    docx_mimes = {
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "application/vnd.ms-powerpoint",
-    }
-    if mime not in docx_mimes:
+    convertible_mimes = set(ext_to_mime.values()) - {"application/pdf"}
+    if mime not in convertible_mimes:
         raise HTTPException(
             400,
             "PDF conversion is only available for Office documents. "
