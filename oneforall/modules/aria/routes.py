@@ -2470,11 +2470,11 @@ async def export_word(request: Request, control_id: str = Form(""), content: str
 
     db = get_db()
     try:
-        ctrl_row = db.execute("SELECT ref, title FROM controls WHERE id=%s", (control_id,)).fetchone() if control_id else None
+        ctrl_row = db.execute("SELECT ref, name FROM controls WHERE id=%s", (control_id,)).fetchone() if control_id else None
     finally:
         db.close()
 
-    ctrl_label = f"{ctrl_row['ref']} - {ctrl_row['title']}" if ctrl_row else "Policy Document"
+    ctrl_label = f"{ctrl_row['ref']} - {ctrl_row['name']}" if ctrl_row else "Policy Document"
 
     heading = doc.add_heading(f"{org_name}", level=0)
     heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
