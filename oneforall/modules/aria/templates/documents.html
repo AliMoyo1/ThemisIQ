@@ -814,7 +814,7 @@ async function uploadRevision() {
   var fileInput = document.getElementById('edit-revision-file');
   var file = fileInput.files[0];
   if (!file) { showToast('Select a file to upload', 'error'); return; }
-  var docId = parseInt(document.getElementById('edit-doc-id').value,10)||0;
+  var docId = document.getElementById('edit-doc-id').value;
   var statusEl = document.getElementById('edit-revision-status');
   statusEl.innerHTML = '<span style="color:var(--accent)">Uploading...</span>';
   var form = new FormData();
@@ -840,7 +840,7 @@ async function uploadRevision() {
 async function applyTemplate() {
   var tplId = document.getElementById('edit-template-id').value;
   if (!tplId) { showToast('Select a template first', 'error'); return; }
-  var docId = parseInt(document.getElementById('edit-doc-id').value,10)||0;
+  var docId = document.getElementById('edit-doc-id').value;
   var statusEl = document.getElementById('edit-template-status');
   statusEl.innerHTML = '<span style="color:var(--accent)">Applying template...</span>';
   var form = new FormData();
@@ -911,7 +911,7 @@ async function submitAdd() {
 }
 
 async function submitEdit() {
-  var docId = parseInt(document.getElementById('edit-doc-id').value,10)||0;
+  var docId = document.getElementById('edit-doc-id').value;
   var form = new FormData();
   form.append('title',          document.getElementById('edit-title').value);
   form.append('status',         document.getElementById('edit-status').value);
