@@ -970,9 +970,17 @@ async function loadNotifications(){
 }
 
 async function handleNotifClick(nid, link){
-  await fetch('/api/notifications/'+nid+'/read', {method:'POST'});
-  if(link && link.startsWith('/')) window.location.href=link;
-  else loadNotifications();
+  await fetch('/api/notifications/'+(parseInt(nid,10)||0)+'/read', {method:'POST'});
+  if(link){
+    try {
+      var u = new URL(link, window.location.origin);
+      if((u.protocol==='http:'||u.protocol==='https:') && u.origin===window.location.origin && u.pathname.startsWith('/')){
+        window.location.href = u.pathname + u.search + u.hash;
+        return;
+      }
+    } catch(e){}
+  }
+  loadNotifications();
 }
 
 async function markAllRead(){
