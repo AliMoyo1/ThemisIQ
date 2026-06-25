@@ -689,7 +689,7 @@ async function uploadRevision() {
   var fileInput = document.getElementById('edit-revision-file');
   var file = fileInput.files[0];
   if (!file) { showToast('Select a file to upload', 'error'); return; }
-  var docId = document.getElementById('edit-doc-id').value;
+  var docId = parseInt(document.getElementById('edit-doc-id').value,10)||0;
   var statusEl = document.getElementById('edit-revision-status');
   statusEl.innerHTML = '<span style="color:var(--accent)">Uploading...</span>';
   var form = new FormData();
@@ -699,10 +699,11 @@ async function uploadRevision() {
     var res = await fetch('/aria/documents/' + docId + '/upload-revision', { method: 'POST', body: form });
     var data = await res.json();
     if (data.success) {
-      statusEl.innerHTML = '<span style="color:var(--green-status,#16a34a)">Uploaded — v' + data.version + '. Status set to Under Review.</span>';
+      var ver = esc(String(data.version||''));
+      statusEl.innerHTML = '<span style="color:var(--green-status,#16a34a)">Uploaded - v' + ver + '. Status set to Under Review.</span>';
       document.getElementById('edit-version').value = data.version;
       document.getElementById('edit-status').value = 'Under Review';
-      showToast('Revision uploaded — v' + data.version);
+      showToast('Revision uploaded - v' + ver);
     } else {
       statusEl.innerHTML = '<span style="color:var(--red,#dc2626)">' + esc(data.error || 'Failed') + '</span>';
     }
@@ -714,7 +715,7 @@ async function uploadRevision() {
 async function applyTemplate() {
   var tplId = document.getElementById('edit-template-id').value;
   if (!tplId) { showToast('Select a template first', 'error'); return; }
-  var docId = document.getElementById('edit-doc-id').value;
+  var docId = parseInt(document.getElementById('edit-doc-id').value,10)||0;
   var statusEl = document.getElementById('edit-template-status');
   statusEl.innerHTML = '<span style="color:var(--accent)">Applying template...</span>';
   var form = new FormData();
@@ -785,7 +786,7 @@ async function submitAdd() {
 }
 
 async function submitEdit() {
-  var docId = document.getElementById('edit-doc-id').value;
+  var docId = parseInt(document.getElementById('edit-doc-id').value,10)||0;
   var form = new FormData();
   form.append('title',          document.getElementById('edit-title').value);
   form.append('status',         document.getElementById('edit-status').value);
