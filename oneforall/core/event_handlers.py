@@ -390,39 +390,69 @@ def policy_published_handler(event_type, source_module, entity_type,
                     )
 
         # ── Sync full policy document to Evidence Vault ─────────────
-        # Fetch the ARIA document for file details
         doc_row = db.execute(
-            "SELECT doc_id, title, doc_type, version, location, body "
+            "SELECT doc_id, title, doc_type, version, "
+            "       file_path, branded_file_path, file_name "
             "FROM aria_documents WHERE id=%s",
             (entity_id,),
         ).fetchone()
-        doc_location = ""
-        doc_filename = ""
-        file_size = 0
-        mime_type = "application/x-aria-policy"
-        if doc_row:
-            doc_location = doc_row["location"] or f"aria://documents/{entity_id}"
-            doc_filename = f"{doc_row['doc_id'] or 'policy'}_{doc_row['version'] or '1.0'}"
-            body = doc_row["body"] or ""
-            file_size = len(body.encode("utf-8")) if body else 0
 
-        # Create vault record with real file reference
         try:
+            import hashlib as _hashlib
+            import shutil as _shutil
+            from pathlib import Path as _Path
+            import uuid as _uuid
+
+            aria_dir = _Path(os.environ.get("ARIA_UPLOAD_DIR", "data/aria_uploads"))
+            ev_dir = _Path(os.environ.get("EVIDENCE_DIR", "data/evidence"))
+            ev_dir.mkdir(parents=True, exist_ok=True)
+
+            src_rel = None
+            if doc_row:
+                src_rel = doc_row["branded_file_path"] or doc_row["file_path"]
+
+            ev_stored = ""
+            ev_filename = ""
+            ev_size = 0
+            ev_hash = ""
+            ev_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+            if src_rel:
+                src_abs = (aria_dir / src_rel).resolve()
+                if src_abs.exists() and str(src_abs).startswith(str(aria_dir.resolve())):
+                    ext = src_abs.suffix or ".docx"
+                    ev_stored = f"{_uuid.uuid4().hex}{ext}"
+                    _shutil.copy2(str(src_abs), str(ev_dir / ev_stored))
+                    ev_size = (ev_dir / ev_stored).stat().st_size
+                    h = _hashlib.sha256()
+                    with open(ev_dir / ev_stored, "rb") as _f:
+                        while True:
+                            chunk = _f.read(65536)
+                            if not chunk:
+                                break
+                            h.update(chunk)
+                    ev_hash = h.hexdigest()
+                    ev_filename = (
+                        doc_row["file_name"]
+                        or f"{doc_row['doc_id'] or 'policy'}_{doc_row['version'] or '1.0'}.docx"
+                    )
+
             vault_id = insert_returning_id(db,
                 "INSERT INTO evidence_items "
                 "(title, description, file_path, file_name, file_size, "
-                " mime_type, category, tags, status, uploaded_by) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                " file_hash, mime_type, category, tags, status, uploaded_by) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (
                     title,
                     f"ARIA policy document (framework: {framework}, "
                     f"control: {control_ref}, type: {doc_row['doc_type'] if doc_row else 'Policy'}, "
                     f"version: {doc_row['version'] if doc_row else '1.0'}). "
                     f"Published on {datetime.now():%Y-%m-%d %H:%M}.",
-                    doc_location,
-                    doc_filename,
-                    file_size,
-                    mime_type,
+                    ev_stored,
+                    ev_filename,
+                    ev_size,
+                    ev_hash,
+                    ev_mime if ev_stored else "",
                     "policy",
                     f"aria,policy,approved,{framework},{control_ref},aria_doc_id={entity_id}",
                     "current",
@@ -430,14 +460,12 @@ def policy_published_handler(event_type, source_module, entity_type,
                 ),
             )
 
-            # Link vault item → ARIA document
             db.execute(
                 "INSERT INTO evidence_links "
                 "(evidence_id, module, entity_type, entity_id, linked_by) "
                 "VALUES (%s,%s,%s,%s,%s)",
                 (vault_id, "aria", "document", entity_id, user_id),
             )
-            # Link vault item → ARIA framework if known
             if framework:
                 fw_row = db.execute(
                     "SELECT id FROM aria_frameworks WHERE name=%s", (framework,)
@@ -450,7 +478,7 @@ def policy_published_handler(event_type, source_module, entity_type,
                         (vault_id, "aria", "framework", fw_row[0], user_id),
                     )
 
-            log.info("Synced ARIA policy '%s' → vault #%d", title, vault_id)
+            log.info("Synced ARIA policy '%s' → vault #%d (%s bytes)", title, vault_id, ev_size)
         except Exception as ev_exc:
             log.warning("Failed to sync ARIA policy to vault: %s", ev_exc)
 

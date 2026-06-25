@@ -498,13 +498,15 @@ async function openDetail(eid){
 
   /* Actions */
   var hasFile=!!(item.file_path&&item.file_size&&item.file_size>0);
+  var isAriaLinked=links.some(function(l){return l.module==='aria'&&l.entity_type==='document';});
+  var canDownload=hasFile||isAriaLinked;
   html+='<div class="ev-section" style="display:flex;gap:8px;flex-wrap:wrap">';
-  if(hasFile){
-    html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',false)">Download</button>';
-    if(canPdf){
-      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',true)">Download PDF</button>';
+  if(canDownload){
+    html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',false)">Download Word</button>';
+    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',true)">Download PDF</button>';
+    if(hasFile){
+      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="verifyIntegrity('+eid+')">Verify Integrity</button>';
     }
-    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="verifyIntegrity('+eid+')">Verify Integrity</button>';
   } else {
     html+='<span style="font-size:11px;color:var(--muted);padding:6px 0">Auto-generated record, no file attached</span>';
   }

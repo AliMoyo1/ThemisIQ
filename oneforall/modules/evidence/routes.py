@@ -285,21 +285,59 @@ async def api_evidence_delete(request: Request, eid: int):
 @router.get("/api/items/{eid}/download")
 @require_auth
 async def api_evidence_download(request: Request, eid: int):
-    """Download evidence file."""
+    """Download evidence file.
+
+    Checks the evidence directory first. If not found, falls back to the
+    source module's directory for ARIA-linked evidence (so existing records
+    created before file-copy was implemented still work).
+    """
     db = get_db()
     try:
-        item = db.execute("SELECT file_path, file_name, mime_type FROM evidence_items WHERE id = %s", (eid,)).fetchone()
+        item = db.execute(
+            "SELECT file_path, file_name, mime_type, tags FROM evidence_items WHERE id = %s",
+            (eid,),
+        ).fetchone()
         if not item:
             raise HTTPException(404, "Evidence not found")
+
+        fp_rel = item["file_path"] or ""
+        fname = item["file_name"] or "download"
+        mime = item["mime_type"] or "application/octet-stream"
+
+        # Primary: look in the evidence directory
+        if fp_rel:
+            candidate = (EVIDENCE_DIR / fp_rel).resolve()
+            if (str(candidate).startswith(str(EVIDENCE_DIR.resolve()))
+                    and candidate.exists()):
+                return FileResponse(str(candidate), filename=fname, media_type=mime)
+
+        # Fallback: for ARIA-linked evidence, try the ARIA uploads directory
+        aria_dir = Path(os.getenv("ARIA_UPLOAD_DIR", "data/aria_uploads"))
+        link = db.execute(
+            "SELECT entity_id FROM evidence_links "
+            "WHERE evidence_id=%s AND module='aria' AND entity_type='document' "
+            "AND deleted_at IS NULL LIMIT 1",
+            (eid,),
+        ).fetchone()
+        if link:
+            aria_doc = db.execute(
+                "SELECT branded_file_path, file_path, file_name "
+                "FROM aria_documents WHERE id=%s",
+                (link["entity_id"],),
+            ).fetchone()
+            if aria_doc:
+                src_rel = aria_doc["branded_file_path"] or aria_doc["file_path"]
+                if src_rel:
+                    src_abs = (aria_dir / src_rel).resolve()
+                    if (str(src_abs).startswith(str(aria_dir.resolve()))
+                            and src_abs.exists()):
+                        dl_name = aria_doc["file_name"] or fname
+                        dl_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        return FileResponse(str(src_abs), filename=dl_name, media_type=dl_mime)
     finally:
         db.close()
-    file_path = (EVIDENCE_DIR / item["file_path"]).resolve()
-    # Prevent path traversal — ensure resolved path stays within EVIDENCE_DIR
-    if not str(file_path).startswith(str(EVIDENCE_DIR.resolve())):
-        raise HTTPException(403, "Access denied")
-    if not file_path.exists():
-        raise HTTPException(404, "File not found on disk")
-    return FileResponse(str(file_path), filename=item["file_name"], media_type=item["mime_type"])
+
+    raise HTTPException(404, "File not found on disk")
 
 
 @router.get("/api/items/{eid}/download-pdf")
@@ -321,13 +359,43 @@ async def api_evidence_download_pdf(request: Request, eid: int):
         ).fetchone()
         if not item:
             raise HTTPException(404, "Evidence not found")
+
+        # Resolve the actual file (same fallback logic as download)
+        file_path = None
+        fp_rel = item["file_path"] or ""
+        if fp_rel:
+            candidate = (EVIDENCE_DIR / fp_rel).resolve()
+            if str(candidate).startswith(str(EVIDENCE_DIR.resolve())) and candidate.exists():
+                file_path = candidate
+
+        if not file_path:
+            aria_dir = Path(os.getenv("ARIA_UPLOAD_DIR", "data/aria_uploads"))
+            link = db.execute(
+                "SELECT entity_id FROM evidence_links "
+                "WHERE evidence_id=%s AND module='aria' AND entity_type='document' "
+                "AND deleted_at IS NULL LIMIT 1",
+                (eid,),
+            ).fetchone()
+            if link:
+                aria_doc = db.execute(
+                    "SELECT branded_file_path, file_path, file_name "
+                    "FROM aria_documents WHERE id=%s",
+                    (link["entity_id"],),
+                ).fetchone()
+                if aria_doc:
+                    src_rel = aria_doc["branded_file_path"] or aria_doc["file_path"]
+                    if src_rel:
+                        src_abs = (aria_dir / src_rel).resolve()
+                        if str(src_abs).startswith(str(aria_dir.resolve())) and src_abs.exists():
+                            file_path = src_abs
+                            if not item["file_name"]:
+                                item = dict(item)
+                                item["file_name"] = aria_doc["file_name"] or "document.docx"
+                                item["mime_type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     finally:
         db.close()
 
-    file_path = (EVIDENCE_DIR / item["file_path"]).resolve()
-    if not str(file_path).startswith(str(EVIDENCE_DIR.resolve())):
-        raise HTTPException(403, "Access denied")
-    if not file_path.exists():
+    if not file_path:
         raise HTTPException(404, "File not found on disk")
 
     mime = (item["mime_type"] or "").lower()
