@@ -172,18 +172,15 @@ class _PgConnWrapper:
 
     def __init__(self, pgconn):
         self._conn = pgconn
-        self._ensure_alive()
 
-    def _ensure_alive(self):
-        """Verify the pooled connection is still usable (catches stale SSL)."""
+    def _is_alive(self) -> bool:
+        """Check whether the pooled connection is still usable."""
         try:
             self._conn.cursor().execute("SELECT 1")
             self._conn.rollback()
+            return True
         except Exception:
-            try:
-                self._conn.reset()
-            except Exception:
-                pass
+            return False
 
     def execute(self, sql: str, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -336,9 +333,14 @@ def get_db(timeout: int = 15):
     exhaustion (PostgreSQL) before the global lock-error handler returns a 503.
     """
     if settings.is_postgres():
-        conn = _get_pg_pool().getconn()
-        conn.autocommit = False
+        pool = _get_pg_pool()
+        conn = pool.getconn()
         wrapper = _PgConnWrapper(conn)
+        if not wrapper._is_alive():
+            pool.putconn(conn, close=True)
+            conn = pool.getconn()
+            wrapper = _PgConnWrapper(conn)
+        conn.autocommit = False
         slug = _current_tenant.get()
         if slug:
             wrapper.set_tenant(slug)
@@ -3986,9 +3988,15 @@ def provision_tenant_schema(slug: str) -> None:
     schema_name = f"tenant_{safe}"
 
     # Use a raw pool connection so we can control search_path manually.
-    pg_conn = _get_pg_pool().getconn()
+    pool = _get_pg_pool()
+    pg_conn = pool.getconn()
+    wrapper = _PgConnWrapper(pg_conn)
+    if not wrapper._is_alive():
+        pool.putconn(pg_conn, close=True)
+        pg_conn = pool.getconn()
+        wrapper = _PgConnWrapper(pg_conn)
     pg_conn.autocommit = False
-    conn = _PgConnWrapper(pg_conn)
+    conn = wrapper
     try:
         from psycopg2 import sql as psql
         pg_conn.cursor().execute(psql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(psql.Identifier(schema_name)))
@@ -4012,7 +4020,7 @@ def provision_tenant_schema(slug: str) -> None:
             pg_conn.rollback()
         except Exception:
             pass
-        _get_pg_pool().putconn(pg_conn)
+        pool.putconn(pg_conn)
 
 
 def init_db():
