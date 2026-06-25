@@ -823,8 +823,11 @@ async def add_document(request: Request,
 
     db = get_db()
     try:
-        count = db.execute("SELECT COUNT(*) FROM aria_documents").fetchone()[0]
-        doc_id = "DOC-%04d" % (count + 1)
+        max_num = db.execute(
+            "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
+            "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
+        ).fetchone()[0]
+        doc_id = "DOC-%04d" % (max_num + 1)
         now = datetime.now().isoformat()
         new_id = insert_returning_id(db,"""
             INSERT INTO aria_documents
@@ -907,8 +910,11 @@ async def upload_new_document(
 
     db = get_db()
     try:
-        count = db.execute("SELECT COUNT(*) FROM aria_documents").fetchone()[0]
-        doc_id = "DOC-%04d" % (count + 1)
+        max_num = db.execute(
+            "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
+            "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
+        ).fetchone()[0]
+        doc_id = "DOC-%04d" % (max_num + 1)
         now = datetime.now().isoformat()
 
         stored_name = None
@@ -2387,10 +2393,11 @@ async def api_generate_policy(request: Request,
                 """, (new_ver, now, datetime.now().strftime("%Y-%m-%d"),
                       policy_body, existing["doc_id"]))
             else:
-                count = db.execute(
-                    "SELECT COUNT(*) FROM aria_documents"
+                max_num = db.execute(
+                    "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
+                    "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
                 ).fetchone()[0]
-                doc_id = "DOC-%04d" % (count + 1)
+                doc_id = "DOC-%04d" % (max_num + 1)
                 db.execute("""
                     INSERT INTO aria_documents
                     (doc_id, framework, control_ref, title, doc_type,
