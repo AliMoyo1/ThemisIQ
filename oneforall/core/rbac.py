@@ -130,7 +130,7 @@ CAPABILITIES: dict[str, set[str]] = {
     "aria.policy.edit_own":     {SUPER_ADMIN, COMPLIANCE_MGR, POLICY_AUTHOR},
     "aria.policy.edit_any":     {SUPER_ADMIN, COMPLIANCE_MGR},
     "aria.policy.approve":      {SUPER_ADMIN, COMPLIANCE_MGR, POLICY_APPROVER},
-    "aria.policy.delete":       {SUPER_ADMIN},
+    "aria.policy.delete":       {SUPER_ADMIN, COMPLIANCE_MGR},
     "aria.policy.generate_ai":  {SUPER_ADMIN, COMPLIANCE_MGR, POLICY_AUTHOR},
     "aria.control.update_own":  {SUPER_ADMIN, COMPLIANCE_MGR, CONTROL_OWNER},
     "aria.control.update_any":  {SUPER_ADMIN, COMPLIANCE_MGR},

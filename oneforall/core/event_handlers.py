@@ -376,17 +376,18 @@ def policy_published_handler(event_type, source_module, entity_type,
 
         # Cross-module link: policy → evidence vault (available for linking)
         if control_ref:
-            # Find GRID controls with the same ref for cross-linking
-            ctrl_row = db.execute(
-                "SELECT id FROM grid_controls WHERE control_id = %s LIMIT 1",
-                (control_ref,)
-            ).fetchone()
-            if ctrl_row:
-                create_cross_module_link(
-                    "aria", "document", entity_id,
-                    "grid", "control", ctrl_row[0],
-                    relationship="implements", user_id=user_id, db=db,
-        )
+            refs = [r.strip() for r in control_ref.split(",") if r.strip()]
+            for ref in refs:
+                ctrl_row = db.execute(
+                    "SELECT id FROM grid_controls WHERE control_id = %s LIMIT 1",
+                    (ref,)
+                ).fetchone()
+                if ctrl_row:
+                    create_cross_module_link(
+                        "aria", "document", entity_id,
+                        "grid", "control", ctrl_row[0],
+                        relationship="implements", user_id=user_id, db=db,
+                    )
 
         # ── Sync full policy document to Evidence Vault ─────────────
         # Fetch the ARIA document for file details
@@ -943,8 +944,10 @@ def auto_resolve_grid_policy_requests(event_type, source_module, entity_type,
         )
         params = [framework]
         if control_ref:
-            q += " AND (pr.control_ref=%s OR pr.control_ref IS NULL OR pr.control_ref='')"
-            params.append(control_ref)
+            refs = [r.strip() for r in control_ref.split(",") if r.strip()]
+            placeholders = " OR ".join(["pr.control_ref=%s"] * len(refs))
+            q += " AND (pr.control_ref IS NULL OR pr.control_ref='' OR " + placeholders + ")"
+            params.extend(refs)
 
         matches = db.execute(q, params).fetchall()
 

@@ -981,7 +981,8 @@ async def update_document(request: Request, doc_id: str,
                           effective_date: str = Form(None),
                           review_date: str = Form(None),
                           location: str = Form(None),
-                          comments: str = Form(None)):
+                          comments: str = Form(None),
+                          control_ref: str = Form(None)):
     user = request.state.user
     db = get_db()
     try:
@@ -1018,6 +1019,7 @@ async def update_document(request: Request, doc_id: str,
             ("owner", owner), ("approver", approver),
             ("effective_date", effective_date), ("review_date", review_date),
             ("location", location), ("comments", comments),
+            ("control_ref", control_ref),
         ]:
             if val is not None:
                 updates.append(field + "=%s")
@@ -1073,7 +1075,7 @@ async def delete_document(request: Request, doc_id: str):
     user = request.state.user
     if not has_capability(user, "aria.policy.delete"):
         return JSONResponse(
-            {"error": "Only System Administrators can delete documents."},
+            {"error": "You do not have permission to delete documents."},
             403,
         )
     db = get_db()

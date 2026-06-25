@@ -2092,8 +2092,8 @@ def list_aria_policies(framework_name=None, control_ref=None, status="Approved")
             q += " AND framework=%s"
             params.append(framework_name)
         if control_ref:
-            q += " AND control_ref=%s"
-            params.append(control_ref)
+            q += " AND (',' || control_ref || ',') LIKE %s"
+            params.append("%," + control_ref + ",%")
         q += " ORDER BY framework, control_ref, title"
         return _dicts(db.execute(q, params).fetchall())
     finally:

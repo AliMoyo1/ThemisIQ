@@ -141,7 +141,7 @@
           <td style="text-align:center;white-space:nowrap">
             {% if user.role != 'viewer' %}
             <button class="edit-btn" onclick='openEditModal({{ doc | tojson }})'>Edit</button>
-            {% if user.role == 'admin' %}
+            {% if has_capability(user, 'aria.policy.delete') %}
             <button class="edit-btn" style="color:var(--red,#dc2626)" onclick="deleteDoc('{{ doc.doc_id }}')">Del</button>
             {% endif %}
             {% endif %}
@@ -308,9 +308,10 @@
         <label class="form-label">Control Reference</label>
         <div style="position:relative">
           <input type="text" id="add-control-search" placeholder="Search controls..." autocomplete="off"
-                 style="width:100%" onfocus="showCtrlDropdown()" oninput="filterCtrlDropdown()" onblur="hideCtrlDropdown()">
+                 style="width:100%" onfocus="showPickerDD('add')" oninput="filterPickerDD('add')" onblur="hidePickerDD('add')">
           <input type="hidden" id="add-control-ref">
-          <div id="ctrl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+          <div id="add-ctrl-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          <div id="add-ctrl-dropdown" style="display:none;position:absolute;top:38px;left:0;right:0;z-index:9999;
                max-height:220px;overflow-y:auto;background:var(--surface, #fff);border:1px solid var(--border);
                border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.25);margin-top:2px"></div>
         </div>
@@ -428,11 +429,23 @@
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">Reminders sent 30 and 7 days before</div>
       </div>
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:10">
+        <label class="form-label">Control Reference</label>
+        <div style="position:relative">
+          <input type="text" id="edit-control-search" placeholder="Search controls..." autocomplete="off"
+                 style="width:100%" onfocus="showPickerDD('edit')" oninput="filterPickerDD('edit')" onblur="hidePickerDD('edit')">
+          <input type="hidden" id="edit-control-ref">
+          <div id="edit-ctrl-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          <div id="edit-ctrl-dropdown" style="display:none;position:absolute;top:38px;left:0;right:0;z-index:9999;
+               max-height:220px;overflow-y:auto;background:var(--surface, #fff);border:1px solid var(--border);
+               border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.25);margin-top:2px"></div>
+        </div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:1">
         <label class="form-label">Document Location / URL</label>
         <input type="text" id="edit-location">
       </div>
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:1">
         <label class="form-label">Comments / Notes</label>
         <textarea id="edit-comments" rows="2"></textarea>
       </div>
@@ -473,9 +486,12 @@ function getCheckedFwNames() {
 }
 
 var _ctrlOptions = [];
+var _pickerSelected = { add: [], edit: [] };
 
 async function onAddFwChange() {
   _ctrlOptions = [];
+  _pickerSelected.add = [];
+  renderPickerTags('add');
   document.getElementById('add-control-search').value = '';
   document.getElementById('add-control-search').placeholder = 'Loading controls...';
   document.getElementById('add-control-ref').value = '';
@@ -484,6 +500,12 @@ async function onAddFwChange() {
     document.getElementById('add-control-search').placeholder = 'Select a framework first';
     return;
   }
+  await _loadControlsForFwIds(fwIds);
+  document.getElementById('add-control-search').placeholder = 'Search ' + _ctrlOptions.length + ' controls...';
+}
+
+async function _loadControlsForFwIds(fwIds) {
+  _ctrlOptions = [];
   for (var i = 0; i < fwIds.length; i++) {
     var fid = fwIds[i];
     if (!_controlCache[fid]) {
@@ -501,29 +523,42 @@ async function onAddFwChange() {
       _ctrlOptions.push({ ref: c.ref, name: c.name, fw: fwName, label: label });
     });
   }
-  document.getElementById('add-control-search').placeholder = 'Search ' + _ctrlOptions.length + ' controls...';
 }
 
-function showCtrlDropdown() {
-  filterCtrlDropdown();
+async function _loadControlsForFwNames(fwNames) {
+  _ctrlOptions = [];
+  var cbs = document.querySelectorAll('.add-fw-cb');
+  var fwIds = [];
+  fwNames.forEach(function(name) {
+    cbs.forEach(function(cb) {
+      if (cb.value.trim() === name.trim()) fwIds.push(cb.getAttribute('data-fw-id'));
+    });
+  });
+  await _loadControlsForFwIds(fwIds);
 }
-function hideCtrlDropdown() {
-  setTimeout(function() { document.getElementById('ctrl-dropdown').style.display = 'none'; }, 180);
+
+function showPickerDD(prefix) { filterPickerDD(prefix); }
+function hidePickerDD(prefix) {
+  setTimeout(function() { document.getElementById(prefix + '-ctrl-dropdown').style.display = 'none'; }, 180);
 }
-function filterCtrlDropdown() {
-  var q = document.getElementById('add-control-search').value.toLowerCase();
-  var dd = document.getElementById('ctrl-dropdown');
+
+function filterPickerDD(prefix) {
+  var q = document.getElementById(prefix + '-control-search').value.toLowerCase();
+  var dd = document.getElementById(prefix + '-ctrl-dropdown');
   dd.innerHTML = '';
   if (!_ctrlOptions.length) {
     dd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);text-align:center">No controls loaded</div>';
     dd.style.display = '';
     return;
   }
+  var selRefs = _pickerSelected[prefix].map(function(r) { return r.ref; });
   var matches = _ctrlOptions.filter(function(c) {
+    if (selRefs.indexOf(c.ref) !== -1) return false;
     return (c.ref + ' ' + c.name + ' ' + c.fw).toLowerCase().indexOf(q) !== -1;
   });
   if (!matches.length) {
-    dd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);text-align:center">No matching controls</div>';
+    dd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);text-align:center">' +
+      (selRefs.length ? 'All matching controls selected' : 'No matching controls') + '</div>';
     dd.style.display = '';
     return;
   }
@@ -535,13 +570,41 @@ function filterCtrlDropdown() {
     div.onmouseleave = function() { div.style.background = ''; };
     div.onmousedown = function(e) {
       e.preventDefault();
-      document.getElementById('add-control-ref').value = c.ref;
-      document.getElementById('add-control-search').value = c.label;
-      dd.style.display = 'none';
+      addPickerTag(prefix, c.ref, c.label);
     };
     dd.appendChild(div);
   });
   dd.style.display = '';
+}
+
+function addPickerTag(prefix, ref, label) {
+  var state = _pickerSelected[prefix];
+  if (state.find(function(r) { return r.ref === ref; })) return;
+  state.push({ ref: ref, label: label });
+  renderPickerTags(prefix);
+  document.getElementById(prefix + '-control-search').value = '';
+}
+
+function removePickerTag(prefix, ref) {
+  _pickerSelected[prefix] = _pickerSelected[prefix].filter(function(r) { return r.ref !== ref; });
+  renderPickerTags(prefix);
+}
+
+function renderPickerTags(prefix) {
+  var container = document.getElementById(prefix + '-ctrl-tags');
+  container.innerHTML = '';
+  _pickerSelected[prefix].forEach(function(r) {
+    var tag = document.createElement('span');
+    tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 10px;background:var(--accent-bg,#fef6ef);border:1px solid var(--border);border-radius:12px;font-size:11px;font-weight:600;color:var(--text)';
+    tag.appendChild(document.createTextNode(r.label));
+    var x = document.createElement('span');
+    x.textContent = '×';
+    x.style.cssText = 'cursor:pointer;color:var(--muted);font-size:14px;line-height:1;margin-left:2px';
+    (function(ref) { x.onclick = function() { removePickerTag(prefix, ref); }; })(r.ref);
+    tag.appendChild(x);
+    container.appendChild(tag);
+  });
+  document.getElementById(prefix + '-control-ref').value = _pickerSelected[prefix].map(function(r) { return r.ref; }).join(',');
 }
 
 // ── Review cycle auto-calc ──────────────────────────────────────────────────
@@ -673,6 +736,8 @@ function openAddModal() {
   });
   document.getElementById('add-control-ref').value = '';
   document.getElementById('add-control-search').value = '';
+  _pickerSelected.add = [];
+  renderPickerTags('add');
   document.getElementById('add-version').value = '1.0';
   document.getElementById('add-status').selectedIndex = 0;
   document.getElementById('add-doc-type').selectedIndex = 0;
@@ -724,6 +789,23 @@ async function openEditModal(doc) {
     });
     if (doc.template_id) sel.value = doc.template_id;
   } catch(e) {}
+
+  _pickerSelected.edit = [];
+  document.getElementById('edit-control-search').value = '';
+  document.getElementById('edit-control-ref').value = doc.control_ref || '';
+  var fwNames = (doc.framework || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  if (fwNames.length) {
+    await _loadControlsForFwNames(fwNames);
+    document.getElementById('edit-control-search').placeholder = 'Search ' + _ctrlOptions.length + ' controls...';
+  }
+  if (doc.control_ref) {
+    var refs = doc.control_ref.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    refs.forEach(function(ref) {
+      var match = _ctrlOptions.find(function(c) { return c.ref === ref; });
+      _pickerSelected.edit.push({ ref: ref, label: match ? match.label : ref });
+    });
+  }
+  renderPickerTags('edit');
 
   document.getElementById('editModal').classList.add('open');
 }
@@ -840,6 +922,7 @@ async function submitEdit() {
   form.append('review_date',    document.getElementById('edit-review-date').value);
   form.append('location',       document.getElementById('edit-location').value);
   form.append('comments',       document.getElementById('edit-comments').value);
+  form.append('control_ref',   document.getElementById('edit-control-ref').value);
   var res = await fetch('/aria/documents/update/' + docId, { method: 'POST', body: form });
   var data = await res.json();
   if (data.ok) { showToast('Document updated'); setTimeout(function(){ location.reload(); }, 900); }
