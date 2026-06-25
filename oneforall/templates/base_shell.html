@@ -975,11 +975,14 @@ async function handleNotifClick(nid, link){
     try {
       var u = new URL(link, window.location.origin);
       if((u.protocol==='http:'||u.protocol==='https:') && u.origin===window.location.origin && u.pathname.startsWith('/')){
-        var safePath = u.pathname;
-        var safeSearch = u.search || '';
-        var safeHash = u.hash || '';
-        if(!/[<>"'`]/.test(safePath + safeSearch + safeHash)){
-          window.location.assign(safePath + safeSearch + safeHash);
+        var safePath = encodeURI(u.pathname || '/');
+        var params = new URLSearchParams(u.search || '');
+        var safeSearch = params.toString();
+        safeSearch = safeSearch ? '?' + safeSearch : '';
+        var safeHash = u.hash ? '#' + encodeURIComponent((u.hash || '').replace(/^#/, '')) : '';
+        var targetUrl = new URL(safePath + safeSearch + safeHash, window.location.origin);
+        if(targetUrl.origin===window.location.origin){
+          window.location.assign(targetUrl.toString());
           return;
         }
       }
