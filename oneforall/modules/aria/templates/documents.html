@@ -304,25 +304,25 @@
           Reminders sent 30 and 7 days before this date
         </div>
       </div>
-      <div class="form-group">
+      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:10">
         <label class="form-label">Control Reference</label>
         <div style="position:relative">
           <input type="text" id="add-control-search" placeholder="Search controls..." autocomplete="off"
-                 style="max-width:100%" onfocus="showCtrlDropdown()" oninput="filterCtrlDropdown()" onblur="hideCtrlDropdown()">
+                 style="width:100%" onfocus="showCtrlDropdown()" oninput="filterCtrlDropdown()" onblur="hideCtrlDropdown()">
           <input type="hidden" id="add-control-ref">
-          <div id="ctrl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;
-               max-height:220px;overflow-y:auto;background:var(--card-bg);border:1px solid var(--border);
-               border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);margin-top:2px"></div>
+          <div id="ctrl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:9999;
+               max-height:220px;overflow-y:auto;background:var(--surface, #fff);border:1px solid var(--border);
+               border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.25);margin-top:2px"></div>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">
           Controls load from selected frameworks
         </div>
       </div>
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:1">
         <label class="form-label">Document Location / URL</label>
         <input type="text" id="add-location" placeholder="e.g. SharePoint link or file path">
       </div>
-      <div class="form-group" style="grid-column:1/-1">
+      <div class="form-group" style="grid-column:1/-1;position:relative;z-index:1">
         <label class="form-label">Comments / Notes</label>
         <textarea id="add-comments" rows="2" placeholder="Any additional notes..."></textarea>
       </div>
