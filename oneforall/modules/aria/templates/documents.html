@@ -306,9 +306,14 @@
       </div>
       <div class="form-group">
         <label class="form-label">Control Reference</label>
-        <select id="add-control-ref" style="max-width:100%">
-          <option value="">Select a control...</option>
-        </select>
+        <div style="position:relative">
+          <input type="text" id="add-control-search" placeholder="Search controls..." autocomplete="off"
+                 style="max-width:100%" onfocus="showCtrlDropdown()" oninput="filterCtrlDropdown()" onblur="hideCtrlDropdown()">
+          <input type="hidden" id="add-control-ref">
+          <div id="ctrl-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;
+               max-height:220px;overflow-y:auto;background:var(--card-bg);border:1px solid var(--border);
+               border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);margin-top:2px"></div>
+        </div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">
           Controls load from selected frameworks
         </div>
@@ -467,15 +472,18 @@ function getCheckedFwNames() {
   return names;
 }
 
+var _ctrlOptions = [];
+
 async function onAddFwChange() {
-  var sel = document.getElementById('add-control-ref');
-  sel.innerHTML = '<option value="">Loading controls...</option>';
+  _ctrlOptions = [];
+  document.getElementById('add-control-search').value = '';
+  document.getElementById('add-control-search').placeholder = 'Loading controls...';
+  document.getElementById('add-control-ref').value = '';
   var fwIds = getCheckedFwIds();
   if (!fwIds.length) {
-    sel.innerHTML = '<option value="">Select a framework first</option>';
+    document.getElementById('add-control-search').placeholder = 'Select a framework first';
     return;
   }
-  var allControls = [];
   for (var i = 0; i < fwIds.length; i++) {
     var fid = fwIds[i];
     if (!_controlCache[fid]) {
@@ -488,18 +496,52 @@ async function onAddFwChange() {
     var cb = document.querySelector('.add-fw-cb[data-fw-id="'+fid+'"]');
     if (cb) fwName = cb.value;
     _controlCache[fid].forEach(function(c) {
-      allControls.push({ ref: c.ref, name: c.name, fw: fwName });
+      var label = c.ref + ' - ' + c.name;
+      if (fwIds.length > 1) label += ' (' + fwName + ')';
+      _ctrlOptions.push({ ref: c.ref, name: c.name, fw: fwName, label: label });
     });
   }
-  sel.innerHTML = '<option value="">Select a control...</option>';
-  allControls.forEach(function(c) {
-    var label = c.ref + ' - ' + c.name;
-    if (fwIds.length > 1) label += ' (' + c.fw + ')';
-    var opt = document.createElement('option');
-    opt.value = c.ref;
-    opt.textContent = label;
-    sel.appendChild(opt);
+  document.getElementById('add-control-search').placeholder = 'Search ' + _ctrlOptions.length + ' controls...';
+}
+
+function showCtrlDropdown() {
+  filterCtrlDropdown();
+}
+function hideCtrlDropdown() {
+  setTimeout(function() { document.getElementById('ctrl-dropdown').style.display = 'none'; }, 180);
+}
+function filterCtrlDropdown() {
+  var q = document.getElementById('add-control-search').value.toLowerCase();
+  var dd = document.getElementById('ctrl-dropdown');
+  dd.innerHTML = '';
+  if (!_ctrlOptions.length) {
+    dd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);text-align:center">No controls loaded</div>';
+    dd.style.display = '';
+    return;
+  }
+  var matches = _ctrlOptions.filter(function(c) {
+    return (c.ref + ' ' + c.name + ' ' + c.fw).toLowerCase().indexOf(q) !== -1;
   });
+  if (!matches.length) {
+    dd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);text-align:center">No matching controls</div>';
+    dd.style.display = '';
+    return;
+  }
+  matches.forEach(function(c) {
+    var div = document.createElement('div');
+    div.style.cssText = 'padding:7px 10px;font-size:13px;cursor:pointer';
+    div.textContent = c.label;
+    div.onmouseenter = function() { div.style.background = 'var(--hover-bg, rgba(180,130,60,.1))'; };
+    div.onmouseleave = function() { div.style.background = ''; };
+    div.onmousedown = function(e) {
+      e.preventDefault();
+      document.getElementById('add-control-ref').value = c.ref;
+      document.getElementById('add-control-search').value = c.label;
+      dd.style.display = 'none';
+    };
+    dd.appendChild(div);
+  });
+  dd.style.display = '';
 }
 
 // ── Review cycle auto-calc ──────────────────────────────────────────────────
@@ -629,7 +671,8 @@ function openAddModal() {
    'add-effective-date','add-review-date','add-location','add-comments'].forEach(function(id) {
     document.getElementById(id).value = '';
   });
-  document.getElementById('add-control-ref').selectedIndex = 0;
+  document.getElementById('add-control-ref').value = '';
+  document.getElementById('add-control-search').value = '';
   document.getElementById('add-version').value = '1.0';
   document.getElementById('add-status').selectedIndex = 0;
   document.getElementById('add-doc-type').selectedIndex = 0;
