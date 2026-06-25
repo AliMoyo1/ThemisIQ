@@ -395,7 +395,7 @@ async function loadEvidence(){
         '<td>'+expiryCell+'</td>'+
         '<td>'+statusDot+' <span style="font-size:11px">'+escHtml(item.status)+'</span></td>'+
         '<td onclick="event.stopPropagation()">'+
-          '<a href="/evidence/api/items/'+item.id+'/download" style="font-size:11px;color:var(--accent)" title="Download">⬇</a>'+
+          '<button onclick="evDownload('+item.id+',false)" style="background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer" title="Download">&#11015;</button>'+
         '</td>'+
       '</tr>';
     }).join('');
@@ -430,12 +430,66 @@ function setViewMode(mode){
 }
 
 /* ── Detail Panel ── */
+var _detailEid=null;
+function isDocxMime(m){return(m||'').indexOf('wordprocessingml')!==-1||(m||'')==='application/msword';}
+function isOfficeMime(m){return isDocxMime(m)||(m||'').indexOf('spreadsheetml')!==-1||(m||'').indexOf('presentationml')!==-1||(m||'').indexOf('ms-excel')!==-1||(m||'').indexOf('ms-powerpoint')!==-1;}
+function isImageMime(m){return(m||'').startsWith('image/');}
+function isPdfMime(m){return(m||'')==='application/pdf';}
+
+async function evDownload(eid,asPdf){
+  var url='/evidence/api/items/'+eid+'/'+(asPdf?'download-pdf':'download');
+  try{
+    var res=await fetch(url);
+    if(!res.ok){
+      var errData;
+      try{errData=await res.json();}catch(e){errData=null;}
+      var msg=errData&&errData.detail?errData.detail:'Download failed ('+res.status+')';
+      if(typeof showToast==='function')showToast(msg,'error');
+      return;
+    }
+    var cd=res.headers.get('Content-Disposition')||'';
+    var match=cd.match(/filename="?([^"]+)"?/);
+    var filename=match?match[1]:(asPdf?'evidence.pdf':'evidence');
+    var blob=await res.blob();
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(a.href);},5000);
+    if(typeof showToast==='function')showToast('Downloaded '+ filename);
+  }catch(e){
+    if(typeof showToast==='function')showToast('Download error: '+e.message,'error');
+  }
+}
+
+function _resolvedLinksHtml(links,resolved,eid){
+  if(!links.length) return '<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
+  return links.map(function(l,i){
+    var res=resolved[i]||{};
+    var mc=modColors[l.module]||'#6b7280';
+    return '<div class="ev-link-row">'+
+      '<span class="ev-mod-dot" style="background:'+mc+'"></span>'+
+      '<span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;width:56px">'+escHtml(l.module)+'</span>'+
+      '<span style="font-size:10px;color:var(--muted)">'+escHtml(l.entity_type)+'</span>'+
+      (res.url?'<a href="'+escHtml(res.url)+'" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(res.name||'#'+l.entity_id)+'</a>':
+               '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+escHtml(res.name||'#'+l.entity_id)+'</span>')+
+      '<span style="font-size:10px;color:var(--muted);white-space:nowrap">'+fmtDate(l.created_at)+'</span>'+
+      '<button onclick="unlinkEvidence('+l.id+','+eid+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px;padding:2px 4px" title="Unlink">✕</button>'+
+    '</div>';
+  }).join('');
+}
+
 async function openDetail(eid){
+  _detailEid=eid;
   var r=await fetch('/evidence/api/items/'+eid);var item=await r.json();
   if(!item||item.error){return;}
   var icon=iconMap[item.category]||'\u{1F4C4}';
   var tags=(item.tags||'').split(',').filter(function(t){return t.trim();});
   var links=item.links||[];
+  var mime=(item.mime_type||'').toLowerCase();
+  var canPdf=isOfficeMime(mime);
 
   var html='<div class="ev-section" style="display:flex;justify-content:space-between;align-items:flex-start">'+
     '<div><div style="font-size:18px;font-weight:700;color:var(--text)">'+icon+' '+escHtml(item.title)+'</div>'+
@@ -444,60 +498,21 @@ async function openDetail(eid){
 
   /* Actions */
   html+='<div class="ev-section" style="display:flex;gap:8px;flex-wrap:wrap">'+
-    '<a href="/evidence/api/items/'+eid+'/download" class="btn btn-primary" style="font-size:12px;padding:6px 14px;text-decoration:none">Download</a>'+
-    '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="verifyIntegrity('+eid+')">Verify Integrity</button>'+
+    '<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',false)">Download</button>';
+  if(canPdf){
+    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',true)">Download PDF</button>';
+  }
+  html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="verifyIntegrity('+eid+')">Verify Integrity</button>'+
     '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--accent);color:var(--accent)" onclick="openLinkToModal('+eid+')">Link to…</button>'+
   '</div>';
   html+='<div id="integrityResult"></div>';
 
-  /* Metadata */
-  html+='<div class="ev-section"><div class="ev-section-title">Details</div>'+
-    '<div style="display:grid;grid-template-columns:120px 1fr;gap:6px;font-size:12px">'+
-      '<span style="color:var(--muted)">Category</span><span style="color:var(--text)">'+escHtml(item.category)+'</span>'+
-      '<span style="color:var(--muted)">Status</span><span style="color:var(--text)">'+escHtml(item.status)+'</span>'+
-      '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'—')+'</span>'+
-      '<span style="color:var(--muted)">Created</span><span style="color:var(--text)">'+fmtDate(item.created_at)+'</span>'+
-      '<span style="color:var(--muted)">Updated</span><span style="color:var(--text)">'+fmtDate(item.updated_at)+'</span>'+
-      (item.expiry_date?'<span style="color:var(--muted)">Expires</span><span style="color:var(--warn,#d97706);font-weight:600">'+fmtDate(item.expiry_date)+'</span>':'')+
-      (item.file_hash?'<span style="color:var(--muted)">SHA-256</span><span style="color:var(--text);font-family:monospace;font-size:10px;word-break:break-all">'+escHtml(item.file_hash)+'</span>':'')+
-    '</div></div>';
-
-  /* Description */
-  if(item.description){
-    html+='<div class="ev-section"><div class="ev-section-title">Description</div>'+
-      '<div style="font-size:13px;color:var(--text);line-height:1.5">'+escHtml(item.description)+'</div></div>';
+  /* Preview for images */
+  if(isImageMime(mime)){
+    html+='<div class="ev-section" style="text-align:center;padding:10px 20px">'+
+      '<img src="/evidence/api/items/'+eid+'/download" style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid var(--border)" alt="Preview">'+
+    '</div>';
   }
-
-  /* Tags */
-  if(tags.length){
-    html+='<div class="ev-section"><div class="ev-section-title">Tags</div>'+
-      tags.map(function(t){return '<span class="ev-tag">'+escHtml(t.trim())+'</span>';}).join('')+'</div>';
-  }
-
-  /* Linked Entities */
-  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between;align-items:center">Linked Entities ('+links.length+') <button onclick="aiSuggestLinks('+eid+')" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;border-radius:12px;display:inline-flex;align-items:center;gap:4px"><span style="font-size:13px">&#10038;</span> AI Suggest</button></div>';
-  html+='<div id="aiSuggestBox" style="display:none;margin-bottom:8px"></div>';
-  if(links.length){
-    // Resolve link names
-    var specs=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
-    var resolved=[];
-    try{var rr=await fetch('/evidence/api/resolve-links?links='+encodeURIComponent(JSON.stringify(specs)));resolved=await rr.json();}catch(e){}
-    html+=links.map(function(l,i){
-      var res=resolved[i]||{};
-      var mc=modColors[l.module]||'#6b7280';
-      return '<div class="ev-link-row">'+
-        '<span style="width:8px;height:8px;border-radius:50%;background:'+mc+';flex-shrink:0"></span>'+
-        '<span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;width:60px">'+escHtml(l.module)+'</span>'+
-        '<span style="font-size:11px;color:var(--muted)">'+escHtml(l.entity_type)+'</span>'+
-        (res.url?'<a href="'+escHtml(res.url)+'">'+escHtml(res.name||'#'+l.entity_id)+'</a>':'<span style="color:var(--text)">'+escHtml(res.name||'#'+l.entity_id)+'</span>')+
-        '<span style="margin-left:auto;font-size:10px;color:var(--muted)">'+fmtDate(l.created_at)+'</span>'+
-        '<button onclick="unlinkEvidence('+l.id+','+eid+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px" title="Unlink">✕</button>'+
-      '</div>';
-    }).join('');
-  }else{
-    html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
-  }
-  html+='</div>';
 
   /* Tabs: Details / History / Activity */
   html+='<div class="ev-tabs">'+
@@ -508,61 +523,80 @@ async function openDetail(eid){
 
   /* Details tab */
   html+='<div id="tabpane-details">';
+
   /* Inline-editable metadata */
+  var statusOpts=['current','superseded','archived','expired','draft'].map(function(s){
+    return '<option value="'+s+'"'+(s===item.status?' selected':'')+'>'+s+'</option>';
+  }).join('');
+  var catOpts=['general','policy','certificate','screenshot','report','procedure','training'].map(function(c){
+    return '<option value="'+c+'"'+(c===item.category?' selected':'')+'>'+c+'</option>';
+  }).join('');
+
   html+='<div class="ev-section"><div class="ev-section-title">Details</div>'+
     '<div style="display:grid;grid-template-columns:110px 1fr;gap:6px;font-size:12px;align-items:center">'+
       '<span style="color:var(--muted)">Title</span>'+
       '<div class="ev-editable" id="ev-field-title">'+
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.title)+'</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineEdit(\'title\','+eid+','+JSON.stringify(item.title)+')">✏️</button>'+
+        '<button class="ev-edit-btn" onclick="evInlineEdit(\'title\','+eid+',this)">&#9998;</button>'+
       '</div>'+
-      '<span style="color:var(--muted)">Category</span><span style="color:var(--text)">'+escHtml(item.category)+'</span>'+
-      '<span style="color:var(--muted)">Status</span><span style="color:var(--text)">'+escHtml(item.status)+'</span>'+
-      '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'—')+'</span>'+
+      '<span style="color:var(--muted)">Category</span>'+
+      '<div class="ev-editable" id="ev-field-category">'+
+        '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.category)+'</span>'+
+        '<button class="ev-edit-btn" onclick="evInlineSelect(\'category\','+eid+',\''+catOpts.replace(/'/g,"\\'")+'\')">&#9998;</button>'+
+      '</div>'+
+      '<span style="color:var(--muted)">Status</span>'+
+      '<div class="ev-editable" id="ev-field-status">'+
+        '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.status)+'</span>'+
+        '<button class="ev-edit-btn" onclick="evInlineSelect(\'status\','+eid+',\''+statusOpts.replace(/'/g,"\\'")+'\')">&#9998;</button>'+
+      '</div>'+
+      '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'Unknown')+'</span>'+
       '<span style="color:var(--muted)">Created</span><span style="color:var(--text)">'+fmtDate(item.created_at)+'</span>'+
       '<span style="color:var(--muted)">Expiry</span>'+
       '<div class="ev-editable" id="ev-field-expiry_date">'+
         '<span class="ev-field-val" style="color:'+(item.expiry_date?'var(--warn,#d97706)':'var(--muted)')+'">'+
-          (item.expiry_date?fmtDate(item.expiry_date)+'<span style="font-size:10px;margin-left:4px">'+expiryBadgeHtml(item.expiry_date)+'</span>':'Not set')+
+          (item.expiry_date?fmtDate(item.expiry_date)+' '+expiryBadgeHtml(item.expiry_date):'Not set')+
         '</span>'+
-        '<button class="ev-edit-btn" onclick="evInlineEdit(\'expiry_date\','+eid+','+JSON.stringify(item.expiry_date||'')+')" style="opacity:1">✏️</button>'+
+        '<button class="ev-edit-btn" onclick="evInlineEdit(\'expiry_date\','+eid+',this)" style="opacity:1">&#9998;</button>'+
       '</div>'+
       (item.file_hash?'<span style="color:var(--muted)">SHA-256</span><span style="color:var(--text);font-family:monospace;font-size:9px;word-break:break-all">'+escHtml(item.file_hash)+'</span>':'')+
     '</div></div>';
 
-  /* Tags — editable */
+  /* Tags -- editable */
   html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Tags '+
-    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evInlineEdit(\'tags\','+eid+','+JSON.stringify(item.tags||'')+')">✏️ edit</button></div>'+
-    (tags.length?tags.map(function(t){return '<span class="ev-tag">'+escHtml(t.trim())+'</span>';}).join(''):'<span style="font-size:12px;color:var(--muted)">No tags</span>')+
+    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evEditTags('+eid+')">&#9998; edit</button></div>'+
+    '<div id="ev-tags-display">'+(tags.length?tags.map(function(t){return '<span class="ev-tag">'+escHtml(t.trim())+'</span>';}).join(''):'<span style="font-size:12px;color:var(--muted)">No tags</span>')+'</div>'+
+    '<div id="ev-tags-editor" style="display:none">'+
+      '<input class="ev-inline-input" type="text" id="ev-input-tags" value="'+escHtml(item.tags||'')+'" placeholder="tag1, tag2, tag3">'+
+      '<div style="display:flex;gap:4px;margin-top:6px">'+
+        '<button onclick="evSaveField(\'tags\','+eid+',document.getElementById(\'ev-input-tags\').value)" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px">Save</button>'+
+        '<button onclick="document.getElementById(\'ev-tags-editor\').style.display=\'none\';document.getElementById(\'ev-tags-display\').style.display=\'block\'" style="background:var(--surface2);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>'+
+      '</div>'+
+    '</div>'+
   '</div>';
 
-  /* Description — editable */
+  /* Description -- editable */
   html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Description '+
-    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evInlineEdit(\'description\','+eid+','+JSON.stringify(item.description||'')+')" >✏️ edit</button></div>'+
-    (item.description?'<div style="font-size:13px;color:var(--text);line-height:1.5">'+escHtml(item.description)+'</div>':'<span style="font-size:12px;color:var(--muted)">No description</span>')+
+    '<button class="ev-edit-btn" style="opacity:1;font-size:10px" onclick="evEditDesc('+eid+')">&#9998; edit</button></div>'+
+    '<div id="ev-desc-display">'+(item.description?'<div style="font-size:13px;color:var(--text);line-height:1.5">'+escHtml(item.description)+'</div>':'<span style="font-size:12px;color:var(--muted)">No description</span>')+'</div>'+
+    '<div id="ev-desc-editor" style="display:none">'+
+      '<textarea class="ev-inline-input" id="ev-input-description" rows="4" style="resize:vertical">'+escHtml(item.description||'')+'</textarea>'+
+      '<div style="display:flex;gap:4px;margin-top:6px">'+
+        '<button onclick="evSaveField(\'description\','+eid+',document.getElementById(\'ev-input-description\').value)" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px">Save</button>'+
+        '<button onclick="document.getElementById(\'ev-desc-editor\').style.display=\'none\';document.getElementById(\'ev-desc-display\').style.display=\'block\'" style="background:var(--surface2);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>'+
+      '</div>'+
+    '</div>'+
   '</div>';
 
   /* Linked Entities */
-  html+='<div class="ev-section"><div class="ev-section-title">Linked Entities ('+links.length+')</div>';
+  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between;align-items:center">Linked Entities ('+links.length+') <button onclick="aiSuggestLinks('+eid+')" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;border-radius:12px;display:inline-flex;align-items:center;gap:4px"><span style="font-size:13px">&#10038;</span> AI Suggest</button></div>';
+  html+='<div id="aiSuggestBox" style="display:none;margin-bottom:8px"></div>';
   if(links.length){
-    var specs=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
-    var resolved=[];
-    try{var rr=await fetch('/evidence/api/resolve-links?links='+encodeURIComponent(JSON.stringify(specs)));resolved=await rr.json();}catch(e){}
-    html+=links.map(function(l,i){
-      var res=resolved[i]||{};
-      var mc=modColors[l.module]||'#6b7280';
-      return '<div class="ev-link-row">'+
-        '<span class="ev-mod-dot" style="background:'+mc+'"></span>'+
-        '<span style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;width:56px">'+escHtml(l.module)+'</span>'+
-        '<span style="font-size:10px;color:var(--muted)">'+escHtml(l.entity_type)+'</span>'+
-        (res.url?'<a href="'+escHtml(res.url)+'" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(res.name||'#'+l.entity_id)+'</a>':
-                 '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">'+escHtml(res.name||'#'+l.entity_id)+'</span>')+
-        '<span style="font-size:10px;color:var(--muted);white-space:nowrap">'+fmtDate(l.created_at)+'</span>'+
-        '<button onclick="unlinkEvidence('+l.id+','+eid+')" style="background:none;border:none;color:var(--bad,#dc2626);cursor:pointer;font-size:12px;padding:2px 4px" title="Unlink">✕</button>'+
-      '</div>';
-    }).join('');
+    var specs2=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
+    var resolved2=[];
+    try{var rr2=await fetch('/evidence/api/resolve-links?links='+encodeURIComponent(JSON.stringify(specs2)));resolved2=await rr2.json();}catch(e){}
+    html+=_resolvedLinksHtml(links,resolved2,eid);
   }else{
-    html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to…" to connect this evidence.</div>';
+    html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
   }
   html+='</div></div>';/* end tabpane-details */
 
@@ -591,10 +625,10 @@ async function openDetail(eid){
         '<span style="color:var(--text);flex:1">'+escHtml(v.title)+'</span>'+
         '<span style="color:var(--muted)">'+fmtDate(v.created_at)+'</span>'+
         '<span class="ev-tag">'+escHtml(v.status)+'</span></div>';
-    }).join(''):'<div style="font-size:12px;color:var(--muted);padding:8px 0">Single version — no history</div>';
+    }).join(''):'<div style="font-size:12px;color:var(--muted);padding:8px 0">Single version, no history</div>';
   }catch(e){document.getElementById('evVersions').innerHTML='<div style="font-size:12px;color:var(--muted)">Could not load versions</div>';}
 
-  // Load activity (link/unlink history) async
+  // Load activity async
   try{
     var ar=await fetch('/evidence/api/items/'+eid+'/audit');var arows=await ar.json();
     document.getElementById('evActivity').innerHTML=arows.length?arows.map(function(a){
@@ -621,30 +655,45 @@ function evShowTab(tab){
   });
 }
 
-function evInlineEdit(field,eid,current){
+function evInlineEdit(field,eid,btn){
   var container=document.getElementById('ev-field-'+field);
-  if(!container){
-    // For tags/description that don't have a dedicated container, use a prompt
-    var newVal=prompt('Edit '+field+':',current);
-    if(newVal===null)return;
-    var body={};body[field]=newVal;
-    fetch('/evidence/api/items/'+eid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-      .then(function(){openDetail(eid);});
-    return;
-  }
+  if(!container)return;
+  var currentVal=container.querySelector('.ev-field-val');
+  var curText=currentVal?currentVal.textContent.trim():'';
   var inputType=field==='expiry_date'?'date':'text';
+  var inputVal=field==='expiry_date'?(curText==='Not set'?'':curText):curText;
   container.innerHTML=
-    '<input class="ev-inline-input" type="'+inputType+'" id="ev-input-'+field+'" value="'+escHtml(current)+'" style="flex:1">'+
-    '<button onclick="evSaveInline(\''+field+'\','+eid+')" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px">Save</button>'+
+    '<input class="ev-inline-input" type="'+inputType+'" id="ev-input-'+field+'" value="'+escHtml(inputVal)+'" style="flex:1">'+
+    '<button onclick="evSaveField(\''+field+'\','+eid+',document.getElementById(\'ev-input-'+field+'\').value)" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px">Save</button>'+
     '<button onclick="openDetail('+eid+')" style="background:var(--surface2);border:none;border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>';
   document.getElementById('ev-input-'+field).focus();
 }
 
-async function evSaveInline(field,eid){
-  var val=document.getElementById('ev-input-'+field).value;
+function evInlineSelect(field,eid,optsHtml){
+  var container=document.getElementById('ev-field-'+field);
+  if(!container)return;
+  container.innerHTML=
+    '<select class="ev-inline-input" id="ev-input-'+field+'" style="flex:1" onchange="evSaveField(\''+field+'\','+eid+',this.value)">'+optsHtml+'</select>'+
+    '<button onclick="openDetail('+eid+')" style="background:var(--surface2);border:none;border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--muted)">✕</button>';
+}
+
+function evEditTags(eid){
+  document.getElementById('ev-tags-display').style.display='none';
+  document.getElementById('ev-tags-editor').style.display='block';
+  document.getElementById('ev-input-tags').focus();
+}
+
+function evEditDesc(eid){
+  document.getElementById('ev-desc-display').style.display='none';
+  document.getElementById('ev-desc-editor').style.display='block';
+  document.getElementById('ev-input-description').focus();
+}
+
+async function evSaveField(field,eid,val){
   var body={};body[field]=val;
   await fetch('/evidence/api/items/'+eid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  openDetail(eid);loadStats();
+  if(typeof showToast==='function')showToast('Updated '+field);
+  openDetail(eid);loadStats();loadEvidence();
 }
 
 function closeDetail(){

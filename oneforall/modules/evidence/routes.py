@@ -103,6 +103,7 @@ async def api_evidence_upload(
     category: str = Form("general"),
     tags: str = Form(""),
     replace_id: str = Form(""),
+    expiry_date: str = Form(""),
 ):
     """Upload a new evidence file."""
     if file.size and file.size > MAX_FILE_SIZE:
@@ -195,15 +196,17 @@ async def api_evidence_upload(
                         (rid,),
                     )
 
+        exp = expiry_date.strip() if expiry_date else None
+
         eid = insert_returning_id(
             db,
             "INSERT INTO evidence_items (title, description, file_path, file_name, file_size, "
-            "file_hash, mime_type, category, tags, version, parent_id, uploaded_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "file_hash, mime_type, category, tags, version, parent_id, uploaded_by, expiry_date) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 display_title, description, str(stored_name), original_name,
                 len(content), file_hash, declared_mime,
-                category, tags, version_num, parent_id, _uid(request),
+                category, tags, version_num, parent_id, _uid(request), exp,
             )
         )
         db.commit()
@@ -297,6 +300,95 @@ async def api_evidence_download(request: Request, eid: int):
     if not file_path.exists():
         raise HTTPException(404, "File not found on disk")
     return FileResponse(str(file_path), filename=item["file_name"], media_type=item["mime_type"])
+
+
+@router.get("/api/items/{eid}/download-pdf")
+@require_auth
+async def api_evidence_download_pdf(request: Request, eid: int):
+    """Download evidence file converted to PDF.
+
+    Supports DOCX conversion via LibreOffice headless. PDF and image
+    files are returned as-is. Other formats return 400.
+    """
+    import subprocess
+    import tempfile
+
+    db = get_db()
+    try:
+        item = db.execute(
+            "SELECT file_path, file_name, mime_type FROM evidence_items WHERE id = %s",
+            (eid,),
+        ).fetchone()
+        if not item:
+            raise HTTPException(404, "Evidence not found")
+    finally:
+        db.close()
+
+    file_path = (EVIDENCE_DIR / item["file_path"]).resolve()
+    if not str(file_path).startswith(str(EVIDENCE_DIR.resolve())):
+        raise HTTPException(403, "Access denied")
+    if not file_path.exists():
+        raise HTTPException(404, "File not found on disk")
+
+    mime = (item["mime_type"] or "").lower()
+    fname = item["file_name"] or "document"
+
+    if mime == "application/pdf":
+        return FileResponse(str(file_path), filename=fname, media_type="application/pdf")
+
+    docx_mimes = {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-powerpoint",
+    }
+    if mime not in docx_mimes:
+        raise HTTPException(
+            400,
+            "PDF conversion is only available for Office documents. "
+            "This file type cannot be converted.",
+        )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            result = subprocess.run(
+                [
+                    "libreoffice", "--headless", "--convert-to", "pdf",
+                    "--outdir", tmpdir, str(file_path),
+                ],
+                capture_output=True, text=True, timeout=60,
+            )
+        except FileNotFoundError:
+            raise HTTPException(
+                503,
+                "PDF conversion requires LibreOffice which is not installed on this server.",
+            )
+        except subprocess.TimeoutExpired:
+            raise HTTPException(504, "PDF conversion timed out.")
+
+        if result.returncode != 0:
+            raise HTTPException(500, "PDF conversion failed.")
+
+        pdf_name = Path(file_path.stem).with_suffix(".pdf")
+        pdf_path = Path(tmpdir) / pdf_name
+        if not pdf_path.exists():
+            candidates = list(Path(tmpdir).glob("*.pdf"))
+            if candidates:
+                pdf_path = candidates[0]
+            else:
+                raise HTTPException(500, "PDF conversion produced no output.")
+
+        pdf_bytes = pdf_path.read_bytes()
+
+    out_name = Path(fname).stem + ".pdf"
+    from fastapi.responses import Response
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+    )
 
 
 # ── Version History ────────────────────────────────────────────────────────
