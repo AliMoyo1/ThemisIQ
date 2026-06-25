@@ -433,10 +433,14 @@ async def admin_api_logs(request: Request):
         where_clauses = []
         params = []
 
-        # Org isolation: non-super-admins only see their own org's events.
-        if not is_super and caller_org_id is not None:
-            where_clauses.append("(al.org_id = %s OR al.org_id IS NULL)")
-            params.append(caller_org_id)
+        # Org isolation: non-super-admins only see their own org's logs.
+        if not is_super:
+            if caller_org_id is not None:
+                where_clauses.append("al.org_id = %s")
+                params.append(caller_org_id)
+            else:
+                where_clauses.append("al.user_id = %s")
+                params.append(caller.get("id"))
 
         if module:
             where_clauses.append("al.module = %s")
@@ -504,9 +508,14 @@ async def admin_api_logs_export(request: Request):
         where_clauses = []
         params = []
 
-        if not is_super and caller_org_id is not None:
-            where_clauses.append("(al.org_id = %s OR al.org_id IS NULL)")
-            params.append(caller_org_id)
+        # Org isolation: non-super-admins only see their own org's logs.
+        if not is_super:
+            if caller_org_id is not None:
+                where_clauses.append("al.org_id = %s")
+                params.append(caller_org_id)
+            else:
+                where_clauses.append("al.user_id = %s")
+                params.append(caller.get("id"))
 
         if module:
             where_clauses.append("al.module = %s")
