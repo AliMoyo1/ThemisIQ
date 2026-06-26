@@ -343,6 +343,15 @@ app.include_router(erm_router)
 app.include_router(orm_router)
 
 
+# -- Launcher alias (themisiq.net redirects to /launcher/) -------------------
+
+@app.get("/launcher")
+@app.get("/launcher/")
+async def launcher_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/", status_code=301)
+
+
 # -- SPA catch-all routes (must be AFTER module routers) ---------------------
 # GRID, BCM, and Sentinel are SPAs: one HTML template serves all sub-paths.
 # Without catch-all routes, sidebar links like /sentinel/ropa return 404.
