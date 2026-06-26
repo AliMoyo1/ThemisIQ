@@ -2567,8 +2567,17 @@ async def export_word(request: Request, control_id: str = Form(""), content: str
     doc.save(buf)
     buf.seek(0)
 
-    safe_ref = (ctrl_row["ref"].replace(".", "_") if ctrl_row else "policy")
-    filename = f"ARIA_{safe_ref}_Policy.docx"
+    # Use the first heading in the generated content as the filename, falling
+    # back to the control name so the download is always human-readable.
+    heading_match = _re.search(r'^#{1,2}\s+(.+)', content, _re.MULTILINE)
+    raw_title = (
+        heading_match.group(1).strip()
+        if heading_match
+        else (ctrl_row["name"] if ctrl_row else "Policy Document")
+    )
+    safe_title = _re.sub(r'[^\w\s\-]', '', raw_title).strip()
+    safe_title = _re.sub(r'\s+', ' ', safe_title)
+    filename = f"{safe_title}.docx" if safe_title else "Policy Document.docx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
