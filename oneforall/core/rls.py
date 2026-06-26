@@ -11,75 +11,62 @@ Context variables (PostgreSQL session settings):
 ENABLE + FORCE ROW LEVEL SECURITY is used so even superuser connections
 (the typical app role) are constrained by the policies.
 """
+import logging
 
-_POLICY = """
--- Suppress error if the policy already exists (DROP + CREATE for idempotency).
-DO $$
-BEGIN
+_logger = logging.getLogger(__name__)
 
-  -- ── users ───────────────────────────────────────────────────────────────────
-  ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-  ALTER TABLE public.users FORCE ROW LEVEL SECURITY;
-  DROP POLICY IF EXISTS tenant_isolation ON public.users;
-  CREATE POLICY tenant_isolation ON public.users
-    USING (
-      COALESCE(current_setting('app.bypass_rls',      true), '') = 'true'
-      OR COALESCE(current_setting('app.is_super_admin', true), '') = 'true'
-      OR (
-        NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
-        AND org_id = NULLIF(current_setting('app.current_org_id', true), '')::int
-      )
-    );
+_USING = """(
+    COALESCE(current_setting('app.bypass_rls', true), '') = 'true'
+    OR COALESCE(current_setting('app.is_super_admin', true), '') = 'true'
+    OR (
+      NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
+      AND org_id = NULLIF(current_setting('app.current_org_id', true), '')::int
+    )
+  )"""
 
-  -- ── audit_log ───────────────────────────────────────────────────────────────
-  -- INSERT policy is permissive so system events (no user context) can be
-  -- written without bypass. SELECT is restricted by org.
-  ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
-  ALTER TABLE public.audit_log FORCE ROW LEVEL SECURITY;
-  DROP POLICY IF EXISTS tenant_isolation_select ON public.audit_log;
-  DROP POLICY IF EXISTS tenant_isolation_write  ON public.audit_log;
-  CREATE POLICY tenant_isolation_select ON public.audit_log
-    FOR SELECT
-    USING (
-      COALESCE(current_setting('app.bypass_rls',      true), '') = 'true'
-      OR COALESCE(current_setting('app.is_super_admin', true), '') = 'true'
-      OR (
-        NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
-        AND org_id = NULLIF(current_setting('app.current_org_id', true), '')::int
-      )
-    );
-  CREATE POLICY tenant_isolation_write ON public.audit_log
-    FOR ALL
-    USING (true)
-    WITH CHECK (true);
+_STMTS = [
+    # users
+    "ALTER TABLE public.users ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.users FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.users",
+    f"CREATE POLICY tenant_isolation ON public.users USING {_USING}",
 
-  -- ── licenses ────────────────────────────────────────────────────────────────
-  ALTER TABLE public.licenses ENABLE ROW LEVEL SECURITY;
-  ALTER TABLE public.licenses FORCE ROW LEVEL SECURITY;
-  DROP POLICY IF EXISTS tenant_isolation ON public.licenses;
-  CREATE POLICY tenant_isolation ON public.licenses
-    USING (
-      COALESCE(current_setting('app.bypass_rls',      true), '') = 'true'
-      OR COALESCE(current_setting('app.is_super_admin', true), '') = 'true'
-      OR (
-        NULLIF(current_setting('app.current_org_id', true), '') IS NOT NULL
-        AND org_id = NULLIF(current_setting('app.current_org_id', true), '')::int
-      )
-    );
+    # audit_log - SELECT restricted by org; writes are unrestricted so system
+    # events can be logged without org context
+    "ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.audit_log FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation_select ON public.audit_log",
+    "DROP POLICY IF EXISTS tenant_isolation_write ON public.audit_log",
+    f"CREATE POLICY tenant_isolation_select ON public.audit_log FOR SELECT USING {_USING}",
+    "CREATE POLICY tenant_isolation_write ON public.audit_log FOR ALL USING (true) WITH CHECK (true)",
 
-END $$;
-"""
+    # licenses
+    "ALTER TABLE public.licenses ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.licenses FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.licenses",
+    f"CREATE POLICY tenant_isolation ON public.licenses USING {_USING}",
+]
 
 
 def apply_rls_policies(db) -> None:
     """Apply (or refresh) RLS policies on shared public-schema tables.
 
-    Safe to call multiple times: DROP POLICY IF EXISTS + CREATE inside a DO
-    block means it is fully idempotent.  Only meaningful on PostgreSQL; no-ops
-    on SQLite.
+    Idempotent: DROP POLICY IF EXISTS + CREATE means it is safe to call on
+    every startup. Only meaningful on PostgreSQL; no-ops on SQLite.
+    Errors are logged and swallowed so a policy failure does not prevent the
+    app from starting (schema-level isolation still protects tenant data).
     """
     from config import settings
     if not settings.is_postgres():
         return
-    db.executescript(_POLICY)
-    db.commit()
+    try:
+        for stmt in _STMTS:
+            db.execute(stmt)
+        db.commit()
+        _logger.info("RLS policies applied to public.users, public.audit_log, public.licenses")
+    except Exception as exc:
+        _logger.error("RLS policy application failed (non-fatal): %s", exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
