@@ -142,6 +142,8 @@ def update_enterprise_risk(risk_id, data):
 def delete_enterprise_risk(risk_id):
     db = get_db()
     try:
+        db.execute("UPDATE erm_kris SET linked_risk_id=NULL WHERE linked_risk_id=%s", (risk_id,))
+        db.execute("DELETE FROM erm_risk_workflow_history WHERE risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_enterprise_risks WHERE id=%s", (risk_id,))
         db.commit()
     finally:
