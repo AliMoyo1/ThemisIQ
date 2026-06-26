@@ -7,7 +7,7 @@ Uses the unified core.ai_client for multi-provider support
 import json
 import logging
 
-from core.ai_client import create_message, is_configured, provider_name, safe_json_parse
+from core.ai_client import create_message, is_configured, provider_name, safe_json_parse, wrap_user_input as _u
 
 log = logging.getLogger(__name__)
 
@@ -17,9 +17,9 @@ def score_risk(title: str, description: str, category: str = "") -> dict:
         return _stub_score(title)
     prompt = (
         f"You are an enterprise risk manager. Score this risk:\n\n"
-        f"Title: {title}\n"
-        f"Description: {description}\n"
-        f"Category hint: {category or 'unknown'}\n\n"
+        f"Title: {_u(title)}\n"
+        f"Description: {_u(description)}\n"
+        f"Category hint: {_u(category) if category else 'unknown'}\n\n"
         "Return JSON only:\n"
         '{"likelihood": <1-5>, "impact": <1-5>, "category": "<strategic|operational|compliance|financial|reputational|technology|third_party|environmental>", '
         '"treatment": "<mitigate|accept|avoid|transfer>", "rationale": "<1 sentence>"}'
@@ -47,8 +47,8 @@ def suggest_treatment(title: str, description: str, category: str, likelihood: i
     score = likelihood * impact
     prompt = (
         f"Enterprise risk treatment request:\n\n"
-        f"Risk: {title}\nDescription: {description}\n"
-        f"Category: {category}\nScore: {score} (Likelihood {likelihood}/5, Impact {impact}/5)\n\n"
+        f"Risk: {_u(title)}\nDescription: {_u(description)}\n"
+        f"Category: {_u(category)}\nScore: {score} (Likelihood {likelihood}/5, Impact {impact}/5)\n\n"
         "Suggest a treatment plan. Return JSON:\n"
         '{"treatment": "<mitigate|accept|avoid|transfer>", '
         '"treatment_plan": "<detailed 2-3 sentence plan>", '
@@ -143,8 +143,8 @@ def generate_risk_statement(category: str, description: str) -> dict:
         }
     prompt = (
         f"You are an enterprise risk manager writing a structured risk statement.\n\n"
-        f"Category: {category}\n"
-        f"Description: {description}\n\n"
+        f"Category: {_u(category)}\n"
+        f"Description: {_u(description)}\n\n"
         "Write a structured risk statement in three parts. Return JSON only:\n"
         '{"cause":"Due to [root cause / failure]","event":"there is a risk that [risk event]","consequence":"resulting in [impact/consequence]","full_statement":"[complete sentence combining all three]"}'
     )
@@ -167,9 +167,9 @@ def suggest_assessment_questions(assessment_type: str, linked_risk_titles: list,
     risk_context = ", ".join(linked_risk_titles[:5]) if linked_risk_titles else "general enterprise risks"
     prompt = (
         f"You are an enterprise risk management expert designing a self-assessment questionnaire.\n\n"
-        f"Assessment type: {assessment_type}\n"
-        f"Linked risks: {risk_context}\n"
-        f"Existing questions (do not repeat):\n{existing_q_text}\n\n"
+        f"Assessment type: {_u(assessment_type)}\n"
+        f"Linked risks: {_u(risk_context)}\n"
+        f"Existing questions (do not repeat):\n{_u(existing_q_text)}\n\n"
         "Suggest up to 8 new assessment questions. For each, specify the most appropriate response type.\n"
         "Return JSON array only:\n"
         '[{"question":"...","question_type":"scale|yes_no|text|multiple_choice","weight":1.0}]'
@@ -187,8 +187,8 @@ def identify_risks_from_responses(responses_text: str, assessment_title: str) ->
         return [{"title": "Risk identified from assessment", "description": "Review assessment responses for details.",
                  "category": "operational", "likelihood": 3, "impact": 3, "treatment": "mitigate"}]
     prompt = (
-        f"You are an enterprise risk manager reviewing assessment responses for '{assessment_title}'.\n\n"
-        f"Assessment responses:\n{responses_text[:3000]}\n\n"
+        f"You are an enterprise risk manager reviewing assessment responses for '{_u(assessment_title)}'.\n\n"
+        f"Assessment responses:\n{_u(responses_text[:3000])}\n\n"
         "Identify up to 5 specific risks indicated by these responses. "
         "For each, provide a risk title, description, category, likelihood (1-5), impact (1-5), and suggested treatment.\n"
         "Return JSON array only:\n"
@@ -217,7 +217,7 @@ def smart_remediation_plan(title: str, description: str, category: str, score: i
         }
     prompt = (
         f"You are a GRC expert creating a remediation plan.\n\n"
-        f"Risk: {title}\nDescription: {description}\nCategory: {category}\nScore: {score}/25\n\n"
+        f"Risk: {_u(title)}\nDescription: {_u(description)}\nCategory: {_u(category)}\nScore: {score}/25\n\n"
         "Create a practical step-by-step remediation plan. Return JSON only:\n"
         '{"summary":"...","steps":[{"step":1,"action":"...","timeline":"...","responsible":"..."}],"cost_tier":"low|medium|high","success_criteria":"..."}'
     )

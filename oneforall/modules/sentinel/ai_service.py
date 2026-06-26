@@ -9,6 +9,7 @@ import json
 import httpx
 
 from config import settings
+from core.ai_client import wrap_user_input as _u
 
 # ── Provider config (read from unified settings) ────────────────────────────
 
@@ -612,12 +613,12 @@ async def ai_research(activity_type: str, regulation: str, context: str = ""):
     )
     user = f"""Conduct a DPIA preliminary research report for the following:
 
-Processing Activity: {activity_type}
+Processing Activity: {_u(activity_type)}
 Regulation: {meta.get('full', regulation)}
 Supervisory Authority: {meta.get('authority', 'N/A')}
 Key Legal Provisions: {meta.get('key_articles', 'N/A')}
 DPIA Triggers: {meta.get('thresholds', 'N/A')}
-{f'Additional Context: {context}' if context else ''}
+{f'Additional Context: {_u(context)}' if context else ''}
 
 Write a structured research report covering:
 1. Nature and scope of this processing activity
@@ -647,16 +648,16 @@ async def ai_generate_full_dpia(dpia: dict):
     scats = ", ".join(dpia.get("special_cats", [])) if isinstance(dpia.get("special_cats"), list) else str(dpia.get("special_cats", "None"))
     user = f"""Generate a complete DPIA under {meta.get('full', regulation)}.
 
-Reference: {dpia.get('ref_number')} | Title: {dpia.get('title')}
-Organisation: {dpia.get('org_name')} | Dept: {dpia.get('department')}
-Controller: {dpia.get('controller_name')} | DPO: {dpia.get('dpo_name')}
-Activity: {dpia.get('activity_type')} | Purpose: {dpia.get('purpose')}
-Legal Basis: {dpia.get('legal_basis')}
-Data: {cats} | Special: {scats}
-Subjects: {dpia.get('data_subjects')} (~{dpia.get('subject_count')})
-Retention: {dpia.get('retention')} | Systems: {dpia.get('systems')}
-Processors: {dpia.get('processors')}
-Transfers: {dpia.get('intl_transfer')} -> {dpia.get('transfer_dest')} via {dpia.get('transfer_mech')}
+Reference: {dpia.get('ref_number')} | Title: {_u(dpia.get('title', ''))}
+Organisation: {_u(dpia.get('org_name', ''))} | Dept: {_u(dpia.get('department', ''))}
+Controller: {_u(dpia.get('controller_name', ''))} | DPO: {_u(dpia.get('dpo_name', ''))}
+Activity: {_u(dpia.get('activity_type', ''))} | Purpose: {_u(dpia.get('purpose', ''))}
+Legal Basis: {_u(dpia.get('legal_basis', ''))}
+Data: {_u(cats)} | Special: {_u(scats)}
+Subjects: {_u(dpia.get('data_subjects', ''))} (~{dpia.get('subject_count')})
+Retention: {_u(dpia.get('retention', ''))} | Systems: {_u(dpia.get('systems', ''))}
+Processors: {_u(dpia.get('processors', ''))}
+Transfers: {dpia.get('intl_transfer')} -> {_u(dpia.get('transfer_dest', ''))} via {_u(dpia.get('transfer_mech', ''))}
 Overall Risk: {dpia.get('overall_risk')} | Residual: {dpia.get('residual_risk')}
 
 Regulation: {meta.get('full', regulation)}
@@ -673,7 +674,7 @@ async def ai_suggest_risks(activity: str, regulation: str, categories: list):
     """Suggest privacy risks as structured JSON."""
     cats = ", ".join(categories) if categories else "general personal data"
     system = "You are a privacy risk expert. Return ONLY valid JSON, no markdown, no explanation."
-    user = f"""For processing activity "{activity}" under {regulation} involving {cats},
+    user = f"""For processing activity {_u(activity)} under {regulation} involving {_u(cats)},
 return a JSON array of 5 risks:
 [{{"desc":"Short risk description","likelihood":"High|Medium|Low","impact":"High|Medium|Low","mitigation":"Mitigation measure"}}]"""
     text, err = await call_ai(system, user, max_tokens=800)
@@ -693,12 +694,12 @@ async def ai_score_ropa(ropa: dict):
         "Return ONLY valid JSON, no markdown."
     )
     user = f"""Assess the privacy risk level for this processing activity:
-Name: {ropa.get('processing_name')}
-Purpose: {ropa.get('purpose')}
-Legal basis: {ropa.get('legal_basis')}
-Data categories: {ropa.get('data_categories', [])}
-Special categories: {ropa.get('special_categories', [])}
-Data subjects: {ropa.get('data_subjects')}
+Name: {_u(ropa.get('processing_name', ''))}
+Purpose: {_u(ropa.get('purpose', ''))}
+Legal basis: {_u(ropa.get('legal_basis', ''))}
+Data categories: {_u(str(ropa.get('data_categories', [])))}
+Special categories: {_u(str(ropa.get('special_categories', [])))}
+Data subjects: {_u(ropa.get('data_subjects', ''))}
 Volume: {ropa.get('subject_count')}
 International transfers: {ropa.get('intl_transfers')}
 Regulation: {ropa.get('regulation', 'GDPR')}
@@ -724,14 +725,14 @@ async def ai_assess_breach(breach: dict):
     )
     user = f"""Assess this data breach under {meta.get('full', regulation)}:
 
-Title: {breach.get('title')}
+Title: {_u(breach.get('title', ''))}
 Discovery date: {breach.get('discovery_date')}
 Incident date: {breach.get('incident_date')}
-Type: {breach.get('breach_type')}
-Description: {breach.get('description')}
-Data types affected: {breach.get('data_types', [])}
+Type: {_u(breach.get('breach_type', ''))}
+Description: {_u(breach.get('description', ''))}
+Data types affected: {_u(str(breach.get('data_types', [])))}
 Estimated affected individuals: {breach.get('affected_count')}
-Severity (self-assessed): {breach.get('severity')}
+Severity (self-assessed): {_u(breach.get('severity', ''))}
 
 Regulatory framework: {meta.get('full', regulation)}
 Authority: {meta.get('authority')}
@@ -759,10 +760,10 @@ async def ai_draft_dsr_response(dsr: dict):
     )
     user = f"""Draft a response letter for this data subject request:
 
-Request type: {dsr.get('request_type')}
-Requester name: {dsr.get('requester_name')}
-Requester email: {dsr.get('requester_email')}
-Description: {dsr.get('description')}
+Request type: {_u(dsr.get('request_type', ''))}
+Requester name: {_u(dsr.get('requester_name', ''))}
+Requester email: {_u(dsr.get('requester_email', ''))}
+Description: {_u(dsr.get('description', ''))}
 Received: {dsr.get('received_date')}
 Deadline: {dsr.get('deadline_date')}
 Regulation: {meta.get('full', regulation)}
@@ -789,13 +790,13 @@ async def ai_generate_privacy_notice(data: dict):
     )
     user = f"""Generate a privacy notice under {meta.get('full', regulation)} for:
 
-Organisation: {data.get('org_name', '[Organisation Name]')}
-DPO: {data.get('dpo_name', '[DPO Name]')} | Email: {data.get('dpo_email', '[DPO Email]')}
-Audience: {data.get('audience', 'Customers and website visitors')}
-Processing activities: {data.get('activities', 'Various data processing activities')}
-Data types: {data.get('data_types', 'Names, contact details, and other personal data')}
-Purposes: {data.get('purposes', 'Service delivery, marketing, and legal compliance')}
-Retention: {data.get('retention', 'As per retention schedule')}
+Organisation: {_u(data.get('org_name', '[Organisation Name]'))}
+DPO: {_u(data.get('dpo_name', '[DPO Name]'))} | Email: {_u(data.get('dpo_email', '[DPO Email]'))}
+Audience: {_u(data.get('audience', 'Customers and website visitors'))}
+Processing activities: {_u(data.get('activities', 'Various data processing activities'))}
+Data types: {_u(data.get('data_types', 'Names, contact details, and other personal data'))}
+Purposes: {_u(data.get('purposes', 'Service delivery, marketing, and legal compliance'))}
+Retention: {_u(data.get('retention', 'As per retention schedule'))}
 
 Requirements under {regulation}:
 - Key articles: {meta.get('key_articles', 'Transparency obligations')}
@@ -825,13 +826,13 @@ async def ai_vendor_check(vendor: dict):
     )
     user = f"""Assess this data processor/vendor for data protection compliance:
 
-Name: {vendor.get('name')}
-Type: {vendor.get('type')}
-Country: {vendor.get('country')}
-Services: {vendor.get('services')}
-Data types processed: {vendor.get('data_types', [])}
-Data subjects: {vendor.get('data_subjects')}
-DPA status: {vendor.get('dpa_status')}
+Name: {_u(vendor.get('name', ''))}
+Type: {_u(vendor.get('type', ''))}
+Country: {_u(vendor.get('country', ''))}
+Services: {_u(vendor.get('services', ''))}
+Data types processed: {_u(str(vendor.get('data_types', [])))}
+Data subjects: {_u(vendor.get('data_subjects', ''))}
+DPA status: {_u(vendor.get('dpa_status', ''))}
 Regulation: {vendor.get('regulation', 'GDPR')}
 
 Provide:
@@ -861,12 +862,12 @@ async def ai_chat(message: str, regulation: str = None, history: list = None):
         "Be concise but thorough. If unsure, say so and recommend seeking formal legal advice."
         + reg_context
     )
-    # Build conversation history
+    # Build conversation history; wrap current user message to prevent injection
     messages = []
     if history:
         for h in history[-6:]:
             messages.append({"role": h["role"], "content": h["content"]})
-    messages.append({"role": "user", "content": message})
+    messages.append({"role": "user", "content": _u(message)})
 
     provider = _provider()
     try:
@@ -899,7 +900,7 @@ async def ai_gap_analysis(regulation_from: str, regulation_to: str, activities: 
 FROM: {meta_from.get('full', regulation_from)}
 TO: {meta_to.get('full', regulation_to)}
 
-Current processing activities: {activities}
+Current processing activities: {_u(activities)}
 
 Identify:
 1. KEY DIFFERENCES — where {regulation_to} differs from {regulation_from}

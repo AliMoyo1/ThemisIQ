@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from core.middleware import require_module, require_capability
+from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
 from core.shell_context import shell_ctx
 from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED
 from core.timeutils import utcnow, to_dt
@@ -456,6 +456,9 @@ async def api_feed(request: Request):
 @router.post("/api/ai/score-risk/{risk_id}")
 @require_capability("erm.ai.use")
 async def api_ai_score_risk(request: Request, risk_id: int):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     r = ds.get_enterprise_risk(risk_id)
     if not r:
         raise HTTPException(404)
@@ -478,6 +481,9 @@ async def api_ai_score_risk(request: Request, risk_id: int):
 @router.post("/api/ai/suggest-treatment")
 @require_capability("erm.ai.use")
 async def api_ai_suggest_treatment(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     body = await _json_body(request)
     result = ai.suggest_treatment(
         body.get("title", ""),
@@ -492,6 +498,9 @@ async def api_ai_suggest_treatment(request: Request):
 @router.post("/api/ai/board-report")
 @require_capability("erm.report.generate")
 async def api_ai_board_report(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     stats = ds.get_dashboard_stats()
     appetite_status = ds.get_appetite_status()
     narrative = ai.generate_board_narrative(stats, appetite_status)
@@ -501,6 +510,9 @@ async def api_ai_board_report(request: Request):
 @router.post("/api/chat")
 @require_capability("erm.ai.use")
 async def api_chat_send(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     body = await _json_body(request)
     message = body.get("message", "").strip()
     if not message:
@@ -674,6 +686,9 @@ async def api_executive_dashboard(request: Request):
 @router.post("/api/assessments/{assessment_id}/suggest-questions")
 @require_capability("erm.ai.use")
 async def api_suggest_questions(request: Request, assessment_id: int):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     body = await _json_body(request)
     assessment = ds.get_assessment(assessment_id)
     if not assessment:
@@ -689,6 +704,9 @@ async def api_suggest_questions(request: Request, assessment_id: int):
 @router.post("/api/assessments/{assessment_id}/identify-risks")
 @require_capability("erm.ai.use")
 async def api_identify_risks(request: Request, assessment_id: int):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     responses = ds.list_responses(assessment_id)
     assessment = ds.get_assessment(assessment_id)
     if not assessment:
@@ -707,6 +725,9 @@ async def api_identify_risks(request: Request, assessment_id: int):
 @router.post("/api/ai/generate-statement")
 @require_capability("erm.ai.use")
 async def api_generate_statement(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     body = await _json_body(request)
     result = ai.generate_risk_statement(
         body.get("category", "operational"), body.get("description", "")
@@ -719,6 +740,9 @@ async def api_generate_statement(request: Request):
 @router.post("/api/ai/remediation-plan/{risk_id}")
 @require_capability("erm.ai.use")
 async def api_remediation_plan(request: Request, risk_id: int):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     risk = ds.get_enterprise_risk(risk_id)
     if not risk:
         raise HTTPException(404, "Risk not found")

@@ -7,7 +7,7 @@ Uses the unified core.ai_client for multi-provider support
 import json
 import logging
 
-from core.ai_client import create_message, is_configured, provider_name, safe_json_parse
+from core.ai_client import create_message, is_configured, provider_name, safe_json_parse, wrap_user_input as _u
 
 log = logging.getLogger(__name__)
 
@@ -17,10 +17,10 @@ def analyze_event(event: dict) -> dict:
         return _stub_analyze(event)
     prompt = (
         f"Operational risk event analysis:\n\n"
-        f"Title: {event.get('title', '')}\n"
-        f"Type: {event.get('event_type', '')}\n"
-        f"Severity: {event.get('severity', '')}\n"
-        f"Description: {event.get('description', '')}\n"
+        f"Title: {_u(event.get('title', ''))}\n"
+        f"Type: {_u(event.get('event_type', ''))}\n"
+        f"Severity: {_u(event.get('severity', ''))}\n"
+        f"Description: {_u(event.get('description', ''))}\n"
         f"Financial Impact: ${event.get('financial_impact', 0):,.0f}\n"
         f"Customers Affected: {event.get('customers_affected', 0)}\n"
         f"Downtime: {event.get('downtime_minutes', 0)} minutes\n\n"

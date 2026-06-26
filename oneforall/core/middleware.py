@@ -234,6 +234,53 @@ def clear_login_attempts(key: str):
         _login_attempts.pop(key, None)
 
 
+# ── AI call rate limiting ─────────────────────────────────────────────────────
+
+_AI_WINDOW_SECONDS = 3600    # 1 hour rolling window
+_AI_MAX_CALLS_PER_HOUR = 60  # per authenticated user
+
+
+def check_ai_rate_limit(user_id: str) -> bool:
+    """Return True if this user is allowed to make an AI call (60/hour)."""
+    key = f"ai:{user_id}"
+    if not _use_db_rate_limit():
+        now = time.time()
+        _login_attempts[key] = [t for t in _login_attempts[key] if now - t < _AI_WINDOW_SECONDS]
+        return len(_login_attempts[key]) < _AI_MAX_CALLS_PER_HOUR
+    try:
+        db = get_db()
+        try:
+            row = db.execute(
+                "SELECT COUNT(*) FROM rate_limit_attempts"
+                " WHERE key=%s AND attempted_at > NOW() - INTERVAL %s",
+                (key, f"{_AI_WINDOW_SECONDS} seconds"),
+            ).fetchone()
+            return (row[0] if row else 0) < _AI_MAX_CALLS_PER_HOUR
+        finally:
+            db.close()
+    except Exception:
+        _rl_log.warning("[ai-rate-limit] DB check failed, failing open")
+        return True
+
+
+def record_ai_call(user_id: str):
+    """Record that an authenticated AI call was made by this user."""
+    key = f"ai:{user_id}"
+    if not _use_db_rate_limit():
+        _login_attempts[key].append(time.time())
+        return
+    try:
+        db = get_db()
+        try:
+            db.execute("INSERT INTO rate_limit_attempts (key) VALUES (%s)", (key,))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        _rl_log.warning("[ai-rate-limit] DB record failed: %s", exc)
+        _login_attempts[key].append(time.time())
+
+
 # ── CSRF Origin Check ────────────────────────────────────────────────────────
 
 def _is_same_origin(request: Request) -> bool:

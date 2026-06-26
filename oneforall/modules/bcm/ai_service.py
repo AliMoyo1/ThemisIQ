@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Any
 
-from core.ai_client import create_message, is_configured, provider_name, safe_json_parse
+from core.ai_client import create_message, is_configured, provider_name, safe_json_parse, wrap_user_input as _u
 
 log = logging.getLogger(__name__)
 
@@ -26,8 +26,8 @@ def review_plan(plan: dict) -> dict:
         "2. Up to 5 strengths\n"
         "3. Up to 5 weaknesses\n"
         "4. Up to 5 recommendations\n\n"
-        f"Plan title: {plan.get('title', 'Untitled')}\n"
-        f"Plan content:\n{plan.get('content', '(empty)')}\n\n"
+        f"Plan title: {_u(plan.get('title', 'Untitled'))}\n"
+        f"Plan content:\n{_u(plan.get('content', '(empty)'))}\n\n"
         "Respond in JSON: {\"score\": int, \"strengths\": [...], "
         "\"weaknesses\": [...], \"recommendations\": [...]}"
     )
@@ -67,10 +67,10 @@ def suggest_incident_actions(incident: dict) -> list[dict]:
         "You are an incident commander. Given this incident, suggest 3-5 "
         "immediate actions. Each action should have: action (str), "
         "priority (high/medium/low), rationale (str).\n\n"
-        f"Incident: {incident.get('title', 'Unknown')}\n"
-        f"Type: {incident.get('type', 'Unknown')}\n"
-        f"Severity: {incident.get('severity', 'Unknown')}\n"
-        f"Description: {incident.get('description', '')}\n\n"
+        f"Incident: {_u(incident.get('title', 'Unknown'))}\n"
+        f"Type: {_u(incident.get('type', 'Unknown'))}\n"
+        f"Severity: {_u(incident.get('severity', 'Unknown'))}\n"
+        f"Description: {_u(incident.get('description', ''))}\n\n"
         "Respond in JSON array: [{\"action\": ..., \"priority\": ..., \"rationale\": ...}]"
     )
     try:
@@ -132,7 +132,7 @@ def rag_ask(question: str) -> tuple[str, list[int]]:
     if not chunks:
         try:
             text = create_message(
-                [{"role": "user", "content": question}],
+                [{"role": "user", "content": _u(question)}],
                 system=(
                     "You are a business continuity management expert. "
                     "The user asked a question but no uploaded documents matched. "
@@ -157,7 +157,7 @@ def rag_ask(question: str) -> tuple[str, list[int]]:
         f"Using the following excerpts from the organisation's BCM documents, "
         f"answer the question below. Cite chunk numbers where relevant.\n\n"
         f"DOCUMENTS:\n{context}\n\n"
-        f"QUESTION: {question}"
+        f"QUESTION: {_u(question)}"
     )
     try:
         text = create_message([{"role": "user", "content": prompt}], max_tokens=1500)
@@ -209,13 +209,13 @@ def _stub_chat(history: list[dict]) -> str:
 def generate_plan(scenario: str, scope: str, industry: str = "", extra_context: str = "") -> str:
     if not is_configured():
         return _stub_generate_plan(scenario, scope, industry)
-    industry_context = f" for a {industry} organisation" if industry else ""
+    industry_context = f" for a {_u(industry)} organisation" if industry else ""
     prompt = (
-        f"Generate a detailed {scenario} business continuity plan{industry_context}.\n\n"
-        f"Scope: {scope}\n"
+        f"Generate a detailed {_u(scenario)} business continuity plan{industry_context}.\n\n"
+        f"Scope: {_u(scope)}\n"
     )
     if extra_context:
-        prompt += f"\nAdditional context: {extra_context}\n"
+        prompt += f"\nAdditional context: {_u(extra_context)}\n"
     prompt += (
         "\nStructure the plan with these sections:\n"
         "1. Purpose & Scope\n2. Roles & Responsibilities\n"

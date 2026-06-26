@@ -14,7 +14,7 @@ import re
 import csv
 from pathlib import Path
 
-from core.ai_client import create_message, is_configured, provider_name, safe_json_parse
+from core.ai_client import create_message, is_configured, provider_name, safe_json_parse, wrap_user_input as _u
 
 
 def _call_ai(messages: list, system: str = "", max_tokens: int = 2000) -> str:
@@ -52,7 +52,7 @@ def parse_checklist_with_ai(raw_text: str, framework_name: str) -> list:
         "role": "user",
         "content": (
             f"Parse this compliance checklist for {framework_name}. "
-            f"Extract all control/evidence items.\n{raw_text[:6000]}\n"
+            f"Extract all control/evidence items.\n{_u(raw_text[:6000])}\n"
             'Return ONLY a JSON array: [{"control_id":"1","name":"Name",'
             '"description":"Desc","risk_level":"High","evidence_required":1,'
             '"evidence_items":["Item"]}]'
@@ -143,7 +143,7 @@ def generate_report_narrative(audit_data: dict) -> dict:
 
 def ask_compliance_ai(question: str, context: dict | None = None) -> str:
     return _call_ai(
-        [{"role": "user", "content": question}],
+        [{"role": "user", "content": _u(question)}],
         system=(
             "You are G.R.I.D AI's compliance assistant. Help with ISO 27001, "
             "SOC 2, GDPR, PCI DSS, HIPAA, Zimbabwe CDPA, ISO 42001. "

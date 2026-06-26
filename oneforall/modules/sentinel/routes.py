@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from config import settings
-from core.middleware import require_module, require_capability
+from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
 from core.shell_context import shell_ctx
 from core.events import (
     emit, SENTINEL_BREACH_CONFIRMED, SENTINEL_BREACH_RESOLVED,
@@ -1334,6 +1334,10 @@ async def api_jurisdiction_stats(request: Request):
 @router.post("/api/ai/research")
 @require_capability("sentinel.ai.assess")
 async def api_ai_research(request: Request):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     body = await _json_body(request)
     activity = body.get("activity_type", "")
     regulation = body.get("regulation", "GDPR")
@@ -1351,6 +1355,10 @@ async def api_ai_research(request: Request):
 @router.post("/api/ai/generate/{dpia_id}")
 @require_capability("sentinel.ai.assess")
 async def api_ai_generate(request: Request, dpia_id: int):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     dpia = ds.get_dpia(dpia_id)
     if not dpia:
         raise HTTPException(404, "DPIA not found")
@@ -1366,6 +1374,10 @@ async def api_ai_generate(request: Request, dpia_id: int):
 @router.post("/api/ai/risks")
 @require_capability("sentinel.ai.assess")
 async def api_ai_risks(request: Request):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     body = await _json_body(request)
     activity = body.get("activity_type", "")
     regulation = body.get("regulation", "GDPR")
@@ -1383,6 +1395,10 @@ async def api_ai_risks(request: Request):
 @router.post("/api/ai/score-ropa/{ropa_id}")
 @require_capability("sentinel.ai.assess")
 async def api_ai_score_ropa(request: Request, ropa_id: int):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     entry = ds.get_ropa(ropa_id)
     if not entry:
         raise HTTPException(404, "RoPA entry not found")
@@ -1404,6 +1420,10 @@ async def api_ai_score_ropa(request: Request, ropa_id: int):
 @router.post("/api/ai/breach-impact/{breach_id}")
 @require_capability("sentinel.ai.assess")
 async def api_ai_breach_impact(request: Request, breach_id: int):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     breach = ds.get_breach(breach_id)
     if not breach:
         raise HTTPException(404, "Breach not found")
@@ -1419,6 +1439,10 @@ async def api_ai_breach_impact(request: Request, breach_id: int):
 @router.post("/api/ai/dsr-draft/{dsr_id}")
 @require_capability("sentinel.ai.assess")
 async def api_ai_dsr_draft(request: Request, dsr_id: int):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     dsr = ds.get_dsr(dsr_id)
     if not dsr:
         raise HTTPException(404, "DSR not found")
@@ -1434,6 +1458,10 @@ async def api_ai_dsr_draft(request: Request, dsr_id: int):
 @router.post("/api/ai/privacy-notice")
 @require_capability("sentinel.ai.assess")
 async def api_ai_privacy_notice(request: Request):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     body = await _json_body(request)
     settings = ds.get_all_settings()
     body.setdefault("org_name", settings.get("org_name", ""))
@@ -1450,6 +1478,10 @@ async def api_ai_privacy_notice(request: Request):
 @router.post("/api/ai/vendor-check/{vendor_id}")
 @require_capability("sentinel.ai.assess")
 async def api_ai_vendor_check(request: Request, vendor_id: int):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     vendor = ds.get_vendor(vendor_id)
     if not vendor:
         raise HTTPException(404, "Vendor not found")
@@ -1465,6 +1497,10 @@ async def api_ai_vendor_check(request: Request, vendor_id: int):
 @router.post("/api/ai/chat")
 @require_capability("sentinel.ai.assess")
 async def api_ai_chat(request: Request):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     body = await _json_body(request)
     message = body.get("message", "")
     regulation = body.get("regulation")
@@ -1482,6 +1518,10 @@ async def api_ai_chat(request: Request):
 @router.post("/api/ai/gap-analysis")
 @require_capability("sentinel.ai.assess")
 async def api_ai_gap_analysis(request: Request):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     body = await _json_body(request)
     reg_from = body.get("regulation_from", "GDPR")
     reg_to = body.get("regulation_to", "South Africa POPIA")
@@ -1498,6 +1538,10 @@ async def api_ai_gap_analysis(request: Request):
 @require_capability("sentinel.ai.assess")
 async def api_ai_generate_policy(request: Request):
     """Draft a data protection policy document using AI."""
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
     body = await _json_body(request)
     policy_type = body.get("policy_type", "Data Protection Policy")
     topic = body.get("topic", "")

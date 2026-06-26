@@ -23,6 +23,7 @@ from database import get_db, insert_returning_id
 from core.middleware import (
     get_current_user, require_auth, require_module,
     require_capability, log_audit,
+    check_ai_rate_limit, record_ai_call,
 )
 from core.rbac import (
     has_capability, has_role, ROLE_LABELS, ALL_ROLES,
@@ -1944,6 +1945,10 @@ async def api_auto_generate_mappings(request: Request):
             return JSONResponse({"ok": False, "error": "Select at least 2 frameworks"}, status_code=400)
         if len(fw_ids) > 6:
             return JSONResponse({"ok": False, "error": "Maximum 6 frameworks per run"}, status_code=400)
+        if use_ai and not check_ai_rate_limit(str(user["id"])):
+            return JSONResponse({"ok": False, "error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+        if use_ai:
+            record_ai_call(str(user["id"]))
 
         from core.auto_mapper import run_auto_mapping
         db = get_db()
@@ -2342,6 +2347,9 @@ async def api_generate_policy(request: Request,
         return JSONResponse({
             "error": "You need Policy Author or Compliance Manager role."
         }, 403)
+    if not check_ai_rate_limit(str(user["id"])):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(user["id"]))
 
     db = get_db()
     try:
@@ -2712,6 +2720,9 @@ async def api_ask(request: Request,
         return JSONResponse({"error": "Empty question"}, 400)
     if len(question) > 2000:
         return JSONResponse({"error": "Question too long"}, 400)
+    if not check_ai_rate_limit(str(user["id"])):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(user["id"]))
 
     from modules.aria.ask_service import ask as ask_policy
     result = await ask_policy(question, user=user,

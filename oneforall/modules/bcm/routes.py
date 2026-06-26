@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from core.middleware import require_module, require_capability
+from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
 from core.shell_context import shell_ctx
 from database import get_db
 from core.events import (
@@ -705,6 +705,9 @@ async def api_incident_plan_link_delete(request: Request, inc_id: int, link_id: 
 @router.post("/api/incidents/{inc_id}/ai-suggest")
 @require_capability("bcm.ai.use")
 async def api_incident_ai_suggest(request: Request, inc_id: int):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     from modules.bcm import ai_service as ai
     inc = ds.get_incident(inc_id)
     if not inc:
@@ -999,6 +1002,9 @@ async def api_document_delete(request: Request, doc_id: int):
 @router.post("/api/documents/ask")
 @require_capability("bcm.ai.use")
 async def api_document_ask(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     from modules.bcm import ai_service as ai
     body = await request.json()
     question = body.get("question", "").strip()
@@ -1124,6 +1130,9 @@ async def api_chat_history(request: Request):
 @router.post("/api/chat")
 @require_capability("bcm.ai.use")
 async def api_chat_send(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     from modules.bcm import ai_service as ai
     body = await request.json()
     message = body.get("message", "").strip()
@@ -1151,6 +1160,9 @@ async def api_chat_clear(request: Request):
 @router.post("/api/ai/generate-plan")
 @require_capability("bcm.ai.use")
 async def api_ai_generate_plan(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
     from modules.bcm import ai_service as ai
     body = await request.json()
     try:
