@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from modules.launcher._route_helpers import (
     require_auth, shell_ctx, shell_templates, get_db,
-)
+    _json_body,)
 
 router = APIRouter()
 
@@ -86,7 +86,7 @@ async def api_person_profile(request: Request, pid: int):
 @router.post("/api/people")
 @require_auth
 async def api_people_create(request: Request):
-    data = await request.json()
+    data = await _json_body(request)
     full_name = (data.get("full_name") or "").strip()
     if not full_name:
         return JSONResponse({"error": "full_name is required"}, status_code=400)
@@ -119,7 +119,7 @@ async def api_people_create(request: Request):
 @router.patch("/api/people/{pid}")
 @require_auth
 async def api_people_update(request: Request, pid: int):
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         existing = db.execute("SELECT id FROM people_directory WHERE id = %s", (pid,)).fetchone()

@@ -9,7 +9,7 @@ from database import insert_returning_id
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, require_capability, has_capability, log_audit,
     shell_ctx, shell_templates, get_db,
-)
+    _json_body,)
 
 router = APIRouter()
 
@@ -51,7 +51,7 @@ async def admin_create_framework(request: Request):
     admin = request.state.user
     if not has_capability(admin, "platform.manage_users"):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
-    body = await request.json()
+    body = await _json_body(request)
     name = (body.get("name") or "").strip()
     description = (body.get("description") or "").strip()
     color = body.get("color", "#1E3A5F")
@@ -239,7 +239,7 @@ async def api_framework_controls(request: Request, fid: int):
 async def api_framework_create_control(request: Request, fid: int):
     """Create a single control."""
     from core.framework_service import create_control
-    data = await request.json()
+    data = await _json_body(request)
     uid = request.state.user["id"]
     control_id = create_control(
         framework_id=fid,
@@ -260,7 +260,7 @@ async def api_framework_create_control(request: Request, fid: int):
 async def api_framework_bulk_controls(request: Request, fid: int):
     """Bulk create controls for a framework."""
     from core.framework_service import bulk_create_controls
-    data = await request.json()
+    data = await _json_body(request)
     uid = request.state.user["id"]
     count = bulk_create_controls(fid, data.get("controls", []), user_id=uid)
     return _JSONResp({"inserted": count})
@@ -279,7 +279,7 @@ async def api_framework_ai_generate_controls(request: Request, fid: int):
         return _JSONResp({"error": "Framework not found"}, 404)
 
     # Don't overwrite existing controls unless forced
-    data = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    data = await _json_body(request) if request.headers.get("content-type") == "application/json" else {}
     force = data.get("force", False)
     count_hint = data.get("count", 15)
 
@@ -329,7 +329,7 @@ async def api_links_get(request: Request):
 async def api_links_create(request: Request):
     """Create a cross-module link."""
     from core.framework_service import create_link
-    data = await request.json()
+    data = await _json_body(request)
     uid = request.state.user["id"]
     link_id = create_link(
         source_module=data.get("source_module", ""),

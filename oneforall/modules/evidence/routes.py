@@ -31,6 +31,15 @@ def _uid(request: Request) -> int:
     return request.state.user["id"]
 
 
+async def _json_body(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except Exception:
+        return {}
+    from core.sanitize import sanitize_dict
+    return sanitize_dict(body)
+
+
 # ── SPA Page ────────────────────────────────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
@@ -106,6 +115,9 @@ async def api_evidence_upload(
     expiry_date: str = Form(""),
 ):
     """Upload a new evidence file."""
+    from core.sanitize import sanitize_str as _s
+    title, description, category, tags = _s(title), _s(description), _s(category), _s(tags)
+    expiry_date = _s(expiry_date)
     if file.size and file.size > MAX_FILE_SIZE:
         raise HTTPException(413, "File too large (max 100MB)")
 
@@ -248,7 +260,7 @@ async def api_evidence_get(request: Request, eid: int):
 @require_auth
 async def api_evidence_update(request: Request, eid: int):
     """Update evidence metadata."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         allowed = ["title", "description", "category", "tags", "status", "expiry_date"]
@@ -594,7 +606,7 @@ async def api_evidence_link_create(request: Request, eid: int):
     evidence is automatically inherited by all mapped controls so a single
     upload satisfies multiple frameworks.
     """
-    data = await request.json()
+    data = await _json_body(request)
     module      = data.get("module", "")
     entity_type = data.get("entity_type", "")
     entity_id   = data.get("entity_id")

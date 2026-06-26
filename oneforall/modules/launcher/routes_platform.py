@@ -15,7 +15,7 @@ from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
     require_capability as _require_cap,
     shell_ctx, shell_templates, settings, get_db,
-)
+    _json_body,)
 
 router = APIRouter()
 
@@ -284,7 +284,7 @@ async def api_calendar_events(request: Request):
 @require_auth
 async def api_calendar_event_create(request: Request):
     """Create a calendar event."""
-    data = await request.json()
+    data = await _json_body(request)
     title = sanitize_short(data.get("title"), 255)
     if not title:
         return _JSONResp({"error": "Title is required."}, 400)
@@ -323,7 +323,7 @@ async def api_calendar_event_create(request: Request):
 @require_auth
 async def api_calendar_event_update(request: Request, eid: int):
     """Update a calendar event."""
-    data = await request.json()
+    data = await _json_body(request)
     uid = request.state.user["id"]
     is_admin = has_capability(request.state.user, "platform.manage_users")
     db = get_db()
@@ -530,7 +530,7 @@ async def api_bulk_import(request: Request, entity_type: str):
     if not has_capability(request.state.user, "platform.manage_users"):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
 
-    data = await request.json()
+    data = await _json_body(request)
     records = data.get("records", [])
     if not records:
         return _JSONResp({"error": "No records provided"}, status_code=400)
@@ -690,7 +690,7 @@ async def api_tasks_list(request: Request):
 @require_auth
 async def api_task_create(request: Request):
     """Create a task."""
-    data = await request.json()
+    data = await _json_body(request)
     title = sanitize_short(data.get("title"), 255)
     if not title:
         return _JSONResp({"error": "Title is required."}, 400)
@@ -734,7 +734,7 @@ async def api_task_create(request: Request):
 @require_auth
 async def api_task_update(request: Request, tid: int):
     """Update a task (including status changes for drag-drop)."""
-    data = await request.json()
+    data = await _json_body(request)
     uid = request.state.user["id"]
     is_admin = has_capability(request.state.user, "platform.manage_users")
     db = get_db()
@@ -775,7 +775,7 @@ async def api_task_update(request: Request, tid: int):
 @require_auth
 async def api_tasks_bulk_update(request: Request):
     """Bulk update multiple tasks at once."""
-    data = await request.json()
+    data = await _json_body(request)
     raw_ids = data.get("ids", [])
     updates = data.get("updates", {})
     if not raw_ids or not updates:
@@ -1550,7 +1550,7 @@ def _themis_cached(question: str) -> str | None:
 @require_auth
 async def api_trainer_ask(request: Request):
     """Platform Trainer: answer questions about how to use the platform."""
-    data = await request.json()
+    data = await _json_body(request)
     raw_question = (data.get("question") or "").strip()
     question = raw_question.lower()
     page = data.get("page", "/")
@@ -1690,7 +1690,7 @@ async def api_reminders_list(request: Request):
 @require_auth
 async def api_reminders_create(request: Request):
     """Create a new email reminder."""
-    data = await request.json()
+    data = await _json_body(request)
     user = request.state.user
 
     title = sanitize_short(data.get("title"), 255)

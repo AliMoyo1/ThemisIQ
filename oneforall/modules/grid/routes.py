@@ -20,6 +20,7 @@ from fastapi.templating import Jinja2Templates
 
 from database import get_db, insert_returning_id
 from core.middleware import require_module, require_capability
+from core.sanitize import sanitize_str as _s
 from core.shell_context import shell_ctx
 from modules.grid import data_service as ds
 from modules.grid import ai_service as ai
@@ -39,9 +40,11 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 async def _json_body(request: Request) -> dict:
     try:
-        return await request.json()
+        body = await request.json()
     except Exception:
         return {}
+    from core.sanitize import sanitize_dict
+    return sanitize_dict(body)
 
 
 def _uid(request: Request) -> int:
@@ -403,6 +406,7 @@ async def api_evidence_upload(request: Request, control_id: int,
                               file: UploadFile = File(...),
                               evidence_item_id: int = Form(None),
                               notes: str = Form(None)):
+    notes = _s(notes)
     # Validate size
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
@@ -462,6 +466,7 @@ async def api_evidence_replace(request: Request, control_id: int, eid: int,
                                 notes: str = Form(None),
                                 expires_at: str = Form(None)):
     """Upload a new version of an existing evidence file."""
+    notes, expires_at = _s(notes), _s(expires_at)
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE // 1024 // 1024}MB)")
@@ -1277,6 +1282,7 @@ async def api_ai_parse_checklist(request: Request,
                                   framework_name: str = Form("ISO 27001"),
                                   skip_ai: str = Form("false")):
     """Upload a checklist file (Excel/CSV) and extract controls with AI risk scoring."""
+    framework_name = _s(framework_name)
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE // 1024 // 1024}MB)")

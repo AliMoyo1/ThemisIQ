@@ -5,6 +5,7 @@ import ipaddress
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Request, Form
+from core.sanitize import sanitize_str as _s
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from database import insert_returning_id
@@ -15,7 +16,7 @@ from modules.launcher._route_helpers import (
     generate_csrf_token, validate_csrf,
     EMPLOYEE, ALL_ROLES, ROLE_LABELS,
     csv, io, json_lib, Response,
-)
+    _json_body,)
 
 router = APIRouter()
 
@@ -79,9 +80,9 @@ async def admin_create_user(request: Request,
     if not validate_csrf(request, csrf_token):
         return _render_admin_users(request, admin,
             {"type": "error", "message": "Invalid request. Please try again."})
-    username = (username or "").strip()
-    email = (email or "").strip().lower()
-    full_name = (full_name or "").strip()
+    username = _s(username or "")
+    email = _s(email or "").lower()
+    full_name = _s(full_name or "")
     if not (username and email and full_name):
         return _render_admin_users(request, admin,
             {"type": "error", "message": "Username, email, and full name are all required."})
@@ -346,7 +347,7 @@ async def api_admin_patch_user(request: Request, uid: int):
     # not a form token — consistent with all other /api/admin/* endpoints.
 
     try:
-        data = await request.json()
+        data = await _json_body(request)
     except Exception:
         return _JSONResp({"success": False, "error": "Invalid JSON body."}, status_code=400)
 
@@ -591,7 +592,7 @@ async def api_keys_list(request: Request):
 @_require_cap("platform.manage_users")
 async def api_key_create(request: Request):
     """Generate a new API key."""
-    data = await request.json()
+    data = await _json_body(request)
 
     # Generate a secure random key
     raw_key = "ofa_" + secrets.token_urlsafe(32)
@@ -690,7 +691,7 @@ async def api_webhooks_list(request: Request):
 @_require_cap("platform.manage_users")
 async def api_webhook_create(request: Request):
     """Create a webhook."""
-    data = await request.json()
+    data = await _json_body(request)
     _validate_webhook_url(data.get("url", ""))
     webhook_secret = secrets.token_urlsafe(24)
 
@@ -728,7 +729,7 @@ def _get_webhook_for_admin(db, wid: int, user: dict):
 @_require_cap("platform.manage_users")
 async def api_webhook_update(request: Request, wid: int):
     """Update a webhook."""
-    data = await request.json()
+    data = await _json_body(request)
     user = request.state.user
     db = get_db()
     try:
@@ -859,7 +860,7 @@ async def api_email_config_save(request: Request):
     """Save email configuration to the settings table."""
     from core.email import encrypt_setting
 
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         def _save(key: str, val: str):
@@ -1017,7 +1018,7 @@ async def api_connectors_get(request: Request):
 @_require_cap("platform.manage_users")
 async def api_connectors_save(request: Request):
     """Save Slack and Teams webhook URLs to the settings table."""
-    data = await request.json()
+    data = await _json_body(request)
 
     slack_url = data.get("slack_webhook_url", "")
     if slack_url and slack_url != "__unchanged__":

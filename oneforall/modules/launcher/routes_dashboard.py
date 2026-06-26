@@ -11,7 +11,7 @@ from database import insert_returning_id, sql_now_offset, sql_now_ts, sql_date_o
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, user_modules, user_capabilities,
     ROLE_LABELS, shell_ctx, templates, shell_templates, get_db,
-)
+    _json_body,)
 
 router = APIRouter()
 
@@ -653,7 +653,7 @@ async def api_my_dashboard_preferences_put(request: Request):
     """
     uid = request.state.user["id"]
     try:
-        body = await request.json()
+        body = await _json_body(request)
     except Exception:
         return _JSONResp({"ok": False, "error": "Invalid JSON body"}, status_code=400)
 

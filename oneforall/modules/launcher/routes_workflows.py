@@ -15,7 +15,7 @@ from database import insert_returning_id, sql_now_offset
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
     shell_ctx, shell_templates, get_db,
-)
+    _json_body,)
 
 router = APIRouter()
 
@@ -213,7 +213,7 @@ async def api_workflow_definitions(request: Request):
 @require_auth
 async def api_workflow_definition_create(request: Request):
     """Create a workflow definition."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         steps = data.get("steps", [])
@@ -241,7 +241,7 @@ async def api_workflow_definition_create(request: Request):
 @require_auth
 async def api_workflow_definition_update(request: Request, wid: int):
     """Update a workflow definition."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         fields = []
@@ -322,7 +322,7 @@ async def api_workflow_instances(request: Request):
 @require_auth
 async def api_workflow_instance_start(request: Request):
     """Start a new workflow instance."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         defn = db.execute("SELECT * FROM workflow_definitions WHERE id = %s AND is_active = 1",
@@ -395,7 +395,7 @@ async def api_workflow_instance_get(request: Request, iid: int):
 @require_auth
 async def api_workflow_action_decide(request: Request, aid: int):
     """Approve or reject a workflow action step."""
-    data = await request.json()
+    data = await _json_body(request)
     decision = data.get("decision", "approve")  # approve | reject | return
     comment = data.get("comment", "")
     db = get_db()
@@ -540,7 +540,7 @@ async def api_sla_definition_create(request: Request):
     """Create an SLA definition."""
     if not has_capability(request.state.user, "platform.manage_users"):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
-    data = await request.json()
+    data = await _json_body(request)
     name = str(data.get("name", "")).strip()
     if not name:
         return _JSONResp({"error": "Name is required"}, status_code=400)
@@ -584,7 +584,7 @@ async def api_sla_definition_update(request: Request, sid: int):
     """Update an SLA definition."""
     if not has_capability(request.state.user, "platform.manage_users"):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         fields, params = [], []
@@ -605,7 +605,7 @@ async def api_sla_definition_update(request: Request, sid: int):
 @require_auth
 async def api_sla_instance_start(request: Request):
     """Start tracking an SLA for a specific entity."""
-    data = await request.json()
+    data = await _json_body(request)
     def_id = data.get("definition_id")
     if not def_id:
         return _JSONResp({"error": "definition_id is required"}, status_code=400)
@@ -867,7 +867,7 @@ async def api_comm_templates_list(request: Request):
 @require_auth
 async def api_comm_template_create(request: Request):
     """Create a communication template."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         tid = insert_returning_id(
@@ -894,7 +894,7 @@ async def api_comm_template_create(request: Request):
 @require_auth
 async def api_comm_template_update(request: Request, tid: int):
     """Update a communication template."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         fields, params = [], []
@@ -935,7 +935,7 @@ async def api_comm_template_delete(request: Request, tid: int):
 @require_auth
 async def api_comm_template_render(request: Request, tid: int):
     """Render a template with provided variables."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         tmpl = db.execute("SELECT * FROM comm_templates WHERE id = %s AND is_active = 1", (tid,)).fetchone()

@@ -6,6 +6,7 @@ import hmac
 import re
 import secrets
 from fastapi import APIRouter, Request, Form
+from core.sanitize import sanitize_str as _s
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from modules.launcher._route_helpers import (
@@ -105,11 +106,12 @@ async def login_submit(request: Request,
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return resp
 
-    user = authenticate_user(username.strip(), password)
+    username = _s(username)
+    user = authenticate_user(username, password)
     if not user:
         record_failed_login(client_ip)
         log_audit(None, "platform", "login_failed",
-                  details=f"username={username.strip()}", ip=client_ip)
+                  details=f"username={username}", ip=client_ip)
         csrf = generate_csrf_token()
         resp = templates.TemplateResponse(request, "login.html",
                                           _login_ctx(csrf, "Invalid username or password."))

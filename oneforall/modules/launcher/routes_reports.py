@@ -10,7 +10,7 @@ from database import insert_returning_id
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
     shell_ctx, shell_templates, get_db,
-)
+    _json_body,)
 
 router = APIRouter()
 
@@ -55,7 +55,7 @@ async def api_report_definitions(request: Request):
 @require_auth
 async def api_report_definition_create(request: Request):
     """Create a report definition."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         rid = insert_returning_id(
@@ -83,7 +83,7 @@ async def api_report_definition_create(request: Request):
 @require_auth
 async def api_report_definition_update(request: Request, rid: int):
     """Update a report definition."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         fields, params = [], []

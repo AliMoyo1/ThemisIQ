@@ -39,9 +39,13 @@ def require_super_admin(func):
     return wrapper
 
 
-def _json_body(request):
-    import asyncio
-    return request.json()
+async def _json_body(request) -> dict:
+    try:
+        body = await _json_body(request)
+    except Exception:
+        return {}
+    from core.sanitize import sanitize_dict
+    return sanitize_dict(body)
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -97,7 +101,7 @@ async def list_orgs(request: Request):
 @router.post("/api/orgs")
 @require_super_admin
 async def create_org(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     name    = (body.get("name") or "").strip()
     plan    = (body.get("plan") or "starter").strip()
     modules = (body.get("modules") or "aria,bcm,erm,grid,orm,sentinel").strip()
@@ -149,7 +153,7 @@ async def create_org(request: Request):
 @router.put("/api/orgs/{org_id}")
 @require_super_admin
 async def update_org(request: Request, org_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     db = get_db()
     try:
         if "status" in body:
@@ -265,7 +269,7 @@ async def list_org_users(request: Request, org_id: int):
 @router.post("/api/orgs/{org_id}/users")
 @require_super_admin
 async def create_org_user(request: Request, org_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     username  = (body.get("username") or "").strip()
     email     = (body.get("email") or "").strip()
     full_name = (body.get("full_name") or "").strip()

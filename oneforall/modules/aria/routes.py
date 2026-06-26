@@ -31,6 +31,7 @@ from core.rbac import (
 )
 
 from core.shell_context import shell_ctx
+from core.sanitize import sanitize_str as _s
 from core.events import (
     emit, ARIA_POLICY_PUBLISHED, ARIA_POLICY_UPDATED,
     ARIA_RISK_CREATED, ARIA_RISK_ESCALATED, ARIA_CONTROL_UPDATED,
@@ -444,6 +445,12 @@ async def update_control(request: Request, ctrl_id: int,
                          version: str = Form(None),
                          evidence_ref: str = Form(None)):
     user = request.state.user
+    status, priority, owner, target_date, review_date = (
+        _s(status), _s(priority), _s(owner), _s(target_date), _s(review_date)
+    )
+    notes, document_title, version, evidence_ref = (
+        _s(notes), _s(document_title), _s(version), _s(evidence_ref)
+    )
     db = get_db()
     try:
         old = db.execute(
@@ -816,6 +823,13 @@ async def add_document(request: Request,
                        location: str = Form(""),
                        comments: str = Form("")):
     user = request.state.user
+    framework, control_ref, title, doc_type, version = (
+        _s(framework), _s(control_ref), _s(title), _s(doc_type), _s(version)
+    )
+    status, owner, approver, location, comments = (
+        _s(status), _s(owner), _s(approver), _s(location), _s(comments)
+    )
+    effective_date, review_date = _s(effective_date), _s(review_date)
     if not has_capability(user, "aria.policy.create"):
         return JSONResponse(
             {"error": "You need policy author or compliance manager role."},
@@ -912,6 +926,13 @@ async def upload_new_document(
 ):
     """Create a new document record from an uploaded file plus metadata."""
     user = request.state.user
+    framework, control_ref, title, doc_type, version = (
+        _s(framework), _s(control_ref), _s(title), _s(doc_type), _s(version)
+    )
+    status, owner, approver, location, comments = (
+        _s(status), _s(owner), _s(approver), _s(location), _s(comments)
+    )
+    effective_date, review_date = _s(effective_date), _s(review_date)
     if not has_capability(user, "aria.policy.create"):
         return JSONResponse(
             {"error": "You need policy author or compliance manager role."}, 403
@@ -1001,6 +1022,12 @@ async def update_document(request: Request, doc_id: str,
                           comments: str = Form(None),
                           control_ref: str = Form(None)):
     user = request.state.user
+    title, status, version, owner, approver = (
+        _s(title), _s(status), _s(version), _s(owner), _s(approver)
+    )
+    effective_date, review_date, location, comments, control_ref = (
+        _s(effective_date), _s(review_date), _s(location), _s(comments), _s(control_ref)
+    )
     db = get_db()
     try:
         existing = db.execute(
@@ -1309,6 +1336,7 @@ async def upload_document_revision(request: Request, doc_id: str,
                                     notes: str = Form("")):
     """Upload a revised/edited document file to replace the AI-generated draft."""
     user = request.state.user
+    notes = _s(notes)
     if not has_capability(user, "aria.policy.edit_own") and not has_capability(user, "aria.policy.edit_any"):
         return JSONResponse({"error": "Permission denied"}, 403)
 
@@ -1515,6 +1543,7 @@ async def api_templates_upload(request: Request,
                                 is_default: str = Form("0")):
     """Upload a new branding template (.docx)."""
     user = request.state.user
+    name, description, doc_type = _s(name), _s(description), _s(doc_type)
     content = await file.read()
     if len(content) > ARIA_MAX_FILE:
         return JSONResponse({"error": "File too large"}, 413)
@@ -1692,6 +1721,9 @@ async def add_risk(request: Request,
                    owner: str = Form(""),
                    mitigation: str = Form("")):
     user = request.state.user
+    framework, control_ref, description, category, owner, mitigation = (
+        _s(framework), _s(control_ref), _s(description), _s(category), _s(owner), _s(mitigation)
+    )
     if not has_capability(user, "aria.risk.add"):
         return JSONResponse(
             {"error": "You do not have permission to add risks."}, 403
@@ -1742,6 +1774,7 @@ async def update_risk(request: Request, risk_id: int,
                       likelihood: int = Form(None),
                       impact: int = Form(None)):
     user = request.state.user
+    status, owner, mitigation = _s(status), _s(owner), _s(mitigation)
     if not has_capability(user, "aria.risk.add"):
         return JSONResponse({"error": "Insufficient permission."}, 403)
     db = get_db()
@@ -1869,7 +1902,11 @@ async def api_framework_controls(request: Request, fw_id: int):
 async def api_create_control_mapping(request: Request):
     """Create a new cross-framework control mapping."""
     user = request.state.user
-    body = await request.json()
+    from core.sanitize import sanitize_dict as _sd
+    try:
+        body = _sd(await request.json())
+    except Exception:
+        body = {}
     source_ctrl_id = body.get("source_control_id")
     target_ctrl_id = body.get("target_control_id")
     mapping_type   = body.get("mapping_type", "equivalent")
@@ -1935,7 +1972,8 @@ async def api_auto_generate_mappings(request: Request):
     try:
         user = request.state.user
         try:
-            body = await request.json()
+            from core.sanitize import sanitize_dict as _sd
+            body = _sd(await request.json())
         except Exception:
             return JSONResponse({"ok": False, "error": "Invalid request body"}, status_code=400)
         fw_ids = body.get("framework_ids", [])
@@ -2343,6 +2381,9 @@ async def api_generate_policy(request: Request,
     primary control AND all mapped controls from the specified additional framework(s).
     """
     user = request.state.user
+    org_name, doc_type_override, integrated_framework_id = (
+        _s(org_name), _s(doc_type_override), _s(integrated_framework_id)
+    )
     if not has_capability(user, "aria.policy.generate_ai"):
         return JSONResponse({
             "error": "You need Policy Author or Compliance Manager role."
@@ -2507,6 +2548,7 @@ async def api_gap_analysis(request: Request,
 @require_module("aria")
 async def export_word(request: Request, control_id: str = Form(""), content: str = Form(...), org_name: str = Form("Your Organisation")):
     """Convert AI-generated policy markdown to a .docx download."""
+    control_id, org_name = _s(control_id), _s(org_name)
     from docx import Document
     from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -2715,7 +2757,8 @@ async def api_ask(request: Request,
                   question: str = Form(...),
                   framework_filter: str = Form("")):
     user = request.state.user
-    question = (question or "").strip()
+    question, framework_filter = _s(question), _s(framework_filter)
+    question = question or ""
     if not question:
         return JSONResponse({"error": "Empty question"}, 400)
     if len(question) > 2000:

@@ -164,3 +164,13 @@ def _hash_api_key(key: str) -> str:
     import os
     salt = os.environ.get("SECRET_KEY", "fallback-hmac-key").encode()
     return hashlib.pbkdf2_hmac("sha256", key.encode(), salt, 100_000).hex()
+
+
+async def _json_body(request: Request) -> dict:
+    """Parse JSON request body and sanitize all string values."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {}
+    from core.sanitize import sanitize_dict
+    return sanitize_dict(body)

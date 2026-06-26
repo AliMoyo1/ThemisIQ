@@ -26,9 +26,11 @@ def _uname(request: Request) -> str:
 
 async def _json_body(request: Request) -> dict:
     try:
-        return await request.json()
+        body = await request.json()
     except Exception:
         return {}
+    from core.sanitize import sanitize_dict
+    return sanitize_dict(body)
 
 
 # ── SPA ───────────────────────────────────────────────────────────────────────

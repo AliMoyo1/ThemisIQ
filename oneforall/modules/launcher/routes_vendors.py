@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from modules.launcher._route_helpers import (
     require_auth, shell_ctx, shell_templates, get_db,
-)
+    _json_body,)
 from core.vendor_link import get_vendor_directory, get_cross_module_profile
 
 router = APIRouter()
@@ -49,7 +49,7 @@ async def api_vendor_profile(request: Request, canonical_id: int):
 @require_auth
 async def api_vendor_directory_create(request: Request):
     """Create a canonical vendor record (without attaching it to a specific module)."""
-    body = await request.json()
+    body = await _json_body(request)
     name = (body.get("name") or "").strip()
     if not name:
         return JSONResponse({"error": "name required"}, status_code=400)

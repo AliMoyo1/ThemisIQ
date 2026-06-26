@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from database import insert_returning_id
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, shell_ctx, shell_templates, get_db,
-)
+    _json_body,)
 
 router = APIRouter()
 
@@ -118,7 +118,7 @@ async def api_risks_list(request: Request):
 @require_auth
 async def api_risk_create(request: Request):
     """Create a new risk entry."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         likelihood = int(data.get("likelihood", 3))
@@ -219,7 +219,7 @@ async def api_risk_get(request: Request, rid: int):
 @require_auth
 async def api_risk_update(request: Request, rid: int):
     """Update a risk entry."""
-    data = await request.json()
+    data = await _json_body(request)
     db = get_db()
     try:
         allowed = ["title", "description", "category", "likelihood", "impact",

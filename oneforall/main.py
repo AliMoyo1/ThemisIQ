@@ -282,14 +282,15 @@ async def demo_request_preflight():
 @app.post("/api/demo-request")
 async def demo_request(request: Request):
     try:
-        body = await request.json()
+        from core.sanitize import sanitize_dict
+        body = sanitize_dict(await request.json())
     except Exception:
         return JSONResponse({"ok": False, "error": "Invalid request."}, status_code=400, headers=_DEMO_CORS)
 
-    name    = (body.get("name") or "").strip()
-    email   = (body.get("email") or "").strip()
-    company = (body.get("company") or "").strip()
-    plan    = (body.get("plan") or "").strip()
+    name    = body.get("name") or ""
+    email   = body.get("email") or ""
+    company = body.get("company") or ""
+    plan    = body.get("plan") or ""
 
     if not name or not email or "@" not in email:
         return JSONResponse({"ok": False, "error": "Name and valid email are required."}, status_code=422, headers=_DEMO_CORS)

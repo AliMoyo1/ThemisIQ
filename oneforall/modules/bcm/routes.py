@@ -28,6 +28,15 @@ def _uname(request: Request) -> str:
     return request.state.user.get("full_name", "Unknown")
 
 
+async def _json_body(request: Request) -> dict:
+    try:
+        body = await _json_body(request)
+    except Exception:
+        return {}
+    from core.sanitize import sanitize_dict
+    return sanitize_dict(body)
+
+
 @router.get("/", response_class=HTMLResponse)
 @require_module("bcm")
 async def bcm_spa(request: Request):
@@ -79,7 +88,7 @@ async def api_bia_detail(request: Request, bia_id: int):
 @router.post("/api/bia")
 @require_capability("bcm.bia.manage")
 async def api_bia_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     bid = ds.create_bia(body)
     if body.get("plan_ids"):
         for pid in body["plan_ids"]:
@@ -90,7 +99,7 @@ async def api_bia_create(request: Request):
 @router.put("/api/bia/{bia_id}")
 @require_capability("bcm.bia.manage")
 async def api_bia_update(request: Request, bia_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_bia(bia_id, body)
     if "plan_ids" in body:
         existing = {l["plan_id"] for l in ds.list_bia_plan_links(bia_id=bia_id)}
@@ -141,7 +150,7 @@ async def api_comms_detail(request: Request, tid: int):
 @router.post("/api/comms")
 @require_capability("bcm.plan.manage")
 async def api_comms_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     body["created_by"] = _uname(request)
     tid = ds.create_comm_template(body)
     return JSONResponse({"id": tid}, status_code=201)
@@ -150,7 +159,7 @@ async def api_comms_create(request: Request):
 @router.put("/api/comms/{tid}")
 @require_capability("bcm.plan.manage")
 async def api_comms_update(request: Request, tid: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_comm_template(tid, body)
     return JSONResponse({"ok": True})
 
@@ -188,7 +197,7 @@ async def api_contacts_detail(request: Request, nid: int):
 @router.post("/api/contacts")
 @require_capability("bcm.plan.manage")
 async def api_contacts_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     nid = ds.create_contact_node(body)
     return JSONResponse({"id": nid}, status_code=201)
 
@@ -196,7 +205,7 @@ async def api_contacts_create(request: Request):
 @router.put("/api/contacts/{nid}")
 @require_capability("bcm.plan.manage")
 async def api_contacts_update(request: Request, nid: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_contact_node(nid, body)
     return JSONResponse({"ok": True})
 
@@ -229,7 +238,7 @@ async def api_scenarios_detail(request: Request, sid: int):
 @router.post("/api/scenarios")
 @require_capability("bcm.exercise.manage")
 async def api_scenarios_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     sid = ds.create_scenario(body)
     return JSONResponse({"id": sid}, status_code=201)
 
@@ -248,7 +257,7 @@ async def api_scenarios_use(request: Request, sid: int):
     scenario = ds.get_scenario(sid)
     if not scenario:
         raise HTTPException(404)
-    body = await request.json()
+    body = await _json_body(request)
     exercise_data = {
         "title": body.get("title") or scenario["title"] + " Exercise",
         "type": "Tabletop",
@@ -282,7 +291,7 @@ async def api_risk_detail(request: Request, risk_id: int):
 @router.post("/api/risks")
 @require_capability("bcm.risk.manage")
 async def api_risk_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     rid = ds.create_risk(body)
 
     # Emit risk escalated if severity is high/critical
@@ -307,7 +316,7 @@ async def api_risk_create(request: Request):
 @router.put("/api/risks/{risk_id}")
 @require_capability("bcm.risk.manage")
 async def api_risk_update(request: Request, risk_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_risk(risk_id, body)
     return JSONResponse({"ok": True})
 
@@ -361,7 +370,7 @@ async def api_plan_detail(request: Request, plan_id: int):
 @router.post("/api/plans")
 @require_capability("bcm.plan.manage")
 async def api_plan_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     pid = ds.create_plan(body)
     if body.get("bia_ids"):
         for bid in body["bia_ids"]:
@@ -372,7 +381,7 @@ async def api_plan_create(request: Request):
 @router.put("/api/plans/{plan_id}")
 @require_capability("bcm.plan.manage")
 async def api_plan_update(request: Request, plan_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_plan(plan_id, body)
 
     # Emit plan approved event when status changes to approved
@@ -413,7 +422,7 @@ async def api_plan_activate(request: Request, plan_id: int):
     plan = ds.get_plan(plan_id)
     if not plan:
         raise HTTPException(404, "Plan not found")
-    body = await request.json()
+    body = await _json_body(request)
     reason = body.get("reason", "")
     incident_id = body.get("incident_id")
 
@@ -450,7 +459,7 @@ async def api_plan_deactivate(request: Request, plan_id: int):
         raise HTTPException(404, "Plan not found")
     if not plan.get("is_active_plan"):
         raise HTTPException(400, "Plan is not currently active")
-    body = await request.json()
+    body = await _json_body(request)
     reason = body.get("reason", "")
 
     ds.deactivate_plan(
@@ -541,7 +550,7 @@ async def api_incident_detail(request: Request, inc_id: int):
 @router.post("/api/incidents")
 @require_capability("bcm.incident.manage")
 async def api_incident_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     iid = ds.create_incident(body)
 
     # Emit incident declared event
@@ -564,7 +573,7 @@ async def api_incident_create(request: Request):
 @router.put("/api/incidents/{inc_id}")
 @require_capability("bcm.incident.manage")
 async def api_incident_update(request: Request, inc_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_incident(inc_id, body)
 
     # Emit incident resolved event when status changes to resolved
@@ -602,7 +611,7 @@ async def api_incident_updates(request: Request, inc_id: int):
 @router.post("/api/incidents/{inc_id}/updates")
 @require_capability("bcm.incident.manage")
 async def api_incident_update_create(request: Request, inc_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     uid = ds.create_incident_update(inc_id, _uname(request), body.get("note", ""))
     return JSONResponse({"id": uid}, status_code=201)
 
@@ -616,7 +625,7 @@ async def api_incident_actions_list(request: Request, inc_id: int):
 @router.post("/api/incidents/{inc_id}/actions")
 @require_capability("bcm.incident.manage")
 async def api_incident_action_create(request: Request, inc_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     body["created_by"] = _uname(request)
     aid = ds.create_incident_action(inc_id, body)
     return JSONResponse({"id": aid}, status_code=201)
@@ -625,7 +634,7 @@ async def api_incident_action_create(request: Request, inc_id: int):
 @router.put("/api/incidents/{inc_id}/actions/{action_id}")
 @require_capability("bcm.incident.manage")
 async def api_incident_action_update(request: Request, inc_id: int, action_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_incident_action(action_id, body)
     return JSONResponse({"ok": True})
 
@@ -646,7 +655,7 @@ async def api_incident_decisions_list(request: Request, inc_id: int):
 @router.post("/api/incidents/{inc_id}/decisions")
 @require_capability("bcm.incident.manage")
 async def api_incident_decision_create(request: Request, inc_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     body["decided_by"] = body.get("decided_by", _uname(request))
     did = ds.create_incident_decision(inc_id, body)
     return JSONResponse({"id": did}, status_code=201)
@@ -661,7 +670,7 @@ async def api_incident_stakeholders_list(request: Request, inc_id: int):
 @router.post("/api/incidents/{inc_id}/stakeholders")
 @require_capability("bcm.incident.manage")
 async def api_incident_stakeholder_create(request: Request, inc_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     sid = ds.create_incident_stakeholder(inc_id, body)
     return JSONResponse({"id": sid}, status_code=201)
 
@@ -669,7 +678,7 @@ async def api_incident_stakeholder_create(request: Request, inc_id: int):
 @router.put("/api/incidents/{inc_id}/stakeholders/{sh_id}")
 @require_capability("bcm.incident.manage")
 async def api_incident_stakeholder_update(request: Request, inc_id: int, sh_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_incident_stakeholder(sh_id, body)
     return JSONResponse({"ok": True})
 
@@ -690,7 +699,7 @@ async def api_incident_plan_links(request: Request, inc_id: int):
 @router.post("/api/incidents/{inc_id}/plan-links")
 @require_capability("bcm.incident.manage")
 async def api_incident_plan_link_create(request: Request, inc_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     lid = ds.link_incident_plan(inc_id, body.get("plan_id"), _uname(request))
     return JSONResponse({"id": lid}, status_code=201)
 
@@ -739,7 +748,7 @@ async def api_exercise_detail(request: Request, ex_id: int):
 @router.post("/api/exercises")
 @require_capability("bcm.exercise.manage")
 async def api_exercise_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     eid = ds.create_exercise(body)
     return JSONResponse({"id": eid}, status_code=201)
 
@@ -747,7 +756,7 @@ async def api_exercise_create(request: Request):
 @router.put("/api/exercises/{ex_id}")
 @require_capability("bcm.exercise.manage")
 async def api_exercise_update(request: Request, ex_id: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_exercise(ex_id, body)
     return JSONResponse({"ok": True})
 
@@ -778,7 +787,7 @@ async def api_vendor_detail(request: Request, vid: int):
 @router.post("/api/vendors")
 @require_capability("bcm.vendor.manage")
 async def api_vendor_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     vid = ds.create_vendor(body)
     vendor = ds.get_vendor(vid)
     emit("vendor.created", source_module="bcm", entity_type="vendor", entity_id=vid,
@@ -791,7 +800,7 @@ async def api_vendor_create(request: Request):
 @router.put("/api/vendors/{vid}")
 @require_capability("bcm.vendor.manage")
 async def api_vendor_update(request: Request, vid: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_vendor(vid, body)
     return JSONResponse({"ok": True})
 
@@ -820,7 +829,7 @@ async def api_vendor_cross_module(request: Request, vid: int):
 @router.post("/api/vendors/{vid}/assessments")
 @require_capability("bcm.vendor.manage")
 async def api_vendor_assessment_create(request: Request, vid: int):
-    body = await request.json()
+    body = await _json_body(request)
     aid = ds.create_vendor_assessment(vid, body)
     return JSONResponse({"id": aid}, status_code=201)
 
@@ -845,7 +854,7 @@ async def api_compliance_detail(request: Request, cid: int):
 @router.post("/api/compliance")
 @require_capability("bcm.compliance.manage")
 async def api_compliance_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     cid = ds.create_compliance_control(body)
     return JSONResponse({"id": cid}, status_code=201)
 
@@ -853,7 +862,7 @@ async def api_compliance_create(request: Request):
 @router.put("/api/compliance/{cid}")
 @require_capability("bcm.compliance.manage")
 async def api_compliance_update(request: Request, cid: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_compliance_control(cid, body)
     return JSONResponse({"ok": True})
 
@@ -868,7 +877,7 @@ async def api_compliance_delete(request: Request, cid: int):
 @router.post("/api/compliance/{cid}/evidence")
 @require_capability("bcm.compliance.manage")
 async def api_compliance_evidence_create(request: Request, cid: int):
-    body = await request.json()
+    body = await _json_body(request)
     body["uploaded_by"] = _uname(request)
     eid = ds.create_compliance_evidence(cid, body)
     # Mirror to central Evidence Vault so BCM evidence is visible cross-module
@@ -911,7 +920,7 @@ async def api_training_detail(request: Request, mid: int):
 @router.post("/api/training")
 @require_capability("bcm.training.manage")
 async def api_training_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     mid = ds.create_training_module(body)
     return JSONResponse({"id": mid}, status_code=201)
 
@@ -919,7 +928,7 @@ async def api_training_create(request: Request):
 @router.put("/api/training/{mid}")
 @require_capability("bcm.training.manage")
 async def api_training_update(request: Request, mid: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_training_module(mid, body)
     return JSONResponse({"ok": True})
 
@@ -934,7 +943,7 @@ async def api_training_delete(request: Request, mid: int):
 @router.post("/api/training/{mid}/attest")
 @require_capability("module.bcm.access")
 async def api_training_attest(request: Request, mid: int):
-    body = await request.json()
+    body = await _json_body(request)
     user = request.state.user
     data = {
         "module_id": mid,
@@ -970,7 +979,7 @@ async def api_document_detail(request: Request, doc_id: int):
 @router.post("/api/documents")
 @require_capability("bcm.document.manage")
 async def api_document_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     body["uploaded_by"] = _uname(request)
     did = ds.create_document(body)
     if body.get("content"):
@@ -1006,7 +1015,7 @@ async def api_document_ask(request: Request):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
     from modules.bcm import ai_service as ai
-    body = await request.json()
+    body = await _json_body(request)
     question = body.get("question", "").strip()
     if not question:
         raise HTTPException(400, "Question required")
@@ -1043,7 +1052,7 @@ async def api_dependency_node_detail(request: Request, nid: int):
 @router.post("/api/dependencies/nodes")
 @require_capability("bcm.dependency.manage")
 async def api_dependency_node_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     nid = ds.create_dependency_node(body)
     return JSONResponse({"id": nid}, status_code=201)
 
@@ -1051,7 +1060,7 @@ async def api_dependency_node_create(request: Request):
 @router.put("/api/dependencies/nodes/{nid}")
 @require_capability("bcm.dependency.manage")
 async def api_dependency_node_update(request: Request, nid: int):
-    body = await request.json()
+    body = await _json_body(request)
     ds.update_dependency_node(nid, body)
     return JSONResponse({"ok": True})
 
@@ -1073,7 +1082,7 @@ async def api_dependency_edges_list(request: Request):
 @router.post("/api/dependencies/edges")
 @require_capability("bcm.dependency.manage")
 async def api_dependency_edge_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     eid = ds.create_dependency_edge(body)
     return JSONResponse({"id": eid}, status_code=201)
 
@@ -1106,7 +1115,7 @@ async def api_coverage(request: Request):
 @router.post("/api/coverage/links")
 @require_capability("bcm.bia.manage")
 async def api_coverage_link_create(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     body["created_by"] = _uname(request)
     lid = ds.create_bia_plan_link(body)
     return JSONResponse({"id": lid}, status_code=201)
@@ -1134,7 +1143,7 @@ async def api_chat_send(request: Request):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
     from modules.bcm import ai_service as ai
-    body = await request.json()
+    body = await _json_body(request)
     message = body.get("message", "").strip()
     if not message:
         raise HTTPException(400, "Message required")
@@ -1164,7 +1173,7 @@ async def api_ai_generate_plan(request: Request):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
     from modules.bcm import ai_service as ai
-    body = await request.json()
+    body = await _json_body(request)
     try:
         content = ai.generate_plan(
             scenario=body.get("scenario", "Business Continuity"),
@@ -1180,7 +1189,7 @@ async def api_ai_generate_plan(request: Request):
 @router.post("/api/ai/generate-plan/save")
 @require_capability("bcm.plan.manage")
 async def api_ai_save_generated_plan(request: Request):
-    body = await request.json()
+    body = await _json_body(request)
     pid = ds.create_plan({
         "title": body.get("title", "AI-Generated Plan"),
         "scope": body.get("scope"),

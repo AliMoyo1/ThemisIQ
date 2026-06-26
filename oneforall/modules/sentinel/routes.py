@@ -37,9 +37,11 @@ _templates = Jinja2Templates(directory=[_tpl_dir, "templates"])
 
 async def _json_body(request: Request) -> dict:
     try:
-        return await request.json()
+        body = await request.json()
     except Exception:
         return {}
+    from core.sanitize import sanitize_dict
+    return sanitize_dict(body)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
