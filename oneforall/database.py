@@ -3267,6 +3267,8 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_vendors", "regulation", "TEXT DEFAULT 'GDPR'"),
         # ── Webhook org isolation ──────────────────────────────────────────────
         ("webhooks", "org_id", "INTEGER REFERENCES organizations(id)"),
+        # ── ERM appetite breach deduplication ──────────────────────────────────
+        ("erm_risk_appetite", "last_breach_notified_at", "TEXT"),
 ]
 
 

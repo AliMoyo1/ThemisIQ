@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from core.middleware import require_module, require_capability
 from core.shell_context import shell_ctx
 from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED
+from core.timeutils import utcnow, to_dt
 from modules.erm import data_service as ds
 from modules.erm import ai_service as ai
 
@@ -205,21 +206,28 @@ async def api_appetite_delete(request: Request, appetite_id: int):
 @require_capability("module.erm.access")
 async def api_appetite_status(request: Request):
     statuses = ds.get_appetite_status()
-    # Emit breach events for any newly-breached appetite categories
+    now = utcnow()
     for a in statuses:
         if a.get("breached"):
-            emit(
-                ERM_APPETITE_BREACHED,
-                source_module="erm",
-                entity_type="appetite",
-                entity_id=a.get("id", 0),
-                payload={
-                    "category": a.get("category", ""),
-                    "max_score": a.get("max_score", 0),
-                    "current_score": a.get("current_max_score", 0),
-                },
-                user_id=None,
-            )
+            last = a.get("last_breach_notified_at")
+            last_dt = to_dt(last) if last else None
+            already_notified = last_dt and (now - last_dt).total_seconds() < 86400
+            if not already_notified:
+                emit(
+                    ERM_APPETITE_BREACHED,
+                    source_module="erm",
+                    entity_type="appetite",
+                    entity_id=a.get("id", 0),
+                    payload={
+                        "category": a.get("category", ""),
+                        "max_score": a.get("max_score", 0),
+                        "current_score": a.get("current_max_score", 0),
+                    },
+                    user_id=None,
+                )
+                ds.mark_appetite_notified(a["id"], True)
+        elif a.get("last_breach_notified_at"):
+            ds.mark_appetite_notified(a["id"], False)
     return JSONResponse(statuses)
 
 

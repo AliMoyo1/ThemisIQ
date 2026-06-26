@@ -249,6 +249,24 @@ def get_appetite_status():
         db.close()
 
 
+def mark_appetite_notified(appetite_id, is_breached: bool):
+    """Set or clear last_breach_notified_at for a risk appetite row.
+
+    Call with is_breached=True after emitting a breach event.
+    Call with is_breached=False when the breach clears, so the next breach fires again.
+    """
+    db = get_db()
+    try:
+        value = _now() if is_breached else None
+        db.execute(
+            "UPDATE erm_risk_appetite SET last_breach_notified_at=%s WHERE id=%s",
+            (value, appetite_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # RISK LIBRARY
 # ═════════════════════════════════════════════════════════════════════════════
