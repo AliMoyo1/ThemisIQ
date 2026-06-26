@@ -55,6 +55,7 @@
           <tr><td colspan="6" style="padding:40px; text-align:center; color:var(--muted);">Loading...</td></tr>
         </tbody>
       </table>
+      <div id="riskPager" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border-soft);font-size:12px;color:var(--muted);"></div>
     </div>
   </div>
 </div>
@@ -158,18 +159,25 @@ function renderHeatMap(data) {
   grid.innerHTML = html;
 }
 
-async function loadRisks() {
+let _riskPage = 1;
+
+async function loadRisks(page) {
+  _riskPage = (page !== undefined) ? page : 1;
   const module = document.getElementById('filterModule').value;
   const status = document.getElementById('filterStatus').value;
   const params = new URLSearchParams();
   if (module) params.set('module', module);
   if (status) params.set('status', status);
+  params.set('page', _riskPage);
+  params.set('per_page', '50');
   const resp = await fetch('/api/risks?' + params.toString());
-  const risks = await resp.json();
+  const data = await resp.json();
+  const risks = data.items || [];
 
   const tbody = document.getElementById('riskBody');
   if (!risks.length) {
     tbody.innerHTML = '<tr><td colspan="6" style="padding:40px;text-align:center;color:var(--muted);">No risks found</td></tr>';
+    document.getElementById('riskPager').innerHTML = '';
     return;
   }
 
@@ -183,6 +191,13 @@ async function loadRisks() {
       <td style="padding:10px 14px;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:var(--surface3);color:var(--muted);">${esc(r.status)}</span></td>
     </tr>
   `).join('');
+
+  const pager = document.getElementById('riskPager');
+  if (data.pages <= 1) { pager.innerHTML = ''; return; }
+  const btnStyle = 'padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:12px;';
+  const prevDisabled = _riskPage <= 1 ? 'disabled style="opacity:0.4;cursor:default;' + btnStyle.slice(8) : 'onclick="loadRisks(' + (_riskPage-1) + ')" style="' + btnStyle + '"';
+  const nextDisabled = _riskPage >= data.pages ? 'disabled style="opacity:0.4;cursor:default;' + btnStyle.slice(8) : 'onclick="loadRisks(' + (_riskPage+1) + ')" style="' + btnStyle + '"';
+  pager.innerHTML = `<button ${prevDisabled}>Previous</button><span>Page ${data.page} of ${data.pages} &mdash; ${data.total} risks</span><button ${nextDisabled}>Next</button>`;
 }
 
 function openNewRisk() { document.getElementById('newRiskModal').classList.add('open'); }

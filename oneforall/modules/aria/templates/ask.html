@@ -253,7 +253,7 @@
       {% if recent %}
         {% set ns = namespace(last_date='') %}
         {% for h in recent %}
-          {% set d = h.created_at[:10] %}
+          {% set d = h.created_at | format_dt %}
           {% if d != ns.last_date %}
             {% set ns.last_date = d %}
             <div class="side-date-group">{{ d }}</div>

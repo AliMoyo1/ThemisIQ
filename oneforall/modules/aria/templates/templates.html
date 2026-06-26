@@ -48,7 +48,7 @@
         {% endif %}
         <div style="font-size:11px;color:var(--muted);margin-top:8px">
           Uploaded by {{ tpl.created_by_name or 'Unknown' }}
-          {% if tpl.created_at %} · {{ tpl.created_at[:10] }}{% endif %}
+          {% if tpl.created_at %} · {{ tpl.created_at | format_dt }}{% endif %}
         </div>
       </div>
     </div>

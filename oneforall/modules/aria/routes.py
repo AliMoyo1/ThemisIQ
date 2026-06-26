@@ -41,6 +41,8 @@ templates = Jinja2Templates(directory=["modules/aria/templates", "templates"])
 # Expose helpers to all ARIA templates
 templates.env.globals["has_capability"] = has_capability
 templates.env.globals["has_role"] = has_role
+from core.timeutils import format_dt as _format_dt
+templates.env.filters["format_dt"] = _format_dt
 templates.env.globals["ROLE_LABELS"] = ROLE_LABELS
 templates.env.filters["tojson"] = lambda v: json.dumps(
     dict(v) if hasattr(v, "keys") else v, default=str

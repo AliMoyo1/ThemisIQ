@@ -439,7 +439,7 @@
 
   {# ── Last Login cell ── #}
   <td style="font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap;">
-    {{ (u.last_login or '—')[:16] }}
+    {{ u.last_login | format_dt("datetime") if u.last_login else '—' }}
   </td>
 
   {# ── Actions cell ── #}

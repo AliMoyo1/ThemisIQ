@@ -38,6 +38,11 @@ _JSONResp = JSONResponse
 templates = Jinja2Templates(directory="modules/launcher/templates")
 shell_templates = Jinja2Templates(directory=["templates", "modules/launcher/templates"])
 
+# Register shared Jinja2 filters
+from core.timeutils import format_dt as _format_dt
+templates.env.filters["format_dt"] = _format_dt
+shell_templates.env.filters["format_dt"] = _format_dt
+
 # ── Shared utility functions ────────────────────────────────────────────────
 
 _TEMP_PW_ALPHA = string.ascii_letters + string.digits + "!@#$%"

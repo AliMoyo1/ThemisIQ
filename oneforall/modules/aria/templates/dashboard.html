@@ -195,7 +195,7 @@
           </div>
           <div class="tl-content">
             <div class="tl-name">{{ log.action }}</div>
-            <div class="tl-date">{{ log.full_name or log.username }} &middot; {{ (log.created_at or '')[:16] }}</div>
+            <div class="tl-date">{{ log.full_name or log.username }} &middot; {{ log.created_at | format_dt("datetime") }}</div>
           </div>
         </div>
         {% endfor %}

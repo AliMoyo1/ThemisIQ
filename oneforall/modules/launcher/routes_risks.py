@@ -30,9 +30,11 @@ async def api_risks_list(request: Request):
     """List all risks — unified view of risk_register + erm_enterprise_risks."""
     db = get_db()
     try:
-        module = request.query_params.get("module", "")
-        status = request.query_params.get("status", "")
-        level  = request.query_params.get("level", "")
+        module   = request.query_params.get("module", "")
+        status   = request.query_params.get("status", "")
+        level    = request.query_params.get("level", "")
+        page     = max(1, int(request.query_params.get("page", 1)))
+        per_page = min(max(1, int(request.query_params.get("per_page", 50))), 200)
 
         # ── Unified UNION query ────────────────────────────────────────────
         # risk_register rows tagged with register_source='platform'
@@ -103,9 +105,13 @@ async def api_risks_list(request: Request):
 
         all_rows = [dict(r) for r in rr_rows] + [dict(r) for r in erm_rows]
         all_rows.sort(key=lambda x: (x.get("risk_score") or 0), reverse=True)
+        total  = len(all_rows)
+        offset = (page - 1) * per_page
+        items  = all_rows[offset : offset + per_page]
+        pages  = max(1, (total + per_page - 1) // per_page)
     finally:
         db.close()
-    return _JSONResp(all_rows)
+    return _JSONResp({"items": items, "total": total, "page": page, "pages": pages, "per_page": per_page})
 
 
 @router.post("/api/risks", status_code=201)

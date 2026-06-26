@@ -57,6 +57,26 @@ def to_dt(value) -> Optional[datetime]:
         return datetime.strptime(s[:10], "%Y-%m-%d")
 
 
+def format_dt(value, fmt: str = "date") -> str:
+    """Human-friendly date string for templates and API responses.
+
+    fmt="date"     -> "26 Jun 2026"
+    fmt="datetime" -> "26 Jun 2026 14:30"
+    fmt="short"    -> "26 Jun"
+    """
+    dt = to_dt(value)
+    if not dt:
+        return ""
+    day = str(dt.day)
+    mon = dt.strftime("%b")
+    yr  = dt.strftime("%Y")
+    if fmt == "datetime":
+        return f"{day} {mon} {yr} {dt.strftime('%H:%M')}"
+    if fmt == "short":
+        return f"{day} {mon}"
+    return f"{day} {mon} {yr}"
+
+
 def to_iso(value) -> str:
     """Return an ISO-8601 string for display / JSON serialisation.
 

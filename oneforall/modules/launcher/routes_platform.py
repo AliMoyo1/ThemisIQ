@@ -678,7 +678,7 @@ async def api_tasks_list(request: Request):
             f"WHERE {' AND '.join(where)} ORDER BY "
             f"CASE t.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, "
             f"t.due_date ASC NULLS LAST, t.created_at DESC "
-            f"LIMIT 200",
+            f"LIMIT 500",
             params
         ).fetchall()
     finally:

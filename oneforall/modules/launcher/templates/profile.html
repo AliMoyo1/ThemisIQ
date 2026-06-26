@@ -66,8 +66,8 @@
           {% for s in sessions %}
           <tr style="border-bottom:1px solid var(--border-soft)">
             <td style="padding:8px 10px;font-family:monospace;color:var(--muted)">...{{ (s.id|string)[-8:] }}</td>
-            <td style="padding:8px 10px;color:var(--text)">{{ (s.created_at or '')[:16] }}</td>
-            <td style="padding:8px 10px;color:var(--text)">{{ (s.last_active or '')[:16] }}</td>
+            <td style="padding:8px 10px;color:var(--text)">{{ s.created_at | format_dt("datetime") }}</td>
+            <td style="padding:8px 10px;color:var(--text)">{{ s.last_active | format_dt("datetime") }}</td>
           </tr>
           {% endfor %}
         </tbody>

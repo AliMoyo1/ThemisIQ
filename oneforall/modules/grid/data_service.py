@@ -1218,7 +1218,11 @@ def get_all_evidence(audit_id=None, status=None, mime_type=None):
 
 
 def get_evidence_completeness(audit_id):
-    """Return evidence completeness stats for an audit."""
+    """Return evidence completeness stats for an audit.
+
+    Uses 3 aggregate queries regardless of control count instead of
+    5-7 queries per control (was ~700 queries for a 100-control audit).
+    """
     db = get_db()
     try:
         controls = _dicts(db.execute(
@@ -1227,57 +1231,72 @@ def get_evidence_completeness(audit_id):
             (audit_id,),
         ).fetchall())
 
-        total_items = 0
-        items_with_evidence = 0
-        items_approved = 0
+        if not controls:
+            return {
+                "totalControls": 0, "controlsComplete": 0,
+                "controlsWithEvidence": 0, "controlsWithoutEvidence": 0,
+                "totalItems": 0, "itemsWithEvidence": 0, "itemsApproved": 0,
+                "totalFiles": 0, "approvedFiles": 0, "pendingFiles": 0, "rejectedFiles": 0,
+                "completionPct": 0, "evidencePct": 0, "approvalPct": 0,
+                "controlsMissing": [], "controlsDetail": [],
+            }
+
+        # One query for all file counts per control
+        file_rows = _dicts(db.execute(
+            "SELECT ef.control_id, "
+            "COUNT(*) AS total_files, "
+            "SUM(CASE WHEN ef.status IN ('approved','Approved') THEN 1 ELSE 0 END) AS approved, "
+            "SUM(CASE WHEN ef.status IS NULL OR ef.status IN ('Uploaded','pending','') THEN 1 ELSE 0 END) AS pending, "
+            "SUM(CASE WHEN ef.status IN ('rejected','Rejected') THEN 1 ELSE 0 END) AS rejected "
+            "FROM grid_evidence_files ef "
+            "WHERE ef.control_id IN (SELECT id FROM grid_controls WHERE audit_id=%s) "
+            "GROUP BY ef.control_id",
+            (audit_id,),
+        ).fetchall())
+        file_stats = {r["control_id"]: r for r in file_rows}
+
+        # One query for all evidence item counts per control
+        item_rows = _dicts(db.execute(
+            "SELECT ei.control_id, "
+            "COUNT(DISTINCT ei.id) AS total_items, "
+            "COUNT(DISTINCT CASE WHEN ef.id IS NOT NULL THEN ei.id ELSE NULL END) AS items_with_evidence, "
+            "COUNT(DISTINCT CASE WHEN ef.status IN ('approved','Approved') THEN ei.id ELSE NULL END) AS items_approved "
+            "FROM grid_evidence_items ei "
+            "LEFT JOIN grid_evidence_files ef ON ef.evidence_item_id=ei.id "
+            "WHERE ei.control_id IN (SELECT id FROM grid_controls WHERE audit_id=%s) "
+            "GROUP BY ei.control_id",
+            (audit_id,),
+        ).fetchall())
+        item_stats = {r["control_id"]: r for r in item_rows}
+
         total_files = 0
         approved_files = 0
         pending_files = 0
         rejected_files = 0
+        total_items = 0
+        items_with_evidence = 0
+        items_approved = 0
         controls_complete = 0
         controls_with_evidence = []
         controls_without_evidence = []
 
         for ctrl in controls:
             cid = ctrl["id"]
-            items = db.execute(
-                "SELECT COUNT(*) FROM grid_evidence_items WHERE control_id=%s", (cid,)
-            ).fetchone()[0]
-            files = db.execute(
-                "SELECT COUNT(*) FROM grid_evidence_files WHERE control_id=%s", (cid,)
-            ).fetchone()[0]
-            approved = db.execute(
-                "SELECT COUNT(*) FROM grid_evidence_files WHERE control_id=%s AND status IN ('approved','Approved')",
-                (cid,),
-            ).fetchone()[0]
-            pending = db.execute(
-                "SELECT COUNT(*) FROM grid_evidence_files WHERE control_id=%s AND (status IS NULL OR status IN ('Uploaded','pending',''))",
-                (cid,),
-            ).fetchone()[0]
-            rejected = db.execute(
-                "SELECT COUNT(*) FROM grid_evidence_files WHERE control_id=%s AND status IN ('rejected','Rejected')",
-                (cid,),
-            ).fetchone()[0]
+            fs  = file_stats.get(cid, {})
+            its = item_stats.get(cid, {})
 
-            total_items += items
-            total_files += files
-            approved_files += approved
-            pending_files += pending
-            rejected_files += rejected
+            files    = fs.get("total_files", 0) or 0
+            approved = fs.get("approved", 0) or 0
+            pending  = fs.get("pending", 0) or 0
+            rejected = fs.get("rejected", 0) or 0
 
-            if items > 0:
-                items_w = db.execute(
-                    "SELECT COUNT(DISTINCT ei.id) FROM grid_evidence_items ei "
-                    "JOIN grid_evidence_files ef ON ef.evidence_item_id=ei.id "
-                    "WHERE ei.control_id=%s", (cid,),
-                ).fetchone()[0]
-                items_a = db.execute(
-                    "SELECT COUNT(DISTINCT ei.id) FROM grid_evidence_items ei "
-                    "JOIN grid_evidence_files ef ON ef.evidence_item_id=ei.id "
-                    "WHERE ei.control_id=%s AND ef.status IN ('approved','Approved')", (cid,),
-                ).fetchone()[0]
-                items_with_evidence += items_w
-                items_approved += items_a
+            total_files         += files
+            approved_files      += approved
+            pending_files       += pending
+            rejected_files      += rejected
+            total_items         += its.get("total_items", 0) or 0
+            items_with_evidence += its.get("items_with_evidence", 0) or 0
+            items_approved      += its.get("items_approved", 0) or 0
 
             if ctrl.get("status") == "Complete":
                 controls_complete += 1

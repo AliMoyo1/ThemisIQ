@@ -57,7 +57,7 @@
 
     <div class="mfa-card">
       <h2>Two-factor authentication is active</h2>
-      <p>You'll be prompted for a code from your authenticator app every time you sign in.{% if enrolled_at %} Enrolled on {{ enrolled_at[:10] }}.{% endif %}</p>
+      <p>You'll be prompted for a code from your authenticator app every time you sign in.{% if enrolled_at %} Enrolled on {{ enrolled_at | format_dt }}.{% endif %}</p>
       <p>If you replace your device, disable 2FA below using your password, then enroll the new device from this page.</p>
     </div>
 
