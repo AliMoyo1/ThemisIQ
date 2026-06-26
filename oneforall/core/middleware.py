@@ -379,7 +379,7 @@ async def security_headers_middleware(request: Request, call_next):
 # ── Tenant Context ────────────────────────────────────────────────────────────
 
 async def tenant_context_middleware(request: Request, call_next):
-    """Set the current tenant from the authenticated user's org_slug.
+    """Set the current tenant and RLS context from the authenticated user.
 
     Must run AFTER session validation. Super admins default to public schema
     unless they have explicitly switched org context (future feature).
@@ -388,11 +388,16 @@ async def tenant_context_middleware(request: Request, call_next):
     if token:
         try:
             from core.auth import get_session_user
-            from database import set_current_tenant
+            from database import set_current_tenant, set_current_org
             user = get_session_user(token)
-            if user and user.get("org_slug"):
-                set_current_tenant(user["org_slug"])
-                request.state.org_slug = user["org_slug"]
+            if user:
+                if user.get("org_slug"):
+                    set_current_tenant(user["org_slug"])
+                    request.state.org_slug = user["org_slug"]
+                set_current_org(
+                    user.get("org_id"),
+                    is_super_admin=bool(user.get("is_super_admin")),
+                )
         except Exception:
             pass
     return await call_next(request)

@@ -44,6 +44,8 @@ _pg_pool_lock = threading.Lock()
 # Per-request tenant context. Set by tenant middleware after session validation.
 # ContextVar is propagated correctly across asyncio tasks unlike thread-local.
 _current_tenant: ContextVar = ContextVar("current_tenant", default=None)
+_current_org_id: ContextVar = ContextVar("current_org_id", default=None)
+_current_is_super: ContextVar = ContextVar("current_is_super", default=False)
 
 
 def set_current_tenant(slug: str):
@@ -54,6 +56,12 @@ def set_current_tenant(slug: str):
 def get_current_tenant() -> str:
     """Return the slug of the current request's tenant, or None for public schema."""
     return _current_tenant.get()
+
+
+def set_current_org(org_id: "int | None", is_super_admin: bool = False):
+    """Set the org context for RLS enforcement in the current async context."""
+    _current_org_id.set(org_id)
+    _current_is_super.set(is_super_admin)
 
 
 def _ensure_dir():
@@ -232,6 +240,34 @@ class _PgConnWrapper:
         cur = self._conn.cursor()
         cur.execute(f"SET search_path TO tenant_{safe}, public")
 
+    def set_rls_context(self, org_id: "int | None", is_super: bool = False):
+        """Set session variables used by RLS policies.
+
+        Uses SET (session-level, not LOCAL) so the value survives COMMIT within
+        a single handler that calls commit() mid-flight. _clear_rls_context()
+        in close() resets them before the connection returns to the pool.
+        """
+        cur = self._conn.cursor()
+        cur.execute("SET app.current_org_id = %s", (str(org_id) if org_id else '',))
+        cur.execute("SET app.is_super_admin = %s", ('true' if is_super else 'false',))
+        cur.execute("SET app.bypass_rls = 'false'")
+
+    def set_rls_bypass(self):
+        """Grant unrestricted access to RLS-protected tables for this connection."""
+        cur = self._conn.cursor()
+        cur.execute("SET app.bypass_rls = 'true'")
+        cur.execute("SET app.current_org_id = ''")
+        cur.execute("SET app.is_super_admin = 'false'")
+
+    def _clear_rls_context(self):
+        try:
+            cur = self._conn.cursor()
+            cur.execute("SET app.current_org_id = ''")
+            cur.execute("SET app.is_super_admin = 'false'")
+            cur.execute("SET app.bypass_rls = 'false'")
+        except Exception:
+            pass
+
     def commit(self):
         self._conn.commit()
 
@@ -241,10 +277,10 @@ class _PgConnWrapper:
     def close(self):
         pool = _get_pg_pool()
         try:
-            # Roll back any open or aborted transaction before returning to pool.
-            # This prevents a failed query from poisoning the pooled connection
-            # for the next caller. Rolled back reads are harmless; rolled back
-            # uncommitted writes are a caller bug (all callers must commit before close).
+            # Clear RLS context and roll back any open/aborted transaction before
+            # returning the connection to the pool. This prevents a failed query
+            # or stale org context from poisoning the next caller.
+            self._clear_rls_context()
             self._conn.rollback()
         except Exception:
             pool.putconn(self._conn, close=True)
@@ -324,6 +360,19 @@ class _SqliteConnWrapper:
         return False
 
 
+def _pg_get_conn() -> "_PgConnWrapper":
+    """Get a live PostgreSQL connection from the pool."""
+    pool = _get_pg_pool()
+    conn = pool.getconn()
+    wrapper = _PgConnWrapper(conn)
+    if not wrapper._is_alive():
+        pool.putconn(conn, close=True)
+        conn = pool.getconn()
+        wrapper = _PgConnWrapper(conn)
+    conn.autocommit = False
+    return wrapper
+
+
 def get_db(timeout: int = 15):
     """Return a database connection.
 
@@ -333,17 +382,14 @@ def get_db(timeout: int = 15):
     exhaustion (PostgreSQL) before the global lock-error handler returns a 503.
     """
     if settings.is_postgres():
-        pool = _get_pg_pool()
-        conn = pool.getconn()
-        wrapper = _PgConnWrapper(conn)
-        if not wrapper._is_alive():
-            pool.putconn(conn, close=True)
-            conn = pool.getconn()
-            wrapper = _PgConnWrapper(conn)
-        conn.autocommit = False
+        wrapper = _pg_get_conn()
         slug = _current_tenant.get()
         if slug:
             wrapper.set_tenant(slug)
+        org_id = _current_org_id.get()
+        is_super = bool(_current_is_super.get())
+        if org_id is not None or is_super:
+            wrapper.set_rls_context(org_id, is_super)
         return wrapper
     conn = sqlite3.connect(_DB_PATH, timeout=timeout)
     conn.row_factory = sqlite3.Row
@@ -364,6 +410,24 @@ def get_db_background():
     queueing behind a user write.
     """
     return get_db(timeout=3)
+
+
+def get_db_bypass_rls():
+    """Return a connection that bypasses all RLS policies.
+
+    Use ONLY for:
+    - Authentication (username lookup before org is known)
+    - Session validation (token lookup before org is known)
+    - Schema provisioning and migrations
+    - Super-admin platform management tasks
+
+    Never use for ordinary user-facing queries.
+    """
+    if settings.is_postgres():
+        wrapper = _pg_get_conn()
+        wrapper.set_rls_bypass()
+        return wrapper
+    return get_db()
 
 
 def insert_returning_id(db, sql: str, params):
@@ -4105,6 +4169,8 @@ def provision_tenant_schema(slug: str) -> None:
         pg_conn = pool.getconn()
         wrapper = _PgConnWrapper(pg_conn)
     pg_conn.autocommit = False
+    # Provisioning needs full access to public schema tables (users, licenses).
+    wrapper.set_rls_bypass()
     conn = wrapper
     try:
         from psycopg2 import sql as psql
@@ -4136,7 +4202,7 @@ def provision_tenant_schema(slug: str) -> None:
 def init_db():
     """Create all tables if they don't exist, then run migrations and seed data."""
     _ensure_dir()
-    conn = get_db()
+    conn = get_db_bypass_rls()
     try:
         if settings.is_postgres():
             conn.executescript(_SHARED_TABLES_PG)
@@ -4159,5 +4225,9 @@ def init_db():
         else:
             _run_sqlite_alters(conn)
         _seed_baseline_data(conn)
+        conn.commit()
+        if settings.is_postgres():
+            from core.rls import apply_rls_policies
+            apply_rls_policies(conn)
     finally:
         conn.close()

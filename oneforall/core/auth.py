@@ -13,7 +13,7 @@ from typing import Optional
 
 import bcrypt
 
-from database import get_db
+from database import get_db, get_db_bypass_rls
 from config import settings
 
 
@@ -102,7 +102,7 @@ def get_session_user(token: str) -> Optional[dict]:
     if not token:
         return None
     token_hash = _hash_token(token)
-    db = get_db()
+    db = get_db_bypass_rls()
     try:
         row = db.execute(
             "SELECT s.user_id, s.expires_at, "
@@ -206,7 +206,7 @@ def cleanup_expired_sessions():
 
 def authenticate_user(username: str, password: str) -> Optional[dict]:
     """Verify credentials and return user dict if valid."""
-    db = get_db()
+    db = get_db_bypass_rls()
     try:
         user = db.execute(
             "SELECT id, username, email, full_name, password_hash, is_active, "
