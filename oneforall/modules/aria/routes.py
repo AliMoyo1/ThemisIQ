@@ -1400,7 +1400,15 @@ async def download_document(request: Request, doc_id: str):
         if not fp.exists():
             raise HTTPException(404, "File not found on disk")
 
-        fname = doc["file_name"] or doc["title"] or "document"
+        stored = doc["branded_file_path"] or doc["file_path"] or ""
+        ext = Path(stored).suffix or ".docx"
+        raw_title = (doc["title"] or "").strip()
+        if raw_title:
+            safe = _re.sub(r'[^\w\s\-]', '', raw_title).strip()
+            safe = _re.sub(r'\s+', ' ', safe)
+            fname = f"{safe}{ext}"
+        else:
+            fname = doc["file_name"] or f"document{ext}"
     finally:
         db.close()
 
