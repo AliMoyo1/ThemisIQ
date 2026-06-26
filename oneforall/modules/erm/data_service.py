@@ -947,6 +947,13 @@ def transition_workflow(risk_id, to_step, user_id, notes=None):
         from_step = risk["workflow_step"] or "draft"
         if to_step not in _WORKFLOW_STEPS:
             raise ValueError(f"Invalid step: {to_step}")
+        from_idx = _WORKFLOW_STEPS.index(from_step) if from_step in _WORKFLOW_STEPS else 0
+        to_idx   = _WORKFLOW_STEPS.index(to_step)
+        if to_idx > from_idx + 1:
+            next_step = _WORKFLOW_STEPS[from_idx + 1]
+            raise ValueError(
+                f"Cannot skip steps: complete '{next_step}' before moving to '{to_step}'"
+            )
         db.execute(
             "INSERT INTO erm_risk_workflow_history (risk_id, from_step, to_step, changed_by, notes) "
             "VALUES (%s,%s,%s,%s,%s)", (risk_id, from_step, to_step, user_id, notes)

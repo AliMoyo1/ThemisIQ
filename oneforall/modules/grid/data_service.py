@@ -744,6 +744,12 @@ def delete_evidence_file(eid):
     db = get_db()
     try:
         db.execute("DELETE FROM grid_approvals WHERE evidence_id=%s", (eid,))
+        # Clean up central vault entries synced from this file.
+        # evidence_links cascades via FK when evidence_items rows are deleted.
+        db.execute(
+            "DELETE FROM evidence_items WHERE tags LIKE %s",
+            (f"%grid_evidence_id={eid}%",)
+        )
         db.execute("DELETE FROM grid_evidence_files WHERE id=%s", (eid,))
         db.commit()
     finally:
@@ -787,6 +793,8 @@ _CAP_STATUSES = [
     "Open", "RCA", "CAP Submitted", "Approved",
     "Implementation", "Verification", "Closed",
 ]
+_NC_STATUSES   = {"open", "closed"}
+_NC_SEVERITIES = {"minor", "major", "critical"}
 
 
 def list_ncs(audit_id=None, status=None, cap_status=None):
@@ -873,9 +881,17 @@ def update_nc(ncid, data):
                      "due_date", "target_date", "cap_status",
                      "verification_notes", "verified_by",
                      "response_deadline", "effectiveness_review"):
-            if col in data:
-                fields.append(f"{col}=%s")
-                vals.append(data[col])
+            if col not in data:
+                continue
+            val = data[col]
+            if col == "status" and val not in _NC_STATUSES:
+                continue
+            if col == "cap_status" and val not in set(_CAP_STATUSES):
+                continue
+            if col == "severity" and val not in _NC_SEVERITIES:
+                continue
+            fields.append(f"{col}=%s")
+            vals.append(val)
         # Auto-set timestamps based on cap_status transitions
         cap = data.get("cap_status")
         if cap == "Closed" and "closed_at" not in data:
