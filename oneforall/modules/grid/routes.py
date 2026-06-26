@@ -512,14 +512,33 @@ async def api_evidence_delete(request: Request, eid: int):
 @router.get("/api/evidence/file/{eid}/download")
 @require_capability("module.grid.access")
 async def api_evidence_download(request: Request, eid: int):
-    """Download a single evidence file."""
+    """Download a single evidence file.
+    ARIA-linked evidence (file_path starts with aria://) redirects to the
+    ARIA document download endpoint instead of serving a local file.
+    """
+    from fastapi.responses import RedirectResponse
     ef = ds.get_evidence_file(eid)
     if not ef:
         raise HTTPException(404, "Evidence file not found")
-    fp = Path(ef["file_path"])
+    fp_str = ef.get("file_path") or ""
+    if fp_str.startswith("aria://documents/"):
+        # Extract the ARIA document id from the virtual path and redirect
+        aria_doc_id = fp_str.split("/")[-1]
+        # Resolve to doc_id string via DB for the ARIA download URL
+        from oneforall.database import get_db as _gdb
+        db2 = _gdb()
+        try:
+            row = db2.execute(
+                "SELECT doc_id FROM aria_documents WHERE id=%s", (aria_doc_id,)
+            ).fetchone()
+        finally:
+            db2.close()
+        if not row:
+            raise HTTPException(404, "Linked ARIA document not found")
+        return RedirectResponse(url=f"/aria/documents/{row[0]}/download", status_code=302)
+    fp = Path(fp_str)
     if not fp.exists():
         raise HTTPException(404, "Physical file missing")
-    # Sanitise original name for Content-Disposition
     safe_orig = (ef.get("original_name") or ef.get("filename") or "file").replace('"', "'")
     return FileResponse(
         path=str(fp),
@@ -538,10 +557,18 @@ async def api_evidence_download_all(request: Request, control_id: int):
         raise HTTPException(404, "No evidence files for this control")
 
     buf = io.BytesIO()
+    aria_links: list[str] = []
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         seen_names: dict[str, int] = {}
         for f in files:
-            fp = Path(f["file_path"])
+            fp_str = f.get("file_path") or ""
+            if fp_str.startswith("aria://"):
+                # Collect ARIA-linked document titles for the index file
+                aria_links.append(
+                    f"{f.get('original_name','Untitled')} — download from ARIA Policy Library"
+                )
+                continue
+            fp = Path(fp_str)
             if not fp.exists():
                 continue
             orig = f.get("original_name") or f.get("filename") or "file"
@@ -553,6 +580,13 @@ async def api_evidence_download_all(request: Request, control_id: int):
             else:
                 seen_names[orig] = 0
             zf.write(fp, orig)
+        if aria_links:
+            zf.writestr(
+                "ARIA_Policy_Documents.txt",
+                "The following policies are linked from the ARIA library.\n"
+                "Download them individually from ARIA > Documents.\n\n"
+                + "\n".join(f"- {ln}" for ln in aria_links),
+            )
     buf.seek(0)
 
     ctrl = ds.get_control(control_id)
@@ -2089,6 +2123,24 @@ async def api_attach_aria_policy(request: Request, cid: int):
     ds.log_activity(_uid(request), "attach_aria_policy", "grid_evidence_files", eid,
                     f"ARIA doc #{aria_doc_id}")
     return JSONResponse({"ok": True, "evidence_file_id": eid}, status_code=201)
+
+
+@router.post("/api/audits/{aid}/auto-attach-policies")
+@require_capability("grid.evidence.upload")
+async def api_auto_attach_policies(request: Request, aid: int):
+    """Scan every control in an audit and auto-attach matching ARIA policies."""
+    result = ds.auto_attach_aria_policies_to_audit(aid, system_user_id=_uid(request))
+    if result.get("attached", 0) > 0:
+        ds.log_activity(_uid(request), "auto_attach_policies", "grid_audits", aid,
+                        f"{result['attached']} policies attached")
+    return JSONResponse(result)
+
+
+@router.get("/api/controls/{cid}/suggested-policies")
+@require_capability("module.grid.access")
+async def api_suggested_policies(request: Request, cid: int):
+    """Return ARIA policies matching this control that are not yet attached."""
+    return JSONResponse(ds.get_suggested_aria_policies(cid))
 
 
 @router.get("/api/policy-requests")

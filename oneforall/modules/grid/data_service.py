@@ -2201,6 +2201,186 @@ def attach_aria_policy_as_evidence(control_id, aria_doc_id, user_id):
         db.close()
 
 
+def auto_attach_aria_policies_for_document(aria_doc_id, system_user_id=0):
+    """Called by ARIA after a document is saved.
+    Finds every GRID control in an active audit whose framework + control_ref
+    matches this document, then attaches it (dedup handled inside
+    attach_aria_policy_as_evidence).
+    Returns count of new attachments made.
+    """
+    db = get_db()
+    try:
+        doc = db.execute(
+            "SELECT id, framework, control_ref FROM aria_documents WHERE id=%s",
+            (aria_doc_id,),
+        ).fetchone()
+        if not doc:
+            return 0
+        doc = dict(doc)
+        refs = [r.strip() for r in (doc.get("control_ref") or "").split(",") if r.strip()]
+        if not refs:
+            return 0
+        framework = doc.get("framework", "")
+    finally:
+        db.close()
+
+    attached = 0
+    for ref in refs:
+        attached += _attach_doc_to_matching_controls(aria_doc_id, framework, ref, system_user_id)
+    return attached
+
+
+def _attach_doc_to_matching_controls(aria_doc_id, framework_name, control_ref, user_id):
+    """Attach one ARIA doc to every active-audit GRID control that matches
+    the given framework name and control ref string."""
+    db = get_db()
+    try:
+        # Find GRID framework ids whose name matches the ARIA framework string
+        # (case-insensitive substring match to handle "ISO 27001" vs "ISO 27001:2022")
+        fw_rows = _dicts(db.execute(
+            "SELECT id FROM grid_frameworks WHERE LOWER(name) LIKE %s",
+            (f"%{framework_name.lower()[:20]}%",),
+        ).fetchall())
+        fw_ids = [r["id"] for r in fw_rows] or [None]
+
+        # Find all controls in active (non-archived) audits that match ref
+        # A control matches if its control_id equals the ref exactly
+        placeholders = ",".join(["%s"] * len(fw_ids))
+        controls = _dicts(db.execute(
+            f"""
+            SELECT c.id
+            FROM grid_controls c
+            JOIN grid_audits a ON a.id = c.audit_id
+            WHERE a.status NOT IN ('Archived','Completed')
+              AND c.control_id = %s
+              AND (c.framework_id IS NULL OR c.framework_id IN ({placeholders}))
+            """,
+            [control_ref] + fw_ids,
+        ).fetchall())
+    finally:
+        db.close()
+
+    count = 0
+    for ctrl in controls:
+        result = attach_aria_policy_as_evidence(ctrl["id"], aria_doc_id, user_id)
+        if result:
+            count += 1
+    return count
+
+
+def auto_attach_aria_policies_to_audit(audit_id, system_user_id=0):
+    """Scan every control in an audit and attach any matching approved ARIA
+    policies that are not already linked.
+    Returns a summary dict: {attached: int, controls_scanned: int, already_linked: int}.
+    """
+    db = get_db()
+    try:
+        audit = _dict(db.execute(
+            "SELECT id, framework_id FROM grid_audits WHERE id=%s", (audit_id,)
+        ).fetchone())
+        if not audit:
+            return {"attached": 0, "controls_scanned": 0}
+
+        # Get framework name for this audit
+        fw_name = None
+        if audit.get("framework_id"):
+            fw_row = db.execute(
+                "SELECT name FROM grid_frameworks WHERE id=%s",
+                (audit["framework_id"],),
+            ).fetchone()
+            if fw_row:
+                fw_name = fw_row[0]
+
+        controls = _dicts(db.execute(
+            "SELECT id, control_id FROM grid_controls WHERE audit_id=%s", (audit_id,)
+        ).fetchall())
+    finally:
+        db.close()
+
+    attached = 0
+    already = 0
+    for ctrl in controls:
+        ctrl_ref = (ctrl.get("control_id") or "").strip()
+        if not ctrl_ref:
+            continue
+        # Find ARIA docs matching this framework + ref
+        policies = list_aria_policies(
+            framework_name=fw_name,
+            control_ref=ctrl_ref,
+            status=None,  # any status (approved AND under review)
+        )
+        for pol in policies:
+            db2 = get_db()
+            try:
+                existing = db2.execute(
+                    "SELECT id FROM grid_evidence_files "
+                    "WHERE control_id=%s AND notes LIKE %s",
+                    (ctrl["id"], f"%aria_doc_id={pol['id']}%"),
+                ).fetchone()
+            finally:
+                db2.close()
+            if existing:
+                already += 1
+            else:
+                attach_aria_policy_as_evidence(ctrl["id"], pol["id"], system_user_id)
+                attached += 1
+
+    return {
+        "attached": attached,
+        "already_linked": already,
+        "controls_scanned": len(controls),
+    }
+
+
+def get_suggested_aria_policies(control_id):
+    """Return ARIA policies that match this control's framework + control_ref
+    but have NOT yet been attached as evidence."""
+    db = get_db()
+    try:
+        ctrl = db.execute(
+            "SELECT c.control_id, c.framework_id, a.id AS audit_id "
+            "FROM grid_controls c "
+            "JOIN grid_audits a ON a.id = c.audit_id "
+            "WHERE c.id=%s",
+            (control_id,),
+        ).fetchone()
+        if not ctrl:
+            return []
+        ctrl = dict(ctrl)
+
+        fw_name = None
+        if ctrl.get("framework_id"):
+            fw_row = db.execute(
+                "SELECT name FROM grid_frameworks WHERE id=%s",
+                (ctrl["framework_id"],),
+            ).fetchone()
+            if fw_row:
+                fw_name = fw_row[0]
+
+        ctrl_ref = (ctrl.get("control_id") or "").strip()
+
+        # Already-attached aria doc ids for this control
+        attached_ids = {
+            row[0]
+            for row in db.execute(
+                "SELECT CAST(SUBSTR(notes, INSTR(notes,'aria_doc_id=')+12, 8) AS INTEGER) "
+                "FROM grid_evidence_files "
+                "WHERE control_id=%s AND notes LIKE '%%aria_doc_id=%%'",
+                (control_id,),
+            ).fetchall()
+            if row[0]
+        }
+    finally:
+        db.close()
+
+    candidates = list_aria_policies(
+        framework_name=fw_name,
+        control_ref=ctrl_ref if ctrl_ref else None,
+        status=None,
+    )
+    return [p for p in candidates if p["id"] not in attached_ids]
+
+
 # ── Policy requests ──────────────────────────────────────────────────────
 
 def create_policy_request(data):

@@ -849,6 +849,14 @@ async def add_document(request: Request,
         log_audit(user, "aria", "Added document " + doc_id + ": " + title,
                   "document", new_id, doc_id)
 
+        # Auto-attach to matching GRID controls if a control_ref is set
+        if control_ref and control_ref.strip():
+            try:
+                from oneforall.modules.grid import data_service as _grid_ds
+                _grid_ds.auto_attach_aria_policies_for_document(new_id, system_user_id=user["id"])
+            except Exception:
+                pass  # Never let GRID auto-attach break ARIA saves
+
         # Emit policy published event when created as Approved
         if status == "Approved":
             emit(
@@ -1052,6 +1060,17 @@ async def update_document(request: Request, doc_id: str,
 
             log_audit(user, "aria", "Updated document " + doc_id,
                       "document", doc["id"], doc_id)
+
+            # Auto-attach to GRID when control_ref changes or status becomes Approved
+            _should_attach = (control_ref is not None) or (status == "Approved")
+            if _should_attach:
+                try:
+                    from oneforall.modules.grid import data_service as _grid_ds
+                    _grid_ds.auto_attach_aria_policies_for_document(
+                        doc["id"], system_user_id=user["id"]
+                    )
+                except Exception:
+                    pass
 
             # Emit policy events on status change
             old_status = doc.get("status", "")
@@ -1351,6 +1370,16 @@ async def upload_document_revision(request: Request, doc_id: str,
         db.commit()
         log_audit(user, "aria", f"Uploaded revision for {doc_id}: {file.filename}",
                   "document", doc["id"], doc_id)
+
+        # Auto-attach to GRID — upload makes the doc available as evidence immediately
+        if doc.get("control_ref", "").strip():
+            try:
+                from oneforall.modules.grid import data_service as _grid_ds
+                _grid_ds.auto_attach_aria_policies_for_document(
+                    doc["id"], system_user_id=user["id"]
+                )
+            except Exception:
+                pass
 
         # Emit status change event
         if doc.get("status") != "Under Review":
