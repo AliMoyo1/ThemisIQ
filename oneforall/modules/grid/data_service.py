@@ -8,6 +8,7 @@ reminders, comments, compliance scores, and activity logging.
 import json
 import secrets
 from datetime import datetime, timedelta
+from pathlib import Path
 from core.timeutils import utcnow, to_dt
 
 from database import get_db, insert_returning_id, sql_current_date
@@ -379,10 +380,12 @@ def delete_audit(aid):
             db.execute("DELETE FROM grid_control_mappings WHERE source_control_id=%s OR target_control_id=%s", (cid, cid))
         db.execute("DELETE FROM grid_controls WHERE audit_id=%s", (aid,))
         db.execute("DELETE FROM grid_timeline WHERE audit_id=%s", (aid,))
+        db.execute("DELETE FROM grid_nc_evidence WHERE nc_id IN (SELECT id FROM grid_non_conformances WHERE audit_id=%s)", (aid,))
         db.execute("DELETE FROM grid_non_conformances WHERE audit_id=%s", (aid,))
         db.execute("DELETE FROM grid_reminders WHERE audit_id=%s", (aid,))
         db.execute("DELETE FROM grid_share_links WHERE audit_id=%s", (aid,))
         db.execute("DELETE FROM grid_compliance_scores WHERE audit_id=%s", (aid,))
+        db.execute("DELETE FROM grid_audit_signoffs WHERE audit_id=%s", (aid,))
         db.execute("DELETE FROM grid_audits WHERE id=%s", (aid,))
         db.commit()
     finally:
@@ -534,7 +537,12 @@ def _auto_status_control(db, cid, explicit_status=None):
 def delete_control(cid):
     db = get_db()
     try:
-        eids = [r[0] for r in db.execute("SELECT id FROM grid_evidence_files WHERE control_id=%s", (cid,)).fetchall()]
+        file_rows = db.execute(
+            "SELECT id, file_path FROM grid_evidence_files WHERE control_id=%s", (cid,)
+        ).fetchall()
+        eids       = [r[0] for r in file_rows]
+        file_paths = [r[1] for r in file_rows if r[1] and not str(r[1]).startswith("aria://")]
+
         for eid in eids:
             db.execute("DELETE FROM grid_approvals WHERE evidence_id=%s", (eid,))
         db.execute("DELETE FROM grid_evidence_files WHERE control_id=%s", (cid,))
@@ -546,6 +554,14 @@ def delete_control(cid):
         db.commit()
     finally:
         db.close()
+
+    for fp_str in file_paths:
+        try:
+            p = Path(fp_str)
+            if p.exists():
+                p.unlink()
+        except OSError:
+            pass
 
 
 def get_evidence(control_id):
@@ -993,6 +1009,7 @@ def submit_mgmt_response(ncid, user_id, status, response_text=None, response_dea
 def delete_nc(ncid):
     db = get_db()
     try:
+        db.execute("DELETE FROM grid_nc_evidence WHERE nc_id=%s", (ncid,))
         db.execute("DELETE FROM grid_non_conformances WHERE id=%s", (ncid,))
         db.commit()
     finally:
