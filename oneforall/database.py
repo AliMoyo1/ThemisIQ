@@ -952,6 +952,24 @@ CREATE TABLE IF NOT EXISTS cross_module_links (
 CREATE INDEX IF NOT EXISTS idx_xlinks_source ON cross_module_links(source_module, source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_xlinks_target ON cross_module_links(target_module, target_type, target_id);
 
+-- ── People Directory ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS people_directory (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    full_name   TEXT NOT NULL,
+    email       TEXT,
+    phone       TEXT,
+    job_title   TEXT,
+    department  TEXT,
+    manager_id  INTEGER REFERENCES people_directory(id) ON DELETE SET NULL,
+    user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_active   INTEGER DEFAULT 1,
+    notes       TEXT,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_people_dept ON people_directory(department);
+CREATE INDEX IF NOT EXISTS idx_people_user ON people_directory(user_id);
+
 -- ── Rate Limit Attempts ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rate_limit_attempts (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1332,6 +1350,24 @@ CREATE TABLE IF NOT EXISTS cross_module_links (
 );
 CREATE INDEX IF NOT EXISTS idx_xlinks_source ON cross_module_links(source_module, source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_xlinks_target ON cross_module_links(target_module, target_type, target_id);
+
+-- ── People Directory ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS people_directory (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    full_name   TEXT NOT NULL,
+    email       TEXT,
+    phone       TEXT,
+    job_title   TEXT,
+    department  TEXT,
+    manager_id  INTEGER REFERENCES people_directory(id) ON DELETE SET NULL,
+    user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_active   INTEGER DEFAULT 1,
+    notes       TEXT,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_people_dept ON people_directory(department);
+CREATE INDEX IF NOT EXISTS idx_people_user ON people_directory(user_id);
 """
 
 _ARIA_TABLES = """
@@ -3972,6 +4008,77 @@ def _run_pg_alters(conn) -> None:
     conn.commit()
 
 
+def _run_pg_fk_cascades(conn) -> None:
+    """PostgreSQL: ensure critical FK constraints have correct ON DELETE behaviour.
+
+    Inline REFERENCES in CREATE TABLE get auto-named constraints. This function
+    finds them via information_schema, drops them, and re-adds with the correct
+    ON DELETE rule. Safe to call multiple times - skips if rule already correct.
+    """
+    _FK_FIXES = [
+        # Child rows that cannot exist without their parent
+        ("workflow_actions",    "instance_id",       "workflow_instances",   "id", "CASCADE"),
+        ("report_runs",         "definition_id",      "report_definitions",   "id", "CASCADE"),
+        ("webhook_logs",        "webhook_id",         "webhooks",             "id", "CASCADE"),
+        ("sla_instances",       "definition_id",      "sla_definitions",      "id", "CASCADE"),
+        ("grid_controls",       "audit_id",           "grid_audits",          "id", "CASCADE"),
+        ("grid_evidence_items", "control_id",         "grid_controls",        "id", "CASCADE"),
+        ("grid_evidence_files", "evidence_item_id",   "grid_evidence_items",  "id", "CASCADE"),
+        ("grid_evidence_files", "control_id",         "grid_controls",        "id", "CASCADE"),
+        ("aria_controls",       "framework_id",       "aria_frameworks",      "id", "CASCADE"),
+        # User-owned records: remove when user is deleted
+        ("user_preferences",    "user_id",            "users",                "id", "CASCADE"),
+        ("api_keys",            "user_id",            "users",                "id", "CASCADE"),
+        # Audit trail references: nullify (don't delete) when user is removed
+        ("audit_log",           "user_id",            "users",                "id", "SET NULL"),
+        ("task_board",          "assigned_to",        "users",                "id", "SET NULL"),
+        ("task_board",          "created_by",         "users",                "id", "SET NULL"),
+        ("workflow_instances",  "started_by",         "users",                "id", "SET NULL"),
+        ("workflow_actions",    "assigned_to",        "users",                "id", "SET NULL"),
+        ("calendar_events",     "assigned_to",        "users",                "id", "SET NULL"),
+        ("calendar_events",     "created_by",         "users",                "id", "SET NULL"),
+        ("email_reminders",     "recipient_id",       "users",                "id", "SET NULL"),
+        ("email_reminders",     "created_by",         "users",                "id", "SET NULL"),
+        ("risk_register",       "owner_id",           "users",                "id", "SET NULL"),
+        ("risk_register",       "created_by",         "users",                "id", "SET NULL"),
+    ]
+    import logging as _log
+    _logger = _log.getLogger("oneforall.migrations")
+    for table, col, ref_table, ref_col, action in _FK_FIXES:
+        try:
+            rows = conn.execute("""
+                SELECT tc.constraint_name, rc.delete_rule
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                JOIN information_schema.referential_constraints rc
+                    ON tc.constraint_name = rc.constraint_name
+                    AND tc.table_schema = rc.constraint_schema
+                WHERE tc.constraint_type = 'FOREIGN KEY'
+                    AND tc.table_name = %s
+                    AND kcu.column_name = %s
+                    AND tc.table_schema = current_schema()
+            """, (table, col)).fetchall()
+            for row in rows:
+                cname, current_rule = row["constraint_name"], row["delete_rule"]
+                expected = action.replace(" ", "_")
+                if current_rule == expected:
+                    continue
+                conn.execute(f'ALTER TABLE "{table}" DROP CONSTRAINT IF EXISTS "{cname}"')
+                conn.execute(
+                    f'ALTER TABLE "{table}" ADD FOREIGN KEY ({col}) '
+                    f'REFERENCES "{ref_table}"({ref_col}) ON DELETE {action}'
+                )
+            conn.commit()
+        except Exception as exc:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            _logger.warning("FK cascade fix skipped for %s.%s: %s", table, col, exc)
+
+
 def provision_tenant_schema(slug: str) -> None:
     """Create a new tenant schema with all module tables and baseline seed data.
 
@@ -4012,6 +4119,7 @@ def provision_tenant_schema(slug: str) -> None:
         conn.commit()
         # Apply column migrations (idempotent — catches column-already-exists errors).
         _run_pg_alters(conn)
+        _run_pg_fk_cascades(conn)
         # Seed baseline reference data (frameworks, regulations, etc.).
         _seed_baseline_data(conn)
         conn.commit()
@@ -4045,6 +4153,7 @@ def init_db():
         conn.commit()
         if settings.is_postgres():
             _run_pg_alters(conn)
+            _run_pg_fk_cascades(conn)
         else:
             _run_sqlite_alters(conn)
         _seed_baseline_data(conn)

@@ -1,0 +1,385 @@
+{% extends "platform_base.html" %}
+{% block title %}People Directory - ThemisIQ{% endblock %}
+{% block head %}
+<style>
+.pd-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.pd-title{font-size:22px;font-weight:700;color:var(--text)}
+.pd-subtitle{font-size:13px;color:var(--muted);margin-top:2px}
+.pd-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pd-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.pd-btn-primary{background:var(--accent);color:#fff}
+.pd-btn-primary:hover{opacity:.88}
+.pd-btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.pd-btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.pd-stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.pd-stat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:100px;text-align:center}
+.pd-stat-val{font-size:24px;font-weight:800;color:var(--text)}
+.pd-stat-lbl{font-size:11px;color:var(--muted);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.pd-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.pd-search{flex:1;min-width:180px;padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;outline:none}
+.pd-search:focus{border-color:var(--accent)}
+.pd-select{padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;outline:none;cursor:pointer}
+.pd-select:focus{border-color:var(--accent)}
+.pd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.pd-card{background:var(--surface2);border:1.5px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
+.pd-card:hover{border-color:var(--accent);box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.pd-card.inactive{opacity:.55}
+.pd-avatar{width:44px;height:44px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;margin-bottom:10px;flex-shrink:0}
+.pd-card-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:8px}
+.pd-card-info{flex:1;min-width:0}
+.pd-card-name{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pd-card-title{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pd-dept-badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(var(--accent-rgb),.1);color:var(--accent);border:1px solid rgba(var(--accent-rgb),.2);margin-bottom:8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-card-contact{display:flex;flex-direction:column;gap:3px}
+.pd-contact-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pd-contact-row a{color:var(--accent);text-decoration:none}
+.pd-contact-row a:hover{text-decoration:underline}
+.pd-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.pd-status-dot.active{background:#16a34a}
+.pd-status-dot.inactive{background:#9ca3af}
+.pd-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--muted);text-align:center}
+.pd-empty-icon{font-size:48px;margin-bottom:12px}
+/* Drawer */
+.pd-drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:flex-start;justify-content:flex-end}
+.pd-drawer-overlay.open{display:flex}
+.pd-drawer{width:460px;max-width:95vw;background:var(--surface);border-left:1px solid var(--border);height:100vh;overflow-y:auto;padding:24px;position:relative}
+.pd-drawer-close{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted)}
+.pd-drawer-header{display:flex;align-items:center;gap:14px;margin-bottom:18px;padding-right:40px}
+.pd-drawer-avatar{width:56px;height:56px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0}
+.pd-drawer-name{font-size:18px;font-weight:700;color:var(--text)}
+.pd-drawer-role{font-size:13px;color:var(--muted);margin-top:2px}
+.pd-section{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px}
+.pd-section-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.pd-kv{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px}
+.pd-kv:last-child{border-bottom:none}
+.pd-kv-k{color:var(--muted)}
+.pd-kv-v{font-weight:600;color:var(--text);text-align:right;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-kv-v a{color:var(--accent);text-decoration:none}
+.pd-profile-item{padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text)}
+.pd-profile-item:last-child{border-bottom:none}
+.pd-profile-item-status{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:600;margin-left:6px}
+.pd-profile-item-status.open{background:rgba(239,68,68,.1);color:#ef4444}
+.pd-profile-item-status.closed,.pd-profile-item-status.completed{background:rgba(22,163,74,.1);color:#16a34a}
+/* Modal */
+.pd-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;align-items:center;justify-content:center}
+.pd-modal-overlay.open{display:flex}
+.pd-modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.pd-modal-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:16px}
+.pd-form-row{margin-bottom:13px}
+.pd-form-label{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px;display:block}
+.pd-form-input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box;outline:none}
+.pd-form-input:focus{border-color:var(--accent)}
+.pd-form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
+.pd-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.pd-import-drop{border:2px dashed var(--border);border-radius:10px;padding:30px;text-align:center;cursor:pointer;color:var(--muted);transition:border-color .15s}
+.pd-import-drop:hover,.pd-import-drop.dragover{border-color:var(--accent);color:var(--accent)}
+.pd-import-drop svg{display:block;margin:0 auto 8px}
+.pd-toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:13px;font-weight:600;z-index:500;display:none;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.pd-toast.show{display:block}
+.pd-toast.success{border-color:#16a34a;color:#16a34a}
+.pd-toast.error{border-color:#ef4444;color:#ef4444}
+</style>
+{% endblock %}
+{% block content %}
+<div class="pd-header">
+  <div>
+    <div class="pd-title">People Directory</div>
+    <div class="pd-subtitle">Staff roster, departments, and cross-module ownership</div>
+  </div>
+  <div class="pd-actions">
+    <button class="pd-btn pd-btn-secondary" onclick="openImportModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Import Excel
+    </button>
+    <button class="pd-btn pd-btn-primary" onclick="openAddModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Person
+    </button>
+  </div>
+</div>
+
+<div class="pd-stats" id="pdStats"></div>
+
+<div class="pd-filters">
+  <input class="pd-search" id="pdSearch" type="text" placeholder="Search by name, email, title..." oninput="filterPeople()">
+  <select class="pd-select" id="pdDeptFilter" onchange="filterPeople()">
+    <option value="">All Departments</option>
+  </select>
+  <select class="pd-select" id="pdStatusFilter" onchange="filterPeople()">
+    <option value="">All Status</option>
+    <option value="active">Active</option>
+    <option value="inactive">Inactive</option>
+  </select>
+</div>
+
+<div class="pd-grid" id="pdGrid"></div>
+
+<!-- Person drawer -->
+<div class="pd-drawer-overlay" id="pdDrawer">
+  <div class="pd-drawer" id="pdDrawerPanel">
+    <button class="pd-drawer-close" onclick="closeDrawer()">&#x2715;</button>
+    <div class="pd-drawer-header">
+      <div class="pd-drawer-avatar" id="ddAvatar"></div>
+      <div>
+        <div class="pd-drawer-name" id="ddName"></div>
+        <div class="pd-drawer-role" id="ddRole"></div>
+      </div>
+    </div>
+    <div id="ddBody"></div>
+  </div>
+</div>
+
+<!-- Add / Edit modal -->
+<div class="pd-modal-overlay" id="pdAddModal">
+  <div class="pd-modal">
+    <div class="pd-modal-title" id="addModalTitle">Add Person</div>
+    <div class="pd-form-row"><label class="pd-form-label">Full Name *</label><input class="pd-form-input" id="fName" placeholder="Jane Smith"></div>
+    <div class="pd-form-row-2">
+      <div><label class="pd-form-label">Email</label><input class="pd-form-input" id="fEmail" type="email" placeholder="jane@company.com"></div>
+      <div><label class="pd-form-label">Phone</label><input class="pd-form-input" id="fPhone" placeholder="+1 555 0100"></div>
+    </div>
+    <div class="pd-form-row-2">
+      <div><label class="pd-form-label">Job Title</label><input class="pd-form-input" id="fTitle" placeholder="Compliance Manager"></div>
+      <div><label class="pd-form-label">Department</label><input class="pd-form-input" id="fDept" placeholder="Risk & Compliance" list="deptSuggestions"><datalist id="deptSuggestions"></datalist></div>
+    </div>
+    <div class="pd-form-row"><label class="pd-form-label">Notes</label><textarea class="pd-form-input" id="fNotes" rows="2" placeholder="Optional notes"></textarea></div>
+    <div class="pd-modal-actions">
+      <button class="pd-btn pd-btn-secondary" onclick="closeAddModal()">Cancel</button>
+      <button class="pd-btn pd-btn-primary" onclick="savePerson()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import modal -->
+<div class="pd-modal-overlay" id="pdImportModal">
+  <div class="pd-modal">
+    <div class="pd-modal-title">Import from Excel</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Upload an Excel file (.xlsx). Expected columns: <strong>Full Name</strong>, Email, Phone, Job Title, Department, Notes. First row must be headers.</p>
+    <div class="pd-import-drop" id="importDrop" onclick="document.getElementById('importFile').click()">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div style="font-size:13px;font-weight:600;margin-top:4px">Click to upload or drag and drop</div>
+      <div style="font-size:11px;margin-top:2px" id="importFileName">XLSX files only, max 5 MB</div>
+    </div>
+    <input type="file" id="importFile" accept=".xlsx" style="display:none" onchange="fileSelected(this)">
+    <div id="importResult" style="margin-top:12px;font-size:13px;display:none"></div>
+    <div class="pd-modal-actions">
+      <button class="pd-btn pd-btn-secondary" onclick="closeImportModal()">Cancel</button>
+      <button class="pd-btn pd-btn-primary" id="importBtn" onclick="doImport()" disabled>Import</button>
+    </div>
+  </div>
+</div>
+
+<div class="pd-toast" id="pdToast"></div>
+
+<script>
+var _people = [], _editId = null, _importFile = null;
+
+async function loadPeople() {
+  const res = await fetch('/api/people');
+  const data = await res.json();
+  _people = data.items || [];
+  renderStats(data);
+  renderDeptFilter(data.departments || []);
+  renderGrid(_people);
+}
+
+function renderStats(data) {
+  var total = data.total || 0;
+  var active = (_people).filter(p => p.is_active).length;
+  var depts = (data.departments || []).length;
+  document.getElementById('pdStats').innerHTML =
+    stat(total, 'Total') + stat(active, 'Active') + stat(depts, 'Departments');
+}
+function stat(v, l) {
+  return '<div class="pd-stat"><div class="pd-stat-val">' + v + '</div><div class="pd-stat-lbl">' + l + '</div></div>';
+}
+
+function renderDeptFilter(depts) {
+  var sel = document.getElementById('pdDeptFilter');
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">All Departments</option>';
+  var ds = document.getElementById('deptSuggestions');
+  ds.innerHTML = '';
+  depts.forEach(function(d) {
+    sel.innerHTML += '<option value="' + esc(d) + '">' + esc(d) + '</option>';
+    ds.innerHTML += '<option value="' + esc(d) + '">';
+  });
+  if (cur) sel.value = cur;
+}
+
+function filterPeople() {
+  var q = document.getElementById('pdSearch').value.toLowerCase();
+  var dept = document.getElementById('pdDeptFilter').value;
+  var status = document.getElementById('pdStatusFilter').value;
+  var filtered = _people.filter(function(p) {
+    var matchQ = !q || (p.full_name||'').toLowerCase().includes(q) || (p.email||'').toLowerCase().includes(q) || (p.job_title||'').toLowerCase().includes(q) || (p.department||'').toLowerCase().includes(q);
+    var matchDept = !dept || p.department === dept;
+    var matchStatus = !status || (status === 'active' ? p.is_active : !p.is_active);
+    return matchQ && matchDept && matchStatus;
+  });
+  renderGrid(filtered);
+}
+
+function renderGrid(people) {
+  var el = document.getElementById('pdGrid');
+  if (!people.length) {
+    el.innerHTML = '<div class="pd-empty" style="grid-column:1/-1"><div class="pd-empty-icon">&#128101;</div><div style="font-size:15px;font-weight:600">No people found</div><div style="font-size:13px;margin-top:4px">Add staff manually or import from Excel.</div></div>';
+    return;
+  }
+  el.innerHTML = people.map(function(p) {
+    var initials = (p.full_name||'?').split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase();
+    return '<div class="pd-card' + (p.is_active ? '' : ' inactive') + '" onclick="openDrawer(' + p.id + ')">' +
+      '<div class="pd-card-top">' +
+        '<div class="pd-avatar" style="background:' + avatarColor(p.full_name) + '">' + esc(initials) + '</div>' +
+        '<div class="pd-card-info">' +
+          '<div class="pd-card-name">' + esc(p.full_name||'') + '</div>' +
+          '<div class="pd-card-title">' + esc(p.job_title||'No title') + '</div>' +
+        '</div>' +
+        '<div class="pd-status-dot ' + (p.is_active ? 'active' : 'inactive') + '" title="' + (p.is_active ? 'Active' : 'Inactive') + '"></div>' +
+      '</div>' +
+      (p.department ? '<div class="pd-dept-badge">' + esc(p.department) + '</div>' : '') +
+      '<div class="pd-card-contact">' +
+        (p.email ? '<div class="pd-contact-row"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><a href="mailto:' + esc(p.email) + '" onclick="event.stopPropagation()">' + esc(p.email) + '</a></div>' : '') +
+        (p.phone ? '<div class="pd-contact-row"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.6 19.27 19.73 19.73 0 0 1 5.2 12.73 19.79 19.79 0 0 1 2.1 4.2 2 2 0 0 1 4.11 2H7.09a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91A16 16 0 0 0 14.09 15.91l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' + esc(p.phone) + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function avatarColor(name) {
+  var colors = ['#2563eb','#7c3aed','#0891b2','#059669','#d97706','#dc2626','#db2777','#4f46e5'];
+  var h = 0; for (var i=0;i<(name||'').length;i++) h += (name.charCodeAt(i)*31);
+  return colors[Math.abs(h) % colors.length];
+}
+
+async function openDrawer(pid) {
+  var res = await fetch('/api/people/' + pid + '/profile');
+  var p = await res.json();
+  if (p.error) return;
+  var initials = (p.full_name||'?').split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('').toUpperCase();
+  document.getElementById('ddAvatar').textContent = initials;
+  document.getElementById('ddAvatar').style.background = avatarColor(p.full_name);
+  document.getElementById('ddName').textContent = p.full_name || '';
+  document.getElementById('ddRole').textContent = (p.job_title||'') + (p.department ? ' - ' + p.department : '');
+  var html = '<div class="pd-section"><div class="pd-section-title">Contact</div>' +
+    kv('Email', p.email ? '<a href="mailto:'+esc(p.email)+'">'+esc(p.email)+'</a>' : '-') +
+    kv('Phone', p.phone || '-') +
+    kv('Status', p.is_active ? 'Active' : 'Inactive') +
+  '</div>';
+  if (p.notes) html += '<div class="pd-section"><div class="pd-section-title">Notes</div><p style="font-size:12px;color:var(--text);margin:0">'+esc(p.notes)+'</p></div>';
+  if (p.tasks && p.tasks.length) {
+    html += '<div class="pd-section"><div class="pd-section-title">Assigned Tasks (' + p.tasks.length + ')</div>';
+    p.tasks.forEach(function(t) {
+      html += '<div class="pd-profile-item">' + esc(t.title) + '<span class="pd-profile-item-status ' + (t.status||'').toLowerCase() + '">' + esc(t.status||'') + '</span></div>';
+    });
+    html += '</div>';
+  }
+  if (p.risks && p.risks.length) {
+    html += '<div class="pd-section"><div class="pd-section-title">Owned Risks (' + p.risks.length + ')</div>';
+    p.risks.forEach(function(r) {
+      html += '<div class="pd-profile-item">' + esc(r.title) + '<span class="pd-profile-item-status ' + (r.status||'').toLowerCase() + '">' + esc(r.status||'') + '</span></div>';
+    });
+    html += '</div>';
+  }
+  html += '<div style="display:flex;gap:8px;margin-top:4px">' +
+    '<button class="pd-btn pd-btn-secondary" style="flex:1" onclick="openEditModal(' + pid + ')">Edit</button>' +
+    '<button class="pd-btn" style="flex:1;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3)" onclick="deletePerson('+pid+')">Delete</button>' +
+  '</div>';
+  document.getElementById('ddBody').innerHTML = html;
+  document.getElementById('pdDrawer').classList.add('open');
+}
+function closeDrawer() { document.getElementById('pdDrawer').classList.remove('open'); }
+function kv(k, v) { return '<div class="pd-kv"><span class="pd-kv-k">'+k+'</span><span class="pd-kv-v">'+v+'</span></div>'; }
+
+function openAddModal() {
+  _editId = null;
+  document.getElementById('addModalTitle').textContent = 'Add Person';
+  ['fName','fEmail','fPhone','fTitle','fDept','fNotes'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('pdAddModal').classList.add('open');
+}
+function openEditModal(pid) {
+  var p = _people.find(function(x){return x.id===pid;});
+  if (!p) return;
+  _editId = pid;
+  document.getElementById('addModalTitle').textContent = 'Edit Person';
+  document.getElementById('fName').value = p.full_name||'';
+  document.getElementById('fEmail').value = p.email||'';
+  document.getElementById('fPhone').value = p.phone||'';
+  document.getElementById('fTitle').value = p.job_title||'';
+  document.getElementById('fDept').value = p.department||'';
+  document.getElementById('fNotes').value = p.notes||'';
+  document.getElementById('pdAddModal').classList.add('open');
+}
+function closeAddModal() { document.getElementById('pdAddModal').classList.remove('open'); }
+
+async function savePerson() {
+  var name = document.getElementById('fName').value.trim();
+  if (!name) { toast('Full name is required', 'error'); return; }
+  var payload = {
+    full_name: name,
+    email: document.getElementById('fEmail').value.trim()||null,
+    phone: document.getElementById('fPhone').value.trim()||null,
+    job_title: document.getElementById('fTitle').value.trim()||null,
+    department: document.getElementById('fDept').value.trim()||null,
+    notes: document.getElementById('fNotes').value.trim()||null,
+  };
+  var url = _editId ? '/api/people/' + _editId : '/api/people';
+  var method = _editId ? 'PATCH' : 'POST';
+  var res = await fetch(url, {method:method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  var data = await res.json();
+  if (data.ok) { closeAddModal(); toast(_editId ? 'Updated' : 'Person added', 'success'); loadPeople(); }
+  else toast(data.error||'Error', 'error');
+}
+
+async function deletePerson(pid) {
+  if (!confirm('Delete this person from the directory?')) return;
+  var res = await fetch('/api/people/' + pid, {method:'DELETE'});
+  var data = await res.json();
+  if (data.ok) { closeDrawer(); toast('Deleted', 'success'); loadPeople(); }
+  else toast(data.error||'Error', 'error');
+}
+
+function openImportModal() { _importFile=null; document.getElementById('importFileName').textContent='XLSX files only, max 5 MB'; document.getElementById('importResult').style.display='none'; document.getElementById('importBtn').disabled=true; document.getElementById('pdImportModal').classList.add('open'); }
+function closeImportModal() { document.getElementById('pdImportModal').classList.remove('open'); }
+function fileSelected(input) {
+  _importFile = input.files[0];
+  if (_importFile) { document.getElementById('importFileName').textContent = _importFile.name; document.getElementById('importBtn').disabled = false; }
+}
+var importDrop = document.getElementById('importDrop');
+importDrop.addEventListener('dragover', function(e){e.preventDefault();importDrop.classList.add('dragover');});
+importDrop.addEventListener('dragleave', function(){importDrop.classList.remove('dragover');});
+importDrop.addEventListener('drop', function(e){e.preventDefault();importDrop.classList.remove('dragover');var f=e.dataTransfer.files[0];if(f){_importFile=f;document.getElementById('importFileName').textContent=f.name;document.getElementById('importBtn').disabled=false;}});
+
+async function doImport() {
+  if (!_importFile) return;
+  var btn = document.getElementById('importBtn');
+  btn.disabled = true; btn.textContent = 'Importing...';
+  var formData = new FormData();
+  formData.append('file', _importFile);
+  try {
+    var res = await fetch('/api/people/import', {method:'POST', headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}, body: await _importFile.arrayBuffer()});
+    var data = await res.json();
+    var resultEl = document.getElementById('importResult');
+    resultEl.style.display = 'block';
+    if (data.ok) {
+      resultEl.style.color = '#16a34a';
+      resultEl.textContent = 'Imported ' + data.imported + ' people. ' + data.skipped + ' skipped (already exist or missing name).';
+      loadPeople();
+    } else {
+      resultEl.style.color = '#ef4444';
+      resultEl.textContent = data.error || 'Import failed';
+    }
+  } catch(e) { document.getElementById('importResult').style.display='block'; document.getElementById('importResult').style.color='#ef4444'; document.getElementById('importResult').textContent='Network error'; }
+  btn.disabled = false; btn.textContent = 'Import';
+}
+
+function toast(msg, type) {
+  var el = document.getElementById('pdToast');
+  el.textContent = msg; el.className = 'pd-toast show ' + (type||'');
+  setTimeout(function(){ el.classList.remove('show'); }, 3000);
+}
+function esc(s) { return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+loadPeople();
+</script>
+{% endblock %}

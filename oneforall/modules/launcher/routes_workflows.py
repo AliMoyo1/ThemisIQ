@@ -468,8 +468,26 @@ async def api_workflow_action_decide(request: Request, aid: int):
                 )
                 db.commit()
         elif decision == "return":
-            db.execute("UPDATE workflow_instances SET status = 'returned' WHERE id = %s", (iid,))
+            # Restart from step 0 so the submitter can revise and resubmit
+            db.execute(
+                "UPDATE workflow_instances SET current_step = 0, status = 'active' WHERE id = %s",
+                (iid,)
+            )
+            first_step = steps[0] if steps else {}
+            db.execute(
+                "INSERT INTO workflow_actions (instance_id, step_index, action_type, assigned_to) "
+                "VALUES (%s, 0, %s, %s)",
+                (iid, first_step.get("action_type", "approve"), first_step.get("assigned_to"))
+            )
             db.commit()
+            if inst["started_by"]:
+                db.execute(
+                    "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+                    (inst["started_by"], f"Workflow Returned for Revision: {defn['name']}",
+                     f"Returned at step {action['step_index'] + 1}: {comment or 'Please review and resubmit.'}",
+                     f"/workflows?instance={iid}", "workflow")
+                )
+                db.commit()
     finally:
         db.close()
     return _JSONResp({"success": True, "decision": decision})
