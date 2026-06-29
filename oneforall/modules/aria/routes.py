@@ -171,6 +171,74 @@ def _can_approve_policy(user, doc):
     return True
 
 
+def _sync_aria_to_vault(db, aria_doc_id, title, framework, control_ref,
+                        doc_type, version, stored_name, orig_filename,
+                        file_size, user_id):
+    """Copy an ARIA document file into the Evidence Vault on upload.
+
+    If a vault entry already exists for this aria_doc_id, update it
+    (new version) instead of creating a duplicate.
+    """
+    import hashlib as _hl, shutil as _sh, uuid as _uuid
+    from database import insert_returning_id as _ins
+
+    aria_dir = ARIA_UPLOAD_DIR
+    ev_dir = Path(os.environ.get("EVIDENCE_DIR", "data/evidence"))
+    ev_dir.mkdir(parents=True, exist_ok=True)
+
+    src = (aria_dir / stored_name).resolve()
+    if not src.exists():
+        return
+    ext = src.suffix or ".docx"
+    ev_name = f"{_uuid.uuid4().hex}{ext}"
+    _sh.copy2(str(src), str(ev_dir / ev_name))
+
+    h = _hl.sha256()
+    with open(ev_dir / ev_name, "rb") as f:
+        while True:
+            chunk = f.read(65536)
+            if not chunk:
+                break
+            h.update(chunk)
+    ev_hash = h.hexdigest()
+    ev_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    tag = f"aria_doc_id={aria_doc_id}"
+    existing = db.execute(
+        "SELECT id FROM evidence_items WHERE tags LIKE %s AND status != 'archived'",
+        (f"%{tag}%",),
+    ).fetchone()
+
+    if existing:
+        db.execute(
+            "UPDATE evidence_items SET title=%s, file_path=%s, file_name=%s, "
+            "file_size=%s, file_hash=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (title, ev_name, orig_filename, file_size, ev_hash, existing["id"]),
+        )
+    else:
+        vault_id = _ins(db,
+            "INSERT INTO evidence_items "
+            "(title, description, file_path, file_name, file_size, "
+            " file_hash, mime_type, category, tags, status, uploaded_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (
+                title,
+                f"ARIA {doc_type} (framework: {framework}, control: {control_ref}, "
+                f"version: {version}).",
+                ev_name, orig_filename, file_size, ev_hash, ev_mime,
+                "policy",
+                f"aria,policy,{framework},{control_ref},{tag}",
+                "current", user_id,
+            ),
+        )
+        db.execute(
+            "INSERT INTO evidence_links "
+            "(evidence_id, module, entity_type, entity_id, linked_by) "
+            "VALUES (%s,%s,%s,%s,%s)",
+            (vault_id, "aria", "document", aria_doc_id, user_id),
+        )
+
+
 # -- Dashboard ----------------------------------------------------------------
 
 @router.get("/", response_class=HTMLResponse)
@@ -992,6 +1060,13 @@ async def upload_new_document(
         log_audit(user, "aria", f"Added document {doc_id}: {title}",
                   "document", new_id, doc_id)
 
+        if stored_name:
+            _sync_aria_to_vault(
+                db, new_id, title, framework, control_ref, doc_type,
+                version, stored_name, orig_filename, file_size, user["id"],
+            )
+            db.commit()
+
         if status == "Approved":
             emit(
                 ARIA_POLICY_PUBLISHED,
@@ -1400,7 +1475,15 @@ async def upload_document_revision(request: Request, doc_id: str,
         log_audit(user, "aria", f"Uploaded revision for {doc_id}: {file.filename}",
                   "document", doc["id"], doc_id)
 
-        # Auto-attach to GRID — upload makes the doc available as evidence immediately
+        _sync_aria_to_vault(
+            db, doc["id"], doc.get("title", doc_id),
+            doc.get("framework", ""), doc.get("control_ref", ""),
+            doc.get("doc_type", "Policy"), new_version,
+            str(stored_name), file.filename, len(content), user["id"],
+        )
+        db.commit()
+
+        # Auto-attach to GRID
         if doc.get("control_ref", "").strip():
             try:
                 from oneforall.modules.grid import data_service as _grid_ds

@@ -437,35 +437,51 @@ def policy_published_handler(event_type, source_module, entity_type,
                         or f"{doc_row['doc_id'] or 'policy'}_{doc_row['version'] or '1.0'}.docx"
                     )
 
-            vault_id = insert_returning_id(db,
-                "INSERT INTO evidence_items "
-                "(title, description, file_path, file_name, file_size, "
-                " file_hash, mime_type, category, tags, status, uploaded_by) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (
-                    title,
-                    f"ARIA policy document (framework: {framework}, "
-                    f"control: {control_ref}, type: {doc_row['doc_type'] if doc_row else 'Policy'}, "
-                    f"version: {doc_row['version'] if doc_row else '1.0'}). "
-                    f"Published on {datetime.now():%Y-%m-%d %H:%M}.",
-                    ev_stored,
-                    ev_filename,
-                    ev_size,
-                    ev_hash,
-                    ev_mime if ev_stored else "",
-                    "policy",
-                    f"aria,policy,approved,{framework},{control_ref},aria_doc_id={entity_id}",
-                    "current",
-                    user_id,
-                ),
-            )
+            tag = f"aria_doc_id={entity_id}"
+            existing_vault = db.execute(
+                "SELECT id FROM evidence_items WHERE tags LIKE %s AND status != 'archived'",
+                (f"%{tag}%",),
+            ).fetchone()
 
-            db.execute(
-                "INSERT INTO evidence_links "
-                "(evidence_id, module, entity_type, entity_id, linked_by) "
-                "VALUES (%s,%s,%s,%s,%s)",
-                (vault_id, "aria", "document", entity_id, user_id),
-            )
+            if existing_vault:
+                vault_id = existing_vault["id"]
+                db.execute(
+                    "UPDATE evidence_items SET title=%s, file_path=%s, file_name=%s, "
+                    "file_size=%s, file_hash=%s, tags=%s, updated_at=CURRENT_TIMESTAMP "
+                    "WHERE id=%s",
+                    (title, ev_stored, ev_filename, ev_size, ev_hash,
+                     f"aria,policy,approved,{framework},{control_ref},{tag}",
+                     vault_id),
+                )
+            else:
+                vault_id = insert_returning_id(db,
+                    "INSERT INTO evidence_items "
+                    "(title, description, file_path, file_name, file_size, "
+                    " file_hash, mime_type, category, tags, status, uploaded_by) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (
+                        title,
+                        f"ARIA policy document (framework: {framework}, "
+                        f"control: {control_ref}, type: {doc_row['doc_type'] if doc_row else 'Policy'}, "
+                        f"version: {doc_row['version'] if doc_row else '1.0'}). "
+                        f"Published on {datetime.now():%Y-%m-%d %H:%M}.",
+                        ev_stored,
+                        ev_filename,
+                        ev_size,
+                        ev_hash,
+                        ev_mime if ev_stored else "",
+                        "policy",
+                        f"aria,policy,approved,{framework},{control_ref},{tag}",
+                        "current",
+                        user_id,
+                    ),
+                )
+                db.execute(
+                    "INSERT INTO evidence_links "
+                    "(evidence_id, module, entity_type, entity_id, linked_by) "
+                    "VALUES (%s,%s,%s,%s,%s)",
+                    (vault_id, "aria", "document", entity_id, user_id),
+                )
             if framework:
                 fw_row = db.execute(
                     "SELECT id FROM aria_frameworks WHERE name=%s", (framework,)
