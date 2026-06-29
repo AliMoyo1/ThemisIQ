@@ -2450,6 +2450,15 @@ async def api_generate_policy(request: Request,
         log_audit(user, "aria",
                   "Generated AI policy for " + ctrl["fw_name"] + " " + ctrl["ref"],
                   "control", control_id)
+
+        # Build framework label: primary + any integrated frameworks
+        fw_names = [ctrl["fw_name"]]
+        if integrated_frameworks:
+            for extra in integrated_frameworks:
+                if extra["framework"] not in fw_names:
+                    fw_names.append(extra["framework"])
+        fw_label = ", ".join(fw_names)
+
         db = get_db()
         try:
             db.execute(
@@ -2475,11 +2484,11 @@ async def api_generate_policy(request: Request,
                     new_ver = "1.1"
                 db.execute("""
                     UPDATE aria_documents
-                    SET version=%s, status='Draft', updated_at=%s,
+                    SET framework=%s, version=%s, status='Draft', updated_at=%s,
                         comments='AI Generated -- updated ' || %s,
                         body=%s
                     WHERE doc_id=%s
-                """, (new_ver, now, datetime.now().strftime("%Y-%m-%d"),
+                """, (fw_label, new_ver, now, datetime.now().strftime("%Y-%m-%d"),
                       policy_body, existing["doc_id"]))
             else:
                 max_num = db.execute(
@@ -2493,7 +2502,7 @@ async def api_generate_policy(request: Request,
                      version, status, owner, created_at, updated_at,
                      comments, body)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (doc_id, ctrl["fw_name"], ctrl["ref"],
+                """, (doc_id, fw_label, ctrl["ref"],
                       ctrl["name"] + " -- " + resolved_doc_type,
                       resolved_doc_type, "1.0", "Draft",
                       user.get("full_name", ""),
