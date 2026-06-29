@@ -302,19 +302,47 @@ def perform_backup() -> None:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
             if settings.is_postgres():
                 parsed = urllib.parse.urlparse(settings.DATABASE_URL)
+                pg_user = parsed.username or "themisiq"
                 pg_env = {
                     **os.environ,
                     "PGPASSWORD": os.getenv("PGPASSWORD", parsed.password or ""),
                     "PGSSLMODE": os.getenv("PGSSLMODE", "prefer"),
                 }
+                # pg_dump opens its own connection where no app.bypass_rls
+                # session variable is set, so FORCE ROW LEVEL SECURITY blocks
+                # the COPY. Temporarily set bypass as a role-level default so
+                # pg_dump's connection inherits it. Our app always overrides
+                # this via set_rls_context() so the window is safe.
+                from database import get_db_bypass_rls
+                rls_db = get_db_bypass_rls()
+                try:
+                    rls_db.execute(
+                        "ALTER ROLE %s SET app.bypass_rls = 'true'" % pg_user
+                    )
+                    rls_db.commit()
+                finally:
+                    rls_db.close()
+
                 cmd = [
                     "pg_dump", "--no-owner", "--no-acl", "--format=custom",
                     "-h", parsed.hostname or "localhost",
                     "-p", str(parsed.port or 5432),
-                    "-U", parsed.username or "themisiq",
+                    "-U", pg_user,
                     "-d", (parsed.path or "/themisiq").lstrip("/"),
                 ]
-                res = subprocess.run(cmd, capture_output=True, env=pg_env, timeout=600)
+                try:
+                    res = subprocess.run(cmd, capture_output=True, env=pg_env, timeout=600)
+                finally:
+                    # Reset the role default regardless of pg_dump outcome.
+                    rls_db2 = get_db_bypass_rls()
+                    try:
+                        rls_db2.execute(
+                            "ALTER ROLE %s RESET app.bypass_rls" % pg_user
+                        )
+                        rls_db2.commit()
+                    finally:
+                        rls_db2.close()
+
                 if res.returncode != 0:
                     log.error("pg_dump failed: %s", res.stderr.decode()[:500])
                     zip_path.unlink(missing_ok=True)
