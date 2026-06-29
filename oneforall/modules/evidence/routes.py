@@ -69,9 +69,6 @@ async def api_evidence_list(request: Request):
         if category:
             where.append("e.category = %s")
             params.append(category)
-        if status:
-            where.append("e.status = %s")
-            params.append(status)
         if search:
             where.append("(e.title LIKE %s OR e.tags LIKE %s OR e.description LIKE %s)")
             params.extend([f"%{search}%"] * 3)
@@ -80,15 +77,24 @@ async def api_evidence_list(request: Request):
             params.append(module)
 
         view = request.query_params.get("view", "")
-        if view == "expiring":
+        if view == "archived":
+            where.append("e.status = 'archived'")
+        elif view == "expiring":
+            where.append("e.status != 'archived'")
             where.append(
                 f"e.expiry_date IS NOT NULL AND e.expiry_date <= {sql_date_offset('+30 days')} "
                 f"AND e.expiry_date > {sql_current_date()} AND e.status = 'current'"
             )
         elif view == "unlinked":
+            where.append("e.status != 'archived'")
             where.append(
                 "NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id)"
             )
+        else:
+            where.append("e.status != 'archived'")
+            if status:
+                where.append("e.status = %s")
+                params.append(status)
 
         where_sql = " AND ".join(where)
         rows = db.execute(
@@ -286,15 +292,79 @@ async def api_evidence_update(request: Request, eid: int):
 @router.delete("/api/items/{eid}")
 @require_auth
 async def api_evidence_delete(request: Request, eid: int):
-    """Soft-delete evidence (mark as archived)."""
+    """Archive evidence: set status to archived and cascade-unlink from all modules."""
+    if not has_capability(request.state.user, "evidence.delete"):
+        return JSONResponse({"error": "Permission denied"}, 403)
+    user = request.state.user
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE evidence_items SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (eid,),
+        )
+        db.execute(
+            "UPDATE evidence_links SET deleted_at = CURRENT_TIMESTAMP, deleted_by = %s "
+            "WHERE evidence_id = %s AND deleted_at IS NULL",
+            (_uid(request), eid),
+        )
+        db.commit()
+    finally:
+        db.close()
+    from core.middleware import log_audit
+    log_audit(user, "evidence", "Archived evidence and removed all links", "evidence", eid)
+    return JSONResponse({"success": True})
+
+
+@router.post("/api/items/{eid}/restore")
+@require_auth
+async def api_evidence_restore(request: Request, eid: int):
+    """Restore archived evidence back to current status."""
     if not has_capability(request.state.user, "evidence.delete"):
         return JSONResponse({"error": "Permission denied"}, 403)
     db = get_db()
     try:
-        db.execute("UPDATE evidence_items SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = %s", (eid,))
+        db.execute(
+            "UPDATE evidence_items SET status = 'current', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (eid,),
+        )
         db.commit()
     finally:
         db.close()
+    from core.middleware import log_audit
+    log_audit(request.state.user, "evidence", "Restored evidence from archive", "evidence", eid)
+    return JSONResponse({"success": True})
+
+
+@router.delete("/api/items/{eid}/permanent")
+@require_auth
+async def api_evidence_permanent_delete(request: Request, eid: int):
+    """Permanently delete an archived evidence item and its file."""
+    if not has_capability(request.state.user, "evidence.delete"):
+        return JSONResponse({"error": "Permission denied"}, 403)
+    db = get_db()
+    try:
+        item = db.execute(
+            "SELECT file_path, status FROM evidence_items WHERE id = %s", (eid,)
+        ).fetchone()
+        if not item:
+            return JSONResponse({"error": "Not found"}, 404)
+        if item["status"] != "archived":
+            return JSONResponse({"error": "Only archived items can be permanently deleted"}, 400)
+        db.execute("DELETE FROM evidence_links WHERE evidence_id = %s", (eid,))
+        db.execute("UPDATE evidence_items SET parent_id = NULL WHERE parent_id = %s", (eid,))
+        db.execute("DELETE FROM evidence_items WHERE id = %s", (eid,))
+        db.commit()
+    finally:
+        db.close()
+    if item["file_path"]:
+        try:
+            fp = Path(item["file_path"])
+            if fp.exists():
+                fp.unlink()
+        except Exception:
+            pass
+    from core.middleware import log_audit
+    log_audit(request.state.user, "evidence", "Permanently deleted evidence", "evidence", eid)
     return JSONResponse({"success": True})
 
 
@@ -1068,9 +1138,12 @@ async def api_evidence_stats(request: Request):
             "FROM evidence_items WHERE status != 'archived' "
             "ORDER BY created_at DESC LIMIT 5"
         ).fetchall()
+        archived_count = db.execute(
+            "SELECT COUNT(*) FROM evidence_items WHERE status = 'archived'"
+        ).fetchone()[0]
     finally:
         db.close()
-    return JSONResponse({
+    result = {
         "total": total,
         "by_category": {r["category"]: r["c"] for r in by_category},
         "by_module": {r["module"]: r["c"] for r in by_module},
@@ -1079,4 +1152,7 @@ async def api_evidence_stats(request: Request):
         "total_links": total_links,
         "unlinked": unlinked,
         "recently_added": [dict(r) for r in recent_rows],
-    })
+        "archived": archived_count,
+    }
+    result["can_delete"] = has_capability(request.state.user, "evidence.delete")
+    return JSONResponse(result)

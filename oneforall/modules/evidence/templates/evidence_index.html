@@ -20,6 +20,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
     Unlinked <span id="badge-unlinked" class="nav-badge" style="background:var(--bad-soft,#fee2e2);color:var(--bad,#dc2626)"></span>
   </a>
+  <a href="#" class="nav-item" id="nav-archived" onclick="switchView('archived',this)" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+    Archive <span id="badge-archived" class="nav-badge" style="background:var(--surface2);color:var(--muted)"></span>
+  </a>
 </div>
 <div class="sidebar-section">
   <div class="sidebar-label">Modules</div>
@@ -295,6 +299,9 @@ async function loadStats(){
   var bx=document.getElementById('badge-expiring');if(bx)bx.textContent=s.expiring_soon||'';
   var bu=document.getElementById('badge-unlinked');if(bu)bu.textContent=s.unlinked||'';
   Object.keys(bm).forEach(function(m){var b=document.getElementById('badge-'+m);if(b)b.textContent=bm[m]||'';});
+  var ba=document.getElementById('badge-archived');if(ba)ba.textContent=s.archived||'';
+  var na=document.getElementById('nav-archived');
+  if(na){na.style.display=s.can_delete?'':'none';}
   // Recently added strip
   var recent=s.recently_added||[];
   var rs=document.getElementById('recentSection');
@@ -372,6 +379,7 @@ async function loadEvidence(){
     var et=document.getElementById('emptyTitle'),es=document.getElementById('emptySub');
     if(currentView==='expiring'){et.textContent='No expiring evidence';es.textContent='No items expire within the next 30 days.';}
     else if(currentView==='unlinked'){et.textContent='No unlinked evidence';es.textContent='All evidence is linked to at least one entity.';}
+    else if(currentView==='archived'){et.textContent='Archive is empty';es.textContent='No archived evidence items.';}
     else{et.textContent='No evidence items found';es.textContent='Upload files or drag & drop here to start';}
     return;
   }
@@ -510,9 +518,16 @@ async function openDetail(eid){
   } else {
     html+='<span style="font-size:11px;color:var(--muted);padding:6px 0">Auto-generated record, no file attached</span>';
   }
-  html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--accent);color:var(--accent)" onclick="openLinkToModal('+eid+')">Link to...</button>';
+  if(item.status!=='archived'){
+    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--accent);color:var(--accent)" onclick="openLinkToModal('+eid+')">Link to...</button>';
+  }
   if(item.can_delete){
-    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--bad,#dc2626);color:var(--bad,#dc2626);margin-left:auto" onclick="archiveEvidence('+eid+')">Archive</button>';
+    if(item.status==='archived'){
+      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--good,#16a34a);color:var(--good,#16a34a);margin-left:auto" onclick="restoreEvidence('+eid+')">Restore</button>';
+      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--bad,#dc2626);color:var(--bad,#dc2626)" onclick="permanentDeleteEvidence('+eid+')">Delete Permanently</button>';
+    } else {
+      html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--bad,#dc2626);color:var(--bad,#dc2626);margin-left:auto" onclick="archiveEvidence('+eid+')">Archive</button>';
+    }
   }
   html+='</div>';
   html+='<div id="integrityResult"></div>';
@@ -728,14 +743,38 @@ async function unlinkEvidence(linkId,eid){
 }
 
 async function archiveEvidence(eid){
-  if(!confirm('Archive this evidence item? It will be marked as archived and hidden from the default view.'))return;
+  if(!confirm('Archive this evidence item? It will be removed from the repository, unlinked from all modules, and moved to the archive.'))return;
   var r=await fetch('/evidence/api/items/'+eid,{method:'DELETE'});
   if(r.ok){
     closeDetail();loadEvidence();loadStats();
-    if(typeof showToast==='function')showToast('Evidence archived');
+    if(typeof showToast==='function')showToast('Evidence archived and unlinked from all modules');
   } else {
     var d=await r.json().catch(function(){return {};});
     if(typeof showToast==='function')showToast(d.error||'Archive failed','error');
+  }
+}
+
+async function restoreEvidence(eid){
+  if(!confirm('Restore this evidence item back to the repository?'))return;
+  var r=await fetch('/evidence/api/items/'+eid+'/restore',{method:'POST'});
+  if(r.ok){
+    closeDetail();loadEvidence();loadStats();
+    if(typeof showToast==='function')showToast('Evidence restored to repository');
+  } else {
+    var d=await r.json().catch(function(){return {};});
+    if(typeof showToast==='function')showToast(d.error||'Restore failed','error');
+  }
+}
+
+async function permanentDeleteEvidence(eid){
+  if(!confirm('PERMANENTLY delete this evidence? This cannot be undone. The file and all records will be removed.'))return;
+  var r=await fetch('/evidence/api/items/'+eid+'/permanent',{method:'DELETE'});
+  if(r.ok){
+    closeDetail();loadEvidence();loadStats();
+    if(typeof showToast==='function')showToast('Evidence permanently deleted');
+  } else {
+    var d=await r.json().catch(function(){return {};});
+    if(typeof showToast==='function')showToast(d.error||'Delete failed','error');
   }
 }
 
