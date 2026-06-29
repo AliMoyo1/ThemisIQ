@@ -499,12 +499,11 @@ async function deleteOrg(){
 async function loadUsersForPanel(orgId){
   var users = await apiFetch('/super-admin/api/orgs/'+orgId+'/users');
   document.getElementById('usersList').innerHTML = users.length
-    ? '<table class="sa-table"><thead><tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr></thead><tbody>'+
+    ? '<table class="sa-table" style="table-layout:fixed;width:100%"><thead><tr><th>Name</th><th>Status</th><th style="width:60px"></th></tr></thead><tbody>'+
         users.map(function(u){
-          return '<tr><td><div style="font-weight:600">'+esc(u.full_name)+
+          return '<tr><td style="overflow:hidden"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.full_name)+
             (u.is_super_admin?'<span class="badge badge-violet" style="margin-left:6px">super</span>':'')+'</div>'+
-            '<div style="font-family:monospace;font-size:11px;color:var(--muted)">'+esc(u.username)+'</div></td>'+
-            '<td>'+esc(u.email)+'</td>'+
+            '<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.email)+'</div></td>'+
             '<td>'+(u.is_active?'<span class="badge badge-green">Active</span>':'<span class="badge badge-red">Inactive</span>')+'</td>'+
             '<td style="text-align:right"><button class="sa-btn sa-btn-danger" style="font-size:11px;padding:4px 10px" onclick="deleteOrgUser('+orgId+','+u.id+',\''+esc(u.username)+'\')">Remove</button></td>'+
             '</tr>';
