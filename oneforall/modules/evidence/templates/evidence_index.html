@@ -510,8 +510,11 @@ async function openDetail(eid){
   } else {
     html+='<span style="font-size:11px;color:var(--muted);padding:6px 0">Auto-generated record, no file attached</span>';
   }
-  html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--accent);color:var(--accent)" onclick="openLinkToModal('+eid+')">Link to…</button>'+
-  '</div>';
+  html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--accent);color:var(--accent)" onclick="openLinkToModal('+eid+')">Link to...</button>';
+  if(item.can_delete){
+    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:var(--bad,#dc2626);color:var(--bad,#dc2626);margin-left:auto" onclick="archiveEvidence('+eid+')">Archive</button>';
+  }
+  html+='</div>';
   html+='<div id="integrityResult"></div>';
 
   /* Preview for images */
@@ -722,6 +725,18 @@ async function unlinkEvidence(linkId,eid){
   if(!confirm('Remove this link?'))return;
   await fetch('/evidence/api/links/'+linkId,{method:'DELETE'});
   openDetail(eid);loadStats();
+}
+
+async function archiveEvidence(eid){
+  if(!confirm('Archive this evidence item? It will be marked as archived and hidden from the default view.'))return;
+  var r=await fetch('/evidence/api/items/'+eid,{method:'DELETE'});
+  if(r.ok){
+    closeDetail();loadEvidence();loadStats();
+    if(typeof showToast==='function')showToast('Evidence archived');
+  } else {
+    var d=await r.json().catch(function(){return {};});
+    if(typeof showToast==='function')showToast(d.error||'Archive failed','error');
+  }
 }
 
 /* ── AI Suggest Links ── */

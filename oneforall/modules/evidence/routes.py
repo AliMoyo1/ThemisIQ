@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_auth, require_capability
+from core.rbac import has_capability
 from core.shell_context import shell_ctx
 from database import get_db, insert_returning_id, sql_date_offset, sql_current_date
 
@@ -253,6 +254,7 @@ async def api_evidence_get(request: Request, eid: int):
         ).fetchall()]
     finally:
         db.close()
+    result["can_delete"] = has_capability(request.state.user, "evidence.delete")
     return JSONResponse(result)
 
 
@@ -285,6 +287,8 @@ async def api_evidence_update(request: Request, eid: int):
 @require_auth
 async def api_evidence_delete(request: Request, eid: int):
     """Soft-delete evidence (mark as archived)."""
+    if not has_capability(request.state.user, "evidence.delete"):
+        return JSONResponse({"error": "Permission denied"}, 403)
     db = get_db()
     try:
         db.execute("UPDATE evidence_items SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = %s", (eid,))

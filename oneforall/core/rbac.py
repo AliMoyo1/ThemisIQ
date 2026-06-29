@@ -183,6 +183,9 @@ CAPABILITIES: dict[str, set[str]] = {
     "bcm.ai.use":                 {SUPER_ADMIN, BCM_MANAGER, INCIDENT_COMMANDER, BCM_RESPONDER},
     "bcm.ai.chat":                {SUPER_ADMIN, BCM_MANAGER, INCIDENT_COMMANDER, BCM_RESPONDER},
 
+    # ── Evidence Vault capabilities ─────────────────────────────
+    "evidence.delete":            {SUPER_ADMIN, COMPLIANCE_MGR},
+
     # ── Sentinel capabilities ────────────────────────────────────
     "sentinel.ropa.manage":           {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.dpia.manage":           {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
