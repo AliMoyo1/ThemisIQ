@@ -41,7 +41,7 @@ def require_super_admin(func):
 
 async def _json_body(request) -> dict:
     try:
-        body = await _json_body(request)
+        body = await request.json()
     except Exception:
         return {}
     from core.sanitize import sanitize_dict
