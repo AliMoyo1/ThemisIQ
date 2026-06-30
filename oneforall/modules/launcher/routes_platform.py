@@ -834,10 +834,15 @@ async def api_task_delete(request: Request, tid: int):
     db = get_db()
     try:
         if is_admin:
-            db.execute("DELETE FROM task_board WHERE id = %s", (tid,))
+            result = db.execute("DELETE FROM task_board WHERE id = %s", (tid,))
         else:
-            db.execute("DELETE FROM task_board WHERE id = %s AND (created_by = %s OR assigned_to = %s)", (tid, uid, uid))
+            result = db.execute(
+                "DELETE FROM task_board WHERE id = %s AND (created_by = %s OR assigned_to = %s)",
+                (tid, uid, uid)
+            )
         db.commit()
+        if result.rowcount == 0:
+            return _JSONResp({"error": "Task not found or access denied."}, 404)
     finally:
         db.close()
     return _JSONResp({"success": True})
