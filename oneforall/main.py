@@ -200,6 +200,26 @@ async def startup():
     except Exception as exc:
         log.warning("Reminder scheduler failed to start: %s", exc)
 
+    # Start Workflow/SLA scheduler (breach detection, pre-breach warnings, step reminders)
+    try:
+        from core.workflow_scheduler import start_scheduler as workflow_start
+        workflow_start()
+    except Exception as exc:
+        log.warning("Workflow/SLA scheduler failed to start: %s", exc)
+
+    # Migrate: add due_at column to workflow_actions (idempotent via IF NOT EXISTS)
+    try:
+        _db_wf = get_db()
+        try:
+            _db_wf.execute("ALTER TABLE workflow_actions ADD COLUMN IF NOT EXISTS due_at TEXT")
+            _db_wf.commit()
+        except Exception:
+            pass  # Column already exists or DB doesn't support IF NOT EXISTS (SQLite)
+        finally:
+            _db_wf.close()
+    except Exception as exc:
+        log.warning("workflow_actions due_at migration skipped: %s", exc)
+
     # ── Startup config validation ─────────────────────────────────────────────
     _provider = (settings.AI_PROVIDER or "anthropic").lower()
     if _provider == "anthropic" and not settings.ANTHROPIC_API_KEY:
@@ -238,6 +258,11 @@ async def shutdown():
     try:
         from core.reminder_scheduler import stop_scheduler as reminder_stop
         reminder_stop()
+    except Exception:
+        pass
+    try:
+        from core.workflow_scheduler import stop_scheduler as workflow_stop
+        workflow_stop()
     except Exception:
         pass
     log.info("ThemisIQ shutting down")

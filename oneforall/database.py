@@ -748,6 +748,7 @@ CREATE TABLE IF NOT EXISTS workflow_actions (
     assigned_to     INTEGER REFERENCES users(id),
     status          TEXT DEFAULT 'pending',
     comment         TEXT,
+    due_at          TEXT,
     acted_at        TEXT,
     created_at      TEXT DEFAULT (datetime('now'))
 );
@@ -1163,6 +1164,7 @@ CREATE TABLE IF NOT EXISTS workflow_actions (
     assigned_to     INTEGER REFERENCES users(id),
     status          TEXT DEFAULT 'pending',
     comment         TEXT,
+    due_at          TEXT,
     acted_at        TEXT,
     created_at      TEXT DEFAULT (datetime('now'))
 );

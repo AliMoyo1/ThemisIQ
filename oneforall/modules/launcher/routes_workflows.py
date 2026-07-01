@@ -318,39 +318,64 @@ async def api_workflow_instances(request: Request):
     return _JSONResp([dict(r) for r in rows])
 
 
-def _resolve_role_to_user(db, role_key: str):
-    """Find the first active user with the given role key. Returns user id or None."""
+def _resolve_role_to_users(db, role_key: str) -> list:
+    """Return all active user ids with the given role key."""
     if not role_key:
-        return None
-    row = db.execute(
+        return []
+    rows = db.execute(
         "SELECT u.id FROM users u "
         "JOIN user_roles ur ON ur.user_id = u.id "
         "WHERE ur.role_key = %s AND u.is_active = 1 "
-        "ORDER BY u.id LIMIT 1",
+        "ORDER BY u.id",
         (role_key,)
-    ).fetchone()
-    return row["id"] if row else None
+    ).fetchall()
+    return [r["id"] for r in rows]
+
+
+def _step_due_at(step: dict) -> str | None:
+    """Compute due_at timestamp from step's due_hours field, or None."""
+    due_hours = step.get("due_hours")
+    if due_hours:
+        try:
+            from core.timeutils import utcnow
+            from datetime import timedelta
+            return (utcnow() + timedelta(hours=int(due_hours))).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    return None
 
 
 def _create_step_action(db, iid: int, step_index: int, step: dict, defn_name: str):
-    """Insert a workflow_actions row for a step, resolve role to user, and notify."""
+    """Create workflow_actions for all users with the step's role and notify them.
+
+    Multiple users may hold the role; each gets their own action row.
+    The first to decide cancels the others (first-to-respond wins).
+    """
     role = step.get("role", "")
     action_type = step.get("type", "approve")
-    assigned_to = _resolve_role_to_user(db, role)
-    db.execute(
-        "INSERT INTO workflow_actions (instance_id, step_index, action_type, assigned_to) VALUES (%s,%s,%s,%s)",
-        (iid, step_index, action_type, assigned_to)
-    )
-    db.commit()
-    if assigned_to:
+    due_at = _step_due_at(step)
+    assignees = _resolve_role_to_users(db, role)
+
+    if not assignees:
         db.execute(
-            "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
-            (assigned_to, f"Action Required: {defn_name}",
-             f"Step {step_index + 1}: {step.get('name', 'Review & Approve')}",
-             f"/workflows?instance={iid}", "workflow")
+            "INSERT INTO workflow_actions (instance_id, step_index, action_type, assigned_to, due_at) "
+            "VALUES (%s,%s,%s,NULL,%s)",
+            (iid, step_index, action_type, due_at)
         )
-        db.commit()
-    return assigned_to
+    else:
+        for uid in assignees:
+            db.execute(
+                "INSERT INTO workflow_actions (instance_id, step_index, action_type, assigned_to, due_at) "
+                "VALUES (%s,%s,%s,%s,%s)",
+                (iid, step_index, action_type, uid, due_at)
+            )
+            db.execute(
+                "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+                (uid, f"Action Required: {defn_name}",
+                 f"Step {step_index + 1}: {step.get('name', 'Review & Approve')}",
+                 f"/workflows?instance={iid}", "workflow")
+            )
+    db.commit()
 
 
 @router.post("/api/workflows/instances", status_code=201)
@@ -417,9 +442,15 @@ _DECISION_STATUS = {"approve": "approved", "reject": "rejected", "return": "retu
 @router.post("/api/workflows/actions/{aid}/decide")
 @require_auth
 async def api_workflow_action_decide(request: Request, aid: int):
-    """Approve or reject a workflow action step."""
+    """Approve, reject, or return a workflow action step.
+
+    Optional body fields:
+      decision      - approve | reject | return (default: approve)
+      comment       - free-text note stored on the action
+      return_to_step - 0-based step index to return to (default: 0)
+    """
     data = await _json_body(request)
-    decision = data.get("decision", "approve")  # approve | reject | return
+    decision = data.get("decision", "approve")
     if decision not in _DECISION_STATUS:
         return _JSONResp({"error": "Invalid decision"}, status_code=400)
     comment = data.get("comment", "")
@@ -438,6 +469,12 @@ async def api_workflow_action_decide(request: Request, aid: int):
         db.execute(
             "UPDATE workflow_actions SET status = %s, comment = %s, acted_at = CURRENT_TIMESTAMP WHERE id = %s",
             (_DECISION_STATUS[decision], comment, aid)
+        )
+        # Cancel sibling pending actions for the same step (first-to-respond wins)
+        db.execute(
+            "UPDATE workflow_actions SET status = 'cancelled' "
+            "WHERE instance_id = %s AND step_index = %s AND status = 'pending' AND id != %s",
+            (action["instance_id"], action["step_index"], aid)
         )
         db.commit()
 
@@ -480,23 +517,65 @@ async def api_workflow_action_decide(request: Request, aid: int):
                 )
                 db.commit()
         elif decision == "return":
+            return_to = int(data.get("return_to_step", 0))
+            return_to = max(0, min(return_to, action["step_index"]))  # clamp: can't return forward
             db.execute(
-                "UPDATE workflow_instances SET current_step = 0, status = 'active' WHERE id = %s",
-                (iid,)
+                "UPDATE workflow_instances SET current_step = %s, status = 'active' WHERE id = %s",
+                (return_to, iid)
             )
-            if steps:
-                _create_step_action(db, iid, 0, steps[0], defn["name"])
+            if steps and return_to < len(steps):
+                _create_step_action(db, iid, return_to, steps[return_to], defn["name"])
             if inst["started_by"]:
                 db.execute(
                     "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
                     (inst["started_by"], f"Workflow Returned for Revision: {defn['name']}",
-                     f"Returned at step {action['step_index'] + 1}: {comment or 'Please review and resubmit.'}",
+                     f"Returned to step {return_to + 1}: {comment or 'Please review and resubmit.'}",
                      f"/workflows?instance={iid}", "workflow")
                 )
                 db.commit()
     finally:
         db.close()
     return _JSONResp({"success": True, "decision": decision})
+
+
+@router.post("/api/workflows/actions/{aid}/delegate")
+@require_auth
+async def api_workflow_action_delegate(request: Request, aid: int):
+    """Delegate a pending workflow action to another user."""
+    data = await _json_body(request)
+    delegate_to = data.get("user_id")
+    if not delegate_to:
+        return _JSONResp({"error": "user_id is required"}, status_code=400)
+    uid = request.state.user["id"]
+    is_admin = has_capability(request.state.user, "platform.manage_users")
+    db = get_db()
+    try:
+        action = db.execute("SELECT * FROM workflow_actions WHERE id = %s", (aid,)).fetchone()
+        if not action:
+            return _JSONResp({"error": "Action not found"}, status_code=404)
+        if action["status"] != "pending":
+            return _JSONResp({"error": "Action already processed"}, status_code=400)
+        if action["assigned_to"] != uid and not is_admin:
+            return _JSONResp({"error": "You can only delegate your own actions"}, status_code=403)
+        target = db.execute("SELECT id, full_name FROM users WHERE id = %s AND is_active = 1",
+                            (int(delegate_to),)).fetchone()
+        if not target:
+            return _JSONResp({"error": "Target user not found or inactive"}, status_code=404)
+        old_assignee = action["assigned_to"]
+        db.execute("UPDATE workflow_actions SET assigned_to = %s WHERE id = %s", (target["id"], aid))
+        inst = db.execute("SELECT * FROM workflow_instances WHERE id = %s", (action["instance_id"],)).fetchone()
+        defn = db.execute("SELECT name FROM workflow_definitions WHERE id = %s",
+                          (inst["definition_id"],)).fetchone()
+        db.execute(
+            "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+            (target["id"], f"Workflow Action Delegated: {defn['name']}",
+             f"Step {action['step_index'] + 1} has been delegated to you.",
+             f"/workflows?instance={action['instance_id']}", "workflow")
+        )
+        db.commit()
+    finally:
+        db.close()
+    return _JSONResp({"success": True, "delegated_to": target["id"]})
 
 
 @router.get("/api/workflows/my-actions")

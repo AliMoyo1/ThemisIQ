@@ -13,10 +13,12 @@ from core.timeutils import utcnow
 
 from core.events import (
     on, emit,
+    ARIA_POLICY_PUBLISHED,
+    GRID_AUDIT_COMPLETED,
+    BCM_INCIDENT_DECLARED, BCM_PLAN_DEACTIVATED,
+    SENTINEL_BREACH_CONFIRMED, SENTINEL_BREACH_RESOLVED,
     ERM_RISK_IDENTIFIED, ERM_RISK_ESCALATED, ERM_RISK_CLOSED, ERM_APPETITE_BREACHED,
     ORM_EVENT_ELEVATED, ORM_EVENT_LOGGED,
-    SENTINEL_BREACH_RESOLVED,
-    BCM_PLAN_DEACTIVATED,
 )
 from core.links import create_cross_module_link
 from core.notifications import notify_connectors
@@ -2888,5 +2890,113 @@ def appetite_breach_notify(event_type, source_module, entity_type,
         )
     except Exception as e:
         log.warning("appetite_breach_notify error: %s", e)
+    finally:
+        db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTO-TRIGGER WORKFLOWS FROM MODULE EVENTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Maps (trigger_module, trigger_action) on workflow definitions to event types.
+# When any of these events fires, installed definitions with matching trigger
+# fields will have a workflow instance started automatically.
+_WORKFLOW_TRIGGER_MAP = {
+    "aria.policy.published":      ("aria",     "policy.created"),
+    "aria.policy.updated":        ("aria",     "policy.updated"),
+    "grid.audit.completed":       ("grid",     "audit.findings_resolved"),
+    "bcm.incident.declared":      ("bcm",      "incident.declared"),
+    "sentinel.breach.confirmed":  ("sentinel", "breach.confirmed"),
+    "erm.risk.escalated":         ("platform", "risk.escalated"),
+    "erm.risk.identified":        ("platform", "risk.escalated"),
+}
+
+
+def _auto_trigger_workflows(db, event_type: str, source_module: str,
+                            entity_type: str, entity_id: int, user_id: int) -> None:
+    """Start workflow instances for any active definitions that match this event."""
+    trigger = _WORKFLOW_TRIGGER_MAP.get(event_type)
+    if not trigger:
+        return
+    trigger_module, trigger_action = trigger
+    try:
+        defns = db.execute(
+            "SELECT id, name, steps_json FROM workflow_definitions "
+            "WHERE is_active = 1 AND trigger_module = %s AND trigger_action = %s",
+            (trigger_module, trigger_action)
+        ).fetchall()
+        if not defns:
+            return
+
+        from database import insert_returning_id
+        import json as _json
+
+        for defn in defns:
+            iid = insert_returning_id(
+                db,
+                "INSERT INTO workflow_instances "
+                "(definition_id, entity_module, entity_type, entity_id, started_by) "
+                "VALUES (%s,%s,%s,%s,%s)",
+                (defn["id"], source_module, entity_type, entity_id, user_id)
+            )
+            db.commit()
+            steps = _json.loads(defn["steps_json"]) if defn["steps_json"] else []
+            if steps:
+                from modules.launcher.routes_workflows import _create_step_action
+                _create_step_action(db, iid, 0, steps[0], defn["name"])
+            log.info(
+                "Auto-triggered workflow '%s' (instance=%d) for %s/%s/%d",
+                defn["name"], iid, source_module, entity_type, entity_id
+            )
+    except Exception as exc:
+        log.warning("_auto_trigger_workflows failed for %s: %s", event_type, exc)
+
+
+@on(ARIA_POLICY_PUBLISHED)
+def workflow_trigger_on_aria_policy(event_type, source_module, entity_type,
+                                    entity_id, payload, user_id, **kw):
+    db = get_db()
+    try:
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+    finally:
+        db.close()
+
+
+@on(BCM_INCIDENT_DECLARED)
+def workflow_trigger_on_bcm_incident(event_type, source_module, entity_type,
+                                     entity_id, payload, user_id, **kw):
+    db = get_db()
+    try:
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+    finally:
+        db.close()
+
+
+@on(SENTINEL_BREACH_CONFIRMED)
+def workflow_trigger_on_sentinel_breach(event_type, source_module, entity_type,
+                                        entity_id, payload, user_id, **kw):
+    db = get_db()
+    try:
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+    finally:
+        db.close()
+
+
+@on(ERM_RISK_ESCALATED)
+def workflow_trigger_on_erm_risk(event_type, source_module, entity_type,
+                                 entity_id, payload, user_id, **kw):
+    db = get_db()
+    try:
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+    finally:
+        db.close()
+
+
+@on(GRID_AUDIT_COMPLETED)
+def workflow_trigger_on_grid_audit(event_type, source_module, entity_type,
+                                   entity_id, payload, user_id, **kw):
+    db = get_db()
+    try:
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
     finally:
         db.close()
