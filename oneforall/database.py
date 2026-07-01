@@ -221,7 +221,13 @@ class _PgConnWrapper:
                 ln for ln in stmt.splitlines()
                 if not ln.strip().upper().startswith("PRAGMA")
             ).strip()
-            if stmt:
+            if not stmt:
+                continue
+            has_sql = any(
+                ln.strip() and not ln.strip().startswith("--")
+                for ln in stmt.splitlines()
+            )
+            if has_sql:
                 cur.execute(stmt)
         return cur
 
@@ -3092,7 +3098,7 @@ CREATE TABLE IF NOT EXISTS ai_risk_predictions (
 -- ── ERM: Risk Rating Frameworks ────────────────────────────────────────────
 -- A named, swappable rating methodology (impact dimensions, likelihood,
 -- matrix bands, control effectiveness, taxonomy). Seeded per-tenant by
--- _seed_baseline_data(); each org can eventually own multiple frameworks but
+-- _seed_baseline_data(). Each org can eventually own multiple frameworks but
 -- only one active at a time (enforced at the app level, not via DB constraint
 -- -- matches the existing aria_doc_templates.is_default convention).
 CREATE TABLE IF NOT EXISTS erm_risk_frameworks (
@@ -3127,7 +3133,7 @@ CREATE TABLE IF NOT EXISTS erm_framework_impact_levels (
 );
 
 -- scale_type: 'likelihood' | 'impact' | 'control_effectiveness' — all three
--- are flat 5-point label+description scales; 'impact' holds the generic
+-- are flat 5-point label+description scales. 'impact' holds the generic
 -- Minor..Catastrophic labels shared across every impact dimension above.
 CREATE TABLE IF NOT EXISTS erm_framework_scales (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
