@@ -181,6 +181,7 @@ async function vdOpenDrawer(canonicalId){
   overlay.classList.add('open');
   try{
     var p=await fetch('/api/vendors/'+canonicalId+'/profile').then(r=>r.json());
+    _vdCurrentProfile=p;
     var c=p.canonical||{};
     var sen=p.modules&&p.modules.sentinel||null;
     var grid=p.modules&&p.modules.grid||null;
@@ -249,11 +250,44 @@ async function vdOpenDrawer(canonicalId){
 
 function vdCloseDrawer(){document.getElementById('vdDrawerOverlay').classList.remove('open');}
 
-function vdPromptAddModule(canonicalId, module){
-  var urls={sentinel:'/sentinel/#vendors',grid:'/grid/#vendors',bcm:'/bcm/#vendors'};
+// Holds the last-loaded canonical vendor profile so registration can use it
+var _vdCurrentProfile = null;
+
+async function vdPromptAddModule(canonicalId, module){
   var names={sentinel:'Privacy (Sentinel)',grid:'Audit (GRID)',bcm:'Resilience (BCM)'};
-  if(confirm('Navigate to '+names[module]+' to register this vendor there?\n\nThe vendor name will be pre-filled from the directory.')){
-    window.location.href=urls[module];
+  var apiUrls={sentinel:'/sentinel/api/vendors',grid:'/grid/api/vendors',bcm:'/bcm/api/vendors'};
+  var c = _vdCurrentProfile ? _vdCurrentProfile.canonical : {};
+
+  // Find the button that was clicked and show a spinner
+  var btn = event && event.target;
+  if(btn){ btn.disabled=true; btn.textContent='Registering…'; }
+
+  try{
+    var payload = {
+      name: c.name || 'Unnamed Vendor',
+      contact_name: c.contact_name || '',
+      contact_email: c.contact_email || '',
+      services: c.services || '',
+      canonical_id: canonicalId,
+    };
+    var resp = await fetch(apiUrls[module], {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+      body:JSON.stringify(payload)
+    });
+    if(resp.ok){
+      // Refresh the drawer to show the new registration
+      await vdOpenDrawer(canonicalId);
+      // Also refresh vendor list stats
+      vdLoad();
+    } else {
+      var err = await resp.json().catch(()=>({}));
+      alert('Failed to register in '+names[module]+': '+(err.detail||err.error||resp.status));
+      if(btn){ btn.disabled=false; btn.textContent='+ Register in '+names[module].split(' ')[0]; }
+    }
+  } catch(e){
+    alert('Network error: '+e.message);
+    if(btn){ btn.disabled=false; btn.textContent='+ Register in '+names[module].split(' ')[0]; }
   }
 }
 
