@@ -440,11 +440,18 @@ async def sanitize_json_middleware(request: Request, call_next):
                 import json as _json
                 parsed = _json.loads(body_bytes)
                 sanitized = _strip_tags_deep(parsed)
-                sanitized_bytes = _json.dumps(sanitized).encode("utf-8")
 
-                async def receive():
-                    return {"type": "http.request", "body": sanitized_bytes}
-                request._receive = receive
+                # Starlette's BaseHTTPMiddleware wraps `request` in a _CachedRequest
+                # whose receive-forwarding checks `request._body` first and, if set,
+                # hands it to inner layers verbatim, which is what actually makes
+                # the sanitized JSON visible downstream. Do NOT also replace
+                # `request._receive`: _CachedRequest only calls the raw receive
+                # channel a second time to relay the client's real disconnect signal,
+                # and a replacement that replays a buffered message there breaks that
+                # contract (raises "Unexpected message received: http.request") since
+                # the _body path above already delivers our one message on the first
+                # call. Leaving `_receive` untouched lets that disconnect relay work.
+                request._body = _json.dumps(sanitized).encode("utf-8")
             except (ValueError, UnicodeDecodeError):
                 pass
     return await call_next(request)
