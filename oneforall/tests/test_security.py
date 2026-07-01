@@ -381,3 +381,43 @@ class TestGeminiKeyNotInURL:
         from core.ai_client import _GRC_GUARDRAIL
         assert "GRC" in _GRC_GUARDRAIL
         assert len(_GRC_GUARDRAIL) > 100
+
+
+# ── ARIA/Sentinel AI dispatcher migration: no independent bypass of the ──────
+# ── shared guardrail, no repeat of the Gemini-key-in-URL bug in either module ─
+
+class TestAiDispatcherMigration:
+    def test_aria_generator_has_no_gemini_url_key(self):
+        import inspect
+        from modules.aria import ai_generator
+        src = inspect.getsource(ai_generator)
+        assert "generateContent?key=" not in src
+
+    def test_sentinel_ai_service_has_no_gemini_url_key(self):
+        import inspect
+        from modules.sentinel import ai_service
+        src = inspect.getsource(ai_service)
+        assert "generateContent?key=" not in src
+
+    def test_aria_generator_routes_through_core_ai_client(self):
+        import inspect
+        from modules.aria import ai_generator
+        src = inspect.getsource(ai_generator)
+        assert "create_message_full" in src
+        assert "from core.ai_client import" in src
+
+    def test_sentinel_ai_service_routes_through_core_ai_client(self):
+        import inspect
+        from modules.sentinel import ai_service
+        src = inspect.getsource(ai_service)
+        assert "create_message" in src
+        assert "from core.ai_client import" in src
+
+    def test_sentinel_legal_basis_suggestion_constrained_to_allowed_list(self):
+        """Anti-hallucination guardrail: the suggested legal basis must be
+        verified against the regulation's own pre-approved list before return."""
+        import inspect
+        from modules.sentinel import ai_service
+        src = inspect.getsource(ai_service.ai_suggest_legal_basis)
+        assert "options" in src
+        assert "not in options" in src

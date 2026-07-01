@@ -2456,16 +2456,21 @@ async def api_generate_policy(request: Request,
                               control_id: int = Form(...),
                               org_name: str = Form("Your Organisation"),
                               doc_type_override: str = Form(""),
-                              integrated_framework_id: str = Form("")):
+                              integrated_framework_id: str = Form(""),
+                              custom_instructions: str = Form("")):
     """Generate a governance document for a control.
 
     Set integrated_framework_id to a framework ID (or comma-separated IDs) to
     generate an Integrated Management System (IMS) document that covers the
     primary control AND all mapped controls from the specified additional framework(s).
+
+    custom_instructions is optional free-text guidance from the requester
+    (e.g. "emphasise remote work scenarios") - passed through to the AI as
+    user input, cannot override the system prompt's rules.
     """
     user = request.state.user
-    org_name, doc_type_override, integrated_framework_id = (
-        _s(org_name), _s(doc_type_override), _s(integrated_framework_id)
+    org_name, doc_type_override, integrated_framework_id, custom_instructions = (
+        _s(org_name), _s(doc_type_override), _s(integrated_framework_id), _s(custom_instructions, max_len=2000)
     )
     if not has_capability(user, "aria.policy.generate_ai"):
         return JSONResponse({
@@ -2527,6 +2532,7 @@ async def api_generate_policy(request: Request,
         doc_type=resolved_doc_type,
         org_name=org_name,
         integrated_frameworks=integrated_frameworks if integrated_frameworks else None,
+        custom_instructions=custom_instructions,
     )
 
     if result["success"]:

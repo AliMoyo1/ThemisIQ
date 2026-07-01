@@ -104,6 +104,31 @@ def create_message(
     Raises:
         RuntimeError on API errors or missing configuration.
     """
+    return _dispatch(messages, system, max_tokens, model)["text"]
+
+
+def create_message_full(
+    messages: list[dict],
+    system: str = "",
+    max_tokens: int = 2000,
+    model: str = "",
+) -> dict:
+    """
+    Like create_message(), but also returns model/token usage metadata
+    for callers that surface it in the UI (e.g. a generation meta bar).
+
+    Returns:
+        {"text": str, "model": str, "input_tokens": int, "output_tokens": int}
+        input_tokens/output_tokens are 0 for providers that don't report
+        usage (Gemini, Ollama) - matches prior behaviour of those callers.
+
+    Raises:
+        RuntimeError on API errors or missing configuration.
+    """
+    return _dispatch(messages, system, max_tokens, model)
+
+
+def _dispatch(messages, system, max_tokens, model) -> dict:
     p = _provider()
     model = model or _model_for_provider(p)
 
@@ -111,18 +136,18 @@ def create_message(
     system = _GRC_GUARDRAIL + "\n\n" + (system or "") if system else _GRC_GUARDRAIL
 
     if p == "anthropic":
-        return _anthropic(messages, system, max_tokens, model)
+        text, meta = _anthropic(messages, system, max_tokens, model)
     elif p == "deepseek":
-        return _openai_compat(
+        text, meta = _openai_compat(
             messages, system, max_tokens, model,
             _key("DEEPSEEK_API_KEY"),
             "https://api.deepseek.com/v1/chat/completions",
             "DEEPSEEK_API_KEY",
         )
     elif p == "gemini":
-        return _gemini(messages, system, max_tokens, model)
+        text, meta = _gemini(messages, system, max_tokens, model)
     elif p == "openai":
-        return _openai_compat(
+        text, meta = _openai_compat(
             messages, system, max_tokens, model,
             _key("OPENAI_API_KEY"),
             "https://api.openai.com/v1/chat/completions",
@@ -130,7 +155,7 @@ def create_message(
         )
     elif p == "ollama":
         host = getattr(settings, "OLLAMA_HOST", "http://localhost:11434").rstrip("/")
-        return _openai_compat(
+        text, meta = _openai_compat(
             messages, system, max_tokens, model,
             "",
             f"{host}/v1/chat/completions",
@@ -138,6 +163,7 @@ def create_message(
         )
     else:
         raise RuntimeError(f"Unknown AI_PROVIDER: {p}")
+    return {"text": text, **meta}
 
 
 def _anthropic(messages, system, max_tokens, model):
@@ -160,7 +186,12 @@ def _anthropic(messages, system, max_tokens, model):
         r = client.post("https://api.anthropic.com/v1/messages", headers=headers, json=body)
         r.raise_for_status()
         data = r.json()
-        return data["content"][0]["text"]
+        usage = data.get("usage", {})
+        return data["content"][0]["text"], {
+            "model": model,
+            "input_tokens": usage.get("input_tokens", 0),
+            "output_tokens": usage.get("output_tokens", 0),
+        }
 
 
 def _openai_compat(messages, system, max_tokens, model, api_key, url, key_name):
@@ -181,7 +212,13 @@ def _openai_compat(messages, system, max_tokens, model, api_key, url, key_name):
     with httpx.Client(timeout=120) as client:
         r = client.post(url, headers=headers, json=body)
         r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+        d = r.json()
+        usage = d.get("usage", {})
+        return d["choices"][0]["message"]["content"], {
+            "model": model,
+            "input_tokens": usage.get("prompt_tokens", 0),
+            "output_tokens": usage.get("completion_tokens", 0),
+        }
 
 
 def _gemini(messages, system, max_tokens, model):
@@ -205,7 +242,9 @@ def _gemini(messages, system, max_tokens, model):
     with httpx.Client(timeout=120) as client:
         r = client.post(url, headers=headers, json=body)
         r.raise_for_status()
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        d = r.json()
+        text = d["candidates"][0]["content"]["parts"][0]["text"]
+        return text, {"model": model, "input_tokens": 0, "output_tokens": 0}
 
 
 def wrap_user_input(text: str) -> str:

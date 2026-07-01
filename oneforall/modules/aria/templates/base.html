@@ -223,6 +223,7 @@ table:not(.data-table) tbody tr:hover{background:var(--accent-bg,var(--surface2)
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/js/ai-guidance-dialog.js"></script>
 {% if user and '/ask' not in request.url.path %}
 <div class="ask-fab" id="askFab" onclick="document.getElementById('askDrawer').classList.add('open');this.classList.add('hidden');" title="Ask ARIA">
   <span class="pulse"></span>

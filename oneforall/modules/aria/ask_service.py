@@ -21,7 +21,6 @@ from __future__ import annotations
 import logging
 import re
 import json
-import httpx
 from datetime import datetime
 from typing import Optional
 
@@ -29,7 +28,7 @@ log = logging.getLogger("oneforall.aria")
 
 from config import settings
 from database import get_db, insert_returning_id, OperationalError
-from modules.aria.ai_generator import CLAUDE_MODEL, _call_ai
+from modules.aria.ai_generator import _call_ai
 
 
 # ── Search index DDL — engine-specific ──────────────────────────────────────

@@ -1344,10 +1344,11 @@ async def api_ai_research(request: Request):
     activity = body.get("activity_type", "")
     regulation = body.get("regulation", "GDPR")
     context = body.get("context", "")
+    custom_instructions = body.get("custom_instructions", "")
     if not activity:
         raise HTTPException(400, "activity_type is required")
     from modules.sentinel.ai_service import ai_research
-    text, err = await ai_research(activity, regulation, context)
+    text, err = await ai_research(activity, regulation, context, custom_instructions)
     if err:
         log.error("AI service error: %s", err)
         raise HTTPException(500, "AI processing failed")
@@ -1364,8 +1365,10 @@ async def api_ai_generate(request: Request, dpia_id: int):
     dpia = ds.get_dpia(dpia_id)
     if not dpia:
         raise HTTPException(404, "DPIA not found")
+    body = await _json_body(request)
+    custom_instructions = body.get("custom_instructions", "")
     from modules.sentinel.ai_service import ai_generate_full_dpia
-    text, err = await ai_generate_full_dpia(dpia)
+    text, err = await ai_generate_full_dpia(dpia, custom_instructions)
     if err:
         log.error("AI service error: %s", err)
         raise HTTPException(500, "AI processing failed")
@@ -1410,12 +1413,34 @@ async def api_ai_score_ropa(request: Request, ropa_id: int):
         log.error("AI service error: %s", err)
         raise HTTPException(500, "AI processing failed")
     update_data = {
-        "risk_score": result.get("risk_score", "medium"),
+        "risk_level": result.get("risk_score", "medium"),
         "ai_risk_notes": result.get("rationale", ""),
     }
     if result.get("dpia_required"):
         update_data["dpia_required"] = 1
     ds.update_ropa(ropa_id, update_data)
+    return JSONResponse(result)
+
+
+@router.post("/api/ai/suggest-legal-basis")
+@require_capability("sentinel.ai.assess")
+async def api_ai_suggest_legal_basis(request: Request):
+    uid = str(request.state.user["id"])
+    if not check_ai_rate_limit(uid):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(uid)
+    body = await _json_body(request)
+    purpose = body.get("purpose", "")
+    regulation = body.get("regulation", "GDPR")
+    activity_name = body.get("activity_name", "")
+    special_categories = body.get("special_categories", "")
+    if not purpose:
+        raise HTTPException(400, "purpose is required")
+    from modules.sentinel.ai_service import ai_suggest_legal_basis
+    result, err = await ai_suggest_legal_basis(purpose, regulation, activity_name, special_categories)
+    if err:
+        log.error("AI service error: %s", err)
+        raise HTTPException(500, err if "approved legal basis" in err else "AI processing failed")
     return JSONResponse(result)
 
 

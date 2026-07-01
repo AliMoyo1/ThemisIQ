@@ -1019,6 +1019,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/js/ai-guidance-dialog.js"></script>
 <script>
 (function(){
   'use strict';
@@ -1599,12 +1600,20 @@
   // AI research for a DPIA
   window.snAiResearchDpia=async function(dpiaId,btn){
     var item=dpiaCache.find(function(d){return d.id===dpiaId;});if(!item)return;
+    var guidance=null;
+    if(window.openAiGuidanceDialog){
+      guidance=await window.openAiGuidanceDialog({
+        title:'Guide the DPIA Research',
+        placeholder:'e.g. Focus on cross-border transfer risk, reference our existing vendor contracts...'
+      });
+    }
     var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
     try{
       var r=await apiFetch('/sentinel/api/ai/research',{method:'POST',body:{
         activity_type:item.activity_type||item.title||'',
         regulation:item.regulation||'GDPR',
-        context:(item.description||item.purpose||'').substring(0,500)
+        context:(item.description||item.purpose||'').substring(0,500),
+        custom_instructions:guidance||''
       }});
       var text=r.research||r.text||'';
       await apiFetch('/sentinel/api/dpias/'+dpiaId,{method:'PUT',body:{ai_research:text}});
@@ -1620,10 +1629,17 @@
   // AI generate full DPIA document
   window.snAiGenerateDpia=async function(dpiaId,btn){
     if(!confirm('Generate a full DPIA document with AI? Uses all current assessment data.'))return;
+    var guidance=null;
+    if(window.openAiGuidanceDialog){
+      guidance=await window.openAiGuidanceDialog({
+        title:'Guide the Full DPIA Generation',
+        placeholder:'e.g. Emphasise data minimisation measures, keep the risk section concise...'
+      });
+    }
     var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
     try{
-      var r=await apiFetch('/sentinel/api/ai/generate/'+dpiaId,{method:'POST'});
-      var text=r.dpia||r.text||'';
+      var r=await apiFetch('/sentinel/api/ai/generate/'+dpiaId,{method:'POST',body:{custom_instructions:guidance||''}});
+      var text=r.content||r.dpia||r.text||'';
       var item=dpiaCache.find(function(d){return d.id===dpiaId;});
       if(item)item.ai_full_dpia=text;
       if(typeof showToast==='function')showToast('DPIA document generated');
@@ -1682,10 +1698,28 @@
       h+='</select>';
     }else if(type==='textarea'){
       h+='<textarea id="'+id+'" rows="3"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box;resize:vertical">'+esc(val)+'</textarea>';
+    }else if(type==='datalist'){
+      var listId=id+'_list';
+      h+='<input type="text" id="'+id+'" list="'+listId+'" value="'+esc(val)+'"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">';
+      h+='<datalist id="'+listId+'">'+(options||[]).map(function(o){return '<option value="'+esc(o)+'">';}).join('')+'</datalist>';
     }else{
       h+='<input type="'+type+'" id="'+id+'" value="'+esc(val)+'"'+(required?' required':'')+(placeholder?' placeholder="'+esc(placeholder)+'"':'')+' style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">';
     }
     return h+'</div>';
+  }
+
+  var SN_DEPARTMENTS=['Marketing','HR','Finance','IT','Legal','Operations','Sales','Customer Support','Procurement','R&D','Executive / Management','Compliance','Security','Product'];
+
+  // Preset options unioned with distinct values already used in this org's RoPA
+  // records (case-insensitive dedupe) - no extra API call, ropaCache is already loaded.
+  function _snRopaFieldOptions(field, presets){
+    var seen={};var out=[];
+    presets.forEach(function(p){var k=p.toLowerCase();if(!seen[k]){seen[k]=1;out.push(p);}});
+    (ropaCache||[]).forEach(function(r){
+      var v=r[field];
+      if(v&&typeof v==='string'){var k=v.toLowerCase();if(!seen[k]){seen[k]=1;out.push(v);}}
+    });
+    return out;
   }
 
   window.snOpenRopaDrawer=function(id){
@@ -1715,13 +1749,14 @@
 
         // Tab: Basic
         '<div class="ropa-drawer-section active" id="snRopaTab_basic">'+
-          snDrawerField('rd_name','Activity Name','text',f('processing_name'),true,null,'e.g. Customer marketing analytics')+
-          '<div class="form-row">'+snDrawerField('rd_dept','Department','text',f('department'),false,null,'e.g. Marketing, HR, Finance')+snDrawerField('rd_owner','Owner / Responsible','text',f('owner'),false,null,'Name or team')+'</div>'+
+          snDrawerField('rd_name','Activity Name','datalist',f('processing_name'),true,_snRopaFieldOptions('processing_name',SN_ACTIVITY_TYPES),'e.g. Customer marketing analytics')+
+          '<div class="form-row">'+snDrawerField('rd_dept','Department','datalist',f('department'),false,_snRopaFieldOptions('department',SN_DEPARTMENTS),'e.g. Marketing, HR, Finance')+snDrawerField('rd_owner','Owner / Responsible','text',f('owner'),false,null,'Name or team')+'</div>'+
           snDrawerField('rd_purpose','Purpose of Processing','textarea',f('purpose'),false,null,'Why is this data being processed?')+
-          '<div class="form-group"><label for="rd_legal_basis" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Legal Basis</label>'+
+          '<div class="form-group"><label for="rd_legal_basis" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Legal Basis'+
+          ' <button type="button" class="btn-ai" style="font-size:10px;padding:2px 7px;margin-left:6px" onclick="snSuggestLegalBasis(this)" title="AI: suggest legal basis from purpose">🧠 Suggest</button></label>'+
           '<select id="rd_legal_basis" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box"><option value="">Select...</option>'+
           (SN_LEGAL_BASES[f('regulation','GDPR')]||SN_LEGAL_BASES['GDPR']).map(function(o){return '<option value="'+esc(o)+'"'+(f('legal_basis')===o?' selected':'')+'>'+esc(o)+'</option>';}).join('')+
-          '</select></div>'+
+          '</select><div id="snLegalBasisSuggestion" style="display:none;margin-top:8px"></div></div>'+
           '<div class="form-row">'+snDrawerField('rd_status','Status','select',f('status','active'),false,['active','draft','archived'])+
           '<div class="form-group"><label for="rd_regulation" style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Jurisdiction</label>'+
           '<select id="rd_regulation" onchange="snRopaUpdateLegalBasis(this.value)" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box">'+
@@ -1819,8 +1854,12 @@
     if(!data.processing_name){if(typeof showToast==='function')showToast('Activity name is required','error');return;}
     if(btn){btn.disabled=true;btn.textContent='Saving...';}
     try{
-      if(id)await apiFetch('/sentinel/api/ropa/'+id,{method:'PUT',body:data});
-      else await apiFetch('/sentinel/api/ropa',{method:'POST',body:data});
+      if(id){
+        await apiFetch('/sentinel/api/ropa/'+id,{method:'PUT',body:data});
+      }else{
+        var created=await apiFetch('/sentinel/api/ropa',{method:'POST',body:data});
+        if(created&&created.id)_snAutoScoreRopa(created.id);
+      }
       document.getElementById('snRopaDrawerWrap').remove();
       snLoadRopa();
       if(typeof showToast==='function')showToast(id?'Activity updated':'Activity created');
@@ -1829,6 +1868,24 @@
       if(typeof showToast==='function')showToast('Save failed: '+(e.message||''),'error');
     }
   };
+
+  // Fire-and-forget AI risk scoring right after a new RoPA is created, so the
+  // Risk/DPIA badges populate within seconds without a manual "Score" click.
+  // Bounded to create only (not every edit) to keep AI usage predictable.
+  function _snAutoScoreRopa(newId){
+    apiFetch('/sentinel/api/ai/score-ropa/'+newId,{method:'POST'}).then(function(r){
+      var item=(ropaCache||[]).find(function(x){return x.id===newId;});
+      if(item){
+        item.risk_level=r.risk_score||item.risk_level;
+        item.ai_risk_notes=r.rationale||item.ai_risk_notes;
+        if(r.dpia_required)item.dpia_required=1;
+        var filtered=ropaRiskFilter?ropaCache.filter(function(x){return(x.risk_level||'low')===ropaRiskFilter;}):ropaCache;
+        snRenderRopaRows(filtered);
+      }
+    }).catch(function(){
+      if(typeof showToast==='function')showToast('Auto risk-scoring unavailable — click 🧠 to score manually','warn');
+    });
+  }
 
   /* ════════════════════════════════════════════════════════════════════════
      ARIA CROSS-MODULE — Suggest relevant controls based on RoPA data
@@ -1945,6 +2002,42 @@
     var sel=document.getElementById('rd_legal_basis');if(!sel)return;
     var opts=SN_LEGAL_BASES[reg]||SN_LEGAL_BASES['GDPR'];var cur=sel.value;
     sel.innerHTML='<option value="">Select...</option>'+opts.map(function(o){return '<option value="'+esc(o)+'"'+(o===cur?' selected':'')+'>'+esc(o)+'</option>';}).join('');
+  };
+
+  // AI: suggest legal basis from Purpose of Processing. Never auto-applies -
+  // shows the suggestion + rationale and requires an explicit Apply click.
+  var _snLegalBasisSuggestion=null;
+  window.snSuggestLegalBasis=async function(btn){
+    var purpose=document.getElementById('rd_purpose')?document.getElementById('rd_purpose').value.trim():'';
+    var regulation=document.getElementById('rd_regulation')?document.getElementById('rd_regulation').value:'';
+    var activityName=document.getElementById('rd_name')?document.getElementById('rd_name').value:'';
+    if(!purpose){if(typeof showToast==='function')showToast('Enter a Purpose of Processing first','warn');return;}
+    var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
+    var box=document.getElementById('snLegalBasisSuggestion');
+    try{
+      var specialCats=(typeof snGetChips==='function')?snGetChips('snRopaSC').join(', '):'';
+      var r=await apiFetch('/sentinel/api/ai/suggest-legal-basis',{method:'POST',body:{
+        purpose:purpose, regulation:regulation||'GDPR', activity_name:activityName,
+        special_categories:specialCats
+      }});
+      _snLegalBasisSuggestion=r.legal_basis;
+      box.style.display='block';
+      box.innerHTML='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:12px">'+
+        '<div style="font-weight:700;margin-bottom:3px">🧠 AI suggests: '+esc(r.legal_basis)+'</div>'+
+        '<div style="color:var(--muted);margin-bottom:8px">'+esc(r.rationale||'')+'</div>'+
+        '<button type="button" class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 9px" onclick="snApplyLegalBasis()">Apply</button> '+
+        '<button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:3px 9px" onclick="document.getElementById(\'snLegalBasisSuggestion\').style.display=\'none\'">Dismiss</button>'+
+        '</div>';
+    }catch(e){
+      if(typeof showToast==='function')showToast('Legal basis suggestion failed','error');
+    }
+    btn.innerHTML=orig;btn.disabled=false;
+  };
+  window.snApplyLegalBasis=function(){
+    var sel=document.getElementById('rd_legal_basis');
+    if(sel&&_snLegalBasisSuggestion)sel.value=_snLegalBasisSuggestion;
+    var box=document.getElementById('snLegalBasisSuggestion');
+    if(box)box.style.display='none';
   };
   window.snDpiaUpdateJurisHint=function(reg){
     var info=document.getElementById('ddJurisHint');if(!info)return;

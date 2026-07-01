@@ -275,6 +275,11 @@
         </div>
       </div>
 
+      <button type="button" class="btn btn-ghost" id="guideAiBtn" onclick="openAriaGuidance()"
+              style="width:100%;margin-bottom:8px;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:6px">
+        <span id="guideAiBtnText">🎯 Guide the AI (optional)</span>
+      </button>
+
       <button class="btn-generate" id="generateBtn" onclick="generatePolicy()" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         <span id="genBtnText">Generate Policy Document</span>
@@ -700,6 +705,22 @@ function setPolicyLoading(on, msg) {
   if (on && msg) document.getElementById('loadingMsg').textContent = msg;
 }
 
+/* ── Guide the AI (optional custom instructions) ───────────────────────── */
+var ariaCustomInstructions = '';
+
+async function openAriaGuidance() {
+  var guidance = await window.openAiGuidanceDialog({
+    title: 'Guide the AI Policy Generator',
+    placeholder: 'e.g. Emphasise remote work scenarios, keep it under 2 pages, reference our existing incident response policy...'
+  });
+  if (guidance === null) return; // skipped/cancelled - leave prior guidance (if any) untouched
+  ariaCustomInstructions = guidance;
+  var btnText = document.getElementById('guideAiBtnText');
+  if (btnText) {
+    btnText.textContent = guidance ? '🎯 Guidance added ✓ (edit)' : '🎯 Guide the AI (optional)';
+  }
+}
+
 async function generatePolicy() {
   var ctrlId  = document.getElementById('ctrlId').value;
   var orgName = document.getElementById('orgName').value || 'Your Organisation';
@@ -715,6 +736,7 @@ async function generatePolicy() {
   form.append('control_id', ctrlId);
   form.append('org_name', orgName);
   if (docType) form.append('doc_type_override', docType);
+  if (ariaCustomInstructions) form.append('custom_instructions', ariaCustomInstructions);
 
   // IMS: pass additional framework if integrated mode is enabled
   var imsEnabled = document.getElementById('imsToggle') && document.getElementById('imsToggle').checked;
