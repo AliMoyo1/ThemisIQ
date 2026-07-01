@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
 from core.shell_context import shell_ctx
+from core.rbac import has_capability
 from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED
 from core.timeutils import utcnow, to_dt
 from modules.erm import data_service as ds
@@ -38,7 +39,7 @@ async def _json_body(request: Request) -> dict:
 
 # ── SPA ───────────────────────────────────────────────────────────────────────
 
-_SPA_PAGES = {"register", "appetite", "library", "obligations", "assessments", "reports", "chat", "indicators", "statements"}
+_SPA_PAGES = {"register", "appetite", "library", "obligations", "assessments", "reports", "chat", "indicators", "statements", "rating-guide", "framework-admin"}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -47,6 +48,7 @@ async def erm_spa(request: Request):
     user = request.state.user
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
+        "can_manage_frameworks": has_capability(user, "erm.framework.manage"),
         **shell_ctx(request, active_module="erm"),
     })
 
@@ -186,6 +188,127 @@ async def api_register(request: Request):
 @require_capability("erm.risk.view")
 async def api_register_stats(request: Request):
     return JSONResponse(ds.get_register_stats())
+
+
+# ── Risk Rating Framework ─────────────────────────────────────────────────────
+# Read-only reference data — gated behind erm.risk.view (same access any ERM
+# user already has to view risks) rather than a manage-level capability, since
+# this is guidance meant to help pick a score, not an editing surface.
+
+@router.get("/api/framework/active")
+@require_capability("erm.risk.view")
+async def api_framework_active(request: Request):
+    fw = ds.get_active_framework()
+    if not fw:
+        raise HTTPException(404, "No active risk rating framework configured")
+    return JSONResponse(fw)
+
+
+# ── Risk Rating Frameworks (admin: create/edit/activate/import/export) ────────
+# GETs use the same broad erm.risk.view as /api/framework/active above — these
+# populate the editor UI, not a different sensitivity tier. Mutations require
+# erm.framework.manage; the nav entry point to this whole surface is gated on
+# that same capability so non-managers are never shown buttons that just 403.
+
+@router.get("/api/frameworks")
+@require_capability("erm.risk.view")
+async def api_frameworks_list(request: Request):
+    return JSONResponse(ds.list_frameworks())
+
+
+@router.get("/api/frameworks/{framework_id}")
+@require_capability("erm.risk.view")
+async def api_framework_detail(request: Request, framework_id: int):
+    fw = ds.get_framework_detail(framework_id)
+    if not fw:
+        raise HTTPException(404, "Framework not found")
+    return JSONResponse(fw)
+
+
+@router.post("/api/frameworks")
+@require_capability("erm.framework.manage")
+async def api_framework_create(request: Request):
+    body = await _json_body(request)
+    name = (body.get("name") or "").strip()
+    clone_from_id = body.get("clone_from_id")
+    if not name:
+        raise HTTPException(400, "name is required")
+    if not clone_from_id:
+        raise HTTPException(400, "clone_from_id is required — new frameworks are always cloned from an existing one")
+    try:
+        new_id = ds.create_framework_from_clone(name, body.get("description", ""), clone_from_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.put("/api/frameworks/{framework_id}")
+@require_capability("erm.framework.manage")
+async def api_framework_update(request: Request, framework_id: int):
+    body = await _json_body(request)
+    errors = ds.validate_framework_payload(body)
+    if errors:
+        return JSONResponse({"errors": errors}, status_code=400)
+    try:
+        ds.update_framework(framework_id, body)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except PermissionError as e:
+        raise HTTPException(409, str(e))
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/frameworks/{framework_id}")
+@require_capability("erm.framework.manage")
+async def api_framework_delete(request: Request, framework_id: int):
+    try:
+        ds.delete_framework(framework_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except PermissionError as e:
+        raise HTTPException(409, str(e))
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/frameworks/{framework_id}/activate")
+@require_capability("erm.framework.manage")
+async def api_framework_activate(request: Request, framework_id: int):
+    try:
+        ds.activate_framework(framework_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    return JSONResponse({"ok": True})
+
+
+@router.get("/api/frameworks/{framework_id}/export")
+@require_capability("erm.risk.view")
+async def api_framework_export(request: Request, framework_id: int):
+    import re
+    from starlette.responses import StreamingResponse
+    detail = ds.get_framework_detail(framework_id)
+    if not detail:
+        raise HTTPException(404, "Framework not found")
+    body = json.dumps({**detail, "schema_version": 1}, indent=2)
+    slug = re.sub(r"[^a-z0-9]+", "_", detail["name"].lower()).strip("_") or "framework"
+    return StreamingResponse(
+        iter([body]),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={slug}_framework.json"},
+    )
+
+
+@router.post("/api/frameworks/import")
+@require_capability("erm.framework.manage")
+async def api_framework_import(request: Request):
+    body = await _json_body(request)
+    schema_version = body.get("schema_version")
+    if schema_version is not None and schema_version != 1:
+        return JSONResponse({"errors": [f"Unsupported schema_version {schema_version!r}"]}, status_code=400)
+    errors = ds.validate_framework_payload(body)
+    if errors:
+        return JSONResponse({"errors": errors}, status_code=400)
+    new_id = ds.import_framework(body)
+    return JSONResponse({"id": new_id}, status_code=201)
 
 
 # ── Risk Appetite ─────────────────────────────────────────────────────────────

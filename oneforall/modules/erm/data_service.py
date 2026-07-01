@@ -3,6 +3,7 @@ ERM module — Data access layer.
 Covers erm_enterprise_risks, erm_risk_appetite, erm_risk_library,
 erm_regulatory_obligations, erm_assessments, and the shared risk_register view.
 """
+import re
 from datetime import datetime
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id, sql_now_offset, sql_now_ts, sql_days_between, sql_date_offset, sql_date_ts, sql_current_date
@@ -18,6 +19,514 @@ def _dicts(rows):
 
 def _now():
     return utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# RISK RATING FRAMEWORK — active matrix lookup
+# ═════════════════════════════════════════════════════════════════════════════
+
+def get_active_framework_matrix(db):
+    """Fetch the active framework's band metadata + likelihood×impact lookup.
+
+    Call once per request/function and reuse across a loop — never re-query
+    per risk row (25 matrix rows + up to a handful of bands, trivial cost).
+    """
+    bands = {r["band_key"]: dict(r) for r in db.execute(
+        "SELECT b.* FROM erm_framework_bands b "
+        "JOIN erm_risk_frameworks f ON f.id=b.framework_id WHERE f.is_active=1"
+    ).fetchall()}
+    matrix = {(r["likelihood"], r["impact"]): r["band_key"] for r in db.execute(
+        "SELECT mb.* FROM erm_framework_matrix_bands mb "
+        "JOIN erm_risk_frameworks f ON f.id=mb.framework_id WHERE f.is_active=1"
+    ).fetchall()}
+    return {"bands": bands, "matrix": matrix}
+
+
+def resolve_band(fw_matrix, likelihood, impact):
+    """Resolve a (likelihood, impact) pair to a band_key via the active framework."""
+    key = (int(likelihood or 3), int(impact or 3))
+    return fw_matrix["matrix"].get(key, "moderate")
+
+
+# Reusable JOIN fragment for SQL-side aggregate counts against the active
+# framework's matrix — alias the target table as "e". Cheaper than pulling
+# every row into Python just to call resolve_band() when only a COUNT is needed.
+_FW_BAND_JOIN = (
+    "JOIN erm_risk_frameworks f ON f.is_active=1 "
+    "JOIN erm_framework_matrix_bands mb ON mb.framework_id=f.id "
+    "AND mb.likelihood=e.likelihood AND mb.impact=e.impact"
+)
+
+
+def get_framework_detail(framework_id):
+    """Full framework detail by id: dimensions+levels, scales, bands, matrix, taxonomy.
+
+    Flat shape — name/description/id/is_active/is_default/source/updated_at
+    all at the top level — used identically as the GET detail response, the
+    PUT/import request body, and the export response body (plus a
+    "schema_version" key added only for export). This is generalized from
+    get_active_framework()'s original shape (see below, kept nested for
+    backward compatibility with the already-shipped Rating Guide).
+    """
+    db = get_db()
+    try:
+        fw = _dict(db.execute("SELECT * FROM erm_risk_frameworks WHERE id=%s", (framework_id,)).fetchone())
+        if not fw:
+            return None
+
+        dims = []
+        for d in db.execute(
+            "SELECT * FROM erm_framework_impact_dimensions WHERE framework_id=%s ORDER BY order_idx",
+            (fw["id"],),
+        ).fetchall():
+            levels = _dicts(db.execute(
+                "SELECT level, description, threshold_label, threshold_min, threshold_max "
+                "FROM erm_framework_impact_levels WHERE dimension_id=%s ORDER BY level",
+                (d["id"],),
+            ).fetchall())
+            dims.append({"id": d["id"], "name": d["name"], "levels": levels})
+
+        scales = {}
+        for row in db.execute(
+            "SELECT scale_type, level, label, description FROM erm_framework_scales "
+            "WHERE framework_id=%s ORDER BY scale_type, level",
+            (fw["id"],),
+        ).fetchall():
+            scales.setdefault(row["scale_type"], []).append(dict(row))
+
+        bands = _dicts(db.execute(
+            "SELECT band_key, label, color, sort_order FROM erm_framework_bands "
+            "WHERE framework_id=%s ORDER BY sort_order",
+            (fw["id"],),
+        ).fetchall())
+
+        matrix = _dicts(db.execute(
+            "SELECT likelihood, impact, band_key FROM erm_framework_matrix_bands WHERE framework_id=%s",
+            (fw["id"],),
+        ).fetchall())
+
+        tax_rows = _dicts(db.execute(
+            "SELECT id, parent_id, name, order_idx FROM erm_framework_taxonomy "
+            "WHERE framework_id=%s ORDER BY order_idx",
+            (fw["id"],),
+        ).fetchall())
+        by_parent = {}
+        for t in tax_rows:
+            by_parent.setdefault(t["parent_id"], []).append(t)
+
+        def build_tree(parent_id):
+            return [{"id": n["id"], "name": n["name"], "children": build_tree(n["id"])}
+                    for n in by_parent.get(parent_id, [])]
+
+        return {
+            "id": fw["id"], "name": fw["name"], "description": fw["description"],
+            "is_active": bool(fw["is_active"]), "is_default": bool(fw["is_default"]),
+            "source": fw["source"], "updated_at": fw.get("updated_at"),
+            "dimensions": dims,
+            "likelihood": scales.get("likelihood", []),
+            "impact_scale": scales.get("impact", []),
+            "control_effectiveness": scales.get("control_effectiveness", []),
+            "bands": bands,
+            "matrix": matrix,
+            "taxonomy": build_tree(None),
+        }
+    finally:
+        db.close()
+
+
+def get_active_framework():
+    """Active framework in the nested shape the Rating Guide already consumes.
+
+    Kept byte-for-byte compatible with the shape shipped in slice 1
+    (`{"framework": {id, name, description}, "dimensions": [...], ...}`) so
+    the existing Risk Rating Guide page needs no changes. New code (the
+    framework admin list/editor/import/export) uses get_framework_detail()'s
+    flatter shape instead.
+    """
+    db = get_db()
+    try:
+        row = db.execute("SELECT id FROM erm_risk_frameworks WHERE is_active=1 LIMIT 1").fetchone()
+    finally:
+        db.close()
+    if not row:
+        return None
+    detail = get_framework_detail(row["id"])
+    if not detail:
+        return None
+    return {
+        "framework": {"id": detail["id"], "name": detail["name"], "description": detail["description"]},
+        "dimensions": detail["dimensions"],
+        "likelihood": detail["likelihood"],
+        "impact_scale": detail["impact_scale"],
+        "control_effectiveness": detail["control_effectiveness"],
+        "bands": detail["bands"],
+        "matrix": detail["matrix"],
+        "taxonomy": detail["taxonomy"],
+    }
+
+
+def list_frameworks():
+    """Summary list of every framework for this tenant, for the framework admin list view."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT f.id, f.name, f.description, f.is_active, f.is_default, f.source, f.updated_at, "
+            "(SELECT COUNT(*) FROM erm_framework_impact_dimensions d WHERE d.framework_id=f.id) AS dimension_count "
+            "FROM erm_risk_frameworks f ORDER BY f.is_active DESC, f.name"
+        ).fetchall()
+        return [{**dict(r), "is_active": bool(r["is_active"]), "is_default": bool(r["is_default"])} for r in rows]
+    finally:
+        db.close()
+
+
+def recompute_risk_bands(db):
+    """Re-derive qualitative_score for every risk from the currently active framework.
+
+    Operates on an already-open connection and does not commit — callers
+    (activate_framework, and update_framework when editing the framework
+    that's currently active) own the transaction and commit once alongside
+    their own writes.
+    """
+    band_map = {(r["likelihood"], r["impact"]): r["band_key"] for r in db.execute(
+        "SELECT mb.likelihood, mb.impact, mb.band_key FROM erm_framework_matrix_bands mb "
+        "JOIN erm_risk_frameworks f ON f.id=mb.framework_id WHERE f.is_active=1"
+    ).fetchall()}
+    if not band_map:
+        return
+    for r in db.execute("SELECT id, likelihood, impact FROM erm_enterprise_risks").fetchall():
+        band = band_map.get((r["likelihood"] or 3, r["impact"] or 3), "moderate")
+        db.execute("UPDATE erm_enterprise_risks SET qualitative_score=%s WHERE id=%s", (band, r["id"]))
+
+
+_BAND_KEY_RE = re.compile(r"^[a-z0-9_]+$")
+_HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def validate_framework_payload(payload):
+    """Validate a full framework write payload (PUT body / import body).
+
+    Returns a list of human-readable error strings; empty means valid.
+    Collects every problem found rather than stopping at the first, so a
+    hand-edited import file gets full feedback in one round-trip.
+    """
+    errors = []
+    if not isinstance(payload, dict):
+        return ["Payload must be a JSON object"]
+
+    if not str(payload.get("name") or "").strip():
+        errors.append("name is required")
+
+    dims = payload.get("dimensions")
+    if not isinstance(dims, list) or not dims:
+        errors.append("dimensions must be a non-empty list")
+        dims = []
+    for i, d in enumerate(dims):
+        if not isinstance(d, dict) or not str(d.get("name") or "").strip():
+            errors.append(f"dimensions[{i}].name is required")
+        levels = d.get("levels") if isinstance(d, dict) else None
+        if not isinstance(levels, list) or len(levels) != 5:
+            errors.append(f"dimensions[{i}].levels must have exactly 5 entries")
+            continue
+        seen = set()
+        for lvl in levels:
+            if not isinstance(lvl, dict):
+                errors.append(f"dimensions[{i}] has a malformed level entry")
+                continue
+            n = lvl.get("level")
+            if n not in (1, 2, 3, 4, 5) or n in seen:
+                errors.append(f"dimensions[{i}] has a missing/duplicate level number")
+            seen.add(n)
+            if not str(lvl.get("description") or "").strip():
+                errors.append(f"dimensions[{i}] level {n} description is required")
+
+    for scale_name in ("likelihood", "impact_scale", "control_effectiveness"):
+        rows = payload.get(scale_name)
+        if not isinstance(rows, list) or len(rows) != 5:
+            errors.append(f"{scale_name} must have exactly 5 entries")
+            continue
+        seen = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                errors.append(f"{scale_name} has a malformed entry")
+                continue
+            n = row.get("level")
+            if n not in (1, 2, 3, 4, 5) or n in seen:
+                errors.append(f"{scale_name} has a missing/duplicate level number")
+            seen.add(n)
+            if not str(row.get("label") or "").strip():
+                errors.append(f"{scale_name} level {n} label is required")
+
+    bands = payload.get("bands")
+    band_keys = set()
+    if not isinstance(bands, list) or not (2 <= len(bands) <= 10):
+        errors.append("bands must be a list of 2-10 entries")
+        bands = []
+    for i, b in enumerate(bands):
+        if not isinstance(b, dict):
+            errors.append(f"bands[{i}] is malformed")
+            continue
+        key = b.get("band_key")
+        if not isinstance(key, str) or not _BAND_KEY_RE.match(key):
+            errors.append(f"bands[{i}].band_key must be lowercase letters/digits/underscore")
+        elif key in band_keys:
+            errors.append(f"bands[{i}].band_key '{key}' is duplicated")
+        else:
+            band_keys.add(key)
+        if not str(b.get("label") or "").strip():
+            errors.append(f"bands[{i}].label is required")
+        if not _HEX_COLOR_RE.match(str(b.get("color") or "")):
+            errors.append(f"bands[{i}].color must be a hex color like #RRGGBB")
+
+    matrix = payload.get("matrix")
+    if not isinstance(matrix, list) or len(matrix) != 25:
+        errors.append("matrix must have exactly 25 entries (5x5)")
+        matrix = []
+    seen_cells = set()
+    for i, m in enumerate(matrix):
+        if not isinstance(m, dict):
+            errors.append(f"matrix[{i}] is malformed")
+            continue
+        l, imp, key = m.get("likelihood"), m.get("impact"), m.get("band_key")
+        if l not in (1, 2, 3, 4, 5) or imp not in (1, 2, 3, 4, 5):
+            errors.append(f"matrix[{i}] likelihood/impact must be 1-5")
+            continue
+        if (l, imp) in seen_cells:
+            errors.append(f"matrix has a duplicate cell for likelihood={l}, impact={imp}")
+        seen_cells.add((l, imp))
+        if key not in band_keys:
+            errors.append(f"matrix cell ({l},{imp}) references unknown band_key '{key}'")
+    missing_cells = {(l, i) for l in range(1, 6) for i in range(1, 6)} - seen_cells
+    if missing_cells:
+        errors.append(f"matrix is missing {len(missing_cells)} cell(s)")
+
+    taxonomy = payload.get("taxonomy")
+    if not isinstance(taxonomy, list):
+        errors.append("taxonomy must be a list")
+        taxonomy = []
+    node_count = [0]
+
+    def walk_taxonomy(nodes, depth):
+        if depth > 20:
+            errors.append("taxonomy nesting exceeds 20 levels")
+            return
+        for n in nodes:
+            if not isinstance(n, dict) or not str(n.get("name") or "").strip():
+                errors.append("a taxonomy node is missing a name")
+                continue
+            node_count[0] += 1
+            if node_count[0] > 500:
+                return
+            children = n.get("children") or []
+            if isinstance(children, list):
+                walk_taxonomy(children, depth + 1)
+            else:
+                errors.append("a taxonomy node's children must be a list")
+
+    walk_taxonomy(taxonomy, 1)
+    if node_count[0] > 500:
+        errors.append("taxonomy exceeds 500 total nodes")
+
+    return errors
+
+
+def _apply_framework_payload(db, framework_id, payload):
+    """Replace a framework's dimensions/levels/scales/bands/matrix/taxonomy from payload.
+
+    Deletes all existing child rows for framework_id then re-inserts from
+    payload, mirroring the seed function's insert-loop idiom. Also updates
+    name/description/updated_at on the framework row itself. Does not touch
+    is_active/is_default/source — callers own those. Does not commit —
+    caller commits once as part of its own unit of work. Safe as
+    delete-then-reinsert-in-one-txn: both connection wrappers discard
+    partial work on an unswallowed exception as long as db.close() runs in
+    the caller's finally.
+    """
+    db.execute(
+        "UPDATE erm_risk_frameworks SET name=%s, description=%s, updated_at=%s WHERE id=%s",
+        (payload.get("name"), payload.get("description"), _now(), framework_id),
+    )
+
+    db.execute("DELETE FROM erm_framework_impact_dimensions WHERE framework_id=%s", (framework_id,))
+    for dim_idx, d in enumerate(payload.get("dimensions") or []):
+        dim_id = insert_returning_id(
+            db,
+            "INSERT INTO erm_framework_impact_dimensions (framework_id, name, order_idx) VALUES (%s,%s,%s)",
+            (framework_id, d["name"], dim_idx),
+        )
+        for lvl in d.get("levels") or []:
+            db.execute(
+                "INSERT INTO erm_framework_impact_levels "
+                "(dimension_id, level, description, threshold_label, threshold_min, threshold_max) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
+                (dim_id, lvl["level"], lvl.get("description"), lvl.get("threshold_label"),
+                 lvl.get("threshold_min"), lvl.get("threshold_max")),
+            )
+
+    db.execute("DELETE FROM erm_framework_scales WHERE framework_id=%s", (framework_id,))
+    for scale_type, key in (("likelihood", "likelihood"), ("impact", "impact_scale"),
+                            ("control_effectiveness", "control_effectiveness")):
+        for row in payload.get(key) or []:
+            db.execute(
+                "INSERT INTO erm_framework_scales (framework_id, scale_type, level, label, description) "
+                "VALUES (%s,%s,%s,%s,%s)",
+                (framework_id, scale_type, row["level"], row.get("label"), row.get("description")),
+            )
+
+    db.execute("DELETE FROM erm_framework_bands WHERE framework_id=%s", (framework_id,))
+    for b in payload.get("bands") or []:
+        db.execute(
+            "INSERT INTO erm_framework_bands (framework_id, band_key, label, color, sort_order) "
+            "VALUES (%s,%s,%s,%s,%s)",
+            (framework_id, b["band_key"], b.get("label"), b.get("color"), b.get("sort_order", 0)),
+        )
+
+    db.execute("DELETE FROM erm_framework_matrix_bands WHERE framework_id=%s", (framework_id,))
+    for m in payload.get("matrix") or []:
+        db.execute(
+            "INSERT INTO erm_framework_matrix_bands (framework_id, likelihood, impact, band_key) "
+            "VALUES (%s,%s,%s,%s)",
+            (framework_id, m["likelihood"], m["impact"], m["band_key"]),
+        )
+
+    db.execute("DELETE FROM erm_framework_taxonomy WHERE framework_id=%s", (framework_id,))
+
+    def insert_taxonomy(nodes, parent_id):
+        for idx, n in enumerate(nodes):
+            node_id = insert_returning_id(
+                db,
+                "INSERT INTO erm_framework_taxonomy (framework_id, parent_id, name, order_idx) "
+                "VALUES (%s,%s,%s,%s)",
+                (framework_id, parent_id, n["name"], idx),
+            )
+            insert_taxonomy(n.get("children") or [], node_id)
+
+    insert_taxonomy(payload.get("taxonomy") or [], None)
+
+
+def create_framework_from_clone(name, description, clone_from_id):
+    """Create a new framework by deep-copying an existing one's contents.
+
+    There is no from-scratch/blank creation path — every tenant always has
+    at least the immutable built-in framework to clone from, so a new
+    framework is never left in an incomplete state that would fail
+    validate_framework_payload(). Raises LookupError if clone_from_id
+    doesn't exist.
+    """
+    source = get_framework_detail(clone_from_id)
+    if not source:
+        raise LookupError(f"Framework {clone_from_id} not found")
+    db = get_db()
+    try:
+        new_id = insert_returning_id(
+            db,
+            "INSERT INTO erm_risk_frameworks (name, description, is_active, is_default, source) "
+            "VALUES (%s,%s,0,0,'manual')",
+            (name, description),
+        )
+        payload = {**source, "name": name, "description": description}
+        _apply_framework_payload(db, new_id, payload)
+        db.commit()
+        return new_id
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def update_framework(framework_id, payload):
+    """Replace an existing framework's contents. Raises LookupError if missing,
+    PermissionError if the framework is the immutable built-in one."""
+    db = get_db()
+    try:
+        fw = _dict(db.execute(
+            "SELECT source, is_active FROM erm_risk_frameworks WHERE id=%s", (framework_id,)
+        ).fetchone())
+        if not fw:
+            raise LookupError(f"Framework {framework_id} not found")
+        if fw["source"] == "built_in":
+            raise PermissionError("The built-in framework cannot be edited — clone it instead")
+        _apply_framework_payload(db, framework_id, payload)
+        if fw["is_active"]:
+            recompute_risk_bands(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def delete_framework(framework_id):
+    """Delete a framework. Raises LookupError if missing, PermissionError if
+    it's currently active or the immutable built-in one."""
+    db = get_db()
+    try:
+        fw = _dict(db.execute(
+            "SELECT source, is_active FROM erm_risk_frameworks WHERE id=%s", (framework_id,)
+        ).fetchone())
+        if not fw:
+            raise LookupError(f"Framework {framework_id} not found")
+        if fw["source"] == "built_in":
+            raise PermissionError("The built-in framework cannot be deleted")
+        if fw["is_active"]:
+            raise PermissionError("Cannot delete the currently active framework — activate another one first")
+        db.execute("DELETE FROM erm_risk_frameworks WHERE id=%s", (framework_id,))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def activate_framework(framework_id):
+    """Make framework_id the sole active framework and recompute all risk bands.
+
+    Uses a single atomic UPDATE (CASE WHEN) rather than two separate
+    statements ("clear others" then "set this one") so concurrent activation
+    requests can never leave two frameworks marked active at once — a state
+    get_active_framework_matrix() would silently and incorrectly merge
+    bands/matrix from by dict key.
+    """
+    db = get_db()
+    try:
+        fw = db.execute("SELECT id FROM erm_risk_frameworks WHERE id=%s", (framework_id,)).fetchone()
+        if not fw:
+            raise LookupError(f"Framework {framework_id} not found")
+        db.execute(
+            "UPDATE erm_risk_frameworks SET is_active = CASE WHEN id=%s THEN 1 ELSE 0 END",
+            (framework_id,),
+        )
+        recompute_risk_bands(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def import_framework(payload, name_override=None):
+    """Create a new framework from an imported payload (already validated by
+    the caller via validate_framework_payload). Returns the new framework id."""
+    db = get_db()
+    try:
+        name = name_override or payload.get("name") or "Imported Framework"
+        new_id = insert_returning_id(
+            db,
+            "INSERT INTO erm_risk_frameworks (name, description, is_active, is_default, source) "
+            "VALUES (%s,%s,0,0,'imported')",
+            (name, payload.get("description")),
+        )
+        _apply_framework_payload(db, new_id, {**payload, "name": name})
+        db.commit()
+        return new_id
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -66,7 +575,7 @@ def get_enterprise_risk(risk_id):
 def create_enterprise_risk(data):
     db = get_db()
     try:
-        inh, res, qual = _compute_scores(data)
+        inh, res, qual = _compute_scores(db, data)
         cur = insert_returning_id(db,
             """INSERT INTO erm_enterprise_risks
                (title, description, category, sub_category, likelihood, impact, velocity,
@@ -96,7 +605,7 @@ def create_enterprise_risk(data):
         db.close()
 
 
-def _compute_scores(data, existing=None):
+def _compute_scores(db, data, existing=None):
     """Auto-derive inherent_score, residual_score, qualitative_score from L/I values."""
     L = data.get("likelihood") or (existing.get("likelihood") if existing else 3) or 3
     I = data.get("impact")     or (existing.get("impact")     if existing else 3) or 3
@@ -104,7 +613,7 @@ def _compute_scores(data, existing=None):
     RI = data.get("residual_impact")     or (existing.get("residual_impact")     if existing else None)
     inherent  = int(L) * int(I)
     residual  = int(RL) * int(RI) if RL and RI else None
-    qual = "critical" if inherent >= 20 else "high" if inherent >= 12 else "medium" if inherent >= 6 else "low"
+    qual = resolve_band(get_active_framework_matrix(db), L, I)
     return inherent, residual, qual
 
 
@@ -126,7 +635,7 @@ def update_enterprise_risk(risk_id, data):
                 fields.append(f"{k}=%s"); vals.append(data[k])
         # Auto-compute scores whenever likelihood/impact touched
         if any(k in data for k in ("likelihood", "impact", "residual_likelihood", "residual_impact")):
-            inh, res, qual = _compute_scores(data, existing)
+            inh, res, qual = _compute_scores(db, data, existing)
             fields += ["inherent_score=%s", "qualitative_score=%s"]
             vals   += [inh, qual]
             if res is not None:
@@ -612,12 +1121,7 @@ def get_register_stats():
     """Stats for ERM dashboard: by_level, by_module, by_category, heat_map."""
     db = get_db()
     try:
-        def score_to_level(s):
-            s = s or 0
-            if s >= 20: return "critical"
-            if s >= 12: return "high"
-            if s >= 6:  return "medium"
-            return "low"
+        fw_matrix = get_active_framework_matrix(db)
 
         # All open risks from both tables
         erm = _dicts(db.execute(
@@ -630,13 +1134,13 @@ def get_register_stats():
         ).fetchall())
         all_risks = erm + rr
 
-        by_level = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        by_level = {b: 0 for b in fw_matrix["bands"]}
         by_module = {}
         by_category = {}
         heat_map = [[0]*5 for _ in range(5)]
 
         for r in all_risks:
-            lvl = score_to_level(r.get("score"))
+            lvl = resolve_band(fw_matrix, r.get("likelihood"), r.get("impact"))
             by_level[lvl] = by_level.get(lvl, 0) + 1
             mod = r.get("source_module") or "erm"
             by_module[mod] = by_module.get(mod, 0) + 1
@@ -688,10 +1192,12 @@ def get_dashboard_stats():
     try:
         total_erm = db.execute("SELECT COUNT(*) FROM erm_enterprise_risks WHERE status!='closed'").fetchone()[0]
         critical = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks WHERE (likelihood*impact)>=20 AND status!='closed'"
+            f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
+            "WHERE mb.band_key='critical' AND e.status!='closed'"
         ).fetchone()[0]
         high = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks WHERE (likelihood*impact)>=12 AND status!='closed'"
+            f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
+            "WHERE mb.band_key IN ('high','critical') AND e.status!='closed'"
         ).fetchone()[0]
         total_rr = db.execute("SELECT COUNT(*) FROM risk_register WHERE status!='closed'").fetchone()[0]
         appetite_breaches = db.execute(
@@ -723,9 +1229,9 @@ def get_dashboard_stats():
         trend_total = (total_erm + total_rr) - total_30d
 
         crit_30d = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks "
-            "WHERE (likelihood*impact)>=20 AND status!='closed' "
-            f"AND created_at < {sql_now_ts('-30 days')}"
+            f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
+            "WHERE mb.band_key='critical' AND e.status!='closed' "
+            f"AND e.created_at < {sql_now_ts('-30 days')}"
         ).fetchone()[0]
         trend_critical = critical - crit_30d
 
@@ -1096,8 +1602,8 @@ def get_trend_data(period_days=30):
             "SELECT COUNT(*) FROM erm_enterprise_risks WHERE status NOT IN ('closed','accepted')"
         ).fetchone()[0]
         critical_open = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks "
-            "WHERE status NOT IN ('closed','accepted') AND (inherent_score>=20 OR likelihood*impact>=20)"
+            f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
+            "WHERE e.status NOT IN ('closed','accepted') AND mb.band_key='critical'"
         ).fetchone()[0]
         return {
             "daily": _dicts(rows),
@@ -1158,8 +1664,8 @@ def get_executive_dashboard():
             "SELECT COUNT(*) FROM erm_enterprise_risks WHERE status NOT IN ('closed','accepted')"
         ).fetchone()[0]
         critical = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks "
-            "WHERE status NOT IN ('closed','accepted') AND (inherent_score>=20 OR likelihood*impact>=20)"
+            f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
+            "WHERE e.status NOT IN ('closed','accepted') AND mb.band_key='critical'"
         ).fetchone()[0]
         return {
             "board_risks": board_risks, "appetite": appetite,

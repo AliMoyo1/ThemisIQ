@@ -111,12 +111,12 @@
 .kri-threshold-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:600}
 .kri-sparkline{height:28px;margin-top:6px}
 
-/* ── Qualitative Score Chips ── */
+/* ── Qualitative Score Chips (colors applied inline, data-driven from the active framework's bands) ── */
 .q-chip{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:100px;margin-left:4px}
-.q-chip-critical{background:rgba(220,38,38,.15);color:#dc2626}
-.q-chip-high{background:rgba(234,88,12,.15);color:#ea580c}
-.q-chip-medium{background:rgba(217,119,6,.15);color:#d97706}
-.q-chip-low{background:rgba(22,163,74,.15);color:#16a34a}
+
+/* ── Risk Rating Guide tables ── */
+.rg-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.rg-table tr:last-child td{border-bottom:none}
 
 /* ── Workflow Step Chips ── */
 .wf-chip{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;padding:2px 6px;border-radius:100px;border:1px solid var(--border);background:var(--surface2);color:var(--muted)}
@@ -196,6 +196,16 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
     Risk Library
   </a>
+  <a href="/erm/rating-guide" class="nav-item" data-spa="/erm/rating-guide">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    Rating Guide
+  </a>
+  {% if can_manage_frameworks %}
+  <a href="/erm/framework-admin" class="nav-item" data-spa="/erm/framework-admin">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+    Rating Frameworks
+  </a>
+  {% endif %}
   <a href="/erm/obligations" class="nav-item" data-spa="/erm/obligations">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
     Obligations
@@ -426,6 +436,34 @@
   </div>
 </div>
 
+<!-- ══════════════════════ RISK RATING GUIDE (read-only reference) ══════════════════════ -->
+<div class="spa-view" id="view-rating-guide">
+  <div class="section-header">
+    <div>
+      <div class="section-title" id="rgTitle">Risk Rating Guide</div>
+      <div class="section-sub" id="rgDesc">The active rating methodology used to score risks in this register</div>
+    </div>
+  </div>
+  <div id="ermRatingGuideBody"><div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div></div>
+</div>
+
+<!-- ══════════════════════ RISK RATING FRAMEWORKS (admin editor) ══════════════════════ -->
+<div class="spa-view" id="view-framework-admin">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Rating Frameworks</div>
+      <div class="section-sub">Build, import, and activate risk rating methodologies for this organization</div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary" onclick="fwImportPick()">Import</button>
+      <input type="file" id="fwImportFile" accept=".json" style="display:none" onchange="fwImportFile(this.files[0])">
+      <button class="btn btn-primary" onclick="fwOpenNewModal()">+ New Framework</button>
+    </div>
+  </div>
+  <div id="fwListRoot"><div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div></div>
+  <div id="fwEditorRoot"></div>
+</div>
+
 <!-- ══════════════════════ OBLIGATIONS ══════════════════════ -->
 <div class="spa-view" id="view-obligations">
   <div class="section-header">
@@ -627,8 +665,41 @@ function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent
 function fmtDate(ts){if(!ts)return'—';try{var d=new Date(ts.includes('T')?ts:ts+' UTC');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return ts;}}
 function daysUntil(ds){if(!ds)return null;var diff=Math.round((new Date(ds)-new Date())/(864e5));return diff;}
 function timeAgo(ts){if(!ts)return'';try{var s=Math.floor((Date.now()-new Date(ts.includes('T')?ts:ts+' UTC'))/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}catch(e){return'';}}
-function scoreToLevel(s){s=parseInt(s)||0;if(s>=20)return'critical';if(s>=12)return'high';if(s>=6)return'medium';return'low';}
-function levelBadge(lvl){var m={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};return'<span class="badge '+(m[lvl]||'badge-draft')+'">'+esc((lvl||'?').toUpperCase())+'</span>';}
+/* ── Risk Rating Framework — active matrix + band metadata ──
+   ERM_FRAMEWORK is fetched once at boot (see INIT at the bottom of this
+   file) and cached here; every band-lookup helper below reads from it
+   instead of a hardcoded likelihood*impact cutoff, so the register,
+   heatmap, dashboard stats, and CSV export can never disagree with each
+   other about a risk's severity. Colors for in-app chrome (badges, chips)
+   are deliberately NOT taken from the framework — the framework only
+   supplies band ORDER and LABELS, so a customised/imported framework's
+   colors never leak into the app's own severity palette. The framework's
+   real colors are shown only in the Risk Rating Guide, where showing them
+   authentically is the point. */
+var ERM_FRAMEWORK=null;
+var ERM_MATRIX={};
+var ERM_BAND_ORDER=['very_low','low','moderate','high','critical'];
+var ERM_BAND_LABELS={very_low:'Very Low',low:'Low',moderate:'Moderate',high:'High',critical:'Critical'};
+var ERM_BAND_COLORS={very_low:'#059669',low:'#16a34a',moderate:'#ca8a04',high:'#ea580c',critical:'#dc2626'};
+async function ermLoadFramework(){
+  try{
+    var fw=await apiFetch('/erm/api/framework/active');
+    ERM_FRAMEWORK=fw;
+    ERM_MATRIX={};
+    (fw.matrix||[]).forEach(function(m){ERM_MATRIX[m.likelihood+'_'+m.impact]=m.band_key;});
+    ERM_BAND_ORDER=(fw.bands||[]).slice().sort(function(a,b){return a.sort_order-b.sort_order;}).map(function(b){return b.band_key;});
+    (fw.bands||[]).forEach(function(b){ERM_BAND_LABELS[b.band_key]=b.label;});
+  }catch(e){console.error('Failed to load risk rating framework, using fallback bands',e);}
+}
+function scoreToBand(l,i){
+  l=parseInt(l)||3;i=parseInt(i)||3;
+  return ERM_MATRIX[l+'_'+i]||'moderate';
+}
+function bandLabel(band){return ERM_BAND_LABELS[band]||(band||'?').toUpperCase();}
+function bandColor(band){return ERM_BAND_COLORS[band]||'var(--muted)';}
+function bandHeatClass(band){var idx=ERM_BAND_ORDER.indexOf(band);return'heat-'+(idx<0?2:idx);}
+function levelBadge(band){var c=bandColor(band);return'<span class="badge" style="background:'+c+'22;color:'+c+';border:1px solid '+c+'55">'+esc(bandLabel(band).toUpperCase())+'</span>';}
+function qChip(band){var c=bandColor(band);return'<span class="q-chip" style="background:'+c+'22;color:'+c+'">'+esc(bandLabel(band))+'</span>';}
 function statusBadge(s){var m={open:'badge-high',under_review:'badge-progress',mitigated:'badge-complete',accepted:'badge-draft',closed:'badge-draft',pending:'badge-draft',compliant:'badge-complete',non_compliant:'badge-critical',draft:'badge-draft',active:'badge-high',closed:'badge-draft'};var lbl=(s||'—').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});return'<span class="badge '+(m[(s||'').toLowerCase()]||'badge-draft')+'">'+esc(lbl)+'</span>';}
 function srcPill(mod,src){var cls={erm:'src-pill-erm',grid:'src-pill-grid',bcm:'src-pill-bcm',sentinel:'src-pill-sentinel',orm:'src-pill-orm'};var lbl=src==='erm'?'ERM':(mod||src||'?');return'<span class="src-pill '+(cls[mod]||cls[src]||'')+'">'+esc(lbl.toUpperCase())+'</span>';}
 function spinner(n){return'<tr><td colspan="'+n+'" style="text-align:center;padding:32px"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
@@ -653,8 +724,8 @@ window.ermCloseDocViewer=function(){document.getElementById('ermDocViewerRoot').
 var ERM_IS_ADMIN = {{ 'true' if is_admin else 'false' }};
 
 /* ────────────────── SPA ROUTER ────────────────── */
-var _routes={'/erm/':'dashboard','/erm':'dashboard','/erm/register':'register','/erm/appetite':'appetite','/erm/library':'library','/erm/obligations':'obligations','/erm/indicators':'indicators','/erm/assessments':'assessments','/erm/reports':'reports','/erm/chat':'chat'};
-var _crumbs={dashboard:'Dashboard',register:'Risk Register',appetite:'Risk Appetite',library:'Risk Library',obligations:'Obligations',indicators:'KRI Indicators',assessments:'Assessments',reports:'Reports',chat:'Ask ERM AI'};
+var _routes={'/erm/':'dashboard','/erm':'dashboard','/erm/register':'register','/erm/appetite':'appetite','/erm/library':'library','/erm/rating-guide':'rating-guide','/erm/framework-admin':'framework-admin','/erm/obligations':'obligations','/erm/indicators':'indicators','/erm/assessments':'assessments','/erm/reports':'reports','/erm/chat':'chat'};
+var _crumbs={dashboard:'Dashboard',register:'Risk Register',appetite:'Risk Appetite',library:'Risk Library','rating-guide':'Risk Rating Guide','framework-admin':'Rating Frameworks',obligations:'Obligations',indicators:'KRI Indicators',assessments:'Assessments',reports:'Reports',chat:'Ask ERM AI'};
 var ermRouter={
   current:null,
   navigate:function(p,replace){if(replace)history.replaceState(null,'',p);else history.pushState(null,'',p);this.resolve();},
@@ -679,6 +750,8 @@ var ermRouter={
       case'register':    ermLoadRegister();break;
       case'appetite':    ermLoadAppetite();break;
       case'library':     ermLoadLibrary();break;
+      case'rating-guide':ermLoadRatingGuide();break;
+      case'framework-admin':ermLoadFrameworkAdmin();break;
       case'obligations': ermLoadObligations();break;
       case'assessments': ermLoadAssessments();break;
       case'reports':     ermLoadReports();break;
@@ -740,8 +813,8 @@ function ermRenderHeatMap(hm){
     cells+='<div class="heat-axis">'+(l+1)+'</div>';
     for(var i=0;i<5;i++){
       var cnt=hm[l][i]||0;var sc=(l+1)*(i+1);
-      var cls=sc>=20?'heat-4':sc>=12?'heat-3':sc>=6?'heat-2':sc>=4?'heat-1':'heat-0';
       var ll=l+1,ii=i+1;
+      var cls=bandHeatClass(scoreToBand(ll,ii));
       cells+='<div class="heat-cell '+cls+'" onclick="ermNavToRegisterFiltered('+ll+','+ii+')" title="L'+ll+'×I'+ii+'='+sc+' ('+cnt+' risks)">'+(cnt||'')+'</div>';
     }
   }
@@ -776,8 +849,8 @@ function ermRenderTopCritical(risks){
   if(!risks.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:16px;font-size:12px">No critical risks — well done!</div>';return;}
   el.innerHTML=risks.map(function(r){
     var score=r.score||((r.likelihood||0)*(r.impact||0));
-    var lvl=scoreToLevel(score);
-    var scoreCl=lvl==='critical'?'var(--red)':lvl==='high'?'var(--amber)':'var(--text)';
+    var lvl=scoreToBand(r.likelihood,r.impact);
+    var scoreCl=bandColor(lvl);
     return'<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">'+
       '<div style="font-size:15px;font-weight:800;color:'+scoreCl+';flex-shrink:0;width:28px;text-align:center">'+score+'</div>'+
       '<div style="flex:1;min-width:0"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.title)+'</div>'+
@@ -852,8 +925,8 @@ window.ermRenderRegister=function(){
     }
     return true;
   });
-  var critical=filtered.filter(function(r){return scoreToLevel(r.risk_score||0)==='critical';}).length;
-  var high=filtered.filter(function(r){return scoreToLevel(r.risk_score||0)==='high';}).length;
+  var critical=filtered.filter(function(r){return scoreToBand(r.likelihood,r.impact)==='critical';}).length;
+  var high=filtered.filter(function(r){var b=scoreToBand(r.likelihood,r.impact);return b==='high'||b==='critical';}).length;
   var erm=filtered.filter(function(r){return r.register_source==='erm';}).length;
   var elevated=filtered.filter(function(r){return r.register_source==='erm'&&r.source_module&&r.source_module!=='erm';}).length;
   statCards('regStats',[
@@ -865,8 +938,8 @@ window.ermRenderRegister=function(){
   if(!filtered.length){body.innerHTML=emptyRow(11,'No risks match current filters');return;}
   body.innerHTML=filtered.map(function(r){
     var score=r.risk_score||((r.likelihood||0)*(r.impact||0));
-    var lvl=scoreToLevel(score);
-    var scoreCl=lvl==='critical'?'var(--red)':lvl==='high'?'var(--amber)':lvl==='medium'?'var(--blue)':'var(--good,#16a34a)';
+    var lvl=scoreToBand(r.likelihood,r.impact);
+    var scoreCl=bandColor(lvl);
     var isErm=r.register_source==='erm';
     var boardBadge=isErm&&r.board_visibility?'<span class="board-badge">★ Board</span> ':'';
     var resScore=r.residual_likelihood&&r.residual_impact?(r.residual_likelihood*r.residual_impact):'—';
@@ -878,14 +951,14 @@ window.ermRenderRegister=function(){
     var editBtn=isErm?'<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();ermEditRisk('+rid+')" style="padding:3px 7px" title="Edit">✎</button>':'';
     var delBtn=ERM_IS_ADMIN?'<button onclick="event.stopPropagation();ermDeleteRisk('+rid+',\''+esc(r.register_source||'erm')+'\')" style="background:none;border:1px solid transparent;border-radius:var(--radius);padding:3px 6px;cursor:pointer;color:var(--muted);font-size:14px;transition:all .15s" onmouseenter="this.style.color=\'#ef4444\';this.style.borderColor=\'rgba(239,68,68,.3)\'" onmouseleave="this.style.color=\'var(--muted)\';this.style.borderColor=\'transparent\'" title="Delete risk">🗑</button>':'';
     var ql=r.qualitative_score||lvl;
-    var qChip='<span class="q-chip q-chip-'+esc(ql)+'">'+esc(ql)+'</span>';
+    var qChipHtml=qChip(ql);
     var wfStep=r.workflow_step||'draft';
     var wfChip='<span class="wf-chip wf-chip-'+esc(wfStep)+'">'+esc(wfStep)+'</span>';
     return'<tr onclick="ermOpenRiskDrawer('+rid+')" style="cursor:pointer">'+
       '<td onclick="event.stopPropagation()">'+chk+'</td>'+
       '<td style="font-weight:600;max-width:200px">'+boardBadge+esc(r.title||'')+'</td>'+
       '<td style="text-transform:capitalize;font-size:12px">'+esc(r.category||'')+'</td>'+
-      '<td style="text-align:center;font-weight:800;color:'+scoreCl+'">'+score+qChip+'</td>'+
+      '<td style="text-align:center;font-weight:800;color:'+scoreCl+'">'+score+qChipHtml+'</td>'+
       '<td>'+wfChip+'</td>'+
       '<td>'+statusBadge(r.status)+'</td>'+
       '<td style="font-size:12px">'+esc(r.owner_name||'—')+'</td>'+
@@ -959,7 +1032,7 @@ window.ermExportCSV=function(){
   var cat=(document.getElementById('regCatFilter')||{}).value||'';
   var rows=regCache.filter(function(r){if(regStatusFilter&&r.status!==regStatusFilter)return false;if(cat&&r.category!==cat)return false;if(q){var t=(r.title||'').toLowerCase()+(r.description||'').toLowerCase();if(!t.includes(q.toLowerCase()))return false;}return true;});
   var hdr=['ID','Title','Category','Likelihood','Impact','Score','Level','Status','Treatment','Owner','Source','Board Visible','Review Date'];
-  var lines=[hdr.join(',')].concat(rows.map(function(r){var score=r.risk_score||((r.likelihood||0)*(r.impact||0));return[r.id,'"'+(r.title||'').replace(/"/g,'""')+'"',r.category||'',r.likelihood||'',r.impact||'',score,scoreToLevel(score),r.status||'',r.treatment||'',r.owner_name||'',r.source_module||r.register_source||'',r.board_visibility?1:0,r.review_date||''].join(',');}));
+  var lines=[hdr.join(',')].concat(rows.map(function(r){var score=r.risk_score||((r.likelihood||0)*(r.impact||0));return[r.id,'"'+(r.title||'').replace(/"/g,'""')+'"',r.category||'',r.likelihood||'',r.impact||'',score,bandLabel(scoreToBand(r.likelihood,r.impact)),r.status||'',r.treatment||'',r.owner_name||'',r.source_module||r.register_source||'',r.board_visibility?1:0,r.review_date||''].join(',');}));
   var b=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='erm-register.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
   typeof showToast==='function'&&showToast('Exported '+rows.length+' rows');
 };
@@ -996,16 +1069,16 @@ window.ermOpenRiskDrawer=async function(id){
     if(!r){ermCloseRiskDrawer();return;}
     _drawerRisk=r;
     var score=(r.likelihood||0)*(r.impact||0);
-    var qScore=r.qualitative_score||scoreToLevel(score);
+    var qScore=r.qualitative_score||scoreToBand(r.likelihood,r.impact);
     var resScore=(r.residual_likelihood&&r.residual_impact)?(r.residual_likelihood*r.residual_impact):null;
     // isErm = stored in erm_enterprise_risks (not a cross-module risk_register entry)
     // get_enterprise_risk now returns register_source='erm'; regCache fallback also has it
     var isErm=r.register_source==='erm'||r.source_module==='erm'||(!r.register_source&&!r.risk_level);
     var registerSrc=r.register_source||'erm';
-    // Qualitative color maps
-    var qColor={critical:'#dc2626',high:'#ea580c',medium:'#d97706',low:'#16a34a'}[qScore]||'var(--muted)';
-    var qBg={critical:'rgba(220,38,38,.08)',high:'rgba(234,88,12,.08)',medium:'rgba(217,119,6,.08)',low:'rgba(22,163,74,.08)'}[qScore]||'var(--surface2)';
-    var qBorder={critical:'rgba(220,38,38,.22)',high:'rgba(234,88,12,.22)',medium:'rgba(217,119,6,.22)',low:'rgba(22,163,74,.22)'}[qScore]||'var(--border)';
+    // Qualitative color maps — derived from the active framework's band color
+    var qColor=bandColor(qScore);
+    var qBg=qColor+'14';
+    var qBorder=qColor+'38';
     // Treatment color maps
     var txColor={mitigate:'#2563eb',accept:'#16a34a',avoid:'#dc2626',transfer:'#d97706'}[r.treatment||'mitigate']||'var(--muted)';
     var txBg={mitigate:'rgba(37,99,235,.1)',accept:'rgba(22,163,74,.1)',avoid:'rgba(220,38,38,.1)',transfer:'rgba(217,119,6,.1)'}[r.treatment||'mitigate']||'var(--surface2)';
@@ -1331,6 +1404,413 @@ window.ermCustomizeRisk=function(item){
   ermOpenRiskModal({title:item.title,description:item.description||'',category:item.category||'operational',treatment:item.typical_treatment||'mitigate',likelihood:item.default_likelihood||3,impact:item.default_impact||3,treatment_plan:item.suggested_controls||'',status:'open',_isNew:true});
 };
 
+/* ────────────────── RISK RATING GUIDE (read-only reference) ────────────────── */
+window.ermLoadRatingGuide=async function(){
+  var body=document.getElementById('ermRatingGuideBody');
+  body.innerHTML='<div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    var fw=ERM_FRAMEWORK||await apiFetch('/erm/api/framework/active');
+    var t=document.getElementById('rgTitle');if(t)t.textContent=fw.framework.name;
+    var d=document.getElementById('rgDesc');if(d)d.textContent=fw.framework.description||'';
+
+    var dimsHtml=fw.dimensions.map(function(dim){
+      var rows=dim.levels.map(function(lv){
+        return'<tr><td style="font-weight:700;text-align:center;width:36px">'+lv.level+'</td>'+
+          '<td style="font-size:12px;line-height:1.5">'+esc(lv.description||'')+
+          (lv.threshold_label?'<div style="color:var(--muted);font-size:11px;margin-top:2px">'+esc(lv.threshold_label)+'</div>':'')+
+          '</td></tr>';
+      }).join('');
+      return'<div style="margin-bottom:18px"><div style="font-weight:700;font-size:13px;margin-bottom:6px">'+esc(dim.name)+'</div>'+
+        '<table style="width:100%;border-collapse:collapse" class="rg-table"><tbody>'+rows+'</tbody></table></div>';
+    }).join('');
+
+    function scaleTable(rows){
+      return'<table style="width:100%;border-collapse:collapse" class="rg-table"><tbody>'+
+        rows.map(function(r){
+          return'<tr><td style="font-weight:700;text-align:center;width:36px">'+r.level+'</td>'+
+            '<td style="font-weight:600;width:140px">'+esc(r.label)+'</td>'+
+            '<td style="font-size:12px;color:var(--muted)">'+esc(r.description||'')+'</td></tr>';
+        }).join('')+'</tbody></table>';
+    }
+
+    var matrixByCell={};
+    fw.matrix.forEach(function(m){matrixByCell[m.likelihood+'_'+m.impact]=m.band_key;});
+    var bandByKey={};
+    fw.bands.forEach(function(b){bandByKey[b.band_key]=b;});
+    var matrixRows='';
+    for(var l=5;l>=1;l--){
+      matrixRows+='<tr><td style="font-weight:700;text-align:center;background:var(--surface2)">'+l+'</td>';
+      for(var i=1;i<=5;i++){
+        var bk=matrixByCell[l+'_'+i];var band=bandByKey[bk]||{};
+        matrixRows+='<td style="text-align:center;font-size:11px;font-weight:700;padding:10px;background:'+esc(band.color||'#eee')+';color:#1a1a1a">'+esc(band.label||'?')+'</td>';
+      }
+      matrixRows+='</tr>';
+    }
+    var matrixHeader='<tr><td></td>'+[1,2,3,4,5].map(function(i){return'<td style="text-align:center;font-size:11px;font-weight:700;color:var(--muted)">'+i+'</td>';}).join('')+'</tr>';
+
+    function taxonomyList(nodes){
+      if(!nodes||!nodes.length)return'';
+      return'<ul style="margin:4px 0 4px 18px;padding:0">'+nodes.map(function(n){
+        return'<li style="font-size:12px;line-height:1.8">'+esc(n.name)+taxonomyList(n.children)+'</li>';
+      }).join('')+'</ul>';
+    }
+
+    body.innerHTML=
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">'+
+        '<div class="stat-card" style="padding:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Likelihood</div>'+scaleTable(fw.likelihood)+'</div>'+
+        '<div class="stat-card" style="padding:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Control Effectiveness</div>'+scaleTable(fw.control_effectiveness)+'</div>'+
+      '</div>'+
+      '<div class="stat-card" style="padding:16px;margin-bottom:24px">'+
+        '<div class="section-title" style="font-size:14px;margin-bottom:10px">Risk Matrix (Likelihood × Impact)</div>'+
+        '<table style="border-collapse:collapse;margin:0 auto"><tbody>'+matrixHeader+matrixRows+'</tbody></table>'+
+      '</div>'+
+      '<div class="stat-card" style="padding:16px;margin-bottom:24px">'+
+        '<div class="section-title" style="font-size:14px;margin-bottom:14px">Impact Dimensions</div>'+dimsHtml+
+      '</div>'+
+      '<div class="stat-card" style="padding:16px">'+
+        '<div class="section-title" style="font-size:14px;margin-bottom:10px">Risk Taxonomy</div>'+
+        taxonomyList(fw.taxonomy)+
+      '</div>';
+  }catch(e){body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load rating guide: '+esc(e.message)+'</div>';}
+};
+
+/* ────────────────── RATING FRAMEWORKS (admin) ────────────────── */
+var fwListCache=[];
+var fwEditorState=null;
+
+window.ermLoadFrameworkAdmin=async function(){
+  fwEditorState=null;
+  document.getElementById('fwEditorRoot').innerHTML='';
+  document.getElementById('fwListRoot').style.display='';
+  var root=document.getElementById('fwListRoot');
+  root.innerHTML='<div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    fwListCache=await apiFetch('/erm/api/frameworks');
+    fwRenderList();
+  }catch(e){root.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load frameworks: '+esc(e.message)+'</div>';}
+};
+
+function fwSourceBadge(source){
+  var label=source==='built_in'?'Built-in':source==='imported'?'Imported':'Custom';
+  var color=source==='built_in'?'var(--accent)':'var(--muted)';
+  return'<span class="badge" style="background:'+color+'22;color:'+color+';border:1px solid '+color+'55">'+label+'</span>';
+}
+
+window.fwRenderList=function(){
+  var root=document.getElementById('fwListRoot');
+  if(!fwListCache.length){root.innerHTML='<div class="card" style="padding:40px;text-align:center;color:var(--muted)">No frameworks yet</div>';return;}
+  var rows=fwListCache.map(function(f){
+    var canEdit=f.source!=='built_in';
+    var canDelete=canEdit&&!f.is_active;
+    return'<tr>'+
+      '<td style="font-weight:600">'+esc(f.name)+(f.is_active?' <span class="badge" style="background:var(--good,#16a34a)22;color:var(--good,#16a34a);border:1px solid var(--good,#16a34a)55;margin-left:6px">ACTIVE</span>':'')+
+      '<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'+esc(f.description||'')+'</div></td>'+
+      '<td>'+fwSourceBadge(f.source)+'</td>'+
+      '<td style="text-align:center">'+f.dimension_count+'</td>'+
+      '<td style="font-size:12px;color:var(--muted)">'+fmtDate(f.updated_at)+'</td>'+
+      '<td><div style="display:flex;gap:4px;flex-wrap:wrap">'+
+        (f.is_active?'':'<button class="btn btn-sm btn-secondary" onclick="fwActivate('+f.id+')" style="padding:3px 8px">Activate</button>')+
+        '<button class="btn btn-sm btn-secondary" onclick="fwOpenEditor('+f.id+')" style="padding:3px 8px">'+(canEdit?'Edit':'View')+'</button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="fwClone('+f.id+')" style="padding:3px 8px">Clone</button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="fwExport('+f.id+')" style="padding:3px 8px">Export</button>'+
+        (canDelete?'<button class="btn btn-sm btn-secondary" onclick="fwDelete('+f.id+')" style="padding:3px 8px;color:var(--red)">Delete</button>':'')+
+      '</div></td>'+
+    '</tr>';
+  }).join('');
+  root.innerHTML='<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="data-table">'+
+    '<thead><tr><th>Framework</th><th>Source</th><th style="text-align:center">Dimensions</th><th>Updated</th><th>Actions</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div></div>';
+};
+
+window.fwActivate=async function(id){
+  if(!confirm('Activate this framework? All existing risks will be re-scored against its matrix immediately.'))return;
+  try{
+    await apiFetch('/erm/api/frameworks/'+id+'/activate',{method:'POST'});
+    typeof showToast==='function'&&showToast('Framework activated');
+    if(fwEditorState&&fwEditorState.id===id){fwOpenEditor(id);}else{ermLoadFrameworkAdmin();}
+  }catch(e){typeof showToast==='function'&&showToast('Activate failed: '+e.message,'error');}
+};
+
+window.fwDelete=async function(id){
+  if(!confirm('Delete this framework? This cannot be undone.'))return;
+  try{await apiFetch('/erm/api/frameworks/'+id,{method:'DELETE'});typeof showToast==='function'&&showToast('Framework deleted');ermLoadFrameworkAdmin();}
+  catch(e){typeof showToast==='function'&&showToast('Delete failed: '+e.message,'error');}
+};
+
+window.fwExport=function(id){window.open('/erm/api/frameworks/'+id+'/export','_blank');};
+
+window.fwClone=function(id){
+  var src=fwListCache.find(function(f){return f.id===id;});
+  fwOpenNewModal(src);
+};
+
+window.fwImportPick=function(){document.getElementById('fwImportFile').click();};
+window.fwImportFile=function(file){
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=async function(){
+    var parsed;
+    try{parsed=JSON.parse(reader.result);}
+    catch(e){typeof showToast==='function'&&showToast('Not valid JSON','error');document.getElementById('fwImportFile').value='';return;}
+    try{
+      var r=await fetch('/erm/api/frameworks/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(parsed)});
+      var j=await r.json();
+      if(!r.ok){fwShowErrors('Import failed',j.errors||[j.detail||'Unknown error']);document.getElementById('fwImportFile').value='';return;}
+      typeof showToast==='function'&&showToast('Framework imported');
+      ermLoadFrameworkAdmin();
+    }catch(e){typeof showToast==='function'&&showToast('Import failed: '+e.message,'error');}
+    document.getElementById('fwImportFile').value='';
+  };
+  reader.readAsText(file);
+};
+
+window.fwShowErrors=function(title,errors){
+  var html='<div class="erm-modal-overlay" id="fwErrModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:560px">'+
+    '<button class="modal-close" onclick="document.getElementById(\'fwErrModal\').remove()">✕</button>'+
+    '<div class="modal-title">'+esc(title)+'</div>'+
+    '<ul style="margin:10px 0 0 18px;padding:0;font-size:12.5px;color:var(--red);line-height:1.8">'+
+    errors.map(function(er){return'<li>'+esc(er)+'</li>';}).join('')+
+    '</ul></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+
+window.fwOpenNewModal=function(cloneSrc){
+  var html='<div class="erm-modal-overlay" id="fwNewModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:520px">'+
+    '<button class="modal-close" onclick="document.getElementById(\'fwNewModal\').remove()">✕</button>'+
+    '<div class="modal-title">New Framework</div>'+
+    '<div class="form-group"><label>Name *</label><input id="fwn_name" value="'+(cloneSrc?esc(cloneSrc.name+' (Copy)'):'')+'"></div>'+
+    '<div class="form-group"><label>Description</label><textarea id="fwn_desc" rows="2">'+(cloneSrc?esc(cloneSrc.description||''):'')+'</textarea></div>'+
+    '<div class="form-group"><label>Clone From *</label><select id="fwn_clone">'+
+      fwListCache.map(function(f){return'<option value="'+f.id+'"'+(cloneSrc&&cloneSrc.id===f.id?' selected':'')+'>'+esc(f.name)+'</option>';}).join('')+
+    '</select></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button class="btn btn-secondary" onclick="document.getElementById(\'fwNewModal\').remove()">Cancel</button><button class="btn btn-primary" onclick="fwSaveNew()">Create</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+
+window.fwSaveNew=async function(){
+  var name=document.getElementById('fwn_name').value.trim();
+  var description=document.getElementById('fwn_desc').value.trim();
+  var cloneFromId=parseInt(document.getElementById('fwn_clone').value,10);
+  if(!name){typeof showToast==='function'&&showToast('Name required','error');return;}
+  try{
+    var res=await apiFetch('/erm/api/frameworks',{method:'POST',body:{name:name,description:description,clone_from_id:cloneFromId}});
+    var modal=document.getElementById('fwNewModal');if(modal)modal.remove();
+    typeof showToast==='function'&&showToast('Framework created');
+    await ermLoadFrameworkAdmin();
+    fwOpenEditor(res.id);
+  }catch(e){typeof showToast==='function'&&showToast('Create failed: '+e.message,'error');}
+};
+
+window.fwOpenEditor=async function(id){
+  document.getElementById('fwListRoot').style.display='none';
+  var root=document.getElementById('fwEditorRoot');
+  root.innerHTML='<div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    fwEditorState=await apiFetch('/erm/api/frameworks/'+id);
+    fwRenderEditor();
+  }catch(e){root.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load framework: '+esc(e.message)+'</div>';}
+};
+
+window.fwCloseEditor=function(){
+  fwEditorState=null;
+  document.getElementById('fwEditorRoot').innerHTML='';
+  document.getElementById('fwListRoot').style.display='';
+};
+
+function fwMatrixSelectHtml(l,i,currentBandKey){
+  var locked=fwEditorState.source==='built_in';
+  var opts=fwEditorState.bands.map(function(b){
+    return'<option value="'+esc(b.band_key)+'"'+(b.band_key===currentBandKey?' selected':'')+'>'+esc(b.label)+'</option>';
+  }).join('');
+  var bandNow=fwEditorState.bands.find(function(b){return b.band_key===currentBandKey;})||{};
+  return'<select '+(locked?'disabled':'')+' style="width:100%;background:'+esc(bandNow.color||'#eee')+';color:#1a1a1a;font-weight:700;font-size:11px;border:none;border-radius:4px;padding:6px" onchange="fwSetMatrixCell('+l+','+i+',this.value)">'+opts+'</select>';
+}
+
+window.fwSetMatrixCell=function(l,i,bandKey){
+  var m=fwEditorState.matrix.find(function(mm){return mm.likelihood===l&&mm.impact===i;});
+  if(m)m.band_key=bandKey;
+  fwRefreshMatrixOptions();
+};
+
+window.fwRefreshMatrixOptions=function(){
+  for(var l=1;l<=5;l++){
+    for(var i=1;i<=5;i++){
+      var cell=document.getElementById('fwMatrixCell_'+l+'_'+i);
+      if(!cell)continue;
+      var m=fwEditorState.matrix.find(function(mm){return mm.likelihood===l&&mm.impact===i;});
+      cell.innerHTML=fwMatrixSelectHtml(l,i,m?m.band_key:null);
+    }
+  }
+};
+
+window.fwAddDimension=function(){
+  fwEditorState.dimensions.push({name:'New Dimension',levels:[1,2,3,4,5].map(function(lvl){return{level:lvl,description:''};})});
+  fwRenderEditor();
+};
+window.fwRemoveDimension=function(idx){
+  if(!confirm('Remove this dimension?'))return;
+  fwEditorState.dimensions.splice(idx,1);
+  fwRenderEditor();
+};
+
+window.fwAddBand=function(){
+  fwEditorState.bands.push({band_key:'new_band',label:'New Band',color:'#999999',sort_order:fwEditorState.bands.length});
+  fwRenderEditor();
+};
+window.fwRemoveBand=function(idx){
+  if(!confirm('Remove this band? Any matrix cells still using it will need to be reassigned before saving.'))return;
+  fwEditorState.bands.splice(idx,1);
+  fwRenderEditor();
+};
+
+function fwTaxNodeAt(path){
+  var nodes=fwEditorState.taxonomy,node=null;
+  for(var idx=0;idx<path.length;idx++){
+    node=nodes[path[idx]];
+    nodes=node.children||(node.children=[]);
+  }
+  return node;
+}
+window.fwSetTaxonomyName=function(path,value){fwTaxNodeAt(path).name=value;};
+window.fwAddTaxonomyRoot=function(){
+  fwEditorState.taxonomy.push({name:'New Category',children:[]});
+  fwRenderEditor();
+};
+window.fwAddTaxonomyChild=function(path){
+  var node=fwTaxNodeAt(path);
+  node.children=node.children||[];
+  node.children.push({name:'New Subcategory',children:[]});
+  fwRenderEditor();
+};
+window.fwRemoveTaxonomyNode=function(path){
+  if(!confirm('Remove this category and all its subcategories?'))return;
+  if(path.length===1){fwEditorState.taxonomy.splice(path[0],1);}
+  else{
+    var parent=fwTaxNodeAt(path.slice(0,-1));
+    parent.children.splice(path[path.length-1],1);
+  }
+  fwRenderEditor();
+};
+
+function fwRenderEditor(){
+  var fw=fwEditorState;
+  var locked=fw.source==='built_in';
+  var root=document.getElementById('fwEditorRoot');
+
+  var dimsHtml=fw.dimensions.map(function(dim,di){
+    var levelRows=dim.levels.map(function(lv){
+      return'<tr><td style="font-weight:700;text-align:center;width:36px">'+lv.level+'</td>'+
+        '<td><textarea rows="2" style="width:100%" '+(locked?'disabled':'')+' oninput="fwEditorState.dimensions['+di+'].levels['+(lv.level-1)+'].description=this.value">'+esc(lv.description||'')+'</textarea></td></tr>';
+    }).join('');
+    return'<div class="card" style="padding:14px;margin-bottom:10px">'+
+      '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">'+
+        '<input style="flex:1;font-weight:700" '+(locked?'disabled':'')+' value="'+esc(dim.name)+'" oninput="fwEditorState.dimensions['+di+'].name=this.value">'+
+        (locked?'':'<button class="btn btn-sm btn-secondary" onclick="fwRemoveDimension('+di+')" style="color:var(--red)">Remove</button>')+
+      '</div>'+
+      '<table style="width:100%;border-collapse:collapse" class="rg-table"><tbody>'+levelRows+'</tbody></table>'+
+    '</div>';
+  }).join('');
+
+  function scaleEditor(key,rows){
+    return'<table style="width:100%;border-collapse:collapse" class="rg-table"><tbody>'+
+      rows.map(function(r){
+        return'<tr><td style="font-weight:700;text-align:center;width:30px">'+r.level+'</td>'+
+          '<td><input style="width:100%;font-weight:600;margin-bottom:4px" '+(locked?'disabled':'')+' value="'+esc(r.label)+'" oninput="fwEditorState.'+key+'['+(r.level-1)+'].label=this.value">'+
+          '<textarea rows="2" style="width:100%" '+(locked?'disabled':'')+' oninput="fwEditorState.'+key+'['+(r.level-1)+'].description=this.value">'+esc(r.description||'')+'</textarea></td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+
+  var bandsHtml=fw.bands.map(function(b,bi){
+    return'<tr>'+
+      '<td><input style="width:100%" '+(locked?'disabled':'')+' value="'+esc(b.band_key)+'" oninput="fwEditorState.bands['+bi+'].band_key=this.value.toLowerCase();fwRefreshMatrixOptions()"></td>'+
+      '<td><input style="width:100%" '+(locked?'disabled':'')+' value="'+esc(b.label)+'" oninput="fwEditorState.bands['+bi+'].label=this.value;fwRefreshMatrixOptions()"></td>'+
+      '<td style="text-align:center"><input type="color" '+(locked?'disabled':'')+' value="'+esc(b.color)+'" style="width:48px;height:34px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px" oninput="fwEditorState.bands['+bi+'].color=this.value;fwRefreshMatrixOptions()"></td>'+
+      '<td style="text-align:center">'+(locked?'':'<button class="btn btn-sm btn-secondary" onclick="fwRemoveBand('+bi+')" style="color:var(--red)">✕</button>')+'</td>'+
+    '</tr>';
+  }).join('');
+
+  var matrixByCell={};
+  fw.matrix.forEach(function(m){matrixByCell[m.likelihood+'_'+m.impact]=m.band_key;});
+  var matrixRows='';
+  for(var l=5;l>=1;l--){
+    matrixRows+='<tr><td style="font-weight:700;text-align:center;background:var(--surface2)">'+l+'</td>';
+    for(var i=1;i<=5;i++){
+      matrixRows+='<td style="padding:4px" id="fwMatrixCell_'+l+'_'+i+'">'+fwMatrixSelectHtml(l,i,matrixByCell[l+'_'+i])+'</td>';
+    }
+    matrixRows+='</tr>';
+  }
+  var matrixHeader='<tr><td></td>'+[1,2,3,4,5].map(function(i){return'<td style="text-align:center;font-size:11px;font-weight:700;color:var(--muted)">Impact '+i+'</td>';}).join('')+'</tr>';
+
+  function taxonomyEditor(nodes,path){
+    if(!nodes.length)return'';
+    return'<ul style="margin:4px 0 4px 18px;padding:0;list-style:none">'+nodes.map(function(n,ni){
+      var p=path.concat(ni);
+      var pathStr=JSON.stringify(p);
+      return'<li style="margin:4px 0">'+
+        '<div style="display:flex;gap:6px;align-items:center">'+
+          '<input style="width:220px" '+(locked?'disabled':'')+' value="'+esc(n.name)+'" oninput=\'fwSetTaxonomyName('+pathStr+',this.value)\'>'+
+          (locked?'':'<button class="btn btn-sm btn-secondary" onclick=\'fwAddTaxonomyChild('+pathStr+')\' style="padding:2px 7px">+Child</button>')+
+          (locked?'':'<button class="btn btn-sm btn-secondary" onclick=\'fwRemoveTaxonomyNode('+pathStr+')\' style="padding:2px 7px;color:var(--red)">✕</button>')+
+        '</div>'+
+        taxonomyEditor(n.children||[],p)+
+      '</li>';
+    }).join('')+'</ul>';
+  }
+
+  root.innerHTML=
+    '<div class="section-header">'+
+      '<div><button class="btn btn-secondary" onclick="fwCloseEditor()">← Back to Frameworks</button></div>'+
+      '<div style="display:flex;gap:10px;align-items:center">'+
+        (fw.is_active?'<span class="badge" style="background:var(--good,#16a34a)22;color:var(--good,#16a34a);border:1px solid var(--good,#16a34a)55">ACTIVE</span>':'<button class="btn btn-secondary" onclick="fwActivate('+fw.id+')">Activate</button>')+
+        (locked?'':'<button class="btn btn-primary" onclick="fwSaveEditor()">Save Framework</button>')+
+      '</div>'+
+    '</div>'+
+    '<div class="card" style="padding:16px;margin-bottom:16px">'+
+      '<div class="form-group"><label>Name</label><input '+(locked?'disabled':'')+' value="'+esc(fw.name)+'" oninput="fwEditorState.name=this.value"></div>'+
+      '<div class="form-group"><label>Description</label><textarea rows="2" '+(locked?'disabled':'')+' oninput="fwEditorState.description=this.value">'+esc(fw.description||'')+'</textarea></div>'+
+      (locked?'<div style="font-size:12px;color:var(--muted)">This is the built-in template and cannot be edited directly. Clone it from the list to make changes.</div>':'')+
+    '</div>'+
+    '<div class="card" style="padding:16px;margin-bottom:16px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="section-title" style="font-size:14px">Impact Dimensions</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" onclick="fwAddDimension()">+ Add Dimension</button>')+'</div>'+
+      dimsHtml+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
+      '<div class="card" style="padding:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Likelihood</div>'+scaleEditor('likelihood',fw.likelihood)+'</div>'+
+      '<div class="card" style="padding:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Impact Scale</div>'+scaleEditor('impact_scale',fw.impact_scale)+'</div>'+
+    '</div>'+
+    '<div class="card" style="padding:16px;margin-bottom:16px"><div class="section-title" style="font-size:14px;margin-bottom:10px">Control Effectiveness</div>'+scaleEditor('control_effectiveness',fw.control_effectiveness)+'</div>'+
+    '<div class="card" style="padding:16px;margin-bottom:16px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="section-title" style="font-size:14px">Severity Bands</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" onclick="fwAddBand()">+ Add Band</button>')+'</div>'+
+      '<table style="width:100%;border-collapse:collapse" class="rg-table"><thead><tr><th>Key</th><th>Label</th><th style="text-align:center">Color</th><th></th></tr></thead><tbody>'+bandsHtml+'</tbody></table>'+
+    '</div>'+
+    '<div class="card" style="padding:16px;margin-bottom:16px">'+
+      '<div class="section-title" style="font-size:14px;margin-bottom:10px">Risk Matrix (Likelihood × Impact)</div>'+
+      '<div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">Save bands first if you just added or renamed one, so it appears as a matrix option.</div>'+
+      '<table style="border-collapse:collapse"><tbody>'+matrixHeader+matrixRows+'</tbody></table>'+
+    '</div>'+
+    '<div class="card" style="padding:16px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="section-title" style="font-size:14px">Risk Taxonomy</div>'+(locked?'':'<button class="btn btn-sm btn-secondary" onclick="fwAddTaxonomyRoot()">+ Add Category</button>')+'</div>'+
+      taxonomyEditor(fw.taxonomy,[])+
+    '</div>';
+}
+
+window.fwSaveEditor=async function(){
+  var payload={
+    name:fwEditorState.name,description:fwEditorState.description,
+    dimensions:fwEditorState.dimensions,likelihood:fwEditorState.likelihood,
+    impact_scale:fwEditorState.impact_scale,control_effectiveness:fwEditorState.control_effectiveness,
+    bands:fwEditorState.bands,matrix:fwEditorState.matrix,taxonomy:fwEditorState.taxonomy
+  };
+  try{
+    var r=await fetch('/erm/api/frameworks/'+fwEditorState.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    var j=await r.json();
+    if(!r.ok){fwShowErrors('Cannot save framework',j.errors||[j.detail||'Unknown error']);return;}
+    typeof showToast==='function'&&showToast('Framework saved');
+    fwOpenEditor(fwEditorState.id);
+  }catch(e){typeof showToast==='function'&&showToast('Save failed: '+e.message,'error');}
+};
+
 /* ────────────────── OBLIGATIONS ────────────────── */
 var oblCache=[], oblStatusFilter='';
 window.ermLoadObligations=async function(){
@@ -1596,7 +2076,7 @@ window.ermLoadReports=async function(){
     // Donut chart (inline SVG)
     var donut=document.getElementById('rptDonut');
     if(donut&&s.by_level){
-      var lvls=[{k:'critical',c:'var(--red)',l:'Critical'},{k:'high',c:'var(--amber)',l:'High'},{k:'medium',c:'var(--blue)',l:'Medium'},{k:'low',c:'var(--good,#16a34a)',l:'Low'}];
+      var lvls=ERM_BAND_ORDER.slice().reverse().map(function(k){return{k:k,c:bandColor(k),l:bandLabel(k)};});
       var total=Object.values(s.by_level).reduce(function(a,b){return a+b;},0)||1;
       var r=52,cx=64,cy=64,stroke=22;var dash=2*Math.PI*r;
       var offset=0;var segs=lvls.map(function(lv){var pct=(s.by_level[lv.k]||0)/total;var seg='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+lv.c+'" stroke-width="'+stroke+'" stroke-dasharray="'+(pct*dash).toFixed(2)+' '+dash.toFixed(2)+'" stroke-dashoffset="'+(-offset*dash).toFixed(2)+'" transform="rotate(-90 '+cx+' '+cy+')" opacity="0.85"/>';offset+=pct;return seg;}).join('');
@@ -2005,7 +2485,7 @@ window.ermIdentifyRisks=async function(assessmentId,btn){
       '<div style="font-size:13px;color:var(--muted);margin-bottom:14px">'+candidates.length+' risk(s) identified from assessment responses:</div>'+
       candidates.map(function(c,i){
         var score=(c.likelihood||3)*(c.impact||3);
-        var lvl=scoreToLevel(score);
+        var lvl=scoreToBand(c.likelihood,c.impact);
         return'<div style="padding:10px;background:var(--surface2);border-radius:var(--radius);margin-bottom:8px">'+
           '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
             '<div style="font-size:13px;font-weight:700;flex:1">'+esc(c.title)+'</div>'+
@@ -2033,7 +2513,10 @@ window.ermAddIdentifiedRisk=async function(risk,btn){
 };
 
 /* ────────────────── INIT ────────────────── */
-ermRouter.resolve();
+(async function(){
+  await ermLoadFramework();
+  ermRouter.resolve();
+})();
 setInterval(function(){if(ermRouter.current==='dashboard')ermLoadDashboard();},300000);
 })();
 </script>

@@ -211,6 +211,7 @@ CAPABILITIES: dict[str, set[str]] = {
     "erm.report.generate":       {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
     "erm.kri.manage":            {SUPER_ADMIN, RISK_OWNER},
     "erm.statements.manage":     {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
+    "erm.framework.manage":      {SUPER_ADMIN, RISK_OWNER},
 
     # ── ORM capabilities ──────────────────────────────────────────────
     "module.orm.access":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, BCM_MANAGER, AUDIT_LEAD},

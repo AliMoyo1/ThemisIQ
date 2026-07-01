@@ -3088,6 +3088,85 @@ CREATE TABLE IF NOT EXISTS ai_risk_predictions (
     acknowledged_at     TEXT,
     is_active           INTEGER DEFAULT 1
 );
+
+-- ── ERM: Risk Rating Frameworks ────────────────────────────────────────────
+-- A named, swappable rating methodology (impact dimensions, likelihood,
+-- matrix bands, control effectiveness, taxonomy). Seeded per-tenant by
+-- _seed_baseline_data(); each org can eventually own multiple frameworks but
+-- only one active at a time (enforced at the app level, not via DB constraint
+-- -- matches the existing aria_doc_templates.is_default convention).
+CREATE TABLE IF NOT EXISTS erm_risk_frameworks (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    is_active       INTEGER DEFAULT 0,
+    is_default      INTEGER DEFAULT 0,
+    source          TEXT DEFAULT 'built_in',   -- built_in|imported|manual
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS erm_framework_impact_dimensions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_id    INTEGER NOT NULL REFERENCES erm_risk_frameworks(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    order_idx       INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_erm_fw_dims ON erm_framework_impact_dimensions(framework_id);
+
+CREATE TABLE IF NOT EXISTS erm_framework_impact_levels (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    dimension_id    INTEGER NOT NULL REFERENCES erm_framework_impact_dimensions(id) ON DELETE CASCADE,
+    level           INTEGER NOT NULL,
+    description     TEXT,
+    threshold_label TEXT,
+    threshold_min   REAL,
+    threshold_max   REAL,
+    UNIQUE(dimension_id, level)
+);
+
+-- scale_type: 'likelihood' | 'impact' | 'control_effectiveness' — all three
+-- are flat 5-point label+description scales; 'impact' holds the generic
+-- Minor..Catastrophic labels shared across every impact dimension above.
+CREATE TABLE IF NOT EXISTS erm_framework_scales (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_id    INTEGER NOT NULL REFERENCES erm_risk_frameworks(id) ON DELETE CASCADE,
+    scale_type      TEXT NOT NULL,
+    level           INTEGER NOT NULL,
+    label           TEXT NOT NULL,
+    description     TEXT,
+    UNIQUE(framework_id, scale_type, level)
+);
+
+CREATE TABLE IF NOT EXISTS erm_framework_bands (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_id    INTEGER NOT NULL REFERENCES erm_risk_frameworks(id) ON DELETE CASCADE,
+    band_key        TEXT NOT NULL,
+    label           TEXT NOT NULL,
+    color           TEXT NOT NULL,
+    sort_order      INTEGER DEFAULT 0,
+    UNIQUE(framework_id, band_key)
+);
+
+CREATE TABLE IF NOT EXISTS erm_framework_matrix_bands (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_id    INTEGER NOT NULL REFERENCES erm_risk_frameworks(id) ON DELETE CASCADE,
+    likelihood      INTEGER NOT NULL,
+    impact          INTEGER NOT NULL,
+    band_key        TEXT NOT NULL,
+    UNIQUE(framework_id, likelihood, impact)
+);
+CREATE INDEX IF NOT EXISTS idx_erm_fw_matrix ON erm_framework_matrix_bands(framework_id);
+
+CREATE TABLE IF NOT EXISTS erm_framework_taxonomy (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_id    INTEGER NOT NULL REFERENCES erm_risk_frameworks(id) ON DELETE CASCADE,
+    parent_id       INTEGER REFERENCES erm_framework_taxonomy(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    order_idx       INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_erm_fw_taxonomy ON erm_framework_taxonomy(framework_id);
 """
 
 # ── PostgreSQL schema variants ─────────────────────────────────────────────────
@@ -3731,6 +3810,244 @@ def _seed_baseline_data(conn):
                     "typical_treatment, suggested_controls, applicable_industries, "
                     "regulatory_references, tags) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
                     row,
+                )
+            conn.commit()
+    except Exception:
+        pass
+
+    # ── Seed ERM Risk Rating Framework (OmniContact default template) ────────
+    try:
+        existing_fw = conn.execute("SELECT COUNT(*) FROM erm_risk_frameworks").fetchone()[0]
+        if existing_fw == 0:
+            fw_id = insert_returning_id(
+                conn,
+                "INSERT INTO erm_risk_frameworks (name, description, is_active, is_default, source) "
+                "VALUES (%s,%s,1,1,'built_in')",
+                ("OmniContact Rating System",
+                 "Default multi-dimension risk rating methodology: financial and qualitative "
+                 "impact scoring across 7 factors, frequency-based likelihood, a 5-band risk "
+                 "matrix, control effectiveness, and a 2-level risk taxonomy."),
+            )
+
+            # impact dimensions — Financial Exposure's 3 sub-metrics first, then the
+            # qualitative dimensions, matching the source template's order. Each level
+            # tuple is (description, threshold_label, threshold_min, threshold_max).
+            _DIMENSIONS = [
+                ("Financial Exposure — % Revenue", [
+                    ("X < 0.1%", "X < 0.1% (< $583,170)", None, 0.001),
+                    ("0.1% ≤ X < 0.4%", "0.1% ≤ X < 0.4% ($583,170–$2,332,681)", 0.001, 0.004),
+                    ("0.4% ≤ X < 0.6%", "0.4% ≤ X < 0.6% ($2,332,681–$3,499,022)", 0.004, 0.006),
+                    ("0.6% ≤ X < 0.8%", "0.6% ≤ X < 0.8% ($3,499,022–$4,665,363)", 0.006, 0.008),
+                    ("X ≥ 0.8%", "X ≥ 0.8% (> $4,665,363)", 0.008, None),
+                ]),
+                ("Financial Exposure — % EBITDA", [
+                    ("X < 0.5%", "X < 0.5% (< $1,350,444)", None, 0.005),
+                    ("0.5% ≤ X < 1.0%", "0.5% ≤ X < 1.0% ($1,350,444–$2,700,888)", 0.005, 0.01),
+                    ("1.0% ≤ X < 1.5%", "1.0% ≤ X < 1.5% ($2,700,888–$4,051,332)", 0.01, 0.015),
+                    ("1.5% ≤ X < 2.0%", "1.5% ≤ X < 2.0% ($4,051,332–$5,401,777)", 0.015, 0.02),
+                    ("X ≥ 2.0%", "X ≥ 2.0% (> $5,401,777)", 0.02, None),
+                ]),
+                ("Financial Exposure — % Total Assets", [
+                    ("X < 0.05%", "X < 0.05% (< $500,200)", None, 0.0005),
+                    ("0.05% ≤ X < 0.15%", "0.05% ≤ X < 0.15% ($500,200–$1,500,600)", 0.0005, 0.0015),
+                    ("0.15% ≤ X < 0.25%", "0.15% ≤ X < 0.25% ($1,500,600–$2,501,000)", 0.0015, 0.0025),
+                    ("0.25% ≤ X < 0.35%", "0.25% ≤ X < 0.35% ($2,501,000–$3,501,400)", 0.0025, 0.0035),
+                    ("X ≥ 0.35%", "X ≥ 0.35% (> $3,501,400)", 0.0035, None),
+                ]),
+                ("Brand Damage", [
+                    ("No impact on brand.", None, None, None),
+                    ("Impact is isolated to a small group of existing customers. Damage is reversible.", None, None, None),
+                    ("Negative impact is regional, is in the public domain, but with limited publicity.", None, None, None),
+                    ("Negative impact is regional with widespread publicity, or national/global with limited publicity.", None, None, None),
+                    ("Long-term irreparable damage. Negative impact is national or global and is widely publicised.", None, None, None),
+                ]),
+                ("Regulatory / Legal Action", [
+                    ("No breaches of regulatory or contractual obligations.", None, None, None),
+                    ("Breaches of regulatory or contractual obligations are confined to an isolated incident or incidents. Not systemic.", None, None, None),
+                    ("Breach of regulatory or contractual obligations with costs to the business or client, and increased scrutiny from the regulator or the customer.", None, None, None),
+                    ("Regulatory censure or action. Significant breach of rules or contract. Possibility of action against specific member(s) of senior management.", None, None, None),
+                    ("Public regulatory fines, censure, or major litigation potential. Possibility of imprisonment for senior management.", None, None, None),
+                ]),
+                ("Customer / Operations", [
+                    ("Failures are isolated or limited to a small number of internal personnel.", None, None, None),
+                    ("Failure limited to a small group of customers or one business relationship.", None, None, None),
+                    ("Systemic failure, impacts a specific customer group, transaction types or agents. Excludes sales practices.", None, None, None),
+                    ("Systemic failure impacts multiple product groups, transaction types, or an entire distribution channel. Includes sales practices.", None, None, None),
+                    ("Catastrophic failure impacting a broad spectrum of customer groups and distribution channels (e.g. core system failure, systemic fraud).", None, None, None),
+                ]),
+                ("Environment", [
+                    ("Impact can be managed as part of daily activity, minimum environmental harm.", None, None, None),
+                    ("Short-term (less than 1 year), localised environmental damage or loss of ecological amenities that could be reversed with minimal effort.", None, None, None),
+                    ("Medium-term (1–10 years), localised environmental damage or loss of ecological amenities that might be reversed with intensive efforts.", None, None, None),
+                    ("Long-term (greater than 10 years), widespread environmental damage or loss of ecological amenity.", None, None, None),
+                    ("Permanent (greater than 100 years), widespread and significant environmental damage or loss of ecological amenity.", None, None, None),
+                ]),
+                ("People", [
+                    ("Impact can be managed as part of daily activities; no injury potential, limited to first aid with a maximum impact of 1 day lost time. Localised HR problems resulting in employee dissatisfaction.", None, None, None),
+                    ("Single lost time injury. Medium scale loss or unavailability of critical staff for under 1 week (industrial action, pandemic, worker dissatisfaction or terminations). Inability to attract and retain qualified personnel in non-critical roles.", None, None, None),
+                    ("Isolated instances of chronic disease; multiple lost time injuries. Medium scale loss or unavailability of critical staff for under 1 week. Inability to attract and retain qualified personnel in critical roles.", None, None, None),
+                    ("Single fatality or multiple permanent disabilities; multiple cases of chronic disease. Large scale loss or unavailability of critical staff (1 week to 1 month).", None, None, None),
+                    ("Multiple fatalities. Large scale loss or unavailability of critical staff for more than 1 month.", None, None, None),
+                ]),
+                ("Media", [
+                    ("No press reporting. Stakeholder concerns resulting in an informal warning to employees.", None, None, None),
+                    ("State media reporting for more than 3 days. Stakeholder concerns resulting in disciplinary action on employees.", None, None, None),
+                    ("State media reporting for more than 3 days. Stakeholder concerns resulting in a Manager resigning.", None, None, None),
+                    ("Days of national media reporting. Shareholding Ministers' concerns resulting in reduction of delegated authority.", None, None, None),
+                    ("Sustained adverse national/international media reporting. Shareholding Ministers' concerns resulting in intervention/take-over of decision making; COO departs and Board is restructured.", None, None, None),
+                ]),
+            ]
+            for dim_idx, (dim_name, levels) in enumerate(_DIMENSIONS):
+                dim_id = insert_returning_id(
+                    conn,
+                    "INSERT INTO erm_framework_impact_dimensions (framework_id, name, order_idx) VALUES (%s,%s,%s)",
+                    (fw_id, dim_name, dim_idx),
+                )
+                for lvl, (desc, thresh_label, tmin, tmax) in enumerate(levels, start=1):
+                    conn.execute(
+                        "INSERT INTO erm_framework_impact_levels "
+                        "(dimension_id, level, description, threshold_label, threshold_min, threshold_max) "
+                        "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        (dim_id, lvl, desc, thresh_label, tmin, tmax),
+                    )
+
+            # flat 5-point scales: likelihood + generic impact labels + control effectiveness.
+            # Control effectiveness is seeded 1=Ineffective..5=Effective (ORM's existing
+            # direction, orm_rcsa_risks/data_service.py:554 residual=inherent*(1-eff/5)) —
+            # the source template's own 1=Strong..5=Weak direction is incompatible with that
+            # formula (it would zero out residual risk for the weakest controls), so the
+            # narrative labels below are the template's, deliberately reassigned to the
+            # opposite level numbers.
+            _SCALES = {
+                "likelihood": [
+                    (1, "Rare", "In more than / every 5 years"),
+                    (2, "Infrequent", "Within the next / every 3-5 years"),
+                    (3, "Occasional", "Within the next / every 1-3 years"),
+                    (4, "Frequent", "Within the next / every 1 year"),
+                    (5, "Imminent", "Within the next / every quarter"),
+                ],
+                "impact": [
+                    (1, "Minor", None),
+                    (2, "Moderate", None),
+                    (3, "Significant", None),
+                    (4, "Severe", None),
+                    (5, "Catastrophic", None),
+                ],
+                "control_effectiveness": [
+                    (1, "Weak or Non-existent",
+                     "The control processes and management's mitigating activities do not allow for "
+                     "effective management of the risk; there is no reduction in the frequency and/or "
+                     "impact of the risk event."),
+                    (2, "Marginally Adequate",
+                     "The processes and management's mitigating activities allow for marginal management "
+                     "of the risk; there is minimal reduction in frequency and/or impact. Major gaps and "
+                     "deficiencies have been identified."),
+                    (3, "Adequate",
+                     "The control processes and management's mitigating activities allow for effective "
+                     "management of the risk, reducing the frequency and/or impact of the risk event "
+                     "occurring. Opportunities remain for improvement or additional compensating controls."),
+                    (4, "Reasonably Strong",
+                     "The control processes and management's mitigating activities are more than adequate "
+                     "and allow for management of the risk, reducing frequency and/or impact; incremental "
+                     "opportunities for improvement remain."),
+                    (5, "Strong",
+                     "The control processes and management's mitigating procedures are strong and allow "
+                     "for effective management of the risk, significantly reducing the frequency and/or "
+                     "impact of the risk. This does not mean there is no exposure to risk or that risk has "
+                     "been reduced to zero."),
+                ],
+            }
+            for scale_type, rows in _SCALES.items():
+                for level, label, desc in rows:
+                    conn.execute(
+                        "INSERT INTO erm_framework_scales (framework_id, scale_type, level, label, description) "
+                        "VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        (fw_id, scale_type, level, label, desc),
+                    )
+
+            # 5-band matrix — colors match the source template's own cell fills.
+            _BANDS = [
+                ("very_low", "Very Low", "#00B050", 0),
+                ("low",      "Low",      "#92D050", 1),
+                ("moderate", "Moderate", "#FFFF00", 2),
+                ("high",     "High",     "#FFC000", 3),
+                ("critical", "Critical", "#FF0000", 4),
+            ]
+            for band_key, label, color, sort_order in _BANDS:
+                conn.execute(
+                    "INSERT INTO erm_framework_bands (framework_id, band_key, label, color, sort_order) "
+                    "VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                    (fw_id, band_key, label, color, sort_order),
+                )
+            _valid_bands = {b[0] for b in _BANDS}
+
+            # matrix is asymmetric (a hand-tuned governance grid, not a formula) — stored
+            # explicitly rather than derived from a likelihood*impact cutoff.
+            _MATRIX = {
+                1: ["very_low", "very_low", "low",      "low",      "moderate"],
+                2: ["very_low", "very_low", "low",      "moderate", "moderate"],
+                3: ["very_low", "low",      "moderate", "high",     "high"],
+                4: ["low",      "moderate", "high",     "high",     "critical"],
+                5: ["low",      "moderate", "high",     "critical", "critical"],
+            }
+            for likelihood, row in _MATRIX.items():
+                for impact, band_key in enumerate(row, start=1):
+                    if band_key not in _valid_bands:
+                        raise ValueError(f"seed error: unknown band_key {band_key!r}")
+                    conn.execute(
+                        "INSERT INTO erm_framework_matrix_bands (framework_id, likelihood, impact, band_key) "
+                        "VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        (fw_id, likelihood, impact, band_key),
+                    )
+
+            # 2-level taxonomy — Strategic/Reputational/Legal & Regulatory/Credit/Financial
+            # have no sub-categories in the source template (left blank there too).
+            _TAXONOMY = [
+                ("Strategic Risk", []),
+                ("Reputational Risk", []),
+                ("Legal & Regulatory Risk", []),
+                ("Credit Risk", []),
+                ("Financial Risk", []),
+                ("Operational Risk", ["People", "Processes", "Systems", "Fraud", "Physical Assets"]),
+                ("Market Risk", ["Exchange Rate", "Liquidity", "Interest Rate", "Competition"]),
+            ]
+            for idx, (name, children) in enumerate(_TAXONOMY):
+                parent_id = insert_returning_id(
+                    conn,
+                    "INSERT INTO erm_framework_taxonomy (framework_id, parent_id, name, order_idx) "
+                    "VALUES (%s,NULL,%s,%s)",
+                    (fw_id, name, idx),
+                )
+                for cidx, child_name in enumerate(children):
+                    conn.execute(
+                        "INSERT INTO erm_framework_taxonomy (framework_id, parent_id, name, order_idx) "
+                        "VALUES (%s,%s,%s,%s)",
+                        (fw_id, parent_id, child_name, cidx),
+                    )
+            conn.commit()
+    except Exception:
+        pass
+
+    # ── Recompute qualitative_score against the active framework matrix ──────
+    # Unconditional (not count-gated): the seeded matrix is asymmetric so it
+    # won't reproduce the old flat likelihood*impact cutoffs cell-for-cell —
+    # any pre-existing score is stale the instant framework-driven lookups go
+    # live. Safe to run every startup since it's a pure function of stored
+    # likelihood/impact. Kept in its own try/except so a failure here can
+    # never suppress the framework-seeding block above, or vice versa.
+    try:
+        band_map = {(r[0], r[1]): r[2] for r in conn.execute(
+            "SELECT mb.likelihood, mb.impact, mb.band_key FROM erm_framework_matrix_bands mb "
+            "JOIN erm_risk_frameworks f ON f.id=mb.framework_id WHERE f.is_active=1"
+        ).fetchall()}
+        if band_map:
+            for rid, likelihood, impact in conn.execute(
+                "SELECT id, likelihood, impact FROM erm_enterprise_risks"
+            ).fetchall():
+                band = band_map.get((likelihood or 3, impact or 3), "moderate")
+                conn.execute(
+                    "UPDATE erm_enterprise_risks SET qualitative_score=%s WHERE id=%s",
+                    (band, rid),
                 )
             conn.commit()
     except Exception:

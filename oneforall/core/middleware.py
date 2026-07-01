@@ -445,7 +445,7 @@ async def sanitize_json_middleware(request: Request, call_next):
                 async def receive():
                     return {"type": "http.request", "body": sanitized_bytes}
                 request._receive = receive
-            except (ValueError, UnicodeDecodeError):
+            except (ValueError, UnicodeDecodeError, RecursionError):
                 pass
     return await call_next(request)
 
