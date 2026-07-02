@@ -563,11 +563,14 @@ def list_enterprise_risks(category=None, status=None, source_module=None, board_
 def get_enterprise_risk(risk_id):
     db = get_db()
     try:
-        return _dict(db.execute(
+        risk = _dict(db.execute(
             "SELECT e.*, u.full_name AS owner_name, 'erm' AS register_source "
             "FROM erm_enterprise_risks e LEFT JOIN users u ON u.id=e.owner_id "
             "WHERE e.id=%s", (risk_id,)
         ).fetchone())
+        if risk:
+            risk["dimension_scores"] = _get_dimension_scores(db, risk_id)
+        return risk
     finally:
         db.close()
 
@@ -575,8 +578,13 @@ def get_enterprise_risk(risk_id):
 def create_enterprise_risk(data):
     db = get_db()
     try:
+        dim_scores = data.pop("dimension_scores", None)
+        if dim_scores:
+            derived = _impact_from_dimensions(dim_scores)
+            if derived is not None:
+                data["impact"] = derived
         inh, res, qual = _compute_scores(db, data)
-        cur = insert_returning_id(db,
+        new_id = insert_returning_id(db,
             """INSERT INTO erm_enterprise_risks
                (title, description, category, sub_category, likelihood, impact, velocity,
                 strategic_objective, owner_id, reviewer_id, treatment, treatment_plan,
@@ -585,7 +593,7 @@ def create_enterprise_risk(data):
                 inherent_score, residual_score, qualitative_score,
                 risk_statement, workflow_step, response_deadline)
                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (data.get("title"), data.get("description"), data.get("category", "strategic"),
+            (data.get("title"), data.get("description"), data.get("category", "Strategic Risk"),
              data.get("sub_category"), data.get("likelihood", 3), data.get("impact", 3),
              data.get("velocity", 3), data.get("strategic_objective"),
              data.get("owner_id"), data.get("reviewer_id"),
@@ -599,8 +607,10 @@ def create_enterprise_risk(data):
              data.get("risk_statement"), data.get("workflow_step", "draft"),
              data.get("response_deadline")),
         )
+        if dim_scores:
+            _save_dimension_scores(db, new_id, dim_scores)
         db.commit()
-        return cur
+        return new_id
     finally:
         db.close()
 
@@ -624,6 +634,11 @@ def update_enterprise_risk(risk_id, data):
             "SELECT likelihood, impact, residual_likelihood, residual_impact "
             "FROM erm_enterprise_risks WHERE id=%s", (risk_id,)
         ).fetchone())
+        dim_scores = data.pop("dimension_scores", None)
+        if dim_scores:
+            derived = _impact_from_dimensions(dim_scores)
+            if derived is not None:
+                data["impact"] = derived
         fields, vals = [], []
         for k in ("title", "description", "category", "sub_category", "likelihood", "impact",
                   "velocity", "strategic_objective", "owner_id", "reviewer_id", "treatment",
@@ -633,7 +648,6 @@ def update_enterprise_risk(risk_id, data):
                   "last_reviewed"):
             if k in data:
                 fields.append(f"{k}=%s"); vals.append(data[k])
-        # Auto-compute scores whenever likelihood/impact touched
         if any(k in data for k in ("likelihood", "impact", "residual_likelihood", "residual_impact")):
             inh, res, qual = _compute_scores(db, data, existing)
             fields += ["inherent_score=%s", "qualitative_score=%s"]
@@ -643,7 +657,9 @@ def update_enterprise_risk(risk_id, data):
         if fields:
             fields.append("updated_at=%s"); vals.append(_now()); vals.append(risk_id)
             db.execute(f"UPDATE erm_enterprise_risks SET {','.join(fields)} WHERE id=%s", vals)
-            db.commit()
+        if dim_scores:
+            _save_dimension_scores(db, risk_id, dim_scores)
+        db.commit()
     finally:
         db.close()
 
@@ -652,11 +668,48 @@ def delete_enterprise_risk(risk_id):
     db = get_db()
     try:
         db.execute("UPDATE erm_kris SET linked_risk_id=NULL WHERE linked_risk_id=%s", (risk_id,))
+        db.execute("DELETE FROM erm_risk_dimension_scores WHERE risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_risk_workflow_history WHERE risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_enterprise_risks WHERE id=%s", (risk_id,))
         db.commit()
     finally:
         db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# DIMENSION SCORES — per-risk impact breakdown
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _save_dimension_scores(db, risk_id, dimension_scores):
+    """Replace all dimension scores for a risk. Each entry: {dimension_name, score}."""
+    db.execute("DELETE FROM erm_risk_dimension_scores WHERE risk_id=%s", (risk_id,))
+    for ds in (dimension_scores or []):
+        name = str(ds.get("dimension_name") or "").strip()
+        score = ds.get("score")
+        if not name or score is None:
+            continue
+        score = max(1, min(5, int(score)))
+        db.execute(
+            "INSERT INTO erm_risk_dimension_scores (risk_id, dimension_name, score) "
+            "VALUES (%s,%s,%s)",
+            (risk_id, name, score),
+        )
+
+
+def _get_dimension_scores(db, risk_id):
+    """Return [{dimension_name, score}] for a risk."""
+    return [{"dimension_name": r["dimension_name"], "score": r["score"]}
+            for r in db.execute(
+                "SELECT dimension_name, score FROM erm_risk_dimension_scores "
+                "WHERE risk_id=%s ORDER BY dimension_name",
+                (risk_id,),
+            ).fetchall()]
+
+
+def _impact_from_dimensions(dimension_scores):
+    """Derive overall impact as MAX of individual dimension scores."""
+    scores = [int(ds.get("score") or 0) for ds in (dimension_scores or []) if ds.get("score")]
+    return max(scores) if scores else None
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1081,7 +1134,7 @@ def get_unified_register(filters=None, limit=1000):
         else:      erm_where.append("status != 'closed'")
         ew = ("WHERE " + " AND ".join(erm_where)) if erm_where else ""
         erm_rows = _dicts(db.execute(
-            f"SELECT e.id, e.title, e.description, e.category, e.likelihood, e.impact, "
+            f"SELECT e.id, e.title, e.description, e.category, e.sub_category, e.likelihood, e.impact, "
             f"(e.likelihood*e.impact) AS risk_score, e.status, e.treatment, e.owner_id, "
             f"e.board_visibility, "
             f"'erm' AS register_source, e.source_module, e.created_at, "

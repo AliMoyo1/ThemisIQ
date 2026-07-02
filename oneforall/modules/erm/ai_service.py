@@ -41,6 +41,68 @@ def _stub_score(title: str) -> dict:
     }
 
 
+def suggest_scores(title: str, description: str, category: str, framework_context: dict) -> dict:
+    """Suggest likelihood and per-dimension impact scores using framework context."""
+    dims = framework_context.get("dimensions") or []
+    likelihood_scale = framework_context.get("likelihood") or []
+    dim_names = [d["name"] for d in dims]
+
+    if not is_configured():
+        return _stub_scores(title, dim_names)
+
+    dim_descriptions = []
+    for d in dims:
+        levels_text = "; ".join(
+            f"{lv['level']}={lv.get('description', '')}" for lv in sorted(d.get("levels", []), key=lambda x: x["level"])
+        )
+        dim_descriptions.append(f"  - {d['name']}: [{levels_text}]")
+
+    likelihood_text = "; ".join(
+        f"{lv['level']}={lv.get('label', '')} ({lv.get('description', '')})"
+        for lv in sorted(likelihood_scale, key=lambda x: x["level"])
+    )
+
+    prompt = (
+        "You are an enterprise risk scoring expert. Based on the risk details and the "
+        "organisation's rating framework below, suggest a likelihood score and an impact "
+        "score for each dimension.\n\n"
+        f"Risk Title: {_u(title)}\n"
+        f"Description: {_u(description)}\n"
+        f"Category: {_u(category)}\n\n"
+        "LIKELIHOOD SCALE:\n"
+        f"  {likelihood_text}\n\n"
+        "IMPACT DIMENSIONS (score each 1-5 using the level descriptions):\n"
+        + "\n".join(dim_descriptions) + "\n\n"
+        "Return JSON only:\n"
+        '{"likelihood": <1-5>, "dimension_scores": [{"dimension_name": "<name>", "score": <1-5>}], '
+        '"rationale": "<2-3 sentences explaining your scoring reasoning>"}'
+    )
+    try:
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=1024)
+        result = safe_json_parse(text, _stub_scores(title, dim_names))
+        if "dimension_scores" in result:
+            valid = []
+            for ds in result["dimension_scores"]:
+                if ds.get("dimension_name") in dim_names and isinstance(ds.get("score"), (int, float)):
+                    ds["score"] = max(1, min(5, int(ds["score"])))
+                    valid.append(ds)
+            result["dimension_scores"] = valid
+        if "likelihood" in result:
+            result["likelihood"] = max(1, min(5, int(result["likelihood"])))
+        return result
+    except Exception as exc:
+        log.error("ERM AI suggest_scores failed: %s", exc)
+        return _stub_scores(title, dim_names)
+
+
+def _stub_scores(title: str, dim_names: list) -> dict:
+    return {
+        "likelihood": 3,
+        "dimension_scores": [{"dimension_name": n, "score": 3} for n in dim_names],
+        "rationale": f"Default scores for '{title}'. Configure {provider_name()} API key for AI-powered scoring.",
+    }
+
+
 def suggest_treatment(title: str, description: str, category: str, likelihood: int, impact: int) -> dict:
     if not is_configured():
         return _stub_treatment(title)

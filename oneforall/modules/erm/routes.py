@@ -603,6 +603,27 @@ async def api_ai_score_risk(request: Request, risk_id: int):
     return JSONResponse(result)
 
 
+@router.post("/api/ai/suggest-scores")
+@require_capability("erm.ai.use")
+async def api_ai_suggest_scores(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
+    body = await _json_body(request)
+    fw = ds.get_active_framework()
+    framework_context = {
+        "dimensions": fw.get("dimensions", []) if fw else [],
+        "likelihood": fw.get("likelihood", []) if fw else [],
+    }
+    result = ai.suggest_scores(
+        body.get("title", ""),
+        body.get("description", ""),
+        body.get("category", ""),
+        framework_context,
+    )
+    return JSONResponse(result)
+
+
 @router.post("/api/ai/suggest-treatment")
 @require_capability("erm.ai.use")
 async def api_ai_suggest_treatment(request: Request):

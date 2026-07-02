@@ -356,10 +356,6 @@
     <span class="erm-chip" data-status="closed">Closed</span>
     <select id="regCatFilter" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600" onchange="ermRenderRegister()">
       <option value="">All Categories</option>
-      <option value="strategic">Strategic</option><option value="operational">Operational</option>
-      <option value="compliance">Compliance</option><option value="financial">Financial</option>
-      <option value="reputational">Reputational</option><option value="technology">Technology</option>
-      <option value="third_party">Third Party</option><option value="environmental">Environmental</option>
     </select>
     <input class="erm-search" id="regSearch" placeholder="🔍 Search risks…" oninput="ermRenderRegister()">
   </div>
@@ -1031,12 +1027,12 @@ window.ermExportCSV=function(){
   var q=(document.getElementById('regSearch')||{}).value||'';
   var cat=(document.getElementById('regCatFilter')||{}).value||'';
   var rows=regCache.filter(function(r){if(regStatusFilter&&r.status!==regStatusFilter)return false;if(cat&&r.category!==cat)return false;if(q){var t=(r.title||'').toLowerCase()+(r.description||'').toLowerCase();if(!t.includes(q.toLowerCase()))return false;}return true;});
-  var hdr=['ID','Title','Category','Likelihood','Impact','Score','Level','Status','Treatment','Owner','Source','Board Visible','Review Date'];
-  var lines=[hdr.join(',')].concat(rows.map(function(r){var score=r.risk_score||((r.likelihood||0)*(r.impact||0));return[r.id,'"'+(r.title||'').replace(/"/g,'""')+'"',r.category||'',r.likelihood||'',r.impact||'',score,bandLabel(scoreToBand(r.likelihood,r.impact)),r.status||'',r.treatment||'',r.owner_name||'',r.source_module||r.register_source||'',r.board_visibility?1:0,r.review_date||''].join(',');}));
+  var hdr=['ID','Title','Category','Sub-category','Likelihood','Impact','Score','Level','Status','Treatment','Owner','Source','Board Visible','Review Date'];
+  var lines=[hdr.join(',')].concat(rows.map(function(r){var score=r.risk_score||((r.likelihood||0)*(r.impact||0));return[r.id,'"'+(r.title||'').replace(/"/g,'""')+'"','"'+(r.category||'').replace(/"/g,'""')+'"','"'+(r.sub_category||'').replace(/"/g,'""')+'"',r.likelihood||'',r.impact||'',score,bandLabel(scoreToBand(r.likelihood,r.impact)),r.status||'',r.treatment||'',r.owner_name||'',r.source_module||r.register_source||'',r.board_visibility?1:0,r.review_date||''].join(',');}));
   var b=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='erm-register.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
   typeof showToast==='function'&&showToast('Exported '+rows.length+' rows');
 };
-window.ermEditRisk=function(id){var r=regCache.find(function(x){return x.id===id&&x.register_source==='erm';});if(r)ermOpenRiskModal(r);};
+window.ermEditRisk=async function(id){try{var r=await apiFetch('/erm/api/risks/'+id);if(r)ermOpenRiskModal(r);}catch(e){typeof showToast==='function'&&showToast('Failed to load risk','error');}};
 /* Delete works for both erm_enterprise_risks AND platform risk_register entries.
    registerSource defaults to auto-detect from regCache. */
 window.ermDeleteRisk=async function(id,registerSource){
@@ -1149,11 +1145,29 @@ window.ermOpenRiskDrawer=async function(id){
               '<span style="font-size:13px;font-weight:800;color:var(--text)">'+r.velocity+' / 5</span>'+
             '</div>':'')+
         '</div>'+
-        // Details — 2-col grid of mini cards
+        // Impact Dimension Breakdown (if dimension scores exist)
+        ((r.dimension_scores&&r.dimension_scores.length)?
+          '<div class="erm-drawer-section">'+
+            '<div class="erm-drawer-section-title">Impact Breakdown</div>'+
+            '<div style="display:flex;flex-direction:column;gap:5px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">'+
+            r.dimension_scores.map(function(ds){
+              var isMax=ds.score===(r.impact||0);
+              var pct=Math.round((ds.score/5)*100);
+              var barColor=isMax?qColor:'var(--muted)';
+              return'<div style="display:flex;align-items:center;gap:8px">'+
+                '<span style="flex:0 0 180px;font-size:11px;font-weight:'+(isMax?'800':'600')+';color:'+(isMax?'var(--text)':'var(--muted)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(ds.dimension_name)+'">'+esc(ds.dimension_name)+'</span>'+
+                '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+barColor+';border-radius:3px;transition:width .3s"></div></div>'+
+                '<span style="flex:0 0 24px;font-size:12px;font-weight:800;text-align:right;color:'+(isMax?qColor:'var(--muted)')+'">'+ds.score+'</span>'+
+              '</div>';
+            }).join('')+
+            '</div>'+
+          '</div>':'')+
+        // Details - 2-col grid of mini cards
         '<div class="erm-drawer-section">'+
           '<div class="erm-drawer-section-title">Details</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-            dCard('Category','<span style="text-transform:capitalize">'+(r.category||'—')+'</span>')+
+            dCard('Category',esc(r.category||'--'))+
+            (r.sub_category?dCard('Sub-category',esc(r.sub_category)):'')+
             dCard('Owner',esc(r.owner_name||'Unassigned'))+
             dCard('Review Date',fmtDate(r.review_date))+
             dCard('Source',srcPill(r.source_module||'erm',r.register_source||'erm'))+
@@ -1335,11 +1349,12 @@ window.ermSubmitBreachAction=async function(cat){
 
 window.ermOpenAppetiteModal=function(existing){
   var isEdit=!!(existing&&existing.id);
-  var cats=['strategic','operational','compliance','financial','reputational','technology','third_party','environmental','data_breach','privacy'];
+  var cats=(ERM_FRAMEWORK&&ERM_FRAMEWORK.taxonomy||[]).map(function(n){return n.name;});
+  if(!cats.length)cats=['Strategic Risk','Operational Risk','Compliance & Legal Risk','Financial Risk','Reputational Risk','Technology Risk','Third Party Risk','Environmental Risk'];
   var html='<div class="erm-modal-overlay" id="ermApModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:520px">'+
     '<button class="modal-close" onclick="document.getElementById(\'ermApModal\').remove()">✕</button>'+
     '<div class="modal-title">'+(isEdit?'Edit':'Set')+' Risk Appetite</div>'+
-    '<div class="form-group"><label>Category</label><select id="ap_cat">'+cats.map(function(c){return'<option value="'+c+'"'+(isEdit&&existing.category===c?' selected':'')+'>'+c.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+    '<div class="form-group"><label>Category</label><select id="ap_cat">'+cats.map(function(c){return'<option value="'+esc(c)+'"'+(isEdit&&existing.category===c?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select></div>'+
     '<div class="form-row"><div class="form-group"><label>Appetite Level</label><select id="ap_level"><option value="low"'+(isEdit&&existing.appetite_level==='low'?' selected':'')+'>Low</option><option value="medium"'+(isEdit&&existing.appetite_level==='medium'?' selected':'')+'>Medium</option><option value="high"'+(isEdit&&existing.appetite_level==='high'?' selected':'')+'>High</option></select></div>'+
     '<div class="form-group"><label>Max Score (L×I threshold)</label><input type="number" id="ap_max" value="'+(isEdit?(existing.max_score||12):12)+'" min="1" max="25"></div></div>'+
     '<div class="form-group"><label>Description</label><textarea id="ap_desc" rows="2">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
@@ -1379,7 +1394,7 @@ window.ermFilterLibrary=function(){
   });
   var grid=document.getElementById('ermLibGrid');
   if(!filtered.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No templates match</div>';return;}
-  var catColors={technology:'#6366f1',operational:'#f59e0b',compliance:'#10b981',financial:'#3b82f6',reputational:'#ec4899',strategic:'var(--accent)',third_party:'#8b5cf6',environmental:'#22c55e'};
+  var catColors={'Technology Risk':'#6366f1','Operational Risk':'#f59e0b','Compliance & Legal Risk':'#10b981','Financial Risk':'#3b82f6','Reputational Risk':'#ec4899','Strategic Risk':'var(--accent)','Third Party Risk':'#8b5cf6','Environmental Risk':'#22c55e','Credit Risk':'#0ea5e9','Market Risk':'#a855f7',technology:'#6366f1',operational:'#f59e0b',compliance:'#10b981',financial:'#3b82f6',reputational:'#ec4899',strategic:'var(--accent)',third_party:'#8b5cf6',environmental:'#22c55e'};
   grid.innerHTML=filtered.map(function(item){
     var col=catColors[item.category]||'var(--muted)';
     var score=(item.default_likelihood||3)*(item.default_impact||3);
@@ -1401,7 +1416,7 @@ window.ermFilterLibrary=function(){
 window.ermQuickAddRisk=async function(id,btn){if(btn){btn.disabled=true;btn.textContent='Adding…';}try{await apiFetch('/erm/api/library/'+id+'/use',{method:'POST',body:{}});typeof showToast==='function'&&showToast('Risk added to register ✓');ermRouter.navigate('/erm/register');}catch(e){if(btn){btn.disabled=false;btn.textContent='+ Quick Add';}typeof showToast==='function'&&showToast('Failed: '+e.message,'error');}};
 window.ermCustomizeFromLib=function(id){var item=libCache.find(function(x){return x.id===id;});if(item)ermCustomizeRisk(item);};
 window.ermCustomizeRisk=function(item){
-  ermOpenRiskModal({title:item.title,description:item.description||'',category:item.category||'operational',treatment:item.typical_treatment||'mitigate',likelihood:item.default_likelihood||3,impact:item.default_impact||3,treatment_plan:item.suggested_controls||'',status:'open',_isNew:true});
+  ermOpenRiskModal({title:item.title,description:item.description||'',category:item.category||'Operational Risk',treatment:item.typical_treatment||'mitigate',likelihood:item.default_likelihood||3,impact:item.default_impact||3,treatment_plan:item.suggested_controls||'',status:'open',_isNew:true});
 };
 
 /* ────────────────── RISK RATING GUIDE (read-only reference) ────────────────── */
@@ -2188,34 +2203,105 @@ window.ermBoardReport=async function(btn){
 /* ────────────────── RISK MODAL ────────────────── */
 window.ermOpenRiskModal=function(existing){
   var isEdit=!!(existing&&existing.id&&!existing._isNew);
-  var cats=['strategic','operational','compliance','financial','reputational','technology','third_party','environmental','data_breach','privacy'];
-  var html='<div class="erm-modal-overlay" id="ermRiskModal" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
+  var taxonomy=(ERM_FRAMEWORK&&ERM_FRAMEWORK.taxonomy)||[];
+  var cats=taxonomy.map(function(n){return n.name;});
+  if(!cats.length)cats=['Strategic Risk','Operational Risk','Compliance & Legal Risk','Financial Risk','Reputational Risk','Technology Risk','Third Party Risk','Environmental Risk'];
+  var existCat=existing?existing.category||'':'';
+  var existSub=existing?existing.sub_category||'':'';
+  var catNode=taxonomy.find(function(n){return n.name===existCat;});
+  var children=(catNode&&catNode.children)||[];
+  var dims=(ERM_FRAMEWORK&&ERM_FRAMEWORK.dimensions)||[];
+  var existDimScores=(existing&&existing.dimension_scores)||[];
+  var dimMap={};existDimScores.forEach(function(ds){dimMap[ds.dimension_name]=ds.score;});
+  var hasDims=dims.length>0;
+  var existImpact=existing?existing.impact||3:3;
+  var html='<div class="erm-modal-overlay" id="ermRiskModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:640px;max-height:90vh;overflow-y:auto">'+
     '<button class="modal-close" onclick="document.getElementById(\'ermRiskModal\').remove()">✕</button>'+
     '<div class="modal-title">'+(isEdit?'Edit':'New')+' Enterprise Risk</div>'+
     '<div class="form-group"><label>Risk Title *</label><input id="rsk_title" value="'+esc(existing?existing.title||'':'')+'"></div>'+
     '<div class="form-group"><label>Description</label><textarea id="rsk_desc" rows="3">'+esc(existing?existing.description||'':'')+'</textarea></div>'+
-    '<div class="form-row"><div class="form-group"><label>Category</label><select id="rsk_cat">'+cats.map(function(c){return'<option value="'+c+'"'+((existing&&existing.category===c)?' selected':'')+'>'+c.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
-    '<div class="form-group"><label>Treatment</label><select id="rsk_treat">'+['mitigate','accept','avoid','transfer'].map(function(t){return'<option value="'+t+'"'+((existing&&existing.treatment===t)?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div></div>'+
-    '<div class="form-row-3">'+
-    '<div class="form-group"><label>Likelihood (1–5)</label><input type="number" id="rsk_l" min="1" max="5" value="'+(existing?existing.likelihood||3:3)+'"></div>'+
-    '<div class="form-group"><label>Impact (1–5)</label><input type="number" id="rsk_i" min="1" max="5" value="'+(existing?existing.impact||3:3)+'"></div>'+
-    '<div class="form-group"><label>Velocity (1–5)</label><input type="number" id="rsk_v" min="1" max="5" value="'+(existing?existing.velocity||3:3)+'" title="How fast could this materialise?"></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Category</label><select id="rsk_cat" onchange="ermUpdateSubcats()">'+cats.map(function(c){return'<option value="'+esc(c)+'"'+(existCat===c?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select></div>'+
+    '<div class="form-group" id="rsk_subcat_wrap" style="'+(children.length?'':'display:none')+'"><label>Sub-category</label><select id="rsk_subcat"><option value="">-- None --</option>'+children.map(function(ch){return'<option value="'+esc(ch.name)+'"'+(existSub===ch.name?' selected':'')+'>'+esc(ch.name)+'</option>';}).join('')+'</select></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Treatment</label><select id="rsk_treat">'+['mitigate','accept','avoid','transfer'].map(function(t){return'<option value="'+t+'"'+((existing&&existing.treatment===t)?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'+
+    '<div class="form-group"><label>Velocity (1-5)</label><input type="number" id="rsk_v" min="1" max="5" value="'+(existing?existing.velocity||3:3)+'" title="How fast could this materialise?"></div></div>'+
+    '<div class="form-group"><label>Likelihood (1-5)</label><input type="number" id="rsk_l" min="1" max="5" value="'+(existing?existing.likelihood||3:3)+'"></div>'+
+    (hasDims?
+      '<div class="form-group"><label style="font-weight:700;margin-bottom:8px">Impact Dimensions <span style="font-size:11px;font-weight:400;color:var(--muted)">(score each 1-5, overall impact = highest score)</span></label>'+
+      '<div id="rsk_dims" style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">'+
+      dims.map(function(dim){
+        var curScore=dimMap[dim.name]||'';
+        var tipParts=(dim.levels||[]).map(function(lv){return lv.level+': '+lv.description;});
+        return'<div style="display:flex;align-items:center;gap:8px">'+
+          '<span style="flex:1;font-size:12px;font-weight:600;color:var(--text)" title="'+esc(tipParts.join('\n'))+'">'+esc(dim.name)+'</span>'+
+          '<select class="dim-score-sel" data-dim="'+esc(dim.name)+'" onchange="ermUpdateOverallImpact()" style="width:70px;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">'+
+            '<option value="">--</option>'+
+            [1,2,3,4,5].map(function(n){var lvl=(dim.levels||[]).find(function(l){return l.level===n;});return'<option value="'+n+'"'+(curScore==n?' selected':'')+(lvl?' title="'+esc(lvl.description)+'"':'')+'>'+n+'</option>';}).join('')+
+          '</select></div>';
+      }).join('')+
+      '</div>'+
+      '<div id="rsk_impact_summary" style="margin-top:6px;font-size:13px;font-weight:700;color:var(--accent)">Overall Impact (MAX): '+(existDimScores.length?Math.max.apply(null,existDimScores.map(function(d){return d.score;})):'-')+'</div>'+
+      '</div>'
+    :
+      '<div class="form-group"><label>Impact (1-5)</label><input type="number" id="rsk_i" min="1" max="5" value="'+existImpact+'"></div>'
+    )+
     '<div class="form-group"><label>Treatment Plan</label><textarea id="rsk_plan" rows="2">'+esc(existing?existing.treatment_plan||'':'')+'</textarea></div>'+
     '<div class="form-row"><div class="form-group"><label>Status</label><select id="rsk_status">'+['open','under_review','mitigated','accepted','closed'].map(function(s){return'<option value="'+s+'"'+((existing&&existing.status===s)?' selected':'')+'>'+s.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
     '<div class="form-group"><label>Review Date</label><input type="date" id="rsk_review" value="'+(existing?existing.review_date||'':'')+'"></div></div>'+
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><input type="checkbox" id="rsk_board" style="width:auto;margin:0"'+((existing&&existing.board_visibility)?' checked':'')+'><label for="rsk_board" style="font-size:13px;font-weight:600;margin:0;cursor:pointer">★ Flag as Board-Visible (escalate to executive reporting)</label></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><input type="checkbox" id="rsk_board" style="width:auto;margin:0"'+((existing&&existing.board_visibility)?' checked':'')+'><label for="rsk_board" style="font-size:13px;font-weight:600;margin:0;cursor:pointer">Flag as Board-Visible (escalate to executive reporting)</label></div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end">'+
     '<button class="btn btn-secondary" onclick="document.getElementById(\'ermRiskModal\').remove()">Cancel</button>'+
-    '<button class="btn-erm-ai" onclick="ermAiSuggestTreatment()" title="AI suggest">🤖 AI Suggest</button>'+
+    '<button class="btn-erm-ai" onclick="ermAiSuggestScores()" title="AI score suggestion">AI Score</button>'+
+    '<button class="btn-erm-ai" onclick="ermAiSuggestTreatment()" title="AI suggest">AI Suggest</button>'+
     '<button class="btn btn-primary" onclick="ermSaveRisk('+(isEdit?existing.id:'null')+')">Save Risk</button>'+
     '</div></div></div>';
   document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ermUpdateSubcats=function(){
+  var cat=document.getElementById('rsk_cat').value;
+  var taxonomy=(ERM_FRAMEWORK&&ERM_FRAMEWORK.taxonomy)||[];
+  var node=taxonomy.find(function(n){return n.name===cat;});
+  var children=(node&&node.children)||[];
+  var wrap=document.getElementById('rsk_subcat_wrap');
+  var sel=document.getElementById('rsk_subcat');
+  if(children.length){
+    wrap.style.display='';
+    sel.innerHTML='<option value="">-- None --</option>'+children.map(function(ch){return'<option value="'+esc(ch.name)+'">'+esc(ch.name)+'</option>';}).join('');
+  }else{
+    wrap.style.display='none';sel.innerHTML='<option value="">-- None --</option>';
+  }
+};
+window.ermUpdateOverallImpact=function(){
+  var sels=document.querySelectorAll('.dim-score-sel');
+  var scores=[];
+  sels.forEach(function(s){var v=parseInt(s.value);if(v)scores.push(v);});
+  var max=scores.length?Math.max.apply(null,scores):null;
+  var el=document.getElementById('rsk_impact_summary');
+  if(el)el.textContent='Overall Impact (MAX): '+(max||'-');
+};
+window.ermAiSuggestScores=async function(){
+  var btn=document.querySelector('#ermRiskModal .btn-erm-ai');if(!btn)return;
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='Scoring...';
+  try{
+    var res=await apiFetch('/erm/api/ai/suggest-scores',{method:'POST',body:{title:document.getElementById('rsk_title').value.trim(),description:document.getElementById('rsk_desc').value.trim(),category:document.getElementById('rsk_cat').value}});
+    if(res.likelihood){var lEl=document.getElementById('rsk_l');if(lEl)lEl.value=res.likelihood;}
+    if(res.dimension_scores&&res.dimension_scores.length){
+      res.dimension_scores.forEach(function(ds){
+        var sels=document.querySelectorAll('.dim-score-sel');
+        sels.forEach(function(sel){if(sel.dataset.dim===ds.dimension_name)sel.value=ds.score;});
+      });
+      ermUpdateOverallImpact();
+    }
+    btn.disabled=false;btn.textContent=orig;
+    var msg='AI scores applied';if(res.rationale)msg+=': '+res.rationale;
+    typeof showToast==='function'&&showToast(msg);
+  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('AI scoring failed','error');}
 };
 window.ermAiSuggestTreatment=async function(){
   var btns=document.querySelectorAll('#ermRiskModal .btn-erm-ai');var btn=btns[0];if(!btn)return;
   var orig=btn.textContent;btn.disabled=true;btn.textContent='…';
   try{
-    var res=await apiFetch('/erm/api/ai/suggest-treatment',{method:'POST',body:{title:document.getElementById('rsk_title').value.trim(),description:document.getElementById('rsk_desc').value.trim(),category:document.getElementById('rsk_cat').value,likelihood:parseInt(document.getElementById('rsk_l').value)||3,impact:parseInt(document.getElementById('rsk_i').value)||3}});
+    var aiImpact=3;var dimSelsAi=document.querySelectorAll('.dim-score-sel');if(dimSelsAi.length){var mx=0;dimSelsAi.forEach(function(s){var v=parseInt(s.value);if(v>mx)mx=v;});aiImpact=mx||3;}else{var iiAi=document.getElementById('rsk_i');aiImpact=iiAi?parseInt(iiAi.value)||3:3;}
+    var res=await apiFetch('/erm/api/ai/suggest-treatment',{method:'POST',body:{title:document.getElementById('rsk_title').value.trim(),description:document.getElementById('rsk_desc').value.trim(),category:document.getElementById('rsk_cat').value,likelihood:parseInt(document.getElementById('rsk_l').value)||3,impact:aiImpact}});
     if(res.treatment)document.getElementById('rsk_treat').value=res.treatment;
     if(res.treatment_plan)document.getElementById('rsk_plan').value=res.treatment_plan;
     btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('AI treatment applied ✓');
@@ -2223,12 +2309,20 @@ window.ermAiSuggestTreatment=async function(){
 };
 window.ermSaveRisk=async function(id){
   var title=document.getElementById('rsk_title').value.trim();if(!title){typeof showToast==='function'&&showToast('Title required','error');return;}
-  var data={title:title,description:document.getElementById('rsk_desc').value.trim(),category:document.getElementById('rsk_cat').value,treatment:document.getElementById('rsk_treat').value,likelihood:parseInt(document.getElementById('rsk_l').value)||3,impact:parseInt(document.getElementById('rsk_i').value)||3,velocity:parseInt(document.getElementById('rsk_v').value)||3,treatment_plan:document.getElementById('rsk_plan').value.trim(),status:document.getElementById('rsk_status').value,review_date:document.getElementById('rsk_review').value,board_visibility:document.getElementById('rsk_board').checked?1:0};
+  var dimSels=document.querySelectorAll('.dim-score-sel');
+  var dimension_scores=[];
+  var maxImpact=null;
+  dimSels.forEach(function(s){var v=parseInt(s.value);if(v){dimension_scores.push({dimension_name:s.dataset.dim,score:v});if(maxImpact===null||v>maxImpact)maxImpact=v;}});
+  var impact;
+  if(dimSels.length>0){impact=maxImpact||3;}else{var ii=document.getElementById('rsk_i');impact=ii?parseInt(ii.value)||3:3;}
+  var subSel=document.getElementById('rsk_subcat');
+  var data={title:title,description:document.getElementById('rsk_desc').value.trim(),category:document.getElementById('rsk_cat').value,sub_category:subSel?subSel.value:'',treatment:document.getElementById('rsk_treat').value,likelihood:parseInt(document.getElementById('rsk_l').value)||3,impact:impact,velocity:parseInt(document.getElementById('rsk_v').value)||3,treatment_plan:document.getElementById('rsk_plan').value.trim(),status:document.getElementById('rsk_status').value,review_date:document.getElementById('rsk_review').value,board_visibility:document.getElementById('rsk_board').checked?1:0};
+  if(dimension_scores.length)data.dimension_scores=dimension_scores;
   try{
     if(id)await apiFetch('/erm/api/risks/'+id,{method:'PUT',body:data});else await apiFetch('/erm/api/risks',{method:'POST',body:data});
     document.getElementById('ermRiskModal').remove();
     ermLoadRegister();if(ermRouter.current==='dashboard')ermLoadDashboard();
-    typeof showToast==='function'&&showToast('Risk saved ✓');
+    typeof showToast==='function'&&showToast('Risk saved');
   }catch(e){typeof showToast==='function'&&showToast('Save failed: '+e.message,'error');}
 };
 
@@ -2512,9 +2606,20 @@ window.ermAddIdentifiedRisk=async function(risk,btn){
   }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Failed to add risk','error');}
 };
 
+/* ────────────────── DYNAMIC CATEGORY FILTERS ────────────────── */
+function ermPopulateCategoryFilters(){
+  var cats=(ERM_FRAMEWORK&&ERM_FRAMEWORK.taxonomy||[]).map(function(n){return n.name;});
+  var sel=document.getElementById('regCatFilter');
+  if(sel){
+    var cur=sel.value;
+    sel.innerHTML='<option value="">All Categories</option>'+cats.map(function(c){return'<option value="'+esc(c)+'"'+(c===cur?' selected':'')+'>'+esc(c)+'</option>';}).join('');
+  }
+}
+
 /* ────────────────── INIT ────────────────── */
 (async function(){
   await ermLoadFramework();
+  ermPopulateCategoryFilters();
   ermRouter.resolve();
 })();
 setInterval(function(){if(ermRouter.current==='dashboard')ermLoadDashboard();},300000);

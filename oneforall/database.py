@@ -3173,6 +3173,21 @@ CREATE TABLE IF NOT EXISTS erm_framework_taxonomy (
     order_idx       INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_erm_fw_taxonomy ON erm_framework_taxonomy(framework_id);
+
+-- Per-risk impact dimension scores. Keyed by dimension_name (TEXT, no FK)
+-- rather than dimension id, because _apply_framework_payload deletes and
+-- re-inserts all dimension rows on every framework save (changing ids).
+-- dimension_name changes far less often and stale names degrade gracefully.
+CREATE TABLE IF NOT EXISTS erm_risk_dimension_scores (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    risk_id         INTEGER NOT NULL REFERENCES erm_enterprise_risks(id) ON DELETE CASCADE,
+    dimension_name  TEXT NOT NULL,
+    score           INTEGER NOT NULL,
+    updated_at      TEXT DEFAULT (datetime('now')),
+    UNIQUE(risk_id, dimension_name)
+);
+CREATE INDEX IF NOT EXISTS idx_erm_dim_scores_risk
+  ON erm_risk_dimension_scores(risk_id);
 """
 
 # ── PostgreSQL schema variants ─────────────────────────────────────────────────
@@ -3759,14 +3774,14 @@ def _seed_baseline_data(conn):
         existing_appetite = conn.execute("SELECT COUNT(*) FROM erm_risk_appetite").fetchone()[0]
         if existing_appetite == 0:
             _APPETITE_SEEDS = [
-                ("strategic",    "low",    9,  "Strategic risks are treated with a low appetite — board-level review required"),
-                ("operational",  "medium", 12, "Operational risks tolerated up to medium level with appropriate controls"),
-                ("compliance",   "low",    6,  "Zero tolerance for compliance breaches — immediate escalation required"),
-                ("financial",    "medium", 12, "Financial risks managed within approved budget and insurance cover"),
-                ("reputational", "low",    9,  "Reputational risks actively managed — proactive communication required"),
-                ("technology",   "medium", 15, "Technology risks mitigated through redundancy and security controls"),
-                ("third_party",  "medium", 12, "Vendor/supplier risks managed through due diligence and contracts"),
-                ("environmental","high",   20, "Environmental risks accepted within regulatory limits"),
+                ("Strategic Risk",          "low",    9,  "Strategic risks are treated with a low appetite, board-level review required"),
+                ("Operational Risk",        "medium", 12, "Operational risks tolerated up to medium level with appropriate controls"),
+                ("Compliance & Legal Risk", "low",    6,  "Zero tolerance for compliance breaches, immediate escalation required"),
+                ("Financial Risk",          "medium", 12, "Financial risks managed within approved budget and insurance cover"),
+                ("Reputational Risk",       "low",    9,  "Reputational risks actively managed, proactive communication required"),
+                ("Technology Risk",         "medium", 15, "Technology risks mitigated through redundancy and security controls"),
+                ("Third Party Risk",        "medium", 12, "Vendor/supplier risks managed through due diligence and contracts"),
+                ("Environmental Risk",      "high",   20, "Environmental risks accepted within regulatory limits"),
             ]
             for cat, lvl, max_s, desc in _APPETITE_SEEDS:
                 conn.execute(
@@ -3783,31 +3798,31 @@ def _seed_baseline_data(conn):
         if existing_library == 0:
             _LIBRARY_SEEDS = [
                 # (title, description, category, likelihood, impact, treatment, controls, industries, regulations, tags)
-                ("Ransomware Attack","Malicious encryption of critical systems demanding payment","technology",4,5,"mitigate","MFA, backups, EDR, patch management","all","ISO 27001, NIST CSF","cyber,ransomware,critical"),
-                ("Data Breach — PII Exposure","Unauthorised access to or disclosure of personal data","compliance",3,5,"mitigate","Access controls, encryption, DLP","all","GDPR, POPIA, HIPAA","data,privacy,gdpr"),
-                ("Key Person Dependency","Critical operations reliant on single individual","operational",3,4,"mitigate","Knowledge transfer, cross-training, succession planning","all","","hr,operational"),
-                ("Cloud Provider Outage","Primary cloud/SaaS provider unavailability","technology",3,4,"mitigate","Multi-cloud, SLA monitoring, DR plan","all","ISO 22301","cloud,availability,dr"),
-                ("Supplier Bankruptcy / Failure","Key supplier ceases operations unexpectedly","third_party",2,5,"mitigate","Supplier due diligence, alternative suppliers, contracts","all","","vendor,supply_chain"),
-                ("Internal Fraud","Employee misappropriation of funds or assets","operational",2,5,"mitigate","Segregation of duties, audit trails, background checks","financial,telecom","","fraud,internal"),
-                ("Regulatory Non-Compliance","Failure to meet legal or regulatory requirements","compliance",3,5,"avoid","Compliance register, legal review, training","all","GDPR, ISO 27001, POPIA","regulatory,compliance"),
-                ("Pandemic / Health Crisis","Widespread illness impacting workforce availability","strategic",2,4,"mitigate","Remote work capability, succession planning, BCM","all","ISO 22301","pandemic,bcm,strategic"),
-                ("Natural Disaster","Flood, earthquake, fire affecting primary facilities","strategic",2,5,"mitigate","Business continuity plan, off-site backups, insurance","all","ISO 22301","disaster,bcm"),
-                ("Zero-Day Vulnerability","Exploitation of previously unknown software vulnerability","technology",3,5,"mitigate","Vulnerability management, threat intelligence, patch SLAs","all","ISO 27001, NIST","cyber,vulnerability"),
-                ("Currency / FX Exposure","Adverse exchange rate movements impacting financials","financial",3,3,"mitigate","Hedging, multi-currency accounts, FX policy","financial","","financial,fx"),
-                ("Liquidity Risk","Inability to meet short-term financial obligations","financial",2,5,"mitigate","Cash flow forecasting, credit facilities, reserves","financial","","financial,liquidity"),
-                ("Reputational Damage — Social Media","Viral negative content damaging brand perception","reputational",3,4,"mitigate","Social media policy, PR response plan, monitoring","all","","reputation,social"),
-                ("Phishing / Social Engineering","Staff tricked into disclosing credentials or transferring funds","operational",4,4,"mitigate","Security awareness training, MFA, email filtering","all","ISO 27001","phishing,human_error"),
-                ("Access Control Failure","Inappropriate access to sensitive systems or data","compliance",3,4,"mitigate","IAM, privilege review, PAM, access logging","all","ISO 27001, GDPR","access,iam"),
-                ("Third-Party Data Breach","Vendor or partner suffers breach exposing shared data","third_party",3,5,"mitigate","Vendor assessments, DPAs, contract clauses","all","GDPR, POPIA","vendor,data,privacy"),
-                ("Business Email Compromise (BEC)","Fraudulent email redirection of payments","operational",3,5,"mitigate","Email authentication, payment verification, training","financial,telecom","","bec,fraud,email"),
-                ("GDPR Consent Failure","Processing personal data without valid consent basis","compliance",3,4,"avoid","Consent management, privacy notices, DPO oversight","all","GDPR, POPIA","gdpr,consent,privacy"),
-                ("IT Disaster Recovery Gap","Critical systems lack tested recovery procedures","technology",3,4,"mitigate","DR plan, regular testing, RTO/RPO definition","all","ISO 22301, ISO 27001","dr,it,recovery"),
-                ("Talent Retention Risk","Loss of skilled staff to competitors","operational",3,3,"mitigate","Competitive compensation, engagement, succession planning","all","","hr,talent,operational"),
-                ("Regulatory Action / Fine","Regulator investigates or fines the organisation","compliance",2,5,"avoid","Compliance programme, legal monitoring, self-assessment","all","GDPR, POPIA, ISO","regulatory,fine"),
-                ("Payment System Failure","Critical payment processing unavailable","technology",3,5,"mitigate","Redundant payment rails, manual fallback, monitoring","financial,telecom","ISO 22301","payments,availability"),
-                ("SIM Swap / Telecoms Fraud","Fraudulent number porting enabling account takeover","operational",4,4,"mitigate","Multi-factor auth, verification controls, fraud monitoring","telecom","","telecom,fraud,sim"),
-                ("Contact Centre Data Leak","Agent accidentally or intentionally discloses customer PII","operational",3,4,"mitigate","Screen recording policy, CRM access controls, training","telecom,financial","GDPR","contact_centre,data,privacy"),
-                ("AI / Model Risk","AI model produces harmful, biased, or incorrect outputs","technology",3,4,"mitigate","AI governance, model validation, human oversight","all","ISO 42001","ai,model,technology"),
+                ("Ransomware Attack","Malicious encryption of critical systems demanding payment","Technology Risk",4,5,"mitigate","MFA, backups, EDR, patch management","all","ISO 27001, NIST CSF","cyber,ransomware,critical"),
+                ("Data Breach - PII Exposure","Unauthorised access to or disclosure of personal data","Compliance & Legal Risk",3,5,"mitigate","Access controls, encryption, DLP","all","GDPR, POPIA, HIPAA","data,privacy,gdpr"),
+                ("Key Person Dependency","Critical operations reliant on single individual","Operational Risk",3,4,"mitigate","Knowledge transfer, cross-training, succession planning","all","","hr,operational"),
+                ("Cloud Provider Outage","Primary cloud/SaaS provider unavailability","Technology Risk",3,4,"mitigate","Multi-cloud, SLA monitoring, DR plan","all","ISO 22301","cloud,availability,dr"),
+                ("Supplier Bankruptcy / Failure","Key supplier ceases operations unexpectedly","Third Party Risk",2,5,"mitigate","Supplier due diligence, alternative suppliers, contracts","all","","vendor,supply_chain"),
+                ("Internal Fraud","Employee misappropriation of funds or assets","Operational Risk",2,5,"mitigate","Segregation of duties, audit trails, background checks","financial,telecom","","fraud,internal"),
+                ("Regulatory Non-Compliance","Failure to meet legal or regulatory requirements","Compliance & Legal Risk",3,5,"avoid","Compliance register, legal review, training","all","GDPR, ISO 27001, POPIA","regulatory,compliance"),
+                ("Pandemic / Health Crisis","Widespread illness impacting workforce availability","Strategic Risk",2,4,"mitigate","Remote work capability, succession planning, BCM","all","ISO 22301","pandemic,bcm,strategic"),
+                ("Natural Disaster","Flood, earthquake, fire affecting primary facilities","Strategic Risk",2,5,"mitigate","Business continuity plan, off-site backups, insurance","all","ISO 22301","disaster,bcm"),
+                ("Zero-Day Vulnerability","Exploitation of previously unknown software vulnerability","Technology Risk",3,5,"mitigate","Vulnerability management, threat intelligence, patch SLAs","all","ISO 27001, NIST","cyber,vulnerability"),
+                ("Currency / FX Exposure","Adverse exchange rate movements impacting financials","Financial Risk",3,3,"mitigate","Hedging, multi-currency accounts, FX policy","financial","","financial,fx"),
+                ("Liquidity Risk","Inability to meet short-term financial obligations","Financial Risk",2,5,"mitigate","Cash flow forecasting, credit facilities, reserves","financial","","financial,liquidity"),
+                ("Reputational Damage - Social Media","Viral negative content damaging brand perception","Reputational Risk",3,4,"mitigate","Social media policy, PR response plan, monitoring","all","","reputation,social"),
+                ("Phishing / Social Engineering","Staff tricked into disclosing credentials or transferring funds","Operational Risk",4,4,"mitigate","Security awareness training, MFA, email filtering","all","ISO 27001","phishing,human_error"),
+                ("Access Control Failure","Inappropriate access to sensitive systems or data","Compliance & Legal Risk",3,4,"mitigate","IAM, privilege review, PAM, access logging","all","ISO 27001, GDPR","access,iam"),
+                ("Third-Party Data Breach","Vendor or partner suffers breach exposing shared data","Third Party Risk",3,5,"mitigate","Vendor assessments, DPAs, contract clauses","all","GDPR, POPIA","vendor,data,privacy"),
+                ("Business Email Compromise (BEC)","Fraudulent email redirection of payments","Operational Risk",3,5,"mitigate","Email authentication, payment verification, training","financial,telecom","","bec,fraud,email"),
+                ("GDPR Consent Failure","Processing personal data without valid consent basis","Compliance & Legal Risk",3,4,"avoid","Consent management, privacy notices, DPO oversight","all","GDPR, POPIA","gdpr,consent,privacy"),
+                ("IT Disaster Recovery Gap","Critical systems lack tested recovery procedures","Technology Risk",3,4,"mitigate","DR plan, regular testing, RTO/RPO definition","all","ISO 22301, ISO 27001","dr,it,recovery"),
+                ("Talent Retention Risk","Loss of skilled staff to competitors","Operational Risk",3,3,"mitigate","Competitive compensation, engagement, succession planning","all","","hr,talent,operational"),
+                ("Regulatory Action / Fine","Regulator investigates or fines the organisation","Compliance & Legal Risk",2,5,"avoid","Compliance programme, legal monitoring, self-assessment","all","GDPR, POPIA, ISO","regulatory,fine"),
+                ("Payment System Failure","Critical payment processing unavailable","Technology Risk",3,5,"mitigate","Redundant payment rails, manual fallback, monitoring","financial,telecom","ISO 22301","payments,availability"),
+                ("SIM Swap / Telecoms Fraud","Fraudulent number porting enabling account takeover","Operational Risk",4,4,"mitigate","Multi-factor auth, verification controls, fraud monitoring","telecom","","telecom,fraud,sim"),
+                ("Contact Centre Data Leak","Agent accidentally or intentionally discloses customer PII","Operational Risk",3,4,"mitigate","Screen recording policy, CRM access controls, training","telecom,financial","GDPR","contact_centre,data,privacy"),
+                ("AI / Model Risk","AI model produces harmful, biased, or incorrect outputs","Technology Risk",3,4,"mitigate","AI governance, model validation, human oversight","all","ISO 42001","ai,model,technology"),
             ]
             for row in _LIBRARY_SEEDS:
                 conn.execute(
@@ -4010,11 +4025,14 @@ def _seed_baseline_data(conn):
             # have no sub-categories in the source template (left blank there too).
             _TAXONOMY = [
                 ("Strategic Risk", []),
-                ("Reputational Risk", []),
-                ("Legal & Regulatory Risk", []),
+                ("Operational Risk", ["People", "Processes", "Systems", "Fraud", "Physical Assets"]),
+                ("Compliance & Legal Risk", []),
                 ("Credit Risk", []),
                 ("Financial Risk", []),
-                ("Operational Risk", ["People", "Processes", "Systems", "Fraud", "Physical Assets"]),
+                ("Reputational Risk", []),
+                ("Technology Risk", ["Cybersecurity", "Infrastructure", "Data"]),
+                ("Third Party Risk", ["Vendor Management", "Outsourcing", "Supply Chain"]),
+                ("Environmental Risk", []),
                 ("Market Risk", ["Exchange Rate", "Liquidity", "Interest Rate", "Competition"]),
             ]
             for idx, (name, children) in enumerate(_TAXONOMY):
@@ -4034,11 +4052,71 @@ def _seed_baseline_data(conn):
     except Exception:
         pass
 
+    # ── Idempotent taxonomy extension: add missing L1 nodes + rename ─────────
+    # The original seed had 7 L1 taxonomy nodes; this migration adds the 3 new
+    # ones and renames "Legal & Regulatory Risk" to "Compliance & Legal Risk".
+    try:
+        fw_row = conn.execute(
+            "SELECT id FROM erm_risk_frameworks WHERE is_active=1"
+        ).fetchone()
+        if fw_row:
+            _fw_id = fw_row[0] if isinstance(fw_row, (tuple, list)) else fw_row["id"]
+            conn.execute(
+                "UPDATE erm_framework_taxonomy SET name=%s WHERE framework_id=%s AND name=%s",
+                ("Compliance & Legal Risk", _fw_id, "Legal & Regulatory Risk"),
+            )
+            _NEW_TAXONOMY_NODES = [
+                ("Technology Risk", ["Cybersecurity", "Infrastructure", "Data"]),
+                ("Third Party Risk", ["Vendor Management", "Outsourcing", "Supply Chain"]),
+                ("Environmental Risk", []),
+            ]
+            for _t_name, _t_children in _NEW_TAXONOMY_NODES:
+                exists = conn.execute(
+                    "SELECT id FROM erm_framework_taxonomy WHERE framework_id=%s AND name=%s AND parent_id IS NULL",
+                    (_fw_id, _t_name),
+                ).fetchone()
+                if not exists:
+                    _max_ord = conn.execute(
+                        "SELECT COALESCE(MAX(order_idx),0) FROM erm_framework_taxonomy WHERE framework_id=%s AND parent_id IS NULL",
+                        (_fw_id,),
+                    ).fetchone()
+                    _next_ord = ((_max_ord[0] if isinstance(_max_ord, (tuple, list)) else _max_ord["COALESCE(MAX(order_idx),0)"]) or 0) + 1
+                    _parent_id = insert_returning_id(
+                        conn,
+                        "INSERT INTO erm_framework_taxonomy (framework_id, parent_id, name, order_idx) VALUES (%s,%s,%s,%s)",
+                        (_fw_id, None, _t_name, _next_ord),
+                    )
+                    for _ci, _cname in enumerate(_t_children):
+                        conn.execute(
+                            "INSERT INTO erm_framework_taxonomy (framework_id, parent_id, name, order_idx) VALUES (%s,%s,%s,%s)",
+                            (_fw_id, _parent_id, _cname, _ci),
+                        )
+            conn.commit()
+    except Exception:
+        pass
+
+    # ── Idempotent category rename: old slug-style -> taxonomy names ─────────
+    # Safe: if already migrated, WHERE matches zero rows. Runs every startup.
+    try:
+        _CATEGORY_RENAMES = {
+            "strategic": "Strategic Risk", "operational": "Operational Risk",
+            "compliance": "Compliance & Legal Risk", "financial": "Financial Risk",
+            "reputational": "Reputational Risk", "technology": "Technology Risk",
+            "third_party": "Third Party Risk", "environmental": "Environmental Risk",
+            "data_breach": "Technology Risk", "privacy": "Compliance & Legal Risk",
+        }
+        for old, new in _CATEGORY_RENAMES.items():
+            conn.execute("UPDATE erm_enterprise_risks SET category=%s WHERE category=%s", (new, old))
+            conn.execute("UPDATE erm_risk_appetite SET category=%s WHERE category=%s", (new, old))
+            conn.execute("UPDATE erm_risk_library SET category=%s WHERE category=%s", (new, old))
+        conn.commit()
+    except Exception:
+        pass
+
     # ── Recompute qualitative_score against the active framework matrix ──────
     # Unconditional (not count-gated): the seeded matrix is asymmetric so it
-    # won't reproduce the old flat likelihood*impact cutoffs cell-for-cell —
-    # any pre-existing score is stale the instant framework-driven lookups go
-    # live. Safe to run every startup since it's a pure function of stored
+    # won't reproduce the old flat likelihood*impact cutoffs cell-for-cell.
+    # Safe to run every startup since it's a pure function of stored
     # likelihood/impact. Kept in its own try/except so a failure here can
     # never suppress the framework-seeding block above, or vice versa.
     try:
