@@ -105,10 +105,10 @@ def collect_telemetry(db) -> dict:
     try:
         rows = db.execute(
             "SELECT severity, "
-            f"""  CAST({sql_days_between("'now'", "COALESCE(discovered_date, created_at)")} AS REAL) AS days_ago """
+            f"""  CAST({sql_days_between("'now'", "COALESCE(discovery_date, created_at)")} AS REAL) AS days_ago """
             "FROM sentinel_breaches "
             "WHERE status != 'closed' "
-            f"""  AND COALESCE(discovered_date, created_at::text) >= {sql_date_offset('-30 days')}"""
+            f"""  AND COALESCE(discovery_date, CAST(created_at AS TEXT)) >= {sql_date_offset('-30 days')}"""
         ).fetchall()
         B = sum(_sev_weight(r["severity"]) * _recency_decay(r["days_ago"]) for r in rows)
         metrics["breach_raw_count"] = len(rows)
