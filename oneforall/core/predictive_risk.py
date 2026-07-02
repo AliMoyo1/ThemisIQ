@@ -24,6 +24,7 @@ import json
 import math
 import logging
 from datetime import datetime
+from config import settings
 from core.timeutils import utcnow
 from database import sql_days_between, sql_date_offset, sql_date_ts
 
@@ -103,19 +104,26 @@ def collect_telemetry(db) -> dict:
 
     # ── B: Sentinel open breaches (severity-weighted + recency-decayed) ──────
     try:
-        rows = db.execute(
-            "SELECT severity, "
-            f"""  CAST({sql_days_between("'now'", "COALESCE(discovery_date, created_at)")} AS REAL) AS days_ago """
-            "FROM sentinel_breaches "
-            "WHERE status != 'closed' "
-            f"""  AND COALESCE(discovery_date, CAST(created_at AS TEXT)) >= {sql_date_offset('-30 days')}"""
-        ).fetchall()
-        B = sum(_sev_weight(r["severity"]) * _recency_decay(r["days_ago"]) for r in rows)
+        if settings.is_postgres():
+            # PostgreSQL: created_at is TIMESTAMPTZ, discovery_date is TEXT.
+            # Must not COALESCE(text, timestamptz) directly — type mismatch fails.
+            rows = db.execute(
+                "SELECT severity, "
+                "  EXTRACT(EPOCH FROM (NOW() - COALESCE(discovery_date::timestamptz, created_at))) / 86400 AS days_ago "
+                "FROM sentinel_breaches WHERE status != 'closed'"
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT severity, "
+                "  (julianday('now') - julianday(COALESCE(discovery_date, created_at))) AS days_ago "
+                "FROM sentinel_breaches WHERE status != 'closed'"
+            ).fetchall()
+        B = sum(_sev_weight(r["severity"]) * _recency_decay(r["days_ago"] or 0) for r in rows)
         metrics["breach_raw_count"] = len(rows)
         metrics["B"] = round(B, 3)
         metrics["breach_severities"] = [r["severity"] for r in rows]
     except Exception as exc:
-        log.debug("Telemetry B (breaches) unavailable: %s", exc)
+        log.warning("Telemetry B (breaches) failed: %s", exc)
         B = 0.0
         metrics["B"] = 0.0
         metrics["breach_raw_count"] = 0
