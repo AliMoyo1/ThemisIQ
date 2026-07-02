@@ -503,6 +503,64 @@ def unlink_incident_plan(link_id):
         db.close()
 
 
+def search_vault_items(query, limit=20):
+    db = get_db()
+    try:
+        q = '%' + (query or '').strip() + '%'
+        return _dicts(db.execute(
+            "SELECT id, title, category, tags, status, updated_at "
+            "FROM evidence_items WHERE status != 'archived' "
+            "AND (title LIKE %s OR tags LIKE %s OR category LIKE %s) "
+            "ORDER BY updated_at DESC LIMIT %s",
+            (q, q, q, limit)).fetchall())
+    finally:
+        db.close()
+
+
+def list_incident_vault_links(inc_id):
+    db = get_db()
+    try:
+        return _dicts(db.execute(
+            "SELECT e.id, e.title, e.category, e.status, e.updated_at, el.id as link_id "
+            "FROM evidence_items e JOIN evidence_links el ON e.id = el.evidence_id "
+            "WHERE el.module='bcm' AND el.entity_type='incident' AND el.entity_id=%s "
+            "AND el.deleted_at IS NULL AND e.status != 'archived' "
+            "ORDER BY el.created_at DESC",
+            (inc_id,)).fetchall())
+    finally:
+        db.close()
+
+
+def link_incident_vault_item(inc_id, evidence_id, linked_by=None):
+    db = get_db()
+    try:
+        existing = db.execute(
+            "SELECT id FROM evidence_links WHERE module='bcm' AND entity_type='incident' "
+            "AND entity_id=%s AND evidence_id=%s AND deleted_at IS NULL",
+            (inc_id, evidence_id)).fetchone()
+        if existing:
+            return existing['id']
+        lid = insert_returning_id(db,
+            "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by) "
+            "VALUES (%s,'bcm','incident',%s,%s)",
+            (evidence_id, inc_id, linked_by))
+        db.commit()
+        return lid
+    finally:
+        db.close()
+
+
+def unlink_incident_vault_item(link_id):
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE evidence_links SET deleted_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (link_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # EXERCISES
 # ═════════════════════════════════════════════════════════════════════════════

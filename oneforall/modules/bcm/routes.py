@@ -711,6 +711,37 @@ async def api_incident_plan_link_delete(request: Request, inc_id: int, link_id: 
     return JSONResponse({"ok": True})
 
 
+@router.get("/api/vault-evidence/search")
+@require_capability("module.bcm.access")
+async def api_vault_evidence_search(request: Request):
+    q = request.query_params.get("q", "")
+    return JSONResponse(ds.search_vault_items(q))
+
+
+@router.get("/api/incidents/{inc_id}/vault-evidence")
+@require_capability("module.bcm.access")
+async def api_incident_vault_evidence_list(request: Request, inc_id: int):
+    return JSONResponse(ds.list_incident_vault_links(inc_id))
+
+
+@router.post("/api/incidents/{inc_id}/vault-evidence")
+@require_capability("bcm.incident.manage")
+async def api_incident_vault_evidence_link(request: Request, inc_id: int):
+    body = await _json_body(request)
+    eid = body.get("evidence_id")
+    if not eid:
+        raise HTTPException(400, "evidence_id required")
+    lid = ds.link_incident_vault_item(inc_id, int(eid), _uname(request))
+    return JSONResponse({"id": lid}, status_code=201)
+
+
+@router.delete("/api/incidents/{inc_id}/vault-evidence/{link_id}")
+@require_capability("bcm.incident.manage")
+async def api_incident_vault_evidence_unlink(request: Request, inc_id: int, link_id: int):
+    ds.unlink_incident_vault_item(link_id)
+    return JSONResponse({"ok": True})
+
+
 @router.post("/api/incidents/{inc_id}/ai-suggest")
 @require_capability("bcm.ai.use")
 async def api_incident_ai_suggest(request: Request, inc_id: int):

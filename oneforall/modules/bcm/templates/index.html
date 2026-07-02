@@ -2606,8 +2606,7 @@
   }
 
   /* — Evidence tab — */
-  function bcmRenderConsoleEvidence(body,footer,inc){
-    var evidence=inc.evidence||[];
+  async function bcmRenderConsoleEvidence(body,footer,inc){
     var incType=(inc.type||'').toLowerCase();
     var _typeEvidence={
       cyber:['System and network access logs','Affected file listing or data inventory','Screenshots of anomalous activity','Forensic image of affected systems','Communication records (internal + external)','Malware or threat artefact samples'],
@@ -2624,8 +2623,12 @@
           return'<div style="font-size:12px;color:var(--text);padding:3px 0;display:flex;gap:8px"><span style="color:var(--muted)">&#9744;</span>'+esc(item)+'</div>';
         }).join('')+
       '</div>';
-    body.innerHTML=evidence.length?
-      evidence.map(function(e){
+    body.innerHTML='<div style="color:var(--muted);font-size:13px">Loading linked evidence...</div>';
+    footer.innerHTML='';
+    var links=[];
+    try{links=await apiFetch('/bcm/api/incidents/'+inc.id+'/vault-evidence');}catch(e){}
+    var linkedHtml=links.length?
+      links.map(function(e){
         var statusBadgeHtml=statusBadge(e.status||'current');
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'+
           '<div>'+
@@ -2633,13 +2636,60 @@
             '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc(e.category||'')+'</div>'+
           '</div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+statusBadgeHtml+
-            '<a href="/grid/evidence" class="btn btn-sm btn-secondary" style="font-size:11px">View in Vault</a>'+
+            '<a href="/grid/evidence" class="btn btn-sm btn-secondary" style="font-size:11px" target="_blank">View</a>'+
+            '<button class="btn btn-sm" style="font-size:11px;background:var(--red,#dc2626);color:#fff;border:none;border-radius:var(--radius);padding:4px 10px;cursor:pointer" onclick="bcmUnlinkVaultEvidence('+inc.id+','+e.link_id+')">Unlink</button>'+
           '</div>'+
         '</div>';
-      }).join('')+checklistHtml :
-      '<div style="color:var(--muted);font-size:13px;padding:8px 0">No evidence linked yet.</div>'+checklistHtml;
-    footer.innerHTML='<div style="font-size:12px;color:var(--muted)">Evidence is managed in the <a href="/grid/evidence" style="color:var(--accent)">Evidence Vault</a>. Link it here once uploaded.</div>';
+      }).join('') :
+      '<div style="color:var(--muted);font-size:13px;padding:8px 0">No evidence linked yet.</div>';
+    body.innerHTML=linkedHtml+checklistHtml;
+    footer.innerHTML=
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Link evidence from the vault to this incident:</div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<input id="vaultSearchInp" type="text" placeholder="Search vault by title or tag..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px"/>'+
+        '<button class="btn btn-primary" style="flex-shrink:0" onclick="bcmSearchVault('+inc.id+')">Search</button>'+
+      '</div>'+
+      '<div id="vaultSearchResults" style="margin-top:8px"></div>';
   }
+
+  window.bcmSearchVault=async function(incId){
+    var inp=document.getElementById('vaultSearchInp');
+    var results=document.getElementById('vaultSearchResults');
+    if(!inp||!results) return;
+    results.innerHTML='<div style="color:var(--muted);font-size:12px">Searching...</div>';
+    try{
+      var items=await apiFetch('/bcm/api/vault-evidence/search?q='+encodeURIComponent(inp.value||''));
+      results.innerHTML=items.length?
+        items.map(function(e){
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">'+
+            '<div><div style="font-size:13px;color:var(--text)">'+esc(e.title||'')+'</div>'+
+            '<div style="font-size:11px;color:var(--muted)">'+esc(e.category||'')+'</div></div>'+
+            '<button class="btn btn-sm btn-primary" style="font-size:11px" onclick="bcmLinkVaultItem('+incId+','+e.id+')">+ Link</button>'+
+          '</div>';
+        }).join('') :
+        '<div style="color:var(--muted);font-size:12px;padding:8px 0">No items found.</div>';
+    }catch(e){results.innerHTML='<div style="color:var(--muted);font-size:12px">Search failed.</div>';}
+  };
+
+  window.bcmLinkVaultItem=async function(incId,evidenceId){
+    try{
+      await apiFetch('/bcm/api/incidents/'+incId+'/vault-evidence',{method:'POST',body:{evidence_id:evidenceId}});
+      if(typeof showToast==='function') showToast('Evidence linked to incident');
+      var body=document.getElementById('bcmConsolePanelBody');
+      var footer=document.getElementById('bcmConsoleFooter');
+      if(body&&footer&&_bcmConsoleInc) bcmRenderConsoleEvidence(body,footer,_bcmConsoleInc);
+    }catch(e){if(typeof showToast==='function') showToast('Failed to link evidence','error');}
+  };
+
+  window.bcmUnlinkVaultEvidence=async function(incId,linkId){
+    try{
+      await apiFetch('/bcm/api/incidents/'+incId+'/vault-evidence/'+linkId,{method:'DELETE'});
+      if(typeof showToast==='function') showToast('Evidence unlinked');
+      var body=document.getElementById('bcmConsolePanelBody');
+      var footer=document.getElementById('bcmConsoleFooter');
+      if(body&&footer&&_bcmConsoleInc) bcmRenderConsoleEvidence(body,footer,_bcmConsoleInc);
+    }catch(e){if(typeof showToast==='function') showToast('Failed to unlink evidence','error');}
+  };
 
   /* — Console action functions — */
   window.bcmToggleAction=async function(incId,actionId,isDone){
@@ -2972,18 +3022,18 @@
       var res=await apiFetch('/bcm/api/incidents/'+id+'/ai-suggest',{method:'POST'});
       btn.disabled=false;btn.textContent=origText;
       var suggestions=res.suggestions||[];
+      window._bcmSuggestCache=window._bcmSuggestCache||{};
+      window._bcmSuggestCache[id]=suggestions;
       var priColor=function(p){return p==='high'?'var(--red,#dc2626)':p==='medium'?'var(--amber,#d97706)':'var(--muted)';};
-      var itemsHtml=suggestions.map(function(s){
+      var itemsHtml=suggestions.map(function(s,idx){
         var actionText=esc(s.action||s.title||'');
-        var safeText=JSON.stringify(s.action||s.title||'');
-        var safePri=JSON.stringify(s.priority||'normal');
         return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">'+
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
             '<span style="font-size:10px;font-weight:700;color:'+priColor(s.priority)+';background:rgba(0,0,0,.04);padding:2px 8px;border-radius:100px;text-transform:uppercase">'+esc(s.priority||'normal')+'</span>'+
             '<span style="font-size:13px;font-weight:600;color:var(--text)">'+actionText+'</span>'+
           '</div>'+
           '<div style="font-size:12px;color:var(--muted);padding-left:4px;margin-bottom:6px">'+esc(s.rationale||s.description||'')+'</div>'+
-          '<button class="btn btn-sm btn-secondary" style="font-size:11px" onclick="bcmAddActionToInc('+id+','+safeText+','+safePri+')">+ Add as Action</button>'+
+          '<button class="btn btn-sm btn-secondary" style="font-size:11px" onclick="bcmAddActionFromCache('+id+','+idx+')">+ Add as Action</button>'+
         '</div>';
       }).join('');
       document.body.insertAdjacentHTML('beforeend',
@@ -3007,6 +3057,11 @@
       await apiFetch('/bcm/api/incidents/'+incId+'/actions',{method:'POST',body:{title:actionText,priority:priority,status:'open'}});
       if(typeof showToast==='function')showToast('Action added to incident');
     }catch(e){if(typeof showToast==='function')showToast('Failed to add action','error');}
+  };
+  window.bcmAddActionFromCache=async function(incId,idx){
+    var s=(window._bcmSuggestCache[incId]||[])[idx];
+    if(!s) return;
+    await window.bcmAddActionToInc(incId,s.action||s.title||'',s.priority||'normal');
   };
 
   /* ════════════════════════════════════════════════════════════════════════
