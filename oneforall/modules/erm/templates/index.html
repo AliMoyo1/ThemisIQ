@@ -342,6 +342,8 @@
       <div class="section-sub">Enterprise + cross-module risks, unified view</div>
     </div>
     <div class="header-actions">
+      <button class="btn btn-secondary" onclick="document.getElementById('ermImportFile').click()" title="Import risks from Excel">⬆ Import Excel</button>
+      <input type="file" id="ermImportFile" accept=".xlsx,.xls,.xlsm" style="display:none" onchange="ermImportExcel(this)">
       <button class="btn btn-secondary" onclick="ermExportCSV()" title="Export visible rows to CSV">⬇ Export</button>
       <button class="btn btn-primary" onclick="ermOpenRiskModal()">+ Add Risk</button>
     </div>
@@ -359,6 +361,8 @@
     </select>
     <input class="erm-search" id="regSearch" placeholder="🔍 Search risks…" oninput="ermRenderRegister()">
   </div>
+  <!-- Import result banner -->
+  <div id="ermImportResult" style="display:none" class="card" style="margin-bottom:14px;padding:16px"></div>
   <!-- Stats strip -->
   <div id="regStats" class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:14px"></div>
   <!-- Auto-elevation banner -->
@@ -1031,6 +1035,142 @@ window.ermExportCSV=function(){
   var lines=[hdr.join(',')].concat(rows.map(function(r){var score=r.risk_score||((r.likelihood||0)*(r.impact||0));return[r.id,'"'+(r.title||'').replace(/"/g,'""')+'"','"'+(r.category||'').replace(/"/g,'""')+'"','"'+(r.sub_category||'').replace(/"/g,'""')+'"',r.likelihood||'',r.impact||'',score,bandLabel(scoreToBand(r.likelihood,r.impact)),r.status||'',r.treatment||'',r.owner_name||'',r.source_module||r.register_source||'',r.board_visibility?1:0,r.review_date||''].join(',');}));
   var b=new Blob([lines.join('\n')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='erm-register.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);
   typeof showToast==='function'&&showToast('Exported '+rows.length+' rows');
+};
+var _importPreviewData=null;
+window.ermImportExcel=async function(input){
+  var file=input.files[0];if(!file)return;
+  var res=document.getElementById('ermImportResult');
+  res.style.display='block';
+  res.innerHTML='<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto;width:24px;height:24px"></div><div style="margin-top:8px;font-size:13px;color:var(--muted)">Parsing Excel file...</div></div>';
+  var fd=new FormData();fd.append('file',file);
+  try{
+    var r=await fetch('/erm/api/risks/import-preview',{method:'POST',body:fd});
+    if(!r.ok){var e=await r.json();throw new Error(e.error||'Upload failed');}
+    var d=await r.json();
+    if(d.error){res.innerHTML='<div style="color:var(--red);padding:12px">'+esc(d.error)+'</div>';input.value='';return;}
+    _importPreviewData=d;
+    res.style.display='none';
+    ermShowImportPreview(d);
+  }catch(e){
+    res.innerHTML='<div style="color:var(--red);padding:12px">Import failed: '+esc(e.message)+'</div>';
+  }
+  input.value='';
+};
+window.ermShowImportPreview=function(d){
+  var s=d.summary||{};
+  var cats=d.category_map||{};
+  var owners=d.owner_map||{};
+  var warns=d.warnings||[];
+  var taxCats=d.taxonomy_categories||[];
+  var confBadge=function(c){
+    var colors={'exact':'#00B050','fuzzy':'#ED7D31','keyword':'#ED7D31','partial':'#ED7D31','unmatched':'#FF0000','unmapped':'#FF0000','default':'#999'};
+    return '<span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;color:#fff;background:'+(colors[c]||'#999')+'">'+esc(c)+'</span>';
+  };
+  var catRows='';
+  var catKeys=Object.keys(cats);
+  for(var i=0;i<catKeys.length;i++){
+    var ck=catKeys[i];var cm=cats[ck];
+    var opts='<option value="">-- Select --</option>';
+    for(var j=0;j<taxCats.length;j++){
+      opts+='<option value="'+esc(taxCats[j])+'"'+(cm.mapped===taxCats[j]?' selected':'')+'>'+esc(taxCats[j])+'</option>';
+    }
+    if(cm.confidence==='unmapped')opts+='<option value="'+esc(ck)+'" selected>'+esc(ck)+' (as-is)</option>';
+    catRows+='<tr><td style="font-size:12px">'+esc(ck)+'</td><td><select class="import-cat-sel" data-raw="'+esc(ck)+'" style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--surface2);color:var(--text)">'+opts+'</select></td><td>'+confBadge(cm.confidence)+'</td></tr>';
+  }
+  var ownerRows='';
+  var owKeys=Object.keys(owners);
+  for(var i=0;i<owKeys.length;i++){
+    var ok=owKeys[i];var om=owners[ok];
+    ownerRows+='<tr><td style="font-size:12px">'+esc(ok)+'</td><td style="font-size:12px">'+esc(om.display_name||'-')+'</td><td>'+confBadge(om.confidence)+'</td></tr>';
+  }
+  var colChips='';
+  var colMap=d.column_map||{};
+  var colKeys=Object.keys(colMap);
+  for(var i=0;i<colKeys.length;i++){
+    colChips+='<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:12px;font-size:11px;background:var(--surface2);border:1px solid var(--border)">'+esc(colKeys[i])+' &rarr; '+esc(colMap[colKeys[i]])+'</span>';
+  }
+  var sampleRows='';
+  var preview=d.rows||[];
+  var limit=Math.min(preview.length,8);
+  for(var i=0;i<limit;i++){
+    var r=preview[i];
+    sampleRows+='<tr><td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.title||'')+'</td><td style="font-size:11px">'+esc(r.category||'')+'</td><td style="font-size:11px;text-align:center">'+(r.likelihood||'-')+'</td><td style="font-size:11px;text-align:center">'+(r.impact||'-')+'</td><td style="font-size:11px">'+esc(r.status||'')+'</td><td style="font-size:11px">'+esc(r.owner_name||'-')+'</td></tr>';
+  }
+  var warnHtml='';
+  if(warns.length){
+    var showWarns=warns.slice(0,5);
+    warnHtml='<div style="margin-bottom:14px;padding:10px 12px;border:1px solid #ED7D31;border-radius:6px;background:rgba(237,125,49,0.08);font-size:12px"><strong style="color:#ED7D31">'+warns.length+' warning(s)</strong><ul style="margin:6px 0 0 16px;padding:0">';
+    for(var i=0;i<showWarns.length;i++)warnHtml+='<li style="color:var(--muted)">'+esc(showWarns[i])+'</li>';
+    if(warns.length>5)warnHtml+='<li style="color:var(--muted)">...and '+(warns.length-5)+' more</li>';
+    warnHtml+='</ul></div>';
+  }
+  var byCatHtml='';
+  var byCat=s.by_category||{};
+  var bcKeys=Object.keys(byCat);
+  for(var i=0;i<bcKeys.length;i++){
+    byCatHtml+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span>'+esc(bcKeys[i])+'</span><strong>'+byCat[bcKeys[i]]+'</strong></div>';
+  }
+  var html='<div class="erm-modal-overlay" id="ermImportModal" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999">'+
+    '<div class="modal-box" style="max-width:860px;max-height:90vh;overflow-y:auto;padding:28px">'+
+    '<button class="modal-close" onclick="document.getElementById(\'ermImportModal\').remove()">&times;</button>'+
+    '<h3 style="margin:0 0 6px;font-size:18px">Import Risk Register</h3>'+
+    '<div style="font-size:13px;color:var(--muted);margin-bottom:16px">Sheet: '+esc(d.sheet_name||'Sheet1')+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'+
+    '<div class="stat-card" style="padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:var(--primary)">'+s.total+'</div><div style="font-size:11px;color:var(--muted)">Total Risks</div></div>'+
+    '<div class="stat-card" style="padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:var(--green-status)">'+s.with_scores+'</div><div style="font-size:11px;color:var(--muted)">With Scores</div></div>'+
+    '<div class="stat-card" style="padding:12px;text-align:center"><div style="font-size:22px;font-weight:700">'+catKeys.length+'</div><div style="font-size:11px;color:var(--muted)">Categories</div></div>'+
+    '<div class="stat-card" style="padding:12px;text-align:center"><div style="font-size:22px;font-weight:700">'+owKeys.length+'</div><div style="font-size:11px;color:var(--muted)">Owners</div></div>'+
+    '</div>'+
+    warnHtml+
+    '<details style="margin-bottom:14px"><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Column Mapping ('+colKeys.length+' detected)</summary><div style="margin-top:8px">'+colChips+'</div></details>'+
+    (catKeys.length?'<div style="margin-bottom:14px"><div style="font-size:13px;font-weight:600;margin-bottom:6px">Category Mapping</div><table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;font-size:11px;padding:4px;color:var(--muted)">Excel Category</th><th style="text-align:left;font-size:11px;padding:4px;color:var(--muted)">Map To</th><th style="font-size:11px;padding:4px;color:var(--muted)">Match</th></tr></thead><tbody>'+catRows+'</tbody></table></div>':'')+
+    (byCatHtml?'<details style="margin-bottom:14px"><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Risks by Category</summary><div style="margin-top:8px;max-width:400px">'+byCatHtml+'</div></details>':'')+
+    (owKeys.length?'<details style="margin-bottom:14px"><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Owner Matching ('+owKeys.length+')</summary><table style="width:100%;border-collapse:collapse;margin-top:8px"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;font-size:11px;padding:4px;color:var(--muted)">Excel Name</th><th style="text-align:left;font-size:11px;padding:4px;color:var(--muted)">Matched To</th><th style="font-size:11px;padding:4px;color:var(--muted)">Match</th></tr></thead><tbody>'+ownerRows+'</tbody></table></details>':'')+
+    '<details open style="margin-bottom:14px"><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Preview (first '+limit+' of '+s.total+')</summary><div style="overflow-x:auto;margin-top:8px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px">Title</th><th style="text-align:left;padding:4px">Category</th><th style="text-align:center;padding:4px">L</th><th style="text-align:center;padding:4px">I</th><th style="text-align:left;padding:4px">Status</th><th style="text-align:left;padding:4px">Owner</th></tr></thead><tbody>'+sampleRows+'</tbody></table></div></details>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">'+
+    '<button class="btn btn-secondary" onclick="document.getElementById(\'ermImportModal\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" id="ermImportCommitBtn" onclick="ermCommitImport()">Import '+s.total+' Risks</button>'+
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ermCommitImport=async function(){
+  if(!_importPreviewData||!_importPreviewData.rows)return;
+  var btn=document.getElementById('ermImportCommitBtn');
+  if(btn){btn.disabled=true;btn.textContent='Importing...';}
+  var catOver={};
+  var sels=document.querySelectorAll('.import-cat-sel');
+  sels.forEach(function(s){if(s.value)catOver[s.dataset.raw]=s.value;});
+  var ownOver={};
+  var om=_importPreviewData.owner_map||{};
+  var omKeys=Object.keys(om);
+  for(var i=0;i<omKeys.length;i++){if(om[omKeys[i]].user_id)ownOver[omKeys[i]]=om[omKeys[i]].user_id;}
+  try{
+    var r=await apiFetch('/erm/api/risks/import-commit',{method:'POST',body:{rows:_importPreviewData.rows,category_overrides:catOver,owner_overrides:ownOver}});
+    var modal=document.getElementById('ermImportModal');if(modal)modal.remove();
+    var res=document.getElementById('ermImportResult');
+    var errHtml='';
+    if(r.errors&&r.errors.length){
+      errHtml='<div style="margin-top:8px;font-size:12px;color:var(--muted)">'+r.errors.length+' error(s): ';
+      for(var i=0;i<Math.min(r.errors.length,3);i++)errHtml+=esc(r.errors[i].title||'Row '+r.errors[i].row)+' - '+esc(r.errors[i].error)+'; ';
+      errHtml+='</div>';
+    }
+    res.style.display='block';
+    res.innerHTML='<div style="padding:14px"><div style="font-size:14px;font-weight:700;color:var(--green-status);margin-bottom:8px">Import Complete</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:13px">'+
+      '<div><div style="color:var(--muted);font-size:11px">Imported</div><div style="font-weight:700">'+r.imported+'</div></div>'+
+      '<div><div style="color:var(--muted);font-size:11px">Skipped</div><div style="font-weight:700">'+r.skipped+'</div></div>'+
+      '<div><div style="color:var(--muted);font-size:11px">Errors</div><div style="font-weight:700">'+(r.errors?r.errors.length:0)+'</div></div>'+
+      '</div>'+errHtml+
+      '<button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="this.parentElement.parentElement.style.display=\'none\'">Dismiss</button>'+
+      '</div>';
+    _importPreviewData=null;
+    ermLoadRegister();
+    if(typeof ermLoadDashboard==='function')ermLoadDashboard();
+    typeof showToast==='function'&&showToast('Imported '+r.imported+' risks');
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Import';}
+    typeof showToast==='function'&&showToast('Import failed: '+(e.message||e),'error');
+  }
 };
 window.ermEditRisk=async function(id){try{var r=await apiFetch('/erm/api/risks/'+id);if(r)ermOpenRiskModal(r);}catch(e){typeof showToast==='function'&&showToast('Failed to load risk','error');}};
 /* Delete works for both erm_enterprise_risks AND platform risk_register entries.

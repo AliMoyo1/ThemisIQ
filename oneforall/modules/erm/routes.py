@@ -4,7 +4,7 @@ SPA at GET /erm/ with JSON APIs at /erm/api/*.
 """
 import json
 from pathlib import Path
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
@@ -931,3 +931,39 @@ async def api_export_csv(request: Request):
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=erm_risk_register.csv"},
     )
+
+
+@router.post("/api/risks/import-preview")
+@require_capability("erm.risk.manage")
+async def api_risks_import_preview(request: Request, file: UploadFile = File(...)):
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls", ".xlsm")):
+        return JSONResponse({"error": "Please upload an Excel file (.xlsx)"}, status_code=400)
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        return JSONResponse({"error": "File too large (max 10 MB)"}, status_code=400)
+    try:
+        result = ds.parse_risk_register_excel(contents)
+    except Exception as exc:
+        return JSONResponse({"error": f"Could not parse Excel file: {exc}"}, status_code=400)
+    if "error" in result:
+        return JSONResponse(result, status_code=400)
+    return JSONResponse(result)
+
+
+@router.post("/api/risks/import-commit")
+@require_capability("erm.risk.manage")
+async def api_risks_import_commit(request: Request):
+    body = await _json_body(request)
+    rows = body.get("rows")
+    if not rows or not isinstance(rows, list):
+        return JSONResponse({"error": "No rows provided"}, status_code=400)
+    if len(rows) > 500:
+        return JSONResponse({"error": "Maximum 500 risks per import"}, status_code=400)
+    cat_overrides = body.get("category_overrides", {})
+    own_overrides = body.get("owner_overrides", {})
+    result = ds.bulk_import_risks(rows, _uid(request), cat_overrides, own_overrides)
+    if result["imported"] > 0:
+        emit(ERM_RISK_IDENTIFIED, source_module="erm",
+             entity_type="enterprise_risk", entity_id=0,
+             payload={"title": f"Bulk import: {result['imported']} risks", "status": "open"})
+    return JSONResponse({"ok": True, **result})

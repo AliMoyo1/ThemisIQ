@@ -3,8 +3,11 @@ ERM module — Data access layer.
 Covers erm_enterprise_risks, erm_risk_appetite, erm_risk_library,
 erm_regulatory_obligations, erm_assessments, and the shared risk_register view.
 """
+import io
+import logging
 import re
 from datetime import datetime
+from difflib import get_close_matches
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id, sql_now_offset, sql_now_ts, sql_days_between, sql_date_offset, sql_date_ts, sql_current_date
 
@@ -1726,3 +1729,406 @@ def get_executive_dashboard():
         }
     finally:
         db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# EXCEL RISK REGISTER IMPORT
+# ═════════════════════════════════════════════════════════════════════════════
+
+_log = logging.getLogger(__name__)
+
+
+def _norm_header(s):
+    return re.sub(r'[^a-z0-9]', '', str(s).lower().strip())
+
+
+_HEADER_MAP = {
+    "risktitle": "title", "title": "title", "riskname": "title", "name": "title",
+    "risk": "title",
+    "riskdescription": "description", "description": "description", "details": "description",
+    "riskimpact": "impact_description", "impactdescription": "impact_description",
+    "mitigation": "treatment_plan", "mitigationplan": "treatment_plan",
+    "controls": "treatment_plan", "existingcontrols": "treatment_plan",
+    "controlmeasures": "treatment_plan", "mitigatingcontrols": "treatment_plan",
+    "section": "sub_category", "department": "sub_category", "businessunit": "sub_category",
+    "unit": "sub_category", "division": "sub_category", "area": "sub_category",
+    "priority": "priority", "urgency": "priority",
+    "likelihood": "likelihood", "probability": "likelihood", "frequency": "likelihood",
+    "impact": "impact", "consequence": "impact", "severity": "impact",
+    "aggregateinherentrisk": "_skip", "inherentrisk": "_skip", "riskscore": "_skip",
+    "inherentscore": "_skip", "grossrisk": "_skip",
+    "controleffectiveness": "effectiveness_rating", "effectiveness": "effectiveness_rating",
+    "controlstrength": "effectiveness_rating",
+    "aggregateresidual": "_skip", "residualrisk": "_skip", "residualscore": "_skip",
+    "netrisk": "_skip", "residual": "_skip",
+    "riskmitigation": "treatment", "riskmitigationplan": "treatment",
+    "risktreatment": "treatment", "treatment": "treatment", "response": "treatment",
+    "riskresponse": "treatment", "treatmentstrategy": "treatment",
+    "reviewdate": "review_frequency", "reviewfrequency": "review_frequency",
+    "followupdate": "review_date", "nextreview": "review_date", "duedate": "review_date",
+    "nextreviewdate": "review_date", "followup": "review_date", "targetdate": "review_date",
+    "statusupdate": "status", "status": "status", "riskstatus": "status",
+    "responsibility": "owner_name", "owner": "owner_name", "riskowner": "owner_name",
+    "responsible": "owner_name", "assignedto": "owner_name", "accountable": "owner_name",
+    "category": "category", "riskcategory": "category", "risktype": "category",
+    "subcategory": "sub_category",
+    "boardvisibility": "board_visibility", "boardvisible": "board_visibility",
+    "strategicobjective": "strategic_objective",
+    "regulationlinks": "regulation_links", "regulation": "regulation_links",
+    "residuallikelihood": "residual_likelihood", "residualimpact": "residual_impact",
+    "riskstatement": "risk_statement",
+}
+
+_PRIORITY_MAP = {"p1": 5, "p2": 4, "p3": 3, "high": 5, "critical": 5, "medium": 3, "low": 1}
+
+_TREATMENT_TEXT = {
+    "risk mitigation": "mitigate", "mitigate": "mitigate", "mitigation": "mitigate",
+    "risk mitigatio": "mitigate", "reduce": "mitigate", "control": "mitigate",
+    "risk avoidance": "avoid", "avoid": "avoid", "avoidance": "avoid", "terminate": "avoid",
+    "risk transfer": "transfer", "transfer": "transfer", "share": "transfer", "insure": "transfer",
+    "risk acceptance": "accept", "accept": "accept", "acceptance": "accept", "tolerate": "accept",
+    "risk treatment": "mitigate",
+}
+
+_STATUS_TEXT = {
+    "wip": "open", "work in progress": "open", "in progress": "open", "open": "open",
+    "new": "open", "draft": "open", "identified": "open", "active": "open",
+    "under review": "under_review", "underreview": "under_review", "review": "under_review",
+    "mitigated": "mitigated", "controlled": "mitigated", "treated": "mitigated",
+    "accepted": "accepted", "tolerated": "accepted",
+    "closed": "closed", "complete": "closed", "done": "closed", "resolved": "closed",
+}
+
+_CATEGORY_KEYWORDS = {
+    "revenue": "Financial Risk", "financial": "Financial Risk", "finance": "Financial Risk",
+    "credit": "Credit Risk", "market": "Market Risk",
+    "infrastructure": "Technology Risk", "technology": "Technology Risk",
+    "it": "Technology Risk", "cyber": "Technology Risk", "information security": "Technology Risk",
+    "people": "Operational Risk", "hr": "Operational Risk", "process": "Operational Risk",
+    "operational": "Operational Risk",
+    "supply chain": "Third Party Risk", "vendor": "Third Party Risk",
+    "third party": "Third Party Risk", "supplier": "Third Party Risk",
+    "compliance": "Compliance & Legal Risk", "legal": "Compliance & Legal Risk",
+    "regulatory": "Compliance & Legal Risk",
+    "strategic": "Strategic Risk", "strategy": "Strategic Risk",
+    "reputational": "Reputational Risk", "reputation": "Reputational Risk", "brand": "Reputational Risk",
+    "environmental": "Environmental Risk", "climate": "Environmental Risk",
+    "suply": "Third Party Risk", "supply": "Third Party Risk",
+    "revenue": "Financial Risk", "income": "Financial Risk", "profit": "Financial Risk",
+}
+
+
+def _get_taxonomy_categories():
+    db = get_db()
+    try:
+        row = db.execute("SELECT id FROM erm_risk_frameworks WHERE is_active=1 LIMIT 1").fetchone()
+        if not row:
+            return []
+        fw_id = row[0] if isinstance(row, (tuple, list)) else row["id"]
+        rows = db.execute(
+            "SELECT name FROM erm_framework_taxonomy WHERE framework_id=%s AND parent_id IS NULL ORDER BY order_idx",
+            (fw_id,),
+        ).fetchall()
+        return [r[0] if isinstance(r, (tuple, list)) else r["name"] for r in rows]
+    finally:
+        db.close()
+
+
+def _fuzzy_match_category(raw, taxonomy_cats):
+    if not raw or not raw.strip():
+        return ("Operational Risk", "default")
+    clean = raw.strip()
+    lower = clean.lower()
+    for tc in taxonomy_cats:
+        if tc.lower() == lower:
+            return (tc, "exact")
+    matches = get_close_matches(clean, taxonomy_cats, n=1, cutoff=0.45)
+    if matches:
+        return (matches[0], "fuzzy")
+    for kw, cat in _CATEGORY_KEYWORDS.items():
+        if kw in lower:
+            if cat in taxonomy_cats:
+                return (cat, "keyword")
+    return (clean, "unmapped")
+
+
+def _fuzzy_match_owner(raw_name, users):
+    if not raw_name or not raw_name.strip():
+        return (None, "", "empty")
+    clean = raw_name.strip()
+    lower = clean.lower()
+    for u in users:
+        if (u.get("full_name") or "").lower() == lower:
+            return (u["id"], u["full_name"], "exact")
+    for u in users:
+        fn = (u.get("full_name") or "").lower()
+        if lower in fn or fn in lower:
+            return (u["id"], u["full_name"], "partial")
+    names = [u.get("full_name", "") for u in users]
+    matches = get_close_matches(clean, names, n=1, cutoff=0.5)
+    if matches:
+        uid = next((u["id"] for u in users if u.get("full_name") == matches[0]), None)
+        return (uid, matches[0], "fuzzy")
+    return (None, clean, "unmatched")
+
+
+def _parse_date(val):
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val.strftime("%Y-%m-%d")
+    s = str(val).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
+
+
+def _clamp(val, lo, hi, default):
+    try:
+        v = int(val)
+        return max(lo, min(hi, v))
+    except (TypeError, ValueError):
+        return default
+
+
+def parse_risk_register_excel(file_bytes):
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+    ws = wb.active
+
+    taxonomy_cats = _get_taxonomy_categories()
+    db = get_db()
+    try:
+        users = _dicts(db.execute("SELECT id, full_name, email FROM users").fetchall())
+    finally:
+        db.close()
+
+    header_row = None
+    header_map = {}
+    raw_headers = []
+
+    for row_idx in range(1, min(ws.max_row + 1, 20)):
+        cells = [ws.cell(row_idx, c).value for c in range(1, ws.max_column + 1)]
+        normed = [_norm_header(c) for c in cells if c is not None]
+        matched = sum(1 for n in normed if n in _HEADER_MAP)
+        if matched >= 3:
+            for col_idx in range(1, ws.max_column + 1):
+                val = ws.cell(row_idx, col_idx).value
+                if val is None:
+                    continue
+                n = _norm_header(val)
+                field = _HEADER_MAP.get(n)
+                if field and field != "_skip":
+                    header_map[col_idx] = field
+            raw_headers = [str(ws.cell(row_idx, c).value or "").strip() for c in range(1, ws.max_column + 1)]
+            header_row = row_idx
+            break
+
+    if header_row is None:
+        return {"error": "Could not detect a header row. Need at least 3 recognized column names."}
+
+    has_cat_col = "category" in header_map.values()
+    current_category = ""
+    rows = []
+    warnings = []
+    category_map = {}
+    owner_map = {}
+    title_col = None
+    desc_col = None
+    for ci, field in header_map.items():
+        if field == "title" and title_col is None:
+            title_col = ci
+        if field == "description" and desc_col is None:
+            desc_col = ci
+
+    if not has_cat_col and header_row:
+        first_cell = str(ws.cell(header_row, 1).value or "").strip()
+        first_norm = _norm_header(first_cell)
+        if first_cell and first_norm not in _HEADER_MAP:
+            current_category = first_cell
+            matched, conf = _fuzzy_match_category(current_category, taxonomy_cats)
+            category_map[current_category] = {"mapped": matched, "confidence": conf}
+
+    for row_idx in range(header_row + 1, ws.max_row + 1):
+        cell_a = ws.cell(row_idx, 1).value
+        cell_a_str = str(cell_a or "").strip()
+
+        if not has_cat_col and desc_col:
+            desc_val = ws.cell(row_idx, desc_col).value
+            desc_norm = _norm_header(desc_val) if desc_val else ""
+            if desc_norm in ("riskdescription", "description", "risktitle"):
+                current_category = cell_a_str
+                if current_category and current_category not in category_map:
+                    matched, conf = _fuzzy_match_category(current_category, taxonomy_cats)
+                    category_map[current_category] = {"mapped": matched, "confidence": conf}
+                continue
+
+        title_val = ws.cell(row_idx, title_col).value if title_col else cell_a
+        title_str = str(title_val or "").strip()
+        if not title_str:
+            continue
+
+        row_data = {}
+        extras = []
+        for col_idx in range(1, ws.max_column + 1):
+            val = ws.cell(row_idx, col_idx).value
+            if val is None:
+                continue
+            field = header_map.get(col_idx)
+            if field is None:
+                hdr = raw_headers[col_idx - 1] if col_idx - 1 < len(raw_headers) else f"Column {col_idx}"
+                if hdr and str(val).strip():
+                    extras.append(f"{hdr}: {str(val).strip()[:200]}")
+                continue
+            if field == "_skip":
+                continue
+            row_data[field] = val
+
+        risk = {"title": title_str, "source_module": "erm", "board_visibility": 0}
+
+        desc_parts = []
+        if row_data.get("description"):
+            desc_parts.append(str(row_data["description"]).strip())
+        if row_data.get("impact_description"):
+            desc_parts.append("Impact: " + str(row_data["impact_description"]).strip())
+        if row_data.get("review_frequency"):
+            freq = str(row_data["review_frequency"]).strip()
+            if freq.lower() not in ("review date", ""):
+                desc_parts.append("Review frequency: " + freq)
+        if extras:
+            desc_parts.append("--\n" + "\n".join(extras))
+        risk["description"] = "\n\n".join(desc_parts) if desc_parts else ""
+
+        if has_cat_col and row_data.get("category"):
+            cat_raw = str(row_data["category"]).strip()
+            if cat_raw not in category_map:
+                matched, conf = _fuzzy_match_category(cat_raw, taxonomy_cats)
+                category_map[cat_raw] = {"mapped": matched, "confidence": conf}
+            risk["category"] = cat_raw
+        elif current_category:
+            risk["category"] = current_category
+        else:
+            risk["category"] = "Operational Risk"
+
+        risk["sub_category"] = str(row_data.get("sub_category", "")).strip() or ""
+        risk["likelihood"] = _clamp(row_data.get("likelihood"), 1, 5, 3)
+        risk["impact"] = _clamp(row_data.get("impact"), 1, 5, 3)
+
+        if risk["likelihood"] == 3 and row_data.get("likelihood") is None:
+            warnings.append(f"Row {row_idx}: no likelihood value, defaulting to 3")
+        if risk["impact"] == 3 and row_data.get("impact") is None:
+            warnings.append(f"Row {row_idx}: no impact value, defaulting to 3")
+
+        pri = str(row_data.get("priority", "")).strip().lower()
+        risk["velocity"] = _PRIORITY_MAP.get(pri, 3)
+
+        treat_raw = str(row_data.get("treatment", "")).strip().lower()
+        risk["treatment"] = _TREATMENT_TEXT.get(treat_raw, "mitigate")
+
+        risk["treatment_plan"] = str(row_data.get("treatment_plan", "")).strip() or ""
+
+        status_raw = str(row_data.get("status", "")).strip().lower()
+        risk["status"] = _STATUS_TEXT.get(status_raw, "open")
+
+        risk["review_date"] = _parse_date(row_data.get("review_date"))
+        risk["strategic_objective"] = str(row_data.get("strategic_objective", "")).strip() or None
+        risk["regulation_links"] = str(row_data.get("regulation_links", "")).strip() or None
+        risk["risk_statement"] = str(row_data.get("risk_statement", "")).strip() or None
+
+        rl = row_data.get("residual_likelihood")
+        ri = row_data.get("residual_impact")
+        if rl is not None:
+            risk["residual_likelihood"] = _clamp(rl, 1, 5, None)
+        if ri is not None:
+            risk["residual_impact"] = _clamp(ri, 1, 5, None)
+
+        eff = row_data.get("effectiveness_rating")
+        if eff is not None:
+            risk["effectiveness_rating"] = _clamp(eff, 1, 5, None)
+
+        owner_raw = str(row_data.get("owner_name", "")).strip()
+        if owner_raw:
+            if owner_raw not in owner_map:
+                uid, display, conf = _fuzzy_match_owner(owner_raw, users)
+                owner_map[owner_raw] = {"user_id": uid, "display_name": display, "confidence": conf}
+            risk["owner_name"] = owner_raw
+            risk["owner_id"] = owner_map[owner_raw]["user_id"]
+        else:
+            risk["owner_name"] = ""
+            risk["owner_id"] = None
+
+        if row_data.get("board_visibility"):
+            bv = str(row_data["board_visibility"]).strip().lower()
+            risk["board_visibility"] = 1 if bv in ("1", "yes", "true", "y") else 0
+
+        rows.append(risk)
+
+    by_category = {}
+    by_status = {}
+    with_scores = 0
+    for r in rows:
+        cat = r.get("category", "Unknown")
+        by_category[cat] = by_category.get(cat, 0) + 1
+        st = r.get("status", "open")
+        by_status[st] = by_status.get(st, 0) + 1
+        if r.get("likelihood") and r.get("impact"):
+            with_scores += 1
+
+    col_display = {}
+    for ci, field in header_map.items():
+        hdr = raw_headers[ci - 1] if ci - 1 < len(raw_headers) else f"Col {ci}"
+        col_display[hdr] = field
+
+    return {
+        "rows": rows,
+        "summary": {
+            "total": len(rows),
+            "by_category": by_category,
+            "by_status": by_status,
+            "with_scores": with_scores,
+            "without_scores": len(rows) - with_scores,
+        },
+        "column_map": col_display,
+        "category_map": category_map,
+        "owner_map": owner_map,
+        "warnings": warnings[:50],
+        "taxonomy_categories": taxonomy_cats or [],
+        "sheet_name": ws.title,
+    }
+
+
+def bulk_import_risks(rows, created_by, category_overrides=None, owner_overrides=None):
+    cat_over = category_overrides or {}
+    own_over = owner_overrides or {}
+    imported = 0
+    skipped = 0
+    errors = []
+    for i, row in enumerate(rows):
+        try:
+            if not row.get("title", "").strip():
+                skipped += 1
+                continue
+            cat_raw = row.get("category", "")
+            if cat_raw in cat_over and cat_over[cat_raw]:
+                row["category"] = cat_over[cat_raw]
+            else:
+                cm = _fuzzy_match_category(cat_raw, _get_taxonomy_categories())
+                row["category"] = cm[0]
+            owner_raw = row.get("owner_name", "")
+            if owner_raw in own_over and own_over[owner_raw]:
+                row["owner_id"] = own_over[owner_raw]
+            row["created_by"] = created_by
+            row.pop("owner_name", None)
+            row.pop("impact_description", None)
+            row.pop("review_frequency", None)
+            row.pop("priority", None)
+            row.pop("effectiveness_rating", None)
+            create_enterprise_risk(row)
+            imported += 1
+        except Exception as exc:
+            _log.warning("Import row %d failed: %s", i + 1, exc)
+            errors.append({"row": i + 1, "title": row.get("title", ""), "error": str(exc)[:200]})
+    return {"imported": imported, "skipped": skipped, "errors": errors}
