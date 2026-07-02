@@ -1350,6 +1350,61 @@ async def api_ai_suggest_control(request: Request):
     return JSONResponse({"success": True, "suggestion": suggestion})
 
 
+@router.post("/api/audits/{audit_id}/ai-checklist")
+@require_capability("grid.control.assign")
+async def api_ai_checklist(request: Request, audit_id: int):
+    """Generate AI post-incident checklist for an audit linked to a breach/incident."""
+    audit = ds.get_audit(audit_id)
+    if not audit:
+        raise HTTPException(404, "Audit not found")
+
+    incident = ds.get_incident_source_for_audit(audit_id)
+    if not incident:
+        raise HTTPException(400, "No linked incident found for this audit")
+
+    regulations = ds.get_active_regulations()
+    policies = ds.get_aria_policy_titles()
+
+    try:
+        items = ai.generate_incident_checklist(incident, regulations, policies)
+    except Exception:
+        items = ai._stub_incident_checklist(incident)
+
+    vault_matches = {}
+    evidence_names = []
+    for item in items:
+        er = item.get("evidence_required") or []
+        if isinstance(er, str):
+            er = [e.strip() for e in er.split(",") if e.strip()]
+        evidence_names.extend(er)
+    if evidence_names:
+        vault_matches = ds.search_vault_for_evidence(evidence_names)
+
+    for item in items:
+        ev_req = item.get("evidence_required") or []
+        if isinstance(ev_req, str):
+            ev_req = [e.strip() for e in ev_req.split(",") if e.strip()]
+        matched = []
+        for part in ev_req:
+            part = part.strip()
+            if part and part in vault_matches and vault_matches[part]:
+                matched.append({"name": part, "vault_items": vault_matches[part]})
+            elif part:
+                matched.append({"name": part, "vault_items": []})
+        item["evidence_matches"] = matched
+
+    return JSONResponse({
+        "success": True,
+        "incident": {
+            "title": incident.get("title", ""),
+            "severity": incident.get("severity", ""),
+            "type": incident.get("type", ""),
+            "source_module": incident.get("source_module", ""),
+        },
+        "items": items,
+    })
+
+
 @router.post("/api/ai/generate-report/{audit_id}")
 @require_capability("grid.ai.report")
 async def api_ai_generate_report(request: Request, audit_id: int):

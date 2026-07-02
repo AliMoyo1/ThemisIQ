@@ -356,3 +356,131 @@ def parse_checklist_file(
         ]
 
     return _score_risks_in_batches(applicable, framework_name)
+
+
+# ---- AI Post-Incident Checklist ----
+
+def generate_incident_checklist(
+    incident: dict,
+    regulations: list[str] | None = None,
+    policies: list[str] | None = None,
+) -> list[dict]:
+    """Generate a post-incident closure checklist based on the incident details.
+
+    Returns a list of checklist items, each with:
+      - category (Containment / Notification / Investigation / Remediation / Documentation / Recovery)
+      - name (short task title)
+      - description (what needs to be verified)
+      - evidence_required (list of evidence item names needed)
+      - policy_ref (suggested ARIA policy that governs this item, if any)
+    """
+    if not is_configured():
+        return _stub_incident_checklist(incident)
+
+    reg_ctx = ""
+    if regulations:
+        reg_ctx = f"\nActive regulatory frameworks: {', '.join(regulations)}. Reference these specifically."
+    pol_ctx = ""
+    if policies:
+        pol_ctx = (
+            f"\nAvailable ARIA policies: {', '.join(policies[:30])}. "
+            "For each checklist item, suggest which of these policies governs it in the policy_ref field. "
+            "Use the exact policy name from this list when matching, or leave policy_ref empty if none match."
+        )
+
+    prompt = (
+        "You are an incident response and audit expert. Given the incident below, "
+        "generate a post-incident closure checklist of 8-15 items that an auditor must "
+        "verify before the post-incident audit can be signed off.\n\n"
+        "Group items into these categories: Containment, Notification, Investigation, "
+        "Remediation, Documentation, Recovery.\n\n"
+        f"Incident title: {_u(incident.get('title', 'Unknown'))}\n"
+        f"Type: {_u(incident.get('type', incident.get('breach_type', 'Unknown')))}\n"
+        f"Severity: {_u(incident.get('severity', 'Unknown'))}\n"
+        f"Description: {_u(incident.get('description', ''))}\n"
+        f"Data types affected: {_u(incident.get('data_types', ''))}\n"
+        f"Affected count: {incident.get('affected_count', 'Unknown')}\n"
+        f"Cause: {_u(incident.get('cause', ''))}\n"
+        f"{reg_ctx}{pol_ctx}\n\n"
+        "Respond in JSON array. Each item:\n"
+        '{"category":"...","name":"short task title","description":"what to verify",'
+        '"evidence_required":["evidence item 1","evidence item 2"],'
+        '"policy_ref":"matching ARIA policy name or empty string"}'
+    )
+
+    try:
+        text = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
+        items = safe_json_parse(text, None)
+        if isinstance(items, list) and items:
+            return items
+    except Exception:
+        pass
+    return _stub_incident_checklist(incident)
+
+
+def _stub_incident_checklist(incident: dict) -> list[dict]:
+    """Fallback checklist when AI is not configured."""
+    severity = (incident.get("severity") or "high").lower()
+    inc_type = (incident.get("type") or incident.get("breach_type") or "data_breach").lower()
+
+    items = [
+        {"category": "Containment", "name": "Affected systems isolated",
+         "description": "Confirm all compromised or affected systems were identified and isolated to prevent further exposure.",
+         "evidence_required": ["Isolation confirmation log", "Network segment change records"],
+         "policy_ref": ""},
+        {"category": "Containment", "name": "Compromised access revoked",
+         "description": "Verify that all potentially compromised user accounts, API keys, and access credentials were revoked or reset.",
+         "evidence_required": ["Credential reset confirmation", "Access audit log"],
+         "policy_ref": ""},
+        {"category": "Notification", "name": "Data Protection Authority notified",
+         "description": "Confirm the relevant Data Protection Authority was notified within the required statutory timeframe.",
+         "evidence_required": ["DPA notification letter", "Submission receipt or timestamp"],
+         "policy_ref": ""},
+        {"category": "Notification", "name": "Affected individuals notified",
+         "description": "Verify that all affected data subjects were informed of the breach, its potential impact, and steps they should take.",
+         "evidence_required": ["Notification letter template", "Distribution log"],
+         "policy_ref": ""},
+        {"category": "Investigation", "name": "Root cause analysis completed",
+         "description": "Confirm a thorough root cause analysis was conducted identifying how the incident occurred and what controls failed.",
+         "evidence_required": ["Root cause analysis report"],
+         "policy_ref": ""},
+        {"category": "Investigation", "name": "Impact assessment finalised",
+         "description": "Verify the full scope and impact of the incident has been assessed, including affected data types, volumes, and potential harm.",
+         "evidence_required": ["Impact assessment report", "Data inventory of affected records"],
+         "policy_ref": ""},
+        {"category": "Remediation", "name": "Vulnerability or control gap remediated",
+         "description": "Confirm the specific vulnerability, process failure, or control gap that caused the incident has been fixed and tested.",
+         "evidence_required": ["Change request record", "Test results or validation report"],
+         "policy_ref": ""},
+        {"category": "Remediation", "name": "Security controls strengthened",
+         "description": "Verify that additional preventive controls have been implemented to reduce the likelihood of recurrence.",
+         "evidence_required": ["Updated control documentation", "Implementation evidence"],
+         "policy_ref": ""},
+        {"category": "Documentation", "name": "Incident register updated",
+         "description": "Confirm the breach or incident register has been updated with all relevant details, timeline, and outcomes.",
+         "evidence_required": ["Updated incident register entry"],
+         "policy_ref": ""},
+        {"category": "Documentation", "name": "Lessons learned documented",
+         "description": "Verify a lessons learned report has been prepared and shared with relevant stakeholders.",
+         "evidence_required": ["Lessons learned report", "Meeting minutes from review session"],
+         "policy_ref": ""},
+        {"category": "Recovery", "name": "Normal operations restored",
+         "description": "Confirm that all affected services and systems have been fully restored to normal operation.",
+         "evidence_required": ["Service restoration confirmation", "System health check results"],
+         "policy_ref": ""},
+        {"category": "Recovery", "name": "Post-incident monitoring in place",
+         "description": "Verify that enhanced monitoring has been established for the affected systems to detect any further issues.",
+         "evidence_required": ["Monitoring configuration evidence", "Alert threshold documentation"],
+         "policy_ref": ""},
+    ]
+
+    if severity == "critical":
+        items.append({
+            "category": "Notification",
+            "name": "Board or executive management briefed",
+            "description": "Confirm the board or senior management received a formal briefing on the incident, its impact, and the response.",
+            "evidence_required": ["Board briefing document", "Meeting minutes"],
+            "policy_ref": "",
+        })
+
+    return items

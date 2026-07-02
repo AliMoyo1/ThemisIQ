@@ -1190,6 +1190,9 @@
         '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="openChecklistImportModal('+id+',\''+(fwLabel(audit)||'ISO 27001').replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'+
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>'+
           'Import Checklist</button>'+
+        '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:#7c3aed;color:#7c3aed" onclick="openAiChecklistModal('+id+')" title="AI generates post-incident checklist items based on the linked breach or incident">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M12 2a4 4 0 014 4v1h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M10 17h4"/></svg>'+
+          'AI Checklist</button>'+
         '<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px;border-color:#7c3aed;color:#7c3aed" onclick="autoAttachAuditPolicies('+id+')" title="Scan all controls and automatically attach matching approved ARIA policies as evidence">'+
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:3px"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>'+
           'Auto-Attach ARIA Policies</button>'+
@@ -1479,6 +1482,172 @@
       if(typeof showToast==='function')showToast('Import failed','error');
     }
     return false;
+  };
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     AI POST-INCIDENT CHECKLIST
+     ═══════════════════════════════════════════════════════════════════════ */
+  var _aiChecklistItems=null;
+  var _aiChecklistAuditId=null;
+
+  window.openAiChecklistModal=async function(auditId){
+    _aiChecklistAuditId=auditId;
+    _aiChecklistItems=null;
+    showModal(
+      '<div class="modal-title">AI Post-Incident Checklist</div>'+
+      '<button class="modal-close" onclick="closeModal()">&times;</button>'+
+      '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">Generating checklist items based on the linked incident. This may take a moment...</p>'+
+      '<div id="aiClLoading" style="text-align:center;padding:32px">'+
+        '<div class="spinner" style="margin:0 auto 12px"></div>'+
+        '<div style="font-size:13px;color:var(--muted)">Analysing incident and generating checklist...</div>'+
+      '</div>'+
+      '<div id="aiClPreview" style="display:none"></div>'+
+      '<div id="aiClFooter" style="display:none;display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
+        '<button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>'+
+        '<button type="button" class="btn btn-primary" id="aiClAddBtn" onclick="aiChecklistCommit()">Add to Audit</button>'+
+      '</div>',
+      {width:'720px'}
+    );
+    try{
+      var resp=await fetch('/grid/api/audits/'+auditId+'/ai-checklist',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      var data=await resp.json();
+      if(!resp.ok){
+        document.getElementById('aiClLoading').innerHTML='<div style="color:var(--danger);font-size:13px">'+(data.detail||'Failed to generate checklist')+'</div>';
+        return;
+      }
+      _aiChecklistItems=data.items||[];
+      renderAiChecklistPreview(data);
+    }catch(e){
+      var el=document.getElementById('aiClLoading');
+      if(el) el.innerHTML='<div style="color:var(--danger);font-size:13px">Network error. Please try again.</div>';
+    }
+  };
+
+  function renderAiChecklistPreview(data){
+    var loading=document.getElementById('aiClLoading');
+    if(loading) loading.style.display='none';
+    var preview=document.getElementById('aiClPreview');
+    if(!preview) return;
+    preview.style.display='block';
+
+    var inc=data.incident||{};
+    var items=data.items||[];
+    var categories={};
+    items.forEach(function(item,idx){
+      item._idx=idx;
+      item._selected=true;
+      var cat=item.category||'General';
+      if(!categories[cat]) categories[cat]=[];
+      categories[cat].push(item);
+    });
+
+    var html='<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">'+
+      '<div style="background:var(--bg-tertiary);border-radius:var(--radius);padding:8px 14px;font-size:12px">'+
+        '<div style="color:var(--muted);margin-bottom:2px">Source</div>'+
+        '<div style="font-weight:600">'+esc(inc.source_module==='sentinel'?'Sentinel Breach':'BCM Incident')+'</div>'+
+      '</div>'+
+      '<div style="background:var(--bg-tertiary);border-radius:var(--radius);padding:8px 14px;font-size:12px">'+
+        '<div style="color:var(--muted);margin-bottom:2px">Incident</div>'+
+        '<div style="font-weight:600">'+esc(inc.title||'Unknown')+'</div>'+
+      '</div>'+
+      '<div style="background:var(--bg-tertiary);border-radius:var(--radius);padding:8px 14px;font-size:12px">'+
+        '<div style="color:var(--muted);margin-bottom:2px">Severity</div>'+
+        '<div style="font-weight:600;color:var(--danger)">'+esc((inc.severity||'medium').toUpperCase())+'</div>'+
+      '</div>'+
+      '<div style="background:var(--bg-tertiary);border-radius:var(--radius);padding:8px 14px;font-size:12px">'+
+        '<div style="color:var(--muted);margin-bottom:2px">Items</div>'+
+        '<div style="font-weight:600">'+items.length+'</div>'+
+      '</div>'+
+    '</div>';
+
+    html+='<div style="max-height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">';
+    Object.keys(categories).forEach(function(cat){
+      html+='<div style="padding:8px 12px;background:var(--bg-tertiary);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);border-bottom:1px solid var(--border)">'+esc(cat)+'</div>';
+      categories[cat].forEach(function(item){
+        var evHtml='';
+        if(item.evidence_matches&&item.evidence_matches.length){
+          item.evidence_matches.forEach(function(em){
+            if(em.vault_items&&em.vault_items.length){
+              evHtml+='<span style="display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;background:#dcfce7;color:#166534;margin:2px 2px 0 0" title="Found in Evidence Vault">'+esc(em.name)+'</span>';
+            }else{
+              evHtml+='<span style="display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;background:#fef3c7;color:#92400e;margin:2px 2px 0 0" title="Not found in vault, upload needed">'+esc(em.name)+'</span>';
+            }
+          });
+        }
+        var policyHtml=item.policy_ref?'<div style="font-size:11px;color:#7c3aed;margin-top:2px">Policy: '+esc(item.policy_ref)+'</div>':'';
+        html+='<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start">'+
+          '<input type="checkbox" checked onchange="toggleAiClItem('+item._idx+',this.checked)" style="margin-top:3px;flex-shrink:0">'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:13px;font-weight:600">'+esc(item.name)+'</div>'+
+            '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+esc(item.description||'')+'</div>'+
+            policyHtml+
+            (evHtml?'<div style="margin-top:4px">'+evHtml+'</div>':'')+
+          '</div>'+
+        '</div>';
+      });
+    });
+    html+='</div>';
+
+    preview.innerHTML=html;
+    var footer=document.getElementById('aiClFooter');
+    if(footer) footer.style.display='flex';
+  }
+
+  window.toggleAiClItem=function(idx,checked){
+    if(_aiChecklistItems&&_aiChecklistItems[idx]){
+      _aiChecklistItems[idx]._selected=checked;
+    }
+  };
+
+  window.aiChecklistCommit=async function(){
+    if(!_aiChecklistItems||!_aiChecklistAuditId) return;
+    var selected=_aiChecklistItems.filter(function(it){return it._selected;});
+    if(!selected.length){
+      if(typeof showToast==='function') showToast('Select at least one item','warning');
+      return;
+    }
+    var btn=document.getElementById('aiClAddBtn');
+    if(btn){btn.disabled=true;btn.textContent='Adding...';}
+
+    var audit=await api('/grid/api/audits/'+_aiChecklistAuditId);
+    if(!audit){
+      if(typeof showToast==='function') showToast('Could not load audit','error');
+      if(btn){btn.disabled=false;btn.textContent='Add to Audit';}
+      return;
+    }
+
+    var controls=selected.map(function(item){
+      var evItems=(item.evidence_matches||[]).map(function(em){
+        return {name:em.name,description:em.name,required:true};
+      });
+      if(!evItems.length&&item.evidence_required){
+        var erList=Array.isArray(item.evidence_required)?item.evidence_required:item.evidence_required.split(',');
+        erList.forEach(function(e){
+          var n=(e||'').trim();
+          if(n) evItems.push({name:n,description:n,required:true});
+        });
+      }
+      return {
+        control_id:'PI-'+(item.category||'GEN').substring(0,3).toUpperCase()+'-'+String(Math.floor(Math.random()*900)+100),
+        name:item.name,
+        description:(item.description||'')+(item.policy_ref?'\nPolicy reference: '+item.policy_ref:''),
+        risk_level:'Medium',
+        status:'Not Started',
+        evidence_required:evItems
+      };
+    });
+
+    var body={audit_id:_aiChecklistAuditId,framework_id:audit.framework_id,controls:controls};
+    var res=await api('/grid/api/controls/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(res&&res.count){
+      closeModal();
+      _aiChecklistItems=null;
+      if(typeof showToast==='function') showToast(res.count+' checklist items added','success');
+      loadAuditDetail(_aiChecklistAuditId);
+    }else{
+      if(typeof showToast==='function') showToast('Failed to add items','error');
+      if(btn){btn.disabled=false;btn.textContent='Add to Audit';}
+    }
   };
 
   /* ═══════════════════════════════════════════════════════════════════════

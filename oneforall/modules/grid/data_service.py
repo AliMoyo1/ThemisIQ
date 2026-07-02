@@ -207,6 +207,100 @@ def get_audit(aid):
     finally:
         db.close()
 
+def get_incident_source_for_audit(audit_id):
+    """Find the source incident (Sentinel breach or BCM incident) that triggered this audit."""
+    db = get_db()
+    try:
+        link = db.execute(
+            "SELECT source_module, source_type, source_id "
+            "FROM cross_module_links "
+            "WHERE target_module='grid' AND target_type='audit' AND target_id=%s "
+            "AND source_module IN ('sentinel','bcm') "
+            "ORDER BY id LIMIT 1",
+            (audit_id,)
+        ).fetchone()
+        if not link:
+            return None
+        src_mod = link["source_module"]
+        src_id = link["source_id"]
+        if src_mod == "sentinel":
+            row = db.execute(
+                "SELECT id, title, description, severity, status, data_types, "
+                "affected_count, root_cause, breach_type, regulation, discovery_date "
+                "FROM sentinel_breaches WHERE id=%s", (src_id,)
+            ).fetchone()
+            if row:
+                d = dict(row)
+                d["source_module"] = "sentinel"
+                d["type"] = d.get("breach_type") or "data_breach"
+                d["cause"] = d.pop("root_cause", "")
+                return d
+        elif src_mod == "bcm":
+            row = db.execute(
+                "SELECT id, title, description, severity, status, impact "
+                "FROM bcm_incidents WHERE id=%s", (src_id,)
+            ).fetchone()
+            if row:
+                d = dict(row)
+                d["source_module"] = "bcm"
+                d["type"] = "business_continuity_incident"
+                return d
+        return None
+    finally:
+        db.close()
+
+
+def get_aria_policy_titles():
+    """Return a list of ARIA policy titles for AI matching."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT title FROM aria_documents WHERE status IN ('Approved','Published','Active') "
+            "ORDER BY title"
+        ).fetchall()
+        return [r["title"] for r in rows]
+    except Exception:
+        return []
+    finally:
+        db.close()
+
+
+def get_active_regulations():
+    """Return active framework/regulation names."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT name FROM frameworks WHERE is_active=1 ORDER BY name"
+        ).fetchall()
+        return [r["name"] for r in rows]
+    except Exception:
+        return []
+    finally:
+        db.close()
+
+
+def search_vault_for_evidence(evidence_names):
+    """Search the Evidence Vault for items matching a list of evidence item names.
+
+    Returns a dict: {evidence_name: [{id, title, category, status}]}
+    """
+    db = get_db()
+    try:
+        result = {}
+        for name in evidence_names:
+            q = "%" + name.strip() + "%"
+            rows = db.execute(
+                "SELECT id, title, category, status FROM evidence_items "
+                "WHERE status != 'archived' AND (title LIKE %s OR tags LIKE %s) "
+                "ORDER BY updated_at DESC LIMIT 3",
+                (q, q)
+            ).fetchall()
+            result[name] = [dict(r) for r in rows]
+        return result
+    finally:
+        db.close()
+
+
 def create_audit(data):
     import json as _json
     db = get_db()
@@ -461,8 +555,9 @@ def create_controls_bulk(audit_id, framework_id, controls):
                 "INSERT INTO grid_controls (audit_id, framework_id, control_id, name, description, risk_level) VALUES (%s,%s,%s,%s,%s,%s)",
                 (audit_id, framework_id, c.get("control_id", ""), c.get("name", ""), c.get("description", ""), c.get("risk_level", "Medium")))
             for ev in c.get("evidence_required", []):
-                if ev:
-                    db.execute("INSERT INTO grid_evidence_items (control_id, name) VALUES (%s,%s)", (cid, ev))
+                ev_name = ev.get("name", "") if isinstance(ev, dict) else ev
+                if ev_name:
+                    db.execute("INSERT INTO grid_evidence_items (control_id, name) VALUES (%s,%s)", (cid, ev_name))
             created.append(cid)
         db.commit()
         return created
