@@ -2833,6 +2833,28 @@ def erm_data_breach_risk_creates_sentinel_breach(event_type, source_module, enti
         )
         db.commit()
 
+        # Fire SENTINEL_BREACH_CONFIRMED so downstream handlers create
+        # regulatory obligations, risk register entry, tasks, and evidence.
+        from modules.sentinel.data_service import get_active_jurisdictions
+        emit(
+            SENTINEL_BREACH_CONFIRMED,
+            source_module="sentinel",
+            entity_type="breach",
+            entity_id=breach_id,
+            payload={
+                "title": title,
+                "severity": sev,
+                "category": category,
+                "affected_records": 0,
+                "description": breach_data["description"],
+                "regulation": settings.DEFAULT_REGULATION,
+                "active_jurisdictions": [
+                    j["jurisdiction_key"] for j in get_active_jurisdictions()
+                ],
+            },
+            user_id=user_id,
+        )
+
         _notify_admins(
             db, "sentinel",
             f"Privacy Breach Opened: {title}",
