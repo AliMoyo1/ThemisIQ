@@ -2477,6 +2477,14 @@ CREATE TABLE IF NOT EXISTS sentinel_breaches (
     ai_analysis     TEXT,
     regulation      TEXT DEFAULT 'GDPR',
     notes           TEXT,
+    discovery_date  TEXT,
+    incident_date   TEXT,
+    breach_type     TEXT,
+    remediation     TEXT,
+    authority_notify_date TEXT,
+    authority_ref   TEXT,
+    subjects_notify_date TEXT,
+    ai_assessment   TEXT,
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))
 );
@@ -3322,6 +3330,15 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_ropa", "controller_name", "TEXT"),
         ("sentinel_ropa", "dpo_name", "TEXT"),
         ("sentinel_ropa", "dpo_email", "TEXT"),
+        # Sentinel Breach — columns referenced by _BREACH_FIELDS but missing from original CREATE TABLE
+        ("sentinel_breaches", "discovery_date", "TEXT"),
+        ("sentinel_breaches", "incident_date", "TEXT"),
+        ("sentinel_breaches", "breach_type", "TEXT"),
+        ("sentinel_breaches", "remediation", "TEXT"),
+        ("sentinel_breaches", "authority_notify_date", "TEXT"),
+        ("sentinel_breaches", "authority_ref", "TEXT"),
+        ("sentinel_breaches", "subjects_notify_date", "TEXT"),
+        ("sentinel_breaches", "ai_assessment", "TEXT"),
         # Sentinel Breach — notification tracking columns
         ("sentinel_breaches", "notify_deadline", "TEXT"),
         ("sentinel_breaches", "breach_notified_24h", "INTEGER DEFAULT 0"),
