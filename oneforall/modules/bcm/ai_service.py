@@ -60,9 +60,15 @@ def _stub_review_plan(plan: dict) -> dict:
 
 # ── Incident Action Suggestions ─────────────────────────────────────────────
 
-def suggest_incident_actions(incident: dict) -> list[dict]:
+def suggest_incident_actions(incident: dict, active_regulations: list[str] | None = None) -> list[dict]:
     if not is_configured():
         return _stub_suggest_actions(incident)
+    reg_line = ""
+    if active_regulations:
+        reg_line = (
+            f"\nActive regulatory frameworks for this organisation: {', '.join(active_regulations)}. "
+            "Reference only these frameworks in your rationale — do not cite GDPR or other frameworks not in this list unless directly relevant."
+        )
     prompt = (
         "You are an incident commander. Given this incident, suggest 3-5 "
         "immediate actions. Each action should have: action (str), "
@@ -70,7 +76,8 @@ def suggest_incident_actions(incident: dict) -> list[dict]:
         f"Incident: {_u(incident.get('title', 'Unknown'))}\n"
         f"Type: {_u(incident.get('type', 'Unknown'))}\n"
         f"Severity: {_u(incident.get('severity', 'Unknown'))}\n"
-        f"Description: {_u(incident.get('description', ''))}\n\n"
+        f"Description: {_u(incident.get('description', ''))}\n"
+        f"{reg_line}\n"
         "Respond in JSON array: [{\"action\": ..., \"priority\": ..., \"rationale\": ...}]"
     )
     try:

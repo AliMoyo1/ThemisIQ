@@ -3827,12 +3827,12 @@ def _seed_baseline_data(conn):
             _LIBRARY_SEEDS = [
                 # (title, description, category, likelihood, impact, treatment, controls, industries, regulations, tags)
                 ("Ransomware Attack","Malicious encryption of critical systems demanding payment","Technology Risk",4,5,"mitigate","MFA, backups, EDR, patch management","all","ISO 27001, NIST CSF","cyber,ransomware,critical"),
-                ("Data Breach - PII Exposure","Unauthorised access to or disclosure of personal data","Compliance & Legal Risk",3,5,"mitigate","Access controls, encryption, DLP","all","GDPR, POPIA, HIPAA","data,privacy,gdpr"),
+                ("Data Breach - PII Exposure","Unauthorised access to or disclosure of personal data","Compliance & Legal Risk",3,5,"mitigate","Access controls, encryption, DLP","all","Zimbabwe CDPA, POPIA, HIPAA","data,privacy,cdpa"),
                 ("Key Person Dependency","Critical operations reliant on single individual","Operational Risk",3,4,"mitigate","Knowledge transfer, cross-training, succession planning","all","","hr,operational"),
                 ("Cloud Provider Outage","Primary cloud/SaaS provider unavailability","Technology Risk",3,4,"mitigate","Multi-cloud, SLA monitoring, DR plan","all","ISO 22301","cloud,availability,dr"),
                 ("Supplier Bankruptcy / Failure","Key supplier ceases operations unexpectedly","Third Party Risk",2,5,"mitigate","Supplier due diligence, alternative suppliers, contracts","all","","vendor,supply_chain"),
                 ("Internal Fraud","Employee misappropriation of funds or assets","Operational Risk",2,5,"mitigate","Segregation of duties, audit trails, background checks","financial,telecom","","fraud,internal"),
-                ("Regulatory Non-Compliance","Failure to meet legal or regulatory requirements","Compliance & Legal Risk",3,5,"avoid","Compliance register, legal review, training","all","GDPR, ISO 27001, POPIA","regulatory,compliance"),
+                ("Regulatory Non-Compliance","Failure to meet legal or regulatory requirements","Compliance & Legal Risk",3,5,"avoid","Compliance register, legal review, training","all","Zimbabwe CDPA, ISO 27001, POPIA","regulatory,compliance"),
                 ("Pandemic / Health Crisis","Widespread illness impacting workforce availability","Strategic Risk",2,4,"mitigate","Remote work capability, succession planning, BCM","all","ISO 22301","pandemic,bcm,strategic"),
                 ("Natural Disaster","Flood, earthquake, fire affecting primary facilities","Strategic Risk",2,5,"mitigate","Business continuity plan, off-site backups, insurance","all","ISO 22301","disaster,bcm"),
                 ("Zero-Day Vulnerability","Exploitation of previously unknown software vulnerability","Technology Risk",3,5,"mitigate","Vulnerability management, threat intelligence, patch SLAs","all","ISO 27001, NIST","cyber,vulnerability"),
@@ -3840,16 +3840,16 @@ def _seed_baseline_data(conn):
                 ("Liquidity Risk","Inability to meet short-term financial obligations","Financial Risk",2,5,"mitigate","Cash flow forecasting, credit facilities, reserves","financial","","financial,liquidity"),
                 ("Reputational Damage - Social Media","Viral negative content damaging brand perception","Reputational Risk",3,4,"mitigate","Social media policy, PR response plan, monitoring","all","","reputation,social"),
                 ("Phishing / Social Engineering","Staff tricked into disclosing credentials or transferring funds","Operational Risk",4,4,"mitigate","Security awareness training, MFA, email filtering","all","ISO 27001","phishing,human_error"),
-                ("Access Control Failure","Inappropriate access to sensitive systems or data","Compliance & Legal Risk",3,4,"mitigate","IAM, privilege review, PAM, access logging","all","ISO 27001, GDPR","access,iam"),
-                ("Third-Party Data Breach","Vendor or partner suffers breach exposing shared data","Third Party Risk",3,5,"mitigate","Vendor assessments, DPAs, contract clauses","all","GDPR, POPIA","vendor,data,privacy"),
+                ("Access Control Failure","Inappropriate access to sensitive systems or data","Compliance & Legal Risk",3,4,"mitigate","IAM, privilege review, PAM, access logging","all","ISO 27001, Zimbabwe CDPA","access,iam"),
+                ("Third-Party Data Breach","Vendor or partner suffers breach exposing shared data","Third Party Risk",3,5,"mitigate","Vendor assessments, DPAs, contract clauses","all","Zimbabwe CDPA, POPIA","vendor,data,privacy"),
                 ("Business Email Compromise (BEC)","Fraudulent email redirection of payments","Operational Risk",3,5,"mitigate","Email authentication, payment verification, training","financial,telecom","","bec,fraud,email"),
-                ("GDPR Consent Failure","Processing personal data without valid consent basis","Compliance & Legal Risk",3,4,"avoid","Consent management, privacy notices, DPO oversight","all","GDPR, POPIA","gdpr,consent,privacy"),
+                ("Data Subject Consent Failure","Processing personal data without a valid consent basis or lawful ground","Compliance & Legal Risk",3,4,"avoid","Consent management, privacy notices, DPO oversight","all","Zimbabwe CDPA, POPIA","cdpa,consent,privacy"),
                 ("IT Disaster Recovery Gap","Critical systems lack tested recovery procedures","Technology Risk",3,4,"mitigate","DR plan, regular testing, RTO/RPO definition","all","ISO 22301, ISO 27001","dr,it,recovery"),
                 ("Talent Retention Risk","Loss of skilled staff to competitors","Operational Risk",3,3,"mitigate","Competitive compensation, engagement, succession planning","all","","hr,talent,operational"),
-                ("Regulatory Action / Fine","Regulator investigates or fines the organisation","Compliance & Legal Risk",2,5,"avoid","Compliance programme, legal monitoring, self-assessment","all","GDPR, POPIA, ISO","regulatory,fine"),
+                ("Regulatory Action / Fine","Regulator investigates or fines the organisation","Compliance & Legal Risk",2,5,"avoid","Compliance programme, legal monitoring, self-assessment","all","Zimbabwe CDPA, POPIA, ISO","regulatory,fine"),
                 ("Payment System Failure","Critical payment processing unavailable","Technology Risk",3,5,"mitigate","Redundant payment rails, manual fallback, monitoring","financial,telecom","ISO 22301","payments,availability"),
                 ("SIM Swap / Telecoms Fraud","Fraudulent number porting enabling account takeover","Operational Risk",4,4,"mitigate","Multi-factor auth, verification controls, fraud monitoring","telecom","","telecom,fraud,sim"),
-                ("Contact Centre Data Leak","Agent accidentally or intentionally discloses customer PII","Operational Risk",3,4,"mitigate","Screen recording policy, CRM access controls, training","telecom,financial","GDPR","contact_centre,data,privacy"),
+                ("Contact Centre Data Leak","Agent accidentally or intentionally discloses customer PII","Operational Risk",3,4,"mitigate","Screen recording policy, CRM access controls, training","telecom,financial","Zimbabwe CDPA","contact_centre,data,privacy"),
                 ("AI / Model Risk","AI model produces harmful, biased, or incorrect outputs","Technology Risk",3,4,"mitigate","AI governance, model validation, human oversight","all","ISO 42001","ai,model,technology"),
             ]
             for row in _LIBRARY_SEEDS:
@@ -3861,6 +3861,33 @@ def _seed_baseline_data(conn):
                     row,
                 )
             conn.commit()
+    except Exception:
+        pass
+
+    # ── Migrate ERM library regulation references to active jurisdiction ───────
+    try:
+        _GDPR_REPL = [
+            ("GDPR, POPIA, HIPAA",  "Zimbabwe CDPA, POPIA, HIPAA"),
+            ("GDPR, ISO 27001, POPIA", "Zimbabwe CDPA, ISO 27001, POPIA"),
+            ("ISO 27001, GDPR",     "ISO 27001, Zimbabwe CDPA"),
+            ("GDPR, POPIA",         "Zimbabwe CDPA, POPIA"),
+            ("GDPR, POPIA, ISO",    "Zimbabwe CDPA, POPIA, ISO"),
+            ("GDPR",                "Zimbabwe CDPA"),
+        ]
+        for old_ref, new_ref in _GDPR_REPL:
+            conn.execute(
+                "UPDATE erm_risk_library SET regulatory_references=%s "
+                "WHERE regulatory_references=%s",
+                (new_ref, old_ref),
+            )
+        conn.execute(
+            "UPDATE erm_risk_library SET title=%s, description=%s, tags=%s "
+            "WHERE title='GDPR Consent Failure'",
+            ("Data Subject Consent Failure",
+             "Processing personal data without a valid consent basis or lawful ground",
+             "cdpa,consent,privacy"),
+        )
+        conn.commit()
     except Exception:
         pass
 

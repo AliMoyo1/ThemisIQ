@@ -2437,7 +2437,27 @@
   /* — Timeline tab — */
   function bcmRenderConsoleTimeline(body,footer,inc){
     var updates=inc.updates||[];
-    body.innerHTML=updates.length?
+    var actions=inc.actions||[];
+    var openCount=actions.filter(function(a){return a.status!=='done';}).length;
+    var doneCount=actions.filter(function(a){return a.status==='done';}).length;
+    var elapsed='';
+    if(inc.declared_at||inc.created_at){
+      var start=new Date(inc.declared_at||inc.created_at);
+      var diffMs=Date.now()-start.getTime();
+      var diffH=Math.floor(diffMs/3600000);
+      var diffD=Math.floor(diffH/24);
+      elapsed=diffD>0?diffD+'d '+((diffH%24))+'h elapsed':diffH+'h elapsed';
+    }
+    var sevColors={critical:'var(--red,#dc2626)',high:'var(--amber,#d97706)',medium:'var(--blue,#3b82f6)',low:'var(--good,#16a34a)'};
+    var sevColor=sevColors[(inc.severity||'').toLowerCase()]||'var(--muted)';
+    var sitrep='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">'+
+      (inc.severity?'<span style="font-weight:700;color:'+sevColor+'">'+esc((inc.severity||'').toUpperCase())+'</span>':'')+
+      (elapsed?'<span style="color:var(--muted)">&#x23F1; '+esc(elapsed)+'</span>':'')+
+      '<span style="color:var(--muted)">&#128203; '+openCount+' open action'+(openCount!==1?'s':'')+'</span>'+
+      '<span style="color:var(--good,#16a34a)">&#10003; '+doneCount+' done</span>'+
+      '<span style="color:var(--muted)">&#128227; '+updates.length+' update'+(updates.length!==1?'s':'')+'</span>'+
+    '</div>';
+    body.innerHTML=sitrep+(updates.length?
       '<div style="padding:4px 0">'+updates.map(function(u){
         return '<div class="bcm-tl-item">'+
           '<div class="bcm-tl-dot" style="margin-top:3px"></div>'+
@@ -2447,7 +2467,7 @@
           '</div>'+
         '</div>';
       }).join('')+'</div>' :
-      '<div style="color:var(--muted);text-align:center;padding:32px">No updates yet — post the first status update below</div>';
+      '<div style="color:var(--muted);padding:16px 0;font-size:13px">No updates yet. Post an initial situation report: what happened, scope of impact, and initial assessment.</div>');
 
     footer.innerHTML=
       '<div style="display:flex;gap:8px">'+
@@ -2459,6 +2479,19 @@
   /* — Decisions tab — */
   function bcmRenderConsoleDecisions(body,footer,inc){
     var decisions=inc.decisions||[];
+    var sev=(inc.severity||'medium').toLowerCase();
+    var _suggDecisions={
+      critical:['Invoke crisis management protocol and convene war room','Escalate to executive leadership and board notification','Authorise emergency resource allocation without standard approval gates','Determine whether regulatory notification is required and by when'],
+      high:['Activate incident response team and assign incident commander','Notify key stakeholders and set communication cadence','Assess impact on critical processes and prioritise recovery order','Review and invoke relevant continuity plans'],
+      medium:['Assign incident owner and document response scope','Determine workaround procedures for affected services','Set review checkpoint in 24 hours','Communicate status to affected teams'],
+      low:['Log incident and assign to operational team','Identify root cause and document timeline','Implement corrective action and schedule follow-up review']
+    };
+    var suggList=_suggDecisions[sev]||_suggDecisions['medium'];
+    var emptyHtml='<div style="color:var(--muted);padding:8px 0;font-size:13px">No decisions logged yet.</div>'+
+      '<div style="margin-top:12px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Suggested decisions for a '+esc(sev)+' incident</div>'+
+        suggList.map(function(s){return'<div style="font-size:12px;color:var(--text);padding:4px 0;display:flex;gap:8px;align-items:start"><span style="color:var(--accent);flex-shrink:0">&#8227;</span>'+esc(s)+'</div>';}).join('')+
+      '</div>';
     body.innerHTML=decisions.length?
       decisions.map(function(d){
         return '<div class="bcm-decision-item">'+
@@ -2467,7 +2500,7 @@
           '<div style="font-size:11px;color:var(--muted);margin-top:4px">'+esc(d.decided_by||'')+(d.decided_at?' &bull; '+timeAgoShort(d.decided_at):'')+'</div>'+
         '</div>';
       }).join('') :
-      '<div style="color:var(--muted);text-align:center;padding:32px">No decisions logged yet</div>';
+      emptyHtml;
 
     footer.innerHTML=
       '<div style="display:flex;flex-direction:column;gap:8px">'+
@@ -2482,7 +2515,29 @@
   /* — Stakeholders tab — */
   function bcmRenderConsoleStakeholders(body,footer,inc){
     var stakeholders=inc.stakeholders||[];
+    var incType=(inc.type||'').toLowerCase();
+    var notified=stakeholders.filter(function(s){return s.notified_at;}).length;
+    var pending=stakeholders.length-notified;
+    var _typeRoles={
+      cyber:['CISO / IT Security Lead','Data Protection Officer','Legal Counsel','Communications / PR Lead','Executive Sponsor'],
+      operational:['Operations Director','BCM Manager','HR Lead','Facilities Manager','Executive Sponsor'],
+      reputational:['Communications / PR Lead','Executive Sponsor','Legal Counsel','Customer Relations Lead'],
+      compliance:['Data Protection Officer','Legal Counsel','Compliance Manager','Executive Sponsor'],
+      financial:['CFO','Finance Director','Legal Counsel','External Auditor'],
+    };
+    var matchKey=Object.keys(_typeRoles).find(function(k){return incType.indexOf(k)>-1;})||'operational';
+    var suggRoles=_typeRoles[matchKey];
+    var notifSummary=stakeholders.length?
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;display:flex;gap:12px">'+
+        '<span style="color:var(--good,#16a34a)">&#10003; '+notified+' notified</span>'+
+        (pending?'<span style="color:var(--amber,#d97706)">&#9888; '+pending+' pending</span>':'')+'</div>':'';
+    var emptyHtml='<div style="color:var(--muted);padding:8px 0;font-size:13px">No stakeholders added yet.</div>'+
+      '<div style="margin-top:12px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Suggested roles to notify</div>'+
+        suggRoles.map(function(r){return'<div style="font-size:12px;color:var(--text);padding:3px 0;display:flex;gap:8px"><span style="color:var(--accent)">&#8227;</span>'+esc(r)+'</div>';}).join('')+
+      '</div>';
     body.innerHTML=stakeholders.length?
+      notifSummary+
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">'+
       stakeholders.map(function(s){
         return '<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;border:1px solid var(--border)">'+
@@ -2493,7 +2548,7 @@
             '<button class="btn btn-sm btn-secondary" style="font-size:10px;margin-top:6px" onclick="bcmMarkNotified('+inc.id+','+s.id+')">Mark Notified</button>')+
         '</div>';
       }).join('')+'</div>' :
-      '<div style="color:var(--muted);text-align:center;padding:32px">No stakeholders added yet</div>';
+      emptyHtml;
 
     footer.innerHTML=
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
@@ -2507,6 +2562,24 @@
   /* — Plans tab — */
   function bcmRenderConsolePlans(body,footer,inc){
     var links=inc.plan_links||[];
+    var incWords=(inc.title+' '+(inc.type||'')+' '+(inc.description||'')).toLowerCase().split(/\W+/).filter(function(w){return w.length>3;});
+    var suggestedPlans=planCache.filter(function(p){
+      var pt=(p.title+' '+(p.description||'')).toLowerCase();
+      return incWords.some(function(w){return pt.indexOf(w)>-1;});
+    }).filter(function(p){
+      return !links.some(function(l){return l.plan_id===p.id;});
+    }).slice(0,3);
+    var linkedIds=links.map(function(l){return l.plan_id;});
+    var suggestHtml=suggestedPlans.length?
+      '<div style="margin-top:14px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Suggested plans for this incident</div>'+
+        suggestedPlans.map(function(p){
+          return'<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">'+
+            '<span style="font-size:12px;color:var(--text)">'+esc(p.title||'')+'</span>'+
+            '<button class="btn btn-sm btn-secondary" style="font-size:10px" onclick="document.getElementById(\'linkPlanSel\').value=\''+p.id+'\';bcmLinkConsolePlan('+inc.id+')">Link</button>'+
+          '</div>';
+        }).join('')+
+      '</div>':'';
     body.innerHTML=links.length?
       links.map(function(l){
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'+
@@ -2519,15 +2592,14 @@
             '<button class="btn btn-sm btn-secondary" style="font-size:11px;color:var(--red)" onclick="bcmUnlinkConsolePlan('+inc.id+','+l.id+')">Unlink</button>'+
           '</div>'+
         '</div>';
-      }).join('') :
-      '<div style="color:var(--muted);text-align:center;padding:32px">No plans linked — link a continuity plan to this incident</div>';
+      }).join('')+suggestHtml :
+      '<div style="color:var(--muted);font-size:13px;padding:8px 0">No plans linked yet.</div>'+suggestHtml;
 
-    // Dropdown to link a plan
     var planOptions=planCache.map(function(p){return '<option value="'+p.id+'">'+esc(p.title)+'</option>';}).join('');
     footer.innerHTML=
       '<div style="display:flex;gap:8px">'+
         '<select id="linkPlanSel" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
-          '<option value="">— Select a plan to link —</option>'+planOptions+
+          '<option value="">Select a plan to link...</option>'+planOptions+
         '</select>'+
         '<button class="btn btn-primary" style="flex-shrink:0" onclick="bcmLinkConsolePlan('+inc.id+')">Link Plan</button>'+
       '</div>';
@@ -2536,6 +2608,22 @@
   /* — Evidence tab — */
   function bcmRenderConsoleEvidence(body,footer,inc){
     var evidence=inc.evidence||[];
+    var incType=(inc.type||'').toLowerCase();
+    var _typeEvidence={
+      cyber:['System and network access logs','Affected file listing or data inventory','Screenshots of anomalous activity','Forensic image of affected systems','Communication records (internal + external)','Malware or threat artefact samples'],
+      operational:['Incident chronology and staff statements','Photos or video of affected area','Equipment failure reports','Service disruption impact log','Customer or stakeholder communication trail'],
+      reputational:['Screenshots of media or social posts','PR and communications log','Legal correspondence','Management response records'],
+      compliance:['Audit trail and access logs','Policy and procedure documentation','Regulatory notification records','Staff training records'],
+    };
+    var matchKey=Object.keys(_typeEvidence).find(function(k){return incType.indexOf(k)>-1;})||'operational';
+    var checklistItems=_typeEvidence[matchKey];
+    var checklistHtml=
+      '<div style="margin-top:12px;background:var(--surface2);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border)">'+
+        '<div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Evidence to capture for this incident</div>'+
+        checklistItems.map(function(item){
+          return'<div style="font-size:12px;color:var(--text);padding:3px 0;display:flex;gap:8px"><span style="color:var(--muted)">&#9744;</span>'+esc(item)+'</div>';
+        }).join('')+
+      '</div>';
     body.innerHTML=evidence.length?
       evidence.map(function(e){
         var statusBadgeHtml=statusBadge(e.status||'current');
@@ -2548,9 +2636,9 @@
             '<a href="/grid/evidence" class="btn btn-sm btn-secondary" style="font-size:11px">View in Vault</a>'+
           '</div>'+
         '</div>';
-      }).join('') :
-      '<div style="color:var(--muted);text-align:center;padding:32px">No evidence linked. Attach evidence from the Evidence Vault via the Compliance tab.</div>';
-    footer.innerHTML='<div style="font-size:12px;color:var(--muted)">Evidence is managed in the <a href="/grid/evidence" style="color:var(--accent)">Evidence Vault</a> and linked to incidents via the Compliance module.</div>';
+      }).join('')+checklistHtml :
+      '<div style="color:var(--muted);font-size:13px;padding:8px 0">No evidence linked yet.</div>'+checklistHtml;
+    footer.innerHTML='<div style="font-size:12px;color:var(--muted)">Evidence is managed in the <a href="/grid/evidence" style="color:var(--accent)">Evidence Vault</a>. Link it here once uploaded.</div>';
   }
 
   /* — Console action functions — */
@@ -2899,9 +2987,9 @@
         '</div>';
       }).join('');
       document.body.insertAdjacentHTML('beforeend',
-        '<div class="modal-overlay" onclick="if(event.target===this)this.remove()">'+
+        '<div class="modal-overlay" style="z-index:1600" onclick="if(event.target===this)this.remove()">'+
         '<div class="modal-box" style="max-width:580px">'+
-          '<div class="modal-title">&#129504; AI Suggested Actions &mdash; '+esc(inc.title)+'</div>'+
+          '<div class="modal-title">&#129504; AI Suggested Actions: '+esc(inc.title)+'</div>'+
           '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">AI-recommended next steps. Click <strong>+ Add as Action</strong> to log directly to the incident.</p>'+
           (itemsHtml||'<div style="color:var(--muted);padding:16px 0">No suggestions returned.</div>')+
           '<div style="display:flex;justify-content:flex-end;margin-top:16px">'+

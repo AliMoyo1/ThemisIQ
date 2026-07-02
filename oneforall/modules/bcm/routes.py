@@ -724,7 +724,15 @@ async def api_incident_ai_suggest(request: Request, inc_id: int):
     inc["updates"] = ds.list_incident_updates(inc_id)
     inc["actions"] = ds.list_incident_actions(inc_id)
     try:
-        suggestions = ai.suggest_incident_actions(inc)
+        _db = get_db()
+        fw_rows = _db.execute(
+            "SELECT name FROM frameworks WHERE is_active=1 ORDER BY name"
+        ).fetchall()
+        active_regs = [r["name"] for r in fw_rows]
+    except Exception:
+        active_regs = []
+    try:
+        suggestions = ai.suggest_incident_actions(inc, active_regulations=active_regs if active_regs else None)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     return JSONResponse({"suggestions": suggestions})
