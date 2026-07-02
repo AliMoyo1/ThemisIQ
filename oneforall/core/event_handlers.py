@@ -1289,19 +1289,19 @@ def incident_resolved_handler(event_type, source_module, entity_type,
 
         # ── XM-CLOSE-3: Close ORM events directly linked to this incident ──
         orm_links = db.execute(
-            "SELECT target_entity_id FROM cross_module_links "
-            "WHERE source_module='bcm' AND source_entity_type='incident' "
-            "AND source_entity_id=%s AND target_module='orm' AND target_entity_type='event'",
+            "SELECT target_id FROM cross_module_links "
+            "WHERE source_module='bcm' AND source_type='incident' "
+            "AND source_id=%s AND target_module='orm' AND target_type='event'",
             (entity_id,),
         ).fetchall()
         for link in orm_links:
             db.execute(
                 "UPDATE orm_events SET status='resolved', resolved_at=CURRENT_TIMESTAMP, "
                 "updated_at=CURRENT_TIMESTAMP WHERE id=%s AND status NOT IN ('resolved','closed')",
-                (link["target_entity_id"],),
+                (link["target_id"],),
             )
-            log.info("XM-CLOSE-3: BCM incident %d resolved → closed ORM event #%d",
-                     entity_id, link["target_entity_id"])
+            log.info("XM-CLOSE-3: BCM incident %d resolved -> closed ORM event #%d",
+                     entity_id, link["target_id"])
 
         db.commit()
         log.info("Handled incident resolution: '%s' (id=%d)", title, entity_id)
@@ -2533,15 +2533,14 @@ def breach_resolved_closes_linked_risks(event_type, source_module, entity_type,
         # ── 3. Close the BCM incident auto-created from this breach ────────
         # Find via cross_module_links: sentinel/breach → bcm/incident
         bcm_links = db.execute(
-            "SELECT target_entity_id FROM cross_module_links "
-            "WHERE source_module='sentinel' AND source_entity_type='breach' "
-            "AND source_entity_id=%s AND target_module='bcm' AND target_entity_type='incident'",
+            "SELECT target_id FROM cross_module_links "
+            "WHERE source_module='sentinel' AND source_type='breach' "
+            "AND source_id=%s AND target_module='bcm' AND target_type='incident'",
             (entity_id,),
         ).fetchall()
 
         for link in bcm_links:
-            inc_id = link["target_entity_id"]
-            # Only close if still open — don't override if BCM team already resolved it differently
+            inc_id = link["target_id"]
             db.execute(
                 "UPDATE bcm_incidents "
                 "SET status='resolved', resolved_at=CURRENT_TIMESTAMP "
@@ -2549,26 +2548,26 @@ def breach_resolved_closes_linked_risks(event_type, source_module, entity_type,
                 (inc_id,),
             )
             log.info(
-                "XM-CLOSE-1: Sentinel breach %d resolved → closed BCM incident #%d",
+                "XM-CLOSE-1: Sentinel breach %d resolved -> closed BCM incident #%d",
                 entity_id, inc_id,
             )
 
         # ── 4. Close the ORM event auto-created from this breach ──────────
         orm_links = db.execute(
-            "SELECT target_entity_id FROM cross_module_links "
-            "WHERE source_module='sentinel' AND source_entity_type='breach' "
-            "AND source_entity_id=%s AND target_module='orm' AND target_entity_type='event'",
+            "SELECT target_id FROM cross_module_links "
+            "WHERE source_module='sentinel' AND source_type='breach' "
+            "AND source_id=%s AND target_module='orm' AND target_type='event'",
             (entity_id,),
         ).fetchall()
         for link in orm_links:
-            orm_id = link["target_entity_id"]
+            orm_id = link["target_id"]
             db.execute(
                 "UPDATE orm_events SET status='resolved', resolved_at=CURRENT_TIMESTAMP, "
                 "updated_at=CURRENT_TIMESTAMP WHERE id=%s AND status NOT IN ('resolved','closed')",
                 (orm_id,),
             )
             log.info(
-                "XM-CLOSE-1: Sentinel breach %d resolved → closed ORM event #%d",
+                "XM-CLOSE-1: Sentinel breach %d resolved -> closed ORM event #%d",
                 entity_id, orm_id,
             )
 
@@ -2663,20 +2662,20 @@ def erm_risk_closed_checks_appetite(event_type, source_module, entity_type,
 
         # ── XM-CLOSE-2a: Close BCM incidents escalated to this ERM risk ───
         bcm_links = db.execute(
-            "SELECT source_entity_id FROM cross_module_links "
-            "WHERE source_module='bcm' AND source_entity_type='incident' "
-            "AND target_module='erm' AND target_entity_type='enterprise_risk' "
-            "AND target_entity_id=%s",
+            "SELECT source_id FROM cross_module_links "
+            "WHERE source_module='bcm' AND source_type='incident' "
+            "AND target_module='erm' AND target_type='enterprise_risk' "
+            "AND target_id=%s",
             (entity_id,),
         ).fetchall()
         for link in bcm_links:
             db.execute(
                 "UPDATE bcm_incidents SET status='resolved', resolved_at=CURRENT_TIMESTAMP "
                 "WHERE id=%s AND status NOT IN ('resolved','closed')",
-                (link["source_entity_id"],),
+                (link["source_id"],),
             )
-            log.info("XM-CLOSE-2: ERM risk %d closed → closed BCM incident #%d",
-                     entity_id, link["source_entity_id"])
+            log.info("XM-CLOSE-2: ERM risk %d closed -> closed BCM incident #%d",
+                     entity_id, link["source_id"])
 
         # ── XM-CLOSE-2b: Close ORM events elevated to this ERM risk ───────
         db.execute(
@@ -2686,20 +2685,20 @@ def erm_risk_closed_checks_appetite(event_type, source_module, entity_type,
             (entity_id,),
         )
         orm_links = db.execute(
-            "SELECT source_entity_id FROM cross_module_links "
-            "WHERE source_module='orm' AND source_entity_type='event' "
-            "AND target_module='erm' AND target_entity_type='enterprise_risk' "
-            "AND target_entity_id=%s",
+            "SELECT source_id FROM cross_module_links "
+            "WHERE source_module='orm' AND source_type='event' "
+            "AND target_module='erm' AND target_type='enterprise_risk' "
+            "AND target_id=%s",
             (entity_id,),
         ).fetchall()
         for link in orm_links:
             db.execute(
                 "UPDATE orm_events SET status='resolved', resolved_at=CURRENT_TIMESTAMP, "
                 "updated_at=CURRENT_TIMESTAMP WHERE id=%s AND status NOT IN ('resolved','closed')",
-                (link["source_entity_id"],),
+                (link["source_id"],),
             )
-            log.info("XM-CLOSE-2: ERM risk %d closed → closed ORM event #%d",
-                     entity_id, link["source_entity_id"])
+            log.info("XM-CLOSE-2: ERM risk %d closed -> closed ORM event #%d",
+                     entity_id, link["source_id"])
 
         db.commit()
     except Exception as e:
