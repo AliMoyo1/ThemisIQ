@@ -415,6 +415,34 @@ async def api_command_centre_stats(request: Request):
         except Exception:
             pass
 
+        # Sentinel: breach notification countdown alerts
+        breach_alerts = []
+        try:
+            from modules.sentinel.jurisdictions import JURISDICTION_RULES
+            alert_rows = db.execute(
+                "SELECT id, ref_number, title, severity, status, regulation, "
+                "notify_deadline, discovery_date, authority_notified "
+                "FROM sentinel_breaches "
+                "WHERE status NOT IN ('closed','resolved') "
+                "AND notify_deadline IS NOT NULL "
+                "ORDER BY notify_deadline ASC"
+            ).fetchall()
+            for r in alert_rows:
+                jur = JURISDICTION_RULES.get(r["regulation"] or "GDPR", {})
+                breach_alerts.append({
+                    "id": r["id"],
+                    "ref": r["ref_number"],
+                    "title": r["title"],
+                    "severity": r["severity"],
+                    "regulation": r["regulation"] or "GDPR",
+                    "authority": jur.get("authority_short", "DPA"),
+                    "breach_hours": jur.get("breach_hours", 72),
+                    "deadline": r["notify_deadline"],
+                    "authority_notified": bool(r["authority_notified"]),
+                })
+        except Exception:
+            pass
+
         # ERM: appetite breach count
         erm_appetite_breaches = 0
         try:
@@ -495,6 +523,7 @@ async def api_command_centre_stats(request: Request):
         # Module headline stats
         "sentinel_open_breaches":   sentinel_open_breaches,
         "sentinel_breach_severity": sentinel_breach_severity,
+        "breach_alerts":            breach_alerts,
         "erm_appetite_breaches":    erm_appetite_breaches,
         "orm_open_events":          orm_open_events,
         "bcm_active_incidents":     bcm_active_incidents,
