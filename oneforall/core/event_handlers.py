@@ -2761,7 +2761,11 @@ def bcm_plan_deactivated_handler(event_type, source_module, entity_type,
 # XM-ERM-SENTINEL: ERM DATA BREACH RISK → SENTINEL PRIVACY BREACH
 # ═══════════════════════════════════════════════════════════════════════════════
 
-_BREACH_CATEGORIES = {"data_breach", "privacy_breach", "privacy"}
+_BREACH_CATEGORIES = {
+    "data_breach", "privacy_breach", "privacy",
+    "compliance_&_legal_risk", "technology_risk",
+}
+_BREACH_TITLE_KEYWORDS = {"data breach", "privacy breach", "pii exposure", "data leak"}
 
 
 @on("erm.risk.identified")
@@ -2773,7 +2777,9 @@ def erm_data_breach_risk_creates_sentinel_breach(event_type, source_module, enti
     starts immediately. Idempotent: skipped if a sentinel link already exists.
     """
     category = (payload.get("category") or "").lower().replace(" ", "_")
-    if category not in _BREACH_CATEGORIES:
+    title_lower = (payload.get("title") or "").lower()
+    has_breach_title = any(kw in title_lower for kw in _BREACH_TITLE_KEYWORDS)
+    if category not in _BREACH_CATEGORIES and not has_breach_title:
         return
 
     db = get_db()

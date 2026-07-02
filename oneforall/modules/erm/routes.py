@@ -368,7 +368,7 @@ async def api_appetite_upsert(request: Request):
 @require_capability("erm.appetite.manage")
 async def api_appetite_update(request: Request, appetite_id: int):
     body = await _json_body(request)
-    ds.upsert_appetite(body)
+    ds.update_appetite(appetite_id, body)
     return JSONResponse({"ok": True})
 
 
@@ -427,6 +427,21 @@ async def api_library_use(request: Request, item_id: int):
         "created_by": _uid(request),
     }
     rid = ds.create_enterprise_risk(risk_data)
+    emit(
+        ERM_RISK_IDENTIFIED,
+        source_module="erm",
+        entity_type="enterprise_risk",
+        entity_id=rid,
+        payload={
+            "title": risk_data.get("title", ""),
+            "category": risk_data.get("category", ""),
+            "severity": "high",
+            "likelihood": risk_data.get("likelihood", 3),
+            "impact": risk_data.get("impact", 3),
+            "erm_risk_id": rid,
+        },
+        user_id=_uid(request),
+    )
     return JSONResponse({"id": rid}, status_code=201)
 
 

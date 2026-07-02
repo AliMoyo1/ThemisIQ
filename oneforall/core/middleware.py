@@ -426,28 +426,62 @@ def _strip_tags_deep(obj):
     return obj
 
 
-async def sanitize_json_middleware(request: Request, call_next):
-    """Strip HTML tags from all string values in JSON request bodies.
+class SanitizeJsonMiddleware:
+    """Pure ASGI middleware that strips HTML tags from JSON request bodies.
 
-    This provides blanket XSS prevention at the input layer, complementing
-    Jinja2 autoescape on output. Only applies to application/json bodies.
+    Written as a raw ASGI middleware (not BaseHTTPMiddleware) to avoid the
+    receive-channel stacking bug that occurs when multiple function-based
+    middlewares are each wrapped in BaseHTTPMiddleware.
     """
-    content_type = request.headers.get("content-type", "")
-    if request.method in ("POST", "PUT", "PATCH") and "application/json" in content_type:
-        body_bytes = await request.body()
-        if body_bytes:
-            try:
-                import json as _json
-                parsed = _json.loads(body_bytes)
-                sanitized = _strip_tags_deep(parsed)
-                sanitized_bytes = _json.dumps(sanitized).encode("utf-8")
 
-                async def receive():
-                    return {"type": "http.request", "body": sanitized_bytes}
-                request._receive = receive
-            except (ValueError, UnicodeDecodeError, RecursionError):
-                pass
-    return await call_next(request)
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        method = scope.get("method", "")
+        if method not in ("POST", "PUT", "PATCH"):
+            await self.app(scope, receive, send)
+            return
+
+        content_type = ""
+        for name, value in scope.get("headers", []):
+            if name == b"content-type":
+                content_type = value.decode("latin-1", errors="replace")
+                break
+
+        if "application/json" not in content_type:
+            await self.app(scope, receive, send)
+            return
+
+        import json as _json
+        _done = False
+
+        async def sanitizing_receive():
+            nonlocal _done
+            msg = await receive()
+            if not _done and msg.get("type") == "http.request":
+                body = msg.get("body", b"")
+                if not msg.get("more_body", False) and body:
+                    _done = True
+                    try:
+                        parsed = _json.loads(body)
+                        sanitized = _strip_tags_deep(parsed)
+                        return {
+                            "type": "http.request",
+                            "body": _json.dumps(sanitized).encode("utf-8"),
+                            "more_body": False,
+                        }
+                    except (ValueError, UnicodeDecodeError, RecursionError):
+                        pass
+                elif not msg.get("more_body", False):
+                    _done = True
+            return msg
+
+        await self.app(scope, sanitizing_receive, send)
 
 
 # ── Request Body Size Limit ──────────────────────────────────────────────────

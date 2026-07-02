@@ -306,23 +306,31 @@ class _PgConnWrapper:
 
 
 # ── SQLite placeholder-rewriting wrapper (Phase G) ────────────────────────────
-_STRLIT_RE = re.compile(r"'(?:''|[^'])*'")   # protect SQL string literals
-_PCT_S_RE  = re.compile(r"%s")
+_STRLIT_RE    = re.compile(r"'(?:''|[^'])*'")   # protect SQL string literals
+_PCT_S_RE     = re.compile(r"%s")
+_NAMED_PCT_RE = re.compile(r"%\((\w+)\)s")
 
 
 def _percent_s_to_question(sql: str) -> str:
-    """Replace %s with %s outside SQL string literals.
+    """Replace %s with ? and %(name)s with :name outside SQL string literals.
 
     All SQL strings in the codebase use %s placeholders (psycopg2-style) after
-    Phase G.  This rewriter lets sqlite3 receive the %s it expects while keeping
-    every call site engine-agnostic.
+    Phase G.  This rewriter lets sqlite3 receive what it expects while keeping
+    every call site engine-agnostic. Named params %(key)s (used by Sentinel's
+    _generic_create) become :key for sqlite3's named-parameter support.
     """
     out, last = [], 0
     for m in _STRLIT_RE.finditer(sql):
-        out.append(_PCT_S_RE.sub("?", sql[last:m.start()]))
+        seg = sql[last:m.start()]
+        seg = _NAMED_PCT_RE.sub(r":\1", seg)
+        seg = _PCT_S_RE.sub("?", seg)
+        out.append(seg)
         out.append(m.group(0))
         last = m.end()
-    out.append(_PCT_S_RE.sub("?", sql[last:]))
+    seg = sql[last:]
+    seg = _NAMED_PCT_RE.sub(r":\1", seg)
+    seg = _PCT_S_RE.sub("?", seg)
+    out.append(seg)
     return "".join(out)
 
 

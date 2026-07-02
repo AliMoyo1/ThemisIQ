@@ -18,7 +18,7 @@ from config import settings
 from database import init_db, get_db, OperationalError
 from core.middleware import (
     security_headers_middleware, csrf_origin_middleware, tenant_context_middleware,
-    cors_block_middleware, body_size_limit_middleware, sanitize_json_middleware,
+    cors_block_middleware, body_size_limit_middleware, SanitizeJsonMiddleware,
 )
 import core.event_handlers  # noqa: F401 - registers cross-module event handlers
 
@@ -52,7 +52,7 @@ app.middleware("http")(security_headers_middleware)
 app.middleware("http")(body_size_limit_middleware)
 app.middleware("http")(cors_block_middleware)
 app.middleware("http")(csrf_origin_middleware)
-app.middleware("http")(sanitize_json_middleware)
+app.add_middleware(SanitizeJsonMiddleware)
 app.middleware("http")(tenant_context_middleware)
 
 # -- Static files -------------------------------------------------------------

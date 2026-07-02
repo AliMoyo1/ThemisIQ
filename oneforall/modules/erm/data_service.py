@@ -773,6 +773,24 @@ def upsert_appetite(data):
         db.close()
 
 
+def update_appetite(appetite_id, data):
+    """Update an existing appetite record by ID."""
+    db = get_db()
+    try:
+        fields, vals = [], []
+        for k in ("category", "appetite_level", "max_score", "description",
+                  "tolerance_notes", "approved_by", "effective_date", "review_date"):
+            if k in data:
+                fields.append(f"{k}=%s"); vals.append(data[k])
+        if fields:
+            fields.append("updated_at=%s"); vals.append(_now())
+            vals.append(appetite_id)
+            db.execute(f"UPDATE erm_risk_appetite SET {','.join(fields)} WHERE id=%s", vals)
+            db.commit()
+    finally:
+        db.close()
+
+
 def delete_appetite(appetite_id):
     db = get_db()
     try:
