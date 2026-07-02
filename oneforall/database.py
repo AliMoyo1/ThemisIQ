@@ -3435,6 +3435,9 @@ _COLUMN_MIGRATIONS = [
         ("webhooks", "org_id", "INTEGER REFERENCES organizations(id)"),
         # ── ERM appetite breach deduplication ──────────────────────────────────
         ("erm_risk_appetite", "last_breach_notified_at", "TEXT"),
+        # ── Workflow actions: columns added after initial PG table creation ───
+        ("workflow_actions", "due_at", "TEXT"),
+        ("workflow_actions", "acted_at", "TEXT"),
 ]
 
 
