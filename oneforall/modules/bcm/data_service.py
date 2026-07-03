@@ -310,6 +310,8 @@ def update_incident(inc_id, data):
 def delete_incident(inc_id):
     db = get_db()
     try:
+        db.execute("DELETE FROM cross_module_links WHERE source_module='bcm' AND source_type='incident' AND source_id=%s", (inc_id,))
+        db.execute("DELETE FROM cross_module_links WHERE target_module='bcm' AND target_type='incident' AND target_id=%s", (inc_id,))
         db.execute("DELETE FROM bcm_incidents WHERE id=%s", (inc_id,))
         db.commit()
     finally:
