@@ -500,6 +500,45 @@ async def api_command_centre_stats(request: Request):
         except Exception:
             pass
 
+        # ERM: critical/high open risks
+        erm_critical_high = 0
+        try:
+            erm_critical_high = db.execute(
+                "SELECT COUNT(*) FROM erm_enterprise_risks "
+                "WHERE qualitative_score IN ('critical','high') "
+                "AND status NOT IN ('closed','accepted')"
+            ).fetchone()[0]
+        except Exception:
+            pass
+
+        # GRID: open audit findings
+        grid_open_findings = 0
+        try:
+            grid_open_findings = db.execute(
+                "SELECT COUNT(*) FROM grid_controls "
+                "WHERE status NOT IN ('compliant','not_applicable','closed')"
+            ).fetchone()[0]
+        except Exception:
+            pass
+
+        # Upcoming reviews (risks or plans due in next 30 days)
+        upcoming_reviews = 0
+        try:
+            upcoming_reviews += db.execute(
+                "SELECT COUNT(*) FROM erm_enterprise_risks "
+                f"WHERE review_date IS NOT NULL AND review_date <= {sql_date_ts('+30 days')} "
+                "AND status NOT IN ('closed','accepted')"
+            ).fetchone()[0]
+        except Exception:
+            pass
+        try:
+            upcoming_reviews += db.execute(
+                "SELECT COUNT(*) FROM bcm_plans "
+                f"WHERE last_reviewed IS NOT NULL AND last_reviewed <= {sql_date_ts('-335 days')}"
+            ).fetchone()[0]
+        except Exception:
+            pass
+
     finally:
         db.close()
 
@@ -527,13 +566,11 @@ async def api_command_centre_stats(request: Request):
         "erm_appetite_breaches":    erm_appetite_breaches,
         "orm_open_events":          orm_open_events,
         "bcm_active_incidents":     bcm_active_incidents,
-        # IMS stats
-        "ims": {
-            "integrated_controls": ims_integrated_controls,
-            "unique_controls":     ims_unique_controls,
-            "effort_saved_pct":    ims_effort_saved_pct,
-            "active_frameworks":   ims_active_fws,
-        },
+        # Row 3 action-oriented stats
+        "erm_critical_high":   erm_critical_high,
+        "grid_open_findings":  grid_open_findings,
+        "upcoming_reviews":    upcoming_reviews,
+        "ims_active_frameworks": ims_active_fws,
         "fetched_at":        datetime.now(timezone.utc).isoformat(),
     })
 

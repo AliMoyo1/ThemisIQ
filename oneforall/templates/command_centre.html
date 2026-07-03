@@ -291,16 +291,11 @@
     </div>
   </div>
 
-  <!-- Evidence Collected — click to open Evidence vault -->
-  <div class="stat-card" onclick="window.location.href='/evidence/'" style="cursor:pointer" title="Open Evidence Repository">
-    <div class="stat-label">Evidence Collected</div>
-    <div class="stat-value" id="ccEvidenceCount">—</div>
-    <div class="stat-trend up" id="ccEvidenceTrend" style="color:var(--green-status)">
-      <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3M3 5l3-3 3 3"/></svg>
-      <span>—</span>
-    </div>
-    <div class="pbar"><div class="pbar-fill" id="ccEvidenceBar" style="width:0;background:var(--green-status)"></div></div>
-    <div id="ccEvidenceExpiry" style="display:none;font-size:10px;font-weight:600;color:var(--amber);margin-top:6px"></div>
+  <!-- Critical/High ERM Risks -->
+  <div class="stat-card" id="ccErmCritCard" onclick="window.location.href='/erm/'" style="cursor:pointer" title="Open Enterprise Risk Register">
+    <div class="stat-label">Critical / High Risks</div>
+    <div class="stat-value" id="ccErmCritHigh" style="color:var(--muted)">—</div>
+    <div class="stat-sub">ERM</div>
   </div>
 </div>
 
@@ -335,28 +330,31 @@
   </div>
 </div>
 
-<!-- IMS Stats strip — hidden until data loaded -->
-<div id="ccImsStrip" style="display:none;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;"
-     class="animate-fade-up anim-2">
-  <div class="stat-card" onclick="window.location.href='/aria/mapping'" style="cursor:pointer;border-top:3px solid var(--green-status);" title="View IMS Control Mapping">
-    <div class="stat-label">🔗 Integrated Controls</div>
-    <div class="stat-value" id="imsIntCtrl" style="color:var(--green-status)">—</div>
-    <div class="stat-sub">Mapped across frameworks</div>
+<!-- Row 3: Action-oriented stats -->
+<div class="stats-row animate-fade-up anim-2" style="margin-top:0">
+  <!-- GRID: Open Findings -->
+  <div class="stat-card" id="ccGridFindCard" onclick="window.location.href='/grid/'" style="cursor:pointer" title="Open Audit Management">
+    <div class="stat-label">Open Audit Findings</div>
+    <div class="stat-value" id="ccGridFindings" style="color:var(--muted)">—</div>
+    <div class="stat-sub">GRID</div>
   </div>
-  <div class="stat-card" onclick="window.location.href='/aria/mapping'" style="cursor:pointer;" title="View IMS Control Mapping">
-    <div class="stat-label">⬡ Unique Controls</div>
-    <div class="stat-value" id="imsUniqCtrl" style="color:var(--muted)">—</div>
-    <div class="stat-sub">Framework-specific only</div>
+  <!-- Upcoming Reviews -->
+  <div class="stat-card" id="ccReviewsCard" style="cursor:default" title="Risks and plans due for review within 30 days">
+    <div class="stat-label">Upcoming Reviews</div>
+    <div class="stat-value" id="ccUpcomingReviews" style="color:var(--muted)">—</div>
+    <div class="stat-sub">Next 30 days</div>
   </div>
-  <div class="stat-card" style="cursor:default;">
-    <div class="stat-label">📋 Active Frameworks</div>
-    <div class="stat-value" id="imsFws" style="color:var(--accent)">—</div>
+  <!-- Active Frameworks -->
+  <div class="stat-card" onclick="window.location.href='/aria/'" style="cursor:pointer" title="Open Governance">
+    <div class="stat-label">Active Frameworks</div>
+    <div class="stat-value" id="ccActiveFrameworks" style="color:var(--accent)">—</div>
     <div class="stat-sub">Compliance frameworks</div>
   </div>
-  <div class="stat-card" onclick="window.location.href='/aria/mapping'" style="cursor:pointer;border-top:3px solid var(--accent);" title="Testing effort saved via IMS">
-    <div class="stat-label">⚡ Testing Effort Saved</div>
-    <div class="stat-value" id="imsEffort" style="color:var(--accent)">—</div>
-    <div class="stat-sub">Via integrated controls</div>
+  <!-- Evidence Collected (kept but demoted) -->
+  <div class="stat-card" onclick="window.location.href='/evidence/'" style="cursor:pointer" title="Open Evidence Repository">
+    <div class="stat-label">Evidence Collected</div>
+    <div class="stat-value" id="ccEvidenceCount">—</div>
+    <div class="stat-sub">Repository</div>
   </div>
 </div>
 
@@ -570,20 +568,19 @@
     document.getElementById('ccOverdueCount').textContent = d.overdue_count;
     document.getElementById('ccOverdueTrend').querySelector('span').textContent = d.overdue_trend;
 
-    document.getElementById('ccEvidenceCount').textContent = d.evidence_count;
-    document.getElementById('ccEvidenceTrend').querySelector('span').textContent = d.evidence_trend;
-    const evPct = d.evidence_target ? Math.round((d.evidence_count / d.evidence_target)*100) : 78;
-    document.getElementById('ccEvidenceBar').style.width = evPct + '%';
+    // Critical/High ERM Risks (row 1, position 4)
+    var ermCrit = d.erm_critical_high || 0;
+    var ermCritEl = document.getElementById('ccErmCritHigh');
+    var ermCritCard = document.getElementById('ccErmCritCard');
+    if(ermCritEl){
+      ermCritEl.textContent = ermCrit;
+      ermCritEl.style.color = ermCrit > 0 ? 'var(--red)' : 'var(--green-status)';
+      if(ermCritCard) ermCritCard.style.borderTop = '3px solid ' + (ermCrit > 0 ? 'var(--red)' : 'var(--green-status)');
+    }
 
     // Sidebar evidence count
-    const navEv = document.getElementById('sideNavEvidence');
+    var navEv = document.getElementById('sideNavEvidence');
     if(navEv) navEv.textContent = d.evidence_count;
-    // Evidence expiry warning
-    const expiryEl = document.getElementById('ccEvidenceExpiry');
-    if(expiryEl && d.evidence_expiring > 0) {
-      expiryEl.textContent = '⚠ ' + d.evidence_expiring + ' item' + (d.evidence_expiring > 1 ? 's' : '') + ' expiring soon';
-      expiryEl.style.display = 'block';
-    }
 
     // ── Module headline stats (row 2) ──
     // Sentinel open breaches
@@ -634,17 +631,31 @@
       if(bcmCard) bcmCard.style.borderTop = '3px solid ' + (bcmInc > 0 ? 'var(--red)' : 'var(--green-status)');
     }
 
-    // IMS stats strip
-    var ims = d.ims || {};
-    var imsStrip = document.getElementById('ccImsStrip');
-    if(imsStrip && (ims.integrated_controls > 0 || ims.active_frameworks > 1)){
-      imsStrip.style.display = 'grid';
-      var el = function(id){ return document.getElementById(id); };
-      if(el('imsIntCtrl'))  el('imsIntCtrl').textContent  = ims.integrated_controls || 0;
-      if(el('imsUniqCtrl')) el('imsUniqCtrl').textContent = ims.unique_controls     || 0;
-      if(el('imsFws'))      el('imsFws').textContent      = ims.active_frameworks   || 0;
-      if(el('imsEffort'))   el('imsEffort').textContent   = (ims.effort_saved_pct   || 0) + '%';
+    // Row 3: action-oriented stats
+    var gridFindings = d.grid_open_findings || 0;
+    var gridEl = document.getElementById('ccGridFindings');
+    var gridCard = document.getElementById('ccGridFindCard');
+    if(gridEl){
+      gridEl.textContent = gridFindings;
+      gridEl.style.color = gridFindings > 10 ? 'var(--red)' : gridFindings > 0 ? 'var(--amber)' : 'var(--green-status)';
+      if(gridCard) gridCard.style.borderTop = '3px solid ' + (gridFindings > 10 ? 'var(--red)' : gridFindings > 0 ? 'var(--amber)' : 'var(--green-status)');
     }
+
+    var reviews = d.upcoming_reviews || 0;
+    var revEl = document.getElementById('ccUpcomingReviews');
+    var revCard = document.getElementById('ccReviewsCard');
+    if(revEl){
+      revEl.textContent = reviews;
+      revEl.style.color = reviews > 0 ? 'var(--amber)' : 'var(--green-status)';
+      if(revCard) revCard.style.borderTop = '3px solid ' + (reviews > 0 ? 'var(--amber)' : 'var(--green-status)');
+    }
+
+    var fws = d.ims_active_frameworks || 0;
+    var fwEl = document.getElementById('ccActiveFrameworks');
+    if(fwEl) fwEl.textContent = fws;
+
+    var evEl = document.getElementById('ccEvidenceCount');
+    if(evEl) evEl.textContent = d.evidence_count || 0;
 
     // Breach notification countdown alerts
     populateBreachAlerts(d.breach_alerts || []);
