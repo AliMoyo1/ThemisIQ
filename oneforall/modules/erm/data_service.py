@@ -673,6 +673,11 @@ def delete_enterprise_risk(risk_id):
         db.execute("UPDATE erm_kris SET linked_risk_id=NULL WHERE linked_risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_risk_dimension_scores WHERE risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_risk_workflow_history WHERE risk_id=%s", (risk_id,))
+        db.execute("UPDATE erm_regulatory_obligations SET linked_erm_risk_id=NULL WHERE linked_erm_risk_id=%s", (risk_id,))
+        db.execute("UPDATE orm_events SET erm_risk_id=NULL WHERE erm_risk_id=%s", (risk_id,))
+        db.execute("UPDATE ai_risk_predictions SET erm_risk_id=NULL WHERE erm_risk_id=%s", (risk_id,))
+        db.execute("DELETE FROM cross_module_links WHERE target_module='erm' AND target_type='enterprise_risk' AND target_id=%s", (risk_id,))
+        db.execute("DELETE FROM cross_module_links WHERE source_module='erm' AND source_type='enterprise_risk' AND source_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_enterprise_risks WHERE id=%s", (risk_id,))
         db.commit()
     finally:
