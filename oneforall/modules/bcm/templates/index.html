@@ -1152,7 +1152,7 @@
         var rpo=b.rpo_hours!=null?b.rpo_hours+'h':'—';
         var crit=b.calc_criticality||b.criticality||b.impact_level;
         var calcBtn='<button class="btn-bcm-ai" onclick="bcmCalcBia('+b.id+',this)" title="AI calculate criticality & MTPD">🔢</button>';
-        return '<tr><td>'+esc(b.process_name||b.title||b.name||'')+'</td><td>'+esc(b.department||'')+'</td><td>'+esc(rto)+'</td><td>'+esc(rpo)+'</td><td>'+riskBadge(crit)+'</td><td>'+statusBadge(b.status)+'</td><td><div style="display:flex;gap:4px;align-items:center">'+calcBtn+actionBtns('bcmEditBia('+b.id+')','bcmDeleteRecord(\"bia\",'+b.id+')')+'</div></td></tr>';
+        return '<tr><td>'+esc(b.process_name||b.title||b.name||'')+'</td><td>'+esc(b.department||'')+'</td><td>'+esc(rto)+'</td><td>'+esc(rpo)+'</td><td>'+riskBadge(crit)+'</td><td>'+statusBadge(b.status)+'</td><td><div style="display:flex;gap:4px;align-items:center">'+calcBtn+actionBtns('bcmEditBia('+b.id+')','bcmDeleteRecord(\'bia\','+b.id+')')+'</div></td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load BIA records');}
   };
@@ -1175,7 +1175,7 @@
           ?'<button class="deactivate-btn" onclick="bcmDeactivatePlan('+p.id+')" title="Stand down this plan">Stand Down</button>'
           :'<button class="activate-btn" onclick="bcmActivatePlan('+p.id+')" title="Activate this plan">Activate</button>';
         var reviewBtn='<button class="btn-bcm-ai" onclick="bcmAiReviewPlan('+p.id+',this)" title="AI review this plan">🧠</button>';
-        return '<tr>'+titleCell+'<td>'+esc(p.scope||'')+'</td><td>'+esc(p.owner||'')+'</td><td>'+statusBadge(p.status)+'</td><td>'+fmtDate(p.last_reviewed||p.updated_at)+'</td><td><div style="display:flex;gap:5px;align-items:center">'+activateBtn+reviewBtn+actionBtns('bcmEditPlan('+p.id+')','bcmDeleteRecord(\"plan\",'+p.id+')')+'</div></td></tr>';
+        return '<tr>'+titleCell+'<td>'+esc(p.scope||'')+'</td><td>'+esc(p.owner||'')+'</td><td>'+statusBadge(p.status)+'</td><td>'+fmtDate(p.last_reviewed||p.updated_at)+'</td><td><div style="display:flex;gap:5px;align-items:center">'+activateBtn+reviewBtn+actionBtns('bcmEditPlan('+p.id+')','bcmDeleteRecord(\'plan\','+p.id+')')+'</div></td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load plans');}
   };
@@ -1291,7 +1291,7 @@
     body.innerHTML=filtered.map(function(i){
       var suggestBtn='<button class="btn-bcm-ai" onclick="bcmAiSuggestActions('+i.id+',this)" title="AI suggest next actions">🧠</button>';
       var consoleBtn='<button class="btn btn-sm btn-secondary" onclick="bcmOpenIncidentConsole('+i.id+')" title="Open command console" style="padding:4px 8px;font-size:11px">Console</button>';
-      return '<tr><td><span style="color:var(--accent);font-weight:600;cursor:pointer" onclick="bcmOpenIncidentConsole('+i.id+')">'+esc(i.title||'')+'</span></td><td>'+sevBadge(i.severity)+'</td><td>'+statusBadge(i.status)+'</td><td>'+fmtDate(i.declared_at||i.created_at)+'</td><td>'+esc(i.assigned_to||i.commander||'—')+'</td><td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'+consoleBtn+suggestBtn+actionBtns('bcmEditInc('+i.id+')','bcmDeleteRecord(\"incident\",'+i.id+')')+'</div></td></tr>';
+      return '<tr><td><span style="color:var(--accent);font-weight:600;cursor:pointer" onclick="bcmOpenIncidentConsole('+i.id+')">'+esc(i.title||'')+'</span></td><td>'+sevBadge(i.severity)+'</td><td>'+statusBadge(i.status)+'</td><td>'+fmtDate(i.declared_at||i.created_at)+'</td><td>'+esc(i.assigned_to||i.commander||'—')+'</td><td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'+consoleBtn+suggestBtn+actionBtns('bcmEditInc('+i.id+')','bcmDeleteRecord(\'incident\','+i.id+')')+'</div></td></tr>';
     }).join('');
   }
   window.bcmFilterInc=function(status,chip){
@@ -1312,7 +1312,7 @@
       exCache=items;
       if(!items.length){body.innerHTML=emptyRow(6,'No exercises found');return;}
       body.innerHTML=items.map(function(e){
-        return '<tr><td>'+esc(e.title||e.name||'')+'</td><td>'+esc(e.exercise_type||e.type||'')+'</td><td>'+fmtDate(e.scheduled_date||e.date)+'</td><td>'+statusBadge(e.status)+'</td><td>'+statusBadge(e.outcome||'—')+'</td><td>'+actionBtns('bcmEditEx('+e.id+')','bcmDeleteRecord(\"exercise\",'+e.id+')')+'</td></tr>';
+        return '<tr><td>'+esc(e.title||e.name||'')+'</td><td>'+esc(e.exercise_type||e.type||'')+'</td><td>'+fmtDate(e.scheduled_date||e.date)+'</td><td>'+statusBadge(e.status)+'</td><td>'+statusBadge(e.outcome||'—')+'</td><td>'+actionBtns('bcmEditEx('+e.id+')','bcmDeleteRecord(\'exercise\','+e.id+')')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(6,'Failed to load exercises');}
   };
@@ -1332,7 +1332,7 @@
       body.innerHTML=items.map(function(r){
         var level=bcmScoreToLevel(r.score);
         var scoreChip=r.score?'<span style="font-size:10px;color:var(--muted);margin-left:4px">'+r.score+'</span>':'';
-        return '<tr><td>'+esc(r.title||r.name||'')+'</td><td>'+esc(r.category||'')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td>'+riskBadge(level)+scoreChip+'</td><td>'+esc(r.owner||'—')+'</td><td>'+actionBtns('bcmEditRisk('+r.id+')','bcmDeleteRecord(\"risk\",'+r.id+')')+'</td></tr>';
+        return '<tr><td>'+esc(r.title||r.name||'')+'</td><td>'+esc(r.category||'')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td>'+riskBadge(level)+scoreChip+'</td><td>'+esc(r.owner||'—')+'</td><td>'+actionBtns('bcmEditRisk('+r.id+')','bcmDeleteRecord(\'risk\','+r.id+')')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load risks');}
   };
@@ -1351,7 +1351,7 @@
       depCache=items;
       if(!items.length){grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">No dependency nodes mapped yet</div>';return;}
       grid.innerHTML=items.map(function(n){
-        return '<div class="dep-node"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px"><div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(n.name||n.title||'')+'</div>'+riskBadge(n.criticality||n.risk_level||'medium')+'</div><div style="font-size:12px;color:var(--muted);margin-bottom:8px">'+esc(n.type||n.node_type||'System')+'</div><div style="font-size:12px;color:var(--text-mid)">'+esc(n.description||'')+'</div><div style="margin-top:10px;display:flex;gap:4px">'+actionBtns('bcmEditDep('+n.id+')','bcmDeleteRecord(\"dep_node\",'+n.id+')')+'</div></div>';
+        return '<div class="dep-node"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px"><div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(n.name||n.title||'')+'</div>'+riskBadge(n.criticality||n.risk_level||'medium')+'</div><div style="font-size:12px;color:var(--muted);margin-bottom:8px">'+esc(n.type||n.node_type||'System')+'</div><div style="font-size:12px;color:var(--text-mid)">'+esc(n.description||'')+'</div><div style="margin-top:10px;display:flex;gap:4px">'+actionBtns('bcmEditDep('+n.id+')','bcmDeleteRecord(\'dep_node\','+n.id+')')+'</div></div>';
       }).join('');
     }catch(e){grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">Failed to load dependencies</div>';}
   };
@@ -1369,7 +1369,7 @@
       trainingCache=items;
       if(!items.length){body.innerHTML=emptyRow(6,'No training modules found');return;}
       body.innerHTML=items.map(function(t){
-        return '<tr><td>'+esc(t.title||t.name||'')+'</td><td>'+esc(t.category||'')+'</td><td>'+esc(t.duration_minutes?t.duration_minutes+'min':'—')+'</td><td>'+statusBadge(t.status||'active')+'</td><td>'+esc(t.completion_count||t.completions||0)+'</td><td>'+actionBtns('bcmEditTraining('+t.id+')','bcmDeleteRecord(\"training\",'+t.id+')')+'</td></tr>';
+        return '<tr><td>'+esc(t.title||t.name||'')+'</td><td>'+esc(t.category||'')+'</td><td>'+esc(t.duration_minutes?t.duration_minutes+'min':'—')+'</td><td>'+statusBadge(t.status||'active')+'</td><td>'+esc(t.completion_count||t.completions||0)+'</td><td>'+actionBtns('bcmEditTraining('+t.id+')','bcmDeleteRecord(\'training\','+t.id+')')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(6,'Failed to load training modules');}
   };
