@@ -276,7 +276,7 @@ from an enterprise GRC platform and produce a concise executive-ready risk advis
 
 Output EXACTLY this format (Markdown):
 
-### [Aegis AI Alert] <Domain> Risk Probability Elevated +{delta}%
+### [Themis AI Alert] <Domain> Risk Probability Elevated +{delta}%
 
 **Finding:** <1-2 sentences explaining what the signals indicate and why this matters>
 **Primary Driver:** <single biggest contributing factor, with module name>

@@ -25,7 +25,7 @@ def _esc(text: str | None) -> str:
 
 def send_email(*, to: str, subject: str, body_html: str) -> dict:
     """
-    Send an email via the central AegisGRC email utility.
+    Send an email via the central ThemisIQ email utility.
 
     Delegates to core.email.send_email which supports Google SMTP,
     Microsoft SMTP, Microsoft Graph API, and console fallback.
