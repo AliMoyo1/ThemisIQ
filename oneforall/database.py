@@ -1049,6 +1049,99 @@ CREATE TABLE IF NOT EXISTS people_directory (
 CREATE INDEX IF NOT EXISTS idx_people_dept ON people_directory(department);
 CREATE INDEX IF NOT EXISTS idx_people_user ON people_directory(user_id);
 
+-- ── Governance Graph: Business Units (SBU hierarchy) ──────────────────────
+CREATE TABLE IF NOT EXISTS business_units (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    code            TEXT,
+    description     TEXT,
+    parent_id       INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    head_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_active       INTEGER DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bu_parent ON business_units(parent_id);
+CREATE INDEX IF NOT EXISTS idx_bu_active ON business_units(is_active);
+
+-- ── Governance Graph: Departments ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS departments (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    code                TEXT,
+    description         TEXT,
+    business_unit_id    INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    head_user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_active           INTEGER DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dept_bu ON departments(business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_dept_active ON departments(is_active);
+
+-- ── Governance Graph: Business Processes ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS business_processes (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    code                TEXT,
+    description         TEXT,
+    business_unit_id    INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    department_id       INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+    owner_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    criticality         TEXT DEFAULT 'medium',
+    rto_hours           REAL,
+    rpo_hours           REAL,
+    revenue_impact_per_hour REAL,
+    is_active           INTEGER DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bp_bu ON business_processes(business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_bp_dept ON business_processes(department_id);
+CREATE INDEX IF NOT EXISTS idx_bp_criticality ON business_processes(criticality);
+
+-- ── Governance Graph: Applications ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS applications (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    description         TEXT,
+    application_type    TEXT,
+    hosting             TEXT,
+    vendor_id           INTEGER REFERENCES canonical_vendors(id) ON DELETE SET NULL,
+    business_unit_id    INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    department_id       INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+    owner_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    criticality         TEXT DEFAULT 'medium',
+    is_active           INTEGER DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_app_bu ON applications(business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_app_vendor ON applications(vendor_id);
+
+-- ── Governance Graph: Data Assets ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS data_assets (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                    TEXT NOT NULL,
+    description             TEXT,
+    category                TEXT,
+    classification          TEXT DEFAULT 'internal',
+    business_unit_id        INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    application_id          INTEGER REFERENCES applications(id) ON DELETE SET NULL,
+    owner_user_id           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    location                TEXT,
+    contains_pii            INTEGER DEFAULT 0,
+    contains_phi            INTEGER DEFAULT 0,
+    contains_financial      INTEGER DEFAULT 0,
+    contains_ip             INTEGER DEFAULT 0,
+    is_active               INTEGER DEFAULT 1,
+    created_at              TEXT DEFAULT (datetime('now')),
+    updated_at              TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_da_bu ON data_assets(business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_da_app ON data_assets(application_id);
+CREATE INDEX IF NOT EXISTS idx_da_classification ON data_assets(classification);
+
 -- ── Rate Limit Attempts ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rate_limit_attempts (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1448,6 +1541,99 @@ CREATE TABLE IF NOT EXISTS people_directory (
 );
 CREATE INDEX IF NOT EXISTS idx_people_dept ON people_directory(department);
 CREATE INDEX IF NOT EXISTS idx_people_user ON people_directory(user_id);
+
+-- ── Governance Graph: Business Units (SBU hierarchy) ──────────────────────
+CREATE TABLE IF NOT EXISTS business_units (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    code            TEXT,
+    description     TEXT,
+    parent_id       INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    head_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_active       INTEGER DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bu_parent ON business_units(parent_id);
+CREATE INDEX IF NOT EXISTS idx_bu_active ON business_units(is_active);
+
+-- ── Governance Graph: Departments ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS departments (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    code                TEXT,
+    description         TEXT,
+    business_unit_id    INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    head_user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_active           INTEGER DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dept_bu ON departments(business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_dept_active ON departments(is_active);
+
+-- ── Governance Graph: Business Processes ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS business_processes (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    code                TEXT,
+    description         TEXT,
+    business_unit_id    INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    department_id       INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+    owner_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    criticality         TEXT DEFAULT 'medium',
+    rto_hours           REAL,
+    rpo_hours           REAL,
+    revenue_impact_per_hour REAL,
+    is_active           INTEGER DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bp_bu ON business_processes(business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_bp_dept ON business_processes(department_id);
+CREATE INDEX IF NOT EXISTS idx_bp_criticality ON business_processes(criticality);
+
+-- ── Governance Graph: Applications ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS applications (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL,
+    description         TEXT,
+    application_type    TEXT,
+    hosting             TEXT,
+    vendor_id           INTEGER REFERENCES canonical_vendors(id) ON DELETE SET NULL,
+    business_unit_id    INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    department_id       INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+    owner_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    criticality         TEXT DEFAULT 'medium',
+    is_active           INTEGER DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_app_bu ON applications(business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_app_vendor ON applications(vendor_id);
+
+-- ── Governance Graph: Data Assets ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS data_assets (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                    TEXT NOT NULL,
+    description             TEXT,
+    category                TEXT,
+    classification          TEXT DEFAULT 'internal',
+    business_unit_id        INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    application_id          INTEGER REFERENCES applications(id) ON DELETE SET NULL,
+    owner_user_id           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    location                TEXT,
+    contains_pii            INTEGER DEFAULT 0,
+    contains_phi            INTEGER DEFAULT 0,
+    contains_financial      INTEGER DEFAULT 0,
+    contains_ip             INTEGER DEFAULT 0,
+    is_active               INTEGER DEFAULT 1,
+    created_at              TEXT DEFAULT (datetime('now')),
+    updated_at              TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_da_bu ON data_assets(business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_da_app ON data_assets(application_id);
+CREATE INDEX IF NOT EXISTS idx_da_classification ON data_assets(classification);
 """
 
 _ARIA_TABLES = """
@@ -3463,6 +3649,23 @@ _COLUMN_MIGRATIONS = [
         # ── Workflow actions: columns added after initial PG table creation ───
         ("workflow_actions", "due_at", "TEXT"),
         ("workflow_actions", "acted_at", "TEXT"),
+        # ── Governance Graph (Tier 1 T1.1): business_unit_id on scoped entities ─
+        # Nullable FK so existing rows stay valid; migration runs on both SQLite
+        # (init_db) and PG (via _run_pg_alters).
+        ("erm_enterprise_risks",   "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("orm_events",             "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("orm_rcsa_assessments",   "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("aria_documents",         "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("aria_controls",          "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("grid_audits",            "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("sentinel_ropa",          "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("sentinel_breaches",      "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("sentinel_dpias",         "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("bcm_plans",              "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("bcm_bia_records",        "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("bcm_incidents",          "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("evidence_items",         "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("task_board",             "business_unit_id", "INTEGER REFERENCES business_units(id)"),
 ]
 
 
@@ -4520,6 +4723,74 @@ def _seed_baseline_data(conn):
             conn.commit()
     except Exception:
         pass
+
+    # ── Governance Graph (Tier 1 T1.1): seed root org entities ──────────────
+    # Idempotent per-table: only seed if the table is empty.
+    # Provides a valid starting graph so every scoped entity has something to
+    # reference, and downstream tiers (T1.2 controls, T2 advisories) can rely
+    # on these anchors existing.
+    try:
+        bu_root_id = None
+        if conn.execute("SELECT COUNT(*) FROM business_units").fetchone()[0] == 0:
+            bu_root_id = insert_returning_id(
+                conn,
+                "INSERT INTO business_units (name, code, description, parent_id, is_active) "
+                "VALUES (%s, %s, %s, NULL, 1)",
+                ("Company", "ROOT", "Root business unit — represents the whole organisation. "
+                 "Sub-units (SBUs, subsidiaries, divisions) hang off this node."),
+            )
+        else:
+            row = conn.execute(
+                "SELECT id FROM business_units WHERE parent_id IS NULL ORDER BY id ASC LIMIT 1"
+            ).fetchone()
+            if row:
+                bu_root_id = row[0]
+
+        if conn.execute("SELECT COUNT(*) FROM departments").fetchone()[0] == 0:
+            conn.execute(
+                "INSERT INTO departments (name, code, description, business_unit_id, is_active) "
+                "VALUES (%s, %s, %s, %s, 1)",
+                ("General", "GEN",
+                 "Default department for entities not yet assigned to a specific team.",
+                 bu_root_id),
+            )
+
+        if conn.execute("SELECT COUNT(*) FROM business_processes").fetchone()[0] == 0:
+            conn.execute(
+                "INSERT INTO business_processes "
+                "(name, code, description, business_unit_id, criticality, is_active) "
+                "VALUES (%s, %s, %s, %s, %s, 1)",
+                ("Unassigned", "UNASSIGNED",
+                 "Placeholder process — assign existing risks/incidents/audits here until "
+                 "the real process catalogue is defined.",
+                 bu_root_id, "medium"),
+            )
+
+        if conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0] == 0:
+            conn.execute(
+                "INSERT INTO applications "
+                "(name, description, application_type, hosting, business_unit_id, criticality, is_active) "
+                "VALUES (%s, %s, %s, %s, %s, %s, 1)",
+                ("Manual Process", "Non-application entry — for controls, risks, and "
+                 "processes that are executed manually without a supporting system.",
+                 "manual", "n/a", bu_root_id, "low"),
+            )
+
+        if conn.execute("SELECT COUNT(*) FROM data_assets").fetchone()[0] == 0:
+            conn.execute(
+                "INSERT INTO data_assets "
+                "(name, description, category, classification, business_unit_id, is_active) "
+                "VALUES (%s, %s, %s, %s, %s, 1)",
+                ("General Business Data", "Default data asset for entities not yet mapped to a "
+                 "specific data category. Update classification and PII/PHI flags per real asset.",
+                 "operational", "internal", bu_root_id),
+            )
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 
 def _run_pg_alters(conn) -> None:

@@ -357,6 +357,7 @@ from modules.sentinel.routes import router as sentinel_router
 from modules.evidence.routes import router as evidence_router
 from modules.erm.routes import router as erm_router
 from modules.orm.routes import router as orm_router
+from modules.governance.routes import router as governance_router
 
 app.include_router(super_admin_router)
 app.include_router(api_v1_router)
@@ -369,6 +370,7 @@ app.include_router(sentinel_router)
 app.include_router(evidence_router)
 app.include_router(erm_router)
 app.include_router(orm_router)
+app.include_router(governance_router)
 
 
 # -- Launcher alias (themisiq.net redirects to /launcher/) -------------------

@@ -23,12 +23,13 @@ DPO               = "dpo"
 PRIVACY_ANALYST   = "privacy_analyst"
 EMPLOYEE          = "employee"
 EXTERNAL_AUDITOR  = "external_auditor"
+GRC_OFFICER       = "grc_officer"  # CGRCO persona — cross-module governance oversight
 
 ALL_ROLES = [
     SUPER_ADMIN, COMPLIANCE_MGR, POLICY_AUTHOR, POLICY_APPROVER,
     CONTROL_OWNER, RISK_OWNER, AUDIT_LEAD, AUDITOR,
     BCM_MANAGER, INCIDENT_COMMANDER, BCM_RESPONDER,
-    DPO, PRIVACY_ANALYST, EMPLOYEE, EXTERNAL_AUDITOR,
+    DPO, PRIVACY_ANALYST, EMPLOYEE, EXTERNAL_AUDITOR, GRC_OFFICER,
 ]
 
 ROLE_LABELS = {
@@ -47,6 +48,7 @@ ROLE_LABELS = {
     PRIVACY_ANALYST:    "Privacy Analyst",
     EMPLOYEE:           "Employee",
     EXTERNAL_AUDITOR:   "External Auditor",
+    GRC_OFFICER:        "Chief GRC Officer",
 }
 
 ROLE_DESCRIPTIONS = {
@@ -65,6 +67,8 @@ ROLE_DESCRIPTIONS = {
     PRIVACY_ANALYST:    "Manages RoPA, DPIA, DSR in Sentinel.",
     EMPLOYEE:           "Read-only on approved content; can use AI assistants.",
     EXTERNAL_AUDITOR:   "Read-only access to controls, evidence, and audit logs.",
+    GRC_OFFICER:        "Chief GRC Officer — cross-module oversight, org structure, "
+                        "business unit assignment, executive reporting.",
 }
 
 # Module the role primarily belongs to (for UI grouping)
@@ -84,6 +88,7 @@ ROLE_MODULE = {
     PRIVACY_ANALYST:    "sentinel",
     EMPLOYEE:           "platform",
     EXTERNAL_AUDITOR:   "platform",
+    GRC_OFFICER:        "platform",
 }
 
 # Visual tone for role badges in admin UI
@@ -103,6 +108,7 @@ ROLE_CHIP_TONE = {
     PRIVACY_ANALYST:    "info",
     EMPLOYEE:           "neutral",
     EXTERNAL_AUDITOR:   "neutral",
+    GRC_OFFICER:        "purple",
 }
 
 # ── Capabilities ─────────────────────────────────────────────────────────────
@@ -112,18 +118,28 @@ CAPABILITIES: dict[str, set[str]] = {
     # ── Platform ─────────────────────────────────────────────────
     "platform.manage_users":      {SUPER_ADMIN},
     "platform.manage_settings":   {SUPER_ADMIN},
-    "platform.view_audit_log":    {SUPER_ADMIN, COMPLIANCE_MGR, DPO, EXTERNAL_AUDITOR},
-    "manage_frameworks":          {SUPER_ADMIN, COMPLIANCE_MGR, AUDIT_LEAD},
+    "platform.view_audit_log":    {SUPER_ADMIN, COMPLIANCE_MGR, DPO, EXTERNAL_AUDITOR, GRC_OFFICER},
+    "manage_frameworks":          {SUPER_ADMIN, COMPLIANCE_MGR, AUDIT_LEAD, GRC_OFFICER},
+
+    # ── Governance Graph (Tier 1 T1.1): shared org structure ────
+    # `view` is broad — most roles need to see BUs/departments/processes to
+    # scope their own work. `manage` is restricted to admin roles. `bu.assign`
+    # is the specific right to move an entity between business units, which
+    # matters for federation across SBUs.
+    "governance.entities.view":   set(ALL_ROLES),
+    "governance.entities.manage": {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER},
+    "governance.bu.assign":       {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR},
 
     # ── Module access ────────────────────────────────────────────
+    # GRC_OFFICER gets cross-module read access for oversight.
     "module.aria.access":     {SUPER_ADMIN, COMPLIANCE_MGR, POLICY_AUTHOR, POLICY_APPROVER,
                                CONTROL_OWNER, RISK_OWNER, EMPLOYEE, EXTERNAL_AUDITOR,
-                               AUDIT_LEAD, DPO},
+                               AUDIT_LEAD, DPO, GRC_OFFICER},
     "module.grid.access":     {SUPER_ADMIN, AUDIT_LEAD, AUDITOR, COMPLIANCE_MGR,
-                               EXTERNAL_AUDITOR, DPO},
+                               EXTERNAL_AUDITOR, DPO, GRC_OFFICER},
     "module.bcm.access":      {SUPER_ADMIN, BCM_MANAGER, INCIDENT_COMMANDER, BCM_RESPONDER,
-                               RISK_OWNER, COMPLIANCE_MGR, EMPLOYEE},
-    "module.sentinel.access": {SUPER_ADMIN, DPO, PRIVACY_ANALYST, COMPLIANCE_MGR},
+                               RISK_OWNER, COMPLIANCE_MGR, EMPLOYEE, GRC_OFFICER},
+    "module.sentinel.access": {SUPER_ADMIN, DPO, PRIVACY_ANALYST, COMPLIANCE_MGR, GRC_OFFICER},
 
     # ── ARIA capabilities ────────────────────────────────────────
     "aria.policy.create":       {SUPER_ADMIN, COMPLIANCE_MGR, POLICY_AUTHOR},
@@ -200,9 +216,9 @@ CAPABILITIES: dict[str, set[str]] = {
     "sentinel.ai.assess":             {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
 
     # ── ERM capabilities ──────────────────────────────────────────────
-    "module.erm.access":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO},
+    "module.erm.access":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
     "erm.risk.manage":           {SUPER_ADMIN, RISK_OWNER},
-    "erm.risk.view":             {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO},
+    "erm.risk.view":             {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
     "erm.appetite.manage":       {SUPER_ADMIN, RISK_OWNER},
     "erm.library.manage":        {SUPER_ADMIN, RISK_OWNER},
     "erm.obligations.manage":    {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, DPO},
