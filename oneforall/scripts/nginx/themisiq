@@ -36,9 +36,14 @@ server {
         add_header         Cache-Control "public, immutable";
     }
 
-    # Login: 5 requests/minute per IP, burst 3 (anti brute-force).
+    # Login: strict per-IP limit only on POST (credential submission).
+    # GET (fetching the form) is bypassed by the zone map, so opening the
+    # login page never counts against the brute-force budget.
+    # Burst 10 gives normal users headroom for retypes; malicious brute force
+    # still hits the 20r/m ceiling quickly.
     location = /login {
-        limit_req           zone=login burst=3 nodelay;
+        limit_req           zone=login burst=10 nodelay;
+        limit_req           zone=general burst=50 nodelay;
         proxy_pass          http://127.0.0.1:8080;
         proxy_set_header    Host              $host;
         proxy_set_header    X-Real-IP         $remote_addr;
@@ -46,9 +51,10 @@ server {
         proxy_set_header    X-Forwarded-Proto $scheme;
     }
 
-    # Password change and MFA setup: same strict limit as login.
+    # Password change and MFA setup: same POST-only strict limit.
     location ~ ^/(change-password|mfa/) {
-        limit_req           zone=login burst=3 nodelay;
+        limit_req           zone=login burst=10 nodelay;
+        limit_req           zone=general burst=50 nodelay;
         proxy_pass          http://127.0.0.1:8080;
         proxy_set_header    Host              $host;
         proxy_set_header    X-Real-IP         $remote_addr;
