@@ -23,7 +23,7 @@ Business Platform and ThemisIQ's existing REST API + AI providers.
 ```
 app/
   __init__.py
-  config.py        # env + per-tenant map
+  config.py        # env + per-tenant map (+ org_id -> subscriber reverse index)
   auth.py          # signature / challenge verification
   audit.py         # append-only audit log
   ratelimit.py     # in-memory limiter
@@ -60,19 +60,43 @@ python tests/test_smoke.py      # or: pytest tests/test_smoke.py
 2. **ThemisIQ**: in Command Centre → Developer → API Keys, create a
    **read-only, scoped** key per tenant. Put it in `tenant_map.json` alongside
    each user's `wa_id`, `tenant_id`, `role`, and allowed `modules`.
-3. **Proactive alerts (optional)**: in ThemisIQ → Webhooks, point an HTTPS
-   endpoint at `https://<your-bridge>/webhook/themisiq`, set
-   `THEMIS_WEBHOOK_SECRET` to match, and subscribe to events
-   (`breach.declared`, `kri.threshold.breached`, `task.overdue`, ...).
+3. **Proactive alerts (implemented)**: ThemisIQ signs outbound webhooks with
+   HMAC-SHA256 (`X-ThemisIQ-Signature`). To receive them:
+   - In ThemisIQ → Webhooks, register `https://<your-bridge>/webhook/themisiq`
+     as a target and subscribe to event types (e.g. `breach.created`,
+     `risk.threshold_breached`, `dsar.created`, `dpia.created`).
+   - Set `THEMIS_WEBHOOK_SECRET` in the bridge `.env` to **the same secret**
+     ThemisIQ uses to sign (mismatch → HTTP 401).
+   - Map each `tenant_map.json` entry to its ThemisIQ `organisation_id` via the
+     **`org_id`** field (integer), OR use a top-level `org_subscriptions` block
+     (`"<org_id>": ["wa_user_id", ...]`). When an event arrives, the bridge
+     resolves `organisation_id` → subscribed `wa_user_id`s and fans out the
+     alert to each, **scoped to that user's `modules`** (a user only receives
+     pings for modules they can see — same RBAC as inbound queries).
+   - Alerts are formatted as concise WhatsApp messages and audit-logged per
+     recipient. In `OFFLINE_MODE` the send is stubbed (logged, not delivered).
 4. **LLM**: set `AI_PROVIDER` + the matching key. Prefer a **zero-retention /
    enterprise** tier (see DPIA M6/M9).
+
+## How proactive alerts are scoped
+| Event type | Required module | Delivered to |
+|------------|---------------|--------------|
+| `breach.created` / `breach.updated` | `sentinel` | users with `sentinel` |
+| `dsar.created` | `sentinel` | users with `sentinel` |
+| `dpia.created` / `dpia.submitted` | `aria` | users with `aria` |
+| `risk.threshold_breached` / `kri.status_changed` | `erm` | users with `erm` |
+| `audit.logged` | `command_centre` | users with `command_centre` |
+| `control.effectiveness_changed` | `governance` | users with `governance` |
+| (unknown event) | — | all subscribers |
+
+This keeps outbound alerts inside each recipient's read scope.
 
 ## Endpoints
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET  | `/webhook/whatsapp` | Meta/Twilio verification handshake |
-| POST | `/webhook/whatsapp` | inbound WhatsApp message → reply |
-| POST | `/webhook/themisiq` | ThemisIQ outbound webhook (alerts) |
+| POST | `/webhook/whatsapp` | inbound WhatsApp message → reply (HMAC-verified) |
+| POST | `/webhook/themisiq` | ThemisIQ outbound webhook — HMAC-verified, fanned out to subscribed WhatsApp users (RBAC-scoped) |
 | GET  | `/health`           | liveness |
 
 ## What users can say (Phase 1)
