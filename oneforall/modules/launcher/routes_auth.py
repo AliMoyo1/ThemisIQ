@@ -16,6 +16,8 @@ from modules.launcher._route_helpers import (
     hash_password, verify_password, _must_change_pw,
     settings, templates, shell_templates, shell_ctx, get_db,
 )
+from modules.sentinel.data_service import get_setting  # org policy (settings table)
+from core.mfa import mfa_required_for
 
 router = APIRouter()
 
@@ -123,7 +125,11 @@ async def login_submit(request: Request,
     clear_login_attempts(client_ip)
 
     from core import mfa as mfa_helper
-    needs_mfa = mfa_helper.is_enabled(user["id"])
+    enrolled = mfa_helper.is_enabled(user["id"])
+    # Org policy can require MFA even if the user hasn't opted in.
+    policy = (get_setting("security.require_mfa", "off") or "off").strip().lower()
+    policy_requires = (not enrolled) and mfa_required_for(user, policy)
+    needs_mfa = enrolled or policy_requires
 
     token = create_session(
         user["id"], ip=client_ip,
@@ -131,10 +137,13 @@ async def login_submit(request: Request,
         mfa_pending=needs_mfa,
     )
     log_audit(user, "platform", "login_pending_mfa" if needs_mfa else "login",
+              details=f"mfa_policy={policy}" if policy_requires else None,
               ip=client_ip)
 
     if needs_mfa:
-        target = "/mfa/verify"
+        # If the user hasn't actually enrolled yet (policy-enforced), send them
+        # to setup rather than the verify page (which would bounce them home).
+        target = "/mfa/setup" if policy_requires else "/mfa/verify"
     elif user.get("must_change_password"):
         target = "/change-password"
     else:
@@ -392,6 +401,8 @@ async def mfa_setup_page(request: Request):
     ctx = shell_ctx(request, active_module="platform", active_section="security")
     ctx["csrf_token"] = csrf
     ctx["mfa_active"] = mfa_helper.is_enabled(user["id"])
+    policy = (get_setting("security.require_mfa", "off") or "off").strip().lower()
+    ctx["mfa_required_by_policy"] = mfa_required_for(user, policy)
     if ctx["mfa_active"]:
         row = mfa_helper.get_mfa_row(user["id"]) or {}
         ctx["enrolled_at"] = row.get("enrolled_at")

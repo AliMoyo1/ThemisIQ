@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from core.timeutils import utcnow, to_dt
 
-from database import get_db, insert_returning_id, sql_current_date
+from database import get_db, insert_returning_id, sql_current_date, get_current_org
 
 
 import re as _re
@@ -1615,8 +1615,8 @@ def get_audit_stats(audit_id):
 def log_activity(user_id, action, entity_type, entity_id, details=None):
     db = get_db()
     try:
-        db.execute("INSERT INTO audit_log (user_id, action, module, entity_type, entity_id, details) VALUES (%s,%s,%s,%s,%s,%s)",
-            (user_id, action, "grid", entity_type, entity_id, json.dumps(details) if details else None))
+        db.execute("INSERT INTO audit_log (user_id, action, module, entity_type, entity_id, details, org_id) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (user_id, action, "grid", entity_type, entity_id, json.dumps(details) if details else None, get_current_org()))
         db.commit()
     finally:
         db.close()
@@ -1624,10 +1624,16 @@ def log_activity(user_id, action, entity_type, entity_id, details=None):
 def list_activity(limit=50):
     db = get_db()
     try:
-        return _dicts(db.execute(
-            "SELECT a.*, u.full_name AS user_name FROM audit_log a "
-            "LEFT JOIN users u ON a.user_id=u.id WHERE a.module='grid' "
-            "ORDER BY a.created_at DESC LIMIT %s", (limit,)).fetchall())
+        org_id = get_current_org()
+        sql = ("SELECT a.*, u.full_name AS user_name FROM audit_log a "
+               "LEFT JOIN users u ON a.user_id=u.id WHERE a.module='grid' ")
+        params = []
+        if org_id is not None:
+            sql += "AND a.org_id=%s "
+            params.append(org_id)
+        sql += "ORDER BY a.created_at DESC LIMIT %s"
+        params.append(limit)
+        return _dicts(db.execute(sql, tuple(params)).fetchall())
     finally:
         db.close()
 

@@ -10,7 +10,7 @@ import random
 import string
 from datetime import datetime, timedelta
 from core.timeutils import utcnow, to_dt
-from database import get_db, insert_returning_id, sql_current_date
+from database import get_db, insert_returning_id, sql_current_date, get_current_org
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -811,10 +811,15 @@ def get_all_settings():
 def list_audit(limit=200):
     db = get_db()
     try:
-        rows = db.execute(
-            "SELECT * FROM audit_log WHERE module='sentinel' ORDER BY created_at DESC LIMIT %s",
-            (limit,),
-        ).fetchall()
+        org_id = get_current_org()
+        sql = "SELECT * FROM audit_log WHERE module='sentinel' "
+        params = []
+        if org_id is not None:
+            sql += "AND org_id=%s "
+            params.append(org_id)
+        sql += "ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+        rows = db.execute(sql, tuple(params)).fetchall()
     finally:
         db.close()
     return [dict(r) for r in rows]

@@ -9,6 +9,7 @@ from core.sanitize import sanitize_str as _s
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from database import insert_returning_id
+from modules.sentinel.data_service import get_setting, set_setting  # org policy
 from modules.launcher._route_helpers import (
     _JSONResp, _require_cap, require_auth, has_capability, log_audit,
     get_db, hash_password, shell_ctx, templates, shell_templates, secrets,
@@ -1075,3 +1076,43 @@ async def api_connectors_test_teams(request: Request):
     from core.notifications import send_teams
     ok = send_teams("[ThemisIQ] Teams connector test — configuration is working.")
     return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+
+
+# ── Org security policy (MFA enforcement) ────────────────────────────────────
+
+_VALID_MFA_POLICIES = ("off", "admins", "all")
+
+
+@router.get("/api/admin/security-settings")
+@_require_cap("platform.manage_users")
+async def api_security_settings_get(request: Request):
+    """Return the current org security policy (MFA requirement)."""
+    policy = (get_setting("security.require_mfa", "off") or "off").strip().lower()
+    if policy not in _VALID_MFA_POLICIES:
+        policy = "off"
+    return _JSONResp({"security": {"require_mfa": policy}})
+
+
+@router.put("/api/admin/security-settings")
+@_require_cap("platform.manage_users")
+async def api_security_settings_put(request: Request):
+    """Update the org security policy.
+
+    Body: {"security": {"require_mfa": "off" | "admins" | "all"}}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status=400)
+    sec = (body or {}).get("security") or {}
+    policy = (sec.get("require_mfa") or "off")
+    if not isinstance(policy, str) or policy.strip().lower() not in _VALID_MFA_POLICIES:
+        return _JSONResp(
+            {"ok": False, "error": "require_mfa must be one of: off, admins, all."},
+            status=400,
+        )
+    policy = policy.strip().lower()
+    set_setting("security.require_mfa", policy)
+    log_audit(request.state.user, "platform", "security_settings_updated",
+              details=f"security.require_mfa={policy}")
+    return _JSONResp({"ok": True, "security": {"require_mfa": policy}})

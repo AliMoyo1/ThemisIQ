@@ -82,6 +82,35 @@ def is_enabled(user_id: int) -> bool:
     return bool(row and row.get("is_enabled"))
 
 
+# Admin-role keys that org MFA policy "admins" applies to. Mirrors the
+# privileged tiers a GRC buyer's auditors expect to be MFA-gated.
+_ADMIN_ROLE_KEYS = (
+    "super_admin", "compliance_manager", "audit_lead", "dpo",
+    "security_manager", "bcm_manager", "erm_manager", "aria_manager",
+)
+
+
+def mfa_required_for(user: dict, policy: str) -> bool:
+    """Pure policy check: does the org MFA policy require this user to have MFA?
+
+    policy values (from settings.security.require_mfa):
+      "off"    -> never required
+      "admins" -> required only for admin/manager-tier roles
+      "all"    -> required for every user
+    Any unknown/empty value fails open to "off" (never lock out login).
+    """
+    if not user:
+        return False
+    policy = (policy or "off").strip().lower()
+    if policy == "all":
+        return True
+    if policy == "admins":
+        from core.rbac import has_role
+        return has_role(user, *_ADMIN_ROLE_KEYS)
+    # "off" or anything unexpected -> fail open, never block login
+    return False
+
+
 def start_enrollment(user_id: int) -> tuple[str, list[str]]:
     """Create or replace a pending (not-yet-enabled) MFA row.
 

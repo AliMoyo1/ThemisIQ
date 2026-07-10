@@ -289,12 +289,17 @@ async def aria_dashboard(request: Request):
                 / max(sum(f["total"] for f in fw_stats), 1) * 100, 1
             ),
         }
-        recent = db.execute("""
-            SELECT al.*, u.full_name FROM audit_log al
-            LEFT JOIN users u ON al.user_id = u.id
-            WHERE al.module = 'aria'
-            ORDER BY al.created_at DESC LIMIT 8
-        """).fetchall()
+        recent_org = request.state.user.get("org_id") if getattr(request, "state", None) and getattr(request.state, "user", None) else None
+        recent_sql = (
+            "SELECT al.*, u.full_name FROM audit_log al "
+            "LEFT JOIN users u ON al.user_id = u.id "
+            "WHERE al.module = 'aria' "
+        )
+        if recent_org is not None:
+            recent_sql += "AND al.org_id = %s "
+        recent_sql += "ORDER BY al.created_at DESC LIMIT 8"
+        recent_params = (recent_org,) if recent_org is not None else ()
+        recent = db.execute(recent_sql, recent_params).fetchall()
     finally:
         db.close()
 
@@ -2268,12 +2273,17 @@ async def audit_log_page(request: Request):
     user = request.state.user
     db = get_db()
     try:
-        logs = db.execute("""
-            SELECT al.*, u.full_name FROM audit_log al
-            LEFT JOIN users u ON al.user_id = u.id
-            WHERE al.module = 'aria'
-            ORDER BY al.created_at DESC LIMIT 200
-        """).fetchall()
+        recent_org = request.state.user.get("org_id") if getattr(request, "state", None) and getattr(request.state, "user", None) else None
+        logs_sql = (
+            "SELECT al.*, u.full_name FROM audit_log al "
+            "LEFT JOIN users u ON al.user_id = u.id "
+            "WHERE al.module = 'aria' "
+        )
+        if recent_org is not None:
+            logs_sql += "AND al.org_id = %s "
+        logs_sql += "ORDER BY al.created_at DESC LIMIT 200"
+        logs_params = (recent_org,) if recent_org is not None else ()
+        logs = db.execute(logs_sql, logs_params).fetchall()
     finally:
         db.close()
     return _aria_render(request, "audit_log.html", {

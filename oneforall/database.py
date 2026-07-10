@@ -58,6 +58,11 @@ def get_current_tenant() -> str:
     return _current_tenant.get()
 
 
+def get_current_org() -> "int | None":
+    """Return the org_id bound to the current request context (None outside a request)."""
+    return _current_org_id.get()
+
+
 def set_current_org(org_id: "int | None", is_super_admin: bool = False):
     """Set the org context for RLS enforcement in the current async context."""
     _current_org_id.set(org_id)
@@ -4786,6 +4791,23 @@ def _seed_baseline_data(conn):
                  "operational", "internal", bu_root_id),
             )
         conn.commit()
+
+        # ── Backfill audit_log.org_id from the acting user (idempotent) ───────
+        # GRID's log_activity() historically inserted without org_id; those rows
+        # are invisible to org users under RLS. After the first run this UPDATE
+        # matches zero rows.
+        try:
+            conn.execute(
+                "UPDATE audit_log SET org_id = ("
+                "SELECT u.org_id FROM users u WHERE u.id = audit_log.user_id) "
+                "WHERE audit_log.org_id IS NULL AND audit_log.user_id IS NOT NULL"
+            )
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
     except Exception:
         try:
             conn.rollback()

@@ -43,6 +43,18 @@
     <div class="notice-bad">Password didn't match. MFA is still enabled.</div>
   {% endif %}
 
+  {% if mfa_required_by_policy and not mfa_active %}
+    <div class="notice-bad" style="border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.06)">
+      <strong>Two-factor authentication is required by your organization's security policy.</strong>
+      You must complete setup below before you can use ThemisIQ. If you lose access to your authenticator device, contact an administrator for recovery.
+    </div>
+  {% endif %}
+  {% if mfa_required_by_policy and mfa_active %}
+    <div class="notice-ok" style="border-color:#6ee7b7">
+      <strong>Two-factor authentication is required by your organization's security policy</strong> and is active on your account. It cannot be disabled while the policy is in effect.
+    </div>
+  {% endif %}
+
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:10px">
     <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0">Two-Factor Authentication</h1>
     {% if mfa_active %}
@@ -61,6 +73,7 @@
       <p>If you replace your device, disable 2FA below using your password, then enroll the new device from this page.</p>
     </div>
 
+  {% if not mfa_required_by_policy %}
     <div class="mfa-card" style="border-color:rgba(220,38,38,.2)">
       <h2 style="color:#dc2626">Disable 2FA</h2>
       <p>Re-enter your current password to turn 2FA off. Your backup codes will be revoked.</p>
@@ -70,6 +83,7 @@
         <button type="submit" onclick="return confirm('Turn off two-factor authentication?')">Disable</button>
       </form>
     </div>
+  {% endif %}
 
   {% else %}
 
