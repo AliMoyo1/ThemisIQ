@@ -111,7 +111,7 @@ async def api_global_search(request: Request):
         ).fetchall():
             results.append({"module": "aria", "type": "control", "id": r["id"],
                             "title": r["ref"] + " - " + r["name"],
-                            "subtitle": r["framework_name"], "link": "/aria/"})
+                            "subtitle": r["framework_name"], "link": f"/aria/?open=control:{r['id']}"})
 
         # ARIA documents
         for r in db.execute(
@@ -119,7 +119,7 @@ async def api_global_search(request: Request):
             (search_term, search_term)
         ).fetchall():
             results.append({"module": "aria", "type": "document", "id": r["id"],
-                            "title": r["title"], "subtitle": r["doc_id"], "link": "/aria/"})
+                            "title": r["title"], "subtitle": r["doc_id"], "link": f"/aria/?open=document:{r['id']}"})
 
         # Sentinel RoPA
         for r in db.execute(
@@ -127,7 +127,7 @@ async def api_global_search(request: Request):
             (search_term, search_term)
         ).fetchall():
             results.append({"module": "sentinel", "type": "ropa", "id": r["id"],
-                            "title": r["processing_name"], "subtitle": r["ref_number"] or "", "link": "/sentinel/"})
+                            "title": r["processing_name"], "subtitle": r["ref_number"] or "", "link": f"/sentinel/?open=ropa:{r['id']}"})
 
         # GRID audits
         for r in db.execute(
@@ -135,7 +135,7 @@ async def api_global_search(request: Request):
             (search_term,)
         ).fetchall():
             results.append({"module": "grid", "type": "audit", "id": r["id"],
-                            "title": r["name"], "subtitle": "Audit", "link": "/grid/"})
+                            "title": r["name"], "subtitle": "Audit", "link": f"/grid/?open=audit:{r['id']}"})
 
         # BCM plans
         for r in db.execute(
@@ -143,15 +143,17 @@ async def api_global_search(request: Request):
             (search_term,)
         ).fetchall():
             results.append({"module": "bcm", "type": "plan", "id": r["id"],
-                            "title": r["title"], "subtitle": "BCM Plan", "link": "/bcm/"})
+                            "title": r["title"], "subtitle": "BCM Plan", "link": f"/bcm/?open=plan:{r['id']}"})
 
         # Risk register
         for r in db.execute(
             "SELECT id, title, source_module FROM risk_register WHERE title LIKE %s LIMIT 10",
             (search_term,)
         ).fetchall():
+            _sm = r.get("source_module", "")
+            _link = f"/erm/?open=risk:{r['id']}" if _sm != "orm" else f"/orm/?open=event:{r['id']}"
             results.append({"module": "platform", "type": "risk", "id": r["id"],
-                            "title": r["title"], "subtitle": r["source_module"] or "Risk", "link": "/risk-register"})
+                            "title": r["title"], "subtitle": r["source_module"] or "Risk", "link": _link})
 
         # Evidence
         for r in db.execute(
@@ -159,7 +161,7 @@ async def api_global_search(request: Request):
             (search_term, search_term)
         ).fetchall():
             results.append({"module": "platform", "type": "evidence", "id": r["id"],
-                            "title": r["title"], "subtitle": r["category"], "link": "/evidence/"})
+                            "title": r["title"], "subtitle": r["category"], "link": f"/evidence/?open=item:{r['id']}"})
 
         # Sentinel breaches
         for r in db.execute(
@@ -167,8 +169,8 @@ async def api_global_search(request: Request):
             (search_term, search_term)
         ).fetchall():
             results.append({"module": "sentinel", "type": "breach", "id": r["id"],
-                            "title": r["title"], "subtitle": f"{r['ref_number']} — {r['severity'] or 'Breach'}",
-                            "link": "/sentinel/"})
+                            "title": r['title'], "subtitle": f"{r['ref_number']} — {r['severity'] or 'Breach'}",
+                            "link": f"/sentinel/?open=breach:{r['id']}"})
 
         # Sentinel DPIAs
         for r in db.execute(
@@ -176,7 +178,7 @@ async def api_global_search(request: Request):
             (search_term, search_term)
         ).fetchall():
             results.append({"module": "sentinel", "type": "dpia", "id": r["id"],
-                            "title": r["title"], "subtitle": r["ref_number"] or "DPIA", "link": "/sentinel/"})
+                            "title": r["title"], "subtitle": r["ref_number"] or "DPIA", "link": f"/sentinel/?open=dpia:{r['id']}"})
 
         # Sentinel DSRs
         for r in db.execute(
@@ -185,7 +187,7 @@ async def api_global_search(request: Request):
         ).fetchall():
             results.append({"module": "sentinel", "type": "dsr", "id": r["id"],
                             "title": r["requester_name"] or r["ref_number"],
-                            "subtitle": f"{r['ref_number']} — {r['request_type'] or 'DSR'}", "link": "/sentinel/"})
+                            "subtitle": f"{r['ref_number']} — {r['request_type'] or 'DSR'}", "link": f"/sentinel/?open=dsr:{r['id']}"})
 
         # Sentinel vendors
         for r in db.execute(
@@ -193,7 +195,7 @@ async def api_global_search(request: Request):
             (search_term,)
         ).fetchall():
             results.append({"module": "sentinel", "type": "vendor", "id": r["id"],
-                            "title": r["name"], "subtitle": r["type"] or "Vendor", "link": "/sentinel/"})
+                            "title": r["name"], "subtitle": r["type"] or "Vendor", "link": f"/sentinel/?open=vendor:{r['id']}"})
 
         # ERM enterprise risks
         for r in db.execute(
@@ -201,8 +203,8 @@ async def api_global_search(request: Request):
             (search_term,)
         ).fetchall():
             results.append({"module": "erm", "type": "risk", "id": r["id"],
-                            "title": r["title"], "subtitle": f"{r['category'] or 'Risk'} — {r['status'] or ''}",
-                            "link": "/erm/"})
+                            "title": r['title'], "subtitle": f"{r['category'] or 'Risk'} — {r['status'] or ''}",
+                            "link": f"/erm/?open=risk:{r['id']}"})
 
         # ERM regulatory obligations
         for r in db.execute(
@@ -211,7 +213,7 @@ async def api_global_search(request: Request):
         ).fetchall():
             results.append({"module": "erm", "type": "obligation", "id": r["id"],
                             "title": r["regulation_name"], "subtitle": r["regulator"] or "Obligation",
-                            "link": "/erm/"})
+                            "link": f"/erm/?open=obligation:{r['id']}"})
 
         # ORM events
         for r in db.execute(
@@ -219,8 +221,8 @@ async def api_global_search(request: Request):
             (search_term,)
         ).fetchall():
             results.append({"module": "orm", "type": "event", "id": r["id"],
-                            "title": r["title"], "subtitle": f"{r['event_type'] or 'Event'} — {r['severity'] or ''}",
-                            "link": "/orm/"})
+                            "title": r['title'], "subtitle": f"{r['event_type'] or 'Event'} — {r['severity'] or ''}",
+                            "link": f"/orm/?open=event:{r['id']}"})
 
         # ORM KRIs
         for r in db.execute(
@@ -228,7 +230,7 @@ async def api_global_search(request: Request):
             (search_term,)
         ).fetchall():
             results.append({"module": "orm", "type": "kri", "id": r["id"],
-                            "title": r["name"], "subtitle": "Key Risk Indicator", "link": "/orm/"})
+                            "title": r["name"], "subtitle": "Key Risk Indicator", "link": f"/orm/?open=kri:{r['id']}"})
     finally:
         db.close()
 
