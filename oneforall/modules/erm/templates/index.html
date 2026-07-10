@@ -1337,6 +1337,12 @@ window.ermOpenRiskDrawer=async function(id){
           '</div>'+
           '<div id="wfHistory_'+id+'" style="margin-top:6px"></div>'+
         '</div>'+
+        // ── Linked Controls section ──
+        '<div class="erm-drawer-section">'+
+          '<div class="erm-drawer-section-title">🛡️ Linked Controls <span id="linkedControlsCount" style="font-weight:400;color:var(--muted);font-size:12px">(0)</span></div>'+
+          '<div id="linkedControlsList" style="font-size:13px;color:var(--muted)">Loading...</div>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ermOpenLinkControlModal('+id+')" style="margin-top:8px">+ Link control</button>'+
+        '</div>'+
       '</div>'+  // closes erm-drawer-body
       // ── Footer ──
       '<div class="erm-drawer-foot">'+
@@ -1348,6 +1354,25 @@ window.ermOpenRiskDrawer=async function(id){
         (ERM_IS_ADMIN?'<button class="btn btn-secondary" style="color:var(--red);margin-left:auto" onclick="ermDeleteRisk('+id+',\''+registerSrc+'\')">Delete</button>':'')+
       '</div>'+
       '</div></div>';
+    // Fetch linked controls for this risk
+    (function(riskId){
+      apiFetch('/erm/api/risks/'+riskId+'/controls').then(function(controls){
+        if(!controls||!Array.isArray(controls)) return;
+        var listEl=document.getElementById('linkedControlsList');
+        var countEl=document.getElementById('linkedControlsCount');
+        if(!listEl) return;
+        countEl.textContent='('+controls.length+')';
+        if(controls.length===0){
+          listEl.innerHTML='<div style="color:var(--muted)">No linked controls</div>';
+          return;
+        }
+        listEl.innerHTML=controls.map(function(c){
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)">'+
+            '<span><strong>'+esc(c.control_ref||'')+'</strong> '+esc(c.control_title)+' <span style="color:var(--muted)">(weight: '+(c.weight||'1.0')+')</span></span>'+
+            '<button class="btn btn-sm btn-danger" onclick="ermUnlinkControl('+riskId+','+c.control_id+')" style="padding:2px 8px;font-size:11px">✕</button></div>';
+        }).join('');
+      });
+    })(id);
     // Load workflow history
     try{
       var hist=await apiFetch('/erm/api/risks/'+id+'/workflow');
@@ -1368,6 +1393,33 @@ window.ermOpenRiskDrawer=async function(id){
   }catch(e){ermCloseRiskDrawer();typeof showToast==='function'&&showToast('Load failed','error');}
 };
 window.ermCloseRiskDrawer=function(){document.getElementById('ermRiskDrawer').innerHTML='';_drawerRisk=null;};
+window.ermUnlinkControl=async function(riskId,controlId){
+  if(!confirm('Remove this control?')) return;
+  try{
+    var r=await apiFetch('/erm/api/risks/'+riskId+'/controls/'+controlId,{method:'DELETE'});
+    if(r&&r.ok){showToast('Control unlinked');window.location.reload();}
+    else showToast('Failed to unlink control','error');
+  }catch(e){showToast('Failed to unlink','error');}
+};
+window.ermOpenLinkControlModal=async function(riskId){
+  try{
+    var controls=await apiFetch('/governance/api/controls');
+    if(!controls||!Array.isArray(controls)||controls.length===0){
+      showToast('No controls available. Create controls in Governance first.','error');
+      return;
+    }
+    var names=controls.filter(function(c){return c.is_active!==0;}).map(function(c){return c.id+':'+(c.ref||'')+' '+c.title;});
+    var chose=prompt('Enter control ID to link (available:\n'+names.join('\n')+'\nOr paste a control ID:');
+    if(!chose) return;
+    var cid=parseInt(chose,10);
+    if(!cid){showToast('Invalid control ID','error');return;}
+    var w=parseFloat(prompt('Weight (0.1-5.0, default 1.0):'))||1.0;
+    w=Math.max(0.1,Math.min(5.0,w));
+    var r=await apiFetch('/erm/api/risks/'+riskId+'/controls',{method:'POST',body:{control_id:cid,weight:w}});
+    if(r&&r.ok){showToast('Control linked');window.location.reload();}
+    else showToast('Failed to link control','error');
+  }catch(e){showToast('Failed','error');}
+};
 window.ermQuickStatusChange=async function(id,status){try{await apiFetch('/erm/api/risks/'+id,{method:'PUT',body:{status:status}});ermCloseRiskDrawer();ermLoadRegister();typeof showToast==='function'&&showToast('Status updated');}catch(e){typeof showToast==='function'&&showToast('Update failed','error');}};
 
 window.ermAdvanceWorkflow=async function(riskId,toStep,btn){

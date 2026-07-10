@@ -153,6 +153,38 @@ async def api_risk_delete(request: Request, risk_id: int):
     return JSONResponse({"ok": True})
 
 
+# ── Risk ↔ Control Linking ──────────────────────────────────────────────────
+
+@router.get("/api/risks/{risk_id}/controls")
+@require_capability("erm.risk.view")
+async def api_risk_controls_list(request: Request, risk_id: int):
+    controls = ds.list_risk_controls(risk_id)
+    return JSONResponse(controls)
+
+
+@router.post("/api/risks/{risk_id}/controls")
+@require_capability("erm.risk.manage")
+async def api_risk_control_link(request: Request, risk_id: int):
+    body = await _json_body(request)
+    control_id = body.get("control_id")
+    if not isinstance(control_id, int) or control_id <= 0:
+        raise HTTPException(400, "control_id must be a positive integer")
+    # Verify risk exists
+    risk = ds.get_enterprise_risk(risk_id)
+    if not risk:
+        raise HTTPException(404, "Risk not found")
+    weight = float(body.get("weight", 1.0))
+    ds.link_risk_control(risk_id, control_id, _uid(request), weight)
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/risks/{risk_id}/controls/{control_id}")
+@require_capability("erm.risk.manage")
+async def api_risk_control_unlink(request: Request, risk_id: int, control_id: int):
+    ds.unlink_risk_control(risk_id, control_id)
+    return JSONResponse({"ok": True})
+
+
 # ── Delete platform risk_register entry (cross-module risks visible in ERM) ───
 
 @router.delete("/api/register-entry/{reg_id}")

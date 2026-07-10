@@ -15,7 +15,7 @@
 .gov-tab:hover{color:var(--text)}
 .gov-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 
-.gov-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.gov-summary{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
 .gov-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
 .gov-stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:6px}
 .gov-stat-val{font-size:24px;font-weight:700;color:var(--text)}
@@ -81,7 +81,7 @@
   <div class="gov-header">
     <div>
       <h2>Governance Entities</h2>
-      <p>Business units, departments, processes, applications, and data assets. The graph nodes every module scopes against.</p>
+      <p>Business units, departments, processes, applications, controls, and data assets. The graph nodes every module scopes against.</p>
     </div>
     {% if can_manage %}
     <button class="gov-btn" id="govAddBtn" onclick="govOpenAdd()"><span>+</span> Add Business Unit</button>
@@ -93,6 +93,7 @@
     <div class="gov-stat"><div class="gov-stat-label">Departments</div><div class="gov-stat-val" id="sDept">0</div></div>
     <div class="gov-stat"><div class="gov-stat-label">Processes</div><div class="gov-stat-val" id="sBp">0</div></div>
     <div class="gov-stat"><div class="gov-stat-label">Applications</div><div class="gov-stat-val" id="sApp">0</div></div>
+    <div class="gov-stat"><div class="gov-stat-label">Controls</div><div class="gov-stat-val" id="sCtrl">0</div></div>
     <div class="gov-stat"><div class="gov-stat-label">Data Assets</div><div class="gov-stat-val" id="sDa">0</div></div>
   </div>
 
@@ -101,6 +102,7 @@
     <button class="gov-tab" data-tab="dept" onclick="govSwitchTab('dept')">Departments</button>
     <button class="gov-tab" data-tab="bp" onclick="govSwitchTab('bp')">Business Processes</button>
     <button class="gov-tab" data-tab="app" onclick="govSwitchTab('app')">Applications</button>
+    <button class="gov-tab" data-tab="ctrl" onclick="govSwitchTab('ctrl')">Controls</button>
     <button class="gov-tab" data-tab="da" onclick="govSwitchTab('da')">Data Assets</button>
   </div>
 
@@ -148,6 +150,19 @@
     <table class="gov-table" id="appTable">
       <thead><tr><th>Name</th><th>Type</th><th>Hosting</th><th>Vendor</th><th>Business Unit</th><th>Owner</th><th>Criticality</th><th class="actions">Actions</th></tr></thead>
       <tbody id="appTBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Controls -->
+  <div class="tab-view" id="tab-ctrl">
+    <div class="gov-toolbar">
+      <div class="filters">
+        <select id="ctrlBuFilter" onchange="govLoadControls()"><option value="">All Business Units</option></select>
+      </div>
+    </div>
+    <table class="gov-table" id="ctrlTable">
+      <thead><tr><th>Ref</th><th>Title</th><th>Owner</th><th>Automation</th><th>Last Tested</th><th>Status</th><th class="actions">Actions</th></tr></thead>
+      <tbody id="ctrlTBody"></tbody>
     </table>
   </div>
 
@@ -201,7 +216,7 @@ function govSwitchTab(tab){
   document.querySelectorAll('.gov-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   document.querySelectorAll('.tab-view').forEach(v=>v.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
-  document.querySelector('.gov-header .gov-btn').innerHTML = '<span>+</span> Add ' + {bu:'Business Unit',dept:'Department',bp:'Process',app:'Application',da:'Data Asset'}[tab];
+  document.querySelector('.gov-header .gov-btn').innerHTML = '<span>+</span> Add ' + {bu:'Business Unit',dept:'Department',bp:'Process',app:'Application',ctrl:'Control',da:'Data Asset'}[tab];
   govLoadTab(tab);
 }
 
@@ -210,6 +225,7 @@ function govLoadTab(tab){
   else if(tab==='dept') govLoadDepts();
   else if(tab==='bp') govLoadBps();
   else if(tab==='app') govLoadApps();
+  else if(tab==='ctrl') govLoadControls();
   else if(tab==='da') govLoadDas();
 }
 
@@ -220,6 +236,7 @@ function govLoadSummary(){
     document.getElementById('sDept').textContent = d.departments || 0;
     document.getElementById('sBp').textContent = d.business_processes || 0;
     document.getElementById('sApp').textContent = d.applications || 0;
+    document.getElementById('sCtrl').textContent = d.canonical_controls || 0;
     document.getElementById('sDa').textContent = d.data_assets || 0;
   }).catch(()=>{});
 }
@@ -262,7 +279,7 @@ function renderBuNode(n){
 
 function updateBuDropdowns(){
   var opts = '<option value="">All Business Units</option>' + govBuList.map(b=>'<option value="'+b.id+'">'+esc(b.name)+'</option>').join('');
-  ['deptBuFilter','bpBuFilter','appBuFilter','daBuFilter'].forEach(id=>{
+  ['deptBuFilter','bpBuFilter','appBuFilter','ctrlBuFilter','daBuFilter'].forEach(id=>{
     var sel = document.getElementById(id);
     if(!sel) return;
     var cur = sel.value;
@@ -395,6 +412,87 @@ function govLoadApps(){
 function govEditApp(id){var r = govAppList.find(x=>x.id===id); if(r) govOpenAppModal(r);}
 function govDeleteApp(id){if(!confirm('Delete this application?')) return; apiFetch('/governance/api/applications/'+id, {method:'DELETE'}).then(()=>{ govLoadApps(); govLoadSummary(); }).catch(err=>alert(err.message));}
 
+// ── Canonical Controls ───────────────────────────────────────────────
+var govCtrlList = [];
+function govLoadControls(){
+  var bu = document.getElementById('ctrlBuFilter').value;
+  apiFetch('/governance/api/controls' + (bu ? '?bu_id='+bu : '')).then(rows=>{
+    govCtrlList = rows;
+    var tbody = document.getElementById('ctrlTBody');
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No controls yet.</td></tr>'; return}
+    tbody.innerHTML = rows.map(r=>{
+      var actions = CAN_MANAGE ? (
+        '<button class="gov-btn ghost small" onclick="govEditCtrl('+r.id+')">Edit</button> '+
+        '<button class="gov-btn ghost small" onclick="govDeleteCtrl('+r.id+')">Delete</button>'
+      ) : '';
+      var lastTested = r.last_tested_at ? r.last_tested_at.substring(0,10) : '–';
+      return '<tr>'
+        + '<td><code style="background:var(--surface2);padding:2px 6px;border-radius:3px">'+esc(r.ref || '–')+'</code></td>'
+        + '<td><strong>'+esc(r.title)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
+        + '<td>'+esc(r.owner_name || '–')+'</td>'
+        + '<td>'+esc(r.automation || '–')+'</td>'
+        + '<td>'+lastTested+'</td>'
+        + '<td>'+(r.is_active ? '<span class="badge" style="background:rgba(22,163,74,.15);color:#16a34a">Active</span>' : '<span class="badge badge-inactive">Inactive</span>')+'</td>'
+        + '<td class="actions">'+actions+'</td>'
+      + '</tr>';
+    }).join('');
+  });
+}
+
+function govEditCtrl(id){var r = govCtrlList.find(x=>x.id===id); if(r) govOpenCtrlModal(r);}
+function govDeleteCtrl(id){
+  if(!confirm('Delete this control?')) return;
+  apiFetch('/governance/api/controls/'+id, {method:'DELETE'})
+    .then(()=>{ govLoadControls(); govLoadSummary(); })
+    .catch(err=>alert('Delete failed: '+err.message));
+}
+
+function govOpenCtrlModal(row){
+  var isEdit = !!row;
+  document.getElementById('govModal').innerHTML =
+    '<div class="modal-overlay" onclick="if(event.target===this)govCloseModal()">'
+    + '<div class="modal-box">'
+      + '<button class="modal-close" onclick="govCloseModal()">×</button>'
+      + '<div class="modal-title">'+(isEdit ? 'Edit' : 'New')+' Control</div>'
+      + '<div class="form-group"><label>Title *</label><input id="ctrl_title" value="'+esc(row?row.title:'')+'"></div>'
+      + '<div class="form-row">'
+        + '<div class="form-group"><label>Ref</label><input id="ctrl_ref" value="'+esc(row?(row.ref||''):'')+'"></div>'
+        + '<div class="form-group"><label>Automation</label><select id="ctrl_auto"><option value="">—</option><option value="manual">Manual</option><option value="semi-automated">Semi-automated</option><option value="automated">Automated</option></select></div>'
+      + '</div>'
+      + '<div class="form-row">'
+        + '<div class="form-group"><label>Business Unit</label><select id="ctrl_bu"><option value="">— None —</option>'+buOptions()+'</select></div>'
+        + '<div class="form-group"><label>Test Frequency (days)</label><input type="number" step="1" id="ctrl_freq" value="'+(row&&row.test_frequency_days!=null?row.test_frequency_days:'')+'"></div>'
+      + '</div>'
+      + '<div class="form-group"><label>Last Tested</label><input type="date" id="ctrl_lasttest" value="'+(row&&row.last_tested_at?row.last_tested_at.substring(0,10):'')+'"></div>'
+      + '<div class="form-group"><label>Description</label><textarea id="ctrl_desc" rows="3">'+esc(row?(row.description||''):'')+'</textarea></div>'
+      + (isEdit ? '<div class="form-check"><input type="checkbox" id="ctrl_active"'+(row.is_active?' checked':'')+'><label for="ctrl_active">Active</label></div>' : '')
+      + '<div class="modal-actions">'
+        + '<button class="gov-btn ghost" onclick="govCloseModal()">Cancel</button>'
+        + '<button class="gov-btn" onclick="govSaveCtrl('+(row?row.id:'null')+')">Save</button>'
+      + '</div>'
+    + '</div></div>';
+  if(isEdit){
+    document.getElementById('ctrl_auto').value = row.automation || '';
+    document.getElementById('ctrl_bu').value = row.business_unit_id || '';
+  }
+}
+
+function govSaveCtrl(id){
+  var body = {
+    title: document.getElementById('ctrl_title').value.trim(),
+    ref: document.getElementById('ctrl_ref').value.trim(),
+    automation: document.getElementById('ctrl_auto').value || null,
+    business_unit_id: parseInt(document.getElementById('ctrl_bu').value) || null,
+    test_frequency_days: parseInt(document.getElementById('ctrl_freq').value) || null,
+    last_tested_at: document.getElementById('ctrl_lasttest').value || null,
+    description: document.getElementById('ctrl_desc').value.trim(),
+  };
+  if(id) body.is_active = document.getElementById('ctrl_active').checked ? 1 : 0;
+  apiFetch('/governance/api/controls' + (id ? '/'+id : ''), {method: id ? 'PUT' : 'POST', body: JSON.stringify(body)})
+    .then(()=>{ govCloseModal(); govLoadControls(); govLoadSummary(); })
+    .catch(err=>alert('Save failed: '+err.message));
+}
+
 // ── Data Assets ─────────────────────────────────────────────────────
 var govDaList = [];
 function govLoadDas(){
@@ -431,7 +529,7 @@ function govDeleteDa(id){if(!confirm('Delete this data asset?')) return; apiFetc
 // ── Modals ──────────────────────────────────────────────────────────
 function govCloseModal(){document.getElementById('govModal').innerHTML='';}
 function govOpenAdd(){
-  var openers = {bu:govOpenBuModal, dept:govOpenDeptModal, bp:govOpenBpModal, app:govOpenAppModal, da:govOpenDaModal};
+  var openers = {bu:govOpenBuModal, dept:govOpenDeptModal, bp:govOpenBpModal, app:govOpenAppModal, ctrl:govOpenCtrlModal, da:govOpenDaModal};
   (openers[govActiveTab] || govOpenBuModal)(null);
 }
 

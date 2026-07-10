@@ -687,6 +687,56 @@ def delete_enterprise_risk(risk_id):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# RISK ↔ CONTROL LINKING
+# ═════════════════════════════════════════════════════════════════════════════
+
+def list_risk_controls(risk_id):
+    """Return all controls linked to a risk, joined with canonical_controls for title/ref."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT rc.*, cc.title AS control_title, cc.ref AS control_ref "
+            "FROM risk_controls rc JOIN canonical_controls cc ON rc.control_id = cc.id "
+            "WHERE rc.risk_id=%s ORDER BY cc.title",
+            (risk_id,),
+        ).fetchall()
+        return _dicts(rows)
+    finally:
+        db.close()
+
+
+def link_risk_control(risk_id, control_id, user_id, weight=1.0):
+    """Link a control to a risk. Weight is clamped to [0.1, 5.0]. Returns True."""
+    weight = max(0.1, min(5.0, float(weight)))
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO risk_controls (risk_id, control_id, weight, direction, created_by) "
+            "VALUES (%s, %s, %s, 'mitigates', %s) "
+            "ON CONFLICT (risk_id, control_id) DO NOTHING",
+            (risk_id, control_id, weight, user_id),
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+def unlink_risk_control(risk_id, control_id):
+    """Remove a control link from a risk. Returns True."""
+    db = get_db()
+    try:
+        db.execute(
+            "DELETE FROM risk_controls WHERE risk_id=%s AND control_id=%s",
+            (risk_id, control_id),
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # DIMENSION SCORES — per-risk impact breakdown
 # ═════════════════════════════════════════════════════════════════════════════
 
