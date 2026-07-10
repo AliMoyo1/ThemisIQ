@@ -84,6 +84,7 @@ async def api_risks_list(request: Request):
         status=p.get("status"),
         source_module=p.get("source_module"),
         board_only=p.get("board_only") == "1",
+        bu_id=int(p["bu_id"]) if p.get("bu_id") and p["bu_id"].isdigit() else None,
     ))
 
 

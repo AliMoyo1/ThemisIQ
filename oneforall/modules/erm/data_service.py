@@ -536,7 +536,7 @@ def import_framework(payload, name_override=None):
 # ENTERPRISE RISKS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_enterprise_risks(category=None, status=None, source_module=None, board_only=False, limit=500):
+def list_enterprise_risks(category=None, status=None, source_module=None, board_only=False, limit=500, bu_id=None):
     db = get_db()
     try:
         where, params = [], []
@@ -548,6 +548,8 @@ def list_enterprise_risks(category=None, status=None, source_module=None, board_
             where.append("source_module=%s"); params.append(source_module)
         if board_only:
             where.append("board_visibility=1")
+        if bu_id is not None:
+            where.append("business_unit_id=%s"); params.append(bu_id)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = db.execute(
             f"SELECT e.*, u.full_name AS owner_name "
