@@ -1105,7 +1105,9 @@ async def api_settings_update(request: Request):
 @require_capability("module.sentinel.access")
 async def api_audit_list(request: Request):
     limit = int(request.query_params.get("limit", "200"))
-    return JSONResponse(ds.list_audit(limit=limit))
+    user = request.state.user
+    org_id = None if (user.get("is_super_admin") or user.get("org_id") is None) else user.get("org_id")
+    return JSONResponse(ds.list_audit(limit=limit, org_id=org_id))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1164,8 +1166,10 @@ async def api_audit_export(request: Request):
         vendors = ds.list_vendors()
         zf.writestr(f"Vendor_Register_{date_str}.json", json.dumps(vendors, indent=2, default=str))
 
-        # Audit trail
-        audit = ds.list_audit(limit=10000)
+        # Audit trail (scoped to the requesting user's org)
+        user = request.state.user
+        org_id = None if (user.get("is_super_admin") or user.get("org_id") is None) else user.get("org_id")
+        audit = ds.list_audit(limit=10000, org_id=org_id)
         zf.writestr(f"Audit_Trail_{date_str}.json", json.dumps(audit, indent=2, default=str))
 
         # Policies

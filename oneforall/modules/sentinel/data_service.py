@@ -10,7 +10,7 @@ import random
 import string
 from datetime import datetime, timedelta
 from core.timeutils import utcnow, to_dt
-from database import get_db, insert_returning_id, sql_current_date, get_current_org
+from database import get_db, insert_returning_id, sql_current_date
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -808,18 +808,19 @@ def get_all_settings():
 # Sentinel Audit Log (uses shared audit_log)
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_audit(limit=200):
+def list_audit(limit=200, org_id=None):
     db = get_db()
     try:
-        org_id = get_current_org()
-        sql = "SELECT * FROM audit_log WHERE module='sentinel' "
-        params = []
-        if org_id is not None:
-            sql += "AND org_id=%s "
-            params.append(org_id)
-        sql += "ORDER BY created_at DESC LIMIT %s"
-        params.append(limit)
-        rows = db.execute(sql, tuple(params)).fetchall()
+        if org_id is None:
+            rows = db.execute(
+                "SELECT * FROM audit_log WHERE module='sentinel' ORDER BY created_at DESC LIMIT %s",
+                (limit,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT * FROM audit_log WHERE module='sentinel' AND org_id=%s ORDER BY created_at DESC LIMIT %s",
+                (org_id, limit),
+            ).fetchall()
     finally:
         db.close()
     return [dict(r) for r in rows]

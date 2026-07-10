@@ -8,93 +8,104 @@
 
 <div class="content">
 
-  {% if would_lock_admin %}
-  <div class="notice-bad" style="border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.06);margin-bottom:16px">
-    <strong>Heads up:</strong> your account does not have two-factor authentication enabled. Setting the policy to
-    <em>Admins</em> or <em>Everyone</em> will require you to enroll MFA on your next login before you can use the platform.
-    You can still change the policy — you'll just be prompted to set up MFA first.
-  </div>
-  {% endif %}
-
-  <div class="card" style="padding:20px; max-width:640px;">
-    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;">Require Two-Factor Authentication</div>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5;">
-      Force users to enroll MFA before accessing ThemisIQ. Required for PCI DSS, ISO 27001 and most GRC buyers.
-    </p>
-
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <label class="policy-option" style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:10px;cursor:pointer;{% if current_policy == 'off' %}background:var(--surface2);border-color:var(--accent);{% endif %}">
-        <input type="radio" name="mfa_policy" value="off" {% if current_policy == 'off' %}checked{% endif %} style="margin-top:3px;">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);">Off</div>
-          <div style="font-size:12px;color:var(--muted);">MFA is optional for all users.</div>
-        </div>
-      </label>
-
-      <label class="policy-option" style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:10px;cursor:pointer;{% if current_policy == 'admins' %}background:var(--surface2);border-color:var(--accent);{% endif %}">
-        <input type="radio" name="mfa_policy" value="admins" {% if current_policy == 'admins' %}checked{% endif %} style="margin-top:3px;">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);">Admins only</div>
-          <div style="font-size:12px;color:var(--muted);">Managers, compliance, audit, DPO and security roles must use MFA.</div>
-        </div>
-      </label>
-
-      <label class="policy-option" style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:10px;cursor:pointer;{% if current_policy == 'all' %}background:var(--surface2);border-color:var(--accent);{% endif %}">
-        <input type="radio" name="mfa_policy" value="all" {% if current_policy == 'all' %}checked{% endif %} style="margin-top:3px;">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);">Everyone</div>
-          <div style="font-size:12px;color:var(--muted);">All users must enroll MFA before accessing the platform.</div>
-        </div>
-      </label>
+  <!-- MFA enforcement policy -->
+  <div class="card" style="padding:20px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
+    <div style="font-size:14px; font-weight:600; margin-bottom:4px;">Multi-Factor Authentication (MFA) Requirement</div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+      Enforce MFA org-wide. Applies to every user in your organisation on their next session.
     </div>
 
-    <button id="saveBtn" class="btn btn-primary" style="margin-top:18px;" onclick="savePolicy()">Save policy</button>
-    <span id="saveStatus" style="font-size:12px;color:var(--muted);margin-left:10px;"></span>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      {% for opt in [("off","Off — MFA optional"),("admins","Admins only"),("all","Everyone")] %}
+      <label class="mfa-opt" style="flex:1; cursor:pointer;">
+        <input type="radio" name="mfa_policy" value="{{ opt[0] }}" {% if current_policy == opt[0] %}checked{% endif %} style="display:none;">
+        <div class="mfa-card" data-policy="{{ opt[0] }}" style="padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--surface3); font-size:13px; text-align:center; {% if current_policy == opt[0] %}border-color:var(--accent); box-shadow:0 0 0 1px var(--accent);{% endif %}">
+          {{ opt[1] }}
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div id="lockoutWarning" style="display:none; padding:10px 12px; border-radius:6px; background:var(--bad-soft); color:var(--bad); font-size:12px; margin-bottom:14px;">
+      ⚠ Enforcing MFA for <strong>Everyone</strong> will lock out any user who has not yet enrolled MFA. Enroll MFA for all users first (see table below) to avoid lockouts.
+    </div>
+
+    <button id="saveBtn" class="btn btn-primary" onclick="savePolicy()">Save Policy</button>
+    <span id="saveStatus" style="font-size:12px; color:var(--muted); margin-left:10px;"></span>
   </div>
 
-  <div class="card" style="padding:16px;max-width:640px;margin-top:16px;background:var(--surface2);border:1px solid var(--border);">
-    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;">Your MFA status</div>
-    {% if admin_has_mfa %}
-      <span style="padding:2px 10px;border-radius:4px;font-size:12px;background:var(--good-soft);color:var(--good);">✓ Enabled</span>
-      <span style="font-size:12px;color:var(--muted);margin-left:8px;">Manage in <a href="/mfa/setup" style="color:var(--accent);">Two-Factor Settings</a>.</span>
-    {% else %}
-      <span style="padding:2px 10px;border-radius:4px;font-size:12px;background:var(--bad-soft);color:var(--bad);">Not enabled</span>
-      <span style="font-size:12px;color:var(--muted);margin-left:8px;">Enable in <a href="/mfa/setup" style="color:var(--accent);">Two-Factor Settings</a> to avoid lockout when enforcing MFA.</span>
-    {% endif %}
+  <!-- Per-user MFA status -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:14px 16px; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); border-bottom:1px solid var(--border);">
+      User MFA Status
+    </div>
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">User</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Email</th>
+          <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">MFA</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr style="border-bottom:1px solid var(--border-soft);">
+          <td style="padding:10px 14px; font-size:13px; font-weight:500;">{{ u.full_name or u.username }}<div style="font-size:11px; color:var(--muted);">{{ u.username }}</div></td>
+          <td style="padding:10px 14px; font-size:12px; color:var(--muted);">{{ u.email }}</td>
+          <td style="padding:10px 14px; text-align:center;">
+            {% if u.mfa_enabled %}
+              <span style="padding:2px 8px; border-radius:4px; font-size:11px; background:var(--good-soft); color:var(--good);">Enrolled</span>
+            {% else %}
+              <span style="padding:2px 8px; border-radius:4px; font-size:11px; background:var(--bad-soft); color:var(--bad);">Not enrolled</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
 </div>
 
 <script>
+function updateSelection() {
+  const sel = document.querySelector('input[name="mfa_policy"]:checked');
+  document.querySelectorAll('.mfa-card').forEach(c => { c.style.borderColor = 'var(--border)'; c.style.boxShadow = 'none'; });
+  if (sel) {
+    const card = document.querySelector('.mfa-card[data-policy="' + sel.value + '"]');
+    if (card) { card.style.borderColor = 'var(--accent)'; card.style.boxShadow = '0 0 0 1px var(--accent)'; }
+    document.getElementById('lockoutWarning').style.display = (sel.value === 'all') ? 'block' : 'none';
+  }
+}
+document.querySelectorAll('.mfa-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const v = card.getAttribute('data-policy');
+    const radio = document.querySelector('input[name="mfa_policy"][value="' + v + '"]');
+    if (radio) { radio.checked = true; updateSelection(); }
+  });
+});
+updateSelection();
+
 async function savePolicy() {
-  const el = document.querySelector('input[name="mfa_policy"]:checked');
-  const policy = el ? el.value : 'off';
+  const sel = document.querySelector('input[name="mfa_policy"]:checked');
+  if (!sel) return;
   const btn = document.getElementById('saveBtn');
   const status = document.getElementById('saveStatus');
   btn.disabled = true; status.textContent = 'Saving…';
-  try {
-    const resp = await fetch('/api/admin/security-settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ security: { require_mfa: policy } })
-    });
-    const data = await resp.json();
-    if (resp.ok && data.ok) {
-      status.style.color = 'var(--good)';
-      status.textContent = 'Saved ✓';
-      document.querySelectorAll('.policy-option').forEach(o => o.style.borderColor = 'var(--border)');
-      el.closest('.policy-option').style.borderColor = 'var(--accent)';
-      el.closest('.policy-option').style.background = 'var(--surface2)';
-    } else {
-      status.style.color = 'var(--bad)';
-      status.textContent = (data && data.error) ? data.error : 'Failed to save.';
-    }
-  } catch (e) {
+  const resp = await fetch('/api/admin/security-settings', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ security: { require_mfa: sel.value } })
+  });
+  const data = await resp.json().catch(() => ({}));
+  btn.disabled = false;
+  if (resp.ok && data.ok) {
+    status.textContent = 'Saved ✓'; status.style.color = 'var(--good)';
+  } else {
+    status.textContent = 'Error: ' + (data.error || resp.status);
     status.style.color = 'var(--bad)';
-    status.textContent = 'Network error.';
-  } finally {
-    btn.disabled = false;
   }
+  setTimeout(() => { status.textContent = ''; }, 3000);
 }
 </script>
 

@@ -236,17 +236,16 @@ async def api_command_centre_stats(request: Request):
         sla_pct = round((sla_met / sla_total_resolved) * 100) if sla_total_resolved else 100
 
         # ── Recent activity (from audit log) ──
-        org_id = request.state.user.get("org_id") if getattr(request, "state", None) and getattr(request.state, "user", None) else None
-        activity_sql = (
-            "SELECT al.action AS text, al.module, al.created_at "
-            "FROM audit_log al "
-        )
-        activity_params = []
-        if org_id is not None:
-            activity_sql += "WHERE al.org_id=%s "
-            activity_params.append(org_id)
-        activity_sql += "ORDER BY al.created_at DESC LIMIT 6"
-        activity_rows = db.execute(activity_sql, tuple(activity_params)).fetchall()
+        # Org isolation: non-super-admins only see their own org's activity.
+        is_super = user.get("is_super_admin")
+        caller_org_id = user.get("org_id")
+        org_filter = "" if is_super or caller_org_id is None else " WHERE al.org_id = %s"
+        org_arg = () if is_super or caller_org_id is None else (caller_org_id,)
+        activity_rows = db.execute(
+            f"SELECT al.action AS text, al.module, al.created_at "
+            f"FROM audit_log al{org_filter} ORDER BY al.created_at DESC LIMIT 6",
+            org_arg,
+        ).fetchall()
         activity = [dict(r) for r in activity_rows]
 
         # ── Overdue action items: SLA instances (Bug 2 fixed: entity_module, resolution_due) ──
@@ -632,9 +631,9 @@ async def api_my_dashboard_data(request: Request):
                 "SELECT COUNT(*) FROM sentinel_dsr WHERE status NOT IN ('completed','closed')"
             ).fetchone()[0]
             data["recent_audit_entries"] = [dict(r) for r in db.execute(
-                "SELECT al.*, u.full_name FROM audit_log al LEFT JOIN users u ON al.user_id = u.id "
-                + ("WHERE al.org_id=%s " % user.get("org_id") if user.get("org_id") is not None else "")
-                + "ORDER BY al.created_at DESC LIMIT 10"
+                f"SELECT al.*, u.full_name FROM audit_log al LEFT JOIN users u ON al.user_id = u.id "
+                f"{org_filter} ORDER BY al.created_at DESC LIMIT 10",
+                org_arg
             ).fetchall()]
 
         elif role in ("audit_lead", "auditor"):
