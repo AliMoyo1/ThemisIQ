@@ -266,3 +266,43 @@ async def api_da_update(request: Request, asset_id: int):
 async def api_da_delete(request: Request, asset_id: int):
     ds.delete_data_asset(asset_id)
     return JSONResponse({"ok": True})
+
+
+# ── Canonical Controls ──────────────────────────────────────────────────────
+
+@router.get("/api/controls")
+@require_capability("governance.entities.view")
+async def api_ctrl_list(request: Request):
+    p = request.query_params
+    bu_id = int(p["bu_id"]) if p.get("bu_id") else None
+    include_inactive = p.get("include_inactive") == "1"
+    return JSONResponse(ds.list_canonical_controls(bu_id=bu_id, include_inactive=include_inactive))
+
+
+@router.post("/api/controls")
+@require_capability("governance.entities.manage")
+async def api_ctrl_create(request: Request):
+    body = await _json_body(request)
+    if not body.get("title", "").strip():
+        raise HTTPException(400, "title is required")
+    new_id = ds.create_canonical_control(body)
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.put("/api/controls/{cid}")
+@require_capability("governance.entities.manage")
+async def api_ctrl_update(request: Request, cid: int):
+    body = await _json_body(request)
+    if not body.get("title", "").strip():
+        raise HTTPException(400, "title is required")
+    ds.update_canonical_control(cid, body)
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/controls/{cid}")
+@require_capability("governance.entities.manage")
+async def api_ctrl_delete(request: Request, cid: int):
+    ok = ds.delete_canonical_control(cid)
+    if not ok:
+        return JSONResponse({"ok": False, "error": "Control is linked to one or more risks"}, status_code=409)
+    return JSONResponse({"ok": True})

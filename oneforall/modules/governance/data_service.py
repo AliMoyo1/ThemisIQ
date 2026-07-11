@@ -533,6 +533,95 @@ def delete_data_asset(asset_id: int) -> bool:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# CANONICAL CONTROLS
+# ═════════════════════════════════════════════════════════════════════════════
+
+def list_canonical_controls(bu_id: int | None = None, include_inactive: bool = False) -> list[dict]:
+    db = get_db()
+    try:
+        sql = ("SELECT cc.*, bu.name AS bu_name, "
+               "(SELECT full_name FROM users WHERE id=cc.owner_user_id) AS owner_name "
+               "FROM canonical_controls cc "
+               "LEFT JOIN business_units bu ON bu.id=cc.business_unit_id")
+        clauses, params = [], []
+        if not include_inactive:
+            clauses.append("cc.is_active=1")
+        if bu_id:
+            clauses.append("cc.business_unit_id=%s")
+            params.append(bu_id)
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY cc.title"
+        return _dicts(db.execute(sql, tuple(params)).fetchall())
+    finally:
+        db.close()
+
+
+def create_canonical_control(data: dict) -> int:
+    db = get_db()
+    try:
+        new_id = insert_returning_id(db,
+            "INSERT INTO canonical_controls "
+            "(ref, title, description, owner_user_id, automation, "
+            "test_frequency_days, last_tested_at, business_unit_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (data.get("ref", "").strip(),
+             data.get("title", "").strip(),
+             data.get("description") or None,
+             data.get("owner_user_id"),
+             data.get("automation") or None,
+             data.get("test_frequency_days"),
+             data.get("last_tested_at") or None,
+             data.get("business_unit_id")),
+        )
+        db.commit()
+        return new_id
+    finally:
+        db.close()
+
+
+def update_canonical_control(cid: int, data: dict) -> bool:
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE canonical_controls SET ref=%s, title=%s, description=%s, "
+            "owner_user_id=%s, automation=%s, test_frequency_days=%s, "
+            "last_tested_at=%s, business_unit_id=%s, is_active=%s, updated_at=%s "
+            "WHERE id=%s",
+            (data.get("ref", "").strip(),
+             data.get("title", "").strip(),
+             data.get("description") or None,
+             data.get("owner_user_id"),
+             data.get("automation") or None,
+             data.get("test_frequency_days"),
+             data.get("last_tested_at") or None,
+             data.get("business_unit_id"),
+             1 if data.get("is_active", 1) else 0,
+             _now(), cid),
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+def delete_canonical_control(cid: int) -> bool:
+    """Delete a canonical control only if no risk_controls reference it."""
+    db = get_db()
+    try:
+        refs = db.execute(
+            "SELECT COUNT(*) FROM risk_controls WHERE control_id=%s", (cid,)
+        ).fetchone()[0]
+        if refs:
+            return False
+        db.execute("DELETE FROM canonical_controls WHERE id=%s", (cid,))
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # Governance summary — feeds the T3 heatmap and the Command Centre BU rollup
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -549,6 +638,7 @@ def get_governance_summary() -> dict:
                               ("departments", "departments"),
                               ("business_processes", "business_processes"),
                               ("applications", "applications"),
+                              ("canonical_controls", "canonical_controls"),
                               ("data_assets", "data_assets")):
             try:
                 counts[label] = db.execute(

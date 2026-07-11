@@ -1112,7 +1112,7 @@ CREATE TABLE IF NOT EXISTS applications (
     description         TEXT,
     application_type    TEXT,
     hosting             TEXT,
-    vendor_id           INTEGER REFERENCES canonical_vendors(id) ON DELETE SET NULL,
+    vendor_id           INTEGER,
     business_unit_id    INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
     department_id       INTEGER REFERENCES departments(id) ON DELETE SET NULL,
     owner_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -1605,7 +1605,7 @@ CREATE TABLE IF NOT EXISTS applications (
     description         TEXT,
     application_type    TEXT,
     hosting             TEXT,
-    vendor_id           INTEGER REFERENCES canonical_vendors(id) ON DELETE SET NULL,
+    vendor_id           INTEGER,
     business_unit_id    INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
     department_id       INTEGER REFERENCES departments(id) ON DELETE SET NULL,
     owner_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -2007,7 +2007,24 @@ CREATE TABLE IF NOT EXISTS canonical_vendors (
 );
 CREATE INDEX IF NOT EXISTS idx_canonical_vendors_name ON canonical_vendors(lower(trim(name)));
 
--- ── GRID: Vendors ──────────────────────────────────────────────────────────
+-- ── Canonical Control Registry (shared identity across all modules) ───────
+CREATE TABLE IF NOT EXISTS canonical_controls (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    ref                 TEXT,
+    title               TEXT NOT NULL,
+    description         TEXT,
+    owner_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    automation          TEXT DEFAULT 'manual',
+    test_frequency_days INTEGER,
+    last_tested_at      TEXT,
+    business_unit_id    INTEGER,
+    is_active           INTEGER DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_canonical_controls_title ON canonical_controls(lower(trim(title)));
+
+-- ── GRID: Vendors
 CREATE TABLE IF NOT EXISTS grid_vendors (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     name            TEXT NOT NULL,
@@ -3395,6 +3412,20 @@ CREATE TABLE IF NOT EXISTS erm_risk_dimension_scores (
 );
 CREATE INDEX IF NOT EXISTS idx_erm_dim_scores_risk
   ON erm_risk_dimension_scores(risk_id);
+
+-- ── Risk ↔ Control bridge (Governance Graph edge) ─────────────────────────
+CREATE TABLE IF NOT EXISTS risk_controls (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    risk_id     INTEGER NOT NULL REFERENCES erm_enterprise_risks(id) ON DELETE CASCADE,
+    control_id  INTEGER NOT NULL,
+    weight      REAL DEFAULT 1.0,
+    direction   TEXT DEFAULT 'mitigates',
+    created_by  INTEGER,
+    created_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE(risk_id, control_id)
+);
+CREATE INDEX IF NOT EXISTS idx_risk_controls_risk ON risk_controls(risk_id);
+CREATE INDEX IF NOT EXISTS idx_risk_controls_control ON risk_controls(control_id);
 """
 
 # ── PostgreSQL schema variants ─────────────────────────────────────────────────
@@ -3671,6 +3702,11 @@ _COLUMN_MIGRATIONS = [
         ("bcm_incidents",          "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         ("evidence_items",         "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         ("task_board",             "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # ── Governance Graph T1.2: canonical control linkage + user BU ────────
+        ("aria_controls",     "canonical_control_id", "INTEGER"),
+        ("grid_controls",     "canonical_control_id", "INTEGER"),
+        ("orm_rcsa_controls", "canonical_control_id", "INTEGER"),
+        ("users",             "business_unit_id",     "INTEGER"),
 ]
 
 
@@ -3778,6 +3814,34 @@ def _run_sqlite_alters(conn):
         conn.commit()
     except Exception:
         pass
+
+    # ── Backfill canonical_controls from ARIA + GRID controls (idempotent) ──
+    try:
+        for src_table, ref_col, title_col in (
+            ("aria_controls", "ref", "name"),
+            ("grid_controls", "control_id", "name"),
+        ):
+            rows = conn.execute(
+                f"SELECT id, {ref_col} AS ref, {title_col} AS title FROM {src_table} "
+                f"WHERE canonical_control_id IS NULL AND {title_col} IS NOT NULL"
+            ).fetchall()
+            for r in rows:
+                existing = conn.execute(
+                    "SELECT id FROM canonical_controls WHERE lower(trim(title))=lower(trim(%s)) LIMIT 1",
+                    (r["title"],)).fetchone()
+                cid = existing[0] if existing else insert_returning_id(
+                    conn,
+                    "INSERT INTO canonical_controls (ref, title) VALUES (%s, %s)",
+                    (r["ref"], r["title"]))
+                conn.execute(
+                    f"UPDATE {src_table} SET canonical_control_id=%s WHERE id=%s",
+                    (cid, r["id"]))
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 
 def _seed_baseline_data(conn):
