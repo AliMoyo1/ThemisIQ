@@ -289,12 +289,22 @@ async def aria_dashboard(request: Request):
                 / max(sum(f["total"] for f in fw_stats), 1) * 100, 1
             ),
         }
-        recent = db.execute("""
-            SELECT al.*, u.full_name FROM audit_log al
-            LEFT JOIN users u ON al.user_id = u.id
-            WHERE al.module = 'aria'
-            ORDER BY al.created_at DESC LIMIT 8
-        """).fetchall()
+        is_super = user.get("is_super_admin")
+        caller_org_id = user.get("org_id")
+        if is_super or caller_org_id is None:
+            recent = db.execute("""
+                SELECT al.*, u.full_name FROM audit_log al
+                LEFT JOIN users u ON al.user_id = u.id
+                WHERE al.module = 'aria'
+                ORDER BY al.created_at DESC LIMIT 8
+            """).fetchall()
+        else:
+            recent = db.execute("""
+                SELECT al.*, u.full_name FROM audit_log al
+                LEFT JOIN users u ON al.user_id = u.id
+                WHERE al.module = 'aria' AND al.org_id = %s
+                ORDER BY al.created_at DESC LIMIT 8
+            """, (caller_org_id,)).fetchall()
     finally:
         db.close()
 

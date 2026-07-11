@@ -808,13 +808,19 @@ def get_all_settings():
 # Sentinel Audit Log (uses shared audit_log)
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_audit(limit=200):
+def list_audit(limit=200, org_id=None):
     db = get_db()
     try:
-        rows = db.execute(
-            "SELECT * FROM audit_log WHERE module='sentinel' ORDER BY created_at DESC LIMIT %s",
-            (limit,),
-        ).fetchall()
+        if org_id is None:
+            rows = db.execute(
+                "SELECT * FROM audit_log WHERE module='sentinel' ORDER BY created_at DESC LIMIT %s",
+                (limit,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT * FROM audit_log WHERE module='sentinel' AND org_id=%s ORDER BY created_at DESC LIMIT %s",
+                (org_id, limit),
+            ).fetchall()
     finally:
         db.close()
     return [dict(r) for r in rows]

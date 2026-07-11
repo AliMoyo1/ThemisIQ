@@ -5,6 +5,10 @@
 
 # Database & user data
 data/
+*.db
+*.sqlite
+*.sqlite3
+diag.txt
 
 # Python cache
 __pycache__/

@@ -63,6 +63,22 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
             log.exception("Event handler %s failed for %s: %s", handler.__name__, event_type, exc)
             _mark_failed(event_id, str(exc))
 
+    # Fan out to registered outbound webhooks (best-effort; never blocks).
+    try:
+        from core.webhooks import dispatch_event
+        dispatch_event(
+            event_type=event_type,
+            source_module=source_module,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            payload=payload or {},
+            user_id=user_id,
+            org_id=None,  # emit() has no org context; webhook keeps its own org_id
+        )
+    except Exception as exc:
+        # Webhook delivery must never break the source operation.
+        log.warning("webhook dispatch failed for %s: %s", event_type, exc)
+
 
 def _mark_processed(event_id: int):
     # Low-priority bookkeeping — use background connection (fail-fast, don't block UI)

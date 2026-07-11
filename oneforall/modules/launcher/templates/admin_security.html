@@ -1,0 +1,112 @@
+{% extends "platform_base.html" %}
+{% block title %}Security Settings — ThemisIQ{% endblock %}
+{% block content %}
+
+<div class="topbar">
+  <span class="page-title">Security Settings</span>
+</div>
+
+<div class="content">
+
+  <!-- MFA enforcement policy -->
+  <div class="card" style="padding:20px; margin-bottom:16px; background:var(--surface2); border:1px solid var(--border);">
+    <div style="font-size:14px; font-weight:600; margin-bottom:4px;">Multi-Factor Authentication (MFA) Requirement</div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+      Enforce MFA org-wide. Applies to every user in your organisation on their next session.
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      {% for opt in [("off","Off — MFA optional"),("admins","Admins only"),("all","Everyone")] %}
+      <label class="mfa-opt" style="flex:1; cursor:pointer;">
+        <input type="radio" name="mfa_policy" value="{{ opt[0] }}" {% if current_policy == opt[0] %}checked{% endif %} style="display:none;">
+        <div class="mfa-card" data-policy="{{ opt[0] }}" style="padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:var(--surface3); font-size:13px; text-align:center; {% if current_policy == opt[0] %}border-color:var(--accent); box-shadow:0 0 0 1px var(--accent);{% endif %}">
+          {{ opt[1] }}
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div id="lockoutWarning" style="display:none; padding:10px 12px; border-radius:6px; background:var(--bad-soft); color:var(--bad); font-size:12px; margin-bottom:14px;">
+      ⚠ Enforcing MFA for <strong>Everyone</strong> will lock out any user who has not yet enrolled MFA. Enroll MFA for all users first (see table below) to avoid lockouts.
+    </div>
+
+    <button id="saveBtn" class="btn btn-primary" onclick="savePolicy()">Save Policy</button>
+    <span id="saveStatus" style="font-size:12px; color:var(--muted); margin-left:10px;"></span>
+  </div>
+
+  <!-- Per-user MFA status -->
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:14px 16px; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); border-bottom:1px solid var(--border);">
+      User MFA Status
+    </div>
+    <table style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">User</th>
+          <th style="padding:12px 14px; text-align:left; font-size:11px; text-transform:uppercase; color:var(--muted);">Email</th>
+          <th style="padding:12px 14px; text-align:center; font-size:11px; text-transform:uppercase; color:var(--muted);">MFA</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr style="border-bottom:1px solid var(--border-soft);">
+          <td style="padding:10px 14px; font-size:13px; font-weight:500;">{{ u.full_name or u.username }}<div style="font-size:11px; color:var(--muted);">{{ u.username }}</div></td>
+          <td style="padding:10px 14px; font-size:12px; color:var(--muted);">{{ u.email }}</td>
+          <td style="padding:10px 14px; text-align:center;">
+            {% if u.mfa_enabled %}
+              <span style="padding:2px 8px; border-radius:4px; font-size:11px; background:var(--good-soft); color:var(--good);">Enrolled</span>
+            {% else %}
+              <span style="padding:2px 8px; border-radius:4px; font-size:11px; background:var(--bad-soft); color:var(--bad);">Not enrolled</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+function updateSelection() {
+  const sel = document.querySelector('input[name="mfa_policy"]:checked');
+  document.querySelectorAll('.mfa-card').forEach(c => { c.style.borderColor = 'var(--border)'; c.style.boxShadow = 'none'; });
+  if (sel) {
+    const card = document.querySelector('.mfa-card[data-policy="' + sel.value + '"]');
+    if (card) { card.style.borderColor = 'var(--accent)'; card.style.boxShadow = '0 0 0 1px var(--accent)'; }
+    document.getElementById('lockoutWarning').style.display = (sel.value === 'all') ? 'block' : 'none';
+  }
+}
+document.querySelectorAll('.mfa-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const v = card.getAttribute('data-policy');
+    const radio = document.querySelector('input[name="mfa_policy"][value="' + v + '"]');
+    if (radio) { radio.checked = true; updateSelection(); }
+  });
+});
+updateSelection();
+
+async function savePolicy() {
+  const sel = document.querySelector('input[name="mfa_policy"]:checked');
+  if (!sel) return;
+  const btn = document.getElementById('saveBtn');
+  const status = document.getElementById('saveStatus');
+  btn.disabled = true; status.textContent = 'Saving…';
+  const resp = await fetch('/api/admin/security-settings', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ security: { require_mfa: sel.value } })
+  });
+  const data = await resp.json().catch(() => ({}));
+  btn.disabled = false;
+  if (resp.ok && data.ok) {
+    status.textContent = 'Saved ✓'; status.style.color = 'var(--good)';
+  } else {
+    status.textContent = 'Error: ' + (data.error || resp.status);
+    status.style.color = 'var(--bad)';
+  }
+  setTimeout(() => { status.textContent = ''; }, 3000);
+}
+</script>
+
+{% endblock %}

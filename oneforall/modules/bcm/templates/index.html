@@ -3131,5 +3131,30 @@
   setInterval(function(){if(bcmRouter.current==='dashboard')loadDashboard();},300000);
 
 })();
+
+/* ── PLAN-06 deep-link boot handler ── */
+/* BCM plans require the full item from planCache to call bcmOpenModal('plan', item).
+   Deep-linking by id alone is not feasible without additional API calls.
+   Omitted from OPENERS — future enhancement can add a plan-fetch-by-id endpoint. */
+(function(){
+  var openParam = new URLSearchParams(window.location.search).get('open');
+  if(!openParam) return;
+  var sep = openParam.indexOf(':');
+  if(sep < 1) return;
+  var etype = openParam.slice(0, sep);
+  var eid = parseInt(openParam.slice(sep + 1), 10);
+  if(!eid) return;
+  window.history.replaceState({}, '', window.location.pathname);
+  // No supported entity types for deep-link yet.
+  // When plan opens by id become available, add to _plan06_openers.
+  var _plan06_openers = {};
+  var _plan06_fn = _plan06_openers[etype];
+  if(!_plan06_fn) return;
+  var tries = 0;
+  (function attempt(){
+    tries++;
+    try { _plan06_fn(eid); } catch(e){ if(tries < 20) setTimeout(attempt, 250); }
+  })();
+})();
 </script>
 {% endblock %}

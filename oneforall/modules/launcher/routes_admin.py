@@ -1131,16 +1131,62 @@ async def api_security_settings_put(request: Request):
     try:
         body = await request.json()
     except Exception:
+<<<<<<< HEAD
         return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status=400)
+=======
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status_code=400)
+>>>>>>> c45b7a89e78c496f199793ad7082dfa1723fa830
     sec = (body or {}).get("security") or {}
     policy = (sec.get("require_mfa") or "off")
     if not isinstance(policy, str) or policy.strip().lower() not in _VALID_MFA_POLICIES:
         return _JSONResp(
             {"ok": False, "error": "require_mfa must be one of: off, admins, all."},
+<<<<<<< HEAD
             status=400,
+=======
+            status_code=400,
+>>>>>>> c45b7a89e78c496f199793ad7082dfa1723fa830
         )
     policy = policy.strip().lower()
     set_setting("security.require_mfa", policy)
     log_audit(request.state.user, "platform", "security_settings_updated",
               details=f"security.require_mfa={policy}")
     return _JSONResp({"ok": True, "security": {"require_mfa": policy}})
+<<<<<<< HEAD
+=======
+
+
+@router.get("/admin/security", response_class=HTMLResponse)
+@_require_cap("platform.manage_users")
+async def admin_security_page(request: Request):
+    """Org security settings UI: MFA enforcement policy + per-user MFA status."""
+    policy = (get_setting("security.require_mfa", "off") or "off").strip().lower()
+    if policy not in _VALID_MFA_POLICIES:
+        policy = "off"
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT u.id, u.username, u.full_name, u.email, "
+            "COALESCE(um.is_enabled, 0) AS mfa_enabled "
+            "FROM users u "
+            "LEFT JOIN user_mfa um ON um.user_id = u.id "
+            "WHERE u.is_active = 1 "
+            "ORDER BY u.username"
+        ).fetchall()
+    finally:
+        db.close()
+    users = [
+        {
+            "id": r["id"],
+            "username": r["username"],
+            "full_name": r["full_name"],
+            "email": r["email"],
+            "mfa_enabled": bool(r["mfa_enabled"]),
+        }
+        for r in rows
+    ]
+    ctx = shell_ctx(request, active_module="platform", active_section="security")
+    ctx["current_policy"] = policy
+    ctx["users"] = users
+    return shell_templates.TemplateResponse(request, "admin_security.html", ctx)
+>>>>>>> c45b7a89e78c496f199793ad7082dfa1723fa830

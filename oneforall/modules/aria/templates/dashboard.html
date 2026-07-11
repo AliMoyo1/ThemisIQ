@@ -329,5 +329,23 @@ function generateAriaReport(){
   // Future: call /aria/api/generate-report
   setTimeout(function(){ if(typeof showToast === 'function') showToast('Report generated successfully'); }, 2000);
 }
+
+/* ── PLAN-06 deep-link boot handler ── */
+/* ARIA uses an SPA router (navigate) rather than simple drawer openers.
+   Deep-linking a 'control' entity requires also knowing the framework_id
+   to generate the correct route path. Not feasible with id alone.
+   Skipping for now — add a control→framework lookup when available. */
+(function(){
+  var openParam = new URLSearchParams(window.location.search).get('open');
+  if(!openParam) return;
+  var sep = openParam.indexOf(':');
+  if(sep < 1) return;
+  window.history.replaceState({}, '', window.location.pathname);
+  // No supported entity types for deep-link yet.
+  var _plan06_openers = {};
+  var etype = openParam.slice(0, sep);
+  var _plan06_fn = _plan06_openers[etype];
+  if(!_plan06_fn) return;
+})();
 </script>
 {% endblock %}
