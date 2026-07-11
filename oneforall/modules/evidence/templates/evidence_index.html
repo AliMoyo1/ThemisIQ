@@ -384,6 +384,13 @@ async function loadEvidence(){
     return;
   }
   empty.style.display='none';
+  function confBadge(item){
+    var cs=item.confidence_score;
+    if(cs===null||cs===undefined) return '<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:var(--surface3);color:var(--muted)">Unscored</span>';
+    if(cs>=80) return '<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:rgba(22,163,74,.1);color:var(--green-status,#16a34a)">High '+cs+'</span>';
+    if(cs>=50) return '<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:rgba(217,119,6,.1);color:#d97706">Medium '+cs+'</span>';
+    return '<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:rgba(220,38,38,.1);color:#dc2626">Low '+cs+'</span>';
+  }
   if(evViewMode==='table'){
     grid.style.display='none';tbl.style.display='block';
     body.innerHTML=items.map(function(item){
@@ -402,6 +409,7 @@ async function loadEvidence(){
         '<td>'+linkBadge+'</td>'+
         '<td>'+expiryCell+'</td>'+
         '<td>'+statusDot+' <span style="font-size:11px">'+escHtml(item.status)+'</span></td>'+
+        '<td>'+confBadge(item)+'</td>'+
         '<td onclick="event.stopPropagation()">'+
           '<button onclick="evDownload('+item.id+',false)" style="background:none;border:none;font-size:11px;color:var(--accent);cursor:pointer" title="Download">&#11015;</button>'+
         '</td>'+
@@ -420,7 +428,7 @@ async function loadEvidence(){
             '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+
             '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
               '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span>'+
-              linkBadge+expiryBadgeHtml(item.expiry_date)+
+              linkBadge+expiryBadgeHtml(item.expiry_date)+confBadge(item)+
             '</div>'+
           '</div>'+
         '</div></div>';
@@ -573,6 +581,14 @@ async function openDetail(eid){
       '<div class="ev-editable" id="ev-field-status">'+
         '<span class="ev-field-val" style="color:var(--text)">'+escHtml(item.status)+'</span>'+
         '<button class="ev-edit-btn" onclick="evInlineSelect(\'status\','+eid+',\''+statusOpts.replace(/'/g,"\\'")+'\')">&#9998;</button>'+
+      '</div>'+
+      '<span style="color:var(--muted)">Confidence</span>'+
+      '<div><span id="confBadgeDetail">'+confBadge(item)+'</span>'+
+      (item.can_verify ? ' <button class="btn btn-sm btn-secondary" onclick="showVerifyPicker('+eid+')" style="padding:2px 8px;font-size:10px">Verify…</button>' : '')+
+      '</div>'+
+      '<span style="color:var(--muted)">Verified</span>'+
+      '<div style="color:var(--text)">'+(item.verification_method&&item.verification_method!=='self_asserted'?escHtml(item.verification_method.replace(/_/g,' ')):'<span style="color:var(--muted)">Self-asserted (unverified)</span>')+
+      (item.verified_by?' <span style="font-size:11px;color:var(--muted)">by user #'+item.verified_by+'</span>':'')+
       '</div>'+
       '<span style="color:var(--muted)">Uploaded by</span><span style="color:var(--text)">'+escHtml(item.uploaded_by_name||'Unknown')+'</span>'+
       '<span style="color:var(--muted)">Created</span><span style="color:var(--text)">'+fmtDate(item.created_at)+'</span>'+
@@ -763,6 +779,47 @@ async function restoreEvidence(eid){
   } else {
     var d=await r.json().catch(function(){return {};});
     if(typeof showToast==='function')showToast(d.error||'Restore failed','error');
+  }
+}
+
+function showVerifyPicker(eid){
+  var methods=['peer_reviewed','auditor_signed','digitally_signed'];
+  var html='<div class="modal-overlay" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center">'+
+    '<div style="background:var(--surface);border-radius:12px;padding:24px;width:360px">'+
+    '<div style="font-size:15px;font-weight:700;margin-bottom:12px">Verify Evidence</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Select verification method:</div>'+
+    methods.map(function(m){
+      return '<div style="padding:8px 10px;cursor:pointer;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:13px" onclick="this.style.borderColor=\'var(--accent)\';window._verifyMethod=\''+m+'\'">'+
+        m.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</div>';
+    }).join('')+
+    '<div style="display:flex;gap:8px;margin-top:12px">'+
+    '<button class="btn btn-primary" onclick="doVerify('+eid+')" style="flex:1">Verify</button>'+
+    '<button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">Cancel</button></div></div></div>';
+  var div=document.createElement('div');div.innerHTML=html;document.body.appendChild(div.firstElementChild);
+}
+
+async function doVerify(eid){
+  var method=window._verifyMethod;
+  if(!method){if(typeof showToast==='function')showToast('Select a verification method','error');return;}
+  var r=await fetch('/evidence/api/items/'+eid+'/verify',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({method:method})
+  });
+  if(r.ok){
+    var d=await r.json();
+    // Update badge in place
+    var badge=document.getElementById('confBadgeDetail');
+    if(badge){
+      var fakeItem={confidence_score:d.confidence_score};
+      badge.innerHTML=confBadge(fakeItem);
+    }
+    var ov=document.querySelector('.modal-overlay');if(ov)ov.remove();
+    if(typeof showToast==='function')showToast('Verified — score: '+d.confidence_score);
+    openDetail(eid); // Refresh drawer
+  } else {
+    var d=await r.json().catch(function(){return{};});
+    if(typeof showToast==='function')showToast(d.error||'Verify failed','error');
   }
 }
 

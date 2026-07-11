@@ -142,6 +142,24 @@ def _expiry_check() -> None:
 
         db.commit()
         log.info("Evidence expiry check: %d task(s) created", total_created)
+
+        # ── Nightly confidence recompute (freshness decays daily) ──
+        try:
+            ids = db.execute("SELECT id FROM evidence_items").fetchall()
+            recomputed = 0
+            for row in ids:
+                try:
+                    from modules.evidence import data_service as ev_ds
+                    c = getattr(ev_ds, "recompute_confidence", None)
+                    if c:
+                        c(db, row["id"])
+                        recomputed += 1
+                except Exception:
+                    pass
+            db.commit()
+            log.info("Confidence recompute: %d item(s) updated", recomputed)
+        except Exception:
+            log.warning("Confidence recompute failed", exc_info=True)
     except Exception as e:
         log.warning("Evidence expiry check failed: %s", e)
     finally:

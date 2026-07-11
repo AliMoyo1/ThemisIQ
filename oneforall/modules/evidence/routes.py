@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_auth, require_capability
 from core.rbac import has_capability
+from core.timeutils import utcnow
 from core.shell_context import shell_ctx
 from database import get_db, insert_returning_id, sql_date_offset, sql_current_date
 
@@ -39,6 +40,61 @@ async def _json_body(request: Request) -> dict:
         return {}
     from core.sanitize import sanitize_dict
     return sanitize_dict(body)
+
+
+# ── Evidence confidence scoring ──────────────────────────────────────────────
+
+_VERIFICATION_POINTS = {"digitally_signed": 35, "auditor_signed": 30,
+                        "peer_reviewed": 20, "self_asserted": 5}
+
+
+def compute_confidence(item: dict, link_count: int) -> int:
+    """Pure function: compute evidence confidence score 0-100."""
+    score = 0
+    # Verification method
+    vm = item.get("verification_method") or "self_asserted"
+    score += _VERIFICATION_POINTS.get(vm, 5)
+    # Freshness
+    expiry = item.get("expiry_date")
+    if not expiry:
+        score += 10  # no expiry set
+    else:
+        try:
+            from datetime import datetime
+            exp = datetime.strptime(expiry, "%Y-%m-%d").date()
+            today = utcnow().date()
+            days_left = (exp - today).days
+            if days_left > 30:
+                score += 25
+            elif days_left >= 8:
+                score += 15
+            elif days_left >= 0:
+                score += 5
+            # else expired: +0
+        except (ValueError, TypeError):
+            score += 10  # malformed date → treat as no expiry
+    # Reference count
+    if link_count >= 3:
+        score += 20
+    elif link_count >= 1:
+        score += 10
+    # File hash
+    if item.get("file_hash"):
+        score += 10
+    return min(score, 100)
+
+
+def recompute_confidence(db, evidence_id: int) -> int:
+    """Fetch evidence row, compute score, UPDATE, return score."""
+    row = db.execute("SELECT * FROM evidence_items WHERE id=%s", (evidence_id,)).fetchone()
+    if not row:
+        return 0
+    link_count = db.execute(
+        "SELECT COUNT(*) FROM evidence_links WHERE evidence_id=%s", (evidence_id,)
+    ).fetchone()[0]
+    score = compute_confidence(dict(row), link_count)
+    db.execute("UPDATE evidence_items SET confidence_score=%s WHERE id=%s", (score, evidence_id))
+    return score
 
 
 # ── SPA Page ────────────────────────────────────────────────────────────────
@@ -284,6 +340,7 @@ async def api_evidence_update(request: Request, eid: int):
         vals.append(eid)
         db.execute(f"UPDATE evidence_items SET {', '.join(sets)} WHERE id = %s", vals)
         db.commit()
+        recompute_confidence(db, eid)
     finally:
         db.close()
     return JSONResponse({"success": True})
@@ -669,6 +726,62 @@ async def api_evidence_verify(request: Request, eid: int):
         })
 
 
+# ── Evidence confidence verification ─────────────────────────────────────
+
+@router.post("/api/items/{eid}/verify")
+@require_auth
+async def api_evidence_confidence_verify(request: Request, eid: int):
+    """Set verification method and confidence score for an evidence item."""
+    if not has_capability(request.state.user, "evidence.delete"):
+        return JSONResponse({"error": "Permission denied"}, 403)
+    data = await _json_body(request)
+    method = data.get("method", "").strip()
+    valid_methods = frozenset({"peer_reviewed", "auditor_signed", "digitally_signed"})
+    if method not in valid_methods:
+        return JSONResponse(
+            {"error": f"Invalid verification method. Must be one of: {', '.join(sorted(valid_methods))}"},
+            status_code=400,
+        )
+    user_id = _uid(request)
+    now = utcnow().isoformat(sep=" ", timespec="seconds")
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE evidence_items SET verification_method=%s, verified_by=%s, verified_at=%s, "
+            "updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (method, user_id, now, eid),
+        )
+        score = recompute_confidence(db, eid)
+        db.commit()
+    finally:
+        db.close()
+    from core.middleware import log_audit
+    log_audit(request.state.user, "evidence", f"Set verification to {method}", "evidence", eid)
+    return JSONResponse({"ok": True, "confidence_score": score})
+
+
+@router.delete("/api/items/{eid}/verify")
+@require_auth
+async def api_evidence_confidence_unverify(request: Request, eid: int):
+    """Reset verification method back to self-asserted."""
+    if not has_capability(request.state.user, "evidence.delete"):
+        return JSONResponse({"error": "Permission denied"}, 403)
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE evidence_items SET verification_method='self_asserted', verified_by=NULL, "
+            "verified_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (eid,),
+        )
+        score = recompute_confidence(db, eid)
+        db.commit()
+    finally:
+        db.close()
+    from core.middleware import log_audit
+    log_audit(request.state.user, "evidence", "Reset verification to self_asserted", "evidence", eid)
+    return JSONResponse({"ok": True, "confidence_score": score})
+
+
 # ── Linking API ─────────────────────────────────────────────────────────────
 
 @router.post("/api/items/{eid}/links", status_code=201)
@@ -746,6 +859,7 @@ async def api_evidence_link_create(request: Request, eid: int):
                         (eid, "aria", "control", mr[0], user_id)
                     )
             db.commit()
+        recompute_confidence(db, eid)
     finally:
         db.close()
     return JSONResponse({"id": lid}, status_code=201)
@@ -757,11 +871,14 @@ async def api_evidence_link_delete(request: Request, lid: int):
     """Soft-delete an evidence link (preserves audit trail)."""
     db = get_db()
     try:
+        link = db.execute("SELECT evidence_id FROM evidence_links WHERE id = %s", (lid,)).fetchone()
         db.execute(
             "UPDATE evidence_links SET deleted_at = CURRENT_TIMESTAMP, deleted_by = %s WHERE id = %s",
             (_uid(request), lid),
         )
         db.commit()
+        if link:
+            recompute_confidence(db, link["evidence_id"])
     finally:
         db.close()
     return JSONResponse({"success": True})

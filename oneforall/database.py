@@ -3666,6 +3666,11 @@ _COLUMN_MIGRATIONS = [
         ("bcm_incidents",          "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         ("evidence_items",         "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         ("task_board",             "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # ── Evidence confidence (T2.1) ─────────────────────────────────────────
+        ("evidence_items", "verification_method", "TEXT DEFAULT 'self_asserted'"),
+        ("evidence_items", "verified_by",         "INTEGER"),
+        ("evidence_items", "verified_at",         "TEXT"),
+        ("evidence_items", "confidence_score",    "INTEGER"),
 ]
 
 
@@ -4791,6 +4796,13 @@ def _seed_baseline_data(conn):
             conn.rollback()
         except Exception:
             pass
+
+    # ── Backfill evidence verification_method for rows with NULL ──
+    try:
+        conn.execute("UPDATE evidence_items SET verification_method='self_asserted' WHERE verification_method IS NULL")
+        conn.commit()
+    except Exception:
+        pass
 
 
 def _run_pg_alters(conn) -> None:
