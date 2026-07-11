@@ -79,6 +79,30 @@
       <div class="test-msg" id="teamsTestMsg"></div>
     </div>
 
+    <!-- WhatsApp -->
+    <div class="panel-card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="panel-title" style="margin-bottom:0">WhatsApp</div>
+        <span class="conn-status off" id="whatsappStatus">Not configured</span>
+      </div>
+      <div class="info-box">
+        <strong>Webhook URL for WhatsApp bridge.</strong>
+        Point this at your <strong>themisiq_wa_bridge</strong> webhook receiver
+        (e.g. <code>https://your-bridge.example.com/webhook/themisiq</code>)
+        or any WhatsApp Business API endpoint that accepts JSON POST with a <code>text</code> field.
+      </div>
+      <div class="conn-field">
+        <label class="conn-label" for="whatsappUrl">Webhook URL</label>
+        <input id="whatsappUrl" type="password" class="conn-input" placeholder="https://..." autocomplete="off"/>
+        <div class="conn-hint">Leave blank to keep the existing URL unchanged.</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-primary" onclick="testWhatsapp()">Send test message</button>
+        <button class="btn btn-danger" onclick="removeWhatsapp()" id="whatsappRemoveBtn" style="display:none">Remove</button>
+      </div>
+      <div class="test-msg" id="whatsappTestMsg"></div>
+    </div>
+
     <button class="btn btn-primary" onclick="saveConnectors()" style="width:100%;padding:11px">Save Changes</button>
     <div class="test-msg" id="saveMsg" style="margin-top:10px"></div>
 
@@ -121,6 +145,7 @@ async function loadStatus() {
   const d = await fetch('/api/admin/connectors').then(r=>r.json());
   setStatus('slack', d.slack_configured);
   setStatus('teams', d.teams_configured);
+  setStatus('whatsapp', d.whatsapp_configured);
 }
 
 function setStatus(which, on) {
@@ -148,14 +173,17 @@ function showMsg(id, ok, text) {
 async function saveConnectors() {
   const slack = document.getElementById('slackUrl').value.trim();
   const teams = document.getElementById('teamsUrl').value.trim();
+  const whatsapp = document.getElementById('whatsappUrl').value.trim();
   const d = await _post('/api/admin/connectors', {
     slack_webhook_url: slack || '__unchanged__',
     teams_webhook_url: teams || '__unchanged__',
+    whatsapp_webhook_url: whatsapp || '__unchanged__',
   });
   showMsg('saveMsg', d.ok, d.ok ? 'Saved.' : (d.detail || 'Save failed.'));
   if (d.ok) {
     document.getElementById('slackUrl').value = '';
     document.getElementById('teamsUrl').value = '';
+    document.getElementById('whatsappUrl').value = '';
     loadStatus();
   }
 }
@@ -179,6 +207,17 @@ async function removeSlack() {
 async function removeTeams() {
   if (!confirm('Remove Teams webhook?')) return;
   await fetch('/api/admin/connectors/teams', {method:'DELETE', headers:{'X-CSRF-Token': csrf()}});
+  loadStatus();
+}
+
+async function testWhatsapp() {
+  const d = await _post('/api/admin/connectors/test-whatsapp', {});
+  showMsg('whatsappTestMsg', d.ok, d.ok ? 'Test message sent to WhatsApp.' : (d.detail || 'Failed.'));
+}
+
+async function removeWhatsapp() {
+  if (!confirm('Remove WhatsApp webhook?')) return;
+  await fetch('/api/admin/connectors/whatsapp', {method:'DELETE', headers:{'X-CSRF-Token': csrf()}});
   loadStatus();
 }
 

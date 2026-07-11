@@ -9,6 +9,7 @@ from core.sanitize import sanitize_str as _s
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from database import insert_returning_id
+from modules.sentinel.data_service import get_setting, set_setting  # org policy
 from modules.launcher._route_helpers import (
     _JSONResp, _require_cap, require_auth, has_capability, log_audit,
     get_db, hash_password, shell_ctx, templates, shell_templates, secrets,
@@ -1009,8 +1010,10 @@ async def api_connectors_get(request: Request):
     return _JSONResp({
         "slack_webhook_url":  _masked("slack_webhook_url"),
         "teams_webhook_url":  _masked("teams_webhook_url"),
+        "whatsapp_webhook_url": _masked("whatsapp_webhook_url"),
         "slack_configured":   bool(_connectors_get_setting("slack_webhook_url")),
         "teams_configured":   bool(_connectors_get_setting("teams_webhook_url")),
+        "whatsapp_configured": bool(_connectors_get_setting("whatsapp_webhook_url")),
     })
 
 
@@ -1036,8 +1039,16 @@ async def api_connectors_save(request: Request):
             return _JSONResp({"ok": False, "detail": f"Teams URL: {exc.detail}"}, status_code=400)
         _connectors_save("teams_webhook_url", teams_url.strip())
 
+    whatsapp_url = data.get("whatsapp_webhook_url", "")
+    if whatsapp_url and whatsapp_url != "__unchanged__":
+        try:
+            _validate_webhook_url(whatsapp_url.strip())
+        except HTTPException as exc:
+            return _JSONResp({"ok": False, "detail": f"WhatsApp URL: {exc.detail}"}, status_code=400)
+        _connectors_save("whatsapp_webhook_url", whatsapp_url.strip())
+
     log_audit(request.state.user, "platform", "connectors_updated",
-              details="Slack/Teams webhook URLs updated")
+              details="Slack/Teams/WhatsApp webhook URLs updated")
     return _JSONResp({"ok": True})
 
 
@@ -1075,3 +1086,61 @@ async def api_connectors_test_teams(request: Request):
     from core.notifications import send_teams
     ok = send_teams("[ThemisIQ] Teams connector test — configuration is working.")
     return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+
+
+@router.post("/api/admin/connectors/test-whatsapp")
+@_require_cap("platform.manage_users")
+async def api_connectors_test_whatsapp(request: Request):
+    """Send a test message via the configured WhatsApp webhook."""
+    from core.notifications import send_whatsapp
+    ok = send_whatsapp("[ThemisIQ] WhatsApp connector test — configuration is working.")
+    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+
+
+@router.delete("/api/admin/connectors/whatsapp")
+@_require_cap("platform.manage_users")
+async def api_connectors_delete_whatsapp(request: Request):
+    """Remove the WhatsApp webhook URL."""
+    _connectors_save("whatsapp_webhook_url", "")
+    log_audit(request.state.user, "platform", "connectors_updated", details="WhatsApp webhook removed")
+    return _JSONResp({"ok": True})
+
+
+# ── Org security policy (MFA enforcement) ────────────────────────────────────
+
+_VALID_MFA_POLICIES = ("off", "admins", "all")
+
+
+@router.get("/api/admin/security-settings")
+@_require_cap("platform.manage_users")
+async def api_security_settings_get(request: Request):
+    """Return the current org security policy (MFA requirement)."""
+    policy = (get_setting("security.require_mfa", "off") or "off").strip().lower()
+    if policy not in _VALID_MFA_POLICIES:
+        policy = "off"
+    return _JSONResp({"security": {"require_mfa": policy}})
+
+
+@router.put("/api/admin/security-settings")
+@_require_cap("platform.manage_users")
+async def api_security_settings_put(request: Request):
+    """Update the org security policy.
+
+    Body: {"security": {"require_mfa": "off" | "admins" | "all"}}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status=400)
+    sec = (body or {}).get("security") or {}
+    policy = (sec.get("require_mfa") or "off")
+    if not isinstance(policy, str) or policy.strip().lower() not in _VALID_MFA_POLICIES:
+        return _JSONResp(
+            {"ok": False, "error": "require_mfa must be one of: off, admins, all."},
+            status=400,
+        )
+    policy = policy.strip().lower()
+    set_setting("security.require_mfa", policy)
+    log_audit(request.state.user, "platform", "security_settings_updated",
+              details=f"security.require_mfa={policy}")
+    return _JSONResp({"ok": True, "security": {"require_mfa": policy}})

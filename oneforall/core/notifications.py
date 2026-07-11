@@ -39,6 +39,10 @@ def _teams_url() -> str:
     return _get_setting("teams_webhook_url") or getattr(settings, "TEAMS_WEBHOOK_URL", "")
 
 
+def _whatsapp_url() -> str:
+    return _get_setting("whatsapp_webhook_url") or getattr(settings, "WHATSAPP_WEBHOOK_URL", "")
+
+
 def send_slack(text: str) -> bool:
     url = _slack_url()
     if not url:
@@ -76,8 +80,29 @@ def send_teams(text: str) -> bool:
         return False
 
 
+def send_whatsapp(text: str) -> bool:
+    """Send an alert via the configured WhatsApp bridge webhook URL.
+
+    The URL should point to the themisiq_wa_bridge webhook receiver or any
+    WhatsApp Business API endpoint that accepts JSON POST with a 'text' field.
+    Falls back to WHATSAPP_WEBHOOK_URL env var.
+    """
+    url = _whatsapp_url()
+    if not url:
+        return False
+    try:
+        with httpx.Client(timeout=10) as client:
+            r = client.post(url, json={"text": text})
+            r.raise_for_status()
+        log.info("[whatsapp] Sent: %.60s", text)
+        return True
+    except Exception as exc:
+        log.warning("[whatsapp] Failed: %s", exc)
+        return False
+
+
 def notify_connectors(text: str) -> None:
-    """Fire Slack and Teams notifications if configured. Swallows all errors."""
+    """Fire all configured connectors (Slack, Teams, WhatsApp). Swallows all errors."""
     try:
         send_slack(text)
     except Exception as exc:
@@ -86,6 +111,10 @@ def notify_connectors(text: str) -> None:
         send_teams(text)
     except Exception as exc:
         log.warning("[notify] Teams error: %s", exc)
+    try:
+        send_whatsapp(text)
+    except Exception as exc:
+        log.warning("[notify] WhatsApp error: %s", exc)
 
 
 def connectors_status() -> dict:
@@ -93,4 +122,5 @@ def connectors_status() -> dict:
     return {
         "slack_configured": bool(_slack_url()),
         "teams_configured": bool(_teams_url()),
+        "whatsapp_configured": bool(_whatsapp_url()),
     }
