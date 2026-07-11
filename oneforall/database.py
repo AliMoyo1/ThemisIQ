@@ -1154,6 +1154,23 @@ CREATE TABLE IF NOT EXISTS rate_limit_attempts (
     attempted_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_rl_key_time ON rate_limit_attempts(key, attempted_at);
+
+-- ── Governance Advisories (proactive daily briefing) ──────────────────────
+CREATE TABLE IF NOT EXISTS governance_advisories (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    briefing_date   TEXT NOT NULL,
+    severity        TEXT DEFAULT 'info',
+    signal_key      TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    detail          TEXT,
+    link            TEXT,
+    ai_narrative    TEXT,
+    acknowledged_by INTEGER,
+    acknowledged_at TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    UNIQUE(briefing_date, signal_key)
+);
+CREATE INDEX IF NOT EXISTS idx_advisories_date ON governance_advisories(briefing_date);
 """
 
 # Per-tenant platform tables: created in every tenant schema by provision_tenant_schema().
@@ -1791,6 +1808,23 @@ CREATE TABLE IF NOT EXISTS aria_control_mappings (
 );
 CREATE INDEX IF NOT EXISTS idx_acm_source ON aria_control_mappings(source_framework_id, source_control_id);
 CREATE INDEX IF NOT EXISTS idx_acm_target ON aria_control_mappings(target_framework_id, target_control_id);
+
+-- ── Governance Advisories (proactive daily briefing) ──────────────────────
+CREATE TABLE IF NOT EXISTS governance_advisories (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    briefing_date   TEXT NOT NULL,
+    severity        TEXT DEFAULT 'info',
+    signal_key      TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    detail          TEXT,
+    link            TEXT,
+    ai_narrative    TEXT,
+    acknowledged_by INTEGER,
+    acknowledged_at TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    UNIQUE(briefing_date, signal_key)
+);
+CREATE INDEX IF NOT EXISTS idx_advisories_date ON governance_advisories(briefing_date);
 """
 
 _GRID_TABLES = """
