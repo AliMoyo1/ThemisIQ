@@ -1767,4 +1767,191 @@ async def api_reminders_send_due(request: Request):
     """
     from core.reminder_scheduler import _process_due_reminders
     _process_due_reminders()
-    return _JSONResp({"success": True, "message": "Due reminders processed"})
+    return _JSONResp({"success": True})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RELATED ITEMS — Cross-Module Link API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Related Items: linkable entity registry ─────────────────────────────────
+# Maps (module, entity_type) → (table, title_column).
+# NEVER interpolate user input into these table names.
+_LINKABLE = {
+    ("erm", "risk"):        ("erm_enterprise_risks", "title"),
+    ("orm", "event"):       ("orm_events", "title"),
+    ("grid", "audit"):      ("grid_audits", "name"),
+    ("grid", "nc"):         ("grid_non_conformances", "title"),
+    ("sentinel", "breach"): ("sentinel_breaches", "title"),
+    ("sentinel", "ropa"):   ("sentinel_ropa", "processing_name"),
+    ("sentinel", "dpia"):   ("sentinel_dpias", "title"),
+    ("bcm", "plan"):        ("bcm_plans", "title"),
+    ("bcm", "incident"):    ("bcm_incidents", "title"),
+    ("aria", "document"):   ("aria_documents", "title"),
+    ("evidence", "item"):   ("evidence_items", "title"),
+}
+
+
+@router.get("/api/links/{module}/{etype}/{eid}")
+@require_auth
+async def api_links_get(request: Request, module: str, etype: str, eid: int):
+    """Get all cross-module links for an entity, resolving linked-entity titles."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT id, source_module, source_type, source_id, "
+            "       target_module, target_type, target_id, relationship "
+            "FROM cross_module_links "
+            "WHERE (source_module = %s AND source_type = %s AND source_id = %s) "
+            "   OR (target_module = %s AND target_type = %s AND target_id = %s) "
+            "ORDER BY created_at DESC",
+            (module, etype, eid, module, etype, eid),
+        ).fetchall()
+    finally:
+        db.close()
+
+    results = []
+    for r in rows:
+        # Determine the "other side" — the entity that is NOT the requested one
+        if r["source_module"] == module and r["source_type"] == etype and r["source_id"] == eid:
+            other_module = r["target_module"]
+            other_type = r["target_type"]
+            other_id = r["target_id"]
+            direction = "outgoing"
+        else:
+            other_module = r["source_module"]
+            other_type = r["source_type"]
+            other_id = r["source_id"]
+            direction = "incoming"
+
+        # Resolve title via _LINKABLE
+        title = None
+        linkable_key = (other_module, other_type)
+        if linkable_key in _LINKABLE:
+            table, title_col = _LINKABLE[linkable_key]
+            db2 = get_db()
+            try:
+                row2 = db2.execute(
+                    f"SELECT {title_col} FROM {table} WHERE id = %s",
+                    (other_id,),
+                ).fetchone()
+                if row2:
+                    title = row2[title_col]
+            finally:
+                db2.close()
+
+        results.append({
+            "link_id": r["id"],
+            "module": other_module,
+            "entity_type": other_type,
+            "entity_id": other_id,
+            "title": title,
+            "relationship": r["relationship"],
+            "direction": direction,
+        })
+
+    return _JSONResp(results)
+
+
+@router.post("/api/links", status_code=201)
+@require_auth
+async def api_links_create(request: Request):
+    """Create a cross-module link between two linkable entities."""
+    data = await _json_body(request)
+    sm = data.get("source_module", "")
+    st = data.get("source_type", "")
+    sid = validate_int(data.get("source_id"))
+    tm = data.get("target_module", "")
+    tt = data.get("target_type", "")
+    tid = validate_int(data.get("target_id"))
+    rel = data.get("relationship", "related")
+    uid = request.state.user["id"]
+
+    # Validate all 6 (module, type) pairs exist in _LINKABLE
+    if (sm, st) not in _LINKABLE:
+        return _JSONResp({"error": f"Unknown source entity: {sm}/{st}"}, status_code=400)
+    if (tm, tt) not in _LINKABLE:
+        return _JSONResp({"error": f"Unknown target entity: {tm}/{tt}"}, status_code=400)
+
+    # Validate both entity rows exist
+    db = get_db()
+    try:
+        src_table = _LINKABLE[(sm, st)][0]
+        srow = db.execute(f"SELECT 1 FROM {src_table} WHERE id = %s", (sid,)).fetchone()
+        if not srow:
+            return _JSONResp({"error": f"Source entity not found: {sm}/{st}/{sid}"}, status_code=404)
+
+        tgt_table = _LINKABLE[(tm, tt)][0]
+        trow = db.execute(f"SELECT 1 FROM {tgt_table} WHERE id = %s", (tid,)).fetchone()
+        if not trow:
+            return _JSONResp({"error": f"Target entity not found: {tm}/{tt}/{tid}"}, status_code=404)
+
+        # Reject self-links
+        if sm == tm and st == tt and sid == tid:
+            return _JSONResp({"error": "Cannot link an entity to itself."}, status_code=400)
+
+        # Sanitize relationship
+        relationship = validate_choice(
+            rel,
+            {"related", "mitigates", "caused_by", "evidence_for", "triggered"},
+            "related",
+        )
+
+        # INSERT with ON CONFLICT DO NOTHING pattern (matching core/links.py)
+        dedup_key = (sm, st, sid, tm, tt, tid, relationship, uid)
+        cur = db.execute(
+            "INSERT INTO cross_module_links "
+            "(source_module, source_type, source_id, "
+            " target_module, target_type, target_id, "
+            " relationship, created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) "
+            "ON CONFLICT DO NOTHING RETURNING id",
+            (*dedup_key,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            # ON CONFLICT — duplicate; fetch existing id
+            existing = db.execute(
+                "SELECT id FROM cross_module_links "
+                "WHERE source_module=%s AND source_type=%s AND source_id=%s "
+                "AND target_module=%s AND target_type=%s AND target_id=%s "
+                "AND relationship=%s",
+                (sm, st, sid, tm, tt, tid, relationship),
+            ).fetchone()
+            if existing:
+                return _JSONResp({"ok": True, "link_id": existing["id"]}, status_code=200)
+            return _JSONResp({"error": "Failed to insert link."}, status_code=500)
+
+        link_id = row["id"]
+        db.commit()
+    finally:
+        db.close()
+
+    return _JSONResp({"ok": True, "link_id": link_id}, status_code=201)
+
+
+@router.delete("/api/links/{link_id}")
+@require_auth
+async def api_links_delete(request: Request, link_id: int):
+    """Delete a cross-module link. Only the creator or an admin can delete."""
+    uid = request.state.user["id"]
+    is_admin = has_capability(request.state.user, "platform.manage_users")
+
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT created_by FROM cross_module_links WHERE id = %s",
+            (link_id,),
+        ).fetchone()
+        if not row:
+            return _JSONResp({"error": "Link not found."}, status_code=404)
+
+        if not is_admin and row["created_by"] != uid:
+            return _JSONResp({"error": "Access denied."}, status_code=403)
+
+        db.execute("DELETE FROM cross_module_links WHERE id = %s", (link_id,))
+        db.commit()
+    finally:
+        db.close()
+
+    return _JSONResp({"success": True})

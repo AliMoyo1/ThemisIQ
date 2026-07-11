@@ -609,6 +609,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/js/related_items.js"></script>
 <script>
 (function(){
   /* ── Role flags (server-rendered) ── */
@@ -2016,6 +2017,13 @@
     document.body.style.overflow='hidden';
     /* Load linked evidence asynchronously */
     _loadNCLinkedEvidence(ncid);
+    // ── Related Items panel (PLAN-07) ──
+    var riBody = document.querySelector('#ncDetailPanel .nc-panel-body');
+    if(riBody && window.RelatedItems){
+      var riWrap = document.createElement('div');
+      riBody.appendChild(riWrap);
+      window.RelatedItems.mount(riWrap, 'grid', 'nc', ncid, {canEdit: true});
+    }
   };
 
   async function _loadNCLinkedEvidence(ncid){

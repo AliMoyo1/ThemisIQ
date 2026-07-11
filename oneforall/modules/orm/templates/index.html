@@ -501,6 +501,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/js/related_items.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1097,6 +1098,13 @@ window.ormOpenEventDrawer=async function(id){
         '<button class="btn btn-primary" onclick="ormOpenEventModal(window._ormDrawerEvt);ormCloseDrawer()" style="margin-left:auto">Edit</button>'+
       '</div>'+
     '</div></div>';
+    // ── Related Items panel (PLAN-07) ──
+    var riBody = document.querySelector('#ormDrawerRoot .orm-drawer-body');
+    if(riBody && window.RelatedItems){
+      var riWrap = document.createElement('div');
+      riBody.appendChild(riWrap);
+      window.RelatedItems.mount(riWrap, 'orm', 'event', id, {canEdit: true});
+    }
   }catch(ex){drawer.innerHTML='';}
 };
 window.ormCloseDrawer=function(){document.getElementById('ormDrawerRoot').innerHTML='';};

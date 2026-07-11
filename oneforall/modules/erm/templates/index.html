@@ -656,6 +656,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/js/related_items.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1365,6 +1366,13 @@ window.ermOpenRiskDrawer=async function(id){
         '</div>';
       }
     }catch(e){}
+    // ── Related Items panel (PLAN-07) ──
+    var riBody = document.querySelector('#ermRiskDrawer .erm-drawer-body');
+    if(riBody && window.RelatedItems){
+      var riWrap = document.createElement('div');
+      riBody.appendChild(riWrap);
+      window.RelatedItems.mount(riWrap, 'erm', 'risk', id, {canEdit: true});
+    }
   }catch(e){ermCloseRiskDrawer();typeof showToast==='function'&&showToast('Load failed','error');}
 };
 window.ermCloseRiskDrawer=function(){document.getElementById('ermRiskDrawer').innerHTML='';_drawerRisk=null;};
