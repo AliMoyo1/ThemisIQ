@@ -764,8 +764,14 @@ async def api_task_update(request: Request, tid: int):
         if fields:
             fields.append("updated_at = CURRENT_TIMESTAMP")
             params.append(tid)
-            db.execute(f"UPDATE task_board SET {', '.join(fields)} WHERE id = %s", params)
+            sql = f"UPDATE task_board SET {', '.join(fields)} WHERE id = %s"
+            if not is_admin:
+                sql += " AND (created_by = %s OR assigned_to = %s)"
+                params.extend([uid, uid])
+            cur = db.execute(sql, params)
             db.commit()
+            if cur.rowcount == 0:
+                return _JSONResp({"error": "Task changed or was removed — refresh and retry."}, 409)
     finally:
         db.close()
     return _JSONResp({"success": True})
@@ -814,11 +820,13 @@ async def api_tasks_bulk_update(request: Request):
         if not ids:
             return _JSONResp({"error": "No accessible tasks."}, 403)
         placeholders = ", ".join(["%s"] * len(ids))
-        params.extend(ids)
-        db.execute(
-            f"UPDATE task_board SET {', '.join(fields)} WHERE id IN ({placeholders})",
-            params,
-        )
+        sql = f"UPDATE task_board SET {', '.join(fields)} WHERE id IN ({placeholders})"
+        if not is_admin:
+            sql += " AND (created_by = %s OR assigned_to = %s)"
+            params.extend(ids + [uid, uid])
+        else:
+            params.extend(ids)
+        db.execute(sql, params)
         db.commit()
     finally:
         db.close()
