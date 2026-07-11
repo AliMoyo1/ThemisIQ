@@ -1768,3 +1768,174 @@ async def api_reminders_send_due(request: Request):
     from core.reminder_scheduler import _process_due_reminders
     _process_due_reminders()
     return _JSONResp({"success": True, "message": "Due reminders processed"})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  GOVERNANCE TIMELINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Map event_type constants → human-readable labels
+_EVENT_LABELS = {
+    # ARIA
+    "aria.policy.published":   "Policy published",
+    "aria.policy.updated":     "Policy updated",
+    "aria.risk.created":       "Risk created",
+    "aria.risk.escalated":     "Risk escalated",
+    "aria.control.updated":    "Control updated",
+    "aria.control.compliant":  "Control marked compliant",
+    "aria.document.published": "Document published",
+    # GRID
+    "grid.audit.started":        "Audit started",
+    "grid.audit.completed":      "Audit completed",
+    "grid.finding.created":      "Finding created",
+    "grid.non_conformance.raised": "Non-conformance raised",
+    "grid.nc.opened":            "Non-conformance opened",
+    "grid.nc.closed":            "Non-conformance closed",
+    "grid.policy.requested":     "Policy requested",
+    # BCM
+    "bcm.incident.declared":   "BCM incident declared",
+    "bcm.incident.resolved":   "BCM incident resolved",
+    "bcm.risk.escalated":      "BCM risk escalated",
+    "bcm.plan.approved":       "BCM plan approved",
+    "bcm.plan.activated":      "BCM plan activated",
+    "bcm.plan.deactivated":    "BCM plan deactivated",
+    "bcm.plan.created":        "BCM plan created",
+    "bcm.plan.test":           "BCM plan tested",
+    # Sentinel
+    "sentinel.breach.confirmed": "Breach confirmed",
+    "sentinel.breach.resolved":  "Breach resolved",
+    "sentinel.breach.closed":    "Breach closed",
+    "sentinel.dpia.completed":   "DPIA completed",
+    "sentinel.dsr.overdue":      "DSR overdue",
+    "sentinel.ropa.created":     "RoPA created",
+    # ERM
+    "erm.risk.identified":     "Risk identified",
+    "erm.risk.escalated":      "Risk escalated",
+    "erm.risk.mitigated":      "Risk mitigated",
+    "erm.risk.closed":         "Risk closed",
+    "erm.risk.created":        "Risk created",
+    "erm.appetite.breached":   "Risk appetite breached",
+    # ORM
+    "orm.event.logged":        "Incident logged",
+    "orm.event.elevated":      "Incident elevated",
+    "orm.event.resolved":      "Incident resolved",
+    "orm.event.created":       "Incident reported",
+}
+
+# Map entity_type values stored in events → display aliases used in deep links
+_ENTITY_TYPE_ALIAS = {
+    "enterprise_risk":    "risk",
+    "non_conformance":    "nc",
+    "processing_activity": "ropa",
+    "incident":           "incident",
+}
+
+_VALID_TIMELINE_MODULES = {"aria", "grid", "bcm", "sentinel", "erm", "orm"}
+
+
+@router.get("/api/timeline")
+@require_auth
+async def api_timeline(request: Request):
+    """Return governance timeline events with pagination and enrichment."""
+    # ── Parse & clamp params ──────────────────────────────────────────────
+    try:
+        days = int(request.query_params.get("days", "30"))
+    except (TypeError, ValueError):
+        days = 30
+    days = max(1, min(days, 365))
+
+    module = request.query_params.get("module", "").strip().lower()
+    if module and module not in _VALID_TIMELINE_MODULES:
+        return _JSONResp({"error": f"Invalid module: {module}"}, status_code=400)
+
+    try:
+        page = int(request.query_params.get("page", "1"))
+    except (TypeError, ValueError):
+        page = 1
+    page = max(1, min(page, 20))
+
+    db = get_db()
+    try:
+        # ── Build WHERE clause ────────────────────────────────────────────
+        where = [f"created_at >= {sql_date_offset(f'-{days} days')}"]
+        params = []
+        if module:
+            where.append("source_module = %s")
+            params.append(module)
+
+        where_clause = " AND ".join(where)
+
+        # ── Total count ───────────────────────────────────────────────────
+        count_row = db.execute(
+            f"SELECT COUNT(*) FROM events WHERE {where_clause}", params
+        ).fetchone()
+        total = count_row[0] if count_row else 0
+
+        # ── Fetch page ────────────────────────────────────────────────────
+        offset = (page - 1) * 100
+        rows = db.execute(
+            f"SELECT id, event_type, source_module, source_entity_type, "
+            f"source_entity_id, payload, created_by, created_at "
+            f"FROM events WHERE {where_clause} "
+            f"ORDER BY created_at DESC LIMIT 100 OFFSET %s",
+            params + [offset],
+        ).fetchall()
+
+        # ── Batch-resolve user names ──────────────────────────────────────
+        user_ids = list({r["created_by"] for r in rows if r["created_by"]})
+        user_map = {}
+        if user_ids:
+            placeholders = ",".join(["%s"] * len(user_ids))
+            user_rows = db.execute(
+                f"SELECT id, full_name FROM users WHERE id IN ({placeholders})",
+                user_ids,
+            ).fetchall()
+            user_map = {u["id"]: u["full_name"] or "" for u in user_rows}
+    finally:
+        db.close()
+
+    # ── Enrich rows ───────────────────────────────────────────────────────
+    enriched = []
+    for r in rows:
+        event_type = r["event_type"] or ""
+        # Label
+        label = _EVENT_LABELS.get(event_type)
+        if not label:
+            # Fallback: last segment after final dot, replace _, title-case
+            seg = event_type.rsplit(".", 1)[-1] if "." in event_type else event_type
+            label = seg.replace("_", " ").title()
+
+        # User name
+        user_name = user_map.get(r["created_by"], "") or "System"
+
+        # Deep link
+        link = None
+        et = r["source_entity_type"] or ""
+        eid = r["source_entity_id"]
+        if et and eid:
+            alias = _ENTITY_TYPE_ALIAS.get(et, et)
+            link = f"/{r['source_module']}/?open={alias}:{eid}"
+
+        enriched.append({
+            "id": r["id"],
+            "event_type": event_type,
+            "source_module": r["source_module"],
+            "source_entity_type": et,
+            "source_entity_id": eid,
+            "payload": r["payload"],
+            "created_by": r["created_by"],
+            "created_at": r["created_at"],
+            "label": label,
+            "user_name": user_name,
+            "link": link,
+        })
+
+    return _JSONResp({"rows": enriched, "total": total, "page": page})
+
+
+@router.get("/timeline", response_class=HTMLResponse)
+@require_auth
+async def timeline_page(request: Request):
+    """Governance Timeline page."""
+    ctx = shell_ctx(request, active_module="timeline")
+    return shell_templates.TemplateResponse(request, "timeline.html", ctx)

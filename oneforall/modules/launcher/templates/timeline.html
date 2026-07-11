@@ -1,0 +1,292 @@
+{% extends "platform_base.html" %}
+{% block title %}Governance Timeline — ThemisIQ{% endblock %}
+
+{% block head %}
+<style>
+/* ── Timeline ── */
+.tl-filter-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:20px}
+.tl-module-select{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;outline:none;min-width:150px}
+.tl-module-select:focus{border-color:var(--accent)}
+.tl-day-chips{display:flex;gap:4px}
+.tl-day-chip{padding:6px 14px;border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all .15s ease}
+.tl-day-chip:hover{border-color:var(--accent);color:var(--text)}
+.tl-day-chip.active{background:var(--accent);color:white;border-color:var(--accent)}
+
+/* ── Vertical timeline ── */
+.tl-container{padding-left:40px;position:relative}
+.tl-container::before{content:'';position:absolute;left:8px;top:4px;bottom:4px;width:2px;background:var(--border)}
+.tl-day-group{margin-bottom:28px;position:relative}
+.tl-day-header{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;position:relative}
+.tl-day-header::before{content:'';position:absolute;left:-36px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);z-index:1}
+
+.tl-entry{position:relative;padding:12px 16px;margin-bottom:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);transition:all .15s ease}
+.tl-entry:hover{border-color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.tl-entry::before{content:'';position:absolute;left:-37px;top:14px;width:12px;height:12px;border-radius:50%;z-index:1;border:2px solid var(--surface)}
+.tl-entry-inner{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.tl-entry-left{display:flex;align-items:flex-start;gap:10px;flex:1;min-width:0}
+.tl-entry-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.tl-label{font-size:14px;font-weight:600;color:var(--text);line-height:1.4}
+.tl-user{font-size:11px;color:var(--muted);margin-top:2px}
+.tl-time{font-size:11px;color:var(--muted);white-space:nowrap}
+.tl-link{padding:4px 10px;border-radius:var(--radius);font-size:11px;font-weight:600;background:var(--surface2);color:var(--accent);text-decoration:none;white-space:nowrap;transition:all .15s ease;border:1px solid var(--border)}
+.tl-link:hover{background:var(--accent);color:white;border-color:var(--accent)}
+
+/* ── Empty state ── */
+.tl-empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.tl-empty svg{width:48px;height:48px;stroke:var(--border);margin-bottom:12px}
+.tl-empty .tl-empty-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px}
+.tl-empty .tl-empty-sub{font-size:12px;color:var(--muted)}
+
+/* ── Load more ── */
+.tl-load-more-wrap{text-align:center;padding:20px 0 8px}
+.tl-load-more-btn{padding:10px 28px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--accent);transition:all .15s ease}
+.tl-load-more-btn:hover{background:var(--accent);color:white;border-color:var(--accent)}
+.tl-load-more-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Loading ── */
+.tl-spinner-wrap{display:flex;justify-content:center;padding:40px}
+.tl-spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:tlSpin .6s linear infinite}
+@keyframes tlSpin{to{transform:rotate(360deg)}}
+
+@media(max-width:600px){
+  .tl-container{padding-left:30px}
+  .tl-day-header::before{left:-26px}
+  .tl-entry::before{left:-27px}
+  .tl-entry-right{width:100%}
+}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<span style="color:var(--accent);font-weight:700">Platform</span>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">Timeline</span>
+{% endblock %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SECTION HEADER                                                        -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header animate-fade-up">
+  <div>
+    <div class="section-title">Governance Timeline</div>
+    <div class="section-sub">Real-time feed of compliance events across all modules</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- FILTER BAR                                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tl-filter-row animate-fade-up anim-1">
+  <select class="tl-module-select" id="tlModuleFilter" onchange="tlApplyFilters()">
+    <option value="">All Modules</option>
+    <option value="aria">ARIA — Controls &amp; Policies</option>
+    <option value="sentinel">Sentinel — Privacy &amp; Breaches</option>
+    <option value="grid">GRID — Audits &amp; Findings</option>
+    <option value="bcm">BCM — Continuity</option>
+    <option value="erm">ERM — Enterprise Risk</option>
+    <option value="orm">ORM — Operational Risk</option>
+  </select>
+  <div class="tl-day-chips" id="tlDayChips">
+    <button class="tl-day-chip" data-days="7" onclick="tlSetDays(7,this)">7 days</button>
+    <button class="tl-day-chip active" data-days="30" onclick="tlSetDays(30,this)">30 days</button>
+    <button class="tl-day-chip" data-days="90" onclick="tlSetDays(90,this)">90 days</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- TIMELINE CONTAINER                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tl-container animate-fade-up anim-2" id="tlContainer">
+  <div class="tl-spinner-wrap"><div class="tl-spinner"></div></div>
+</div>
+
+<div class="tl-load-more-wrap" id="tlLoadMoreWrap" style="display:none">
+  <button class="tl-load-more-btn" id="tlLoadMoreBtn" onclick="tlLoadMore()">Load More</button>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function(){
+  'use strict';
+
+  /* ════════════════════════════════════════════════════════════════════════
+     HELPERS
+     ════════════════════════════════════════════════════════════════════════ */
+  function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+
+  var MODULE_COLORS={
+    aria:'#1D9E75', grid:'#378ADD', sentinel:'#D85A30',
+    bcm:'#993556', erm:'#E24B4A', orm:'#BA7517'
+  };
+
+  function modColor(m){return MODULE_COLORS[m]||'var(--accent)';}
+
+  function fmtTime(ts){
+    if(!ts)return'--';
+    var d=new Date(ts.includes('T')?ts:ts+'Z');
+    if(isNaN(d.getTime()))return ts;
+    var h=d.getHours(),m=d.getMinutes();
+    return ('0'+h).slice(-2)+':'+('0'+m).slice(-2);
+  }
+
+  function fmtDate(ts){
+    if(!ts)return'';
+    var d=new Date(ts.includes('T')?ts:ts+'Z');
+    if(isNaN(d.getTime()))return ts.slice(0,10);
+    return d.toISOString().slice(0,10);
+  }
+
+  function fmtDayLabel(dateStr){
+    var d=new Date(dateStr+'T00:00:00');
+    if(isNaN(d.getTime()))return dateStr;
+    var today=new Date();
+    today.setHours(0,0,0,0);
+    var diff=Math.floor((today-d)/86400000);
+    if(diff===0)return'Today';
+    if(diff===1)return'Yesterday';
+    var days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return days[d.getDay()]+', '+months[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     STATE
+     ════════════════════════════════════════════════════════════════════════ */
+  var tlState={days:30, module:'', page:1, total:0, rows:[]};
+
+  /* ════════════════════════════════════════════════════════════════════════
+     API
+     ════════════════════════════════════════════════════════════════════════ */
+  async function tlFetch(page){
+    var p=['days='+tlState.days];
+    if(tlState.module) p.push('module='+encodeURIComponent(tlState.module));
+    p.push('page='+page);
+    var r=await fetch('/api/timeline?'+p.join('&'));
+    if(!r.ok) throw new Error('API error '+r.status);
+    return r.json();
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     RENDER
+     ════════════════════════════════════════════════════════════════════════ */
+  function groupByDate(rows){
+    var groups=[];
+    var seen={};
+    for(var i=0;i<rows.length;i++){
+      var d=fmtDate(rows[i].created_at);
+      if(!seen[d]){seen[d]=[];groups.push({date:d,label:fmtDayLabel(d),rows:seen[d]});}
+      seen[d].push(rows[i]);
+    }
+    return groups;
+  }
+
+  function renderEntry(row){
+    var col=modColor(row.source_module);
+    var linkHtml='';
+    if(row.link){
+      linkHtml='<a class="tl-link" href="'+esc(row.link)+'">Open &#8250;</a>';
+    }
+    return '<div class="tl-entry" style="--dot-color:'+esc(col)+'">'+
+      '<div class="tl-entry-inner">'+
+        '<div class="tl-entry-left">'+
+          '<div class="tl-label">'+esc(row.label)+'</div>'+
+        '</div>'+
+        '<div class="tl-entry-right">'+
+          '<div class="tl-user">'+esc(row.user_name)+'</div>'+
+          '<div class="tl-time">'+esc(fmtTime(row.created_at))+'</div>'+
+          linkHtml+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+
+  function renderDayGroup(g){
+    var html='<div class="tl-day-group">'+
+      '<div class="tl-day-header">'+esc(g.label)+'</div>';
+    for(var i=0;i<g.rows.length;i++){
+      html+=renderEntry(g.rows[i]);
+    }
+    html+='</div>';
+    return html;
+  }
+
+  function renderAll(container,rows){
+    if(!rows.length){
+      return '<div class="tl-empty">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">'+
+          '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'+
+        '</svg>'+
+        '<div class="tl-empty-title">No events found</div>'+
+        '<div class="tl-empty-sub">Try adjusting the filters or date range</div>'+
+      '</div>';
+    }
+    var groups=groupByDate(rows);
+    var html='';
+    for(var i=0;i<groups.length;i++){
+      html+=renderDayGroup(groups[i]);
+    }
+    return html;
+  }
+
+  function updateLoadMore(){
+    var wrap=document.getElementById('tlLoadMoreWrap');
+    var loaded=tlState.rows.length;
+    if(loaded>0 && loaded<tlState.total){
+      wrap.style.display='block';
+      document.getElementById('tlLoadMoreBtn').disabled=false;
+    }else{
+      wrap.style.display='none';
+    }
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     LOAD
+     ════════════════════════════════════════════════════════════════════════ */
+  async function tlLoad(reset){
+    if(reset){tlState.page=1;tlState.rows=[];}
+    var container=document.getElementById('tlContainer');
+    container.innerHTML='<div class="tl-spinner-wrap"><div class="tl-spinner"></div></div>';
+    try{
+      var data=await tlFetch(tlState.page);
+      tlState.total=data.total;
+      if(reset){tlState.rows=data.rows;}
+      else{tlState.rows=tlState.rows.concat(data.rows);}
+      container.innerHTML=renderAll(container,tlState.rows);
+      updateLoadMore();
+    }catch(e){
+      container.innerHTML='<div class="tl-empty">'+
+        '<div class="tl-empty-title">Failed to load events</div>'+
+        '<div class="tl-empty-sub">'+esc(String(e))+'</div>'+
+      '</div>';
+      document.getElementById('tlLoadMoreWrap').style.display='none';
+    }
+  }
+
+  window.tlLoadMore=function(){
+    tlState.page++;
+    document.getElementById('tlLoadMoreBtn').disabled=true;
+    tlLoad(false);
+  };
+
+  window.tlSetDays=function(days,btn){
+    tlState.days=days;
+    document.querySelectorAll('.tl-day-chip').forEach(function(c){c.classList.remove('active');});
+    if(btn)btn.classList.add('active');
+    tlApplyFilters();
+  };
+
+  window.tlApplyFilters=function(){
+    tlState.module=document.getElementById('tlModuleFilter').value;
+    tlLoad(true);
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     INIT
+     ════════════════════════════════════════════════════════════════════════ */
+  tlLoad(true);
+
+})();
+</script>
+{% endblock %}
