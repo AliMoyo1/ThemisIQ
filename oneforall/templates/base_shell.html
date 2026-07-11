@@ -562,6 +562,10 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 .stats-row .stat-card:nth-child(4):not(.stat-card-hero)::before{animation-delay:.60s}
 .stats-row .stat-card:nth-child(5):not(.stat-card-hero)::before{animation-delay:.75s}
 
+/* ── Search Result Highlight ── */
+.search-result{transition:background 0.1s}
+.search-result.active{background:var(--accent-pale) !important}
+
 {% block extra_styles %}{% endblock %}
 </style>
 <link rel="stylesheet" href="/static/css/responsive.css">
@@ -1028,18 +1032,49 @@ document.addEventListener('keydown', function(e){
   if(e.key === 'Escape'){
     document.getElementById('searchResults').style.display='none';
     document.getElementById('globalSearch').blur();
+    searchIndex = -1;
+  }
+  // Arrow-key navigation within search results dropdown
+  var resultsEl = document.getElementById('searchResults');
+  if(resultsEl.style.display === 'block'){
+    var items = resultsEl.querySelectorAll('.search-result');
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      searchIndex = Math.min(searchIndex + 1, items.length - 1);
+      updateSearchActive(items, searchIndex);
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      searchIndex = Math.max(searchIndex - 1, 0);
+      updateSearchActive(items, searchIndex);
+    } else if(e.key === 'Enter' && searchIndex >= 0 && searchIndex < items.length){
+      e.preventDefault();
+      var activeItem = items[searchIndex];
+      if(activeItem && activeItem.href){
+        window.location.href = activeItem.href;
+      }
+    }
   }
 });
 
+function updateSearchActive(items, idx){
+  items.forEach(function(it, i){ it.classList.toggle('active', i === idx); });
+  if(idx >= 0 && items[idx]){
+    items[idx].scrollIntoView({block:'nearest'});
+  }
+}
+
 let searchDebounce = null;
+let searchIndex = -1;
 document.getElementById('globalSearch').addEventListener('input', function(){
   clearTimeout(searchDebounce);
+  searchIndex = -1;
   const q = this.value.trim();
   if(q.length < 2){ document.getElementById('searchResults').style.display='none'; return; }
   searchDebounce = setTimeout(()=>doGlobalSearch(q), 250);
 });
 
 async function doGlobalSearch(q){
+  searchIndex = -1;
   const resp = await fetch('/api/search?q=' + encodeURIComponent(q));
   const data = await resp.json();
   const el = document.getElementById('searchResults');
@@ -1050,7 +1085,7 @@ async function doGlobalSearch(q){
     el.innerHTML = data.results.map(function(r) {
       var safeLink = (r.link||'#').replace(/[^a-zA-Z0-9\/_\-\.#?=&]/g, '');
       var mod = (r.module||'').replace(/[^a-z]/g,'');
-      return '<a href="'+esc(safeLink)+'" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'transparent\'">' +
+      return '<a href="'+esc(safeLink)+'" class="search-result" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'transparent\'">' +
         '<span style="width:8px;height:8px;border-radius:50%;background:'+(modColors[mod]||'var(--muted)')+';flex-shrink:0;"></span>' +
         '<div style="flex:1;min-width:0;">' +
           '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.title)+'</div>' +

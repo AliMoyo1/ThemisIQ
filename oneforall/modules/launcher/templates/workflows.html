@@ -443,12 +443,12 @@
   }
 
   // Build a deep-link for a given entity (module/type/id)
-  var MODULE_HREF={aria:'/aria/',grid:'/grid/',bcm:'/bcm/',sentinel:'/sentinel/',evidence:'/evidence/'};
+  var MODULE_HREF={aria:'/aria/',grid:'/grid/',bcm:'/bcm/',sentinel:'/sentinel/',evidence:'/evidence/',erm:'/erm/',orm:'/orm/'};
   function entityLink(module, entityType, entityId){
     if(!module && !entityType) return '';
     var label=(module||'')+(entityType?' / '+entityType.replace(/_/g,' '):'')+(entityId?' #'+entityId:'');
     if(!module) return '<span style="font-size:11px;color:var(--muted)">'+esc(label)+'</span>';
-    var href=MODULE_HREF[module]||'/';
+    var href=(MODULE_HREF[module]||'/') + '?open=' + entityType + ':' + entityId;
     return '<a class="pending-entity-link" href="'+esc(href)+'" title="Open in '+esc(module)+'" target="_blank">'+
       '↗ '+esc(label)+'</a>';
   }
