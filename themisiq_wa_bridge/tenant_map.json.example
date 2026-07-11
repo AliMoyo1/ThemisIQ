@@ -1,0 +1,12 @@
+{
+  "wa_user_263783047375": {
+    "tenant_id": "org_example",
+    "api_key": "tq_live_readonly_xxx",
+    "role": "compliance_manager",
+    "org_id": 1,
+    "modules": ["sentinel", "erm", "aria", "command_centre"]
+  },
+  "org_subscriptions": {
+    "1": ["wa_user_263783047375"]
+  }
+}

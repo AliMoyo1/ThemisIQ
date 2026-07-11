@@ -1,0 +1,16 @@
+{
+  "wa_user_263783047375": {
+    "tenant_id": "org_test",
+    "api_key": "tq_test_readonly",
+    "role": "compliance_manager",
+    "org_id": 1,
+    "modules": ["sentinel", "erm", "aria", "command_centre"]
+  },
+  "wa_user_restricted": {
+    "tenant_id": "org_test",
+    "api_key": "tq_test_readonly",
+    "role": "viewer",
+    "org_id": 1,
+    "modules": ["erm"]
+  }
+}
