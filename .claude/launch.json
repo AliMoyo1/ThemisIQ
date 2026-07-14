@@ -20,6 +20,12 @@
       "port": 8091
     },
     {
+      "name": "odin-frontend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d C:\\Users\\isadmin\\Desktop\\Odin\\frontend && npm run dev"],
+      "port": 5173
+    },
+    {
       "name": "dlu-training",
       "runtimeExecutable": "python",
       "runtimeArgs": [

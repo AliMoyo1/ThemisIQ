@@ -249,6 +249,16 @@ _site_dst = "/etc/nginx/sites-enabled/themisiq"
 _shutil.copy(_site_src, _site_dst)
 print(f"  Installed: {_site_dst}")
 
+# Copy landing page to /var/www/themisiq/ so themisiq.net serves correctly.
+_landing_src = os.path.join(os.path.dirname(__file__), "..", "..", "landing_page")
+_landing_dst = "/var/www/themisiq"
+if os.path.isdir(_landing_src):
+    os.makedirs(_landing_dst, exist_ok=True)
+    _shutil.copytree(_landing_src, _landing_dst, dirs_exist_ok=True)
+    print(f"  Landing page synced: {_landing_dst}")
+else:
+    print(f"  WARNING: landing_page/ not found at {_landing_src}, skipping.")
+
 _test = subprocess.run("nginx -t", shell=True, capture_output=True, text=True)
 if _test.returncode != 0:
     print(f"  ERROR: nginx config test failed:\n{_test.stderr.strip()}")

@@ -2,8 +2,20 @@
 # Installed to /etc/nginx/sites-enabled/themisiq by deploy.py.
 # Rate limiting zones are defined in /etc/nginx/conf.d/themisiq-zones.conf.
 #
+# themisiq.net / www.themisiq.net - landing page served from /var/www/themisiq
 # app.themisiq.net  - orange cloud (Cloudflare proxies HTTPS, we serve HTTP)
 # monitor.themisiq.net - grey cloud (direct HTTP, used by UptimeRobot)
+
+# Landing page: bare domain and www redirect.
+server {
+    listen 80;
+    server_name themisiq.net www.themisiq.net;
+    root /var/www/themisiq;
+    index index.html;
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
 
 server {
     listen 80;
