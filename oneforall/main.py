@@ -193,6 +193,13 @@ async def startup():
     except Exception as exc:
         log.warning("Evidence scheduler failed to start: %s", exc)
 
+    # Start Advisory scheduler (daily governance briefing at 05:30 UTC)
+    try:
+        from modules.launcher.advisory_scheduler import start_scheduler as advisory_start
+        advisory_start()
+    except Exception as exc:
+        log.warning("Advisory scheduler failed to start: %s", exc)
+
     # Start reminder scheduler (auto-processes email_reminders table every 5 minutes)
     try:
         from core.reminder_scheduler import start_scheduler as reminder_start
@@ -253,6 +260,11 @@ async def shutdown():
     try:
         from modules.evidence.scheduler import stop_scheduler as evidence_stop
         evidence_stop()
+    except Exception:
+        pass
+    try:
+        from modules.launcher.advisory_scheduler import stop_scheduler as advisory_stop
+        advisory_stop()
     except Exception:
         pass
     try:

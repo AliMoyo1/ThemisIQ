@@ -86,14 +86,14 @@
         <span class="conn-status off" id="whatsappStatus">Not configured</span>
       </div>
       <div class="info-box">
-        <strong>WhatsApp Business API webhook URL required.</strong>
-        Use a service like Twilio, MessageBird, or the official WhatsApp Business API
-        to create a webhook endpoint that accepts JSON POST requests with a <code>text</code> field.
-        Paste the URL below.
+        <strong>Webhook URL for WhatsApp bridge.</strong>
+        Point this at your <strong>themisiq_wa_bridge</strong> webhook receiver
+        (e.g. <code>https://your-bridge.example.com/webhook/themisiq</code>)
+        or any WhatsApp Business API endpoint that accepts JSON POST with a <code>text</code> field.
       </div>
       <div class="conn-field">
         <label class="conn-label" for="whatsappUrl">Webhook URL</label>
-        <input id="whatsappUrl" type="password" class="conn-input" placeholder="https://api.twilio.com/..." autocomplete="off"/>
+        <input id="whatsappUrl" type="password" class="conn-input" placeholder="https://..." autocomplete="off"/>
         <div class="conn-hint">Leave blank to keep the existing URL unchanged.</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">

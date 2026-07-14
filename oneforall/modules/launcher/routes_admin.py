@@ -1048,7 +1048,7 @@ async def api_connectors_save(request: Request):
         _connectors_save("whatsapp_webhook_url", wa_url.strip())
 
     log_audit(request.state.user, "platform", "connectors_updated",
-              details="Connector webhook URLs updated")
+              details="Slack/Teams/WhatsApp webhook URLs updated")
     return _JSONResp({"ok": True})
 
 

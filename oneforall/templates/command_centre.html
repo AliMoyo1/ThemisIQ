@@ -261,6 +261,17 @@
   <div class="breach-alert-list" id="ccBreachAlertList"></div>
 </div>
 
+<!-- ═══ Today's Briefing Strip ═══ -->
+<div id="briefingStrip" style="display:none;margin-bottom:16px">
+  <div class="panel-card" style="padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;padding:12px 16px;background:var(--accent);color:white;font-size:13px;font-weight:700">
+      <svg viewBox="0 0 24 24" style="width:16px;height:16px;margin-right:8px;flex-shrink:0" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3V3z"/><circle cx="12" cy="12" r="2"/><path d="M12 9v3l2 2"/></svg>
+      Today's Briefing
+    </div>
+    <div id="briefingItems" style="padding:8px 16px"></div>
+  </div>
+</div>
+
 <!-- 4 Stat Cards -->
 <div class="stats-row animate-fade-up anim-1">
   <!-- Hero: Overall Compliance — click to open ARIA -->
@@ -873,7 +884,45 @@
     allOverdueItems = d.overdue_items || [];
     renderOverdueTable(allOverdueItems);
     setLastUpdated(d.fetched_at);
+    loadBriefing();
   }
+
+  // ── Today's Briefing ──
+  async function loadBriefing(){
+    try {
+      const resp = await fetch('/api/advisories/today');
+      if(!resp.ok) return;
+      const data = await resp.json();
+      const items = data.advisories || [];
+      const unacked = items.filter(function(a){ return !a.acknowledged_by; });
+      if(unacked.length === 0){ document.getElementById('briefingStrip').style.display = 'none'; return; }
+      document.getElementById('briefingStrip').style.display = '';
+      var html = unacked.map(function(a){
+        var dotColor = a.severity === 'high' ? '#dc2626' : a.severity === 'medium' ? '#d97706' : '#6366f1';
+        var link = a.link ? '<a href="'+esc(a.link)+'" style="color:var(--accent);text-decoration:none;margin-left:8px;font-weight:600">Open</a>' : '';
+        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">'+
+          '<span style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;margin-top:5px"></span>'+
+          '<div style="flex:1;font-size:13px">'+
+          '<strong>'+esc(a.title)+'</strong>'+
+          (a.detail ? '<br><span style="color:var(--muted)">'+esc(a.detail)+'</span>' : '')+
+          (a.ai_narrative ? '<br><span style="font-size:12px;color:var(--text-mid);font-style:italic">'+esc(a.ai_narrative)+'</span>' : '')+
+          '</div>'+
+          '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'+link+
+          '<button class="btn btn-sm btn-secondary" onclick="ackAdvisory('+a.id+',this)" style="padding:3px 10px;font-size:11px">✓</button></div></div>';
+      }).join('');
+      document.getElementById('briefingItems').innerHTML = html;
+    } catch(e){}
+  }
+
+  window.ackAdvisory = async function(aid, btn){
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+      const resp = await fetch('/api/advisories/'+aid+'/ack', {method:'POST'});
+      if(resp.ok){ btn.parentElement.parentElement.style.opacity = '0.3'; btn.textContent = '✓'; }
+      else { btn.disabled = false; btn.textContent = '✓'; }
+    } catch(e){ btn.disabled = false; btn.textContent = '✓'; }
+  };
 
   // ── Init ──
   loadDashboard();

@@ -81,6 +81,12 @@ def send_teams(text: str) -> bool:
 
 
 def send_whatsapp(text: str) -> bool:
+    """Send an alert via the configured WhatsApp bridge webhook URL.
+
+    The URL should point to the themisiq_wa_bridge webhook receiver or any
+    WhatsApp Business API endpoint that accepts JSON POST with a 'text' field.
+    Falls back to WHATSAPP_WEBHOOK_URL env var.
+    """
     url = _whatsapp_url()
     if not url:
         return False

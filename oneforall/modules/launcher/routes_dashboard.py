@@ -883,6 +883,64 @@ async def api_predictive_risk_acknowledge(request: Request):
         db.close()
 
 
+# ── Governance Advisories (daily briefing) ─────────────────────────────────
+
+
+@router.get("/api/advisories/today")
+@require_auth
+async def api_advisories_today(request: Request):
+    """Return today's unacknowledged advisories (lazy-compose if missing)."""
+    uid = request.state.user["id"]
+    db = get_db()
+    try:
+        from core.timeutils import utcnow
+        today = utcnow().strftime("%Y-%m-%d")
+
+        # Lazy compose: if today has no advisories, compose inline
+        count = db.execute(
+            "SELECT COUNT(*) FROM governance_advisories WHERE briefing_date=%s", (today,)
+        ).fetchone()[0]
+        if count == 0:
+            try:
+                from core.advisor import compose_briefing
+                compose_briefing(db, today)
+            except Exception:
+                pass  # silent failure — advisory isn't critical
+
+        # Fetch today's advisories, unacknowledged first
+        rows = db.execute(
+            "SELECT id, severity, signal_key, title, detail, link, ai_narrative, "
+            "       acknowledged_by, acknowledged_at "
+            "FROM governance_advisories "
+            "WHERE briefing_date=%s "
+            "ORDER BY CASE WHEN acknowledged_by IS NULL THEN 0 ELSE 1 END, id",
+            (today,),
+        ).fetchall()
+        return _JSONResp({"advisories": [dict(r) for r in rows]})
+    finally:
+        db.close()
+
+
+@router.post("/api/advisories/{aid}/ack")
+@require_auth
+async def api_advisory_acknowledge(request: Request, aid: int):
+    """Acknowledge a single advisory."""
+    uid = request.state.user["id"]
+    db = get_db()
+    try:
+        cur = db.execute(
+            "UPDATE governance_advisories SET acknowledged_by=%s, acknowledged_at=CURRENT_TIMESTAMP "
+            "WHERE id=%s AND acknowledged_by IS NULL",
+            (uid, aid),
+        )
+        db.commit()
+        if cur.rowcount == 0:
+            return _JSONResp({"ok": False, "error": "Not found or already acknowledged"}, status_code=404)
+        return _JSONResp({"ok": True})
+    finally:
+        db.close()
+
+
 # ── Predictive risk helpers ───────────────────────────────────────────────────
 
 def _prediction_history(db, limit: int = 7) -> list:

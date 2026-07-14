@@ -14,6 +14,12 @@
       "port": 8080
     },
     {
+      "name": "architecture",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8091"],
+      "port": 8091
+    },
+    {
       "name": "dlu-training",
       "runtimeExecutable": "python",
       "runtimeArgs": [
