@@ -21,6 +21,19 @@ server {
     listen 80;
     server_name app.themisiq.net monitor.themisiq.net;
 
+    # WhatsApp bridge webhook endpoints.
+    # Bridge runs on port 8001 (themisiq-bridge.service).
+    # Meta posts inbound WhatsApp messages to /webhook/whatsapp.
+    # ThemisIQ posts proactive alerts to /webhook/themisiq (can also call port 8001 directly).
+    location /webhook/ {
+        proxy_pass         http://127.0.0.1:8001;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+    }
+
     # Health and readiness probes: no rate limit.
     # Used by UptimeRobot and internal checks.
     location = /health {

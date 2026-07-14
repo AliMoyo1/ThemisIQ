@@ -100,9 +100,11 @@ This keeps outbound alerts inside each recipient's read scope.
 | GET  | `/health`           | liveness |
 
 ## What users can say (Phase 1)
-`help` · `list open DPIAs` · `list open DSRs` · `list open breaches` ·
-`what is my risk score?` · `KRI status` · `summarise document <id>` ·
-`draft breach text for incident <id>` · *any compliance question*.
+`help` · `list open risks` · `list open breaches` · `list audits` ·
+`draft breach notification for incident <id>` · *any compliance question*.
+
+Backed by ThemisIQ API v1: `/api/v1/risks`, `/api/v1/breaches`, `/api/v1/audits`.
+Auth uses `X-API-Key` header (generate keys in ThemisIQ admin).
 
 ## Before production (DPIA checklist)
 - [ ] DPO + controller sign-off on the DPIA

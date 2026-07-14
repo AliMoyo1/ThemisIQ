@@ -43,6 +43,11 @@ class Settings(BaseSettings):
         default="tenant_map.json",
         description="JSON file mapping wa_user_id -> {tenant_id, api_key, role, modules}")
 
+    # --- WhatsApp App Secret (separate from verify_token) ---
+    # Meta uses this to sign POST payloads (X-Hub-Signature-256).
+    # Get it from Meta App Dashboard > App Settings > Basic > App Secret.
+    wa_app_secret: str = Field(default="", description="Meta App Secret for HMAC payload verification")
+
     # --- ThemisIQ outbound webhook (proactive alerts) ---
     themis_webhook_secret: str = Field(
         default="", description="HMAC secret for verifying ThemisIQ webhook payloads")
@@ -81,16 +86,6 @@ def get_settings() -> Settings:
 # }
 # ---------------------------------------------------------------------------
 _TENANT_MAP: Dict[str, Any] = {}
-
-
-def load_tenant_map(path: Optional[str] = None) -> Dict[str, Any]:
-    global _TENANT_MAP
-    p = Path(path or get_settings().themis_tenant_map_path)
-    if p.exists():
-        _TENANT_MAP = json.loads(p.read_text(encoding="utf-8"))
-    else:
-        _TENANT_MAP = {}
-    return _TENANT_MAP
 
 
 def get_tenant_for_user(wa_user_id: str) -> Optional[Dict[str, Any]]:

@@ -62,8 +62,9 @@ async def wa_inbound(request: Request):
     raw = await request.body()
     # Meta signs payloads with X-Hub-Signature-256 using the app secret.
     sig = request.headers.get("X-Hub-Signature-256")
-    if settings.wa_verify_token and not verify_meta_signature(
-            raw, sig, settings.wa_verify_token):
+    # Use App Secret for HMAC payload verification (not the verify token).
+    _app_secret = settings.wa_app_secret or settings.wa_verify_token
+    if _app_secret and not verify_meta_signature(raw, sig, _app_secret):
         audit.log_event(actor="unknown", tenant_id=None, action="wa_verify", ok=False)
         raise HTTPException(status_code=401, detail="Bad signature")
 
@@ -234,34 +235,19 @@ async def _handle_user_message(wa_user_id: str, text: str) -> Response:
 
 def _execute(tenant: dict, i: intent.Intent) -> str:
     client = ThemisClient(tenant["tenant_id"], tenant["api_key"])
-    if i.action == "open_dpias":
-        data = client.open_dpias()
-        return _summarise(data, "Open DPIAs")
-    if i.action == "open_dsars":
-        data = client.open_dsars()
-        return _summarise(data, "Open DSRs")
-    if i.action == "open_breaches":
-        data = client.open_breaches()
-        return _summarise(data, "Open Breaches")
-    if i.action == "risk_score":
-        data = client.risk_score()
-        return f"Current risk score: {_pretty(data)}"
-    if i.action == "kri_status":
-        data = client.kri_status()
-        return f"KRI status:\n{_pretty(data)}"
-    if i.action == "document":
-        data = client.document(i.params.get("doc_id", ""))
-        # LLM summarise (read-only; don't send full body to LLM if sensitive)
+    if i.action == "list_risks":
+        params = {k: v for k, v in i.params.items() if v is not None}
+        data = client.list_risks(**params)
+        return _summarise(data, "Risks")
+    if i.action == "list_breaches":
+        data = client.list_breaches(status=i.params.get("status", "open"))
+        return _summarise(data, "Breaches")
+    if i.action == "list_audits":
+        data = client.list_audits(status=i.params.get("status"))
+        return _summarise(data, "Audits")
+    if i.action == "draft_breach":
         return llm.complete(
-            "You are a compliance assistant. Summarise this document record briefly.",
-            f"Document: {json.dumps(data, ensure_ascii=False)[:1500]}")
-    if i.action == "command_centre":
-        data = client.command_centre()
-        return f"Command Centre overview:\n{_pretty(data)}"
-    if i.action == "draft_breach_text":
-        # LLM drafts notification text from incident id (no live write)
-        return llm.complete(
-            "You are a DPO assistant. Draft a draft breach-notification text "
+            "You are a DPO assistant. Draft a breach-notification text "
             "under GDPR Art. 33 / CDPA. Mark it DRAFT.",
             f"Incident id: {i.params.get('incident_id')}")
     if i.action == "qa":

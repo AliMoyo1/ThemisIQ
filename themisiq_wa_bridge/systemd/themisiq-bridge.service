@@ -1,0 +1,17 @@
+[Unit]
+Description=ThemisIQ WhatsApp Bridge
+After=network.target themisiq-app.service
+Wants=themisiq-app.service
+
+[Service]
+Type=simple
+WorkingDirectory=/project/themisiq_wa_bridge
+EnvironmentFile=/project/themisiq_wa_bridge/.env
+ExecStart=/usr/bin/python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 1
+StandardOutput=append:/project/bridge.log
+StandardError=append:/project/bridge.log
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
