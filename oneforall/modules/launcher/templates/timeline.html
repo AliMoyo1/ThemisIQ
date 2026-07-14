@@ -1,0 +1,146 @@
+{% extends "platform_base.html" %}
+{% block title %}Governance Timeline - ThemisIQ{% endblock %}
+
+{% block head %}
+<style>
+.tl-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+.tl-chip{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all .15s}
+.tl-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tl-chip:hover{border-color:var(--accent)}
+.tl-module-sel{padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;outline:none}
+.tl-day-header{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:12px 0 6px;border-bottom:1px solid var(--border);margin-top:16px}
+.tl-event{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-light, rgba(148,163,184,.08));position:relative}
+.tl-dot{width:10px;height:10px;border-radius:50%;margin-top:5px;flex-shrink:0}
+.tl-body{flex:1;min-width:0}
+.tl-label{font-size:14px;font-weight:600;color:var(--text)}
+.tl-meta{font-size:12px;color:var(--muted);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap}
+.tl-meta-chip{display:inline-flex;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.tl-details{font-size:12px;color:var(--muted);margin-top:4px;max-width:600px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+.tl-load-more{display:block;margin:20px auto;padding:8px 28px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer}
+.tl-load-more:hover{background:var(--surface2)}
+.tl-spinner{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section-header animate-fade-up">
+  <div>
+    <div class="section-title">Governance Timeline</div>
+    <div class="section-sub">Cross-module activity feed showing all governance events</div>
+  </div>
+</div>
+
+<div class="tl-controls animate-fade-up anim-1">
+  <span style="font-size:12px;font-weight:600;color:var(--muted)">Period:</span>
+  <span class="tl-chip active" data-days="7">7 days</span>
+  <span class="tl-chip" data-days="30">30 days</span>
+  <span class="tl-chip" data-days="90">90 days</span>
+  <select class="tl-module-sel" id="tlModuleFilter">
+    <option value="">All modules</option>
+  </select>
+  <span id="tlTotal" style="font-size:12px;color:var(--muted);margin-left:auto"></span>
+</div>
+
+<div id="tlContainer" class="animate-fade-up anim-2"></div>
+<div id="tlPager" style="margin-bottom:40px"></div>
+
+<script>
+var _tlDays = 7, _tlModule = '', _tlPage = 1, _tlPages = 1;
+
+function tlInit() {
+  document.querySelectorAll('.tl-chip').forEach(function(c) {
+    c.addEventListener('click', function() {
+      document.querySelectorAll('.tl-chip').forEach(function(x){ x.classList.remove('active'); });
+      c.classList.add('active');
+      _tlDays = parseInt(c.dataset.days);
+      _tlPage = 1;
+      tlLoad();
+    });
+  });
+  document.getElementById('tlModuleFilter').addEventListener('change', function() {
+    _tlModule = this.value;
+    _tlPage = 1;
+    tlLoad();
+  });
+  tlLoad();
+}
+
+function tlLoad() {
+  var el = document.getElementById('tlContainer');
+  el.innerHTML = '<div class="tl-spinner">Loading timeline...</div>';
+  var url = '/api/timeline?days=' + _tlDays + '&page=' + _tlPage;
+  if (_tlModule) url += '&module=' + encodeURIComponent(_tlModule);
+  fetch(url).then(function(r){ return r.json(); }).then(function(data) {
+    _tlPages = data.pages || 1;
+    document.getElementById('tlTotal').textContent = data.total + ' events';
+
+    var sel = document.getElementById('tlModuleFilter');
+    if (sel.options.length <= 1 && data.modules) {
+      data.modules.forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m.toUpperCase();
+        sel.appendChild(opt);
+      });
+    }
+
+    if (!data.events || !data.events.length) {
+      el.innerHTML = '<div class="tl-empty">No events found for this period.</div>';
+      document.getElementById('tlPager').innerHTML = '';
+      return;
+    }
+
+    var html = '', lastDay = '';
+    data.events.forEach(function(ev) {
+      var day = (ev.created_at || '').substring(0, 10);
+      if (day !== lastDay) {
+        lastDay = day;
+        var d = new Date(day + 'T00:00:00');
+        var label = d.toLocaleDateString(undefined, {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+        html += '<div class="tl-day-header">' + esc(label) + '</div>';
+      }
+      var time = (ev.created_at || '').substring(11, 16);
+      html += '<div class="tl-event">';
+      html += '<div class="tl-dot" style="background:' + esc(ev.color) + '"></div>';
+      html += '<div class="tl-body">';
+      html += '<div class="tl-label">' + esc(ev.label) + '</div>';
+      html += '<div class="tl-meta">';
+      html += '<span>' + esc(time) + '</span>';
+      html += '<span class="tl-meta-chip" style="background:' + esc(ev.color) + '20;color:' + esc(ev.color) + '">' + esc((ev.module || '').toUpperCase()) + '</span>';
+      html += '<span>' + esc(ev.username) + '</span>';
+      if (ev.entity_type_label && ev.entity_id) {
+        html += '<span>' + esc(ev.entity_type_label) + ' #' + ev.entity_id + '</span>';
+      }
+      html += '</div>';
+      if (ev.details) {
+        html += '<div class="tl-details">' + esc(ev.details) + '</div>';
+      }
+      html += '</div></div>';
+    });
+    el.innerHTML = html;
+
+    var pager = document.getElementById('tlPager');
+    if (_tlPage < _tlPages) {
+      pager.innerHTML = '<button class="tl-load-more" onclick="tlNextPage()">Load more</button>';
+    } else {
+      pager.innerHTML = '';
+    }
+  });
+}
+
+function tlNextPage() {
+  _tlPage++;
+  tlLoad();
+}
+
+function esc(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+tlInit();
+</script>
+{% endblock %}

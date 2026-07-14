@@ -41,8 +41,12 @@
       <span class="icon-nav-tooltip">Sentinel — Data Protection</span>
     </a>
     {% endif %}
-    {% if can_governance_view %}
     <div class="icon-nav-divider"></div>
+    <a href="/timeline" class="icon-nav-item{% if active_module == 'timeline' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="icon-nav-tooltip">Governance Timeline</span>
+    </a>
+    {% if can_governance_view %}
     <a href="/governance/" class="icon-nav-item{% if active_module == 'governance' %} active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V10M18 21V10M9 21V14h6v7M3 10l9-6 9 6"/></svg>
       <span class="icon-nav-tooltip">Governance Entities</span>

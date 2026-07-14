@@ -3701,6 +3701,10 @@ _COLUMN_MIGRATIONS = [
         ("bcm_bia_records",        "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         ("bcm_incidents",          "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         ("evidence_items",         "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("evidence_items",         "verification_method", "TEXT"),
+        ("evidence_items",         "verified_by", "INTEGER REFERENCES users(id)"),
+        ("evidence_items",         "verified_at", "TEXT"),
+        ("evidence_items",         "confidence_score", "INTEGER"),
         ("task_board",             "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         # ── Governance Graph T1.2: canonical control linkage + user BU ────────
         ("aria_controls",     "canonical_control_id", "INTEGER"),

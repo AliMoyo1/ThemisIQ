@@ -145,7 +145,7 @@
   <div id="evidenceTable" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
     <table class="ev-table">
       <thead><tr>
-        <th>File</th><th>Category</th><th>Linked To</th><th>Expiry</th><th>Status</th><th></th>
+        <th>File</th><th>Category</th><th>Linked To</th><th>Confidence</th><th>Expiry</th><th>Status</th><th></th>
       </tr></thead>
       <tbody id="evidenceTableBody"></tbody>
     </table>
@@ -361,6 +361,43 @@ function expiryBadgeHtml(expiry_date){
   return '';
 }
 
+function confBadgeHtml(score){
+  if(score===null||score===undefined)return '';
+  var color=score>=80?'#16a34a':score>=50?'#d97706':'#dc2626';
+  var bg=score>=80?'rgba(22,163,74,.1)':score>=50?'rgba(217,119,6,.1)':'rgba(220,38,38,.1)';
+  return '<span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:'+bg+';color:'+color+'" title="Confidence score">'+score+'%</span>';
+}
+
+var _VERIFY_LABELS={
+  'self_asserted':'Self-asserted',
+  'peer_reviewed':'Peer reviewed',
+  'auditor_signed':'Auditor signed',
+  'digitally_signed':'Digitally signed'
+};
+
+async function doSetVerification(eid, method){
+  var r=await fetch('/evidence/api/items/'+eid+'/confidence-verify',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRF-Token':getCsrf()},
+    body:JSON.stringify({verification_method:method})
+  });
+  if(r.ok){openDetail(eid);}else{alert('Failed to set verification');}
+}
+
+async function doRemoveVerification(eid){
+  if(!confirm('Remove verification from this evidence item?'))return;
+  var r=await fetch('/evidence/api/items/'+eid+'/confidence-verify',{
+    method:'DELETE',
+    headers:{'X-CSRF-Token':getCsrf()}
+  });
+  if(r.ok){openDetail(eid);}else{alert('Failed to remove verification');}
+}
+
+function getCsrf(){
+  var m=document.cookie.match(/csrf_token=([^;]+)/);
+  return m?decodeURIComponent(m[1]):'';
+}
+
 async function loadEvidence(){
   var params=new URLSearchParams();
   if(currentCategory)params.set('category',currentCategory);
@@ -400,6 +437,7 @@ async function loadEvidence(){
           '<div style="font-size:10px;color:var(--muted)">'+escHtml(item.file_name||'')+'</div></div></div></td>'+
         '<td><span style="padding:2px 8px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span></td>'+
         '<td>'+linkBadge+'</td>'+
+        '<td>'+(item.confidence_score!=null?confBadgeHtml(item.confidence_score):'<span style="color:var(--muted);font-size:10px">—</span>')+'</td>'+
         '<td>'+expiryCell+'</td>'+
         '<td>'+statusDot+' <span style="font-size:11px">'+escHtml(item.status)+'</span></td>'+
         '<td onclick="event.stopPropagation()">'+
@@ -420,7 +458,7 @@ async function loadEvidence(){
             '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+
             '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
               '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span>'+
-              linkBadge+expiryBadgeHtml(item.expiry_date)+
+              linkBadge+expiryBadgeHtml(item.expiry_date)+(item.confidence_score!=null?confBadgeHtml(item.confidence_score):'')+
             '</div>'+
           '</div>'+
         '</div></div>';
@@ -585,6 +623,25 @@ async function openDetail(eid){
       '</div>'+
       (item.file_hash?'<span style="color:var(--muted)">SHA-256</span><span style="color:var(--text);font-family:monospace;font-size:9px;word-break:break-all">'+escHtml(item.file_hash)+'</span>':'')+
     '</div></div>';
+
+  /* Confidence Score + Verification */
+  var confScore=item.confidence_score!=null?item.confidence_score:null;
+  var confColor=confScore!=null?(confScore>=80?'#16a34a':confScore>=50?'#d97706':'#dc2626'):'#94a3b8';
+  var verifyLabel=item.verification_method?(_VERIFY_LABELS[item.verification_method]||item.verification_method):'Not verified';
+  html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;align-items:center;justify-content:space-between">Confidence'+
+    (confScore!=null?'<span style="font-size:20px;font-weight:800;color:'+confColor+'">'+confScore+'%</span>':'<span style="font-size:12px;color:var(--muted)">Not scored</span>')+
+  '</div>'+
+  '<div style="display:grid;grid-template-columns:110px 1fr;gap:6px;font-size:12px;align-items:center">'+
+    '<span style="color:var(--muted)">Verification</span>'+
+    '<span style="color:var(--text)">'+escHtml(verifyLabel)+(item.verified_at?' · <span style="color:var(--muted)">'+fmtDate(item.verified_at)+'</span>':'')+'</span>'+
+  '</div>'+
+  '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">'+
+    Object.keys(_VERIFY_LABELS).map(function(m){
+      var active=item.verification_method===m;
+      return '<button onclick="doSetVerification('+eid+',\''+m+'\')" style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid '+(active?'var(--accent)':'var(--border)')+';background:'+(active?'var(--accent)':'var(--surface)')+';color:'+(active?'#fff':'var(--text)')+'">'+escHtml(_VERIFY_LABELS[m])+'</button>';
+    }).join('')+
+    (item.verification_method?'<button onclick="doRemoveVerification('+eid+')" style="padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted)">Remove</button>':'')+
+  '</div></div>';
 
   /* Tags -- editable */
   html+='<div class="ev-section"><div class="ev-section-title" style="display:flex;justify-content:space-between">Tags '+

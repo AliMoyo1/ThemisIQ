@@ -283,6 +283,7 @@ async def api_evidence_update(request: Request, eid: int):
         sets.append("updated_at = CURRENT_TIMESTAMP")
         vals.append(eid)
         db.execute(f"UPDATE evidence_items SET {', '.join(sets)} WHERE id = %s", vals)
+        recompute_confidence(db, eid)
         db.commit()
     finally:
         db.close()
@@ -669,6 +670,122 @@ async def api_evidence_verify(request: Request, eid: int):
         })
 
 
+# ── Confidence Score ───────────────────────────────────────────────────────
+
+_VALID_VERIFICATION_METHODS = {
+    "self_asserted", "peer_reviewed", "auditor_signed", "digitally_signed",
+}
+
+_VERIFICATION_WEIGHTS = {
+    "self_asserted": 10,
+    "peer_reviewed": 25,
+    "auditor_signed": 40,
+    "digitally_signed": 50,
+}
+
+
+def compute_confidence(verification_method, expiry_date, link_count, file_hash):
+    """Pure function: compute a 0-100 confidence score for an evidence item."""
+    score = 0
+    score += _VERIFICATION_WEIGHTS.get(verification_method or "", 0)
+
+    if expiry_date:
+        from datetime import datetime, timedelta
+        try:
+            exp = datetime.fromisoformat(expiry_date.replace("Z", "+00:00"))
+            now = datetime.utcnow()
+            days_left = (exp - now).days
+            if days_left > 90:
+                score += 25
+            elif days_left > 30:
+                score += 15
+            elif days_left > 0:
+                score += 5
+        except (ValueError, TypeError):
+            pass
+    else:
+        score += 15
+
+    if link_count and link_count >= 3:
+        score += 15
+    elif link_count and link_count >= 1:
+        score += 10
+
+    if file_hash:
+        score += 10
+
+    return min(score, 100)
+
+
+def recompute_confidence(db, eid):
+    """Recompute and persist the confidence score for one evidence item."""
+    row = db.execute(
+        "SELECT verification_method, expiry_date, file_hash FROM evidence_items WHERE id = %s",
+        (eid,),
+    ).fetchone()
+    if not row:
+        return
+    link_count = db.execute(
+        "SELECT COUNT(*) FROM evidence_links WHERE evidence_id = %s AND deleted_at IS NULL",
+        (eid,),
+    ).fetchone()[0]
+    score = compute_confidence(
+        row["verification_method"], row["expiry_date"], link_count, row["file_hash"],
+    )
+    db.execute(
+        "UPDATE evidence_items SET confidence_score = %s WHERE id = %s",
+        (score, eid),
+    )
+
+
+@router.post("/api/items/{eid}/confidence-verify")
+@require_auth
+async def api_evidence_set_verification(request: Request, eid: int):
+    """Set verification method on an evidence item, recompute confidence."""
+    data = await _json_body(request)
+    method = data.get("verification_method", "")
+    if method not in _VALID_VERIFICATION_METHODS:
+        return JSONResponse({"error": "Invalid verification method"}, status_code=400)
+
+    uid = _uid(request)
+    db = get_db()
+    try:
+        item = db.execute("SELECT id FROM evidence_items WHERE id = %s", (eid,)).fetchone()
+        if not item:
+            raise HTTPException(404, "Evidence not found")
+        db.execute(
+            "UPDATE evidence_items SET verification_method = %s, verified_by = %s, "
+            "verified_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (method, uid, eid),
+        )
+        recompute_confidence(db, eid)
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"success": True, "verification_method": method})
+
+
+@router.delete("/api/items/{eid}/confidence-verify")
+@require_auth
+async def api_evidence_remove_verification(request: Request, eid: int):
+    """Remove verification from an evidence item, recompute confidence."""
+    db = get_db()
+    try:
+        item = db.execute("SELECT id FROM evidence_items WHERE id = %s", (eid,)).fetchone()
+        if not item:
+            raise HTTPException(404, "Evidence not found")
+        db.execute(
+            "UPDATE evidence_items SET verification_method = NULL, verified_by = NULL, "
+            "verified_at = NULL WHERE id = %s",
+            (eid,),
+        )
+        recompute_confidence(db, eid)
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"success": True})
+
+
 # ── Linking API ─────────────────────────────────────────────────────────────
 
 @router.post("/api/items/{eid}/links", status_code=201)
@@ -746,6 +863,8 @@ async def api_evidence_link_create(request: Request, eid: int):
                         (eid, "aria", "control", mr[0], user_id)
                     )
             db.commit()
+        recompute_confidence(db, eid)
+        db.commit()
     finally:
         db.close()
     return JSONResponse({"id": lid}, status_code=201)
@@ -757,11 +876,15 @@ async def api_evidence_link_delete(request: Request, lid: int):
     """Soft-delete an evidence link (preserves audit trail)."""
     db = get_db()
     try:
+        link_row = db.execute("SELECT evidence_id FROM evidence_links WHERE id = %s", (lid,)).fetchone()
         db.execute(
             "UPDATE evidence_links SET deleted_at = CURRENT_TIMESTAMP, deleted_by = %s WHERE id = %s",
             (_uid(request), lid),
         )
         db.commit()
+        if link_row:
+            recompute_confidence(db, link_row["evidence_id"])
+            db.commit()
     finally:
         db.close()
     return JSONResponse({"success": True})

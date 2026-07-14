@@ -1770,3 +1770,342 @@ async def api_reminders_send_due(request: Request):
     from core.reminder_scheduler import _process_due_reminders
     _process_due_reminders()
     return _JSONResp({"success": True, "message": "Due reminders processed"})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GOVERNANCE TIMELINE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_EVENT_LABELS = {
+    "user_created":           "User account created",
+    "user_updated":           "User account updated",
+    "user_deleted":           "User account deleted",
+    "user_role_changed":      "User role changed",
+    "login":                  "User logged in",
+    "login_failed":           "Failed login attempt",
+    "mfa_enabled":            "MFA enabled",
+    "mfa_disabled":           "MFA disabled",
+    "password_changed":       "Password changed",
+    "password_reset":         "Password reset requested",
+    "connectors_updated":     "Connectors configuration updated",
+    "security_policy_changed":"Security policy changed",
+    "risk_created":           "Risk created",
+    "risk_updated":           "Risk updated",
+    "risk_deleted":           "Risk deleted",
+    "audit_created":          "Audit created",
+    "audit_updated":          "Audit updated",
+    "audit_completed":        "Audit completed",
+    "nc_created":             "Non-conformance created",
+    "nc_updated":             "Non-conformance updated",
+    "nc_closed":              "Non-conformance closed",
+    "document_created":       "Document created",
+    "document_updated":       "Document updated",
+    "document_approved":      "Document approved",
+    "breach_created":         "Data breach reported",
+    "breach_updated":         "Data breach updated",
+    "breach_closed":          "Data breach closed",
+    "ropa_created":           "RoPA record created",
+    "ropa_updated":           "RoPA record updated",
+    "dpia_created":           "DPIA created",
+    "dpia_updated":           "DPIA updated",
+    "plan_created":           "BCP plan created",
+    "plan_updated":           "BCP plan updated",
+    "incident_created":       "Incident created",
+    "incident_updated":       "Incident updated",
+    "evidence_uploaded":      "Evidence uploaded",
+    "evidence_updated":       "Evidence updated",
+    "evidence_deleted":       "Evidence deleted",
+    "evidence_linked":        "Evidence linked",
+    "task_created":           "Task created",
+    "task_updated":           "Task updated",
+    "task_completed":         "Task completed",
+    "framework_activated":    "Risk framework activated",
+    "appetite_updated":       "Risk appetite updated",
+    "orm_event_created":      "ORM event logged",
+    "orm_event_updated":      "ORM event updated",
+}
+
+_ENTITY_TYPE_ALIAS = {
+    "risk":       "Risk",
+    "audit":      "Audit",
+    "nc":         "Non-conformance",
+    "document":   "Document",
+    "breach":     "Data Breach",
+    "ropa":       "RoPA Record",
+    "dpia":       "DPIA",
+    "plan":       "BCP Plan",
+    "incident":   "Incident",
+    "evidence":   "Evidence",
+    "item":       "Evidence Item",
+    "task":       "Task",
+    "user":       "User",
+    "event":      "ORM Event",
+    "control":    "Control",
+    "framework":  "Framework",
+}
+
+_MODULE_COLORS = {
+    "erm":       "#ef4444",
+    "orm":       "#f97316",
+    "grid":      "#eab308",
+    "aria":      "#3b82f6",
+    "sentinel":  "#8b5cf6",
+    "bcm":       "#06b6d4",
+    "evidence":  "#10b981",
+    "platform":  "#64748b",
+    "governance":"#14b8a6",
+}
+
+
+@router.get("/api/timeline")
+@require_auth
+async def api_timeline(request: Request):
+    """Governance timeline: paginated audit log events with human labels."""
+    days = min(int(request.query_params.get("days", "30")), 365)
+    module_filter = request.query_params.get("module", "")
+    page = max(int(request.query_params.get("page", "1")), 1)
+    per_page = 50
+    offset = (page - 1) * per_page
+    org_id = request.state.user.get("org_id")
+
+    db = get_db()
+    try:
+        where = [f"created_at >= {sql_date_offset(f'-{days} days')}"]
+        params = []
+        if org_id:
+            where.append("org_id = %s")
+            params.append(org_id)
+        if module_filter:
+            where.append("module = %s")
+            params.append(module_filter)
+
+        where_sql = " AND ".join(where)
+
+        rows = db.execute(
+            f"SELECT id, user_id, username, module, action, entity_type, "
+            f"entity_id, details, created_at "
+            f"FROM audit_log WHERE {where_sql} "
+            f"ORDER BY created_at DESC LIMIT %s OFFSET %s",
+            (*params, per_page, offset),
+        ).fetchall()
+
+        total = db.execute(
+            f"SELECT COUNT(*) FROM audit_log WHERE {where_sql}",
+            (*params,),
+        ).fetchone()[0]
+    finally:
+        db.close()
+
+    events = []
+    for r in rows:
+        action = r["action"] or ""
+        events.append({
+            "id": r["id"],
+            "username": r["username"] or "system",
+            "module": r["module"] or "platform",
+            "action": action,
+            "label": _EVENT_LABELS.get(action, action.replace("_", " ").title()),
+            "entity_type": r["entity_type"] or "",
+            "entity_type_label": _ENTITY_TYPE_ALIAS.get(r["entity_type"] or "", r["entity_type"] or ""),
+            "entity_id": r["entity_id"],
+            "details": r["details"] or "",
+            "created_at": r["created_at"],
+            "color": _MODULE_COLORS.get(r["module"] or "platform", "#64748b"),
+        })
+
+    return _JSONResp({
+        "events": events,
+        "total": total,
+        "page": page,
+        "pages": max(1, (total + per_page - 1) // per_page),
+        "modules": list(_MODULE_COLORS.keys()),
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RELATED ITEMS: Cross-Module Link API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Maps (module, entity_type) to (table, title_column).
+# Table names are never interpolated from user input; only dict-lookup values used.
+_LINKABLE = {
+    ("erm",      "risk"):     ("erm_enterprise_risks",   "title"),
+    ("orm",      "event"):    ("orm_events",             "title"),
+    ("grid",     "audit"):    ("grid_audits",            "name"),
+    ("grid",     "nc"):       ("grid_non_conformances",  "title"),
+    ("sentinel", "breach"):   ("sentinel_breaches",      "title"),
+    ("sentinel", "ropa"):     ("sentinel_ropa",          "processing_name"),
+    ("sentinel", "dpia"):     ("sentinel_dpias",         "title"),
+    ("bcm",      "plan"):     ("bcm_plans",              "title"),
+    ("bcm",      "incident"): ("bcm_incidents",          "title"),
+    ("aria",     "document"): ("aria_documents",         "title"),
+    ("evidence", "item"):     ("evidence_items",         "title"),
+}
+
+# Must be a subset of core/links.py _VALID_RELATIONSHIPS
+_LINK_RELATIONSHIPS = frozenset({
+    "related", "triggers", "evidence_for", "implements",
+    "mitigates", "escalated_to", "derived_from", "audits", "elevated_to",
+})
+
+
+@router.get("/api/links/{module}/{etype}/{eid}")
+@require_auth
+async def api_links_get(request: Request, module: str, etype: str, eid: int):
+    """Get all cross-module links for an entity, with resolved titles (single db connection)."""
+    org_id = request.state.user.get("org_id")
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT id, source_module, source_type, source_id, "
+            "       target_module, target_type, target_id, relationship "
+            "FROM cross_module_links "
+            "WHERE (source_module = %s AND source_type = %s AND source_id = %s) "
+            "   OR (target_module = %s AND target_type = %s AND target_id = %s) "
+            "ORDER BY created_at DESC",
+            (module, etype, eid, module, etype, eid),
+        ).fetchall()
+
+        # Collect all (other_module, other_type, other_id) for batch title lookup
+        sides = []
+        for r in rows:
+            if r["source_module"] == module and r["source_type"] == etype and r["source_id"] == eid:
+                sides.append((r["id"], r["target_module"], r["target_type"], r["target_id"], "outgoing", r["relationship"]))
+            else:
+                sides.append((r["id"], r["source_module"], r["source_type"], r["source_id"], "incoming", r["relationship"]))
+
+        # Batch: group by (other_module, other_type), fetch titles in one query per group
+        from collections import defaultdict
+        groups = defaultdict(list)
+        for link_id, om, ot, oid, direction, rel in sides:
+            groups[(om, ot)].append((link_id, oid, direction, rel))
+
+        title_map = {}  # (om, ot, oid) -> title
+        for (om, ot), items in groups.items():
+            key = (om, ot)
+            if key not in _LINKABLE:
+                continue
+            table, col = _LINKABLE[key]
+            ids = [x[1] for x in items]
+            placeholders = ",".join(["%s"] * len(ids))
+            title_rows = db.execute(
+                f"SELECT id, {col} AS title FROM {table} WHERE id IN ({placeholders})",
+                ids,
+            ).fetchall()
+            for tr in title_rows:
+                title_map[(om, ot, tr["id"])] = tr["title"]
+
+        results = []
+        for link_id, om, ot, oid, direction, rel in sides:
+            results.append({
+                "link_id": link_id,
+                "module": om,
+                "entity_type": ot,
+                "entity_id": oid,
+                "title": title_map.get((om, ot, oid)),
+                "relationship": rel,
+                "direction": direction,
+            })
+    finally:
+        db.close()
+
+    return _JSONResp(results)
+
+
+@router.post("/api/links", status_code=201)
+@require_auth
+async def api_links_create(request: Request):
+    """Create a cross-module link between two linkable entities."""
+    data = await _json_body(request)
+    sm = sanitize_short(data.get("source_module", ""))
+    st = sanitize_short(data.get("source_type", ""))
+    sid = validate_int(data.get("source_id"))
+    tm = sanitize_short(data.get("target_module", ""))
+    tt = sanitize_short(data.get("target_type", ""))
+    tid = validate_int(data.get("target_id"))
+    rel = validate_choice(data.get("relationship", "related"), _LINK_RELATIONSHIPS, "related")
+    uid = request.state.user["id"]
+    org_id = request.state.user.get("org_id")
+
+    if (sm, st) not in _LINKABLE:
+        return _JSONResp({"error": f"Unknown source entity: {sm}/{st}"}, status_code=400)
+    if (tm, tt) not in _LINKABLE:
+        return _JSONResp({"error": f"Unknown target entity: {tm}/{tt}"}, status_code=400)
+    if sid is None or tid is None:
+        return _JSONResp({"error": "Invalid entity id"}, status_code=400)
+    if sm == tm and st == tt and sid == tid:
+        return _JSONResp({"error": "Cannot link an entity to itself."}, status_code=400)
+
+    db = get_db()
+    try:
+        src_table = _LINKABLE[(sm, st)][0]
+        srow = db.execute(f"SELECT 1 FROM {src_table} WHERE id = %s", (sid,)).fetchone()
+        if not srow:
+            return _JSONResp({"error": f"Source entity not found: {sm}/{st}/{sid}"}, status_code=404)
+
+        tgt_table = _LINKABLE[(tm, tt)][0]
+        trow = db.execute(f"SELECT 1 FROM {tgt_table} WHERE id = %s", (tid,)).fetchone()
+        if not trow:
+            return _JSONResp({"error": f"Target entity not found: {tm}/{tt}/{tid}"}, status_code=404)
+
+        cur = db.execute(
+            "INSERT INTO cross_module_links "
+            "(source_module, source_type, source_id, "
+            " target_module, target_type, target_id, "
+            " relationship, created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) "
+            "ON CONFLICT DO NOTHING RETURNING id",
+            (sm, st, sid, tm, tt, tid, rel, uid),
+        )
+        row = cur.fetchone()
+        if row is None:
+            existing = db.execute(
+                "SELECT id FROM cross_module_links "
+                "WHERE source_module=%s AND source_type=%s AND source_id=%s "
+                "AND target_module=%s AND target_type=%s AND target_id=%s "
+                "AND relationship=%s",
+                (sm, st, sid, tm, tt, tid, rel),
+            ).fetchone()
+            if existing:
+                return _JSONResp({"ok": True, "link_id": existing["id"]}, status_code=200)
+            return _JSONResp({"error": "Failed to insert link."}, status_code=500)
+
+        link_id = row["id"]
+        db.commit()
+    finally:
+        db.close()
+
+    return _JSONResp({"ok": True, "link_id": link_id}, status_code=201)
+
+
+@router.delete("/api/links/{link_id}")
+@require_auth
+async def api_links_delete(request: Request, link_id: int):
+    """Delete a cross-module link. Only the creator or an admin may delete."""
+    uid = request.state.user["id"]
+    is_admin = has_capability(request.state.user, "platform.manage_users")
+
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT created_by FROM cross_module_links WHERE id = %s",
+            (link_id,),
+        ).fetchone()
+        if not row:
+            return _JSONResp({"error": "Link not found."}, status_code=404)
+        if not is_admin and row["created_by"] != uid:
+            return _JSONResp({"error": "Access denied."}, status_code=403)
+        db.execute("DELETE FROM cross_module_links WHERE id = %s", (link_id,))
+        db.commit()
+    finally:
+        db.close()
+
+    return _JSONResp({"success": True})
+
+
+@router.get("/timeline", response_class=HTMLResponse)
+@require_auth
+async def timeline_page(request: Request):
+    """Render the Governance Timeline SPA page."""
+    ctx = shell_ctx(request, active_module="platform")
+    return shell_templates.TemplateResponse("timeline.html", ctx)

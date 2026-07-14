@@ -1010,8 +1010,10 @@ async def api_connectors_get(request: Request):
     return _JSONResp({
         "slack_webhook_url":  _masked("slack_webhook_url"),
         "teams_webhook_url":  _masked("teams_webhook_url"),
+        "whatsapp_webhook_url": _masked("whatsapp_webhook_url"),
         "slack_configured":   bool(_connectors_get_setting("slack_webhook_url")),
         "teams_configured":   bool(_connectors_get_setting("teams_webhook_url")),
+        "whatsapp_configured": bool(_connectors_get_setting("whatsapp_webhook_url")),
     })
 
 
@@ -1037,8 +1039,16 @@ async def api_connectors_save(request: Request):
             return _JSONResp({"ok": False, "detail": f"Teams URL: {exc.detail}"}, status_code=400)
         _connectors_save("teams_webhook_url", teams_url.strip())
 
+    wa_url = data.get("whatsapp_webhook_url", "")
+    if wa_url and wa_url != "__unchanged__":
+        try:
+            _validate_webhook_url(wa_url.strip())
+        except HTTPException as exc:
+            return _JSONResp({"ok": False, "detail": f"WhatsApp URL: {exc.detail}"}, status_code=400)
+        _connectors_save("whatsapp_webhook_url", wa_url.strip())
+
     log_audit(request.state.user, "platform", "connectors_updated",
-              details="Slack/Teams webhook URLs updated")
+              details="Connector webhook URLs updated")
     return _JSONResp({"ok": True})
 
 
@@ -1074,7 +1084,25 @@ async def api_connectors_test_slack(request: Request):
 async def api_connectors_test_teams(request: Request):
     """Send a test message to the configured Teams webhook."""
     from core.notifications import send_teams
-    ok = send_teams("[ThemisIQ] Teams connector test — configuration is working.")
+    ok = send_teams("[ThemisIQ] Teams connector test - configuration is working.")
+    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+
+
+@router.delete("/api/admin/connectors/whatsapp")
+@_require_cap("platform.manage_users")
+async def api_connectors_delete_whatsapp(request: Request):
+    """Remove the WhatsApp webhook URL."""
+    _connectors_save("whatsapp_webhook_url", "")
+    log_audit(request.state.user, "platform", "connectors_updated", details="WhatsApp webhook removed")
+    return _JSONResp({"ok": True})
+
+
+@router.post("/api/admin/connectors/test-whatsapp")
+@_require_cap("platform.manage_users")
+async def api_connectors_test_whatsapp(request: Request):
+    """Send a test message to the configured WhatsApp webhook."""
+    from core.notifications import send_whatsapp
+    ok = send_whatsapp("[ThemisIQ] WhatsApp connector test - configuration is working.")
     return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
 
 
