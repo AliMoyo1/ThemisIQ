@@ -4,15 +4,15 @@ Each PLAN-*.md in this folder is self-contained: goal, exact files,
 ordered steps, edge cases, and verifiable acceptance criteria. They are
 written to be executed top-to-bottom without needing to ask questions.
 
-## Ranking (leverage = impact ÷ effort, pre-launch weighting)
+## Round 1 status: ALL COMPLETE
 
-| Rank | Plan | What | Impact | Effort | Why this rank |
-|---|---|---|---|---|---|
-| 1 | [PLAN-01](PLAN-01-audit-log-tenant-isolation.md) | Audit log tenant isolation | Cross-org data leak visible to customers | ~half day | Confirmed live security/privacy bug; customers already noticed it |
-| 2 | [PLAN-02](PLAN-02-dependency-vulnerabilities.md) | Patch starlette CVEs, pin floating deps | Closes 2 GitHub-flagged vulns; reproducible builds | ~half day | Known CVEs on the serving stack of a compliance product |
-| 3 | [PLAN-04](PLAN-04-repo-hygiene.md) | Untrack dev DB, add .gitignore, fix committer identity | Repo contains a database with password hashes; one `git add .` from leaking demo/pentest docs | ~1 hour | Cheapest insurance in the list |
-| 4 | [PLAN-03](PLAN-03-task-workflow-race-conditions.md) | Task board + ERM workflow races | Last open HIGH from the bug audit; data corruption under concurrent users | ~1 day | Matters more as user count grows post-launch |
-| 5 | [PLAN-05](PLAN-05-governance-t12-unified-controls.md) | Governance Graph T1.2: canonical controls + risk_controls bridge | Unlocks T1.3 effectiveness engine and T1.4 residual engine (the roadmap's core differentiators) | ~1-2 weeks | Highest strategic value, largest effort — do after the safety items |
+| Plan | Status | Commit |
+|---|---|---|
+| [PLAN-01](PLAN-01-audit-log-tenant-isolation.md) | DONE | `af5e80d`, `1218657` |
+| [PLAN-02](PLAN-02-dependency-vulnerabilities.md) | DONE | `af5e80d` |
+| [PLAN-04](PLAN-04-repo-hygiene.md) | DONE | `7d8efa7` |
+| [PLAN-03](PLAN-03-task-workflow-race-conditions.md) | DONE (2026-07-15) | see plan file |
+| [PLAN-05](PLAN-05-governance-t12-unified-controls.md) | DONE | `6daa517`, `3e6fdb8`, `ec4f99f`, `fed4542`, `de48e60` |
 
 ## Round 2 — functionality, cross-module communication, and UX (PLAN-06..10)
 
@@ -22,21 +22,15 @@ global search, the workflows entity helper, and notifications all link to
 module roots. Fixing that (PLAN-06) multiplies the value of everything
 that follows.
 
-| Rank | Plan | What | Impact | Effort | Why this rank |
-|---|---|---|---|---|---|
-| 1 | [PLAN-06](PLAN-06-entity-deep-links-command-palette.md) | Entity deep links + Ctrl+K palette | Search, notifications, workflows, and every future feature become navigable; platform-wide UX lift | ~2-3 days | The enabler: three other plans depend on its `?open=type:id` convention |
-| 2 | [PLAN-07](PLAN-07-related-items-cross-module-linking.md) | Related Items panel + manual linking API | cross_module_links becomes user-facing; the "one brain" experience in every drawer | ~2-3 days | The explicit cross-module-communication ask, made tangible |
-| 3 | [PLAN-08](PLAN-08-governance-timeline.md) | Governance Timeline page | Cross-module causality view; strong demo value | ~1-2 days | Cheapest feature in the backlog — the events table already records everything |
-| 4 | [PLAN-09](PLAN-09-morning-briefing-advisories.md) | Proactive daily briefing (advisories) | First proactive AI surface; CGRCO opens the app to findings, not silence | ~2-3 days | Differentiator vs every reactive-AI competitor; math-first so near-zero AI cost |
-| 5 | [PLAN-10](PLAN-10-evidence-confidence-score.md) | Evidence confidence score | Trust signal auditors notice; feeds the T1.3 effectiveness engine | ~1-2 days | Solid but standalone; least coupled to the rest |
+## Round 2 status: ALL COMPLETE
 
-**Round 2 execution order: 06 → 07 → 08 → 09 → 10** (06 unlocks 07/08;
-09 and 10 are independent and can be reordered freely).
-
-**Interleaving with Round 1:** land Round 1's safety items (PLAN-01, 02,
-04 and PLAN-05 Phase 0) before starting Round 2. PLAN-08 should not
-merge audit_log data until PLAN-01 is deployed. PLAN-05 (T1.2) and
-Round 2 touch different files and can proceed in parallel.
+| Plan | Status | Commit |
+|---|---|---|
+| [PLAN-06](PLAN-06-entity-deep-links-command-palette.md) | DONE | `9a17658` |
+| [PLAN-07](PLAN-07-related-items-cross-module-linking.md) | DONE | `1d6cf5f`, `e99ae5f` |
+| [PLAN-08](PLAN-08-governance-timeline.md) | DONE | `1d6cf5f`, `e99ae5f` |
+| [PLAN-09](PLAN-09-morning-briefing-advisories.md) | DONE | `a00198f` |
+| [PLAN-10](PLAN-10-evidence-confidence-score.md) | DONE | `1d6cf5f` |
 
 ## Round 3 — completing the approved Governance Graph Tier 1 + Tier 2 (PLAN-11..13)
 
@@ -53,14 +47,13 @@ state. Assessment findings:
   = PLAN-10/09/08. The approved-but-unplanned remainder is T1.3, T1.4,
   and T2.2+T4.2-lite — that is Round 3.
 
-| Rank | Plan | What | Impact | Effort | Why this rank |
-|---|---|---|---|---|---|
-| 1 | [PLAN-11](PLAN-11-t13-control-effectiveness-engine.md) | T1.3 Control Effectiveness Engine | Effectiveness becomes derived and living — the roadmap's own "single highest-leverage delivery"; feeds T1.4 and the health score | ~1 week | Core differentiator; requires PLAN-05 first |
-| 2 | [PLAN-12](PLAN-12-t14-residual-risk-engine.md) | T1.4 Unified Residual Risk Engine | Ends the ERM-vs-ORM residual contradiction; residuals react to control reality with auditable provenance | ~3-4 days | Completes approved Tier 1; requires PLAN-11 |
-| 3 | [PLAN-13](PLAN-13-drift-detection-regulatory-inbox.md) | Drift detection + Regulatory Inbox (T2.2 + T4.2-lite) | Regulatory changes become tracked work items automatically | ~3-4 days | Independent of Tier 1 — can ship any time, even first |
+## Round 3 status: PLAN-11 and PLAN-12 COMPLETE, PLAN-13 OPEN
 
-**Round 3 execution order: PLAN-05 → 11 → 12, with 13 slotted anywhere
-(it has no dependencies).**
+| Plan | Status | Commit |
+|---|---|---|
+| [PLAN-11](PLAN-11-t13-control-effectiveness-engine.md) | DONE | `61af256` |
+| [PLAN-12](PLAN-12-t14-residual-risk-engine.md) | DONE | `79d811b` |
+| [PLAN-13](PLAN-13-drift-detection-regulatory-inbox.md) | OPEN | next up |
 
 ## Round 4 — navigation and first impressions (PLAN-16, PLAN-17)
 

@@ -1670,31 +1670,36 @@ def transition_workflow(risk_id, to_step, user_id, notes=None):
             raise ValueError(
                 f"Cannot skip steps: complete '{next_step}' before moving to '{to_step}'"
             )
-        db.execute(
-            "INSERT INTO erm_risk_workflow_history (risk_id, from_step, to_step, changed_by, notes) "
-            "VALUES (%s,%s,%s,%s,%s)", (risk_id, from_step, to_step, user_id, notes)
-        )
-        # Keep status field in sync with meaningful workflow steps:
-        #   closed   → status = 'closed'    (excluded from appetite calculation)
-        #   treated  → status = 'mitigated' (risk action taken)
-        #   assessed → status = 'under_review'
-        #   any other step → leave status unchanged
+        # Keep status field in sync with meaningful workflow steps.
         step_status_map = {
             "closed":   "closed",
             "treated":  "mitigated",
             "assessed": "under_review",
         }
         new_status = step_status_map.get(to_step)
+        # Conditional UPDATE: only succeeds if step hasn't changed since we read it.
+        # COALESCE mirrors the Python fallback (NULL -> "draft") so first transitions work.
         if new_status:
-            db.execute(
-                "UPDATE erm_enterprise_risks SET workflow_step=%s, status=%s, updated_at=%s WHERE id=%s",
-                (to_step, new_status, _now(), risk_id)
+            cur = db.execute(
+                "UPDATE erm_enterprise_risks SET workflow_step=%s, status=%s, updated_at=%s "
+                "WHERE id=%s AND COALESCE(workflow_step,'draft')=%s",
+                (to_step, new_status, _now(), risk_id, from_step)
             )
         else:
-            db.execute(
-                "UPDATE erm_enterprise_risks SET workflow_step=%s, updated_at=%s WHERE id=%s",
-                (to_step, _now(), risk_id)
+            cur = db.execute(
+                "UPDATE erm_enterprise_risks SET workflow_step=%s, updated_at=%s "
+                "WHERE id=%s AND COALESCE(workflow_step,'draft')=%s",
+                (to_step, _now(), risk_id, from_step)
             )
+        if cur.rowcount == 0:
+            db.rollback()
+            raise ValueError("Risk was updated by someone else; reload and try again")
+        # History INSERT only after the conditional UPDATE succeeds, so a lost race
+        # leaves no phantom history row.
+        db.execute(
+            "INSERT INTO erm_risk_workflow_history (risk_id, from_step, to_step, changed_by, notes) "
+            "VALUES (%s,%s,%s,%s,%s)", (risk_id, from_step, to_step, user_id, notes)
+        )
         db.commit()
         return to_step
     finally:

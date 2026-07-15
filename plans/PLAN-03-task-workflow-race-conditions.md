@@ -1,5 +1,11 @@
 # PLAN-03: Make task board and ERM workflow transitions concurrency-safe
 
+## Status: COMPLETE (2026-07-15)
+
+Commit: `Make ERM workflow and task board updates concurrency-safe`
+Files changed: `modules/erm/data_service.py`, `modules/launcher/routes_platform.py`, `tests/test_concurrency_guards.py`
+110/110 tests passing.
+
 ## Goal
 
 Two confirmed read-then-write races (the last open HIGH item from the
