@@ -193,6 +193,13 @@ def recompute_control(db, cid: int) -> int:
     except Exception as exc:
         log.warning("recompute_control(%s) timestamp update failed: %s", cid, exc)
 
+    # T1.4 cascade: recompute residual risk for all ERM risks linked to this control
+    try:
+        from modules.erm.data_service import recompute_residuals_for_control
+        recompute_residuals_for_control(db, cid)
+    except Exception as exc:
+        log.warning("recompute_control(%s) residual cascade failed: %s", cid, exc)
+
     return result["score"]
 
 

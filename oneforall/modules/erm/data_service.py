@@ -632,6 +632,78 @@ def _compute_scores(db, data, existing=None):
     return inherent, residual, qual
 
 
+# ── T1.4: Formula-driven residual risk ───────────────────────────────────────
+
+def _formula_residual(db, risk_id, L, I):
+    """Compute formula residual from linked controls: L*I*(1 - weighted_eff/100).
+
+    Returns (residual_score, ctrl_effectiveness) or (None, None) if no controls scored.
+    """
+    rows = db.execute(
+        "SELECT rc.weight, ces.score "
+        "FROM risk_controls rc "
+        "JOIN control_effectiveness_scores ces ON ces.control_id = rc.control_id "
+        "WHERE rc.risk_id=%s",
+        (risk_id,),
+    ).fetchall()
+    if not rows:
+        return None, None
+    total_weight = sum(float(r["weight"] or 1.0) for r in rows)
+    if total_weight == 0:
+        return None, None
+    weighted_sum = sum(float(r["score"] or 0) * float(r["weight"] or 1.0) for r in rows)
+    weighted_eff = weighted_sum / total_weight
+    residual = max(0, round(int(L) * int(I) * (1.0 - weighted_eff / 100.0)))
+    return residual, round(weighted_eff)
+
+
+def recompute_residual_for_risk(db, risk_id):
+    """Recompute residual_score and control_effectiveness for one risk; caller commits.
+
+    Uses the manual override (residual_L * residual_I) when both are set.
+    Falls back to the formula: L * I * (1 - weighted_effectiveness/100).
+    No-ops silently if the risk row doesn't exist.
+    """
+    row = db.execute(
+        "SELECT likelihood, impact, residual_likelihood, residual_impact "
+        "FROM erm_enterprise_risks WHERE id=%s",
+        (risk_id,),
+    ).fetchone()
+    if not row:
+        return
+    L  = row["likelihood"]  or 3
+    I  = row["impact"]      or 3
+    RL = row["residual_likelihood"]
+    RI = row["residual_impact"]
+    if RL and RI:
+        db.execute(
+            "UPDATE erm_enterprise_risks SET residual_score=%s, control_effectiveness=NULL WHERE id=%s",
+            (int(RL) * int(RI), risk_id),
+        )
+    else:
+        res, ctrl_eff = _formula_residual(db, risk_id, L, I)
+        db.execute(
+            "UPDATE erm_enterprise_risks SET residual_score=%s, control_effectiveness=%s WHERE id=%s",
+            (res, ctrl_eff, risk_id),
+        )
+
+
+def recompute_residuals_for_control(db, control_id):
+    """Recompute residual risk for every ERM risk linked to a canonical control; caller commits."""
+    rows = db.execute(
+        "SELECT DISTINCT risk_id FROM risk_controls WHERE control_id=%s",
+        (control_id,),
+    ).fetchall()
+    for r in rows:
+        try:
+            recompute_residual_for_risk(db, r["risk_id"])
+        except Exception as exc:
+            import logging
+            logging.getLogger("oneforall.erm").warning(
+                "recompute_residuals_for_control: risk %s failed: %s", r["risk_id"], exc
+            )
+
+
 def update_enterprise_risk(risk_id, data):
     db = get_db()
     try:
@@ -653,7 +725,10 @@ def update_enterprise_risk(risk_id, data):
                   "last_reviewed"):
             if k in data:
                 fields.append(f"{k}=%s"); vals.append(data[k])
-        if any(k in data for k in ("likelihood", "impact", "residual_likelihood", "residual_impact")):
+        score_fields_changed = any(
+            k in data for k in ("likelihood", "impact", "residual_likelihood", "residual_impact")
+        )
+        if score_fields_changed:
             inh, res, qual = _compute_scores(db, data, existing)
             fields += ["inherent_score=%s", "qualitative_score=%s"]
             vals   += [inh, qual]
@@ -664,6 +739,8 @@ def update_enterprise_risk(risk_id, data):
             db.execute(f"UPDATE erm_enterprise_risks SET {','.join(fields)} WHERE id=%s", vals)
         if dim_scores:
             _save_dimension_scores(db, risk_id, dim_scores)
+        if score_fields_changed:
+            recompute_residual_for_risk(db, risk_id)
         db.commit()
     finally:
         db.close()
@@ -716,6 +793,7 @@ def link_risk_control(risk_id, control_id, user_id, weight=1.0):
             "ON CONFLICT (risk_id, control_id) DO NOTHING",
             (risk_id, control_id, weight, user_id),
         )
+        recompute_residual_for_risk(db, risk_id)
         db.commit()
         return True
     finally:
@@ -730,6 +808,7 @@ def unlink_risk_control(risk_id, control_id):
             "DELETE FROM risk_controls WHERE risk_id=%s AND control_id=%s",
             (risk_id, control_id),
         )
+        recompute_residual_for_risk(db, risk_id)
         db.commit()
         return True
     finally:

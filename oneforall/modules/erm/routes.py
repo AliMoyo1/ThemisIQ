@@ -1015,3 +1015,30 @@ async def api_risks_import_commit(request: Request):
              entity_type="enterprise_risk", entity_id=0,
              payload={"title": f"Bulk import: {result['imported']} risks", "status": "open"})
     return JSONResponse({"ok": True, **result})
+
+
+# ── T1.4: force residual recompute ────────────────────────────────────────────
+
+@router.post("/api/risks/{risk_id}/recompute-residual")
+@require_capability("erm.risk.manage")
+async def api_risk_recompute_residual(request: Request, risk_id: int):
+    """Force recompute of a risk's formula-driven residual score."""
+    from database import get_db
+    db = get_db()
+    try:
+        from modules.erm.data_service import recompute_residual_for_risk
+        recompute_residual_for_risk(db, risk_id)
+        db.commit()
+        row = db.execute(
+            "SELECT residual_score, control_effectiveness FROM erm_enterprise_risks WHERE id=%s",
+            (risk_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Risk not found")
+        return JSONResponse({
+            "ok": True,
+            "residual_score": row["residual_score"],
+            "control_effectiveness": row["control_effectiveness"],
+        })
+    finally:
+        db.close()

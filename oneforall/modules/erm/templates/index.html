@@ -1206,7 +1206,9 @@ window.ermOpenRiskDrawer=async function(id){
     _drawerRisk=r;
     var score=(r.likelihood||0)*(r.impact||0);
     var qScore=r.qualitative_score||scoreToBand(r.likelihood,r.impact);
-    var resScore=(r.residual_likelihood&&r.residual_impact)?(r.residual_likelihood*r.residual_impact):null;
+    var resScore=r.residual_score!=null?r.residual_score:((r.residual_likelihood&&r.residual_impact)?(r.residual_likelihood*r.residual_impact):null);
+    var resIsFormula=r.control_effectiveness!=null&&!(r.residual_likelihood&&r.residual_impact);
+    var resIsOverride=!!(r.residual_likelihood&&r.residual_impact);
     // isErm = stored in erm_enterprise_risks (not a cross-module risk_register entry)
     // get_enterprise_risk now returns register_source='erm'; regCache fallback also has it
     var isErm=r.register_source==='erm'||r.source_module==='erm'||(!r.register_source&&!r.risk_level);
@@ -1273,10 +1275,12 @@ window.ermOpenRiskDrawer=async function(id){
             '</div>'+
             '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 12px;text-align:center">'+
               '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:5px">Residual</div>'+
-              '<div style="font-size:30px;font-weight:900;line-height:1;color:var(--text)">'+(resScore||'—')+'</div>'+
-              (resScore?
-                '<div style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600">'+r.residual_likelihood+' × '+r.residual_impact+'</div>':
-                '<div style="font-size:11px;color:var(--muted);margin-top:5px">not assessed</div>')+
+              '<div style="font-size:30px;font-weight:900;line-height:1;color:var(--text)">'+(resScore!=null?resScore:'—')+'</div>'+
+              (resIsOverride?
+                '<div style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600">'+r.residual_likelihood+' × '+r.residual_impact+' <span style="font-size:9px;background:rgba(234,179,8,.18);color:#ca8a04;border-radius:3px;padding:1px 4px">Override</span></div>':
+                resIsFormula?
+                  '<div style="font-size:11px;color:var(--muted);margin-top:5px;font-weight:600">L×I×(1−<strong style="color:var(--text)">'+(r.control_effectiveness||0)+'%</strong>/100) <span style="font-size:9px;background:rgba(59,130,246,.18);color:#3b82f6;border-radius:3px;padding:1px 4px">Formula</span></div>':
+                  '<div style="font-size:11px;color:var(--muted);margin-top:5px">not assessed</div>')+
             '</div>'+
           '</div>'+
           (r.velocity?

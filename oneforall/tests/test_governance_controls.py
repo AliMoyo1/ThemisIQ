@@ -48,7 +48,9 @@ def _init_test_db():
         CREATE TABLE IF NOT EXISTS business_units (id INTEGER PRIMARY KEY, name TEXT);
         CREATE TABLE IF NOT EXISTS erm_enterprise_risks (
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, status TEXT DEFAULT 'open',
-            likelihood INTEGER DEFAULT 1, impact INTEGER DEFAULT 1, source_module TEXT
+            likelihood INTEGER DEFAULT 1, impact INTEGER DEFAULT 1, source_module TEXT,
+            residual_likelihood INTEGER, residual_impact INTEGER,
+            residual_score INTEGER, control_effectiveness INTEGER
         );
         CREATE TABLE IF NOT EXISTS control_effectiveness_scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

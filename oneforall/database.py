@@ -3711,7 +3711,9 @@ _COLUMN_MIGRATIONS = [
         ("erm_enterprise_risks", "risk_statement",       "TEXT DEFAULT NULL"),
         ("erm_enterprise_risks", "workflow_step",        "TEXT DEFAULT 'draft'"),
         ("erm_enterprise_risks", "response_deadline",    "TEXT DEFAULT NULL"),
-        ("erm_enterprise_risks", "effectiveness_rating", "INTEGER DEFAULT NULL"),
+        ("erm_enterprise_risks", "effectiveness_rating",  "INTEGER DEFAULT NULL"),
+        # ── Governance Graph T1.4: formula-driven residual risk ────────────────
+        ("erm_enterprise_risks", "control_effectiveness", "INTEGER DEFAULT NULL"),
         # ── ORM: Event workflow + SLA + Basel III ──────────────────────────────
         ("orm_events", "workflow_step",       "TEXT DEFAULT 'identified'"),
         ("orm_events", "response_due_at",     "TEXT DEFAULT NULL"),
