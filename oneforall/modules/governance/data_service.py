@@ -648,6 +648,246 @@ def get_governance_summary() -> dict:
                 ).fetchone()[0]
             except Exception:
                 counts[label] = 0
+        try:
+            counts["open_regulatory_updates"] = db.execute(
+                "SELECT COUNT(*) FROM regulatory_updates WHERE status='open'"
+            ).fetchone()[0]
+        except Exception:
+            counts["open_regulatory_updates"] = 0
         return counts
     finally:
         db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# REGULATORY INBOX (PLAN-13 T4.2-lite)
+# ═════════════════════════════════════════════════════════════════════════════
+
+import difflib as _difflib
+import logging as _logging
+
+_drift_log = _logging.getLogger("governance.drift")
+_VALID_SEVERITY = {"info", "medium", "high"}
+_TASK_TITLE_MAX = 255
+
+
+def list_regulatory_updates(status: str | None = None) -> list:
+    db = get_db()
+    try:
+        if status:
+            rows = db.execute(
+                "SELECT * FROM regulatory_updates WHERE status=%s ORDER BY created_at DESC",
+                (status,)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT * FROM regulatory_updates ORDER BY created_at DESC"
+            ).fetchall()
+        return _dicts(rows)
+    finally:
+        db.close()
+
+
+def create_regulatory_update(data: dict) -> int:
+    db = get_db()
+    try:
+        severity = data.get("severity", "info")
+        if severity not in _VALID_SEVERITY:
+            severity = "info"
+        new_id = insert_returning_id(db,
+            "INSERT INTO regulatory_updates "
+            "(framework_name, title, summary, source_url, effective_date, "
+            "affected_refs, severity, status, created_by, created_at, updated_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, 'open', %s, %s, %s)",
+            (data.get("framework_name", "").strip(),
+             data.get("title", "").strip(),
+             data.get("summary") or None,
+             data.get("source_url") or None,
+             data.get("effective_date") or None,
+             data.get("affected_refs") or None,
+             severity,
+             data.get("created_by"),
+             _now(), _now()),
+        )
+        db.commit()
+        return new_id
+    finally:
+        db.close()
+
+
+def update_regulatory_update(rid: int, data: dict) -> bool:
+    db = get_db()
+    try:
+        severity = data.get("severity", "info")
+        if severity not in _VALID_SEVERITY:
+            severity = "info"
+        db.execute(
+            "UPDATE regulatory_updates SET framework_name=%s, title=%s, summary=%s, "
+            "source_url=%s, effective_date=%s, affected_refs=%s, severity=%s, updated_at=%s "
+            "WHERE id=%s",
+            (data.get("framework_name", "").strip(),
+             data.get("title", "").strip(),
+             data.get("summary") or None,
+             data.get("source_url") or None,
+             data.get("effective_date") or None,
+             data.get("affected_refs") or None,
+             severity,
+             _now(), rid),
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+def dismiss_regulatory_update(rid: int) -> bool:
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE regulatory_updates SET status='dismissed', updated_at=%s WHERE id=%s",
+            (_now(), rid),
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+def delete_regulatory_update(rid: int) -> bool:
+    db = get_db()
+    try:
+        db.execute("DELETE FROM regulatory_updates WHERE id=%s", (rid,))
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+# ── Drift checker ─────────────────────────────────────────────────────────────
+
+def _find_framework_id(db, fw_name: str, all_names: list) -> int | None:
+    for name in all_names:
+        if name.lower() == fw_name.lower():
+            row = db.execute("SELECT id FROM frameworks WHERE name=%s", (name,)).fetchone()
+            return row["id"] if row else None
+    if fw_name:
+        close = _difflib.get_close_matches(fw_name, all_names, n=1, cutoff=0.6)
+        if close:
+            row = db.execute("SELECT id FROM frameworks WHERE name=%s", (close[0],)).fetchone()
+            return row["id"] if row else None
+    return None
+
+
+def _task_exists_by_title(db, title: str) -> bool:
+    try:
+        row = db.execute(
+            "SELECT id FROM task_board WHERE title=%s AND status!='done'",
+            (title,)
+        ).fetchone()
+        return row is not None
+    except Exception:
+        return False
+
+
+def _make_drift_task(db, title: str, uid: int, priority: str) -> bool:
+    task_title = title[:_TASK_TITLE_MAX]
+    if _task_exists_by_title(db, task_title):
+        return False
+    db.execute(
+        "INSERT INTO task_board "
+        "(title, module, entity_type, entity_id, priority, status) "
+        "VALUES (%s, 'governance', 'regulatory_update', %s, %s, 'todo')",
+        (task_title, uid, priority),
+    )
+    return True
+
+
+def run_drift_check(db, update_id: int | None = None) -> dict:
+    """Match open regulatory updates against frameworks/controls and create review tasks.
+
+    Deterministic: exact lower/trim equality on control refs (no LIKE to avoid
+    A.5.1 vs A.5.12 cross-matching). AI summary optional, once per update.
+    Returns {updates: n, tasks: n}.
+    """
+    if update_id is not None:
+        rows = db.execute(
+            "SELECT * FROM regulatory_updates WHERE id=%s AND status='open'",
+            (update_id,)
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT * FROM regulatory_updates WHERE status='open'"
+        ).fetchall()
+
+    all_fw_names = [r["name"] for r in db.execute("SELECT name FROM frameworks").fetchall()]
+
+    updates_done = 0
+    tasks_done = 0
+
+    for upd in rows:
+        uid = upd["id"]
+        fw_name = upd["framework_name"] or ""
+        title = upd["title"] or ""
+        affected_refs = upd["affected_refs"] or ""
+        severity = upd["severity"] or "info"
+        priority = "high" if severity == "high" else "medium"
+
+        matched_fw_id = _find_framework_id(db, fw_name, all_fw_names)
+        ctrl_matches = 0
+        new_tasks = 0
+
+        if matched_fw_id is not None:
+            refs = [r.strip() for r in affected_refs.split(",") if r.strip()] if affected_refs.strip() else []
+            if refs:
+                for ref in refs:
+                    ctrl = db.execute(
+                        "SELECT id, ref, name FROM controls "
+                        "WHERE framework_id=%s AND lower(trim(ref))=lower(trim(%s))",
+                        (matched_fw_id, ref)
+                    ).fetchone()
+                    if ctrl:
+                        raw = f"REGULATORY: Review {ctrl['ref']} against {fw_name} - {title}"
+                        if _make_drift_task(db, raw, uid, priority):
+                            ctrl_matches += 1
+                            new_tasks += 1
+            else:
+                raw = f"REGULATORY: Review framework {fw_name} update - {title}"
+                if _make_drift_task(db, raw, uid, priority):
+                    new_tasks += 1
+        else:
+            raw = f"REGULATORY: Review update (no matching framework) - {title}"
+            if _make_drift_task(db, raw, uid, priority):
+                new_tasks += 1
+
+        tasks_done += new_tasks
+
+        if upd["ai_summary"] is None and ctrl_matches > 0:
+            try:
+                from core.ai_client import create_message, is_configured
+                if is_configured():
+                    prompt = (
+                        f"Regulatory update: '{title}' for framework '{fw_name}'. "
+                        f"Summary: {upd['summary'] or 'none provided'}. "
+                        f"Affected control refs: {affected_refs or 'none'}. "
+                        "Summarize what changed and what a control owner should check. "
+                        "Under 120 words."
+                    )
+                    ai_text = create_message(
+                        [{"role": "user", "content": prompt}], max_tokens=200
+                    )
+                    db.execute(
+                        "UPDATE regulatory_updates SET ai_summary=%s WHERE id=%s",
+                        (ai_text, uid),
+                    )
+            except Exception as ai_exc:
+                _drift_log.warning("AI summary failed for update %s: %s", uid, ai_exc)
+
+        db.execute(
+            "UPDATE regulatory_updates "
+            "SET status='processed', matched_count=%s, processed_at=%s WHERE id=%s",
+            (ctrl_matches, _now(), uid),
+        )
+        updates_done += 1
+
+    db.commit()
+    return {"updates": updates_done, "tasks": tasks_done}

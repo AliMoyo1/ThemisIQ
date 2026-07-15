@@ -1,5 +1,13 @@
 # PLAN-13: Compliance Drift Detection + Manual Regulatory Inbox (T2.2 + T4.2-lite)
 
+## Status: COMPLETE (2026-07-15)
+
+Commit: `Add Regulatory Inbox and deterministic compliance drift detection`
+Files changed: `database.py` (both table blocks), `modules/governance/data_service.py`,
+`modules/governance/routes.py`, `modules/evidence/scheduler.py`,
+`modules/governance/templates/index.html`, `tests/test_regulatory_drift.py`
+114/114 tests passing.
+
 ## Goal
 
 Two approved roadmap items that only work as a pair (user decision

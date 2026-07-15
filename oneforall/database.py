@@ -1188,6 +1188,26 @@ CREATE TABLE IF NOT EXISTS demo_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_demo_requests_email   ON demo_requests(email);
 CREATE INDEX IF NOT EXISTS idx_demo_requests_created ON demo_requests(created_at);
+
+-- ── Regulatory Inbox (T4.2-lite): manually posted regulatory updates ──────
+CREATE TABLE IF NOT EXISTS regulatory_updates (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_name      TEXT NOT NULL,
+    title               TEXT NOT NULL,
+    summary             TEXT,
+    source_url          TEXT,
+    effective_date      TEXT,
+    affected_refs       TEXT,
+    severity            TEXT DEFAULT 'info',
+    status              TEXT DEFAULT 'open',
+    ai_summary          TEXT,
+    matched_count       INTEGER,
+    processed_at        TEXT,
+    created_by          INTEGER,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_regupd_status ON regulatory_updates(status);
 """
 
 # Per-tenant platform tables: created in every tenant schema by provision_tenant_schema().
@@ -1673,6 +1693,26 @@ CREATE TABLE IF NOT EXISTS data_assets (
 CREATE INDEX IF NOT EXISTS idx_da_bu ON data_assets(business_unit_id);
 CREATE INDEX IF NOT EXISTS idx_da_app ON data_assets(application_id);
 CREATE INDEX IF NOT EXISTS idx_da_classification ON data_assets(classification);
+
+-- ── Regulatory Inbox (T4.2-lite): manually posted regulatory updates ──────
+CREATE TABLE IF NOT EXISTS regulatory_updates (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_name      TEXT NOT NULL,
+    title               TEXT NOT NULL,
+    summary             TEXT,
+    source_url          TEXT,
+    effective_date      TEXT,
+    affected_refs       TEXT,
+    severity            TEXT DEFAULT 'info',
+    status              TEXT DEFAULT 'open',
+    ai_summary          TEXT,
+    matched_count       INTEGER,
+    processed_at        TEXT,
+    created_by          INTEGER,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_regupd_status ON regulatory_updates(status);
 """
 
 _ARIA_TABLES = """

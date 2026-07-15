@@ -160,6 +160,14 @@ def _expiry_check() -> None:
                 log.info("Evidence scheduler: recomputed %d control score(s) after expiry check", count)
         except Exception as eff_exc:
             log.warning("Evidence scheduler: effectiveness recompute failed: %s", eff_exc)
+
+        # PLAN-13: nightly compliance drift detection
+        try:
+            from modules.governance.data_service import run_drift_check
+            res = run_drift_check(db)
+            log.info("Drift check: %s updates, %s tasks", res["updates"], res["tasks"])
+        except Exception as drift_exc:
+            log.warning("Drift check failed: %s", drift_exc)
     except Exception as e:
         log.warning("Evidence expiry check failed: %s", e)
     finally:

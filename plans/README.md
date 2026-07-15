@@ -47,13 +47,13 @@ state. Assessment findings:
   = PLAN-10/09/08. The approved-but-unplanned remainder is T1.3, T1.4,
   and T2.2+T4.2-lite — that is Round 3.
 
-## Round 3 status: PLAN-11 and PLAN-12 COMPLETE, PLAN-13 OPEN
+## Round 3 status: ALL COMPLETE
 
 | Plan | Status | Commit |
 |---|---|---|
 | [PLAN-11](PLAN-11-t13-control-effectiveness-engine.md) | DONE | `61af256` |
 | [PLAN-12](PLAN-12-t14-residual-risk-engine.md) | DONE | `79d811b` |
-| [PLAN-13](PLAN-13-drift-detection-regulatory-inbox.md) | OPEN | next up |
+| [PLAN-13](PLAN-13-drift-detection-regulatory-inbox.md) | DONE (2026-07-15) | see plan file |
 
 ## Round 4 — navigation and first impressions (PLAN-16, PLAN-17)
 

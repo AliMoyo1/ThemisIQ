@@ -15,7 +15,7 @@
 .gov-tab:hover{color:var(--text)}
 .gov-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 
-.gov-summary{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
+.gov-summary{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:20px}
 .gov-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
 .gov-stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:6px}
 .gov-stat-val{font-size:24px;font-weight:700;color:var(--text)}
@@ -95,6 +95,7 @@
     <div class="gov-stat"><div class="gov-stat-label">Applications</div><div class="gov-stat-val" id="sApp">0</div></div>
     <div class="gov-stat"><div class="gov-stat-label">Controls</div><div class="gov-stat-val" id="sCtrl">0</div></div>
     <div class="gov-stat"><div class="gov-stat-label">Data Assets</div><div class="gov-stat-val" id="sDa">0</div></div>
+    <div class="gov-stat"><div class="gov-stat-label">Open Reg. Updates</div><div class="gov-stat-val" id="sReg">0</div></div>
   </div>
 
   <div class="gov-tabs">
@@ -104,6 +105,7 @@
     <button class="gov-tab" data-tab="app" onclick="govSwitchTab('app')">Applications</button>
     <button class="gov-tab" data-tab="ctrl" onclick="govSwitchTab('ctrl')">Controls</button>
     <button class="gov-tab" data-tab="da" onclick="govSwitchTab('da')">Data Assets</button>
+    <button class="gov-tab" data-tab="reg" onclick="govSwitchTab('reg')">Regulatory Inbox</button>
   </div>
 
   <!-- Business Units -->
@@ -185,6 +187,27 @@
       <tbody id="daTBody"></tbody>
     </table>
   </div>
+
+  <!-- Regulatory Inbox -->
+  <div class="tab-view" id="tab-reg">
+    <div class="gov-toolbar">
+      <div class="filters">
+        <select id="regStatusFilter" onchange="govLoadReg()">
+          <option value="">All Statuses</option>
+          <option value="open">Open</option>
+          <option value="processed">Processed</option>
+          <option value="dismissed">Dismissed</option>
+        </select>
+      </div>
+      {% if can_manage %}
+      <button class="gov-btn ghost small" onclick="govRunDriftCheck()">Run drift check</button>
+      {% endif %}
+    </div>
+    <table class="gov-table" id="regTable">
+      <thead><tr><th>Title</th><th>Framework</th><th>Severity</th><th>Effective Date</th><th>Status</th><th>Matched</th><th class="actions">Actions</th></tr></thead>
+      <tbody id="regTBody"></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- Modal container (populated dynamically) -->
@@ -195,6 +218,8 @@ var CAN_MANAGE = {{ 'true' if can_manage else 'false' }};
 var govActiveTab = 'bu';
 var govBuList = [];
 var govDeptList = [];
+var govRegList = [];
+var govRegFwNames = [];
 
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c])}
 function apiFetch(url, opts){return fetch(url, Object.assign({credentials:'same-origin', headers:{'Content-Type':'application/json'}}, opts||{})).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.status===204?null:r.json()})}
@@ -216,7 +241,8 @@ function govSwitchTab(tab){
   document.querySelectorAll('.gov-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   document.querySelectorAll('.tab-view').forEach(v=>v.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
-  document.querySelector('.gov-header .gov-btn').innerHTML = '<span>+</span> Add ' + {bu:'Business Unit',dept:'Department',bp:'Process',app:'Application',ctrl:'Control',da:'Data Asset'}[tab];
+  var addBtn = document.querySelector('.gov-header .gov-btn');
+  if(addBtn) addBtn.innerHTML = '<span>+</span> Add ' + {bu:'Business Unit',dept:'Department',bp:'Process',app:'Application',ctrl:'Control',da:'Data Asset',reg:'Regulatory Update'}[tab];
   govLoadTab(tab);
 }
 
@@ -227,6 +253,7 @@ function govLoadTab(tab){
   else if(tab==='app') govLoadApps();
   else if(tab==='ctrl') govLoadControls();
   else if(tab==='da') govLoadDas();
+  else if(tab==='reg') govLoadReg();
 }
 
 // ── Summary ──────────────────────────────────────────────────────────
@@ -238,6 +265,7 @@ function govLoadSummary(){
     document.getElementById('sApp').textContent = d.applications || 0;
     document.getElementById('sCtrl').textContent = d.canonical_controls || 0;
     document.getElementById('sDa').textContent = d.data_assets || 0;
+    document.getElementById('sReg').textContent = d.open_regulatory_updates || 0;
   }).catch(()=>{});
 }
 
@@ -540,7 +568,7 @@ function govDeleteDa(id){if(!confirm('Delete this data asset?')) return; apiFetc
 // ── Modals ──────────────────────────────────────────────────────────
 function govCloseModal(){document.getElementById('govModal').innerHTML='';}
 function govOpenAdd(){
-  var openers = {bu:govOpenBuModal, dept:govOpenDeptModal, bp:govOpenBpModal, app:govOpenAppModal, ctrl:govOpenCtrlModal, da:govOpenDaModal};
+  var openers = {bu:govOpenBuModal, dept:govOpenDeptModal, bp:govOpenBpModal, app:govOpenAppModal, ctrl:govOpenCtrlModal, da:govOpenDaModal, reg:govOpenRegModal};
   (openers[govActiveTab] || govOpenBuModal)(null);
 }
 
@@ -785,10 +813,115 @@ function govSaveDa(id){
     .catch(err=>alert('Save failed: '+err.message));
 }
 
+// ── Regulatory Inbox ────────────────────────────────────────────────
+function sevBadge(s){var m={info:'badge-low',medium:'badge-med',high:'badge-high'};return '<span class="badge '+(m[s]||'badge-low')+'">'+esc(s||'info')+'</span>'}
+function statusBadge(s){var m={open:'badge-high',processed:'badge-low',dismissed:'badge-inactive'};return '<span class="badge '+(m[s]||'badge-low')+'">'+esc(s||'open')+'</span>'}
+
+function govLoadReg(){
+  var st = document.getElementById('regStatusFilter') ? document.getElementById('regStatusFilter').value : '';
+  apiFetch('/governance/api/regulatory-updates'+(st?'?status='+encodeURIComponent(st):'')).then(rows=>{
+    govRegList = rows;
+    var tbody = document.getElementById('regTBody');
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No regulatory updates yet.</td></tr>'; return;}
+    tbody.innerHTML = rows.map(r=>{
+      var actions = CAN_MANAGE ? (
+        '<button class="gov-btn ghost small" onclick="govEditReg('+r.id+')">Edit</button> '+
+        (r.status==='open' ? '<button class="gov-btn ghost small" onclick="govDismissReg('+r.id+')">Dismiss</button> ' : '')+
+        '<button class="gov-btn ghost small danger" onclick="govDeleteReg('+r.id+')">Delete</button>'
+      ) : '';
+      var aiHint = r.ai_summary ? ' title="'+esc(r.ai_summary)+'"' : '';
+      return '<tr>'
+        + '<td><strong'+aiHint+'>'+esc(r.title)+'</strong>'+(r.source_url?'<br><a href="'+esc(r.source_url)+'" target="_blank" style="font-size:11px;color:var(--accent)">Source</a>':'')+'</td>'
+        + '<td>'+esc(r.framework_name)+'</td>'
+        + '<td>'+sevBadge(r.severity)+'</td>'
+        + '<td>'+(r.effective_date?r.effective_date.substring(0,10):'–')+'</td>'
+        + '<td>'+statusBadge(r.status)+'</td>'
+        + '<td>'+(r.matched_count!=null?r.matched_count:'–')+'</td>'
+        + '<td class="actions">'+actions+'</td>'
+      + '</tr>';
+    }).join('');
+  });
+  if(!govRegFwNames.length){
+    apiFetch('/governance/api/regulatory-frameworks').then(names=>{govRegFwNames=names;}).catch(()=>{});
+  }
+}
+
+function govEditReg(id){var r=govRegList.find(x=>x.id===id); if(r) govOpenRegModal(r);}
+
+function govOpenRegModal(row){
+  var isEdit = !!row;
+  var fwDl = govRegFwNames.map(n=>'<option value="'+esc(n)+'">').join('');
+  document.getElementById('govModal').innerHTML =
+    '<div class="modal-overlay" onclick="if(event.target===this)govCloseModal()">'
+    + '<div class="modal-box">'
+      + '<button class="modal-close" onclick="govCloseModal()">x</button>'
+      + '<div class="modal-title">'+(isEdit?'Edit':'New')+' Regulatory Update</div>'
+      + '<datalist id="fwDl">'+fwDl+'</datalist>'
+      + '<div class="form-row">'
+        + '<div class="form-group"><label>Framework *</label><input id="reg_fw" list="fwDl" value="'+esc(row?row.framework_name:'')+'"></div>'
+        + '<div class="form-group"><label>Severity</label><select id="reg_sev"><option value="info"'+((!row||row.severity==='info')?' selected':'')+'>Info</option><option value="medium"'+(row&&row.severity==='medium'?' selected':'')+'>Medium</option><option value="high"'+(row&&row.severity==='high'?' selected':'')+'>High</option></select></div>'
+      + '</div>'
+      + '<div class="form-group"><label>Title *</label><input id="reg_title" value="'+esc(row?row.title:'')+'"></div>'
+      + '<div class="form-group"><label>Summary</label><textarea id="reg_summary" rows="3">'+esc(row?row.summary||'':'')+'</textarea></div>'
+      + '<div class="form-row">'
+        + '<div class="form-group"><label>Effective Date</label><input type="date" id="reg_date" value="'+(row&&row.effective_date?row.effective_date.substring(0,10):'')+'"></div>'
+        + '<div class="form-group"><label>Source URL</label><input id="reg_url" value="'+esc(row?row.source_url||'':'')+'"></div>'
+      + '</div>'
+      + '<div class="form-group"><label>Affected Control Refs</label><input id="reg_refs" placeholder="A.5.1, A.8.12" value="'+esc(row?row.affected_refs||'':'')+'"></div>'
+      + '<div class="modal-actions">'
+        + '<button class="gov-btn ghost" onclick="govCloseModal()">Cancel</button>'
+        + '<button class="gov-btn" onclick="govSaveReg('+(isEdit?row.id:'null')+')">Save</button>'
+      + '</div>'
+    + '</div></div>';
+}
+
+function govSaveReg(id){
+  var fw = document.getElementById('reg_fw').value.trim();
+  var title = document.getElementById('reg_title').value.trim();
+  if(!fw){alert('Framework name is required'); return;}
+  if(!title){alert('Title is required'); return;}
+  var body = {
+    framework_name: fw,
+    title: title,
+    summary: document.getElementById('reg_summary').value.trim()||null,
+    source_url: document.getElementById('reg_url').value.trim()||null,
+    effective_date: document.getElementById('reg_date').value||null,
+    affected_refs: document.getElementById('reg_refs').value.trim()||null,
+    severity: document.getElementById('reg_sev').value,
+  };
+  apiFetch('/governance/api/regulatory-updates'+(id?'/'+id:''), {method:id?'PUT':'POST', body:JSON.stringify(body)})
+    .then(()=>{govCloseModal(); govLoadReg(); govLoadSummary();})
+    .catch(err=>alert('Save failed: '+err.message));
+}
+
+function govDismissReg(id){
+  if(!confirm('Dismiss this regulatory update?')) return;
+  apiFetch('/governance/api/regulatory-updates/'+id+'/dismiss', {method:'POST'})
+    .then(()=>{govLoadReg(); govLoadSummary();})
+    .catch(err=>alert(err.message));
+}
+
+function govDeleteReg(id){
+  if(!confirm('Delete this regulatory update?')) return;
+  apiFetch('/governance/api/regulatory-updates/'+id, {method:'DELETE'})
+    .then(()=>{govLoadReg(); govLoadSummary();})
+    .catch(err=>alert(err.message));
+}
+
+function govRunDriftCheck(){
+  apiFetch('/governance/api/regulatory-updates/run-drift', {method:'POST'})
+    .then(res=>{
+      alert('Drift check complete: '+res.updates+' update(s) processed, '+res.tasks+' task(s) created.');
+      govLoadReg(); govLoadSummary();
+    })
+    .catch(err=>alert('Drift check failed: '+err.message));
+}
+
 // ── Init ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function(){
   govLoadSummary();
   govLoadBus();  // Loads BU list once so all dropdowns are populated
+  govLoadReg();
 });
 </script>
 {% endblock %}

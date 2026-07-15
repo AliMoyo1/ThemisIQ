@@ -341,3 +341,73 @@ async def api_ctrl_recompute(request: Request, cid: int):
         return JSONResponse({"ok": True, "score": score})
     finally:
         db.close()
+
+
+# ── Regulatory Inbox (PLAN-13 T4.2-lite) ─────────────────────────────────────
+
+@router.get("/api/regulatory-frameworks")
+@require_capability("governance.entities.view")
+async def api_reg_frameworks(request: Request):
+    db = get_db()
+    try:
+        rows = db.execute("SELECT name FROM frameworks ORDER BY name").fetchall()
+        return JSONResponse([r["name"] for r in rows])
+    finally:
+        db.close()
+
+
+@router.get("/api/regulatory-updates")
+@require_capability("governance.entities.view")
+async def api_reg_list(request: Request):
+    status = request.query_params.get("status") or None
+    return JSONResponse(ds.list_regulatory_updates(status=status))
+
+
+@router.post("/api/regulatory-updates")
+@require_capability("governance.entities.manage")
+async def api_reg_create(request: Request):
+    body = await _json_body(request)
+    if not body.get("framework_name", "").strip():
+        raise HTTPException(400, "framework_name is required")
+    if not body.get("title", "").strip():
+        raise HTTPException(400, "title is required")
+    body["created_by"] = request.state.user.get("id") if request.state.user else None
+    new_id = ds.create_regulatory_update(body)
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.put("/api/regulatory-updates/{rid}")
+@require_capability("governance.entities.manage")
+async def api_reg_update(request: Request, rid: int):
+    body = await _json_body(request)
+    if not body.get("framework_name", "").strip():
+        raise HTTPException(400, "framework_name is required")
+    if not body.get("title", "").strip():
+        raise HTTPException(400, "title is required")
+    ds.update_regulatory_update(rid, body)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/regulatory-updates/{rid}/dismiss")
+@require_capability("governance.entities.manage")
+async def api_reg_dismiss(request: Request, rid: int):
+    ds.dismiss_regulatory_update(rid)
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/regulatory-updates/{rid}")
+@require_capability("governance.entities.manage")
+async def api_reg_delete(request: Request, rid: int):
+    ds.delete_regulatory_update(rid)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/regulatory-updates/run-drift")
+@require_capability("governance.entities.manage")
+async def api_run_drift(request: Request):
+    db = get_db()
+    try:
+        result = ds.run_drift_check(db)
+        return JSONResponse(result)
+    finally:
+        db.close()
