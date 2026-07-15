@@ -37,3 +37,11 @@
 - [x] Fix `ask.html` catch block: add error bubble to chat on network/parse errors
 - [x] py_compile all touched files: OK
 - [x] pytest full suite: 114/114 passing
+- [x] Fix `ask.html` button: change type="submit" to type="button" + explicit click handler
+  - Root cause of "message disappears": if the IIFE threw before the submit listener
+    attached, the type="submit" button would do a GET form submission, reloading the page
+  - Fix: button is now type="button" (cannot cause accidental form submission); click
+    handler calls form.requestSubmit() which fires the submit event as before
+  - Added sendBtn.disabled guard in submit handler to prevent double-submission
+  - Fixed em dash in catch block error message (memory rule: no em dashes)
+- [x] pytest full suite: 114/114 passing (after button fix)

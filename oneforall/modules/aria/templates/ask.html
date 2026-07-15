@@ -341,7 +341,7 @@
                     placeholder="Ask about a policy, control, or risk…" required></textarea>
           <div class="chat-input-footer">
             <span class="char-counter" id="charCounter">0 / 2000</span>
-            <button type="submit" class="chat-send" id="chatSend">
+            <button type="button" class="chat-send" id="chatSend">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               Ask
             </button>
@@ -653,7 +653,7 @@
       netErrEl.className = 'msg msg-bot';
       netErrEl.innerHTML = '<div class="msg-avatar">A</div>' +
         '<div class="msg-content"><div class="msg-meta">ARIA · error</div>' +
-        '<div class="msg-bubble"><p>Connection error — please check your network and try again.</p></div>' +
+        '<div class="msg-bubble"><p>Connection error. Please check your network and try again.</p></div>' +
         '</div>';
       body.appendChild(netErrEl);
       body.scrollTop = body.scrollHeight;
@@ -662,10 +662,12 @@
     inputEl.focus();
   }
 
+  sendBtn.addEventListener('click', function () { form.requestSubmit(); });
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var q = inputEl.value.trim();
-    if (!q || q.length > 2000) return;
+    if (!q || q.length > 2000 || sendBtn.disabled) return;
     inputEl.value = '';
     inputEl.style.height = 'auto';
     counter.textContent = '0 / 2000';
