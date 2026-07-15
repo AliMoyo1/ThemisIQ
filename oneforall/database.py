@@ -1171,6 +1171,23 @@ CREATE TABLE IF NOT EXISTS governance_advisories (
     UNIQUE(briefing_date, signal_key)
 );
 CREATE INDEX IF NOT EXISTS idx_advisories_date ON governance_advisories(briefing_date);
+
+-- ── Demo Requests ────────────────────────────────────────────────────────────
+-- Platform-level only; never replicated into tenant schemas.
+CREATE TABLE IF NOT EXISTS demo_requests (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    email        TEXT NOT NULL,
+    company      TEXT,
+    plan         TEXT,
+    ip_address   TEXT,
+    contacted    INTEGER DEFAULT 0,
+    contacted_at TEXT,
+    notes        TEXT,
+    created_at   TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_demo_requests_email   ON demo_requests(email);
+CREATE INDEX IF NOT EXISTS idx_demo_requests_created ON demo_requests(created_at);
 """
 
 # Per-tenant platform tables: created in every tenant schema by provision_tenant_schema().

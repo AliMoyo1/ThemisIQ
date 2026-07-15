@@ -378,3 +378,47 @@ async def delete_org_user(request: Request, org_id: int, user_id: int):
         return JSONResponse({"ok": True})
     finally:
         db.close()
+
+
+# ── Demo Requests ─────────────────────────────────────────────────────────────
+
+@router.get("/api/demo-requests")
+@require_super_admin
+async def list_demo_requests(request: Request):
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT id, name, email, company, plan, ip_address, contacted, "
+            "contacted_at, notes, created_at FROM demo_requests ORDER BY created_at DESC"
+        ).fetchall()
+        return JSONResponse([dict(r) for r in rows])
+    finally:
+        db.close()
+
+
+@router.post("/api/demo-requests/{req_id}/contacted")
+@require_super_admin
+async def mark_demo_contacted(request: Request, req_id: int):
+    db = get_db()
+    try:
+        from core.timeutils import utcnow
+        db.execute(
+            "UPDATE demo_requests SET contacted=1, contacted_at=%s WHERE id=%s",
+            (utcnow().strftime("%Y-%m-%d %H:%M:%S"), req_id),
+        )
+        db.commit()
+        return JSONResponse({"ok": True})
+    finally:
+        db.close()
+
+
+@router.delete("/api/demo-requests/{req_id}")
+@require_super_admin
+async def delete_demo_request(request: Request, req_id: int):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM demo_requests WHERE id=%s", (req_id,))
+        db.commit()
+        return JSONResponse({"ok": True})
+    finally:
+        db.close()

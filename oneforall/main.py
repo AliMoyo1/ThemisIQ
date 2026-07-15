@@ -336,15 +336,29 @@ async def demo_request(request: Request):
     except Exception:
         return JSONResponse({"ok": False, "error": "Invalid request."}, status_code=400, headers=_DEMO_CORS)
 
-    name    = body.get("name") or ""
-    email   = body.get("email") or ""
-    company = body.get("company") or ""
-    plan    = body.get("plan") or ""
+    name    = (body.get("name") or "").strip()
+    email   = (body.get("email") or "").strip()
+    company = (body.get("company") or "").strip()
+    plan    = (body.get("plan") or "").strip()
 
     if not name or not email or "@" not in email:
         return JSONResponse({"ok": False, "error": "Name and valid email are required."}, status_code=422, headers=_DEMO_CORS)
 
-    log.info("Demo request: name=%s email=%s company=%s plan=%s", name, email, company, plan)
+    ip_address = request.client.host if request.client else None
+    log.info("Demo request: name=%s email=%s company=%s plan=%s ip=%s", name, email, company, plan, ip_address)
+
+    # Persist first — email is best-effort and must never lose the lead
+    try:
+        from database import get_db
+        db = get_db()
+        db.execute(
+            "INSERT INTO demo_requests (name, email, company, plan, ip_address) VALUES (%s, %s, %s, %s, %s)",
+            (name, email, company or None, plan or None, ip_address),
+        )
+        db.commit()
+        db.close()
+    except Exception as exc:
+        log.error("Demo request DB insert failed: %s", exc)
 
     try:
         from core.email import send_email

@@ -1409,6 +1409,20 @@
         </button>
       </form>
       <p id="demoMsg" class="text-label-xs font-mono text-outline" style="min-height:1.2em">No credit card required. We will contact you within 24 hours.</p>
+
+      <!-- Success card: hidden until form submits successfully -->
+      <div id="demoSuccess" style="display:none" class="max-w-md mx-auto">
+        <div style="width:64px;height:64px;border-radius:50%;background:rgba(22,163,74,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <h3 style="margin:0 0 8px;font-size:22px;font-weight:800;color:var(--color-on-surface, #1a1a2e)">Request received!</h3>
+        <p style="margin:0 0 6px;font-size:15px;color:#6b7280">We will reach out to</p>
+        <p id="demoSuccessEmail" style="margin:0 0 20px;font-size:15px;font-weight:700;color:var(--color-primary, #374151)"></p>
+        <p style="margin:0 0 28px;font-size:14px;color:#6b7280;line-height:1.6">Our team typically responds within 24 hours. In the meantime, explore what ThemisIQ can do for your compliance programme.</p>
+        <a href="#modules" style="display:inline-block;border:1px solid #d1d5db;border-radius:8px;padding:10px 24px;font-size:13px;font-family:monospace;font-weight:700;color:#374151;text-decoration:none;text-transform:uppercase;letter-spacing:0.07em;transition:background 0.15s" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background=''">Explore the platform</a>
+      </div>
     </div>
   </div>
 </section>
@@ -1967,21 +1981,24 @@ async function submitDemo(e) {
     });
     var data = await res.json();
     if (data.ok) {
-      msg.style.color = '#16a34a';
-      msg.textContent = 'Request received. We will contact you within 24 hours.';
-      document.getElementById('demoForm').reset();
+      // Hide form and hint text, show full success card
+      document.getElementById('demoForm').style.display = 'none';
+      document.getElementById('demoMsg').style.display  = 'none';
+      document.getElementById('demoSuccessEmail').textContent = email;
+      document.getElementById('demoSuccess').style.display = 'block';
       window._demoPlan = '';
     } else {
       msg.style.color = '#dc2626';
       msg.textContent = data.error || 'Something went wrong. Please try again.';
+      btn.disabled = false;
+      btn.textContent = 'Request Demo';
     }
   } catch (_) {
     msg.style.color = '#dc2626';
     msg.textContent = 'Could not connect. Please email hello@themisiq.net directly.';
+    btn.disabled = false;
+    btn.textContent = 'Request Demo';
   }
-
-  btn.disabled = false;
-  btn.textContent = 'Request Demo';
 }
 </script>
 

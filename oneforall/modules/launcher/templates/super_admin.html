@@ -143,6 +143,71 @@
     </table>
   </div>
 
+  <!-- Demo Requests section -->
+  <div style="margin-top:32px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div>
+        <h2 style="margin:0;font-size:18px;font-weight:800;color:var(--text)">Demo Requests</h2>
+        <p style="margin:4px 0 0;color:var(--muted);font-size:13px">Inbound requests from the landing page</p>
+      </div>
+    </div>
+
+    <!-- Stat cards -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+      <div class="sa-card" style="padding:18px 20px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Total</div>
+        <div id="drStatTotal" style="font-size:28px;font-weight:800;color:var(--text)">-</div>
+      </div>
+      <div class="sa-card" style="padding:18px 20px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">This Week</div>
+        <div id="drStatWeek" style="font-size:28px;font-weight:800;color:var(--text)">-</div>
+      </div>
+      <div class="sa-card" style="padding:18px 20px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Pending</div>
+        <div id="drStatPending" style="font-size:28px;font-weight:800;color:#b45309">-</div>
+      </div>
+      <div class="sa-card" style="padding:18px 20px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Contacted</div>
+        <div id="drStatContacted" style="font-size:28px;font-weight:800;color:#16a34a">-</div>
+      </div>
+    </div>
+
+    <!-- 14-day chart -->
+    <div class="sa-card" style="padding:18px 20px;margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">Requests — Last 14 Days</div>
+      <div id="drChart" style="display:flex;align-items:flex-end;gap:6px;height:80px"></div>
+      <div id="drChartLabels" style="display:flex;gap:6px;margin-top:6px"></div>
+    </div>
+
+    <!-- Filter pills + table -->
+    <div class="sa-card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px">
+        <div class="filter-pills" style="margin-bottom:0">
+          <button class="filter-pill active" id="drFilterAll"     onclick="drSetFilter('all')">All</button>
+          <button class="filter-pill"        id="drFilterPending" onclick="drSetFilter('pending')">Pending</button>
+          <button class="filter-pill"        id="drFilterContacted" onclick="drSetFilter('contacted')">Contacted</button>
+        </div>
+        <input type="text" id="drSearch" placeholder="Search name, email, company..." oninput="renderDemoRequests()" style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);font-size:12px;width:280px"/>
+      </div>
+      <table class="sa-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Company</th>
+            <th>Plan</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="drBody">
+          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <!-- Side panel (Manage org) -->
@@ -599,5 +664,121 @@ async function submitCreateUser(){
 }
 
 loadOrgs();
+
+// ── Demo Requests ─────────────────────────────────────────────────────────────
+var _demoRequests = [];
+var _drFilter = 'all';
+
+async function loadDemoRequests() {
+  try {
+    _demoRequests = await apiFetch('/super-admin/api/demo-requests');
+    updateDemoStats();
+    renderDemoChart();
+    renderDemoRequests();
+  } catch(e) {
+    document.getElementById('drBody').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Failed to load requests.</td></tr>';
+  }
+}
+
+function updateDemoStats() {
+  var total = _demoRequests.length;
+  var weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  var thisWeek = _demoRequests.filter(function(r){ return new Date(r.created_at) >= weekAgo; }).length;
+  var pending   = _demoRequests.filter(function(r){ return !r.contacted; }).length;
+  var contacted = _demoRequests.filter(function(r){ return r.contacted; }).length;
+  document.getElementById('drStatTotal').textContent    = total;
+  document.getElementById('drStatWeek').textContent     = thisWeek;
+  document.getElementById('drStatPending').textContent  = pending;
+  document.getElementById('drStatContacted').textContent = contacted;
+}
+
+function renderDemoChart() {
+  var chartEl  = document.getElementById('drChart');
+  var labelEl  = document.getElementById('drChartLabels');
+  var days = 14;
+  var buckets = [];
+  for (var i = days - 1; i >= 0; i--) {
+    var d = new Date(); d.setDate(d.getDate() - i);
+    var ds = d.toISOString().slice(0, 10);
+    var dayReqs = _demoRequests.filter(function(r){ return (r.created_at || '').slice(0, 10) === ds; });
+    buckets.push({ date: ds, label: d.toLocaleDateString('en', {month:'short', day:'numeric'}),
+                   count: dayReqs.length,
+                   contacted: dayReqs.filter(function(r){ return r.contacted; }).length });
+  }
+  var maxCount = Math.max(1, Math.max.apply(null, buckets.map(function(b){ return b.count; })));
+  var barW = 'calc(' + (100/days) + '% - 6px)';
+
+  chartEl.innerHTML = buckets.map(function(b) {
+    var h = b.count === 0 ? 4 : Math.max(8, Math.round((b.count / maxCount) * 72));
+    var color = b.contacted === b.count && b.count > 0 ? '#16a34a' : b.count > 0 ? '#f59e0b' : 'var(--border)';
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end" title="' + b.label + ': ' + b.count + ' request(s)">' +
+           '<div style="width:100%;height:' + h + 'px;background:' + color + ';border-radius:3px 3px 0 0;transition:height .2s"></div>' +
+           '</div>';
+  }).join('');
+
+  labelEl.innerHTML = buckets.map(function(b, i) {
+    var show = (i === 0 || i === 6 || i === 13);
+    return '<div style="flex:1;text-align:center;font-size:10px;color:var(--muted);font-family:monospace;white-space:nowrap;overflow:hidden">' +
+           (show ? b.label : '') + '</div>';
+  }).join('');
+}
+
+function drSetFilter(f) {
+  _drFilter = f;
+  ['all','pending','contacted'].forEach(function(k) {
+    document.getElementById('drFilter' + k.charAt(0).toUpperCase() + k.slice(1)).classList.toggle('active', k === f);
+  });
+  renderDemoRequests();
+}
+
+function renderDemoRequests() {
+  var q = (document.getElementById('drSearch').value || '').toLowerCase();
+  var rows = _demoRequests.filter(function(r) {
+    if (_drFilter === 'pending'   && r.contacted) return false;
+    if (_drFilter === 'contacted' && !r.contacted) return false;
+    if (q && ![r.name, r.email, r.company].some(function(s){ return (s||'').toLowerCase().includes(q); })) return false;
+    return true;
+  });
+
+  if (!rows.length) {
+    document.getElementById('drBody').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">No requests found.</td></tr>';
+    return;
+  }
+
+  document.getElementById('drBody').innerHTML = rows.map(function(r) {
+    var date = r.created_at ? r.created_at.slice(0, 10) : '';
+    var status = r.contacted
+      ? '<span class="badge badge-green">Contacted</span>'
+      : '<span class="badge badge-amber">Pending</span>';
+    var contactBtn = r.contacted ? '' :
+      '<button class="sa-btn sa-btn-primary" onclick="drMarkContacted(' + r.id + ')" style="margin-right:6px;font-size:11px;padding:4px 10px">Mark Contacted</button>';
+    return '<tr>' +
+      '<td style="font-weight:600">' + esc(r.name) + '</td>' +
+      '<td><a href="mailto:' + esc(r.email) + '" style="color:var(--accent)">' + esc(r.email) + '</a></td>' +
+      '<td>' + esc(r.company || '-') + '</td>' +
+      '<td>' + (r.plan ? '<span class="badge badge-violet">' + esc(r.plan) + '</span>' : '<span style="color:var(--muted)">-</span>') + '</td>' +
+      '<td style="color:var(--muted);font-size:12px;font-family:monospace">' + date + '</td>' +
+      '<td>' + status + '</td>' +
+      '<td style="text-align:right">' + contactBtn +
+        '<button class="sa-btn sa-btn-danger" onclick="drDelete(' + r.id + ')" style="font-size:11px;padding:4px 10px">Delete</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function drMarkContacted(id) {
+  await apiFetch('/super-admin/api/demo-requests/' + id + '/contacted', { method: 'POST' });
+  await loadDemoRequests();
+}
+
+async function drDelete(id) {
+  if (!confirm('Delete this demo request? This cannot be undone.')) return;
+  await apiFetch('/super-admin/api/demo-requests/' + id, { method: 'DELETE' });
+  await loadDemoRequests();
+}
+
+loadDemoRequests();
 </script>
 {% endblock %}
