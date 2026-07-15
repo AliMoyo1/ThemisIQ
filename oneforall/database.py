@@ -1173,7 +1173,7 @@ CREATE TABLE IF NOT EXISTS governance_advisories (
 CREATE INDEX IF NOT EXISTS idx_advisories_date ON governance_advisories(briefing_date);
 
 -- ── Demo Requests ────────────────────────────────────────────────────────────
--- Platform-level only; never replicated into tenant schemas.
+-- Platform-level only, never replicated into tenant schemas.
 CREATE TABLE IF NOT EXISTS demo_requests (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     name         TEXT NOT NULL,
