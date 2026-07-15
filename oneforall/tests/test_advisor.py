@@ -72,8 +72,10 @@ def db():
         def close(self):
             pass
     fake = FakeConn()
+    orig_get_db = db_mod.get_db
     db_mod.get_db = lambda: fake
     yield fake, con
+    db_mod.get_db = orig_get_db
 
 
 def test_collect_signals_with_expiring_evidence(db):

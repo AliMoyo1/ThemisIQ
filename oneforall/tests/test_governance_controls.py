@@ -9,10 +9,33 @@ import sys
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import database as db_mod
+
+
+@pytest.fixture(autouse=True)
+def _restore_get_db():
+    """Restore the module-level get_db references patched by _init_test_db().
+
+    _init_test_db() sets db_mod.get_db, gov_ds.get_db, and erm_ds.get_db to
+    lambdas without cleanup. Without this fixture, those lambdas persist in
+    module globals for the rest of the full pytest run, breaking any later
+    test that calls get_db_background() (which forwards kwargs to get_db).
+    """
+    import modules.governance.data_service as gov_ds
+    import modules.erm.data_service as erm_ds
+
+    orig_db = db_mod.get_db
+    orig_gov = gov_ds.get_db
+    orig_erm = erm_ds.get_db
+    yield
+    db_mod.get_db = orig_db
+    gov_ds.get_db = orig_gov
+    erm_ds.get_db = orig_erm
 
 
 def _init_test_db():

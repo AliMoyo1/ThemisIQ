@@ -90,8 +90,9 @@ def _deliver_once(url: str, secret: str, body: bytes,
 
 def _log_attempt(webhook_id: int, event_type: str, payload: dict,
                  code: int, body: str, success: bool) -> None:
-    db = get_db_background()
+    db = None
     try:
+        db = get_db_background()
         db.execute(
             "INSERT INTO webhook_logs "
             "(webhook_id, event, payload_json, response_code, response_body, success) "
@@ -103,7 +104,8 @@ def _log_attempt(webhook_id: int, event_type: str, payload: dict,
     except Exception as exc:  # logging must never raise
         log.warning("webhook_logs insert failed for wh=%s: %s", webhook_id, exc)
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 def deliver(webhook_id: int, url: str, secret: str, payload: dict) -> bool:
