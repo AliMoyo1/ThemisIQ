@@ -362,8 +362,9 @@
   var sendBtn   = document.getElementById('chatSend');
   var form      = document.getElementById('askForm');
   var counter   = document.getElementById('charCounter');
-  var USER_INI  = {{ ((user.full_name or user.username or '?')[:2])|upper|tojson }};
+  var USER_INI  = "{{ ((user.full_name or user.username or '?')[:2])|upper }}";
   var exportLog = [];   // [{role:'user'|'aria', text:'...', ts:'...'}]
+  var conversationHistory = [];   // [{role:'user'|'assistant', content:'...'}] last 3 Q&A pairs
 
   /* ── Textarea auto-grow + char count ────────────────────────────────── */
   inputEl.addEventListener('input', function () {
@@ -410,6 +411,7 @@
     msgs.forEach(function (m) { m.remove(); });
     empty.style.display = 'block';
     exportLog = [];
+    conversationHistory = [];
   });
 
   /* ── Rebuild index ───────────────────────────────────────────────────── */
@@ -629,6 +631,9 @@
     var fd = new FormData();
     fd.append('question', question);
     if (fwFilter) fd.append('framework_filter', fwFilter);
+    if (conversationHistory.length) {
+      fd.append('history', JSON.stringify(conversationHistory.slice(-6)));
+    }
 
     try {
       var resp = await fetch('/aria/api/ask', { method: 'POST', body: fd });
@@ -645,6 +650,9 @@
         body.appendChild(errEl);
       } else {
         body.appendChild(renderBotMsg(data));
+        conversationHistory.push({role: 'user', content: question});
+        conversationHistory.push({role: 'assistant', content: data.answer || ''});
+        if (conversationHistory.length > 6) conversationHistory = conversationHistory.slice(-6);
       }
       body.scrollTop = body.scrollHeight;
     } catch (e) {
@@ -678,10 +686,6 @@
 
   /* ── Initial send button state ───────────────────────────────────────── */
   sendBtn.disabled = true;
-  inputEl.addEventListener('input', function () {
-    var n = this.value.trim().length;
-    sendBtn.disabled = n === 0 || n > 2000;
-  });
 }());
 </script>
 {% endblock %}

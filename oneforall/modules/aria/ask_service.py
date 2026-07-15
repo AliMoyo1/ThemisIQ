@@ -500,7 +500,8 @@ def _extract_json_block(text: str) -> tuple[str, Optional[dict | list]]:
 
 
 async def ask(question: str, user: Optional[dict] = None,
-              framework_filter: str = "") -> dict:
+              framework_filter: str = "",
+              conversation_history: list = None) -> dict:
     """
     Answer a question grounded in the corpus.
 
@@ -535,8 +536,10 @@ async def ask(question: str, user: Optional[dict] = None,
     )
 
     try:
+        prior = list(conversation_history or [])[-6:]
+        msgs = prior + [{"role": "user", "content": user_msg}]
         raw_text, _meta = await _call_ai(
-            _ASK_SYSTEM_PROMPT, user_msg, max_tokens=1200
+            _ASK_SYSTEM_PROMPT, user_msg, max_tokens=1200, messages=msgs
         )
         raw = raw_text.strip()
     except RuntimeError as exc:

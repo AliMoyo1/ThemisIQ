@@ -11,6 +11,7 @@ import re as _re
 from datetime import datetime, timedelta
 from core.timeutils import utcnow
 from typing import Optional
+from markupsafe import Markup
 
 log = logging.getLogger("oneforall.aria")
 
@@ -46,9 +47,9 @@ templates.env.globals["has_role"] = has_role
 from core.timeutils import format_dt as _format_dt
 templates.env.filters["format_dt"] = _format_dt
 templates.env.globals["ROLE_LABELS"] = ROLE_LABELS
-templates.env.filters["tojson"] = lambda v: json.dumps(
+templates.env.filters["tojson"] = lambda v: Markup(json.dumps(
     dict(v) if hasattr(v, "keys") else v, default=str
-)
+))
 
 
 def _aria_render(request: Request, template: str, context: dict,
@@ -2863,7 +2864,8 @@ async def ask_page(request: Request):
 @require_module("aria")
 async def api_ask(request: Request,
                   question: str = Form(...),
-                  framework_filter: str = Form("")):
+                  framework_filter: str = Form(""),
+                  history: str = Form("")):
     user = request.state.user
     question, framework_filter = _s(question), _s(framework_filter)
     question = question or ""
@@ -2875,9 +2877,19 @@ async def api_ask(request: Request,
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(user["id"]))
 
+    conversation_history = None
+    if history:
+        try:
+            parsed = json.loads(history)
+            if isinstance(parsed, list):
+                conversation_history = parsed[:6]
+        except (ValueError, TypeError):
+            pass
+
     from modules.aria.ask_service import ask as ask_policy
     result = await ask_policy(question, user=user,
-                               framework_filter=(framework_filter or "").strip())
+                               framework_filter=(framework_filter or "").strip(),
+                               conversation_history=conversation_history)
     log_audit(user, "aria", "Asked ARIA: " + question[:80], "ask")
     if not result.get("success", True) and "error" in result:
         log.error("ARIA ask failed: %s", result["error"])

@@ -12,18 +12,23 @@ import httpx
 from core.ai_client import create_message_full, wrap_user_input as _u
 
 
-async def _call_ai(system: str, user_msg: str, max_tokens: int = 4000) -> tuple:
+async def _call_ai(system: str, user_msg: str, max_tokens: int = 4000,
+                   messages: list = None) -> tuple:
     """
     Dispatch to the configured AI provider via core.ai_client.
     Returns (text: str, meta: dict) where meta = {model, input_tokens, output_tokens}.
     Raises httpx.HTTPError or RuntimeError on failure.
 
+    Pass `messages` to include conversation history (list of role/content dicts).
+    When omitted, falls back to a single user_msg turn.
+
     core.ai_client is synchronous by design (used by sync ai_service.py callers
     in grid/erm/orm/bcm); run it off the event loop so this async caller doesn't block.
     """
+    msgs = messages if messages is not None else [{"role": "user", "content": user_msg}]
     result = await asyncio.to_thread(
         create_message_full,
-        [{"role": "user", "content": user_msg}],
+        msgs,
         system,
         max_tokens,
     )
