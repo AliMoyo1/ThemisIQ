@@ -539,13 +539,18 @@ async def ask(question: str, user: Optional[dict] = None,
             _ASK_SYSTEM_PROMPT, user_msg, max_tokens=1200
         )
         raw = raw_text.strip()
-    except RuntimeError:
+    except RuntimeError as exc:
         log.exception("Ask ARIA runtime error during AI call")
+        _msg = str(exc).lower()
+        if "not configured" in _msg or "api_key" in _msg:
+            user_error = "The AI assistant is not configured on this platform. Please contact your administrator."
+        else:
+            user_error = "The AI assistant is temporarily unavailable. Please try again in a moment."
         return {
             "success": False, "covered": False, "answer": "",
             "citations": [], "nearest_owner": None, "framework": None,
             "chunks_retrieved": len(chunks), "latency_ms": ms(),
-            "error": "AI processing failed", "log_id": None,
+            "error": user_error, "log_id": None,
         }
     except Exception:
         log.exception("Ask ARIA unexpected error during AI call")
@@ -553,7 +558,7 @@ async def ask(question: str, user: Optional[dict] = None,
             "success": False, "covered": False, "answer": "",
             "citations": [], "nearest_owner": None, "framework": None,
             "chunks_retrieved": len(chunks), "latency_ms": ms(),
-            "error": "AI processing failed", "log_id": None,
+            "error": "Something went wrong. Please try again in a moment.", "log_id": None,
         }
 
     # ── Parse response ────────────────────────────────────────────────────

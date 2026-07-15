@@ -649,7 +649,14 @@
       body.scrollTop = body.scrollHeight;
     } catch (e) {
       typing.remove();
-      if (typeof showToast === 'function') showToast('Network error: ' + e.message, 'error');
+      var netErrEl = document.createElement('div');
+      netErrEl.className = 'msg msg-bot';
+      netErrEl.innerHTML = '<div class="msg-avatar">A</div>' +
+        '<div class="msg-content"><div class="msg-meta">ARIA · error</div>' +
+        '<div class="msg-bubble"><p>Connection error — please check your network and try again.</p></div>' +
+        '</div>';
+      body.appendChild(netErrEl);
+      body.scrollTop = body.scrollHeight;
     }
     sendBtn.disabled = false;
     inputEl.focus();
