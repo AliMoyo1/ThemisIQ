@@ -1401,24 +1401,69 @@ window.ermUnlinkControl=async function(riskId,controlId){
     else showToast('Failed to unlink control','error');
   }catch(e){showToast('Failed to unlink','error');}
 };
+var _ermLinkCtrlData=[],_ermLinkCtrlRisk=null,_ermLinkCtrlSel=null;
 window.ermOpenLinkControlModal=async function(riskId){
+  _ermLinkCtrlRisk=riskId; _ermLinkCtrlSel=null;
   try{
     var controls=await apiFetch('/governance/api/controls');
     if(!controls||!Array.isArray(controls)||controls.length===0){
       showToast('No controls available. Create controls in Governance first.','error');
       return;
     }
-    var names=controls.filter(function(c){return c.is_active!==0;}).map(function(c){return c.id+':'+(c.ref||'')+' '+c.title;});
-    var chose=prompt('Enter control ID to link (available:\n'+names.join('\n')+'\nOr paste a control ID:');
-    if(!chose) return;
-    var cid=parseInt(chose,10);
-    if(!cid){showToast('Invalid control ID','error');return;}
-    var w=parseFloat(prompt('Weight (0.1-5.0, default 1.0):'))||1.0;
-    w=Math.max(0.1,Math.min(5.0,w));
-    var r=await apiFetch('/erm/api/risks/'+riskId+'/controls',{method:'POST',body:{control_id:cid,weight:w}});
-    if(r&&r.ok){showToast('Control linked');window.location.reload();}
-    else showToast('Failed to link control','error');
-  }catch(e){showToast('Failed','error');}
+    _ermLinkCtrlData=controls.filter(function(c){return c.is_active!==0;});
+    var modal=document.createElement('div');
+    modal.id='ermLinkCtrlModal';
+    modal.style.cssText='position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center';
+    modal.innerHTML=
+      '<div style="background:var(--surface);border-radius:var(--radius);padding:24px;min-width:440px;max-width:620px;width:90%;max-height:80vh;display:flex;flex-direction:column;gap:12px">'+
+        '<div style="font-weight:700;font-size:15px">Link Control to Risk</div>'+
+        '<input id="ermCtrlSearchInput" type="text" placeholder="Search by ref or title..." oninput="ermFilterLinkControls()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text);width:100%;box-sizing:border-box">'+
+        '<div id="ermCtrlSearchList" style="overflow-y:auto;max-height:280px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)"></div>'+
+        '<div style="display:flex;align-items:center;gap:10px;font-size:13px">'+
+          '<label>Weight:</label>'+
+          '<input id="ermCtrlWeight" type="number" min="0.1" max="5.0" step="0.1" value="1.0" style="width:70px;padding:4px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text)">'+
+          '<span style="color:var(--muted);font-size:11px">(0.1 to 5.0)</span>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+          '<button class="btn btn-secondary" onclick="ermCloseLinkControlModal()">Cancel</button>'+
+          '<button class="btn btn-primary" onclick="ermDoLinkControl()">Link Control</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(modal);
+    ermFilterLinkControls();
+  }catch(e){showToast('Failed to load controls','error');}
+};
+window.ermFilterLinkControls=function(){
+  var q=((document.getElementById('ermCtrlSearchInput')||{}).value||'').toLowerCase();
+  var list=document.getElementById('ermCtrlSearchList');
+  if(!list) return;
+  var filtered=q?_ermLinkCtrlData.filter(function(c){
+    return (c.title||'').toLowerCase().indexOf(q)>=0||(c.ref||'').toLowerCase().indexOf(q)>=0;
+  }):_ermLinkCtrlData;
+  if(filtered.length===0){list.innerHTML='<div style="padding:12px;color:var(--muted);font-size:13px">No controls match</div>';return;}
+  list.innerHTML=filtered.map(function(c){
+    var sel=_ermLinkCtrlSel===c.id;
+    return '<div onclick="ermSelectLinkControl('+c.id+')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;background:'+(sel?'var(--accent-faint,rgba(99,102,241,.1))':'transparent')+'">'+
+      '<strong style="color:var(--accent)">'+esc(c.ref||'#'+c.id)+'</strong> '+esc(c.title)+
+      (c.automation&&c.automation!=='manual'?'<span style="margin-left:8px;font-size:11px;color:var(--muted)">'+esc(c.automation)+'</span>':'')+
+    '</div>';
+  }).join('');
+};
+window.ermSelectLinkControl=function(id){_ermLinkCtrlSel=id;ermFilterLinkControls();};
+window.ermCloseLinkControlModal=function(){
+  var m=document.getElementById('ermLinkCtrlModal');
+  if(m) m.remove();
+  _ermLinkCtrlRisk=null; _ermLinkCtrlSel=null; _ermLinkCtrlData=[];
+};
+window.ermDoLinkControl=async function(){
+  if(!_ermLinkCtrlSel){showToast('Select a control first','error');return;}
+  var w=parseFloat((document.getElementById('ermCtrlWeight')||{}).value)||1.0;
+  w=Math.max(0.1,Math.min(5.0,w));
+  try{
+    var r=await apiFetch('/erm/api/risks/'+_ermLinkCtrlRisk+'/controls',{method:'POST',body:{control_id:_ermLinkCtrlSel,weight:w}});
+    if(r&&r.ok){ermCloseLinkControlModal();showToast('Control linked');window.location.reload();}
+    else showToast((r&&r.detail)||'Failed to link control','error');
+  }catch(e){showToast('Failed to link','error');}
 };
 window.ermQuickStatusChange=async function(id,status){try{await apiFetch('/erm/api/risks/'+id,{method:'PUT',body:{status:status}});ermCloseRiskDrawer();ermLoadRegister();typeof showToast==='function'&&showToast('Status updated');}catch(e){typeof showToast==='function'&&showToast('Update failed','error');}};
 

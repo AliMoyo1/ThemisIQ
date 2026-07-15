@@ -559,10 +559,14 @@ async def api_bulk_import(request: Request, entity_type: str):
         if entity_type == "controls":
             for rec in records:
                 db.execute(
-                    "INSERT INTO aria_controls (framework_id, control_id, title, description, status, evidence_notes) "
+                    "INSERT INTO aria_controls (framework_id, ref, name, description, status, evidence_ref) "
                     "VALUES (%s,%s,%s,%s,%s,%s)",
-                    (rec.get("framework_id", 1), rec.get("control_id", ""), rec.get("title", ""),
-                     rec.get("description", ""), rec.get("status", "not_implemented"), rec.get("evidence_notes", ""))
+                    (rec.get("framework_id", 1),
+                     rec.get("ref", rec.get("control_id", "")),
+                     rec.get("name", rec.get("title", "")),
+                     rec.get("description", ""),
+                     rec.get("status", "Not Started"),
+                     rec.get("evidence_ref", rec.get("evidence_notes", "")))
                 )
         elif entity_type == "risks":
             for rec in records:

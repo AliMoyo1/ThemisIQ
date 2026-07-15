@@ -574,6 +574,38 @@ def delete_rcsa_risk(risk_id):
         db.close()
 
 
+_DESIGN_EFF = {"adequate": 1.0, "not_assessed": 0.5, "inadequate": 0.0}
+_OPER_EFF = {"effective": 1.0, "partially_effective": 0.5, "ineffective": 0.0, "not_tested": 0.5}
+
+
+def _recompute_risk_effectiveness(db, risk_id):
+    """Roll up individual RCSA control assessments to orm_rcsa_risks.control_effectiveness + residual_score."""
+    rows = db.execute(
+        "SELECT design_effectiveness, operating_effectiveness FROM orm_rcsa_controls WHERE risk_id=%s",
+        (risk_id,)
+    ).fetchall()
+    if not rows:
+        return
+    scores = [
+        (_DESIGN_EFF.get(r["design_effectiveness"] or "adequate", 0.5) +
+         _OPER_EFF.get(r["operating_effectiveness"] or "effective", 0.5)) / 2.0
+        for r in rows
+    ]
+    avg = sum(scores) / len(scores)
+    ce = max(1, min(5, round(avg * 4 + 1)))
+    risk = db.execute(
+        "SELECT inherent_likelihood, inherent_impact FROM orm_rcsa_risks WHERE id=%s",
+        (risk_id,)
+    ).fetchone()
+    if not risk:
+        return
+    residual = round(risk["inherent_likelihood"] * risk["inherent_impact"] * (1 - ce / 5), 2)
+    db.execute(
+        "UPDATE orm_rcsa_risks SET control_effectiveness=%s, residual_score=%s WHERE id=%s",
+        (ce, residual, risk_id)
+    )
+
+
 def list_rcsa_controls(risk_id):
     db = get_db()
     try:
@@ -600,6 +632,8 @@ def create_rcsa_control(data):
              data.get("test_date"), data.get("tested_by"),
              data.get("evidence_notes"), data.get("gap_description"))
         )
+        if data.get("risk_id"):
+            _recompute_risk_effectiveness(db, data["risk_id"])
         db.commit()
         return cur
     finally:
@@ -609,6 +643,7 @@ def create_rcsa_control(data):
 def update_rcsa_control(control_id, data):
     db = get_db()
     try:
+        row = db.execute("SELECT risk_id FROM orm_rcsa_controls WHERE id=%s", (control_id,)).fetchone()
         fields, vals = [], []
         for k in ("name", "aria_control_id", "design_effectiveness", "operating_effectiveness",
                   "test_date", "tested_by", "evidence_notes", "gap_description"):
@@ -617,7 +652,9 @@ def update_rcsa_control(control_id, data):
         if fields:
             vals.append(control_id)
             db.execute(f"UPDATE orm_rcsa_controls SET {','.join(fields)} WHERE id=%s", vals)
-            db.commit()
+        if row:
+            _recompute_risk_effectiveness(db, row["risk_id"])
+        db.commit()
     finally:
         db.close()
 
@@ -625,7 +662,10 @@ def update_rcsa_control(control_id, data):
 def delete_rcsa_control(control_id):
     db = get_db()
     try:
+        row = db.execute("SELECT risk_id FROM orm_rcsa_controls WHERE id=%s", (control_id,)).fetchone()
         db.execute("DELETE FROM orm_rcsa_controls WHERE id=%s", (control_id,))
+        if row:
+            _recompute_risk_effectiveness(db, row["risk_id"])
         db.commit()
     finally:
         db.close()
