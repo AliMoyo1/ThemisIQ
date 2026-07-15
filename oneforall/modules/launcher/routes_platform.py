@@ -2107,5 +2107,5 @@ async def api_links_delete(request: Request, link_id: int):
 @require_auth
 async def timeline_page(request: Request):
     """Render the Governance Timeline SPA page."""
-    ctx = shell_ctx(request, active_module="platform")
-    return shell_templates.TemplateResponse("timeline.html", ctx)
+    ctx = shell_ctx(request, active_module="timeline")
+    return shell_templates.TemplateResponse(request, "timeline.html", ctx)
