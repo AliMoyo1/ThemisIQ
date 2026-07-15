@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local databases (dev only: prod uses PostgreSQL)
+oneforall/data/*.db
+oneforall/data/*.db-journal
+oneforall/data/*.db-wal
+oneforall/data/*.db-shm
+
+# Scratch / generated artifacts
+_logo_b64.txt
+oneforall/scripts/.dry_run_diff.txt
+*.bak
+
+# Local demo / documentation exports (kept locally, not in git)
+ThemisIQ_Business_Case.pdf
+ThemisIQ_Platform_Manual.pdf
+ThemisIQ_Pentest_Report_*.docx
+ThemisIQ_Demo_Script.md
+ThemisIQ_User_Manual.md
+ThemisIQ_Architecture.html
+ThemisIQ_PreLaunch_Tracker.xlsx
+themisiq-logo-clear.png
+themisiq-logo-dark.png
+generate_docs.py
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Bridge test log (ephemeral, not source)
+themisiq_wa_bridge/tests/audit.test.log.jsonl
