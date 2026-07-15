@@ -3027,3 +3027,98 @@ def workflow_trigger_on_grid_audit(event_type, source_module, entity_type,
         _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
     finally:
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# T1.3: CONTROL EFFECTIVENESS RECOMPUTE TRIGGERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@on("grid.audit.completed")
+def recompute_effectiveness_on_audit(event_type, source_module, entity_type,
+                                     entity_id, payload, user_id, **kw):
+    """When a GRID audit completes, recompute scores for controls linked to it."""
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT DISTINCT gc.canonical_control_id FROM grid_controls gc "
+            "WHERE gc.audit_id = %s AND gc.canonical_control_id IS NOT NULL",
+            (entity_id,),
+        ).fetchall()
+        if not rows:
+            return
+        from modules.governance.effectiveness import recompute_controls_by_ids
+        cids = [r[0] for r in rows]
+        count = recompute_controls_by_ids(db, cids)
+        db.commit()
+        log.info("T1.3: audit %d completed -> recomputed %d control score(s)", entity_id, count)
+    except Exception as exc:
+        log.warning("recompute_effectiveness_on_audit error: %s", exc)
+    finally:
+        db.close()
+
+
+@on("control.status_changed")
+def recompute_effectiveness_on_status_change(event_type, source_module, entity_type,
+                                              entity_id, payload, user_id, **kw):
+    """When a control status changes, recompute its canonical control score if linked."""
+    db = get_db()
+    try:
+        cid = payload.get("canonical_control_id")
+        if not cid:
+            # Try to find via aria_controls or grid_controls
+            for tbl in ("aria_controls", "grid_controls", "orm_rcsa_controls"):
+                try:
+                    row = db.execute(
+                        f"SELECT canonical_control_id FROM {tbl} WHERE id=%s",
+                        (entity_id,),
+                    ).fetchone()
+                    if row and row[0]:
+                        cid = row[0]
+                        break
+                except Exception:
+                    continue
+        if not cid:
+            return
+        from modules.governance.effectiveness import recompute_control
+        recompute_control(db, int(cid))
+        db.commit()
+        log.info("T1.3: control status change -> recomputed score for canonical_control %s", cid)
+    except Exception as exc:
+        log.warning("recompute_effectiveness_on_status_change error: %s", exc)
+    finally:
+        db.close()
+
+
+@on("orm.event.logged")
+def recompute_effectiveness_on_orm_event(event_type, source_module, entity_type,
+                                          entity_id, payload, user_id, **kw):
+    """When a high/critical ORM event is logged, recompute controls linked to its risk."""
+    severity = (payload.get("severity") or "").lower()
+    if severity not in ("high", "critical"):
+        return
+    db = get_db()
+    try:
+        event_row = db.execute(
+            "SELECT erm_risk_id FROM orm_events WHERE id=%s", (entity_id,)
+        ).fetchone()
+        if not event_row or not event_row[0]:
+            return
+        risk_id = event_row[0]
+        rows = db.execute(
+            "SELECT DISTINCT control_id FROM risk_controls WHERE risk_id=%s",
+            (risk_id,),
+        ).fetchall()
+        if not rows:
+            return
+        from modules.governance.effectiveness import recompute_controls_by_ids
+        cids = [r[0] for r in rows if r[0]]
+        count = recompute_controls_by_ids(db, cids)
+        db.commit()
+        log.info(
+            "T1.3: ORM %s event %d -> risk %d -> recomputed %d control score(s)",
+            severity, entity_id, risk_id, count,
+        )
+    except Exception as exc:
+        log.warning("recompute_effectiveness_on_orm_event error: %s", exc)
+    finally:
+        db.close()

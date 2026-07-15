@@ -142,6 +142,24 @@ def _expiry_check() -> None:
 
         db.commit()
         log.info("Evidence expiry check: %d task(s) created", total_created)
+
+        # T1.3: recompute effectiveness for controls that have expiring evidence
+        try:
+            from modules.governance.effectiveness import recompute_controls_by_ids
+            ctrl_rows = db.execute(
+                "SELECT DISTINCT el.entity_id FROM evidence_links el "
+                "JOIN evidence_items ei ON ei.id = el.evidence_id "
+                "WHERE el.entity_type = 'canonical_control' "
+                "AND ei.status = 'current' "
+                f"AND ei.expiry_date <= {sql_date_offset('+30 days')}"
+            ).fetchall()
+            if ctrl_rows:
+                cids = [r[0] for r in ctrl_rows]
+                count = recompute_controls_by_ids(db, cids)
+                db.commit()
+                log.info("Evidence scheduler: recomputed %d control score(s) after expiry check", count)
+        except Exception as eff_exc:
+            log.warning("Evidence scheduler: effectiveness recompute failed: %s", eff_exc)
     except Exception as e:
         log.warning("Evidence expiry check failed: %s", e)
     finally:

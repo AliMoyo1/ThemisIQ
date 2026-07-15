@@ -14,6 +14,7 @@ from core.middleware import require_capability
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
 from modules.governance import data_service as ds
+from database import get_db
 
 
 router = APIRouter(prefix="/governance", tags=["governance"])
@@ -306,3 +307,37 @@ async def api_ctrl_delete(request: Request, cid: int):
     if not ok:
         return JSONResponse({"ok": False, "error": "Control is linked to one or more risks"}, status_code=409)
     return JSONResponse({"ok": True})
+
+
+@router.get("/api/controls/{cid}/effectiveness")
+@require_capability("governance.entities.view")
+async def api_ctrl_effectiveness(request: Request, cid: int):
+    """Return the stored effectiveness score for a control, or compute it on-demand."""
+    db = get_db()
+    try:
+        from modules.governance.effectiveness import get_control_score, recompute_control
+        score_row = get_control_score(db, cid)
+        if score_row is None:
+            # First request: compute and store now
+            recompute_control(db, cid)
+            db.commit()
+            score_row = get_control_score(db, cid)
+        if score_row is None:
+            raise HTTPException(404, "Control not found or could not be scored")
+        return JSONResponse(score_row)
+    finally:
+        db.close()
+
+
+@router.post("/api/controls/{cid}/effectiveness/recompute")
+@require_capability("governance.entities.manage")
+async def api_ctrl_recompute(request: Request, cid: int):
+    """Force recompute of a control's effectiveness score."""
+    db = get_db()
+    try:
+        from modules.governance.effectiveness import recompute_control
+        score = recompute_control(db, cid)
+        db.commit()
+        return JSONResponse({"ok": True, "score": score})
+    finally:
+        db.close()

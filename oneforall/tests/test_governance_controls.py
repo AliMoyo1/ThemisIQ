@@ -50,6 +50,20 @@ def _init_test_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, status TEXT DEFAULT 'open',
             likelihood INTEGER DEFAULT 1, impact INTEGER DEFAULT 1, source_module TEXT
         );
+        CREATE TABLE IF NOT EXISTS control_effectiveness_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            control_id INTEGER NOT NULL,
+            score INTEGER NOT NULL DEFAULT 0,
+            evidence_uploaded INTEGER DEFAULT 0,
+            evidence_valid INTEGER DEFAULT 0,
+            audit_passed INTEGER DEFAULT 0,
+            tested_recently INTEGER DEFAULT 0,
+            owner_reviewed INTEGER DEFAULT 0,
+            automated INTEGER DEFAULT 0,
+            no_recent_incidents INTEGER DEFAULT 0,
+            scored_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(control_id)
+        );
         INSERT OR IGNORE INTO users (id, username, full_name) VALUES (1, 'test', 'Test User');
         INSERT OR IGNORE INTO business_units (id, name) VALUES (1, 'Default BU');
         """

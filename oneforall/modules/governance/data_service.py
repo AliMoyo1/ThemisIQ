@@ -540,9 +540,11 @@ def list_canonical_controls(bu_id: int | None = None, include_inactive: bool = F
     db = get_db()
     try:
         sql = ("SELECT cc.*, bu.name AS bu_name, "
-               "(SELECT full_name FROM users WHERE id=cc.owner_user_id) AS owner_name "
+               "(SELECT full_name FROM users WHERE id=cc.owner_user_id) AS owner_name, "
+               "ces.score AS score, ces.scored_at AS scored_at "
                "FROM canonical_controls cc "
-               "LEFT JOIN business_units bu ON bu.id=cc.business_unit_id")
+               "LEFT JOIN business_units bu ON bu.id=cc.business_unit_id "
+               "LEFT JOIN control_effectiveness_scores ces ON ces.control_id=cc.id")
         clauses, params = [], []
         if not include_inactive:
             clauses.append("cc.is_active=1")

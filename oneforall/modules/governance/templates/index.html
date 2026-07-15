@@ -161,7 +161,7 @@
       </div>
     </div>
     <table class="gov-table" id="ctrlTable">
-      <thead><tr><th>Ref</th><th>Title</th><th>Owner</th><th>Automation</th><th>Last Tested</th><th>Status</th><th class="actions">Actions</th></tr></thead>
+      <thead><tr><th>Ref</th><th>Title</th><th>Owner</th><th>Automation</th><th>Last Tested</th><th>Score</th><th>Status</th><th class="actions">Actions</th></tr></thead>
       <tbody id="ctrlTBody"></tbody>
     </table>
   </div>
@@ -413,25 +413,36 @@ function govEditApp(id){var r = govAppList.find(x=>x.id===id); if(r) govOpenAppM
 function govDeleteApp(id){if(!confirm('Delete this application?')) return; apiFetch('/governance/api/applications/'+id, {method:'DELETE'}).then(()=>{ govLoadApps(); govLoadSummary(); }).catch(err=>alert(err.message));}
 
 // ── Canonical Controls ───────────────────────────────────────────────
+function govScoreColor(s){
+  if(s==null) return '';
+  if(s>=100) return 'background:rgba(59,130,246,.15);color:#3b82f6';
+  if(s>=60)  return 'background:rgba(22,163,74,.15);color:#16a34a';
+  if(s>=30)  return 'background:rgba(234,179,8,.15);color:#ca8a04';
+  return 'background:rgba(220,38,38,.15);color:#dc2626';
+}
 var govCtrlList = [];
 function govLoadControls(){
   var bu = document.getElementById('ctrlBuFilter').value;
   apiFetch('/governance/api/controls' + (bu ? '?bu_id='+bu : '')).then(rows=>{
     govCtrlList = rows;
     var tbody = document.getElementById('ctrlTBody');
-    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No controls yet.</td></tr>'; return}
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No controls yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
       var actions = CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditCtrl('+r.id+')">Edit</button> '+
         '<button class="gov-btn ghost small" onclick="govDeleteCtrl('+r.id+')">Delete</button>'
       ) : '';
       var lastTested = r.last_tested_at ? r.last_tested_at.substring(0,10) : '–';
+      var scoreBadge = r.score!=null
+        ? '<span class="badge" title="Scored: '+(r.scored_at||'').substring(0,10)+'" style="'+govScoreColor(r.score)+'">'+r.score+'</span>'
+        : '<span style="color:var(--muted);font-size:.8rem">–</span>';
       return '<tr>'
         + '<td><code style="background:var(--surface2);padding:2px 6px;border-radius:3px">'+esc(r.ref || '–')+'</code></td>'
         + '<td><strong>'+esc(r.title)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.owner_name || '–')+'</td>'
         + '<td>'+esc(r.automation || '–')+'</td>'
         + '<td>'+lastTested+'</td>'
+        + '<td>'+scoreBadge+'</td>'
         + '<td>'+(r.is_active ? '<span class="badge" style="background:rgba(22,163,74,.15);color:#16a34a">Active</span>' : '<span class="badge badge-inactive">Inactive</span>')+'</td>'
         + '<td class="actions">'+actions+'</td>'
       + '</tr>';

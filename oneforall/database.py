@@ -2058,6 +2058,23 @@ CREATE TABLE IF NOT EXISTS canonical_controls (
 );
 CREATE INDEX IF NOT EXISTS idx_canonical_controls_title ON canonical_controls(lower(trim(title)));
 
+-- ── Control Effectiveness Scores (T1.3) ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS control_effectiveness_scores (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    control_id           INTEGER NOT NULL REFERENCES canonical_controls(id) ON DELETE CASCADE,
+    score                INTEGER NOT NULL DEFAULT 0,
+    evidence_uploaded    INTEGER DEFAULT 0,
+    evidence_valid       INTEGER DEFAULT 0,
+    audit_passed         INTEGER DEFAULT 0,
+    tested_recently      INTEGER DEFAULT 0,
+    owner_reviewed       INTEGER DEFAULT 0,
+    automated            INTEGER DEFAULT 0,
+    no_recent_incidents  INTEGER DEFAULT 0,
+    scored_at            TEXT DEFAULT (datetime('now')),
+    UNIQUE(control_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ces_control ON control_effectiveness_scores(control_id);
+
 -- ── GRID: Vendors
 CREATE TABLE IF NOT EXISTS grid_vendors (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3745,6 +3762,8 @@ _COLUMN_MIGRATIONS = [
         ("grid_controls",     "canonical_control_id", "INTEGER"),
         ("orm_rcsa_controls", "canonical_control_id", "INTEGER"),
         ("users",             "business_unit_id",     "INTEGER"),
+        # ── Governance Graph T1.3: effectiveness scoring timestamp ────────────
+        ("canonical_controls", "last_scored_at",      "TEXT"),
 ]
 
 

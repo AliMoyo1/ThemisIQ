@@ -214,6 +214,13 @@ async def startup():
     except Exception as exc:
         log.warning("Workflow/SLA scheduler failed to start: %s", exc)
 
+    # Start Governance scheduler (nightly control effectiveness recompute at 03:00 UTC)
+    try:
+        from modules.governance.scheduler import start_scheduler as governance_start
+        governance_start()
+    except Exception as exc:
+        log.warning("Governance scheduler failed to start: %s", exc)
+
     # Migrate: add due_at column to workflow_actions (idempotent via IF NOT EXISTS)
     try:
         _db_wf = get_db()
@@ -275,6 +282,11 @@ async def shutdown():
     try:
         from core.workflow_scheduler import stop_scheduler as workflow_stop
         workflow_stop()
+    except Exception:
+        pass
+    try:
+        from modules.governance.scheduler import stop_scheduler as governance_stop
+        governance_stop()
     except Exception:
         pass
     log.info("ThemisIQ shutting down")
