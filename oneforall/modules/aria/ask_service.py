@@ -499,6 +499,26 @@ def _extract_json_block(text: str) -> tuple[str, Optional[dict | list]]:
     return cleaned, parsed
 
 
+_GREETING_RE = re.compile(
+    r"^(hi+|hello+|hey+|good\s+(morning|afternoon|evening|day)|howdy|greetings|"
+    r"sup|what'?s\s+up|yo+|hiya|hola|salut|bonjour|ciao|namaste|"
+    r"how\s+are\s+you|how('?s|\s+is)\s+(it\s+going|things)|"
+    r"nice\s+to\s+meet\s+you|who\s+are\s+you|what\s+(can|do)\s+you\s+do|"
+    r"thanks?|thank\s+you|cheers|bye|goodbye|see\s+you|take\s+care|"
+    r"ok(ay)?|sure|got\s+it|understood|noted|cool|great|awesome)"
+    r"[!?.]*\s*$",
+    re.IGNORECASE,
+)
+
+_GREETING_RESPONSE = (
+    "Hi! I'm ARIA, your AI policy assistant. I can answer questions grounded in "
+    "your organisation's published compliance policies, controls, and risk register. "
+    "Try asking things like: \"What is our data retention policy?\", "
+    "\"Who is responsible for access control reviews?\", or "
+    "\"What controls do we have for third-party vendor risk?\""
+)
+
+
 async def ask(question: str, user: Optional[dict] = None,
               framework_filter: str = "",
               conversation_history: list = None) -> dict:
@@ -510,6 +530,16 @@ async def ask(question: str, user: Optional[dict] = None,
     """
     started = datetime.now()
     ms = lambda: int((datetime.now() - started).total_seconds() * 1000)
+
+    if _GREETING_RE.match(question.strip()):
+        result = {
+            "success": True, "covered": True,
+            "answer": _GREETING_RESPONSE,
+            "citations": [], "nearest_owner": None, "framework": None,
+            "chunks_retrieved": 0, "latency_ms": ms(), "error": None,
+        }
+        result["log_id"] = _log_qa(user, question, result)
+        return result
 
     init_index()
     chunks = search(question, k=8, framework_filter=framework_filter)
