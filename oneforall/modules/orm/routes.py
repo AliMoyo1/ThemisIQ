@@ -11,6 +11,7 @@ from core.shell_context import shell_ctx
 from core.events import emit, ORM_EVENT_LOGGED, ORM_EVENT_ELEVATED, ORM_EVENT_RESOLVED
 from modules.orm import data_service as ds
 from modules.orm import ai_service as ai
+from modules.governance.data_service import bu_scope_ids
 
 router = APIRouter(prefix="/orm", tags=["orm"])
 templates = Jinja2Templates(directory=["modules/orm/templates", "templates"])
@@ -98,6 +99,7 @@ async def api_events_list(request: Request):
         department=p.get("department"),
         date_from=p.get("date_from"),
         date_to=p.get("date_to"),
+        bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
@@ -106,6 +108,9 @@ async def api_events_list(request: Request):
 async def api_event_detail(request: Request, event_id: int):
     ev = ds.get_event(event_id)
     if not ev:
+        raise HTTPException(404)
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and ev.get("business_unit_id") is not None and ev["business_unit_id"] not in scope:
         raise HTTPException(404)
     return JSONResponse(ev)
 

@@ -23,6 +23,24 @@ router = APIRouter(prefix="/evidence", tags=["evidence"])
 EVIDENCE_DIR = Path(os.getenv("EVIDENCE_DIR", "data/evidence"))
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
+# Known magic-byte signatures keyed by extension: list of (signature, offset) pairs.
+# Only extensions with reliable binary headers are listed; text formats (.txt/.csv/etc.) are omitted.
+_MAGIC: dict = {
+    ".pdf":  [(b"%PDF", 0)],
+    ".png":  [(b"\x89PNG\r\n\x1a\n", 0)],
+    ".jpg":  [(b"\xff\xd8\xff", 0)],
+    ".jpeg": [(b"\xff\xd8\xff", 0)],
+    ".gif":  [(b"GIF87a", 0), (b"GIF89a", 0)],
+    ".webp": [(b"RIFF", 0)],
+    ".docx": [(b"PK\x03\x04", 0), (b"PK\x05\x06", 0)],
+    ".xlsx": [(b"PK\x03\x04", 0), (b"PK\x05\x06", 0)],
+    ".pptx": [(b"PK\x03\x04", 0), (b"PK\x05\x06", 0)],
+    ".zip":  [(b"PK\x03\x04", 0), (b"PK\x05\x06", 0), (b"PK\x07\x08", 0)],
+    ".doc":  [(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 0)],
+    ".xls":  [(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 0)],
+    ".ppt":  [(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", 0)],
+}
+
 shell_templates = Jinja2Templates(directory=["templates", "modules/evidence/templates"])
 
 
@@ -130,6 +148,18 @@ async def api_evidence_upload(
 
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
     content = await file.read()
+
+    # Magic-byte check: verify content matches declared extension
+    original_ext_check = Path(file.filename or "file").suffix.lower()
+    sigs = _MAGIC.get(original_ext_check)
+    if sigs:
+        header = content[:16]
+        if not any(header[off: off + len(sig)] == sig for sig, off in sigs):
+            return JSONResponse(
+                {"error": "File content does not match its declared type."},
+                status_code=400,
+            )
+
     file_hash = hashlib.sha256(content).hexdigest()
 
     # ── Duplicate detection ────────────────────────────────────────────────
@@ -153,11 +183,12 @@ async def api_evidence_upload(
         original_name = file.filename or "file"
         ext = Path(original_name).suffix.lower()
 
-        # Block dangerous executable extensions
+        # Block dangerous executable extensions (including HTML/SVG which can carry XSS)
         blocked_extensions = frozenset({
             ".exe", ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse",
             ".wsf", ".wsh", ".msi", ".scr", ".com", ".pif", ".hta", ".cpl",
-            ".inf", ".reg", ".dll", ".sys", ".drv", ".lnk",
+            ".inf", ".reg", ".dll", ".sys", ".drv", ".lnk", ".html", ".htm",
+            ".svg", ".xhtml",
         })
         if ext in blocked_extensions:
             return JSONResponse(
@@ -173,9 +204,9 @@ async def api_evidence_upload(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
-            "text/plain", "text/csv", "text/html", "text/xml",
+            "text/plain", "text/csv", "text/xml",
             "application/json", "application/xml",
-            "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+            "image/png", "image/jpeg", "image/gif", "image/webp",
             "application/zip", "application/x-zip-compressed",
             "application/octet-stream",  # fallback for unknown — extension check is primary gate
         })

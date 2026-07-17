@@ -536,7 +536,7 @@ def import_framework(payload, name_override=None):
 # ENTERPRISE RISKS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_enterprise_risks(category=None, status=None, source_module=None, board_only=False, limit=500, bu_id=None):
+def list_enterprise_risks(category=None, status=None, source_module=None, board_only=False, limit=500, bu_id=None, bu_scope=None):
     db = get_db()
     try:
         where, params = [], []
@@ -550,6 +550,10 @@ def list_enterprise_risks(category=None, status=None, source_module=None, board_
             where.append("board_visibility=1")
         if bu_id is not None:
             where.append("business_unit_id=%s"); params.append(bu_id)
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            where.append(f"(business_unit_id IN ({ph}) OR business_unit_id IS NULL)")
+            params.extend(bu_scope)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = db.execute(
             f"SELECT e.*, u.full_name AS owner_name "

@@ -208,7 +208,7 @@ def delete_ropa(ropa_id):
     _generic_delete("sentinel_ropa", ropa_id)
 
 
-def list_ropa(search=None, regulation=None, status=None, risk=None, limit=500):
+def list_ropa(search=None, regulation=None, status=None, risk=None, limit=500, bu_scope=None):
     sql = "SELECT * FROM sentinel_ropa WHERE 1=1"
     params = []
     if search:
@@ -224,6 +224,10 @@ def list_ropa(search=None, regulation=None, status=None, risk=None, limit=500):
     if risk:
         sql += " AND risk_level=%s"
         params.append(risk)
+    if bu_scope is not None:
+        ph = ",".join(["%s"] * len(bu_scope))
+        sql += f" AND (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
+        params.extend(bu_scope)
     sql += " ORDER BY updated_at DESC LIMIT %s"
     params.append(limit)
     db = get_db()
@@ -269,7 +273,7 @@ def delete_dpia(dpia_id):
     _generic_delete("sentinel_dpias", dpia_id)
 
 
-def list_dpias(search=None, regulation=None, status=None, limit=500):
+def list_dpias(search=None, regulation=None, status=None, limit=500, bu_scope=None):
     sql = "SELECT * FROM sentinel_dpias WHERE 1=1"
     params = []
     if search:
@@ -282,6 +286,10 @@ def list_dpias(search=None, regulation=None, status=None, limit=500):
     if status:
         sql += " AND status=%s"
         params.append(status)
+    if bu_scope is not None:
+        ph = ",".join(["%s"] * len(bu_scope))
+        sql += f" AND (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
+        params.extend(bu_scope)
     sql += " ORDER BY updated_at DESC LIMIT %s"
     params.append(limit)
     db = get_db()
@@ -331,7 +339,7 @@ def delete_breach(bid):
     _generic_delete("sentinel_breaches", bid)
 
 
-def list_breaches(search=None, status=None, severity=None, limit=500):
+def list_breaches(search=None, status=None, severity=None, limit=500, bu_scope=None):
     sql = "SELECT * FROM sentinel_breaches WHERE 1=1"
     params = []
     if search:
@@ -344,6 +352,10 @@ def list_breaches(search=None, status=None, severity=None, limit=500):
     if severity:
         sql += " AND severity=%s"
         params.append(severity)
+    if bu_scope is not None:
+        ph = ",".join(["%s"] * len(bu_scope))
+        sql += f" AND (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
+        params.extend(bu_scope)
     sql += " ORDER BY updated_at DESC LIMIT %s"
     params.append(limit)
     db = get_db()

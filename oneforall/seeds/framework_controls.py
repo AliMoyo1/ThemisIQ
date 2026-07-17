@@ -375,6 +375,40 @@ ISO_50001 = [
     {"ref": "9.1", "name": "Monitoring and measurement", "category": "Performance", "description": "Monitor, measure and analyse energy performance"},
 ]
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ISO 45001:2018 — Occupational Health and Safety Management System
+# ═══════════════════════════════════════════════════════════════════════════════
+ISO_45001 = [
+    {"ref": "4.1", "name": "Understanding the organization and its context", "category": "Context", "description": "Determine external and internal issues relevant to OH&S outcomes"},
+    {"ref": "4.2", "name": "Understanding needs of workers and interested parties", "category": "Context", "description": "Determine interested parties, including workers, and their OH&S requirements"},
+    {"ref": "4.3", "name": "Determining the scope of the OH&S management system", "category": "Context", "description": "Determine boundaries and applicability of the OH&S management system"},
+    {"ref": "5.1", "name": "Leadership and commitment", "category": "Leadership", "description": "Top management demonstrates leadership and commitment to the OH&S management system"},
+    {"ref": "5.2", "name": "OH&S policy", "category": "Leadership", "description": "Establish, implement and maintain an OH&S policy with commitment to safe and healthy working conditions"},
+    {"ref": "5.3", "name": "Organizational roles, responsibilities and authorities", "category": "Leadership", "description": "Assign and communicate roles, responsibilities and authorities for the OH&S system"},
+    {"ref": "5.4", "name": "Consultation and participation of workers", "category": "Leadership", "description": "Establish processes for consultation and participation of workers at all levels"},
+    {"ref": "6.1.1", "name": "Actions to address risks and opportunities (general)", "category": "Planning", "description": "Plan actions to address OH&S risks, opportunities, legal requirements and emergency preparedness"},
+    {"ref": "6.1.2", "name": "Hazard identification and assessment of risks", "category": "Planning", "description": "Establish processes for ongoing hazard identification considering routine and non-routine activities, human factors, and past incidents"},
+    {"ref": "6.1.3", "name": "Determination of legal and other requirements", "category": "Planning", "description": "Determine and access applicable legal requirements and other OH&S obligations"},
+    {"ref": "6.1.4", "name": "Planning action", "category": "Planning", "description": "Plan actions to address risks, opportunities, legal requirements, and prepare for emergencies"},
+    {"ref": "6.2", "name": "OH&S objectives and planning to achieve them", "category": "Planning", "description": "Establish measurable OH&S objectives consistent with the OH&S policy"},
+    {"ref": "7.1", "name": "Resources", "category": "Support", "description": "Determine and provide resources needed for the OH&S management system"},
+    {"ref": "7.2", "name": "Competence", "category": "Support", "description": "Determine competence of workers that affects OH&S performance, ensure training and qualifications"},
+    {"ref": "7.3", "name": "Awareness", "category": "Support", "description": "Workers shall be aware of the OH&S policy, hazards, and their right to remove themselves from danger"},
+    {"ref": "7.4", "name": "Communication", "category": "Support", "description": "Determine internal and external communications relevant to the OH&S management system"},
+    {"ref": "7.5", "name": "Documented information", "category": "Support", "description": "Create, update and control documented information required by the OH&S system"},
+    {"ref": "8.1.1", "name": "Operational planning and control (general)", "category": "Operation", "description": "Plan, implement, control and maintain processes to meet OH&S requirements"},
+    {"ref": "8.1.2", "name": "Eliminating hazards and reducing OH&S risks", "category": "Operation", "description": "Eliminate hazards and reduce risks using the hierarchy of controls: eliminate, substitute, engineer, administer, PPE"},
+    {"ref": "8.1.3", "name": "Management of change", "category": "Operation", "description": "Manage planned and unplanned changes that impact OH&S performance"},
+    {"ref": "8.1.4", "name": "Procurement and contractors", "category": "Operation", "description": "Control procurement processes and coordinate with contractors to ensure OH&S requirements are met"},
+    {"ref": "8.2", "name": "Emergency preparedness and response", "category": "Operation", "description": "Establish processes for emergency preparedness including planned response, first aid, drills and post-incident evaluation"},
+    {"ref": "9.1.1", "name": "Monitoring, measurement, analysis and evaluation", "category": "Performance", "description": "Determine what to monitor and measure, methods of analysis, and criteria for evaluating OH&S performance"},
+    {"ref": "9.1.2", "name": "Evaluation of compliance", "category": "Performance", "description": "Establish processes to evaluate fulfilment of legal requirements and other obligations"},
+    {"ref": "9.2", "name": "Internal audit", "category": "Performance", "description": "Conduct internal audits at planned intervals to verify the OH&S system conforms and is effective"},
+    {"ref": "9.3", "name": "Management review", "category": "Performance", "description": "Top management reviews the OH&S system including trends in incidents, risks, and consultation outcomes"},
+    {"ref": "10.2", "name": "Incident, nonconformity and corrective action", "category": "Improvement", "description": "React to incidents and nonconformities, investigate root causes, and take corrective action to prevent recurrence"},
+    {"ref": "10.3", "name": "Continual improvement", "category": "Improvement", "description": "Continually improve the suitability, adequacy and effectiveness of the OH&S management system"},
+]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Mapping: framework name → controls list
@@ -395,6 +429,7 @@ FRAMEWORK_CONTROLS = {
     "ISO 31000:2018": ISO_31000,
     "ISO 14001:2015": ISO_14001,
     "ISO 50001:2018": ISO_50001,
+    "ISO 45001:2018": ISO_45001,
 }
 
 
@@ -591,6 +626,51 @@ CURATED_MAPPINGS = {
         ("9.1",  "164.310(a)(1)"),  ("10.2", "164.312(b)"),
         ("12.1", "164.308(a)(1)"),  ("12.6", "164.308(a)(5)"),
         ("12.10","164.308(a)(6)"),  ("4.1",  "164.312(e)(1)"),
+    ],
+
+    # ── ISO 45001 <-> ISO 27001 (risk + incident + compliance overlap) ──────
+    ("ISO 27001:2022", "ISO 45001:2018"): [
+        ("A.5.1",  "5.2"),     ("A.5.2",  "5.3"),     ("A.5.31", "6.1.3"),
+        ("A.5.24", "10.2"),    ("A.5.26", "10.2"),     ("A.5.29", "8.2"),
+        ("A.5.35", "9.2"),     ("A.5.36", "9.1.2"),    ("A.6.3",  "7.2"),
+        ("A.6.8",  "10.2"),
+    ],
+
+    # ── Annex SL: ISO 45001 <-> ISO 9001 ────────────────────────────────────
+    ("ISO 9001:2015", "ISO 45001:2018"): [
+        ("4.1",  "4.1"),   ("4.2",  "4.2"),   ("5.1",  "5.1"),
+        ("5.2",  "5.2"),   ("6.1",  "6.1.1"), ("7.1",  "7.1"),
+        ("7.2",  "7.2"),   ("7.5",  "7.5"),   ("8.1",  "8.1.1"),
+        ("9.1",  "9.1.1"), ("9.2",  "9.2"),   ("9.3",  "9.3"),
+        ("10.1", "10.2"),  ("10.3", "10.3"),
+    ],
+
+    # ── Annex SL: ISO 45001 <-> ISO 14001 (EMS + OH&S twin standards) ──────
+    ("ISO 14001:2015", "ISO 45001:2018"): [
+        ("4.1",   "4.1"),     ("4.3",   "4.3"),    ("5.2",   "5.2"),
+        ("6.1.2", "6.1.2"),   ("6.1.3", "6.1.3"),  ("6.2",   "6.2"),
+        ("7.2",   "7.2"),     ("8.1",   "8.1.1"),  ("8.2",   "8.2"),
+        ("9.1.2", "9.1.2"),   ("9.2",   "9.2"),    ("10.2",  "10.3"),
+    ],
+
+    # ── Annex SL: ISO 45001 <-> ISO 22301 (continuity + emergency) ──────────
+    ("ISO 22301:2019", "ISO 45001:2018"): [
+        ("4.1",  "4.1"),   ("5.2",  "5.2"),   ("6.1",  "6.1.1"),
+        ("8.5",  "8.2"),   ("9.1",  "9.1.1"), ("9.2",  "9.2"),
+        ("10.1", "10.2"),
+    ],
+
+    # ── ISO 45001 <-> ISO 31000 (risk management) ───────────────────────────
+    ("ISO 31000:2018", "ISO 45001:2018"): [
+        ("5.2",   "5.1"),     ("5.4.1", "4.1"),    ("5.4.2", "5.2"),
+        ("6.4.1", "6.1.2"),   ("6.4.2", "6.1.2"),  ("6.5",   "6.1.4"),
+        ("6.6",   "9.1.1"),   ("6.7",   "7.4"),
+    ],
+
+    # ── Annex SL: ISO 45001 <-> ISO 50001 ───────────────────────────────────
+    ("ISO 50001:2018", "ISO 45001:2018"): [
+        ("4.1",  "4.1"),   ("5.2",  "5.2"),   ("6.1",  "6.1.1"),
+        ("8.1",  "8.1.1"), ("9.1",  "9.1.1"),
     ],
 }
 

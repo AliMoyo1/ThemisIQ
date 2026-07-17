@@ -15,6 +15,7 @@ from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_I
 from core.timeutils import utcnow, to_dt
 from modules.erm import data_service as ds
 from modules.erm import ai_service as ai
+from modules.governance.data_service import bu_scope_ids
 
 router = APIRouter(prefix="/erm", tags=["erm"])
 templates = Jinja2Templates(directory=["modules/erm/templates", "templates"])
@@ -85,6 +86,7 @@ async def api_risks_list(request: Request):
         source_module=p.get("source_module"),
         board_only=p.get("board_only") == "1",
         bu_id=int(p["bu_id"]) if p.get("bu_id") and p["bu_id"].isdigit() else None,
+        bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
@@ -93,6 +95,9 @@ async def api_risks_list(request: Request):
 async def api_risk_detail(request: Request, risk_id: int):
     r = ds.get_enterprise_risk(risk_id)
     if not r:
+        raise HTTPException(404, "Risk not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and r.get("business_unit_id") is not None and r["business_unit_id"] not in scope:
         raise HTTPException(404, "Risk not found")
     return JSONResponse(r)
 

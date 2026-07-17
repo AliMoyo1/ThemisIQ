@@ -24,6 +24,41 @@ def _now():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# BU SCOPE HELPER
+# ═════════════════════════════════════════════════════════════════════════════
+
+def bu_scope_ids(user: dict) -> "list[int] | None":
+    """Return the BU-id subtree the user is confined to, or None for unrestricted.
+
+    None means: see everything (super admin or no BU assigned).
+    A list means: only rows whose business_unit_id is in the list, or NULL.
+    The list always includes the user's own BU plus all active descendants.
+    """
+    if user.get("is_super_admin") or not user.get("business_unit_id"):
+        return None
+    root_id = int(user["business_unit_id"])
+    db = get_db()
+    try:
+        flat = _dicts(db.execute(
+            "SELECT id, parent_id FROM business_units WHERE is_active=1"
+        ).fetchall())
+    finally:
+        db.close()
+    children: dict[int, list[int]] = {}
+    for bu in flat:
+        pid = bu.get("parent_id")
+        if pid:
+            children.setdefault(int(pid), []).append(int(bu["id"]))
+    ids: list[int] = []
+    queue = [root_id]
+    while queue:
+        current = queue.pop()
+        ids.append(current)
+        queue.extend(children.get(current, []))
+    return ids
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # BUSINESS UNITS (self-referential SBU hierarchy)
 # ═════════════════════════════════════════════════════════════════════════════
 

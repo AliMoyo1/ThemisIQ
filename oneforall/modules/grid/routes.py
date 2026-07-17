@@ -24,6 +24,7 @@ from core.sanitize import sanitize_str as _s
 from core.shell_context import shell_ctx
 from modules.grid import data_service as ds
 from modules.grid import ai_service as ai
+from modules.governance.data_service import bu_scope_ids
 from modules.grid.email_service import send_email, nc_alert_html
 from core.events import (
     emit, GRID_AUDIT_COMPLETED, GRID_FINDING_CREATED, GRID_NC_RAISED,
@@ -126,7 +127,7 @@ async def api_frameworks_delete(request: Request, fid: int):
 @router.get("/api/audits")
 @require_capability("module.grid.access")
 async def api_audits_list(request: Request):
-    return JSONResponse(ds.list_audits())
+    return JSONResponse(ds.list_audits(bu_scope=bu_scope_ids(request.state.user)))
 
 
 @router.get("/api/audits/{aid}")
@@ -134,6 +135,9 @@ async def api_audits_list(request: Request):
 async def api_audits_detail(request: Request, aid: int):
     audit = ds.get_audit(aid)
     if not audit:
+        raise HTTPException(404, "Audit not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and audit.get("business_unit_id") is not None and audit["business_unit_id"] not in scope:
         raise HTTPException(404, "Audit not found")
     return JSONResponse(audit)
 

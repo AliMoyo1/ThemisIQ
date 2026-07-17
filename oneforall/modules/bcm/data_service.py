@@ -31,9 +31,15 @@ def _now():
 # BIA RECORDS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_bia(limit=200):
+def list_bia(limit=200, bu_scope=None):
     db = get_db()
     try:
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            return _dicts(db.execute(
+                f"SELECT * FROM bcm_bia_records WHERE (business_unit_id IN ({ph}) OR business_unit_id IS NULL) "
+                "ORDER BY criticality DESC, process_name LIMIT %s",
+                list(bu_scope) + [limit]).fetchall())
         return _dicts(db.execute(
             "SELECT * FROM bcm_bia_records ORDER BY criticality DESC, process_name LIMIT %s",
             (limit,)).fetchall())
@@ -176,9 +182,15 @@ def delete_risk(risk_id):
 # BCP PLANS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_plans(limit=200):
+def list_plans(limit=200, bu_scope=None):
     db = get_db()
     try:
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            return _dicts(db.execute(
+                f"SELECT * FROM bcm_plans WHERE (business_unit_id IN ({ph}) OR business_unit_id IS NULL) "
+                "ORDER BY updated_at DESC LIMIT %s",
+                list(bu_scope) + [limit]).fetchall())
         return _dicts(db.execute(
             "SELECT * FROM bcm_plans ORDER BY updated_at DESC LIMIT %s", (limit,)).fetchall())
     finally:

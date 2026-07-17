@@ -3979,6 +3979,7 @@ def _seed_baseline_data(conn):
         ("ISO 31000:2018", "Risk Management Guidelines", "#784212", "aria,bcm,grid"),
         ("ISO 14001:2015", "Environmental Management System", "#1D8348", "aria,grid"),
         ("ISO 50001:2018", "Energy Management System", "#117A65", "aria,grid"),
+        ("ISO 45001:2018", "Occupational Health and Safety Management System", "#D35400", "bcm,aria,grid"),
     ]
     # Seed unified frameworks table
     try:

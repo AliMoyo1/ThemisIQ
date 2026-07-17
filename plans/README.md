@@ -70,6 +70,25 @@ behavior-only:
 
 **Round 4 execution order: 16 → 17.** Independent of Rounds 1-3.
 
+## Round 4 status: OPEN
+
+| Plan | Status |
+|---|---|
+| [PLAN-16](PLAN-16-navigation-upgrade.md) | OPEN |
+| [PLAN-17](PLAN-17-first-impressions-refresh.md) | OPEN |
+
+## Interstitial — ARIA Ask fixes (PLAN-14)
+
+Fixes implemented between Rounds 4 and 5 in response to observed regressions:
+error-handling in ask_service.py + catch block in ask.html + multi-turn
+conversation memory + greeting handling.
+
+## PLAN-14 status: DONE
+
+| Plan | Status | Commits |
+|---|---|---|
+| [PLAN-14](PLAN-14-aria-ask-fixes.md) | DONE (2026-07-15) | `dca159a`, `ae4bb53`, `2872206`, `ab4c24c` |
+
 ## Round 5 — security round 2 + privacy/AI/BCM assessment engines (PLAN-18..22)
 
 Grounded in a read of the user's five working Excel files (BIA
@@ -83,7 +102,7 @@ conventions.
 
 | Rank | Plan | What | Impact | Effort | Why this rank |
 |---|---|---|---|---|---|
-| 1 | [PLAN-18](PLAN-18-security-round-2.md) | Org-enforced MFA, SBU data scoping, upload magic-byte checks | Closes the three real remaining security gaps; SBU scoping is the multi-tenant interior wall | ~3-4 days | Security asked first; SBU isolation is customer-visible |
+| 1 | [PLAN-18](PLAN-18-security-round-2.md) | Org-enforced MFA (Part A: DONE `af5e80d`), SBU data scoping (Part B: DONE 2026-07-16), upload magic-byte checks (Part C: DONE 2026-07-16) | Closes the three real remaining security gaps; SBU scoping is the multi-tenant interior wall | ~3-4 days | Security asked first; SBU isolation is customer-visible |
 | 2 | [PLAN-19](PLAN-19-ropa-dpia-integration.md) | RoPA ↔ DPIA link + prefill + drift banner | Kills the retyping the user reported; schema hooks already half-exist | ~1-2 days | Smallest effort, immediate daily-use payoff |
 | 3 | [PLAN-20](PLAN-20-aiia-ai-impact-assessment.md) | AIIA assessment type in Sentinel | The explicitly requested AIIA option, with editable dimensions and ERM-consistent banding | ~3-4 days | Explicit ask; independent of everything else |
 | 4 | [PLAN-21](PLAN-21-ai-controls-catalogue-aims-engine.md) | Editable AI controls catalogue (96 seeded) + AIMS/ORAAT risk engine in ORM | Digitizes the org's real ISO 42001 working model; strongest differentiator of the batch | ~1-1.5 weeks | Largest slice; resolves a scoring contradiction in the source sheets with one documented convention |

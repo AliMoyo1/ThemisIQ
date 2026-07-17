@@ -25,7 +25,7 @@ def _now():
 # ═════════════════════════════════════════════════════════════════════════════
 
 def list_events(event_type=None, severity=None, status=None, department=None,
-                date_from=None, date_to=None, limit=500):
+                date_from=None, date_to=None, limit=500, bu_scope=None):
     db = get_db()
     try:
         where, params = [], []
@@ -41,6 +41,10 @@ def list_events(event_type=None, severity=None, status=None, department=None,
             where.append("created_at >= %s"); params.append(date_from)
         if date_to:
             where.append("created_at <= %s"); params.append(date_to + " 23:59:59")
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            where.append(f"(e.business_unit_id IN ({ph}) OR e.business_unit_id IS NULL)")
+            params.extend(bu_scope)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         return _dicts(db.execute(
             f"SELECT e.*, u.full_name AS reporter_name, o.full_name AS owner_name "

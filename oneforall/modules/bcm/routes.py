@@ -20,6 +20,7 @@ router = APIRouter(prefix="/bcm", tags=["bcm"])
 templates = Jinja2Templates(directory=["modules/bcm/templates", "templates"])
 
 from modules.bcm import data_service as ds
+from modules.governance.data_service import bu_scope_ids
 
 def _uid(request: Request) -> int:
     return request.state.user["id"]
@@ -72,7 +73,7 @@ async def api_dashboard(request: Request):
 @router.get("/api/bia")
 @require_capability("module.bcm.access")
 async def api_bia_list(request: Request):
-    return JSONResponse(ds.list_bia())
+    return JSONResponse(ds.list_bia(bu_scope=bu_scope_ids(request.state.user)))
 
 
 @router.get("/api/bia/{bia_id}")
@@ -80,6 +81,9 @@ async def api_bia_list(request: Request):
 async def api_bia_detail(request: Request, bia_id: int):
     rec = ds.get_bia(bia_id)
     if not rec:
+        raise HTTPException(404, "BIA record not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and rec.get("business_unit_id") is not None and rec["business_unit_id"] not in scope:
         raise HTTPException(404, "BIA record not found")
     rec["plan_links"] = ds.list_bia_plan_links(bia_id=bia_id)
     return JSONResponse(rec)
@@ -331,7 +335,7 @@ async def api_risk_delete(request: Request, risk_id: int):
 @router.get("/api/plans")
 @require_capability("module.bcm.access")
 async def api_plans_list(request: Request):
-    return JSONResponse(ds.list_plans())
+    return JSONResponse(ds.list_plans(bu_scope=bu_scope_ids(request.state.user)))
 
 
 @router.get("/api/plans/active")
@@ -346,6 +350,9 @@ async def api_active_plans(request: Request):
 async def api_plan_detail(request: Request, plan_id: int):
     p = ds.get_plan(plan_id)
     if not p:
+        raise HTTPException(404)
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and p.get("business_unit_id") is not None and p["business_unit_id"] not in scope:
         raise HTTPException(404)
     p["bia_links"] = ds.list_bia_plan_links(plan_id=plan_id)
     p["reviews"] = ds.list_plan_reviews(plan_id)

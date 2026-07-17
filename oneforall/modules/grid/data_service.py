@@ -134,20 +134,28 @@ def delete_framework(fid):
         db.close()
 
 
-def list_audits():
+def list_audits(bu_scope=None):
     import json as _json
     db = get_db()
     try:
-        rows = _dicts(db.execute("""
-            SELECT a.*, f.name AS framework_name, f.color AS framework_color,
-                   u.full_name AS lead_name,
-                   (SELECT COUNT(*) FROM grid_controls WHERE audit_id=a.id) AS total_controls,
-                   (SELECT COUNT(*) FROM grid_controls WHERE audit_id=a.id AND status='Complete') AS complete_controls
-            FROM grid_audits a
-            LEFT JOIN grid_frameworks f ON a.framework_id=f.id
-            LEFT JOIN users u ON a.lead_id=u.id
-            ORDER BY a.created_at DESC
-        """).fetchall())
+        where_sql = ""
+        params: list = []
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            where_sql = f" WHERE (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
+            params = list(bu_scope)
+        rows = _dicts(db.execute(
+            "SELECT a.*, f.name AS framework_name, f.color AS framework_color, "
+            "u.full_name AS lead_name, "
+            "(SELECT COUNT(*) FROM grid_controls WHERE audit_id=a.id) AS total_controls, "
+            "(SELECT COUNT(*) FROM grid_controls WHERE audit_id=a.id AND status='Complete') AS complete_controls "
+            "FROM grid_audits a "
+            "LEFT JOIN grid_frameworks f ON a.framework_id=f.id "
+            "LEFT JOIN users u ON a.lead_id=u.id"
+            f"{where_sql}"
+            " ORDER BY a.created_at DESC",
+            params,
+        ).fetchall())
         for row in rows:
             if row.get("is_integrated") and row.get("framework_ids"):
                 try:

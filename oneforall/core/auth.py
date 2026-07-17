@@ -120,7 +120,8 @@ def get_session_user(token: str) -> Optional[dict]:
         user = db.execute(
             "SELECT u.id, u.username, u.email, u.full_name, u.is_active, "
             "u.must_change_password, u.avatar_initials, u.org_id, "
-            "COALESCE(u.is_super_admin, 0) AS is_super_admin "
+            "COALESCE(u.is_super_admin, 0) AS is_super_admin, "
+            "u.business_unit_id "
             "FROM users u WHERE u.id = %s",
             (row["user_id"],),
         ).fetchone()
@@ -172,6 +173,7 @@ def get_session_user(token: str) -> Optional[dict]:
             "org_slug": org_slug,
             "org_name": org_name,
             "is_super_admin": bool(user["is_super_admin"]),
+            "business_unit_id": user["business_unit_id"],
             "licensed_modules": licensed_modules,
             "mfa_pending": bool(row["mfa_pending"]),
         }

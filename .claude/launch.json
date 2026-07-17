@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "she-brs-presentation",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8095", "--directory", "C:\\Users\\isadmin\\Desktop\\SHE BRS\\presentation"],
+      "port": 8095
+    },
+    {
       "name": "ThemisIQ-Landing",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8090", "--directory", "landing_page"],

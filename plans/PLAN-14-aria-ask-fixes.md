@@ -45,3 +45,20 @@
   - Added sendBtn.disabled guard in submit handler to prevent double-submission
   - Fixed em dash in catch block error message (memory rule: no em dashes)
 - [x] pytest full suite: 114/114 passing (after button fix)
+- [x] Fix IIFE SyntaxError root cause: Jinja2 autoescape was HTML-encoding quotes in tojson output
+  - The `tojson` filter returned `Markup(json.dumps(...))` which should prevent escaping, but
+    the full Jinja2 template rendering pipeline still produced `&#34;SY&#34;` (confirmed via fetch)
+  - Root fix: change `var USER_INI = {{ ... |tojson }};` to `var USER_INI = "{{ ... }}";`
+    (initials are 2 alpha chars, no HTML special chars, safe to embed directly)
+  - This eliminates the SyntaxError that prevented ALL event listeners from registering
+- [x] Build multi-turn conversation memory (last 3 Q&A pairs = 6 turns)
+  - `ai_generator.py`: added optional `messages` param to `_call_ai` for full history
+  - `ask_service.py`: added `conversation_history: list = None` param to `ask()`; prepends
+    last 6 history turns before the new user message when calling `_call_ai`
+  - `routes.py`: added `history: str = Form("")` to `api_ask`; parses JSON list; caps at 6
+  - `ask.html`: added `conversationHistory = []` state; appends Q&A pair after each success;
+    sends `history` JSON field with each request; clears on "New Chat"
+- [x] Remove duplicate input listener (was at bottom of IIFE, already registered at top)
+- [x] py_compile all touched files: OK
+- [x] pytest full suite: 114/114 passing
+- [x] Browser verified: send button, char counter, rebuild button all work; ARIA responds

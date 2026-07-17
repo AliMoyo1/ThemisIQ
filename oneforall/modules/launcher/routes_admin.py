@@ -354,6 +354,8 @@ async def api_admin_patch_user(request: Request, uid: int):
 
     full_name = (data.get("full_name") or "").strip()
     email     = (data.get("email") or "").strip().lower()
+    bu_id_raw = data.get("business_unit_id")
+    business_unit_id = int(bu_id_raw) if bu_id_raw is not None and bu_id_raw != "" else None
 
     if not full_name:
         return _JSONResp({"success": False, "error": "Full name cannot be empty."})
@@ -381,8 +383,8 @@ async def api_admin_patch_user(request: Request, uid: int):
         avatar_initials = "".join(w[0].upper() for w in full_name.split()[:2]) or "?"
         db.execute(
             "UPDATE users SET full_name=%s, email=%s, avatar_initials=%s, "
-            "updated_at=CURRENT_TIMESTAMP WHERE id=%s",
-            (full_name, email, avatar_initials, uid),
+            "business_unit_id=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (full_name, email, avatar_initials, business_unit_id, uid),
         )
         db.commit()
         log_audit(
@@ -398,6 +400,7 @@ async def api_admin_patch_user(request: Request, uid: int):
         "full_name": full_name,
         "email": email,
         "avatar_initials": avatar_initials,
+        "business_unit_id": business_unit_id,
     })
 
 

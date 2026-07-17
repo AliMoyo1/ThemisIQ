@@ -25,6 +25,7 @@ from core.events import (
 )
 
 from modules.sentinel import data_service as ds
+from modules.governance.data_service import bu_scope_ids
 
 router = APIRouter(prefix="/sentinel", tags=["sentinel"])
 
@@ -167,6 +168,7 @@ async def api_ropa_list(request: Request):
         regulation=request.query_params.get("regulation"),
         status=request.query_params.get("status"),
         risk=request.query_params.get("risk"),
+        bu_scope=bu_scope_ids(request.state.user),
     )
     return JSONResponse(entries)
 
@@ -185,6 +187,9 @@ async def api_ropa_create(request: Request):
 async def api_ropa_get(request: Request, ropa_id: int):
     entry = ds.get_ropa(ropa_id)
     if not entry:
+        raise HTTPException(404, "RoPA entry not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and entry.get("business_unit_id") is not None and entry["business_unit_id"] not in scope:
         raise HTTPException(404, "RoPA entry not found")
     return JSONResponse(entry)
 
@@ -252,6 +257,7 @@ async def api_dpia_list(request: Request):
         search=request.query_params.get("q"),
         regulation=request.query_params.get("regulation"),
         status=request.query_params.get("status"),
+        bu_scope=bu_scope_ids(request.state.user),
     )
     return JSONResponse(dpias)
 
@@ -269,6 +275,9 @@ async def api_dpia_create(request: Request):
 async def api_dpia_get(request: Request, dpia_id: int):
     dpia = ds.get_dpia(dpia_id)
     if not dpia:
+        raise HTTPException(404, "DPIA not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and dpia.get("business_unit_id") is not None and dpia["business_unit_id"] not in scope:
         raise HTTPException(404, "DPIA not found")
     return JSONResponse(dpia)
 
@@ -317,6 +326,7 @@ async def api_breach_list(request: Request):
         search=request.query_params.get("q"),
         status=request.query_params.get("status"),
         severity=request.query_params.get("severity"),
+        bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
@@ -351,6 +361,9 @@ async def api_breach_create(request: Request):
 async def api_breach_get(request: Request, breach_id: int):
     b = ds.get_breach(breach_id)
     if not b:
+        raise HTTPException(404, "Breach not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and b.get("business_unit_id") is not None and b["business_unit_id"] not in scope:
         raise HTTPException(404, "Breach not found")
     return JSONResponse(b)
 
