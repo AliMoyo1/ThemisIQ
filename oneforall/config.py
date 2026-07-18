@@ -49,7 +49,7 @@ class Settings:
     # AI — multi-provider support (Sentinel module)
     AI_PROVIDER: str = os.getenv("AI_PROVIDER", "anthropic").lower()
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")

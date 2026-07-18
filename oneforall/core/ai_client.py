@@ -48,12 +48,12 @@ def _key(name):
 def _model_for_provider(provider=None):
     p = provider or _provider()
     return {
-        "anthropic": getattr(settings, "ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+        "anthropic": getattr(settings, "ANTHROPIC_MODEL", "claude-sonnet-5"),
         "openai": getattr(settings, "OPENAI_MODEL", "gpt-4o"),
         "gemini": getattr(settings, "GEMINI_MODEL", "gemini-1.5-pro"),
         "deepseek": getattr(settings, "DEEPSEEK_MODEL", "deepseek-chat"),
         "ollama": getattr(settings, "OLLAMA_MODEL", "llama3.2"),
-    }.get(p, "claude-sonnet-4-20250514")
+    }.get(p, "claude-sonnet-5")
 
 
 def is_configured() -> bool:
