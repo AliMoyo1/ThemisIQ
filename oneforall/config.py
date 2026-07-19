@@ -63,6 +63,20 @@ class Settings:
     OLLAMA_HOST:  str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2")
 
+    # ERM v2 (PLAN-28): grounded horizon-scan settings. Pins a current model
+    # explicitly rather than inheriting ANTHROPIC_MODEL above, which may be
+    # older and lack the web search tool. max_uses is the per-scan cost cap
+    # (never exposed as a client-supplied parameter); allowed_domains is the
+    # "reliable internet sources" control, changeable per deployment with no
+    # code change.
+    ERM_SCAN_MODEL: str = os.getenv("ERM_SCAN_MODEL", "claude-sonnet-5")
+    ERM_SCAN_MAX_SEARCHES: int = int(os.getenv("ERM_SCAN_MAX_SEARCHES", "8"))
+    ERM_SCAN_ALLOWED_DOMAINS: list = [d.strip() for d in os.getenv(
+        "ERM_SCAN_ALLOWED_DOMAINS",
+        "enisa.europa.eu,edpb.europa.eu,ico.org.uk,nist.gov,cisa.gov,"
+        "iso.org,weforum.org,reuters.com,csoonline.com,darkreading.com"
+    ).split(",") if d.strip()]
+
     # ── Email provider ────────────────────────────────────────────────────────
     # Options: "google" | "microsoft_smtp" | "microsoft_graph" | "smtp" | "console"
     # Leave blank for auto-detection from SMTP_HOST, or configure in Admin → Email Settings.

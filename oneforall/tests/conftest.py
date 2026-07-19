@@ -25,6 +25,22 @@ if _ROOT not in sys.path:
 
 import pytest
 
+# Pre-import modules whose top level does `from database import get_db`
+# (a frozen name binding, not a live attribute lookup) BEFORE any test's
+# fixture gets a chance to monkeypatch `database.get_db`. Some modules are
+# only ever imported lazily, function-local, from inside another module
+# (e.g. core/advisor.py imports modules.erm.data_service inside a
+# function body). If that lazy import happens to fire for the first time
+# while a fixture elsewhere has temporarily replaced database.get_db with
+# a stub connection (e.g. test_advisor.py's `db` fixture), the importing
+# module's `get_db` name freezes onto that stub for the rest of the
+# process -- Python only executes a module's top-level code once, so a
+# later restore of `database.get_db` does not fix an already-bound name
+# in a different module. Importing here, at collection time, guarantees
+# these modules bind to the real get_db before any test can interfere.
+import modules.erm.data_service  # noqa: F401
+import modules.governance.data_service  # noqa: F401
+
 
 @pytest.fixture
 def test_db(tmp_path, monkeypatch):

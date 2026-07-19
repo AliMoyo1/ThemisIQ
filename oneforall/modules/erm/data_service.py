@@ -6,7 +6,7 @@ erm_regulatory_obligations, erm_assessments, and the shared risk_register view.
 import io
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from difflib import get_close_matches
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id, sql_now_offset, sql_now_ts, sql_days_between, sql_date_offset, sql_date_ts, sql_current_date
@@ -22,6 +22,41 @@ def _dicts(rows):
 
 def _now():
     return utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+
+# ── ERM v2 (PLAN-23): ICE scoring convention ──────────────────────────────────
+# ice_score is a percent in ICE_ALLOWED; the remaining-risk multiplier is
+# (100 - ice_score) / 100. See plans/PLAN-23-erm-cf-ice-engine.md for the
+# full worked derivation.
+ICE_ALLOWED = {0, 10, 20, 30, 40, 50, 60, 70, 80, 90}
+
+# ── ERM v2 (PLAN-25): per-CF treatment convention ─────────────────────────────
+TREATMENT_OPTIONS = {"mitigate", "accept", "avoid", "transfer", "exploit"}
+TREATMENT_STATUSES = {"open", "in_progress", "complete"}
+
+# ── ERM v2 (PLAN-27): objectives + assessment context ─────────────────────────
+OBJ_TYPES = {"strategic", "standard", "departmental"}
+RISK_CONTEXTS = {"strategic", "operational", "external"}
+
+
+def _next_ref(db, table, column, prefix, pad, where_sql="", params=()):
+    """Return the next zero-padded ref like 'RSK-0007' or 'CF001'.
+
+    Derives from MAX existing numeric suffix + 1, never COUNT + 1, so refs
+    stay unique after deletions. where_sql/params optionally scope the
+    SELECT (e.g. to one risk's contributing factors).
+    """
+    sql = f"SELECT {column} FROM {table} WHERE {column} IS NOT NULL"
+    if where_sql:
+        sql += f" AND {where_sql}"
+    rows = db.execute(sql, params).fetchall()
+    pattern = re.compile(r"^" + re.escape(prefix) + r"(\d+)$")
+    max_seq = 0
+    for row in rows:
+        m = pattern.match(row[column] or "")
+        if m:
+            max_seq = max(max_seq, int(m.group(1)))
+    return f"{prefix}{max_seq + 1:0{pad}d}"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -573,26 +608,51 @@ def get_enterprise_risk(risk_id):
     db = get_db()
     try:
         risk = _dict(db.execute(
-            "SELECT e.*, u.full_name AS owner_name, 'erm' AS register_source "
+            "SELECT e.*, u.full_name AS owner_name, 'erm' AS register_source, "
+            "obj.title AS objective_title, sobj.title AS strategic_objective_title "
             "FROM erm_enterprise_risks e LEFT JOIN users u ON u.id=e.owner_id "
+            "LEFT JOIN erm_objectives obj ON obj.id=e.objective_id "
+            "LEFT JOIN erm_objectives sobj ON sobj.id=obj.parent_id "
             "WHERE e.id=%s", (risk_id,)
         ).fetchone())
         if risk:
             risk["dimension_scores"] = _get_dimension_scores(db, risk_id)
+            risk["contributing_factors"] = _get_contributing_factors(db, risk_id)
+            risk["emv_a_total"] = get_risk_emv_a_total(db, risk_id)
         return risk
     finally:
         db.close()
 
 
+def _validate_risk_linkage(db, data):
+    """Validate objective_id/risk_context on a risk create/update payload
+    before any SQL runs. The two fields are independent -- either may be
+    set alone, with no cross-validation between them (the mind map allows
+    departmental assessments linking through standards)."""
+    if data.get("risk_context") is not None and data["risk_context"] not in RISK_CONTEXTS:
+        raise ValueError(f"risk_context must be one of {sorted(RISK_CONTEXTS)} or null")
+    if data.get("objective_id") is not None:
+        row = db.execute(
+            "SELECT id FROM erm_objectives WHERE id=%s", (data["objective_id"],)
+        ).fetchone()
+        if not row:
+            raise ValueError("objective_id does not exist")
+
+
 def create_enterprise_risk(data):
     db = get_db()
     try:
+        cf_list = data.pop("contributing_factors", None)
         dim_scores = data.pop("dimension_scores", None)
+        _validate_risk_linkage(db, data)
         if dim_scores:
             derived = _impact_from_dimensions(dim_scores)
             if derived is not None:
                 data["impact"] = derived
         inh, res, qual = _compute_scores(db, data)
+        risk_ref = _next_ref(db, "erm_enterprise_risks", "risk_ref", "RSK-", 4)
+        emv_raw = data.get("emv_inherent")
+        emv_inherent = float(emv_raw) if emv_raw not in (None, "") else None
         new_id = insert_returning_id(db,
             """INSERT INTO erm_enterprise_risks
                (title, description, category, sub_category, likelihood, impact, velocity,
@@ -600,8 +660,10 @@ def create_enterprise_risk(data):
                 residual_likelihood, residual_impact, status, board_visibility,
                 regulation_links, review_date, source_module, source_risk_id, created_by,
                 inherent_score, residual_score, qualitative_score,
-                risk_statement, workflow_step, response_deadline)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                risk_statement, workflow_step, response_deadline,
+                risk_ref, irr_score, emv_inherent, impacted_pillar,
+                objective_id, risk_context, business_unit_id)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (data.get("title"), data.get("description"), data.get("category", "Strategic Risk"),
              data.get("sub_category"), data.get("likelihood", 3), data.get("impact", 3),
              data.get("velocity", 3), data.get("strategic_objective"),
@@ -614,10 +676,15 @@ def create_enterprise_risk(data):
              data.get("created_by"),
              inh, res, qual,
              data.get("risk_statement"), data.get("workflow_step", "draft"),
-             data.get("response_deadline")),
+             data.get("response_deadline"),
+             risk_ref, inh, emv_inherent, data.get("impacted_pillar"),
+             data.get("objective_id"), data.get("risk_context"), data.get("business_unit_id")),
         )
         if dim_scores:
             _save_dimension_scores(db, new_id, dim_scores)
+        if cf_list:
+            _save_contributing_factors(db, new_id, cf_list)
+        recompute_residual_for_risk(db, new_id)
         db.commit()
         return new_id
     finally:
@@ -636,12 +703,29 @@ def _compute_scores(db, data, existing=None):
     return inherent, residual, qual
 
 
-# ── T1.4: Formula-driven residual risk ───────────────────────────────────────
+# ── ERM v2 (PLAN-23): ICE-driven residual risk ────────────────────────────────
 
-def _formula_residual(db, risk_id, L, I):
-    """Compute formula residual from linked controls: L*I*(1 - weighted_eff/100).
+def _ice_rollup(db, risk_id):
+    """Return {'scored': bool, 'loa_pct': int|None, 'lor': float|None} from
+    the risk's linked controls that have a non-null ice_score. ICE 0 counts
+    as scored (a real, if weak, assessment) — never treat it as unscored.
+    """
+    rows = db.execute(
+        "SELECT ice_score FROM risk_controls WHERE risk_id=%s AND ice_score IS NOT NULL",
+        (risk_id,),
+    ).fetchall()
+    if not rows:
+        return {"scored": False, "loa_pct": None, "lor": None}
+    scores = [row["ice_score"] for row in rows]
+    loa_pct = round(sum(scores) / len(scores))
+    lor = 1.0 - (loa_pct / 100.0)
+    return {"scored": True, "loa_pct": loa_pct, "lor": lor}
 
-    Returns (residual_score, ctrl_effectiveness) or (None, None) if no controls scored.
+
+def _formula_residual(db, risk_id):
+    """Return the T1.3 weighted-mean control effectiveness (0-100) for a
+    risk's linked controls, or None if none are scored yet. Pure lookup —
+    callers combine this with IRR under the ICE-era formula below.
     """
     rows = db.execute(
         "SELECT rc.weight, ces.score "
@@ -651,45 +735,91 @@ def _formula_residual(db, risk_id, L, I):
         (risk_id,),
     ).fetchall()
     if not rows:
-        return None, None
+        return None
     total_weight = sum(float(r["weight"] or 1.0) for r in rows)
     if total_weight == 0:
-        return None, None
+        return None
     weighted_sum = sum(float(r["score"] or 0) * float(r["weight"] or 1.0) for r in rows)
-    weighted_eff = weighted_sum / total_weight
-    residual = max(0, round(int(L) * int(I) * (1.0 - weighted_eff / 100.0)))
-    return residual, round(weighted_eff)
+    return weighted_sum / total_weight
+
+
+def _snapshot_history(db, risk_id, irr, rrr, loa_pct, emv_i, emv_r):
+    db.execute(
+        "INSERT INTO erm_risk_score_history "
+        "(risk_id, irr, rrr, loa_pct, emv_inherent, emv_residual) "
+        "VALUES (%s,%s,%s,%s,%s,%s)",
+        (risk_id, irr, rrr, loa_pct, emv_i, emv_r),
+    )
 
 
 def recompute_residual_for_risk(db, risk_id):
-    """Recompute residual_score and control_effectiveness for one risk; caller commits.
+    """Recompute residual_score, rrr, loa_pct, emv_residual, and
+    control_effectiveness for one risk; caller commits.
 
-    Uses the manual override (residual_L * residual_I) when both are set.
-    Falls back to the formula: L * I * (1 - weighted_effectiveness/100).
+    4-tier precedence ladder (highest wins):
+    1. ICE path: any linked control has a non-null ice_score.
+    2. Manual override: residual_likelihood AND residual_impact both set,
+       and no control has an ICE score.
+    3. T1.3 auto path: linked controls scored via control_effectiveness_scores,
+       none has an ICE score, no override.
+    4. Default: no controls, no override — rrr starts at IRR.
+
+    Snapshots erm_risk_score_history only when rrr changed by more than 0.05
+    (or was previously NULL), so unrelated recomputes stay quiet.
     No-ops silently if the risk row doesn't exist.
     """
     row = db.execute(
-        "SELECT likelihood, impact, residual_likelihood, residual_impact "
-        "FROM erm_enterprise_risks WHERE id=%s",
+        "SELECT likelihood, impact, residual_likelihood, residual_impact, "
+        "irr_score, emv_inherent, rrr FROM erm_enterprise_risks WHERE id=%s",
         (risk_id,),
     ).fetchone()
     if not row:
         return
-    L  = row["likelihood"]  or 3
-    I  = row["impact"]      or 3
+    L  = row["likelihood"] or 3
+    I  = row["impact"] or 3
     RL = row["residual_likelihood"]
     RI = row["residual_impact"]
-    if RL and RI:
-        db.execute(
-            "UPDATE erm_enterprise_risks SET residual_score=%s, control_effectiveness=NULL WHERE id=%s",
-            (int(RL) * int(RI), risk_id),
-        )
+    irr = row["irr_score"] if row["irr_score"] is not None else int(L) * int(I)
+    emv_i = row["emv_inherent"]
+    old_rrr = row["rrr"]
+
+    ice = _ice_rollup(db, risk_id)
+    if ice["scored"]:
+        loa_pct = ice["loa_pct"]
+        rrr = round(ice["lor"] * irr, 1)
+        residual_score = int(round(rrr))
+        emv_residual = round(ice["lor"] * emv_i, 2) if emv_i is not None else None
+        ctrl_eff = None
+    elif RL is not None and RI is not None:
+        residual_score = int(RL) * int(RI)
+        rrr = float(residual_score)
+        loa_pct = None
+        emv_residual = None
+        ctrl_eff = None
     else:
-        res, ctrl_eff = _formula_residual(db, risk_id, L, I)
-        db.execute(
-            "UPDATE erm_enterprise_risks SET residual_score=%s, control_effectiveness=%s WHERE id=%s",
-            (res, ctrl_eff, risk_id),
-        )
+        weighted_eff = _formula_residual(db, risk_id)
+        if weighted_eff is not None:
+            rrr = round(irr * (1.0 - weighted_eff / 100.0), 1)
+            residual_score = int(round(rrr))
+            loa_pct = round(weighted_eff)
+            emv_residual = (round((1.0 - weighted_eff / 100.0) * emv_i, 2)
+                             if emv_i is not None else None)
+            ctrl_eff = round(weighted_eff)
+        else:
+            loa_pct = 0
+            rrr = float(irr)
+            residual_score = irr
+            emv_residual = emv_i
+            ctrl_eff = None
+
+    db.execute(
+        "UPDATE erm_enterprise_risks SET residual_score=%s, rrr=%s, loa_pct=%s, "
+        "emv_residual=%s, control_effectiveness=%s WHERE id=%s",
+        (residual_score, rrr, loa_pct, emv_residual, ctrl_eff, risk_id),
+    )
+
+    if old_rrr is None or abs(rrr - old_rrr) > 0.05:
+        _snapshot_history(db, risk_id, irr, rrr, loa_pct, emv_i, emv_residual)
 
 
 def recompute_residuals_for_control(db, control_id):
@@ -711,6 +841,10 @@ def recompute_residuals_for_control(db, control_id):
 def update_enterprise_risk(risk_id, data):
     db = get_db()
     try:
+        # IRR and risk_ref are frozen at creation; strip before building the
+        # field list so a client can never overwrite them via PUT.
+        data.pop("irr_score", None)
+        data.pop("risk_ref", None)
         existing = _dict(db.execute(
             "SELECT likelihood, impact, residual_likelihood, residual_impact "
             "FROM erm_enterprise_risks WHERE id=%s", (risk_id,)
@@ -720,13 +854,20 @@ def update_enterprise_risk(risk_id, data):
             derived = _impact_from_dimensions(dim_scores)
             if derived is not None:
                 data["impact"] = derived
+        cf_list = data.pop("contributing_factors", None)
+        _validate_risk_linkage(db, data)
+        emv_changed = "emv_inherent" in data
+        if emv_changed:
+            emv_raw = data.get("emv_inherent")
+            data["emv_inherent"] = float(emv_raw) if emv_raw not in (None, "") else None
         fields, vals = [], []
         for k in ("title", "description", "category", "sub_category", "likelihood", "impact",
                   "velocity", "strategic_objective", "owner_id", "reviewer_id", "treatment",
                   "treatment_plan", "residual_likelihood", "residual_impact", "status",
                   "board_visibility", "regulation_links", "review_date",
-                  "risk_statement", "workflow_step", "response_deadline", "effectiveness_rating",
-                  "last_reviewed"):
+                  "risk_statement", "workflow_step", "response_deadline",
+                  "last_reviewed", "emv_inherent", "impacted_pillar",
+                  "objective_id", "risk_context", "business_unit_id"):
             if k in data:
                 fields.append(f"{k}=%s"); vals.append(data[k])
         score_fields_changed = any(
@@ -743,7 +884,9 @@ def update_enterprise_risk(risk_id, data):
             db.execute(f"UPDATE erm_enterprise_risks SET {','.join(fields)} WHERE id=%s", vals)
         if dim_scores:
             _save_dimension_scores(db, risk_id, dim_scores)
-        if score_fields_changed:
+        if cf_list is not None:
+            _save_contributing_factors(db, risk_id, cf_list)
+        if score_fields_changed or emv_changed or cf_list is not None:
             recompute_residual_for_risk(db, risk_id)
         db.commit()
     finally:
@@ -755,10 +898,14 @@ def delete_enterprise_risk(risk_id):
     try:
         db.execute("UPDATE erm_kris SET linked_risk_id=NULL WHERE linked_risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_risk_dimension_scores WHERE risk_id=%s", (risk_id,))
+        db.execute("DELETE FROM erm_cf_treatments WHERE risk_id=%s", (risk_id,))
+        db.execute("DELETE FROM erm_contributing_factors WHERE risk_id=%s", (risk_id,))
+        db.execute("DELETE FROM erm_risk_score_history WHERE risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_risk_workflow_history WHERE risk_id=%s", (risk_id,))
         db.execute("UPDATE erm_regulatory_obligations SET linked_erm_risk_id=NULL WHERE linked_erm_risk_id=%s", (risk_id,))
         db.execute("UPDATE orm_events SET erm_risk_id=NULL WHERE erm_risk_id=%s", (risk_id,))
         db.execute("UPDATE ai_risk_predictions SET erm_risk_id=NULL WHERE erm_risk_id=%s", (risk_id,))
+        db.execute("UPDATE erm_emerging_risks SET added_risk_id=NULL WHERE added_risk_id=%s", (risk_id,))
         db.execute("DELETE FROM cross_module_links WHERE target_module='erm' AND target_type='enterprise_risk' AND target_id=%s", (risk_id,))
         db.execute("DELETE FROM cross_module_links WHERE source_module='erm' AND source_type='enterprise_risk' AND source_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_enterprise_risks WHERE id=%s", (risk_id,))
@@ -772,12 +919,21 @@ def delete_enterprise_risk(risk_id):
 # ═════════════════════════════════════════════════════════════════════════════
 
 def list_risk_controls(risk_id):
-    """Return all controls linked to a risk, joined with canonical_controls for title/ref."""
+    """Return all controls linked to a risk, joined with canonical_controls
+    for title/ref/p2st2_category, the contributing factor (if any) each is
+    assessed against, and a count of evidence linked to the control
+    (evidence_links has no soft-delete column; includes evidence mirrored
+    onto the canonical control from grid/aria)."""
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT rc.*, cc.title AS control_title, cc.ref AS control_ref "
-            "FROM risk_controls rc JOIN canonical_controls cc ON rc.control_id = cc.id "
+            "SELECT rc.*, cc.title AS control_title, cc.ref AS control_ref, "
+            "cc.p2st2_category AS p2st2_category, cf.cf_ref AS cf_ref, "
+            "(SELECT COUNT(*) FROM evidence_links el WHERE "
+            " el.entity_type='canonical_control' AND el.entity_id=rc.control_id) AS evidence_count "
+            "FROM risk_controls rc "
+            "JOIN canonical_controls cc ON rc.control_id = cc.id "
+            "LEFT JOIN erm_contributing_factors cf ON cf.id = rc.cf_id "
             "WHERE rc.risk_id=%s ORDER BY cc.title",
             (risk_id,),
         ).fetchall()
@@ -786,16 +942,28 @@ def list_risk_controls(risk_id):
         db.close()
 
 
-def link_risk_control(risk_id, control_id, user_id, weight=1.0):
-    """Link a control to a risk. Weight is clamped to [0.1, 5.0]. Returns True."""
+def link_risk_control(risk_id, control_id, user_id, weight=1.0, cf_id=None, ice_score=None):
+    """Link a control to a risk. Weight is clamped to [0.1, 5.0]. Optional
+    cf_id/ice_score set the initial assessment at link time (cf_id must
+    belong to this risk; ice_score must be in ICE_ALLOWED). Returns True.
+    """
     weight = max(0.1, min(5.0, float(weight)))
+    if ice_score is not None and int(ice_score) not in ICE_ALLOWED:
+        raise ValueError(f"ice_score must be one of {sorted(ICE_ALLOWED)} or null")
     db = get_db()
     try:
+        if cf_id is not None:
+            cf_row = db.execute(
+                "SELECT id FROM erm_contributing_factors WHERE id=%s AND risk_id=%s",
+                (cf_id, risk_id),
+            ).fetchone()
+            if not cf_row:
+                raise ValueError("cf_id does not belong to this risk")
         db.execute(
-            "INSERT INTO risk_controls (risk_id, control_id, weight, direction, created_by) "
-            "VALUES (%s, %s, %s, 'mitigates', %s) "
+            "INSERT INTO risk_controls (risk_id, control_id, weight, direction, created_by, cf_id, ice_score) "
+            "VALUES (%s, %s, %s, 'mitigates', %s, %s, %s) "
             "ON CONFLICT (risk_id, control_id) DO NOTHING",
-            (risk_id, control_id, weight, user_id),
+            (risk_id, control_id, weight, user_id, cf_id, ice_score),
         )
         recompute_residual_for_risk(db, risk_id)
         db.commit()
@@ -853,6 +1021,728 @@ def _impact_from_dimensions(dimension_scores):
     """Derive overall impact as MAX of individual dimension scores."""
     scores = [int(ds.get("score") or 0) for ds in (dimension_scores or []) if ds.get("score")]
     return max(scores) if scores else None
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CONTRIBUTING FACTORS — root causes per risk (PLAN-23)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _save_contributing_factors(db, risk_id, cf_list):
+    """Ref-preserving replace of a risk's contributing factors.
+
+    Each entry: {id?, description}. Entries with an id belonging to this
+    risk are updated in place; entries without an id are inserted with the
+    next CF ref for this risk (max existing suffix + 1, never count + 1).
+    Any existing CF whose id is not in cf_list is deleted, after first
+    clearing risk_controls.cf_id for rows that referenced it (there is no
+    FK cascade between those two tables on databases migrated via ALTER
+    TABLE). Entries with an empty stripped description are skipped.
+    """
+    cf_list = cf_list or []
+    existing_ids = {row["id"] for row in db.execute(
+        "SELECT id FROM erm_contributing_factors WHERE risk_id=%s", (risk_id,)
+    ).fetchall()}
+    submitted_ids = set()
+    for entry in cf_list:
+        desc = str(entry.get("description") or "").strip()
+        if not desc:
+            continue
+        cf_id = entry.get("id")
+        if cf_id and cf_id in existing_ids:
+            db.execute(
+                "UPDATE erm_contributing_factors SET description=%s, updated_at=%s "
+                "WHERE id=%s AND risk_id=%s",
+                (desc, _now(), cf_id, risk_id),
+            )
+            submitted_ids.add(cf_id)
+        else:
+            cf_ref = _next_ref(db, "erm_contributing_factors", "cf_ref", "CF", 3,
+                                where_sql="risk_id=%s", params=(risk_id,))
+            new_cf_id = insert_returning_id(db,
+                "INSERT INTO erm_contributing_factors (risk_id, cf_ref, description) "
+                "VALUES (%s,%s,%s)",
+                (risk_id, cf_ref, desc),
+            )
+            submitted_ids.add(new_cf_id)
+    for old_id in (existing_ids - submitted_ids):
+        db.execute("UPDATE risk_controls SET cf_id=NULL WHERE cf_id=%s", (old_id,))
+        db.execute("DELETE FROM erm_cf_treatments WHERE cf_id=%s", (old_id,))
+        db.execute("DELETE FROM erm_contributing_factors WHERE id=%s", (old_id,))
+
+
+def _get_contributing_factors(db, risk_id):
+    """Return [{id, cf_ref, description, control_count, cf_loa_pct}] for a
+    risk. control_count counts every linked control (scored or not);
+    cf_loa_pct averages only ICE-scored ones and is NULL until at least
+    one is scored."""
+    return _dicts(db.execute(
+        "SELECT cf.id, cf.cf_ref, cf.description, "
+        "(SELECT COUNT(*) FROM risk_controls rc WHERE rc.cf_id=cf.id) AS control_count, "
+        "(SELECT ROUND(AVG(rc2.ice_score)) FROM risk_controls rc2 "
+        " WHERE rc2.cf_id=cf.id AND rc2.ice_score IS NOT NULL) AS cf_loa_pct "
+        "FROM erm_contributing_factors cf WHERE cf.risk_id=%s ORDER BY cf.cf_ref",
+        (risk_id,),
+    ).fetchall())
+
+
+def list_contributing_factors(risk_id):
+    db = get_db()
+    try:
+        return _get_contributing_factors(db, risk_id)
+    finally:
+        db.close()
+
+
+def add_contributing_factor(risk_id, description):
+    """Add a single contributing factor to an existing risk. Returns
+    {id, cf_ref}. Raises ValueError if description is empty."""
+    desc = str(description or "").strip()
+    if not desc:
+        raise ValueError("description is required")
+    db = get_db()
+    try:
+        cf_ref = _next_ref(db, "erm_contributing_factors", "cf_ref", "CF", 3,
+                            where_sql="risk_id=%s", params=(risk_id,))
+        new_id = insert_returning_id(db,
+            "INSERT INTO erm_contributing_factors (risk_id, cf_ref, description) "
+            "VALUES (%s,%s,%s)",
+            (risk_id, cf_ref, desc),
+        )
+        db.commit()
+        return {"id": new_id, "cf_ref": cf_ref}
+    finally:
+        db.close()
+
+
+def update_contributing_factor(cf_id, description):
+    """Update a CF's description. Raises ValueError if empty or not found."""
+    desc = str(description or "").strip()
+    if not desc:
+        raise ValueError("description is required")
+    db = get_db()
+    try:
+        row = db.execute("SELECT id FROM erm_contributing_factors WHERE id=%s", (cf_id,)).fetchone()
+        if not row:
+            raise ValueError("Contributing factor not found")
+        db.execute(
+            "UPDATE erm_contributing_factors SET description=%s, updated_at=%s WHERE id=%s",
+            (desc, _now(), cf_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def delete_contributing_factor(cf_id):
+    """Delete a CF, clearing risk_controls.cf_id for any controls that
+    referenced it first. Raises ValueError if not found."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT id FROM erm_contributing_factors WHERE id=%s", (cf_id,)).fetchone()
+        if not row:
+            raise ValueError("Contributing factor not found")
+        db.execute("UPDATE risk_controls SET cf_id=NULL WHERE cf_id=%s", (cf_id,))
+        db.execute("DELETE FROM erm_cf_treatments WHERE cf_id=%s", (cf_id,))
+        db.execute("DELETE FROM erm_contributing_factors WHERE id=%s", (cf_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+def get_cf_risk_id(cf_id):
+    """Return the risk_id owning a CF, or None if the CF doesn't exist.
+    Used by routes to resolve the owning risk for BU-scope checks before
+    mutating a CF addressed only by its own id."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT risk_id FROM erm_contributing_factors WHERE id=%s", (cf_id,)).fetchone()
+        return row["risk_id"] if row else None
+    finally:
+        db.close()
+
+
+def set_control_assessment(risk_id, control_id, ice_score, cf_id):
+    """Set (or clear) a linked control's ICE score and/or CF assignment.
+
+    ice_score must be None or one of ICE_ALLOWED; cf_id must be None or
+    belong to this risk. Recomputes the risk's residual. Returns the
+    refreshed risk dict (same shape as get_enterprise_risk).
+    """
+    if ice_score is not None and int(ice_score) not in ICE_ALLOWED:
+        raise ValueError(f"ice_score must be one of {sorted(ICE_ALLOWED)} or null")
+    db = get_db()
+    try:
+        if cf_id is not None:
+            cf_row = db.execute(
+                "SELECT id FROM erm_contributing_factors WHERE id=%s AND risk_id=%s",
+                (cf_id, risk_id),
+            ).fetchone()
+            if not cf_row:
+                raise ValueError("cf_id does not belong to this risk")
+        db.execute(
+            "UPDATE risk_controls SET ice_score=%s, cf_id=%s WHERE risk_id=%s AND control_id=%s",
+            (ice_score, cf_id, risk_id, control_id),
+        )
+        recompute_residual_for_risk(db, risk_id)
+        db.commit()
+    finally:
+        db.close()
+    return get_enterprise_risk(risk_id)
+
+
+def suggest_ice_for_control(control_id):
+    """Deterministically suggest an ICE percent from the T1.3 auto-
+    effectiveness score for a canonical control. Pure math, no AI call (the
+    AI narrative variant is PLAN-24). Returns
+    {suggested_ice, auto_score, factors}."""
+    db = get_db()
+    try:
+        from modules.governance.effectiveness import get_control_score
+        scored = get_control_score(db, control_id)
+    finally:
+        db.close()
+    auto_score = scored["score"] if scored else 0
+    suggested = min(90, (auto_score // 10) * 10)
+    factors = {}
+    if scored:
+        for k in ("evidence_uploaded", "evidence_valid", "audit_passed", "tested_recently",
+                  "owner_reviewed", "automated", "no_recent_incidents"):
+            if k in scored:
+                factors[k] = scored[k]
+    return {"suggested_ice": suggested, "auto_score": auto_score, "factors": factors}
+
+
+def list_pillars(include_inactive=False):
+    db = get_db()
+    try:
+        where = "" if include_inactive else "WHERE is_active=1"
+        return _dicts(db.execute(
+            f"SELECT * FROM erm_pillars {where} ORDER BY name"
+        ).fetchall())
+    finally:
+        db.close()
+
+
+def create_pillar(data):
+    """Create an organisational pillar. Raises ValueError if name is empty
+    or already exists (erm_pillars.name is UNIQUE)."""
+    name = str(data.get("name") or "").strip()
+    if not name:
+        raise ValueError("name is required")
+    db = get_db()
+    try:
+        existing = db.execute("SELECT id FROM erm_pillars WHERE name=%s", (name,)).fetchone()
+        if existing:
+            raise ValueError(f"Pillar '{name}' already exists")
+        new_id = insert_returning_id(db,
+            "INSERT INTO erm_pillars (name, description, business_unit_id) VALUES (%s,%s,%s)",
+            (name, data.get("description"), data.get("business_unit_id")),
+        )
+        db.commit()
+        return new_id
+    finally:
+        db.close()
+
+
+def update_pillar(pillar_id, data):
+    """Update a pillar's name/description/business_unit_id. Raises
+    ValueError if not found, the new name is empty, or it collides with a
+    different pillar."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT id FROM erm_pillars WHERE id=%s", (pillar_id,)).fetchone()
+        if not row:
+            raise ValueError("Pillar not found")
+        fields, vals = [], []
+        if "name" in data:
+            name = str(data["name"] or "").strip()
+            if not name:
+                raise ValueError("name is required")
+            dupe = db.execute(
+                "SELECT id FROM erm_pillars WHERE name=%s AND id!=%s", (name, pillar_id)
+            ).fetchone()
+            if dupe:
+                raise ValueError(f"Pillar '{name}' already exists")
+            fields.append("name=%s"); vals.append(name)
+        for k in ("description", "business_unit_id"):
+            if k in data:
+                fields.append(f"{k}=%s"); vals.append(data[k])
+        if fields:
+            vals.append(pillar_id)
+            db.execute(f"UPDATE erm_pillars SET {','.join(fields)} WHERE id=%s", vals)
+            db.commit()
+    finally:
+        db.close()
+
+
+def deactivate_pillar(pillar_id):
+    """Set is_active=0. Raises ValueError if not found or referenced by any
+    risk's impacted_pillar. impacted_pillar is a TEXT snapshot of the
+    pillar's name, not an FK, so a deactivated pillar keeps rendering on
+    risks that already carry it -- this guard only blocks deactivating one
+    still in active use, it never touches existing risk rows."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT name FROM erm_pillars WHERE id=%s", (pillar_id,)).fetchone()
+        if not row:
+            raise ValueError("Pillar not found")
+        count = db.execute(
+            "SELECT COUNT(*) FROM erm_enterprise_risks WHERE impacted_pillar=%s", (row["name"],)
+        ).fetchone()[0]
+        if count > 0:
+            raise ValueError(f"Pillar is referenced by {count} risk(s)")
+        db.execute("UPDATE erm_pillars SET is_active=0 WHERE id=%s", (pillar_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# OBJECTIVES REGISTRY (PLAN-27): strategic / standard / departmental
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _validate_objective(data, db):
+    """Validate an objective payload before any SQL runs. obj_type must be
+    strategic/standard/departmental; title is required; a strategic
+    objective may never have a parent; a standard/departmental objective's
+    parent (if given) must itself be an existing strategic objective;
+    standard_ref is required for obj_type='standard'."""
+    obj_type = data.get("obj_type", "strategic")
+    if obj_type not in OBJ_TYPES:
+        raise ValueError(f"obj_type must be one of {sorted(OBJ_TYPES)}")
+    title = str(data.get("title") or "").strip()
+    if not title:
+        raise ValueError("title is required")
+    parent_id = data.get("parent_id")
+    if obj_type == "strategic":
+        if parent_id is not None:
+            raise ValueError("A strategic objective cannot have a parent")
+    elif parent_id is not None:
+        parent = db.execute(
+            "SELECT obj_type FROM erm_objectives WHERE id=%s", (parent_id,)
+        ).fetchone()
+        if not parent:
+            raise ValueError("parent_id does not exist")
+        if parent["obj_type"] != "strategic":
+            raise ValueError("parent_id must reference a strategic objective")
+    if obj_type == "standard" and not str(data.get("standard_ref") or "").strip():
+        raise ValueError("standard_ref is required for standard objectives")
+
+
+def list_objectives(obj_type=None, include_archived=False):
+    """Objectives joined with their parent's title and owner's name,
+    ordered obj_type then title (Strategic sorts first alphabetically)."""
+    db = get_db()
+    try:
+        where, params = [], []
+        if obj_type:
+            where.append("o.obj_type=%s"); params.append(obj_type)
+        if not include_archived:
+            where.append("o.status!='archived'")
+        clause = ("WHERE " + " AND ".join(where)) if where else ""
+        return _dicts(db.execute(
+            f"SELECT o.*, p.title AS parent_title, u.full_name AS owner_name "
+            f"FROM erm_objectives o "
+            f"LEFT JOIN erm_objectives p ON p.id = o.parent_id "
+            f"LEFT JOIN users u ON u.id = o.owner_id "
+            f"{clause} ORDER BY o.obj_type, o.title",
+            params,
+        ).fetchall())
+    finally:
+        db.close()
+
+
+def create_objective(data):
+    db = get_db()
+    try:
+        _validate_objective(data, db)
+        new_id = insert_returning_id(db,
+            "INSERT INTO erm_objectives "
+            "(title, obj_type, parent_id, standard_ref, pillar, department, "
+            "owner_id, business_unit_id, status, description) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (str(data.get("title")).strip(), data.get("obj_type", "strategic"),
+             data.get("parent_id"), data.get("standard_ref"), data.get("pillar"),
+             data.get("department"), data.get("owner_id"), data.get("business_unit_id"),
+             data.get("status", "active"), data.get("description")),
+        )
+        db.commit()
+        return new_id
+    finally:
+        db.close()
+
+
+def update_objective(objective_id, data):
+    """Partial update, validated against the FULL resulting state (existing
+    row merged with the incoming patch) so changing one field never trips
+    a false-positive hierarchy error on fields the caller didn't touch."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT * FROM erm_objectives WHERE id=%s", (objective_id,)).fetchone()
+        if not row:
+            raise ValueError("Objective not found")
+        merged = dict(row)
+        merged.update(data)
+        _validate_objective(merged, db)
+        fields, vals = [], []
+        for k in ("title", "obj_type", "parent_id", "standard_ref", "pillar",
+                  "department", "owner_id", "business_unit_id", "status", "description"):
+            if k in data:
+                fields.append(f"{k}=%s"); vals.append(data[k])
+        if fields:
+            fields.append("updated_at=%s"); vals.append(_now())
+            vals.append(objective_id)
+            db.execute(f"UPDATE erm_objectives SET {','.join(fields)} WHERE id=%s", vals)
+            db.commit()
+    finally:
+        db.close()
+
+
+def archive_objective(objective_id):
+    """Flip status to 'archived'. Never deletes (parent_id ON DELETE SET
+    NULL only matters for a hard delete, which this app never performs).
+    Raises ValueError if any risk currently links to it via objective_id."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT id FROM erm_objectives WHERE id=%s", (objective_id,)).fetchone()
+        if not row:
+            raise ValueError("Objective not found")
+        count = db.execute(
+            "SELECT COUNT(*) FROM erm_enterprise_risks WHERE objective_id=%s", (objective_id,)
+        ).fetchone()[0]
+        if count > 0:
+            raise ValueError(f"Objective is linked to {count} risks")
+        db.execute(
+            "UPDATE erm_objectives SET status='archived', updated_at=%s WHERE id=%s",
+            (_now(), objective_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# EMERGING RISK INBOX (PLAN-28): external context
+# ═════════════════════════════════════════════════════════════════════════════
+
+EMERGING_STATUSES = {"new", "dismissed", "added"}
+
+
+def list_emerging(status=None, bu_scope=None):
+    """Inbox items newest first, joined with creator name. bu_scope mirrors
+    list_enterprise_risks: None = unrestricted, else a list of allowed
+    business_unit_id values (rows with NULL business_unit_id always
+    visible, matching the Round 5 federation convention)."""
+    db = get_db()
+    try:
+        where, params = [], []
+        if status:
+            where.append("er.status=%s"); params.append(status)
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            where.append(f"(er.business_unit_id IN ({ph}) OR er.business_unit_id IS NULL)")
+            params.extend(bu_scope)
+        clause = ("WHERE " + " AND ".join(where)) if where else ""
+        return _dicts(db.execute(
+            f"SELECT er.*, u.full_name AS created_by_name "
+            f"FROM erm_emerging_risks er LEFT JOIN users u ON u.id=er.created_by "
+            f"{clause} ORDER BY er.created_at DESC",
+            params,
+        ).fetchall())
+    finally:
+        db.close()
+
+
+def create_emerging(data, origin="manual"):
+    """Create an inbox item. title is required and length-capped (200);
+    summary is capped (2000). source_url is accepted only as a plain
+    http(s) string capped at 500 chars, else stored NULL -- this function
+    does not itself enforce the citation-provenance rule (that lives in
+    scan_emerging_risks_grounded, which is the only AI path allowed to set
+    a URL); a manual caller may legitimately supply one directly."""
+    title = str(data.get("title") or "").strip()[:200]
+    if not title:
+        raise ValueError("title is required")
+    summary = str(data.get("summary") or "").strip()[:2000] or None
+    source_url = data.get("source_url")
+    if source_url:
+        source_url = str(source_url).strip()[:500]
+        if not (source_url.startswith("http://") or source_url.startswith("https://")):
+            source_url = None
+    db = get_db()
+    try:
+        new_id = insert_returning_id(db,
+            "INSERT INTO erm_emerging_risks "
+            "(title, summary, source_note, source_url, pillar, standard_ref, "
+            "origin, status, business_unit_id, created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,'new',%s,%s)",
+            (title, summary, data.get("source_note"), source_url,
+             data.get("pillar"), data.get("standard_ref"), origin,
+             data.get("business_unit_id"), data.get("created_by")),
+        )
+        db.commit()
+        return new_id
+    finally:
+        db.close()
+
+
+def dismiss_emerging(eid):
+    """Flip status to 'dismissed'. Raises ValueError if not found or
+    already added to the register (a completed item's lifecycle is over)."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT status FROM erm_emerging_risks WHERE id=%s", (eid,)).fetchone()
+        if not row:
+            raise ValueError("Emerging risk item not found")
+        if row["status"] == "added":
+            raise ValueError("Cannot dismiss an item already added to the register")
+        db.execute(
+            "UPDATE erm_emerging_risks SET status='dismissed', updated_at=%s WHERE id=%s",
+            (_now(), eid),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def reopen_emerging(eid):
+    """Flip a dismissed item back to 'new'. Raises ValueError if not found
+    or not currently dismissed (reopen only makes sense from dismissed)."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT status FROM erm_emerging_risks WHERE id=%s", (eid,)).fetchone()
+        if not row:
+            raise ValueError("Emerging risk item not found")
+        if row["status"] != "dismissed":
+            raise ValueError("Only a dismissed item can be reopened")
+        db.execute(
+            "UPDATE erm_emerging_risks SET status='new', updated_at=%s WHERE id=%s",
+            (_now(), eid),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def add_emerging_to_register(eid, user_id):
+    """Promote an inbox item to a full enterprise risk. Refuses (ValueError)
+    when the item is already added -- server-side idempotency, not just a
+    hidden client button, so a double-click can't create two risks.
+    Defaults to likelihood/impact 3 and category 'Strategic Risk' (no
+    trivial pillar-to-category mapping exists in this schema, so this is
+    the honest fallback rather than a guessed one); risk_context is tagged
+    'external' since create_enterprise_risk already accepts that column
+    (PLAN-27 shipped in this same session). business_unit_id carries over
+    from the inbox item so the new risk lands in the same BU scope."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT * FROM erm_emerging_risks WHERE id=%s", (eid,)).fetchone()
+        if not row:
+            raise ValueError("Emerging risk item not found")
+        if row["status"] == "added":
+            raise ValueError("This item has already been added to the register")
+
+        description = row["summary"] or ""
+        if row["source_note"]:
+            prefix = "\n\n" if description else ""
+            description = f"{description}{prefix}Source: external context inbox. {row['source_note']}"
+
+        risk_data = {
+            "title": row["title"],
+            "description": description,
+            "category": "Strategic Risk",
+            "impacted_pillar": row["pillar"],
+            "likelihood": 3,
+            "impact": 3,
+            "status": "open",
+            "created_by": user_id,
+            "risk_context": "external",
+            "business_unit_id": row["business_unit_id"],
+        }
+        new_risk_id = create_enterprise_risk(risk_data)
+
+        db.execute(
+            "UPDATE erm_emerging_risks SET status='added', added_risk_id=%s, updated_at=%s WHERE id=%s",
+            (new_risk_id, _now(), eid),
+        )
+        db.commit()
+        return new_risk_id
+    finally:
+        db.close()
+
+
+def build_org_context(db):
+    """Compact org profile for the AI horizon-scan prompt: active pillar
+    names, active framework names, and the top 5 open-risk categories by
+    count. No PII, no user names -- only aggregate shape."""
+    pillars = [r["name"] for r in db.execute(
+        "SELECT name FROM erm_pillars WHERE is_active=1 ORDER BY name"
+    ).fetchall()]
+    frameworks = [r["name"] for r in db.execute(
+        "SELECT name FROM frameworks WHERE is_active=1 LIMIT 20"
+    ).fetchall()]
+    cat_rows = db.execute(
+        "SELECT category, COUNT(*) AS c FROM erm_enterprise_risks "
+        "WHERE status != 'closed' GROUP BY category ORDER BY c DESC LIMIT 5"
+    ).fetchall()
+    top_categories = [{"category": r["category"], "count": r["c"]} for r in cat_rows]
+    return {"pillars": pillars, "frameworks": frameworks, "top_categories": top_categories}
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PER-CF TREATMENTS (PLAN-25)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _cf_assurance(db, cf_id):
+    """Average ice_score across a CF's ICE-scored controls. None (not 0)
+    when the CF has no scored control yet."""
+    rows = db.execute(
+        "SELECT ice_score FROM risk_controls WHERE cf_id=%s AND ice_score IS NOT NULL",
+        (cf_id,),
+    ).fetchall()
+    if not rows:
+        return None
+    scores = [r["ice_score"] for r in rows]
+    return round(sum(scores) / len(scores))
+
+
+def ensure_treatments_for_risk(db, risk_id):
+    """Create a treatment row for every CF of this risk that doesn't have
+    one yet. tr_ref pairs with the CF's numeric suffix (CF002 -> TR002),
+    falling back to _next_ref if that suffix can't be parsed. The initial
+    treatment_option follows the Accept-at-70%-assurance rule but this is
+    only ever applied at row creation — an existing row's option is never
+    overwritten here, so a user's explicit choice always survives later
+    recomputes. Caller commits."""
+    cfs = db.execute(
+        "SELECT id, cf_ref FROM erm_contributing_factors WHERE risk_id=%s", (risk_id,)
+    ).fetchall()
+    existing_cf_ids = {row["cf_id"] for row in db.execute(
+        "SELECT cf_id FROM erm_cf_treatments WHERE risk_id=%s", (risk_id,)
+    ).fetchall()}
+    pattern = re.compile(r"^CF(\d+)$")
+    for cf in cfs:
+        if cf["id"] in existing_cf_ids:
+            continue
+        m = pattern.match(cf["cf_ref"] or "")
+        if m:
+            tr_ref = f"TR{int(m.group(1)):03d}"
+        else:
+            tr_ref = _next_ref(db, "erm_cf_treatments", "tr_ref", "TR", 3,
+                                where_sql="risk_id=%s", params=(risk_id,))
+        assurance = _cf_assurance(db, cf["id"])
+        option = "accept" if (assurance is not None and assurance >= 70) else "mitigate"
+        db.execute(
+            "INSERT INTO erm_cf_treatments (risk_id, cf_id, tr_ref, treatment_option, status) "
+            "VALUES (%s,%s,%s,%s,'open') ON CONFLICT (cf_id) DO NOTHING",
+            (risk_id, cf["id"], tr_ref, option),
+        )
+
+
+def list_treatments(risk_id):
+    """Ensure every CF has a treatment row, then return all of a risk's
+    treatments joined with CF ref/description and owner name, plus two
+    live-computed fields: suggested_option ('accept' when the CF's current
+    assurance is >= 70 else 'mitigate') and overdue (due_date in the past
+    and status not yet 'complete')."""
+    db = get_db()
+    try:
+        ensure_treatments_for_risk(db, risk_id)
+        db.commit()
+        rows = _dicts(db.execute(
+            "SELECT t.*, cf.cf_ref AS cf_ref, cf.description AS cf_description, "
+            "u.full_name AS owner_name "
+            "FROM erm_cf_treatments t "
+            "JOIN erm_contributing_factors cf ON cf.id = t.cf_id "
+            "LEFT JOIN users u ON u.id = t.owner_id "
+            "WHERE t.risk_id=%s ORDER BY cf.cf_ref",
+            (risk_id,),
+        ).fetchall())
+        today = utcnow().strftime("%Y-%m-%d")
+        for row in rows:
+            assurance = _cf_assurance(db, row["cf_id"])
+            row["cf_assurance"] = assurance
+            row["suggested_option"] = "accept" if (assurance is not None and assurance >= 70) else "mitigate"
+            row["overdue"] = bool(row.get("due_date") and row["due_date"] < today
+                                   and row.get("status") != "complete")
+        return rows
+    finally:
+        db.close()
+
+
+def get_treatment_risk_id(treatment_id):
+    """Return the risk_id owning a treatment, or None if it doesn't exist.
+    Used by routes to resolve the owning risk for BU-scope checks before
+    mutating a treatment addressed only by its own id."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT risk_id FROM erm_cf_treatments WHERE id=%s", (treatment_id,)).fetchone()
+        return row["risk_id"] if row else None
+    finally:
+        db.close()
+
+
+def update_treatment(treatment_id, data):
+    """Update a per-CF treatment. Writable fields: treatment_option,
+    action_steps, emv_a, owner_id, due_date, status, interdependencies.
+    treatment_option/status are validated against their allowed sets and
+    emv_a as None or a non-negative float, all BEFORE any SQL runs, so an
+    invalid payload never leaves a half-applied UPDATE. Raises ValueError
+    on an invalid field or a missing treatment. Returns the updated
+    treatment dict with a `warning` key: a caution string when this call
+    sets treatment_option to 'accept' while the CF's live assurance is
+    None or below 70%, empty string otherwise."""
+    if "treatment_option" in data and data["treatment_option"] not in TREATMENT_OPTIONS:
+        raise ValueError(f"treatment_option must be one of {sorted(TREATMENT_OPTIONS)}")
+    if "status" in data and data["status"] not in TREATMENT_STATUSES:
+        raise ValueError(f"status must be one of {sorted(TREATMENT_STATUSES)}")
+    emv_a_set = "emv_a" in data
+    emv_a = None
+    if emv_a_set and data["emv_a"] not in (None, ""):
+        emv_a = float(data["emv_a"])
+        if emv_a < 0:
+            raise ValueError("emv_a must be >= 0")
+
+    db = get_db()
+    try:
+        row = db.execute("SELECT * FROM erm_cf_treatments WHERE id=%s", (treatment_id,)).fetchone()
+        if not row:
+            raise ValueError("Treatment not found")
+        fields, vals = [], []
+        for k in ("treatment_option", "action_steps", "owner_id", "due_date",
+                  "status", "interdependencies"):
+            if k in data:
+                fields.append(f"{k}=%s"); vals.append(data[k])
+        if emv_a_set:
+            fields.append("emv_a=%s"); vals.append(emv_a)
+        fields.append("updated_at=%s"); vals.append(_now())
+        vals.append(treatment_id)
+        db.execute(f"UPDATE erm_cf_treatments SET {','.join(fields)} WHERE id=%s", vals)
+        db.commit()
+        updated = _dict(db.execute(
+            "SELECT t.*, cf.cf_ref AS cf_ref FROM erm_cf_treatments t "
+            "JOIN erm_contributing_factors cf ON cf.id=t.cf_id WHERE t.id=%s",
+            (treatment_id,),
+        ).fetchone())
+        warning = ""
+        if data.get("treatment_option") == "accept":
+            assurance = _cf_assurance(db, updated["cf_id"])
+            if assurance is None or assurance < 70:
+                warning = "Accept selected while CF assurance is below 70%"
+        updated["warning"] = warning
+        return updated
+    finally:
+        db.close()
+
+
+def get_risk_emv_a_total(db, risk_id):
+    """Sum emv_a across a risk's treatments. None (not 0) when no
+    treatment has emv_a set yet — 0 is itself a valid recorded cost."""
+    row = db.execute(
+        "SELECT SUM(emv_a) AS total FROM erm_cf_treatments WHERE risk_id=%s",
+        (risk_id,),
+    ).fetchone()
+    return row["total"] if row and row["total"] is not None else None
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -941,7 +1831,13 @@ def delete_appetite(appetite_id):
 
 
 def get_appetite_status():
-    """For each category: current max score in erm_enterprise_risks vs appetite threshold."""
+    """For each category: current max RESIDUAL exposure in erm_enterprise_risks
+    vs appetite threshold. Decided 2026-07-18 (PLAN-26): appetite compares
+    POST-control exposure, matching the mind map's placement of Risk
+    Appetite under Treatment. COALESCE(rrr, likelihood*impact) means an
+    unassessed risk (rrr defaults to irr_score at tier 4 of the residual
+    ladder) reports identically to the pre-PLAN-26 inherent-only math;
+    breaches only start clearing once controls are actually ICE-scored."""
     db = get_db()
     try:
         appetites = _dicts(db.execute("SELECT * FROM erm_risk_appetite").fetchall())
@@ -949,7 +1845,7 @@ def get_appetite_status():
         for a in appetites:
             cat = a["category"]
             max_risk = db.execute(
-                "SELECT MAX(likelihood*impact) FROM erm_enterprise_risks "
+                "SELECT MAX(COALESCE(rrr, likelihood*impact)) FROM erm_enterprise_risks "
                 "WHERE category=%s AND status NOT IN ('closed','accepted')", (cat,)
             ).fetchone()[0] or 0
             count_open = db.execute(
@@ -959,11 +1855,11 @@ def get_appetite_status():
             a["current_max_score"] = max_risk
             a["open_count"] = count_open
             a["breached"] = max_risk > a["max_score"]
-            # Top risk in this category
+            # Top risk in this category, by the same residual-exposure metric
             top = db.execute(
-                "SELECT id, title, (likelihood*impact) AS score FROM erm_enterprise_risks "
+                "SELECT id, title, COALESCE(rrr, likelihood*impact) AS score FROM erm_enterprise_risks "
                 "WHERE category=%s AND status NOT IN ('closed','accepted') "
-                "ORDER BY (likelihood*impact) DESC LIMIT 1", (cat,)
+                "ORDER BY COALESCE(rrr, likelihood*impact) DESC LIMIT 1", (cat,)
             ).fetchone()
             a["top_risk"] = _dict(top)
             result.append(a)
@@ -1297,7 +2193,7 @@ def get_unified_register(filters=None, limit=1000):
         erm_rows = _dicts(db.execute(
             f"SELECT e.id, e.title, e.description, e.category, e.sub_category, e.likelihood, e.impact, "
             f"(e.likelihood*e.impact) AS risk_score, e.status, e.treatment, e.owner_id, "
-            f"e.board_visibility, "
+            f"e.board_visibility, e.risk_ref, e.rrr, "
             f"'erm' AS register_source, e.source_module, e.created_at, "
             f"u.full_name AS owner_name "
             f"FROM erm_enterprise_risks e "
@@ -1401,7 +2297,130 @@ def get_risk_feed(limit=20):
 # DASHBOARD STATS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_dashboard_stats():
+def _posture_where(filters):
+    """Build a parameterised WHERE clause + params for the PLAN-26 posture
+    block from optional filters: category, business_unit_id, impacted_pillar,
+    objective_id (PLAN-27), date_from, date_to (created_at range, ISO
+    strings). Base clause always excludes closed risks. Every posture query
+    in one get_dashboard_stats() call shares this same clause so the panels
+    never disagree with each other (the exact partial-migration bug the
+    framework slice fought)."""
+    where = ["e.status != 'closed'"]
+    params = []
+    filters = filters or {}
+    if filters.get("category"):
+        where.append("e.category=%s")
+        params.append(filters["category"])
+    if filters.get("business_unit_id") is not None:
+        where.append("e.business_unit_id=%s")
+        params.append(filters["business_unit_id"])
+    if filters.get("impacted_pillar"):
+        where.append("e.impacted_pillar=%s")
+        params.append(filters["impacted_pillar"])
+    if filters.get("objective_id") is not None:
+        where.append("e.objective_id=%s")
+        params.append(filters["objective_id"])
+    if filters.get("date_from"):
+        where.append("e.created_at >= %s")
+        params.append(filters["date_from"])
+    if filters.get("date_to"):
+        where.append("e.created_at <= %s")
+        params.append(filters["date_to"])
+    return " AND ".join(where), params
+
+
+def _get_posture_stats(db, filters):
+    """Risk posture block for the dashboard v2 (PLAN-26): IRR/RRR/LoA/LoR
+    averages, EMV-i/r/a totals, control effectiveness, a high-RRR watchlist
+    (rrr >= 15), and a trajectory bucketed by month from score history.
+    AVG/SUM over zero qualifying rows returns SQL NULL -> Python None here;
+    never coerced to 0, since 0 would misreport real posture as perfect."""
+    where_sql, params = _posture_where(filters)
+    params = tuple(params)
+
+    def _scalar(sql, extra_params=()):
+        row = db.execute(sql, params + tuple(extra_params)).fetchone()
+        return row[0] if row else None
+
+    avg_irr = _scalar(f"SELECT AVG(irr_score) FROM erm_enterprise_risks e WHERE {where_sql}")
+    avg_rrr = _scalar(f"SELECT AVG(rrr) FROM erm_enterprise_risks e WHERE {where_sql} AND e.rrr IS NOT NULL")
+    avg_loa = _scalar(f"SELECT AVG(loa_pct) FROM erm_enterprise_risks e WHERE {where_sql} AND e.loa_pct IS NOT NULL")
+    # avg_lor derives from avg_loa in Python (never double-transform by also
+    # averaging (100-loa) in SQL): a single 100-avg_loa keeps one source of truth.
+    avg_lor = round(100 - avg_loa, 1) if avg_loa is not None else None
+    emv_i_total = _scalar(f"SELECT SUM(emv_inherent) FROM erm_enterprise_risks e WHERE {where_sql}")
+    emv_r_total = _scalar(f"SELECT SUM(emv_residual) FROM erm_enterprise_risks e WHERE {where_sql}")
+
+    try:
+        emv_a_total = _scalar(
+            f"SELECT SUM(t.emv_a) FROM erm_cf_treatments t "
+            f"JOIN erm_enterprise_risks e ON e.id=t.risk_id WHERE {where_sql}"
+        )
+    except Exception:
+        emv_a_total = None  # erm_cf_treatments may not exist pre-PLAN-25
+
+    control_effectiveness = _scalar(
+        f"SELECT AVG(rc.ice_score) FROM risk_controls rc "
+        f"JOIN erm_enterprise_risks e ON e.id=rc.risk_id "
+        f"WHERE {where_sql} AND rc.ice_score IS NOT NULL"
+    )
+
+    high_rrr = _dicts(db.execute(
+        f"SELECT e.id, e.risk_ref, e.title, e.category, e.rrr, e.irr_score, "
+        f"e.loa_pct, u.full_name AS owner_name "
+        f"FROM erm_enterprise_risks e LEFT JOIN users u ON u.id=e.owner_id "
+        f"WHERE {where_sql} AND e.rrr >= 15 "
+        f"ORDER BY e.rrr DESC LIMIT 10",
+        params,
+    ).fetchall())
+
+    # Trajectory: bucket erm_risk_score_history by month in Python (never
+    # strftime/to_char in SQL — SQLite vs PG divergence). recorded_at may
+    # arrive as a str (SQLite) or datetime (PG wrapper in some paths); coerce
+    # both via str(...)[:7]. Default window is the last 24 months; a period
+    # filter's date_from (always more recent than 730 days for year/quarter/
+    # month) narrows that same window rather than widening it.
+    default_cutoff = (utcnow() - timedelta(days=730)).strftime("%Y-%m-%d")
+    traj_cutoff = filters.get("date_from") if filters else None
+    traj_cutoff = traj_cutoff or default_cutoff
+    hist_rows = db.execute(
+        f"SELECT h.recorded_at, h.rrr, h.irr FROM erm_risk_score_history h "
+        f"JOIN erm_enterprise_risks e ON e.id=h.risk_id "
+        f"WHERE {where_sql} AND h.recorded_at >= %s",
+        params + (traj_cutoff,),
+    ).fetchall()
+    buckets = {}
+    for row in hist_rows:
+        month = str(row["recorded_at"])[:7]
+        b = buckets.setdefault(month, {"rrr": [], "irr": []})
+        if row["rrr"] is not None:
+            b["rrr"].append(row["rrr"])
+        if row["irr"] is not None:
+            b["irr"].append(row["irr"])
+    trajectory = [
+        {
+            "month": month,
+            "avg_rrr": round(sum(buckets[month]["rrr"]) / len(buckets[month]["rrr"]), 1) if buckets[month]["rrr"] else None,
+            "avg_irr": round(sum(buckets[month]["irr"]) / len(buckets[month]["irr"]), 1) if buckets[month]["irr"] else None,
+        }
+        for month in sorted(buckets.keys())
+    ]
+
+    return {
+        "avg_irr": round(avg_irr, 1) if avg_irr is not None else None,
+        "avg_rrr": round(avg_rrr, 1) if avg_rrr is not None else None,
+        "avg_loa": round(avg_loa, 1) if avg_loa is not None else None,
+        "avg_lor": avg_lor,
+        "emv_i_total": round(emv_i_total, 2) if emv_i_total is not None else None,
+        "emv_r_total": round(emv_r_total, 2) if emv_r_total is not None else None,
+        "emv_a_total": round(emv_a_total, 2) if emv_a_total is not None else None,
+        "control_effectiveness": round(control_effectiveness, 1) if control_effectiveness is not None else None,
+        "high_rrr": high_rrr,
+        "trajectory": trajectory,
+    }
+
+
+def get_dashboard_stats(filters=None):
     db = get_db()
     try:
         total_erm = db.execute("SELECT COUNT(*) FROM erm_enterprise_risks WHERE status!='closed'").fetchone()[0]
@@ -1414,10 +2433,15 @@ def get_dashboard_stats():
             "WHERE mb.band_key IN ('high','critical') AND e.status!='closed'"
         ).fetchone()[0]
         total_rr = db.execute("SELECT COUNT(*) FROM risk_register WHERE status!='closed'").fetchone()[0]
+        # Residual exposure vs appetite (PLAN-26, decided 2026-07-18): compares
+        # POST-control exposure, not raw inherent likelihood*impact. Unassessed
+        # risks default rrr to irr_score (tier 4 of the residual ladder), so
+        # this is byte-identical to the pre-PLAN-26 math until controls are
+        # actually ICE-scored.
         appetite_breaches = db.execute(
             "SELECT COUNT(*) FROM erm_enterprise_risks e "
             "JOIN erm_risk_appetite a ON a.category=e.category "
-            "WHERE (e.likelihood*e.impact) > a.max_score AND e.status!='closed'"
+            "WHERE COALESCE(e.rrr, e.likelihood*e.impact) > a.max_score AND e.status!='closed'"
         ).fetchone()[0]
         overdue_obligations = db.execute(
             "SELECT COUNT(*) FROM erm_regulatory_obligations "
@@ -1490,6 +2514,10 @@ def get_dashboard_stats():
                             "text": f"Overdue obligation: {o['regulation_name']}",
                             "link": "/erm/obligations"})
 
+        # Legacy counters above intentionally stay UNFILTERED (whole-tenant,
+        # band/inherent-based); only the posture block below responds to
+        # `filters`. Do not "fix" this — posture (RRR/EMV) and bands are
+        # different lenses that may legitimately disagree on the same risk.
         return {
             "total_enterprise_risks": total_erm,
             "total_register_risks": total_rr,
@@ -1504,6 +2532,7 @@ def get_dashboard_stats():
             "trend_critical": trend_critical,
             "top_critical_risks": top_critical,
             "actions_required": actions[:8],
+            "posture": _get_posture_stats(db, filters),
         }
     finally:
         db.close()

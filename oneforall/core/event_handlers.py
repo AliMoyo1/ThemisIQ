@@ -143,7 +143,7 @@ def _check_and_emit_appetite_breach(db, category, user_id=None):
     """
     try:
         row = db.execute(
-            "SELECT MAX(likelihood * impact) AS max_score FROM erm_enterprise_risks "
+            "SELECT MAX(COALESCE(rrr, likelihood * impact)) AS max_score FROM erm_enterprise_risks "
             "WHERE category=%s AND status NOT IN ('closed','accepted')",
             (category,)
         ).fetchone()
@@ -1951,6 +1951,21 @@ def _insert_erm_risk(db, title, description, category, likelihood, impact,
             (title, description, category, likelihood, impact, 3,
              "mitigate", "open", board_visibility, source_module, source_risk_id, user_id)
         )
+        # PLAN-23: this insert bypasses create_enterprise_risk, so give the
+        # elevated risk its ref/IRR/RRR immediately rather than waiting for
+        # the next startup backfill. Lazy import avoids a circular import
+        # at module load (mirrors governance/effectiveness.py's cascade).
+        try:
+            from modules.erm.data_service import _next_ref, recompute_residual_for_risk
+            ref = _next_ref(db, "erm_enterprise_risks", "risk_ref", "RSK-", 4)
+            irr = int(likelihood) * int(impact)
+            db.execute(
+                "UPDATE erm_enterprise_risks SET risk_ref=%s, irr_score=%s, "
+                "inherent_score=%s WHERE id=%s",
+                (ref, irr, irr, cur))
+            recompute_residual_for_risk(db, cur)
+        except Exception as exc:
+            log.warning("_insert_erm_risk: ref/IRR backfill failed for risk %s: %s", cur, exc)
         return cur
     except Exception as exc:
         log.warning("_insert_erm_risk failed: %s", exc)
@@ -2641,7 +2656,7 @@ def erm_risk_closed_checks_appetite(event_type, source_module, entity_type,
 
         max_score = appetite["max_score"]
         current_max = db.execute(
-            "SELECT MAX(likelihood*impact) FROM erm_enterprise_risks "
+            "SELECT MAX(COALESCE(rrr, likelihood*impact)) FROM erm_enterprise_risks "
             "WHERE category=%s AND status NOT IN ('closed','accepted')",
             (category,),
         ).fetchone()[0] or 0

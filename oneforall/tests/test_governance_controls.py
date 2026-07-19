@@ -53,6 +53,7 @@ def _init_test_db():
             test_frequency_days INTEGER,
             last_tested_at      TEXT,
             business_unit_id    INTEGER,
+            p2st2_category      TEXT,
             is_active           INTEGER DEFAULT 1,
             created_at          TEXT DEFAULT (datetime('now')),
             updated_at          TEXT DEFAULT (datetime('now'))
@@ -64,6 +65,8 @@ def _init_test_db():
             weight      REAL DEFAULT 1.0,
             direction   TEXT DEFAULT 'mitigates',
             created_by  INTEGER,
+            cf_id       INTEGER,
+            ice_score   INTEGER,
             created_at  TEXT DEFAULT (datetime('now')),
             UNIQUE(risk_id, control_id)
         );
@@ -73,7 +76,27 @@ def _init_test_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, status TEXT DEFAULT 'open',
             likelihood INTEGER DEFAULT 1, impact INTEGER DEFAULT 1, source_module TEXT,
             residual_likelihood INTEGER, residual_impact INTEGER,
-            residual_score INTEGER, control_effectiveness INTEGER
+            residual_score INTEGER, control_effectiveness INTEGER,
+            risk_ref TEXT, irr_score INTEGER, loa_pct INTEGER, rrr REAL,
+            emv_inherent REAL, emv_residual REAL, impacted_pillar TEXT
+        );
+        CREATE TABLE IF NOT EXISTS erm_contributing_factors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            risk_id INTEGER NOT NULL, cf_ref TEXT NOT NULL, description TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
+            UNIQUE(risk_id, cf_ref)
+        );
+        CREATE TABLE IF NOT EXISTS erm_risk_score_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            risk_id INTEGER NOT NULL, irr INTEGER, rrr REAL, loa_pct INTEGER,
+            emv_inherent REAL, emv_residual REAL,
+            recorded_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS evidence_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            evidence_id INTEGER NOT NULL, module TEXT NOT NULL,
+            entity_type TEXT NOT NULL, entity_id INTEGER NOT NULL,
+            linked_by INTEGER, created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS control_effectiveness_scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

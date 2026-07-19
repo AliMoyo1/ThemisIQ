@@ -103,7 +103,7 @@ conventions.
 | Rank | Plan | What | Impact | Effort | Why this rank |
 |---|---|---|---|---|---|
 | 1 | [PLAN-18](PLAN-18-security-round-2.md) | Org-enforced MFA (Part A: DONE `af5e80d`), SBU data scoping (Part B: DONE 2026-07-16), upload magic-byte checks (Part C: DONE 2026-07-16) | Closes the three real remaining security gaps; SBU scoping is the multi-tenant interior wall | ~3-4 days | Security asked first; SBU isolation is customer-visible |
-| 2 | [PLAN-19](PLAN-19-ropa-dpia-integration.md) | RoPA ↔ DPIA link + prefill + drift banner | Kills the retyping the user reported; schema hooks already half-exist | ~1-2 days | Smallest effort, immediate daily-use payoff |
+| 2 | [PLAN-19](PLAN-19-ropa-dpia-integration.md) | RoPA ↔ DPIA link + prefill + drift banner | Kills the retyping the user reported; schema hooks already half-exist | ~1-2 days | DONE (2026-07-17) |
 | 3 | [PLAN-20](PLAN-20-aiia-ai-impact-assessment.md) | AIIA assessment type in Sentinel | The explicitly requested AIIA option, with editable dimensions and ERM-consistent banding | ~3-4 days | Explicit ask; independent of everything else |
 | 4 | [PLAN-21](PLAN-21-ai-controls-catalogue-aims-engine.md) | Editable AI controls catalogue (96 seeded) + AIMS/ORAAT risk engine in ORM | Digitizes the org's real ISO 42001 working model; strongest differentiator of the batch | ~1-1.5 weeks | Largest slice; resolves a scoring contradiction in the source sheets with one documented convention |
 | 5 | [PLAN-22](PLAN-22-bia-questionnaire-engine.md) | ISO 22301 BIA questionnaire engine in BCM | Impact-over-time grids, recovery resources, suggested RTO | ~3-4 days | High value, least urgent; independent |
@@ -111,6 +111,93 @@ conventions.
 **Round 5 execution order: 18 → 19 → 20 → 21 → 22.** 19/20/21/22 are
 mutually independent; only PLAN-18's Part B (BU scoping) should precede
 the others so their list endpoints inherit the scope pattern from day one.
+
+## Round 6 - ERM v2: the mind-map redesign (PLAN-23..28)
+
+Grounded in the user's `ERM Module.xmind` mind map (read 2026-07-17,
+including all node notes) plus a full code exploration of the ERM module,
+the T1.2/T1.3/T1.4 governance-controls engines, and the framework tables.
+Key architectural findings baked into these plans:
+
+- The T1.4 residual formula `L x I x (1 - eff/100)` is structurally the
+  mind map's RRR formula; ICE scoring slots in as a new top-precedence
+  tier of `recompute_residual_for_risk`, not a rebuild.
+- `canonical_controls` + `risk_controls` already exist; the P2sT2 control
+  library is a category column on canonical_controls, not a new table.
+- The mind map's LoA/RRR wording contradicts its own multiplier table;
+  PLAN-23 documents the single self-consistent convention (LoA = avg ICE,
+  LoR = 1 - LoA, RRR = LoR x IRR, EMV-r = LoR x EMV-i) that reproduces
+  every number in the source table.
+- User constraints: keep existing ERM tables and extend them; retire the
+  old 1-5 effectiveness_rating in favour of ICE (column kept, writes
+  stopped).
+
+| Rank | Plan | What | Why this rank |
+|---|---|---|---|
+| 1 | [PLAN-23](PLAN-23-erm-cf-ice-engine.md) | Contributing factors, ICE engine, frozen IRR, EMV, risk refs, pillars, score history (backend only) | Every other plan reads these tables and numbers; highest leverage, zero UI risk |
+| 2 | [PLAN-24](PLAN-24-erm-assessment-workspace.md) | Risk form + drawer UI: CF editor, ICE selectors, LoA/LoR/RRR/EMV-r live strip, P2sT2 picker, AI suggest, CSV | Makes the engine usable daily; completes the identification + assessment loop |
+| 3 | [PLAN-25](PLAN-25-erm-cf-treatments.md) | Per-CF treatments: TR numbers, Exploit, Accept-at-70 rule, EMV-a, due dates | Completes the CF lifecycle; depends only on 23 (24 recommended) |
+| 4 | [PLAN-26](PLAN-26-erm-dashboard-v2.md) | Dashboard v2: RRR >= 15 watchlist, IRR/RRR/LoA/LoR averages, EMV totals, trajectory graph, filters | The visible payoff; where "measurable and comparable over time" lands |
+| 5 | [PLAN-27](PLAN-27-erm-objectives-pillars.md) | Objectives registry (strategic/standard/departmental), risk_context, pillars admin | Assessment-context metadata; enriches filters and identification, nothing blocks on it |
+| 6 | [PLAN-28](PLAN-28-erm-external-context.md) | External context: emerging risk inbox + AI horizon scan with LIVE web-search grounding (Anthropic server-side web search tool, cited sources, domain allowlist; knowledge-only fallback for other providers) | Differentiator; revised 2026-07-18 from knowledge-only to live grounding after confirming API support |
+
+**Round 6 execution order: 23 -> 24 -> 25 -> 26 -> 27 -> 28.** 25/26/27 are
+mutually independent once 23 is in; 28 last. Round 6 is independent of the
+open PLAN-16/17 and PLAN-20/21/22 items, with one interaction noted in
+PLAN-23 Step 6: when PLAN-21 (AI controls catalogue) executes, its seeds
+should also set `p2st2_category` on canonical_controls.
+
+**Round 6 integration map (assessed 2026-07-18).** Touchpoints the
+executor must respect; each is specified inside the relevant plan:
+
+- Auto-elevation (core/event_handlers.py `_insert_erm_risk`) bypasses
+  create_enterprise_risk; PLAN-23 Step 5b patches it so GRID findings,
+  BCM risks/incidents, and Sentinel breaches get risk_ref/IRR/RRR at
+  insert time, not at next restart.
+- T1.3 effectiveness engine keeps cascading into
+  recompute_residual_for_risk; once a risk has any ICE score, tier 1 of
+  the new ladder makes that cascade a no-op for it (documented in
+  PLAN-23). DECIDED 2026-07-18: ORM converges onto the ICE scale.
+  PLAN-21's AIMS/ORAAT engine adopts ICE percent input from day one (see
+  its Alignment section; legacy ORAAT 1-10 maps as 100 - score*10);
+  ORM RCSA's 1-5 scale converts in the queued PLAN-29 (Round 7), written
+  after Round 6 has bedded in.
+- DECIDED 2026-07-18: appetite compares RESIDUAL exposure,
+  COALESCE(rrr, likelihood*impact) vs max_score, shipping as PLAN-26
+  Step 1b (dashboard stats, get_appetite_status, and the two
+  event-handler checks). Unassessed risks behave identically because
+  rrr defaults to IRR, so the switch is non-disruptive on day one.
+- Evidence per control flows through the existing evidence_links
+  machinery (entity_type canonical_control, plus the grid/aria
+  auto-mirror); PLAN-24 adds a per-control evidence count chip and
+  deep-link, no new upload surface.
+- BU federation: standalone new tables (erm_pillars, erm_objectives,
+  erm_emerging_risks) carry business_unit_id; child tables (CFs,
+  treatments, score history) scope through risk_id. New endpoints mirror
+  the bu_scope_ids pattern from the risk detail endpoint.
+- Exec dashboard, heatmap, and band badges remain inherent/band-based
+  lenses alongside the new RRR posture (PLAN-26 documents coexistence to
+  avoid the partial-migration trap the framework slice fought).
+- PLAN-28's grounded scan depends on core/ai_client.py; a separate
+  background task is replacing that file's retired default model id, and
+  the scan pins its own ERM_SCAN_MODEL either way.
+
+## Round 6 status: PLAN-23 through PLAN-28 ALL DONE - Round 6 complete
+
+| Plan | Status |
+|---|---|
+| [PLAN-23](PLAN-23-erm-cf-ice-engine.md) | DONE (2026-07-19) |
+| [PLAN-24](PLAN-24-erm-assessment-workspace.md) | DONE (2026-07-19) |
+| [PLAN-25](PLAN-25-erm-cf-treatments.md) | DONE (2026-07-19) |
+| [PLAN-26](PLAN-26-erm-dashboard-v2.md) | DONE (2026-07-19) |
+| [PLAN-27](PLAN-27-erm-objectives-pillars.md) | DONE (2026-07-19) |
+| [PLAN-28](PLAN-28-erm-external-context.md) | DONE (2026-07-19) |
+
+## Round 7 (queued, plan not yet written)
+
+| Plan | What | Trigger to write it |
+|---|---|---|
+| PLAN-29 | ORM RCSA converges onto the ICE scale: control_effectiveness 1-5 becomes ice_score percent (map 1..5 -> 10/30/50/70/90), residual formula becomes IRR x (100 - ice)/100, RCSA UI dropdown swaps to the shared ICE selector | Decided 2026-07-18. Write after Round 6 (23-26 minimum) is live and validated in daily use, so ERM and ORM/AIMS converge on one proven convention |
 
 ## Recommended execution order
 

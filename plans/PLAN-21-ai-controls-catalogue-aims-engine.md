@@ -48,6 +48,36 @@ from the legacy sheets, expect residual EMV to differ from the sheet —
 that is the sheet's bug, not ours. State this in a code comment above
 the computation.
 
+## ALIGNMENT WITH ERM v2 ICE (decided 2026-07-18, read with PLAN-23)
+
+Round 6 (PLAN-23) introduced the platform-wide ICE convention in ERM:
+control effectiveness is entered as a PERCENT in {0,10,...,90}, higher =
+stronger, and the remaining-risk multiplier is (100 - ice)/100. The
+convention above is mathematically identical (this plan's `mean_factor`
+IS PLAN-23's LoR; residual_rating = IRR x LoR; residual_emv =
+EMV x LoR), so the ENGINE stays exactly as specified. What changes is
+the INPUT ENCODING, so ORM/AIMS is born converged with ERM instead of
+becoming a third dialect:
+
+- Store and collect control effectiveness as `ice_score` INTEGER percent
+  in {0,10,...,90}, higher = stronger (same dropdown as ERM PLAN-24).
+  Derive `ice_factor = (100 - ice_score) / 100.0` internally; all
+  formulas above are unchanged after that substitution.
+- Legacy ORAAT 1-10 sheet values map on import as
+  `ice_score = 100 - score*10` (sheet 1 -> 90 strongest, sheet 10 -> 0
+  none); this lands exactly on the allowed steps. Document the mapping in
+  the importer.
+- Never present a scale where a LOW number means a STRONG control; that
+  inversion between modules is the auditor-facing inconsistency this
+  alignment exists to prevent.
+- Catalogue pillar tags: this plan's normalized set {People, Process,
+  Systems, Technology, Tools} stays as-is for the catalogue itself, but
+  when seeding/mirroring into canonical_controls.p2st2_category
+  (PLAN-23 column) map to the singular canonical set {People, Process,
+  System, Technology, Tool} from the mind map's P2sT2 definition.
+- ORM RCSA's existing 1-5 control_effectiveness is NOT changed by this
+  plan; its convergence onto ICE is the queued PLAN-29 (Round 7).
+
 ## Exact files to touch
 
 1. `oneforall/database.py` — 4 tables in `_ERM_ORM_TABLES` + catalogue

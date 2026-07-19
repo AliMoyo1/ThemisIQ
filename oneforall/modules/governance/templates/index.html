@@ -498,7 +498,8 @@ function govOpenCtrlModal(row){
         + '<div class="form-group"><label>Ref</label><input id="ctrl_ref" value="'+esc(row?(row.ref||''):'')+'"></div>'
         + '<div class="form-group"><label>Automation</label><select id="ctrl_auto"><option value="">—</option><option value="manual">Manual</option><option value="semi-automated">Semi-automated</option><option value="automated">Automated</option></select></div>'
       + '</div>'
-      + '<div class="form-row">'
+      + '<div class="form-row-3">'
+        + '<div class="form-group"><label>P2sT2 Category</label><select id="ctrl_p2st2"><option value="">—</option><option value="People">People</option><option value="Process">Process</option><option value="System">System</option><option value="Technology">Technology</option><option value="Tool">Tool</option></select></div>'
         + '<div class="form-group"><label>Business Unit</label><select id="ctrl_bu"><option value="">— None —</option>'+buOptions()+'</select></div>'
         + '<div class="form-group"><label>Test Frequency (days)</label><input type="number" step="1" id="ctrl_freq" value="'+(row&&row.test_frequency_days!=null?row.test_frequency_days:'')+'"></div>'
       + '</div>'
@@ -513,6 +514,7 @@ function govOpenCtrlModal(row){
   if(isEdit){
     document.getElementById('ctrl_auto').value = row.automation || '';
     document.getElementById('ctrl_bu').value = row.business_unit_id || '';
+    document.getElementById('ctrl_p2st2').value = row.p2st2_category || '';
   }
 }
 
@@ -521,6 +523,7 @@ function govSaveCtrl(id){
     title: document.getElementById('ctrl_title').value.trim(),
     ref: document.getElementById('ctrl_ref').value.trim(),
     automation: document.getElementById('ctrl_auto').value || null,
+    p2st2_category: document.getElementById('ctrl_p2st2').value || null,
     business_unit_id: parseInt(document.getElementById('ctrl_bu').value) || null,
     test_frequency_days: parseInt(document.getElementById('ctrl_freq').value) || null,
     last_tested_at: document.getElementById('ctrl_lasttest').value || null,

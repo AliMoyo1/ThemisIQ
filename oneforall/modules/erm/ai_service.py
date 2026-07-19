@@ -7,7 +7,12 @@ Uses the unified core.ai_client for multi-provider support
 import json
 import logging
 
-from core.ai_client import create_message, is_configured, provider_name, safe_json_parse, wrap_user_input as _u
+from core.ai_client import (
+    create_message, create_message_web_search, is_configured, provider_name,
+    safe_json_parse, wrap_user_input as _u,
+)
+from config import settings
+from modules.erm.data_service import create_emerging
 
 log = logging.getLogger(__name__)
 
@@ -132,6 +137,31 @@ def _stub_treatment(title: str) -> dict:
         "suggested_controls": "Risk assessment, management oversight, staff training",
         "recommended_owner": "Risk Manager",
     }
+
+
+def suggest_ice_rationale(control_title: str, control_description: str, ice_suggested: int, factors: dict) -> str:
+    """One-sentence rationale for a deterministically suggested ICE score,
+    based on the T1.3 factor breakdown. Returns "" on any failure or when
+    AI is unconfigured -- callers must treat this as optional narrative
+    layered on top of the deterministic suggestion, never required."""
+    if not is_configured():
+        return ""
+    passing = [k.replace("_", " ") for k, v in (factors or {}).items() if v]
+    prompt = (
+        f"A control effectiveness scoring system suggests an ICE (control "
+        f"effectiveness) score of {ice_suggested}% for this control, based on "
+        f"automated factors.\n\n"
+        f"Control: {_u(control_title)}\nDescription: {_u(control_description)}\n"
+        f"Passing factors: {', '.join(passing) or 'none'}\n\n"
+        "Write ONE short sentence (under 25 words) explaining why this score "
+        "is reasonable. Plain text only, no JSON, no markdown."
+    )
+    try:
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=100)
+        return (text or "").strip()
+    except Exception as exc:
+        log.error("ERM ICE rationale failed: %s", exc)
+        return ""
 
 
 def generate_board_narrative(stats: dict, appetite_status: list) -> str:
@@ -289,3 +319,142 @@ def smart_remediation_plan(title: str, description: str, category: str, score: i
     except Exception as exc:
         log.error("ERM smart_remediation_plan failed: %s", exc)
         return {"summary": "Unable to generate plan. Please configure AI provider."}
+
+
+# ── PLAN-28: External context horizon scan ────────────────────────────────────
+
+def _emerging_context_lines(org_context: dict) -> str:
+    pillars = ", ".join(org_context.get("pillars") or []) or "none listed"
+    frameworks = ", ".join(org_context.get("frameworks") or []) or "none listed"
+    categories = ", ".join(c["category"] for c in (org_context.get("top_categories") or [])) or "none listed"
+    return (
+        f"Pillars: {_u(pillars)}\n"
+        f"Frameworks in use: {_u(frameworks)}\n"
+        f"Top risk categories today: {_u(categories)}\n"
+    )
+
+
+def scan_emerging_risks_grounded(org_context: dict) -> list:
+    """Grounded horizon scan using the Anthropic web search tool. Stores
+    survivors directly via create_emerging and returns their new ids.
+
+    Any item whose source_url does not exactly match one of the citations
+    the API actually returned is DISCARDED as a web-sourced item and
+    re-stored with source_url NULL and the knowledge caveat instead -- a
+    model can still write a plausible-looking URL into its JSON, and only
+    the citations array proves a page was actually retrieved.
+
+    Raises whatever create_message_web_search raises (e.g. RuntimeError
+    when web search is disabled or the provider isn't anthropic) so the
+    caller can fall back to scan_emerging_risks(); does not swallow that
+    exception itself."""
+    prompt = (
+        "Search the allowed sources for enterprise risks that are NEW or RISING "
+        "in the last 12 months, relevant to an organisation with this profile:\n"
+        + _emerging_context_lines(org_context) +
+        '\nReturn a JSON array of at most 5 objects, each shaped exactly as: '
+        '{"title": "<risk title>", "summary": "<1-2 sentence summary>", '
+        '"pillar": "<one of the organisation pillars, or empty>", '
+        '"standard_ref": "<related standard/framework, or empty>", '
+        '"source_url": "<the exact URL of the source you found this from>", '
+        '"rationale": "<why this is relevant now>"}. '
+        'Respond with JSON only, no prose before or after. '
+        'If uncertain about a candidate, omit it rather than guess -- return fewer items.'
+    )
+    result = create_message_web_search(
+        [{"role": "user", "content": prompt}],
+        max_tokens=1500,
+        model=getattr(settings, "ERM_SCAN_MODEL", "claude-sonnet-5"),
+        max_searches=getattr(settings, "ERM_SCAN_MAX_SEARCHES", 8),
+        allowed_domains=getattr(settings, "ERM_SCAN_ALLOWED_DOMAINS", None),
+    )
+    items = safe_json_parse(result.get("text", ""), []) or []
+    if not isinstance(items, list):
+        return []
+    citations = result.get("citations") or []
+    citation_urls = {c["url"] for c in citations if c.get("url")}
+    citation_titles = {c["url"]: c.get("title", "") for c in citations if c.get("url")}
+
+    created = []
+    for item in items[:5]:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        rationale = str(item.get("rationale") or "").strip()
+        raw_url = str(item.get("source_url") or "").strip()
+        base = {
+            "title": title,
+            "summary": item.get("summary"),
+            "pillar": item.get("pillar") or None,
+            "standard_ref": item.get("standard_ref") or None,
+        }
+        if raw_url and raw_url in citation_urls:
+            cited_title = citation_titles.get(raw_url) or raw_url
+            eid = create_emerging(
+                {**base, "source_url": raw_url,
+                 "source_note": f"Live web scan ({cited_title}). {rationale}".strip()},
+                origin="ai_scan_web",
+            )
+        else:
+            eid = create_emerging(
+                {**base, "source_url": None,
+                 "source_note": f"AI-generated (model knowledge, verify before acting). {rationale}".strip()},
+                origin="ai_scan",
+            )
+        created.append(eid)
+    return created
+
+
+def scan_emerging_risks(org_context: dict) -> list:
+    """Knowledge-only horizon scan: the fallback for non-anthropic
+    providers, web search disabled for the org, or a failed grounded call.
+    Prompt forbids fabricating citations or URLs; every stored item
+    carries the knowledge caveat and a NULL source_url. Returns [] on any
+    failure or when AI isn't configured -- this is the last-resort path,
+    so it must never raise."""
+    if not is_configured():
+        return []
+    prompt = (
+        "Based on your training knowledge (NOT a live search), suggest enterprise "
+        "risks that may be NEW or RISING for an organisation with this profile:\n"
+        + _emerging_context_lines(org_context) +
+        '\nReturn a JSON array of at most 5 objects, each shaped exactly as: '
+        '{"title": "<risk title>", "summary": "<1-2 sentence summary>", '
+        '"pillar": "<one of the organisation pillars, or empty>", '
+        '"standard_ref": "<related standard/framework, or empty>", '
+        '"rationale": "<why this is relevant now>"}. '
+        'Respond with JSON only, no prose before or after. '
+        'Do NOT invent or include any source_url or citation field -- you have no '
+        'live source for this response.'
+    )
+    try:
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=1500)
+    except Exception as exc:
+        log.warning("ERM knowledge-only scan failed: %s", exc)
+        return []
+    items = safe_json_parse(text, []) or []
+    if not isinstance(items, list):
+        return []
+    created = []
+    for item in items[:5]:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        rationale = str(item.get("rationale") or "").strip()
+        eid = create_emerging(
+            {
+                "title": title,
+                "summary": item.get("summary"),
+                "pillar": item.get("pillar") or None,
+                "standard_ref": item.get("standard_ref") or None,
+                "source_url": None,
+                "source_note": f"AI-generated (model knowledge, verify before acting). {rationale}".strip(),
+            },
+            origin="ai_scan",
+        )
+        created.append(eid)
+    return created

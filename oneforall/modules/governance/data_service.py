@@ -600,8 +600,8 @@ def create_canonical_control(data: dict) -> int:
         new_id = insert_returning_id(db,
             "INSERT INTO canonical_controls "
             "(ref, title, description, owner_user_id, automation, "
-            "test_frequency_days, last_tested_at, business_unit_id) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            "test_frequency_days, last_tested_at, business_unit_id, p2st2_category) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (data.get("ref", "").strip(),
              data.get("title", "").strip(),
              data.get("description") or None,
@@ -609,7 +609,8 @@ def create_canonical_control(data: dict) -> int:
              data.get("automation") or None,
              data.get("test_frequency_days"),
              data.get("last_tested_at") or None,
-             data.get("business_unit_id")),
+             data.get("business_unit_id"),
+             data.get("p2st2_category") or None),
         )
         db.commit()
         return new_id
@@ -623,7 +624,7 @@ def update_canonical_control(cid: int, data: dict) -> bool:
         db.execute(
             "UPDATE canonical_controls SET ref=%s, title=%s, description=%s, "
             "owner_user_id=%s, automation=%s, test_frequency_days=%s, "
-            "last_tested_at=%s, business_unit_id=%s, is_active=%s, updated_at=%s "
+            "last_tested_at=%s, business_unit_id=%s, p2st2_category=%s, is_active=%s, updated_at=%s "
             "WHERE id=%s",
             (data.get("ref", "").strip(),
              data.get("title", "").strip(),
@@ -633,6 +634,7 @@ def update_canonical_control(cid: int, data: dict) -> bool:
              data.get("test_frequency_days"),
              data.get("last_tested_at") or None,
              data.get("business_unit_id"),
+             data.get("p2st2_category") or None,
              1 if data.get("is_active", 1) else 0,
              _now(), cid),
         )

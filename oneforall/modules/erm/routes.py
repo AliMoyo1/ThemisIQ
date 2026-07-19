@@ -3,6 +3,8 @@ ERM module — Enterprise Risk Management.
 SPA at GET /erm/ with JSON APIs at /erm/api/*.
 """
 import json
+import logging
+from datetime import timedelta
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -16,6 +18,8 @@ from core.timeutils import utcnow, to_dt
 from modules.erm import data_service as ds
 from modules.erm import ai_service as ai
 from modules.governance.data_service import bu_scope_ids
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/erm", tags=["erm"])
 templates = Jinja2Templates(directory=["modules/erm/templates", "templates"])
@@ -38,9 +42,21 @@ async def _json_body(request: Request) -> dict:
     return sanitize_dict(body)
 
 
+def _check_risk_scope(request: Request, risk_id: int) -> dict:
+    """Fetch a risk and enforce BU scope, mirroring api_risk_detail.
+    Returns the risk dict; raises 404 if missing or out of scope."""
+    risk = ds.get_enterprise_risk(risk_id)
+    if not risk:
+        raise HTTPException(404, "Risk not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and risk.get("business_unit_id") is not None and risk["business_unit_id"] not in scope:
+        raise HTTPException(404, "Risk not found")
+    return risk
+
+
 # ── SPA ───────────────────────────────────────────────────────────────────────
 
-_SPA_PAGES = {"register", "appetite", "library", "obligations", "assessments", "reports", "chat", "indicators", "statements", "rating-guide", "framework-admin"}
+_SPA_PAGES = {"register", "appetite", "library", "obligations", "assessments", "reports", "chat", "indicators", "statements", "rating-guide", "framework-admin", "objectives", "external"}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -67,7 +83,32 @@ async def erm_spa_page(request: Request, page: str):
 @router.get("/api/dashboard")
 @require_capability("module.erm.access")
 async def api_dashboard(request: Request):
-    stats = ds.get_dashboard_stats()
+    # PLAN-26: optional posture filters. Legacy counters (critical, high,
+    # top_critical_risks, etc.) stay whole-tenant/unfiltered by design; only
+    # stats["posture"] responds to these.
+    qp = request.query_params
+    filters = {}
+    if qp.get("category"):
+        filters["category"] = qp.get("category")
+    if qp.get("pillar"):
+        filters["impacted_pillar"] = qp.get("pillar")
+    bu_raw = qp.get("business_unit_id")
+    if bu_raw:
+        try:
+            filters["business_unit_id"] = int(bu_raw)
+        except ValueError:
+            raise HTTPException(400, "business_unit_id must be an integer")
+    obj_raw = qp.get("objective_id")
+    if obj_raw:
+        try:
+            filters["objective_id"] = int(obj_raw)
+        except ValueError:
+            raise HTTPException(400, "objective_id must be an integer")
+    period_days = {"year": 365, "quarter": 90, "month": 30}.get(qp.get("period") or "")
+    if period_days is not None:
+        filters["date_from"] = (utcnow() - timedelta(days=period_days)).strftime("%Y-%m-%d")
+
+    stats = ds.get_dashboard_stats(filters or None)
     stats["register_stats"] = ds.get_register_stats()
     stats["appetite_status"] = ds.get_appetite_status()
     stats["risk_feed"] = ds.get_risk_feed(limit=10)
@@ -179,7 +220,12 @@ async def api_risk_control_link(request: Request, risk_id: int):
     if not risk:
         raise HTTPException(404, "Risk not found")
     weight = float(body.get("weight", 1.0))
-    ds.link_risk_control(risk_id, control_id, _uid(request), weight)
+    cf_id = body.get("cf_id")
+    ice_score = body.get("ice_score")
+    try:
+        ds.link_risk_control(risk_id, control_id, _uid(request), weight, cf_id=cf_id, ice_score=ice_score)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     return JSONResponse({"ok": True})
 
 
@@ -188,6 +234,309 @@ async def api_risk_control_link(request: Request, risk_id: int):
 async def api_risk_control_unlink(request: Request, risk_id: int, control_id: int):
     ds.unlink_risk_control(risk_id, control_id)
     return JSONResponse({"ok": True})
+
+
+# ── ERM v2 (PLAN-23): Contributing Factors + ICE control assessment ──────────
+
+@router.get("/api/risks/{risk_id}/cfs")
+@require_capability("erm.risk.view")
+async def api_risk_cfs_list(request: Request, risk_id: int):
+    _check_risk_scope(request, risk_id)
+    return JSONResponse(ds.list_contributing_factors(risk_id))
+
+
+@router.post("/api/risks/{risk_id}/cfs")
+@require_capability("erm.risk.manage")
+async def api_risk_cf_create(request: Request, risk_id: int):
+    _check_risk_scope(request, risk_id)
+    body = await _json_body(request)
+    try:
+        result = ds.add_contributing_factor(risk_id, body.get("description"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse(result, status_code=201)
+
+
+@router.put("/api/cfs/{cf_id}")
+@require_capability("erm.risk.manage")
+async def api_cf_update(request: Request, cf_id: int):
+    owning_risk_id = ds.get_cf_risk_id(cf_id)
+    if owning_risk_id is None:
+        raise HTTPException(404, "Contributing factor not found")
+    _check_risk_scope(request, owning_risk_id)
+    body = await _json_body(request)
+    try:
+        ds.update_contributing_factor(cf_id, body.get("description"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/cfs/{cf_id}")
+@require_capability("erm.risk.manage")
+async def api_cf_delete(request: Request, cf_id: int):
+    owning_risk_id = ds.get_cf_risk_id(cf_id)
+    if owning_risk_id is None:
+        raise HTTPException(404, "Contributing factor not found")
+    _check_risk_scope(request, owning_risk_id)
+    try:
+        ds.delete_contributing_factor(cf_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.put("/api/risks/{risk_id}/controls/{control_id}")
+@require_capability("erm.risk.manage")
+async def api_risk_control_assess(request: Request, risk_id: int, control_id: int):
+    _check_risk_scope(request, risk_id)
+    body = await _json_body(request)
+    try:
+        risk = ds.set_control_assessment(risk_id, control_id, body.get("ice_score"), body.get("cf_id"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse(risk)
+
+
+@router.get("/api/risks/{risk_id}/controls/{control_id}/suggest-ice")
+@require_capability("erm.risk.view")
+async def api_risk_control_suggest_ice(request: Request, risk_id: int, control_id: int):
+    result = ds.suggest_ice_for_control(control_id)
+    if request.query_params.get("ai") == "1" and check_ai_rate_limit(str(_uid(request))):
+        # Optional AI narrative layered on the deterministic suggestion.
+        # Any failure here must never break the base suggestion.
+        try:
+            from database import get_db as _get_db
+            db = _get_db()
+            try:
+                row = db.execute(
+                    "SELECT title, description FROM canonical_controls WHERE id=%s",
+                    (control_id,),
+                ).fetchone()
+            finally:
+                db.close()
+            if row:
+                record_ai_call(str(_uid(request)))
+                rationale = ai.suggest_ice_rationale(
+                    row["title"], row["description"], result["suggested_ice"], result.get("factors"),
+                )
+                if rationale:
+                    result["rationale"] = rationale
+        except Exception:
+            pass
+    return JSONResponse(result)
+
+
+@router.get("/api/pillars")
+@require_capability("erm.risk.view")
+async def api_pillars_list(request: Request):
+    include_inactive = request.query_params.get("include_inactive") == "1"
+    return JSONResponse(ds.list_pillars(include_inactive=include_inactive))
+
+
+@router.post("/api/pillars")
+@require_capability("erm.framework.manage")
+async def api_pillar_create(request: Request):
+    body = await _json_body(request)
+    try:
+        new_id = ds.create_pillar(body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.put("/api/pillars/{pillar_id}")
+@require_capability("erm.framework.manage")
+async def api_pillar_update(request: Request, pillar_id: int):
+    body = await _json_body(request)
+    try:
+        ds.update_pillar(pillar_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/pillars/{pillar_id}/deactivate")
+@require_capability("erm.framework.manage")
+async def api_pillar_deactivate(request: Request, pillar_id: int):
+    try:
+        ds.deactivate_pillar(pillar_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+# ── ERM v2 (PLAN-27): Objectives registry ─────────────────────────────────────
+
+@router.get("/api/objectives")
+@require_capability("erm.risk.view")
+async def api_objectives_list(request: Request):
+    obj_type = request.query_params.get("obj_type")
+    include_archived = request.query_params.get("include_archived") == "1"
+    return JSONResponse(ds.list_objectives(obj_type=obj_type, include_archived=include_archived))
+
+
+@router.post("/api/objectives")
+@require_capability("erm.framework.manage")
+async def api_objective_create(request: Request):
+    body = await _json_body(request)
+    try:
+        new_id = ds.create_objective(body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.put("/api/objectives/{objective_id}")
+@require_capability("erm.framework.manage")
+async def api_objective_update(request: Request, objective_id: int):
+    body = await _json_body(request)
+    try:
+        ds.update_objective(objective_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/objectives/{objective_id}/archive")
+@require_capability("erm.framework.manage")
+async def api_objective_archive(request: Request, objective_id: int):
+    try:
+        ds.archive_objective(objective_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+# ── ERM v2 (PLAN-28): Emerging risk inbox (external context) ─────────────────
+
+@router.get("/api/emerging")
+@require_capability("erm.risk.view")
+async def api_emerging_list(request: Request):
+    status = request.query_params.get("status")
+    return JSONResponse(ds.list_emerging(status=status, bu_scope=bu_scope_ids(request.state.user)))
+
+
+@router.post("/api/emerging")
+@require_capability("erm.risk.manage")
+async def api_emerging_create(request: Request):
+    body = await _json_body(request)
+    body["created_by"] = _uid(request)
+    user_bu = request.state.user.get("business_unit_id")
+    if user_bu is not None and "business_unit_id" not in body:
+        body["business_unit_id"] = user_bu
+    try:
+        new_id = ds.create_emerging(body, origin="manual")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"id": new_id}, status_code=201)
+
+
+@router.post("/api/emerging/{eid}/dismiss")
+@require_capability("erm.risk.manage")
+async def api_emerging_dismiss(request: Request, eid: int):
+    try:
+        ds.dismiss_emerging(eid)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/emerging/{eid}/reopen")
+@require_capability("erm.risk.manage")
+async def api_emerging_reopen(request: Request, eid: int):
+    try:
+        ds.reopen_emerging(eid)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/emerging/{eid}/add-to-register")
+@require_capability("erm.risk.manage")
+async def api_emerging_add_to_register(request: Request, eid: int):
+    """Server-side idempotency: add_emerging_to_register itself refuses an
+    already-added item, so a double-click can't create two risks."""
+    try:
+        risk_id = ds.add_emerging_to_register(eid, _uid(request))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    risk = ds.get_enterprise_risk(risk_id) or {}
+    emit(
+        ERM_RISK_IDENTIFIED,
+        source_module="erm",
+        entity_type="enterprise_risk",
+        entity_id=risk_id,
+        payload={
+            "title": risk.get("title", ""),
+            "category": risk.get("category", ""),
+            "severity": "high",
+            "likelihood": risk.get("likelihood", 3),
+            "impact": risk.get("impact", 3),
+            "erm_risk_id": risk_id,
+        },
+        user_id=_uid(request),
+    )
+    return JSONResponse({"risk_id": risk_id}, status_code=201)
+
+
+@router.post("/api/emerging/scan")
+@require_capability("erm.ai.use")
+async def api_emerging_scan(request: Request):
+    if not check_ai_rate_limit(str(_uid(request))):
+        return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
+    record_ai_call(str(_uid(request)))
+
+    from database import get_db as _get_db
+    db = _get_db()
+    try:
+        org_context = ds.build_org_context(db)
+    finally:
+        db.close()
+
+    # Try the grounded (live web search) path first; any failure -- wrong
+    # provider, no key, web search disabled for the org, or a parse error --
+    # falls through to the knowledge-only generator rather than a 500. An
+    # empty grounded result (model found nothing worth surfacing) also falls
+    # through, per the acceptance criteria.
+    grounded = False
+    created_ids = []
+    try:
+        created_ids = ai.scan_emerging_risks_grounded(org_context)
+        grounded = bool(created_ids)
+    except Exception as exc:
+        log.warning("Grounded emerging-risk scan unavailable, falling back to knowledge-only: %s", exc)
+    if not created_ids:
+        created_ids = ai.scan_emerging_risks(org_context)
+        grounded = False
+
+    return JSONResponse({"created": len(created_ids), "grounded": grounded})
+
+
+# ── ERM v2 (PLAN-25): Per-CF treatments ───────────────────────────────────────
+# No POST/DELETE here by design: one treatment row is auto-created per CF
+# (ensure_treatments_for_risk) and dies with its CF via ON DELETE CASCADE.
+
+@router.get("/api/risks/{risk_id}/treatments")
+@require_capability("erm.risk.view")
+async def api_risk_treatments_list(request: Request, risk_id: int):
+    _check_risk_scope(request, risk_id)
+    return JSONResponse(ds.list_treatments(risk_id))
+
+
+@router.put("/api/treatments/{treatment_id}")
+@require_capability("erm.risk.manage")
+async def api_treatment_update(request: Request, treatment_id: int):
+    owning_risk_id = ds.get_treatment_risk_id(treatment_id)
+    if owning_risk_id is None:
+        raise HTTPException(404, "Treatment not found")
+    _check_risk_scope(request, owning_risk_id)
+    body = await _json_body(request)
+    try:
+        result = ds.update_treatment(treatment_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse(result)
 
 
 # ── Delete platform risk_register entry (cross-module risks visible in ERM) ───
@@ -964,20 +1313,34 @@ async def api_export_csv(request: Request):
     from database import get_db
     db = get_db()
     try:
-        rows = db.execute(
-            "SELECT name, category, risk_level, status, likelihood, impact, "
-            "owner_name, source_module, created_at, updated_at "
-            "FROM risk_register ORDER BY created_at DESC"
+        # ERM enterprise risks: full detail, including the PLAN-23 fields.
+        erm_rows = db.execute(
+            "SELECT e.title AS name, e.category, e.qualitative_score AS risk_level, "
+            "e.status, e.likelihood, e.impact, u.full_name AS owner_name, "
+            "e.source_module, e.created_at, e.updated_at, "
+            "e.risk_ref, e.irr_score, e.loa_pct, e.rrr, e.emv_inherent, e.emv_residual "
+            "FROM erm_enterprise_risks e LEFT JOIN users u ON u.id=e.owner_id "
+            "ORDER BY e.created_at DESC"
+        ).fetchall()
+        # Platform risk_register stub rows (cross-module, not yet escalated to
+        # ERM) have none of the PLAN-23 fields; they export with those blank.
+        rr_rows = db.execute(
+            "SELECT r.title AS name, r.category, r.risk_level, r.status, "
+            "r.likelihood, r.impact, u.full_name AS owner_name, "
+            "r.source_module, r.created_at, r.updated_at "
+            "FROM risk_register r LEFT JOIN users u ON u.id=r.owner_id "
+            "ORDER BY r.created_at DESC"
         ).fetchall()
     finally:
         db.close()
     columns = ["name", "category", "risk_level", "status", "likelihood", "impact",
-               "owner_name", "source_module", "created_at", "updated_at"]
+               "owner_name", "source_module", "created_at", "updated_at",
+               "risk_ref", "irr_score", "loa_pct", "rrr", "emv_inherent", "emv_residual"]
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(columns)
-    for r in rows:
-        writer.writerow([r[c] if c in r.keys() else "" for c in columns])
+    for r in list(erm_rows) + list(rr_rows):
+        writer.writerow(["" if (c not in r.keys() or r[c] is None) else r[c] for c in columns])
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),

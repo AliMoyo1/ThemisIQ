@@ -3521,6 +3521,98 @@ CREATE TABLE IF NOT EXISTS erm_risk_dimension_scores (
 CREATE INDEX IF NOT EXISTS idx_erm_dim_scores_risk
   ON erm_risk_dimension_scores(risk_id);
 
+-- ── ERM v2: Contributing Factors (root causes per risk) ────────────────
+CREATE TABLE IF NOT EXISTS erm_contributing_factors (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    risk_id     INTEGER NOT NULL REFERENCES erm_enterprise_risks(id) ON DELETE CASCADE,
+    cf_ref      TEXT NOT NULL,
+    description TEXT NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE(risk_id, cf_ref)
+);
+CREATE INDEX IF NOT EXISTS idx_erm_cf_risk ON erm_contributing_factors(risk_id);
+
+-- ── ERM v2: Per-CF risk treatments ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS erm_cf_treatments (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    risk_id           INTEGER NOT NULL REFERENCES erm_enterprise_risks(id) ON DELETE CASCADE,
+    cf_id             INTEGER NOT NULL REFERENCES erm_contributing_factors(id) ON DELETE CASCADE,
+    tr_ref            TEXT NOT NULL,
+    treatment_option  TEXT DEFAULT 'mitigate',
+    action_steps      TEXT,
+    emv_a             REAL,
+    owner_id          INTEGER REFERENCES users(id),
+    due_date          TEXT,
+    status            TEXT DEFAULT 'open',
+    interdependencies TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now')),
+    UNIQUE(cf_id)
+);
+CREATE INDEX IF NOT EXISTS idx_erm_cf_treat_risk ON erm_cf_treatments(risk_id);
+
+-- ── ERM v2: Risk score history (trajectory graph source) ───────────────
+CREATE TABLE IF NOT EXISTS erm_risk_score_history (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    risk_id       INTEGER NOT NULL REFERENCES erm_enterprise_risks(id) ON DELETE CASCADE,
+    irr           INTEGER,
+    rrr           REAL,
+    loa_pct       INTEGER,
+    emv_inherent  REAL,
+    emv_residual  REAL,
+    recorded_at   TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_erm_score_hist_risk ON erm_risk_score_history(risk_id);
+
+-- ── ERM v2: Organisational pillars (per-tenant editable catalogue) ─────
+CREATE TABLE IF NOT EXISTS erm_pillars (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    name             TEXT NOT NULL UNIQUE,
+    description      TEXT,
+    business_unit_id INTEGER,
+    is_active        INTEGER DEFAULT 1,
+    created_at       TEXT DEFAULT (datetime('now'))
+);
+
+-- ── ERM v2: Objectives registry (strategic / standard / departmental) ──
+CREATE TABLE IF NOT EXISTS erm_objectives (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    title             TEXT NOT NULL,
+    obj_type          TEXT NOT NULL DEFAULT 'strategic',
+    parent_id         INTEGER REFERENCES erm_objectives(id) ON DELETE SET NULL,
+    standard_ref      TEXT,
+    pillar            TEXT,
+    department        TEXT,
+    owner_id          INTEGER REFERENCES users(id),
+    business_unit_id  INTEGER,
+    status            TEXT DEFAULT 'active',
+    description       TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_erm_obj_type ON erm_objectives(obj_type);
+CREATE INDEX IF NOT EXISTS idx_erm_obj_parent ON erm_objectives(parent_id);
+
+-- ── ERM v2: Emerging risk inbox (external context) ─────────────────────
+CREATE TABLE IF NOT EXISTS erm_emerging_risks (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    title         TEXT NOT NULL,
+    summary       TEXT,
+    source_note   TEXT,
+    source_url    TEXT,
+    pillar        TEXT,
+    standard_ref  TEXT,
+    origin        TEXT DEFAULT 'manual',
+    status        TEXT DEFAULT 'new',
+    added_risk_id INTEGER REFERENCES erm_enterprise_risks(id),
+    business_unit_id INTEGER,
+    created_by    INTEGER REFERENCES users(id),
+    created_at    TEXT DEFAULT (datetime('now')),
+    updated_at    TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_erm_emerging_status ON erm_emerging_risks(status);
+
 -- ── Risk ↔ Control bridge (Governance Graph edge) ─────────────────────────
 CREATE TABLE IF NOT EXISTS risk_controls (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3771,6 +3863,20 @@ _COLUMN_MIGRATIONS = [
         ("erm_enterprise_risks", "effectiveness_rating",  "INTEGER DEFAULT NULL"),
         # ── Governance Graph T1.4: formula-driven residual risk ────────────────
         ("erm_enterprise_risks", "control_effectiveness", "INTEGER DEFAULT NULL"),
+        # ── ERM v2 (PLAN-23): CF + ICE + IRR/RRR/EMV columns ─────────────────
+        ("erm_enterprise_risks", "risk_ref",        "TEXT DEFAULT NULL"),
+        ("erm_enterprise_risks", "irr_score",       "INTEGER DEFAULT NULL"),
+        ("erm_enterprise_risks", "loa_pct",         "INTEGER DEFAULT NULL"),
+        ("erm_enterprise_risks", "rrr",             "REAL DEFAULT NULL"),
+        ("erm_enterprise_risks", "emv_inherent",    "REAL DEFAULT NULL"),
+        ("erm_enterprise_risks", "emv_residual",    "REAL DEFAULT NULL"),
+        ("erm_enterprise_risks", "impacted_pillar", "TEXT DEFAULT NULL"),
+        ("risk_controls",        "cf_id",           "INTEGER DEFAULT NULL"),
+        ("risk_controls",        "ice_score",       "INTEGER DEFAULT NULL"),
+        ("canonical_controls",   "p2st2_category",  "TEXT DEFAULT NULL"),
+        # ── ERM v2 (PLAN-27): objective linkage + assessment context ─────────
+        ("erm_enterprise_risks", "objective_id",    "INTEGER DEFAULT NULL"),
+        ("erm_enterprise_risks", "risk_context",    "TEXT DEFAULT NULL"),
         # ── ORM: Event workflow + SLA + Basel III ──────────────────────────────
         ("orm_events", "workflow_step",       "TEXT DEFAULT 'identified'"),
         ("orm_events", "response_due_at",     "TEXT DEFAULT NULL"),
@@ -4577,6 +4683,60 @@ def _seed_baseline_data(conn):
                     "UPDATE erm_enterprise_risks SET qualitative_score=%s WHERE id=%s",
                     (band, rid),
                 )
+            conn.commit()
+    except Exception:
+        pass
+
+    # ── ERM v2 (PLAN-23): pillar seed + IRR/risk_ref backfill ────────────────
+    try:
+        existing_pillars = conn.execute("SELECT COUNT(*) FROM erm_pillars").fetchone()[0]
+        if existing_pillars == 0:
+            for name, desc in [
+                ("People", "Workforce, culture, skills and safety"),
+                ("Financial", "Revenue, cost, liquidity and capital"),
+                ("Operational Excellence", "Processes, delivery and quality"),
+                ("Customer", "Customer trust, service and retention"),
+                ("Technology & Innovation", "Systems, data and innovation capacity"),
+                ("Reputation & Brand", "Public image and stakeholder confidence"),
+            ]:
+                conn.execute(
+                    "INSERT INTO erm_pillars (name, description) VALUES (%s,%s)",
+                    (name, desc))
+            conn.commit()
+    except Exception:
+        pass
+
+    # IRR backfill: runs every startup, matches zero rows once populated.
+    try:
+        conn.execute(
+            "UPDATE erm_enterprise_risks "
+            "SET irr_score = COALESCE(inherent_score, likelihood*impact, 9) "
+            "WHERE irr_score IS NULL")
+        conn.commit()
+    except Exception:
+        pass
+
+    # risk_ref backfill: assign RSK-0001-style refs to legacy rows, continuing
+    # from the current maximum numeric suffix. Looped in Python (not one SQL
+    # statement) since each row needs a distinct, sequential ref.
+    try:
+        existing_refs = conn.execute(
+            "SELECT risk_ref FROM erm_enterprise_risks WHERE risk_ref IS NOT NULL"
+        ).fetchall()
+        max_seq = 0
+        for row in existing_refs:
+            m = re.match(r"^RSK-(\d+)$", row[0] or "")
+            if m:
+                max_seq = max(max_seq, int(m.group(1)))
+        unref_rows = conn.execute(
+            "SELECT id FROM erm_enterprise_risks WHERE risk_ref IS NULL ORDER BY id"
+        ).fetchall()
+        for row in unref_rows:
+            max_seq += 1
+            conn.execute(
+                "UPDATE erm_enterprise_risks SET risk_ref=%s WHERE id=%s",
+                (f"RSK-{max_seq:04d}", row[0]))
+        if unref_rows:
             conn.commit()
     except Exception:
         pass
