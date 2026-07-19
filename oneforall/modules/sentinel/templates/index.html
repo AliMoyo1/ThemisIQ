@@ -1535,7 +1535,7 @@
       var dpoCell=d.dpo_consulted?'<span style="color:var(--good);font-size:12px;font-weight:700">✓</span>':'<span style="color:var(--muted);font-size:11px">—</span>';
       return '<tr>'+
         '<td><strong>'+esc(d.title||d.name||'')+'</strong>'+(d.ref_number?'<br><span class="item-id" style="font-size:10px">'+esc(d.ref_number)+'</span>':'')+'</td>'+
-        '<td><span style="font-size:12px;color:var(--accent);cursor:pointer" onclick="sentinelRouter.navigate(\'/sentinel/ropa\')">'+esc(d.ropa_name||'—')+'</span></td>'+
+        '<td>'+(d.ropa_ref?'<span class="item-id" style="cursor:pointer" onclick="sentinelRouter.navigate(\'/sentinel/ropa\')" title="'+esc(d.ropa_name||'')+'">'+esc(d.ropa_ref)+'</span>':'<span style="color:var(--muted);font-size:11px">—</span>')+'</td>'+
         '<td>'+riskBadge(d.risk_level||d.risk)+'</td>'+
         '<td>'+residual+'</td>'+
         '<td>'+dpoCell+'</td>'+
@@ -1559,16 +1559,72 @@
     if(!confirm('Create a new DPIA pre-filled from this processing activity?'))return;
     if(typeof showToast==='function')showToast('Creating DPIA...');
     try{
-      await apiFetch('/sentinel/api/ropa/'+ropaId+'/spawn-dpia',{method:'POST'});
-      if(typeof showToast==='function')showToast('DPIA created — navigating...');
-      await snLoadRopa(); // refresh so dpia_id column updates
-      sentinelRouter.navigate('/sentinel/dpia');
+      var r=await apiFetch('/sentinel/api/ropa/'+ropaId+'/spawn-dpia',{method:'POST'});
+      if(typeof showToast==='function')showToast('DPIA created and prefilled');
+      await snLoadRopa();
+      if(r&&r.dpia_id){
+        dpiaCache=dpiaCache||[];
+        if(r.dpia)dpiaCache.push(r.dpia);
+        sentinelRouter.navigate('/sentinel/dpia');
+        snOpenDpiaDrawer(r.dpia_id);
+      }else{
+        sentinelRouter.navigate('/sentinel/dpia');
+      }
     }catch(e){
-      if(typeof showToast==='function')showToast('Failed: '+(e.message||'error'),'error');
+      var msg=(e.message||'error');
+      if(msg.indexOf('409')!==-1||msg.toLowerCase().indexOf('already')!==-1){
+        if(typeof showToast==='function')showToast('This activity already has a linked DPIA — click the chip to open it','warn');
+        await snLoadRopa();
+      }else{
+        if(typeof showToast==='function')showToast('Failed: '+msg,'error');
+      }
     }
   };
 
   // AI score a single RoPA
+  window.snDpiaLinkRopa=async function(dpiaId,ropaId){
+    if(!ropaId)return;
+    try{
+      var r=await apiFetch('/sentinel/api/dpias/'+dpiaId+'/link-ropa',{method:'POST',body:{ropa_id:parseInt(ropaId)}});
+      if(typeof showToast==='function')showToast('RoPA linked and empty fields backfilled');
+      var updated=r&&r.dpia;
+      if(updated){
+        var idx=dpiaCache.findIndex(function(d){return d.id===dpiaId;});
+        if(idx>=0)dpiaCache[idx]=updated;
+        else dpiaCache.push(updated);
+      }
+      document.getElementById('snDpiaDrawerWrap')&&document.getElementById('snDpiaDrawerWrap').remove();
+      await snLoadRopa();
+      await snLoadDpia();
+      snOpenDpiaDrawer(dpiaId);
+    }catch(e){
+      var msg=(e.message||'error');
+      if(msg.indexOf('409')!==-1||msg.toLowerCase().indexOf('already')!==-1){
+        if(typeof showToast==='function')showToast('That RoPA is already linked to a different DPIA','warn');
+      }else{
+        if(typeof showToast==='function')showToast('Link failed: '+msg,'error');
+      }
+    }
+  };
+
+  window.snDpiaRefillFromRopa=async function(dpiaId,ropaId){
+    if(!ropaId)return;
+    try{
+      var r=await apiFetch('/sentinel/api/dpias/'+dpiaId+'/link-ropa',{method:'POST',body:{ropa_id:ropaId}});
+      if(typeof showToast==='function')showToast('Empty fields refilled from RoPA');
+      var updated=r&&r.dpia;
+      if(updated){
+        var idx=dpiaCache.findIndex(function(d){return d.id===dpiaId;});
+        if(idx>=0)dpiaCache[idx]=updated;
+        else dpiaCache.push(updated);
+      }
+      document.getElementById('snDpiaDrawerWrap')&&document.getElementById('snDpiaDrawerWrap').remove();
+      snOpenDpiaDrawer(dpiaId);
+    }catch(e){
+      if(typeof showToast==='function')showToast('Refill failed: '+(e.message||'error'),'error');
+    }
+  };
+
   window.snAiScoreRopa=async function(ropaId,btn){
     var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
     try{
@@ -2082,8 +2138,15 @@
       '</div>'+
       '<div class="ropa-drawer-body">'+
 
+        (isEdit&&r.ropa_ref&&r.ropa_updated_at&&r.ropa_updated_at>r.updated_at?
+          '<div id="snDpiaDriftBanner" style="margin:0 0 12px;padding:10px 14px;background:rgba(255,165,0,.12);border:1px solid rgba(255,165,0,.4);border-radius:var(--radius);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px">'+
+            '<span>The linked RoPA changed after this DPIA was last edited. Review for drift.</span>'+
+            '<button type="button" class="btn btn-sm btn-secondary" onclick="snDpiaRefillFromRopa('+id+','+r.ropa_id+')">Refill empty fields</button>'+
+          '</div>'
+        :'')+
+
         '<div class="ropa-drawer-section active" id="snDpiaTab_basics">'+
-          fg('DPIA Title <span style="color:var(--red)">*</span>','<input type="text" id="dd_title" value="'+esc(f('title'))+'" placeholder="e.g. Customer profiling — AI risk scoring" style="'+fs+'">')+
+          fg('DPIA Title <span style="color:var(--red)">*</span>','<input type="text" id="dd_title" value="'+esc(f('title'))+'" placeholder="e.g. Customer profiling: AI risk scoring" style="'+fs+'">')+
           fg('Processing Activity Type','<select id="dd_activity_type" style="'+fs+'"><option value="">Select activity type...</option>'+SN_ACTIVITY_TYPES.map(function(a){return '<option value="'+esc(a)+'"'+(f('activity_type')===a?' selected':'')+'>'+esc(a)+'</option>';}).join('')+'</select>')+
           '<div class="form-row">'+
             fg('Jurisdiction','<select id="dd_regulation" onchange="snDpiaUpdateLegalBasis(this.value);snDpiaUpdateJurisHint(this.value)" style="'+fs+'"><option value="">Select jurisdiction...</option>'+regs.map(function(rr){return '<option value="'+esc(rr)+'"'+(reg===rr?' selected':'')+'>'+esc(rr)+'</option>';}).join('')+'</select>')+
@@ -2096,6 +2159,15 @@
             fg('Due Date','<input type="date" id="dd_due_date" value="'+esc(f('due_date'))+'" style="'+fs+'">')+
           '</div>'+
           fg('Description','<textarea id="dd_description" rows="3" placeholder="Overview of this processing and why a DPIA is needed" style="'+fsta+'">'+esc(f('description'))+'</textarea>')+
+          (isEdit?fg('Linked RoPA',
+            '<select id="dd_ropa_link" style="'+fs+'" onchange="snDpiaLinkRopa('+id+',this.value)">'+
+              '<option value="">— None —</option>'+
+              (ropaCache||[]).filter(function(rpa){return !rpa.dpia_id||rpa.dpia_id===id;}).map(function(rpa){
+                return '<option value="'+rpa.id+'"'+(f('ropa_id')&&parseInt(f('ropa_id'))===rpa.id?' selected':'')+'>'+esc(rpa.ref_number||'')+' '+esc(rpa.processing_name||'')+'</option>';
+              }).join('')+
+            '</select>'+
+            (r&&r.ropa_ref?'<span style="font-size:11px;color:var(--muted);margin-top:4px;display:block">Currently linked: <strong>'+esc(r.ropa_ref)+'</strong> — '+esc(r.ropa_name||'')+'</span>':'')
+          ):'')+
         '</div>'+
 
         '<div class="ropa-drawer-section" id="snDpiaTab_data">'+

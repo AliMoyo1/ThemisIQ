@@ -215,20 +215,22 @@ async def api_spawn_dpia_from_ropa(request: Request, ropa_id: int):
     ropa = ds.get_ropa(ropa_id)
     if not ropa:
         raise HTTPException(404, "RoPA entry not found")
+    if ropa.get("dpia_id"):
+        raise HTTPException(409, "This activity already has a linked DPIA.")
     def _str(val):
-        """Ensure lists/dicts become JSON strings for text columns."""
         if isinstance(val, (list, dict)):
             return json.dumps(val)
         return val or ""
 
     dpia_data = {
-        "title": f"DPIA — {ropa.get('processing_name', '')}",
+        "title": f"DPIA: {ropa.get('processing_name', '')}",
         "status": "draft",
         "regulation": ropa.get("regulation", "GDPR"),
         "activity_desc": _str(ropa.get("purpose", "")),
         "purpose": _str(ropa.get("purpose", "")),
         "legal_basis": _str(ropa.get("legal_basis", "")),
         "data_categories": _str(ropa.get("data_categories", "")),
+        "special_cats": _str(ropa.get("special_categories", "")),
         "data_subjects": _str(ropa.get("data_subjects", "")),
         "subject_count": _str(ropa.get("subject_count", "")),
         "retention": _str(ropa.get("retention_period", "")),
@@ -239,6 +241,7 @@ async def api_spawn_dpia_from_ropa(request: Request, ropa_id: int):
         "controller_name": _str(ropa.get("controller_name", "")),
         "dpo_name": _str(ropa.get("dpo_name", "")),
         "dpo_email": _str(ropa.get("dpo_email", "")),
+        "ropa_id": ropa_id,
     }
     new_id = ds.create_dpia(dpia_data)
     ds.update_ropa(ropa_id, {"dpia_id": new_id})
@@ -313,6 +316,19 @@ async def api_dpia_update(request: Request, dpia_id: int):
 async def api_dpia_delete(request: Request, dpia_id: int):
     ds.delete_dpia(dpia_id)
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/dpias/{dpia_id}/link-ropa")
+@require_capability("sentinel.dpia.manage")
+async def api_dpia_link_ropa(request: Request, dpia_id: int):
+    data = await _json_body(request)
+    ropa_id = data.get("ropa_id")
+    if not ropa_id:
+        raise HTTPException(400, "ropa_id required")
+    ok = ds.link_dpia_to_ropa(dpia_id, int(ropa_id))
+    if not ok:
+        raise HTTPException(409, "RoPA is already linked to a different DPIA.")
+    return JSONResponse({"ok": True, "dpia": ds.get_dpia(dpia_id)})
 
 
 # ═════════════════════════════════════════════════════════════════════════════

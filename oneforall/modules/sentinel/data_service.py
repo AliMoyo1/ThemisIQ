@@ -249,7 +249,7 @@ _DPIA_FIELDS = [
     "systems", "processors", "intl_transfer", "transfer_dest", "transfer_mech",
     "necessity", "proportionality", "risks", "overall_risk", "residual_risk",
     "dpo_consulted", "auth_consulted", "subjects_consulted", "consult_notes",
-    "ai_research", "ai_full_dpia",
+    "ai_research", "ai_full_dpia", "ropa_id",
 ]
 _DPIA_JSON = ["data_categories", "special_cats", "risks"]
 
@@ -267,30 +267,119 @@ def update_dpia(dpia_id, data):
     _generic_update("sentinel_dpias", set(_DPIA_FIELDS), data, dpia_id, json_fields=_DPIA_JSON)
 
 def get_dpia(dpia_id):
-    return _generic_get("sentinel_dpias", dpia_id, _dpia_row)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT d.*, r.ref_number AS ropa_ref, r.processing_name AS ropa_name, "
+            "r.updated_at AS ropa_updated_at "
+            "FROM sentinel_dpias d "
+            "LEFT JOIN sentinel_ropa r ON r.id = d.ropa_id "
+            "WHERE d.id=%s",
+            (dpia_id,),
+        ).fetchone()
+    finally:
+        db.close()
+    return _dpia_row(row) if row else None
 
 def delete_dpia(dpia_id):
-    _generic_delete("sentinel_dpias", dpia_id)
+    db = get_db()
+    try:
+        row = db.execute("SELECT ropa_id FROM sentinel_dpias WHERE id=%s", (dpia_id,)).fetchone()
+        if row and row["ropa_id"]:
+            db.execute(
+                "UPDATE sentinel_ropa SET dpia_id=NULL WHERE id=%s AND dpia_id=%s",
+                (row["ropa_id"], dpia_id),
+            )
+        db.execute("DELETE FROM sentinel_dpias WHERE id=%s", (dpia_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+def link_dpia_to_ropa(dpia_id, ropa_id):
+    """Link a DPIA to a RoPA and backfill empty DPIA fields. Returns False if refused."""
+    db = get_db()
+    try:
+        dpia = db.execute("SELECT * FROM sentinel_dpias WHERE id=%s", (dpia_id,)).fetchone()
+        ropa = db.execute("SELECT * FROM sentinel_ropa WHERE id=%s", (ropa_id,)).fetchone()
+        if not dpia or not ropa:
+            return False
+        if ropa["dpia_id"] and ropa["dpia_id"] != dpia_id:
+            return False
+
+        def _empty(val):
+            if val is None:
+                return True
+            if isinstance(val, str) and val.strip() in ("", "[]", "null"):
+                return True
+            return False
+
+        _RPA_TO_DPIA = [
+            ("processing_name", "title", lambda v: f"DPIA: {v}"),
+            ("department",       "department",       None),
+            ("owner",            "owner",            None),
+            ("purpose",          "activity_desc",     None),
+            ("legal_basis",      "legal_basis",      None),
+            ("data_categories",  "data_categories",  None),
+            ("special_categories", "special_cats",   None),
+            ("data_subjects",    "data_subjects",    None),
+            ("retention_period", "retention",        None),
+            ("intl_transfers",   "intl_transfer",    None),
+            ("recipients",       "processors",       None),
+            ("regulation",       "regulation",       None),
+        ]
+        now = _now()
+        sets, params = [], []
+        for ropa_col, dpia_col, transform in _RPA_TO_DPIA:
+            ropa_val = ropa[ropa_col] if ropa_col in ropa.keys() else None
+            dpia_val = dpia[dpia_col] if dpia_col in dpia.keys() else None
+            if ropa_val and not _empty(ropa_val) and _empty(dpia_val):
+                val = transform(ropa_val) if transform else ropa_val
+                sets.append(f"{dpia_col}=%s")
+                params.append(val)
+        sets.append("ropa_id=%s")
+        params.append(ropa_id)
+        sets.append("updated_at=%s")
+        params.append(now)
+        params.append(dpia_id)
+        db.execute(
+            f"UPDATE sentinel_dpias SET {','.join(sets)} WHERE id=%s",
+            params,
+        )
+        db.execute(
+            "UPDATE sentinel_ropa SET dpia_id=%s, updated_at=%s WHERE id=%s",
+            (dpia_id, now, ropa_id),
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
 
 
 def list_dpias(search=None, regulation=None, status=None, limit=500, bu_scope=None):
-    sql = "SELECT * FROM sentinel_dpias WHERE 1=1"
+    sql = (
+        "SELECT d.*, r.ref_number AS ropa_ref, r.processing_name AS ropa_name, "
+        "r.updated_at AS ropa_updated_at "
+        "FROM sentinel_dpias d "
+        "LEFT JOIN sentinel_ropa r ON r.id = d.ropa_id "
+        "WHERE 1=1"
+    )
     params = []
     if search:
-        sql += " AND (title LIKE %s OR org_name LIKE %s OR activity_type LIKE %s)"
+        sql += " AND (d.title LIKE %s OR d.org_name LIKE %s OR d.activity_type LIKE %s)"
         like = f"%{search}%"
         params += [like, like, like]
     if regulation:
-        sql += " AND regulation=%s"
+        sql += " AND d.regulation=%s"
         params.append(regulation)
     if status:
-        sql += " AND status=%s"
+        sql += " AND d.status=%s"
         params.append(status)
     if bu_scope is not None:
         ph = ",".join(["%s"] * len(bu_scope))
-        sql += f" AND (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
+        sql += f" AND (d.business_unit_id IN ({ph}) OR d.business_unit_id IS NULL)"
         params.extend(bu_scope)
-    sql += " ORDER BY updated_at DESC LIMIT %s"
+    sql += " ORDER BY d.updated_at DESC LIMIT %s"
     params.append(limit)
     db = get_db()
     try:

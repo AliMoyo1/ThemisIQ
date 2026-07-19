@@ -3738,6 +3738,7 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_dpias", "consult_notes", "TEXT"),
         ("sentinel_dpias", "ai_research", "TEXT"),
         ("sentinel_dpias", "ai_full_dpia", "TEXT"),
+        ("sentinel_dpias", "ropa_id", "INTEGER"),
         # Sentinel RoPA — columns in _ROPA_FIELDS missing from CREATE TABLE
         ("sentinel_ropa", "subject_count", "TEXT"),
         ("sentinel_ropa", "systems", "TEXT"),
@@ -3752,6 +3753,8 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_ropa", "controller_name", "TEXT"),
         ("sentinel_ropa", "dpo_name", "TEXT"),
         ("sentinel_ropa", "dpo_email", "TEXT"),
+        # Sentinel RoPA — risk level column (in CREATE TABLE but missing from older DBs)
+        ("sentinel_ropa", "risk_level", "TEXT DEFAULT 'low'"),
         # Sentinel Breach — columns referenced by _BREACH_FIELDS but missing from original CREATE TABLE
         ("sentinel_breaches", "discovery_date", "TEXT"),
         ("sentinel_breaches", "incident_date", "TEXT"),
