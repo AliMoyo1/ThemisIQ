@@ -50,7 +50,22 @@ def list_bia(limit=200, bu_scope=None):
 def get_bia(bia_id):
     db = get_db()
     try:
-        return _dict(db.execute("SELECT * FROM bcm_bia_records WHERE id=%s", (bia_id,)).fetchone())
+        rec = _dict(db.execute(
+            "SELECT b.*, bp.name AS business_process_name "
+            "FROM bcm_bia_records b "
+            "LEFT JOIN business_processes bp ON bp.id = b.business_process_id "
+            "WHERE b.id=%s", (bia_id,)
+        ).fetchone())
+        if not rec:
+            return None
+        rec["impact_rows"] = _dicts(db.execute(
+            "SELECT * FROM bcm_bia_impact_rows WHERE bia_id=%s ORDER BY order_idx, id", (bia_id,)
+        ).fetchall())
+        rec["resources"] = _dicts(db.execute(
+            "SELECT * FROM bcm_bia_resources WHERE bia_id=%s ORDER BY order_idx, id", (bia_id,)
+        ).fetchall())
+        rec["bucket_labels"] = _get_bucket_labels(db)
+        return rec
     finally:
         db.close()
 
@@ -62,13 +77,20 @@ def create_bia(data):
             """INSERT INTO bcm_bia_records
                (process_name, department, owner, description, rto_hours, rpo_hours,
                 financial_impact_per_day, operational_impact, reputational_impact,
-                regulatory_impact, criticality, dependencies)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                regulatory_impact, criticality, dependencies, key_tasks, obligations,
+                deadlines, peak_periods, peak_workload, min_acceptable_level,
+                resume_period, business_process_id, business_unit_id)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (data.get("process_name"), data.get("department"), data.get("owner"),
              data.get("description"), data.get("rto_hours"), data.get("rpo_hours"),
              data.get("financial_impact_per_day"), data.get("operational_impact"),
              data.get("reputational_impact"), data.get("regulatory_impact"),
-             data.get("criticality"), data.get("dependencies")))
+             data.get("criticality"), data.get("dependencies"), data.get("key_tasks"),
+             data.get("obligations"), data.get("deadlines"), data.get("peak_periods"),
+             data.get("peak_workload"), data.get("min_acceptable_level"),
+             data.get("resume_period"), data.get("business_process_id"),
+             data.get("business_unit_id")))
+        _seed_default_impact_rows(db, cur)
         db.commit()
         return cur
     finally:
@@ -82,7 +104,10 @@ def update_bia(bia_id, data):
         vals = []
         for k in ("process_name", "department", "owner", "description", "rto_hours",
                   "rpo_hours", "financial_impact_per_day", "operational_impact",
-                  "reputational_impact", "regulatory_impact", "criticality", "dependencies"):
+                  "reputational_impact", "regulatory_impact", "criticality", "dependencies",
+                  "key_tasks", "obligations", "deadlines", "peak_periods", "peak_workload",
+                  "min_acceptable_level", "resume_period", "business_process_id",
+                  "business_unit_id"):
             if k in data:
                 fields.append(f"{k}=%s")
                 vals.append(data[k])
@@ -99,7 +124,225 @@ def update_bia(bia_id, data):
 def delete_bia(bia_id):
     db = get_db()
     try:
+        db.execute("DELETE FROM bcm_bia_impact_rows WHERE bia_id=%s", (bia_id,))
+        db.execute("DELETE FROM bcm_bia_resources WHERE bia_id=%s", (bia_id,))
         db.execute("DELETE FROM bcm_bia_records WHERE id=%s", (bia_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+# ── BIA Questionnaire: impact rows, recovery resources, RTO suggestion, bucket labels (PLAN-22) ──
+
+_BIA_GENERAL_ROWS = [
+    "Loss of reputation on the market", "Clients' reactions",
+    "Impact on other activities", "Health, safety and environmental impacts",
+    "Difficulty catching up on backlog",
+]
+_BIA_FINANCIAL_ROWS = [
+    "Legal penalties", "Contractual penalties",
+    "Loss of revenue from potential clients", "Loss of revenue from existing clients",
+    "Additional expenses (repairs, maintenance, etc.)",
+]
+_BIA_RESOURCE_CATEGORIES = [
+    "People", "Applications / databases", "Electronic data (outside applications)",
+    "Paper data", "IT and communications equipment", "Communication channels",
+    "Other equipment",
+]
+_BIA_NEEDED_AFTER = ("immediately", "1h", "4h", "24h", "2d", "1w", "other")
+_BIA_BUCKET_HOURS = [2, 4, 24, 48, 168]
+_BIA_BUCKET_LABELS_KEY = "bia.bucket_labels"
+_BIA_DEFAULT_BUCKET_LABELS = ["2 hours", "4 hours", "24 hours", "48 hours", "1 week"]
+
+
+def _seed_default_impact_rows(db, bia_id):
+    order_idx = 0
+    for label in _BIA_GENERAL_ROWS:
+        db.execute(
+            "INSERT INTO bcm_bia_impact_rows (bia_id, section, label, order_idx) "
+            "VALUES (%s,'general',%s,%s)",
+            (bia_id, label, order_idx),
+        )
+        order_idx += 1
+    for label in _BIA_FINANCIAL_ROWS:
+        db.execute(
+            "INSERT INTO bcm_bia_impact_rows (bia_id, section, label, order_idx) "
+            "VALUES (%s,'financial',%s,%s)",
+            (bia_id, label, order_idx),
+        )
+        order_idx += 1
+
+
+def seed_standard_rows_if_empty(bia_id):
+    """Idempotent: legacy BIAs created before this plan have zero impact
+    rows. Adds the 10 standard rows only if none exist yet."""
+    db = get_db()
+    try:
+        count = db.execute(
+            "SELECT COUNT(*) c FROM bcm_bia_impact_rows WHERE bia_id=%s", (bia_id,)
+        ).fetchone()["c"]
+        if count == 0:
+            _seed_default_impact_rows(db, bia_id)
+            db.commit()
+        return count == 0
+    finally:
+        db.close()
+
+
+def list_bia_impact_rows(bia_id):
+    db = get_db()
+    try:
+        return _dicts(db.execute(
+            "SELECT * FROM bcm_bia_impact_rows WHERE bia_id=%s ORDER BY order_idx, id", (bia_id,)
+        ).fetchall())
+    finally:
+        db.close()
+
+
+def save_bia_impact_rows(bia_id, rows):
+    """Delete-and-reinsert -- these rows carry no history and no FKs point
+    at them, unlike resources which are row-CRUD to preserve ids
+    mid-edit. Clamps scores to 0-3 ONLY for section='general' rows;
+    financial rows hold money amounts and must never be clamped."""
+    db = get_db()
+    try:
+        db.execute("DELETE FROM bcm_bia_impact_rows WHERE bia_id=%s", (bia_id,))
+        for idx, row in enumerate(rows):
+            section = row.get("section")
+            if section not in ("general", "financial"):
+                raise ValueError(f"section must be 'general' or 'financial', got {section!r}")
+            vals = {}
+            for col in ("b1", "b2", "b3", "b4", "b5"):
+                v = row.get(col)
+                if v in (None, ""):
+                    vals[col] = None
+                elif section == "general":
+                    vals[col] = max(0, min(3, float(v)))
+                else:
+                    vals[col] = float(v)
+            db.execute(
+                "INSERT INTO bcm_bia_impact_rows "
+                "(bia_id, section, label, description, b1, b2, b3, b4, b5, order_idx) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (bia_id, section, row.get("label") or "Untitled", row.get("description"),
+                 vals["b1"], vals["b2"], vals["b3"], vals["b4"], vals["b5"], idx),
+            )
+        new_rows = _dicts(db.execute(
+            "SELECT * FROM bcm_bia_impact_rows WHERE bia_id=%s ORDER BY order_idx, id", (bia_id,)
+        ).fetchall())
+        suggested = suggest_rto(new_rows)
+        db.execute(
+            "UPDATE bcm_bia_records SET suggested_rto_hours=%s, updated_at=%s WHERE id=%s",
+            (suggested, _now(), bia_id),
+        )
+        db.commit()
+        return {"rows": new_rows, "suggested_rto_hours": suggested}
+    finally:
+        db.close()
+
+
+def suggest_rto(rows, bucket_hours=None):
+    """First bucket (b1..b5, in order) where ANY general-section row's
+    score reaches 3 (high) -> that bucket's hour value. None if no
+    general row ever reaches 3. Financial rows are never consulted --
+    they hold money amounts, not the 1-3 scale the threshold depends on.
+    1 week = 168 hours (not 40, not 120)."""
+    bucket_hours = bucket_hours or _BIA_BUCKET_HOURS
+    general_rows = [r for r in rows if r.get("section") == "general"]
+    for i, hours in enumerate(bucket_hours):
+        col = f"b{i + 1}"
+        for r in general_rows:
+            val = r.get(col)
+            if val is not None and float(val) >= 3:
+                return hours
+    return None
+
+
+def create_bia_resource(bia_id, data):
+    category = data.get("category") or "Other equipment"
+    needed_after = data.get("needed_after") or "immediately"
+    if needed_after not in _BIA_NEEDED_AFTER:
+        raise ValueError(f"needed_after must be one of {_BIA_NEEDED_AFTER}")
+    db = get_db()
+    try:
+        max_idx = db.execute(
+            "SELECT COALESCE(MAX(order_idx),-1) m FROM bcm_bia_resources WHERE bia_id=%s", (bia_id,)
+        ).fetchone()["m"]
+        cur = insert_returning_id(db,
+            "INSERT INTO bcm_bia_resources "
+            "(bia_id, category, name, specifics, amount, single_point_of_failure, "
+            "needed_after, notes, order_idx) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (bia_id, category, data.get("name") or "Untitled resource", data.get("specifics"),
+             data.get("amount"), 1 if data.get("single_point_of_failure") else 0,
+             needed_after, data.get("notes"), max_idx + 1),
+        )
+        db.commit()
+        return cur
+    finally:
+        db.close()
+
+
+def update_bia_resource(resource_id, data):
+    if "needed_after" in data and data["needed_after"] not in _BIA_NEEDED_AFTER:
+        raise ValueError(f"needed_after must be one of {_BIA_NEEDED_AFTER}")
+    if "single_point_of_failure" in data:
+        data["single_point_of_failure"] = 1 if data["single_point_of_failure"] else 0
+    db = get_db()
+    try:
+        fields, vals = [], []
+        for k in ("category", "name", "specifics", "amount", "single_point_of_failure",
+                  "needed_after", "notes", "order_idx"):
+            if k in data:
+                fields.append(f"{k}=%s")
+                vals.append(data[k])
+        if fields:
+            vals.append(resource_id)
+            db.execute(f"UPDATE bcm_bia_resources SET {','.join(fields)} WHERE id=%s", vals)
+            db.commit()
+    finally:
+        db.close()
+
+
+def delete_bia_resource(resource_id):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM bcm_bia_resources WHERE id=%s", (resource_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _get_bucket_labels(db):
+    row = db.execute("SELECT value FROM settings WHERE key=%s", (_BIA_BUCKET_LABELS_KEY,)).fetchone()
+    if row and row["value"]:
+        try:
+            labels = json.loads(row["value"])
+            if isinstance(labels, list) and len(labels) == 5:
+                return labels
+        except (ValueError, TypeError):
+            pass
+    return list(_BIA_DEFAULT_BUCKET_LABELS)
+
+
+def get_bucket_labels():
+    db = get_db()
+    try:
+        return _get_bucket_labels(db)
+    finally:
+        db.close()
+
+
+def set_bucket_labels(labels):
+    """Applies to every BIA -- this is a per-tenant setting, not per-BIA."""
+    if not isinstance(labels, list) or len(labels) != 5 or any(not str(l).strip() for l in labels):
+        raise ValueError("Exactly 5 non-empty bucket labels are required")
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO settings(key,value) VALUES(%s,%s) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (_BIA_BUCKET_LABELS_KEY, json.dumps(labels)),
+        )
         db.commit()
     finally:
         db.close()

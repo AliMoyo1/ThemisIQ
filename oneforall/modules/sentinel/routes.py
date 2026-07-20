@@ -101,6 +101,7 @@ _SPA_PAGES = {
     # New features
     "lia",           # SENT-14: Legitimate Interest Assessments
     "jurisdictions", # Multi-jurisdiction manager
+    "aiia",          # PLAN-20: AI Impact Assessments
 }
 
 @router.get("/{page}", response_class=HTMLResponse)
@@ -329,6 +330,74 @@ async def api_dpia_link_ropa(request: Request, dpia_id: int):
     if not ok:
         raise HTTPException(409, "RoPA is already linked to a different DPIA.")
     return JSONResponse({"ok": True, "dpia": ds.get_dpia(dpia_id)})
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# AIIA — AI Impact Assessments (PLAN-20)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/aiia-dimensions")
+@require_capability("module.sentinel.access")
+async def api_aiia_dimensions_list(request: Request):
+    return JSONResponse(ds.list_aiia_dimensions())
+
+
+@router.put("/api/aiia-dimensions")
+@require_capability("sentinel.dpia.manage")
+async def api_aiia_dimensions_save(request: Request):
+    data = await _json_body(request)
+    dimensions = data.get("dimensions") or []
+    try:
+        ds.save_aiia_dimensions(dimensions)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    return JSONResponse(ds.list_aiia_dimensions())
+
+
+@router.get("/api/aiias")
+@require_capability("module.sentinel.access")
+async def api_aiia_list(request: Request):
+    return JSONResponse(ds.list_aiias(
+        search=request.query_params.get("q"),
+        status=request.query_params.get("status"),
+        bu_scope=bu_scope_ids(request.state.user),
+    ))
+
+
+@router.post("/api/aiias", status_code=201)
+@require_capability("sentinel.dpia.manage")
+async def api_aiia_create(request: Request):
+    data = await _json_body(request)
+    data["created_by"] = request.state.user["id"]
+    new_id = ds.create_aiia(data)
+    return JSONResponse(ds.get_aiia(new_id), status_code=201)
+
+
+@router.get("/api/aiias/{aiia_id}")
+@require_capability("module.sentinel.access")
+async def api_aiia_get(request: Request, aiia_id: int):
+    aiia = ds.get_aiia(aiia_id)
+    if not aiia:
+        raise HTTPException(404, "AI Impact Assessment not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and aiia.get("business_unit_id") is not None and aiia["business_unit_id"] not in scope:
+        raise HTTPException(404, "AI Impact Assessment not found")
+    return JSONResponse(aiia)
+
+
+@router.put("/api/aiias/{aiia_id}")
+@require_capability("sentinel.dpia.manage")
+async def api_aiia_update(request: Request, aiia_id: int):
+    data = await _json_body(request)
+    ds.update_aiia(aiia_id, data)
+    return JSONResponse(ds.get_aiia(aiia_id))
+
+
+@router.delete("/api/aiias/{aiia_id}")
+@require_capability("sentinel.dpia.manage")
+async def api_aiia_delete(request: Request, aiia_id: int):
+    ds.delete_aiia(aiia_id)
+    return JSONResponse({"ok": True})
 
 
 # ═════════════════════════════════════════════════════════════════════════════

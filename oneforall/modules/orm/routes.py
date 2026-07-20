@@ -36,7 +36,7 @@ async def _json_body(request: Request) -> dict:
 
 # ── SPA ───────────────────────────────────────────────────────────────────────
 
-_SPA_PAGES = {"events", "indicators", "reports", "chat", "assessment"}
+_SPA_PAGES = {"events", "indicators", "reports", "chat", "assessment", "ai-controls", "aims"}
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -600,4 +600,203 @@ async def api_export_csv(request: Request):
         iter([buf.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=orm_events.csv"},
+    )
+
+
+# ── AI Controls Catalogue (PLAN-21) ───────────────────────────────────────────
+
+@router.get("/api/ai-controls")
+@require_capability("module.orm.access")
+async def api_ai_controls_list(request: Request):
+    p = request.query_params
+    return JSONResponse(ds.list_ai_controls(
+        pillar=p.get("pillar"),
+        include_inactive=p.get("include_inactive") == "true",
+    ))
+
+
+@router.post("/api/ai-controls")
+@require_capability("orm.event.manage")
+async def api_ai_control_create(request: Request):
+    body = await _json_body(request)
+    try:
+        cid = ds.create_ai_control(body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"id": cid}, status_code=201)
+
+
+@router.get("/api/ai-controls/{control_id}")
+@require_capability("module.orm.access")
+async def api_ai_control_get(request: Request, control_id: int):
+    c = ds.get_ai_control(control_id)
+    if not c:
+        raise HTTPException(404)
+    return JSONResponse(c)
+
+
+@router.put("/api/ai-controls/{control_id}")
+@require_capability("orm.event.manage")
+async def api_ai_control_update(request: Request, control_id: int):
+    body = await _json_body(request)
+    try:
+        ds.update_ai_control(control_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/ai-controls/{control_id}")
+@require_capability("orm.event.manage")
+async def api_ai_control_delete(request: Request, control_id: int):
+    try:
+        ds.delete_ai_control(control_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    return JSONResponse({"ok": True})
+
+
+# ── AIMS/ORAAT Assessments (PLAN-21) ──────────────────────────────────────────
+
+@router.get("/api/aims")
+@require_capability("module.orm.access")
+async def api_aims_list(request: Request):
+    return JSONResponse(ds.list_aims_assessments(bu_scope=bu_scope_ids(request.state.user)))
+
+
+@router.post("/api/aims")
+@require_capability("orm.event.manage")
+async def api_aims_create(request: Request):
+    body = await _json_body(request)
+    body["created_by"] = _uid(request)
+    aid = ds.create_aims_assessment(body)
+    return JSONResponse({"id": aid}, status_code=201)
+
+
+@router.get("/api/aims/{assessment_id}")
+@require_capability("module.orm.access")
+async def api_aims_get(request: Request, assessment_id: int):
+    a = ds.get_aims_assessment(assessment_id)
+    if not a:
+        raise HTTPException(404)
+    return JSONResponse(a)
+
+
+@router.put("/api/aims/{assessment_id}")
+@require_capability("orm.event.manage")
+async def api_aims_update(request: Request, assessment_id: int):
+    body = await _json_body(request)
+    ds.update_aims_assessment(assessment_id, body)
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/aims/{assessment_id}")
+@require_capability("orm.event.manage")
+async def api_aims_delete(request: Request, assessment_id: int):
+    ds.delete_aims_assessment(assessment_id)
+    return JSONResponse({"ok": True})
+
+
+# ── AIMS Risks ─────────────────────────────────────────────────────────────────
+
+@router.get("/api/aims/{assessment_id}/risks")
+@require_capability("module.orm.access")
+async def api_aims_risks_list(request: Request, assessment_id: int):
+    return JSONResponse(ds.list_aims_risks(assessment_id))
+
+
+@router.post("/api/aims/{assessment_id}/risks")
+@require_capability("orm.event.manage")
+async def api_aims_risk_create(request: Request, assessment_id: int):
+    body = await _json_body(request)
+    try:
+        rid = ds.create_aims_risk(assessment_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"id": rid}, status_code=201)
+
+
+@router.get("/api/aims/risks/{risk_id}")
+@require_capability("module.orm.access")
+async def api_aims_risk_get(request: Request, risk_id: int):
+    r = ds.get_aims_risk(risk_id)
+    if not r:
+        raise HTTPException(404)
+    return JSONResponse(r)
+
+
+@router.put("/api/aims/risks/{risk_id}")
+@require_capability("orm.event.manage")
+async def api_aims_risk_update(request: Request, risk_id: int):
+    body = await _json_body(request)
+    ds.update_aims_risk(risk_id, body)
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/aims/risks/{risk_id}")
+@require_capability("orm.event.manage")
+async def api_aims_risk_delete(request: Request, risk_id: int):
+    ds.delete_aims_risk(risk_id)
+    return JSONResponse({"ok": True})
+
+
+# ── AIMS Risk <-> Control links ────────────────────────────────────────────────
+
+@router.post("/api/aims/risks/{risk_id}/controls")
+@require_capability("orm.event.manage")
+async def api_aims_risk_control_create(request: Request, risk_id: int):
+    body = await _json_body(request)
+    try:
+        lid = ds.create_aims_risk_control(risk_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"id": lid}, status_code=201)
+
+
+@router.put("/api/aims/controls/{link_id}")
+@require_capability("orm.event.manage")
+async def api_aims_risk_control_update(request: Request, link_id: int):
+    body = await _json_body(request)
+    try:
+        ds.update_aims_risk_control(link_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/aims/controls/{link_id}")
+@require_capability("orm.event.manage")
+async def api_aims_risk_control_delete(request: Request, link_id: int):
+    ds.delete_aims_risk_control(link_id)
+    return JSONResponse({"ok": True})
+
+
+# ── AIMS Aggregation ───────────────────────────────────────────────────────────
+
+@router.get("/api/aims/{assessment_id}/aggregation")
+@require_capability("module.orm.access")
+async def api_aims_aggregation(request: Request, assessment_id: int):
+    return JSONResponse(ds.get_aims_aggregation(assessment_id))
+
+
+@router.get("/api/aims/{assessment_id}/aggregation/csv")
+@require_capability("module.orm.access")
+async def api_aims_aggregation_csv(request: Request, assessment_id: int):
+    import csv
+    import io
+    from starlette.responses import StreamingResponse
+    rows = ds.get_aims_aggregation(assessment_id)
+    columns = ["ref", "risk_description", "impacted_pillar", "likelihood", "impact",
+               "irr", "mean_factor", "residual_rating", "emv_inherent", "residual_emv",
+               "risk_owner", "status", "total_treatment_cost"]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(columns)
+    for r in rows:
+        writer.writerow([r.get(c, "") for c in columns])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=aims_aggregation_{assessment_id}.csv"},
     )

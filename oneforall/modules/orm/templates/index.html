@@ -140,6 +140,15 @@
     RCSA
     <span class="nav-count" id="ormNavRcsa"></span>
   </a>
+  <a href="/orm/ai-controls" class="nav-item" data-spa="/orm/ai-controls">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>
+    AI Controls
+  </a>
+  <a href="/orm/aims" class="nav-item" data-spa="/orm/aims">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9.5 12l1.8 1.8L14.5 10"/></svg>
+    AI Risk (AIMS)
+    <span class="nav-count" id="ormNavAims"></span>
+  </a>
   <a href="/orm/reports" class="nav-item" data-spa="/orm/reports">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     Reports
@@ -455,6 +464,62 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════ AI CONTROLS CATALOGUE ═══════════════ -->
+<div class="spa-view" id="view-ai-controls">
+  <div class="section-header">
+    <div>
+      <div class="section-title">AI Controls Catalogue</div>
+      <div class="section-sub">Built-in and custom AI governance controls across 5 pillars</div>
+    </div>
+    <button class="btn btn-primary" onclick="ormOpenAiControlModal()">+ Add Control</button>
+  </div>
+
+  <div class="orm-filter-bar" id="aicPillarBar">
+    <button class="orm-chip active" data-val="" onclick="ormChipAicPillar(this)">All Pillars</button>
+    <button class="orm-chip" data-val="People" onclick="ormChipAicPillar(this)">People</button>
+    <button class="orm-chip" data-val="Process" onclick="ormChipAicPillar(this)">Process</button>
+    <button class="orm-chip" data-val="Systems" onclick="ormChipAicPillar(this)">Systems</button>
+    <button class="orm-chip" data-val="Technology" onclick="ormChipAicPillar(this)">Technology</button>
+    <button class="orm-chip" data-val="Tools" onclick="ormChipAicPillar(this)">Tools</button>
+  </div>
+  <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer">
+    <input type="checkbox" id="aicShowInactive" onchange="ormRenderAicRows()"> Show deactivated controls
+  </label>
+
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Ref</th><th>Title</th><th>Pillar</th><th>Source</th><th>Linked Risks</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="aicBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ AIMS / ORAAT ════════════════════════ -->
+<div class="spa-view" id="view-aims">
+  <div class="section-header">
+    <div>
+      <div class="section-title">AI Risk Management (AIMS / ORAAT)</div>
+      <div class="section-sub">AI risk register with multi-control mitigation, ICE scoring and residual rating</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-primary" onclick="ormOpenAimsModal()">+ New Assessment</button>
+    </div>
+  </div>
+
+  <div id="aimsStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px"></div>
+
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Ref</th><th>Title</th><th>Mode</th><th>Status</th><th>Owner</th><th>Risks</th><th>Actions</th></tr></thead>
+        <tbody id="aimsBody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════ CHAT ════════════════════════════ -->
 <div class="spa-view" id="view-chat">
   <div class="section-header">
@@ -521,7 +586,8 @@ function emptyRow(cols,msg){return'<tr><td colspan="'+cols+'" style="text-align:
 async function apiFetch(url,opts){
   opts=opts||{};opts.headers=opts.headers||{};
   if(opts.body&&typeof opts.body==='object'){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(opts.body);}
-  var r=await fetch(url,opts);if(!r.ok)throw new Error('API '+r.status);
+  var r=await fetch(url,opts);
+  if(!r.ok){var txt='';try{var j=await r.json();txt=j.detail||JSON.stringify(j);}catch(e){txt=r.statusText;}throw new Error(txt||'API '+r.status);}
   if(r.status===204)return null;return r.json();
 }
 function populateStatCards(elId,cards){
@@ -618,8 +684,8 @@ window.ormOpenDocViewer=function(title,content){
 window.ormCloseDoc=function(){document.getElementById('ormDocRoot').innerHTML='';};
 
 /* ─────────────────────────── SPA ROUTER ─────────────────────────── */
-var ormRoutes={'/orm/':'dashboard','/orm':'dashboard','/orm/events':'events','/orm/indicators':'indicators','/orm/reports':'reports','/orm/chat':'chat','/orm/assessment':'assessment'};
-var ormBreadcrumbs={dashboard:'Dashboard',events:'Events',indicators:'KRI Indicators',reports:'Reports',chat:'Ask ORM AI',assessment:'RCSA'};
+var ormRoutes={'/orm/':'dashboard','/orm':'dashboard','/orm/events':'events','/orm/indicators':'indicators','/orm/reports':'reports','/orm/chat':'chat','/orm/assessment':'assessment','/orm/ai-controls':'ai-controls','/orm/aims':'aims'};
+var ormBreadcrumbs={dashboard:'Dashboard',events:'Events',indicators:'KRI Indicators',reports:'Reports',chat:'Ask ORM AI',assessment:'RCSA','ai-controls':'AI Controls',aims:'AI Risk (AIMS)'};
 var ormRouter={
   current:null,
   navigate:function(path,replace){if(replace)history.replaceState(null,'',path);else history.pushState(null,'',path);this.resolve();},
@@ -642,6 +708,8 @@ var ormRouter={
       case'reports':    ormLoadReports();break;
       case'chat':       ormLoadChat();break;
       case'assessment': ormLoadRcsa();break;
+      case'ai-controls': ormLoadAiControls();break;
+      case'aims':       ormLoadAims();break;
     }
   }
 };
@@ -2109,6 +2177,508 @@ window.ormSaveRcsaRisk=async function(assessId){
     ormCloseDrawer();ormOpenRcsaDetail(assessId);
     if(typeof showToast==='function')showToast('Risk added');
   }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+
+/* ─────────────────────────── AI CONTROLS CATALOGUE (PLAN-21) ─────────────────────────── */
+var aicCache=null;
+var _aicPillarFilter='';
+async function ormEnsureAicCache(force){
+  if(aicCache&&!force)return aicCache;
+  aicCache=await apiFetch('/orm/api/ai-controls?include_inactive=true');
+  return aicCache;
+}
+window.ormLoadAiControls=async function(){
+  var body=document.getElementById('aicBody');
+  if(body)body.innerHTML=spinner(7);
+  try{
+    await ormEnsureAicCache(true);
+    ormRenderAicRows();
+  }catch(e){if(body)body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--red)">Failed to load</td></tr>';}
+};
+window.ormChipAicPillar=function(el){
+  document.querySelectorAll('#aicPillarBar .orm-chip').forEach(function(c){c.classList.remove('active');});
+  el.classList.add('active');
+  _aicPillarFilter=el.getAttribute('data-val')||'';
+  ormRenderAicRows();
+};
+window.ormRenderAicRows=function(){
+  var body=document.getElementById('aicBody');
+  if(!body||!aicCache)return;
+  var showInactiveEl=document.getElementById('aicShowInactive');
+  var includeInactive=showInactiveEl&&showInactiveEl.checked;
+  var rows=aicCache.filter(function(c){
+    if(_aicPillarFilter&&c.pillar!==_aicPillarFilter)return false;
+    if(!includeInactive&&!c.is_active)return false;
+    return true;
+  });
+  if(!rows.length){body.innerHTML=emptyRow(7,'No controls match this filter');return;}
+  body.innerHTML=rows.map(function(c){
+    var srcBadge=c.source==='built_in'?'<span class="badge badge-draft">Built-in</span>':'<span class="badge badge-progress">Custom</span>';
+    var statBadge=c.is_active?'<span class="badge badge-complete">Active</span>':'<span class="badge badge-critical">Inactive</span>';
+    var canDelete=c.source!=='built_in'&&!(c.link_count>0);
+    return'<tr>'+
+      '<td style="font-weight:700;font-size:12px">'+esc(c.ref)+'</td>'+
+      '<td style="max-width:340px"><div style="font-weight:600;font-size:13px">'+esc(c.title)+'</div>'+(c.description&&c.description!==c.title?'<div style="font-size:11px;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(c.description)+'</div>':'')+'</td>'+
+      '<td><span class="orm-cat-chip" style="background:var(--surface3);color:var(--text)">'+esc(c.pillar)+'</span></td>'+
+      '<td>'+srcBadge+'</td>'+
+      '<td style="text-align:center">'+(c.link_count>0?'<span class="badge badge-draft">'+c.link_count+'</span>':'<span style="color:var(--muted);font-size:12px">—</span>')+'</td>'+
+      '<td>'+statBadge+'</td>'+
+      '<td><div style="display:flex;gap:4px">'+
+        '<button class="btn btn-sm btn-secondary" onclick="ormOpenAiControlModal(aicCache.find(function(x){return x.id==='+c.id+'}))" title="Edit">&#9998;</button>'+
+        '<button class="btn btn-sm btn-secondary" onclick="ormToggleAiControlActive('+c.id+','+(c.is_active?'0':'1')+')" title="'+(c.is_active?'Deactivate':'Activate')+'">'+(c.is_active?'&#8863;':'&#10003;')+'</button>'+
+        (canDelete?'<button class="btn btn-sm btn-secondary" onclick="ormDeleteAiControl('+c.id+')" style="color:var(--red)" title="Delete">&#10005;</button>':'')+
+      '</div></td>'+
+    '</tr>';
+  }).join('');
+};
+window.ormOpenAiControlModal=function(existing){
+  var isEdit=!!(existing&&existing.id);
+  var pillars=['People','Process','Systems','Technology','Tools'];
+  var html='<div class="orm-modal-overlay" id="aicModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:560px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'aicModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit Control':'Add Control')+'</div>'+
+      (isEdit&&existing.source==='built_in'?'<div style="font-size:11px;color:var(--muted);margin-bottom:12px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius)">This is a built-in control. It can be reworded but not deleted &mdash; deactivate instead.</div>':'')+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Ref</label><input id="aic_ref" '+(isEdit?'readonly style="opacity:.6"':'')+' value="'+esc(isEdit?(existing.ref||''):'')+'" placeholder="Auto-generated if blank"></div>'+
+        '<div class="form-group"><label>Pillar *</label><select id="aic_pillar">'+pillars.map(function(p){return'<option value="'+p+'"'+(isEdit&&existing.pillar===p?' selected':'')+'>'+p+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Title *</label><input id="aic_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
+      '<div class="form-group"><label>Description</label><textarea id="aic_desc" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'aicModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveAiControl('+(isEdit?existing.id:'null')+')">Save</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('aic_title');if(t)t.focus();},80);
+};
+window.ormSaveAiControl=async function(id){
+  var title=document.getElementById('aic_title').value.trim();
+  if(!title){if(typeof showToast==='function')showToast('Title required','error');return;}
+  var data={title:title,description:document.getElementById('aic_desc').value.trim(),pillar:document.getElementById('aic_pillar').value};
+  if(!id){
+    var ref=document.getElementById('aic_ref').value.trim();
+    if(ref)data.ref=ref;
+  }
+  try{
+    if(id)await apiFetch('/orm/api/ai-controls/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/ai-controls',{method:'POST',body:data});
+    document.getElementById('aicModal').remove();
+    if(typeof showToast==='function')showToast('Control saved');
+    ormLoadAiControls();
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Save failed','error');}
+};
+window.ormToggleAiControlActive=async function(id,newVal){
+  try{
+    await apiFetch('/orm/api/ai-controls/'+id,{method:'PUT',body:{is_active:newVal}});
+    ormLoadAiControls();
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Update failed','error');}
+};
+window.ormDeleteAiControl=async function(id){
+  if(!confirm('Delete this control? This cannot be undone.'))return;
+  try{
+    await apiFetch('/orm/api/ai-controls/'+id,{method:'DELETE'});
+    if(typeof showToast==='function')showToast('Control deleted');
+    ormLoadAiControls();
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Delete failed','error');}
+};
+
+/* ─────────────────────────── AIMS / ORAAT RISK ENGINE (PLAN-21) ─────────────────────────── */
+var aimsCache=[];
+window._aimsCurrentAssessment=null;
+window._aimsRiskDetailCache={};
+
+/* Colored residual chip vs target/appetite/tolerance thresholds. Falls back to a plain value when no thresholds are set. */
+function ormResidualChip(val,risk){
+  if(val==null)return'<span style="color:var(--muted);font-size:11px">—</span>';
+  var target=risk.rr_target,appetite=risk.rr_appetite,tolerance=risk.rr_tolerance;
+  var color='var(--text)',label='Residual';
+  if(target!=null&&val<=target){color='var(--good,#16a34a)';label='Within Target';}
+  else if(appetite!=null&&val<=appetite){color='var(--good,#16a34a)';label='Within Appetite';}
+  else if(tolerance!=null&&val<=tolerance){color='var(--amber,#d97706)';label='Within Tolerance';}
+  else if(tolerance!=null){color='var(--red,#dc2626)';label='Breach';}
+  return'<span style="font-size:11px;color:'+color+';font-weight:700" title="'+label+'">R: '+val+'</span>';
+}
+
+window.ormLoadAims=async function(){
+  var body=document.getElementById('aimsBody');
+  if(body)body.innerHTML=spinner(7);
+  try{
+    var data=await apiFetch('/orm/api/aims');
+    aimsCache=Array.isArray(data)?data:[];
+    var total=aimsCache.length;
+    var aimsMode=aimsCache.filter(function(a){return a.mode==='aims';}).length;
+    var oraatMode=aimsCache.filter(function(a){return a.mode==='oraat';}).length;
+    var totalRisks=aimsCache.reduce(function(s,a){return s+(a.risk_count||0);},0);
+    populateStatCards('aimsStats',[
+      {label:'Total Assessments',value:total},
+      {label:'AIMS Mode',value:aimsMode},
+      {label:'ORAAT Mode',value:oraatMode},
+      {label:'Total Risks',value:totalRisks}
+    ]);
+    var navBadge=document.getElementById('ormNavAims');
+    if(navBadge)navBadge.textContent=total||'';
+    if(!aimsCache.length){
+      if(body)body.innerHTML=emptyRow(7,'No AIMS assessments yet. Click "+ New Assessment" to start.');
+      return;
+    }
+    body.innerHTML=aimsCache.map(function(a){
+      var statusColors={draft:'badge-draft',active:'badge-progress',under_review:'badge-high',completed:'badge-complete'};
+      var sc=statusColors[a.status]||'badge-draft';
+      var modeBadge=a.mode==='oraat'?'<span class="badge badge-progress">ORAAT</span>':'<span class="badge badge-draft">AIMS</span>';
+      return'<tr>'+
+        '<td style="font-weight:700;font-size:12px">'+esc(a.ref||'')+'</td>'+
+        '<td style="cursor:pointer;color:var(--accent);font-weight:600" onclick="ormOpenAimsDetail('+a.id+')">'+esc(a.title)+'</td>'+
+        '<td>'+modeBadge+'</td>'+
+        '<td><span class="badge '+sc+'">'+esc((a.status||'draft').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</span></td>'+
+        '<td style="font-size:12px">'+esc(a.owner_name||'—')+'</td>'+
+        '<td style="text-align:center"><span class="badge badge-draft">'+(a.risk_count||0)+'</span></td>'+
+        '<td><div style="display:flex;gap:4px">'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsDetail('+a.id+')" title="Open">&#128269;</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsModal(aimsCache.find(function(x){return x.id==='+a.id+'}))" title="Edit">&#9998;</button>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormDeleteAims('+a.id+')" style="color:var(--red)" title="Delete">&#10005;</button>'+
+        '</div></td>'+
+      '</tr>';
+    }).join('');
+  }catch(e){if(body)body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--red)">Failed to load</td></tr>';}
+};
+window.ormOpenAimsModal=function(existing){
+  var isEdit=!!(existing&&existing.id);
+  var html='<div class="orm-modal-overlay" id="aimsModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:520px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'aimsModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'New')+' AI Risk Assessment</div>'+
+      '<div class="form-group"><label>Title *</label><input id="am_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Mode</label><select id="am_mode">'+
+          '<option value="aims"'+(isEdit&&existing.mode==='aims'?' selected':'')+'>AIMS (multi-control)</option>'+
+          '<option value="oraat"'+(isEdit&&existing.mode==='oraat'?' selected':'')+'>ORAAT (one-risk-at-a-time)</option>'+
+        '</select></div>'+
+        '<div class="form-group"><label>Status</label><select id="am_status">'+['draft','active','under_review','completed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Evaluation Date</label><input type="date" id="am_date" value="'+(isEdit&&existing.eval_date?existing.eval_date.slice(0,10):'')+'"></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'aimsModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveAims('+(isEdit?existing.id:'null')+')">Save</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('am_title');if(t)t.focus();},80);
+};
+window.ormSaveAims=async function(id){
+  var title=document.getElementById('am_title').value.trim();
+  if(!title){if(typeof showToast==='function')showToast('Title required','error');return;}
+  var data={title:title,mode:document.getElementById('am_mode').value,status:document.getElementById('am_status').value,eval_date:document.getElementById('am_date').value||null};
+  try{
+    if(id)await apiFetch('/orm/api/aims/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/aims',{method:'POST',body:data});
+    document.getElementById('aimsModal').remove();
+    if(typeof showToast==='function')showToast('Assessment saved');
+    ormLoadAims();
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Save failed','error');}
+};
+window.ormDeleteAims=async function(id){
+  if(!confirm('Delete this assessment and all its risks and controls?'))return;
+  try{
+    await apiFetch('/orm/api/aims/'+id,{method:'DELETE'});
+    ormLoadAims();
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Delete failed','error');}
+};
+
+/* ── AIMS Assessment Detail Drawer (Risk Register) ── */
+function ormAimsRiskRowHtml(r,assessId){
+  var computed=r.computed||{};
+  var irr=computed.irr!=null?computed.irr:(r.likelihood*r.impact);
+  var chip=ormResidualChip(computed.residual_rating,r);
+  return'<div class="rcsa-risk-row" onclick="ormOpenAimsRiskDetail('+r.id+','+assessId+')">'+
+    '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">'+
+      '<span style="font-weight:600;font-size:13px;max-width:60%">'+esc((r.ref?r.ref+' — ':'')+(r.risk_description||'').slice(0,90))+'</span>'+
+      '<div style="display:flex;gap:8px;align-items:center">'+
+        '<span style="font-size:11px;color:var(--muted)">IRR: <strong>'+irr+'</strong></span>'+
+        chip+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted)">'+
+      (r.impacted_pillar?'<span class="orm-cat-chip" style="background:var(--surface3);color:var(--text)">'+esc(r.impacted_pillar)+'</span>':'')+
+      '<span>'+(r.control_count||0)+' control(s) linked</span>'+
+      '<span style="margin-left:auto">'+esc((r.status||'open').replace(/_/g,' '))+'</span>'+
+    '</div>'+
+  '</div>';
+}
+window.ormOpenAimsDetail=async function(assessId){
+  window._aimsCurrentAssessment=assessId;
+  var drawer=document.getElementById('ormDrawerRoot');
+  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+  try{
+    var a=await apiFetch('/orm/api/aims/'+assessId);
+    var risks=await apiFetch('/orm/api/aims/'+assessId+'/risks');
+    drawer.innerHTML='<div class="orm-drawer-overlay" onclick="if(event.target===this)ormCloseDrawer()">'+
+    '<div class="orm-drawer-panel" style="width:min(760px,100%)">'+
+      '<div class="orm-drawer-head">'+
+        '<div style="display:flex;justify-content:space-between;align-items:start">'+
+          '<div>'+
+            '<div style="font-size:16px;font-weight:800">'+esc(a.title)+'</div>'+
+            '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+esc(a.ref||'')+' &bull; '+(a.mode==='oraat'?'ORAAT':'AIMS')+' &bull; '+esc((a.status||'draft').replace(/_/g,' '))+'</div>'+
+          '</div>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormCloseDrawer()">&#10005;</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="orm-drawer-body">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+          '<div class="orm-drawer-section-title" style="margin-bottom:0;border-bottom:none">Risk Register ('+risks.length+')</div>'+
+          '<div style="display:flex;gap:6px">'+
+            '<a href="/orm/api/aims/'+assessId+'/aggregation/csv" class="btn btn-sm btn-secondary" download>&#8595; CSV</a>'+
+            '<button class="btn btn-sm btn-primary" onclick="ormAddAimsRisk('+assessId+')">+ Add Risk</button>'+
+          '</div>'+
+        '</div>'+
+        (risks.length?risks.map(function(r){return ormAimsRiskRowHtml(r,assessId);}).join(''):'<div style="color:var(--muted);font-size:13px;padding:12px 0">No risks yet. Click "+ Add Risk" to start.</div>')+
+      '</div>'+
+      '<div class="orm-drawer-footer">'+
+        '<button class="btn btn-secondary" onclick="ormOpenAimsModal(aimsCache.find(function(x){return x.id==='+assessId+'}));ormCloseDrawer()">&#9998; Edit Assessment</button>'+
+      '</div>'+
+    '</div></div>';
+  }catch(ex){drawer.innerHTML='';}
+};
+
+/* ── AIMS Risk Add/Edit Modal ── */
+window.ormAddAimsRisk=function(assessId){ormOpenAimsRiskModal(assessId,null);};
+window.ormEditAimsRisk=function(assessId,existing){ormOpenAimsRiskModal(assessId,existing);};
+window.ormOpenAimsRiskModal=function(assessId,existing){
+  var isEdit=!!(existing&&existing.id);
+  var pillars=['People','Process','Systems','Technology','Tools'];
+  var html='<div class="orm-modal-overlay" id="aimsRiskModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:640px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'aimsRiskModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'Add')+' AI Risk</div>'+
+      '<div class="form-group"><label>Risk Description *</label><textarea id="ar_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.risk_description||''):'')+'</textarea></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Strategic Objective</label><input id="ar_strat" value="'+esc(isEdit?(existing.strategic_objective||''):'')+'"></div>'+
+        '<div class="form-group"><label>AI Objective</label><input id="ar_aiobj" value="'+esc(isEdit?(existing.ai_objective||''):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Contributing Factors</label><input id="ar_cf" value="'+esc(isEdit?(existing.contributing_factors||''):'')+'"></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Impacted Pillar</label><select id="ar_pillar"><option value="">— None —</option>'+pillars.map(function(p){return'<option value="'+p+'"'+(isEdit&&existing.impacted_pillar===p?' selected':'')+'>'+p+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Risk Owner</label><input id="ar_owner" value="'+esc(isEdit?(existing.risk_owner||''):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Likelihood (1-5)</label><input type="number" id="ar_l" min="1" max="5" value="'+(isEdit?(existing.likelihood||5):5)+'"></div>'+
+        '<div class="form-group"><label>Impact (1-5)</label><input type="number" id="ar_i" min="1" max="5" value="'+(isEdit?(existing.impact||5):5)+'"></div>'+
+      '</div>'+
+      '<div class="form-group"><label>EMV Inherent ($)</label><input type="number" id="ar_emv" value="'+(isEdit&&existing.emv_inherent!=null?existing.emv_inherent:'')+'"></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>RR Target</label><input type="number" step="0.01" id="ar_target" value="'+(isEdit&&existing.rr_target!=null?existing.rr_target:'')+'"></div>'+
+        '<div class="form-group"><label>RR Appetite</label><input type="number" step="0.01" id="ar_appetite" value="'+(isEdit&&existing.rr_appetite!=null?existing.rr_appetite:'')+'"></div>'+
+        '<div class="form-group"><label>RR Tolerance</label><input type="number" step="0.01" id="ar_tolerance" value="'+(isEdit&&existing.rr_tolerance!=null?existing.rr_tolerance:'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>In Scope</label><select id="ar_scope"><option value="1"'+((!isEdit||existing.in_scope)?' selected':'')+'>Yes</option><option value="0"'+(isEdit&&!existing.in_scope?' selected':'')+'>No</option></select></div>'+
+        '<div class="form-group"><label>Status</label><select id="ar_status">'+['open','mitigating','closed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'aimsRiskModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveAimsRisk('+assessId+','+(isEdit?existing.id:'null')+')">Save</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('ar_desc');if(t)t.focus();},80);
+};
+window.ormSaveAimsRisk=async function(assessId,id){
+  var desc=document.getElementById('ar_desc').value.trim();
+  if(!desc){if(typeof showToast==='function')showToast('Risk description required','error');return;}
+  var data={
+    risk_description:desc,
+    strategic_objective:document.getElementById('ar_strat').value.trim(),
+    ai_objective:document.getElementById('ar_aiobj').value.trim(),
+    contributing_factors:document.getElementById('ar_cf').value.trim(),
+    impacted_pillar:document.getElementById('ar_pillar').value||null,
+    risk_owner:document.getElementById('ar_owner').value.trim(),
+    likelihood:parseInt(document.getElementById('ar_l').value)||5,
+    impact:parseInt(document.getElementById('ar_i').value)||5,
+    emv_inherent:document.getElementById('ar_emv').value!==''?parseFloat(document.getElementById('ar_emv').value):null,
+    rr_target:document.getElementById('ar_target').value!==''?parseFloat(document.getElementById('ar_target').value):null,
+    rr_appetite:document.getElementById('ar_appetite').value!==''?parseFloat(document.getElementById('ar_appetite').value):null,
+    rr_tolerance:document.getElementById('ar_tolerance').value!==''?parseFloat(document.getElementById('ar_tolerance').value):null,
+    in_scope:document.getElementById('ar_scope').value==='1',
+    status:document.getElementById('ar_status').value
+  };
+  try{
+    if(id)await apiFetch('/orm/api/aims/risks/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/aims/'+assessId+'/risks',{method:'POST',body:data});
+    document.getElementById('aimsRiskModal').remove();
+    if(typeof showToast==='function')showToast('Risk saved');
+    ormOpenAimsDetail(assessId);
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Save failed','error');}
+};
+window.ormDeleteAimsRisk=async function(riskId,assessId){
+  if(!confirm('Delete this risk and all its linked controls?'))return;
+  try{
+    await apiFetch('/orm/api/aims/risks/'+riskId,{method:'DELETE'});
+    if(typeof showToast==='function')showToast('Risk deleted');
+    ormOpenAimsDetail(assessId);
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Delete failed','error');}
+};
+
+/* ── AIMS Risk Detail Drawer (computed panel + linked controls) ── */
+function ormAimsComputedPanelHtml(r,computed){
+  var chip=ormResidualChip(computed.residual_rating,r);
+  var meanPct=computed.mean_factor!=null?Math.round(computed.mean_factor*100):null;
+  return'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">'+
+    '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">IRR (L&times;I)</div><div style="font-size:20px;font-weight:800">'+(computed.irr!=null?computed.irr:'—')+'</div></div>'+
+    '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Mean Factor</div><div style="font-size:20px;font-weight:800">'+(meanPct!=null?meanPct+'%':'—')+'</div></div>'+
+    '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Residual Rating</div><div style="font-size:20px;font-weight:800">'+(computed.residual_rating!=null?computed.residual_rating:'—')+'</div>'+chip+'</div>'+
+    '<div style="background:var(--surface2);border-radius:var(--radius);padding:10px;text-align:center"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Residual EMV</div><div style="font-size:18px;font-weight:800">'+(computed.residual_emv!=null?fmtCurrency(computed.residual_emv):'—')+'</div></div>'+
+  '</div>';
+}
+function ormAimsPillarBarsHtml(perPillar){
+  if(!perPillar)return'';
+  var pillars=['People','Process','Systems','Technology','Tools'];
+  var any=pillars.some(function(p){return perPillar[p]&&perPillar[p].count>0;});
+  if(!any)return'';
+  return'<div class="orm-drawer-section">'+
+    '<div class="orm-drawer-section-title">Mitigation by Pillar</div>'+
+    pillars.map(function(p){
+      var d=perPillar[p]||{count:0,mean_factor:null};
+      var pct=d.mean_factor!=null?Math.round((1-d.mean_factor)*100):0;
+      var barColor=pct>=70?'var(--good,#16a34a)':pct>=40?'var(--amber,#d97706)':'var(--red,#dc2626)';
+      return'<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px">'+
+        '<span style="width:80px;flex-shrink:0">'+p+'</span>'+
+        '<div style="flex:1;height:6px;background:var(--surface3);border-radius:100px;overflow:hidden">'+
+          (d.count>0?'<div style="height:100%;width:'+pct+'%;background:'+barColor+';border-radius:100px"></div>':'')+
+        '</div>'+
+        '<span style="width:100px;text-align:right;flex-shrink:0">'+(d.count>0?d.count+' ctrl, '+pct+'%':'none')+'</span>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
+function ormAimsControlRowHtml(c,riskId){
+  var iceColor=c.ice_score>=70?'var(--good,#16a34a)':c.ice_score>=40?'var(--amber,#d97706)':'var(--red,#dc2626)';
+  var title=c.catalogue_ref?(c.catalogue_ref+' — '+c.catalogue_title):(c.control_detail||'Custom control');
+  var statBadge={open:'badge-high',in_progress:'badge-progress',completed:'badge-complete'}[c.status]||'badge-draft';
+  return'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--surface3)">'+
+    '<div style="flex:1;min-width:0">'+
+      '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(title)+'</div>'+
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+esc((c.treatment||'mitigate').replace(/\b\w/g,function(x){return x.toUpperCase();}))+(c.control_owner?' &bull; '+esc(c.control_owner):'')+(c.catalogue_pillar?' &bull; '+esc(c.catalogue_pillar):'')+' &bull; <span class="badge '+statBadge+'" style="font-size:9px">'+esc((c.status||'open').replace(/_/g,' '))+'</span></div>'+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'+
+      '<span style="font-size:11px;color:'+iceColor+';font-weight:700" title="ICE score (higher = stronger)">ICE '+(c.ice_score||0)+'%</span>'+
+      '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsRiskControlModal('+riskId+',window._aimsRiskDetailCache['+riskId+'].controls.find(function(x){return x.id==='+c.id+'}))" title="Edit">&#9998;</button>'+
+      '<button class="btn btn-sm btn-secondary" onclick="ormDeleteAimsRiskControl('+c.id+','+riskId+')" style="color:var(--red)" title="Remove">&#10005;</button>'+
+    '</div>'+
+  '</div>';
+}
+window.ormOpenAimsRiskDetail=async function(riskId,assessId){
+  if(assessId)window._aimsCurrentAssessment=assessId;
+  var drawer=document.getElementById('ormDrawerRoot');
+  drawer.innerHTML='<div class="orm-drawer-overlay"><div class="orm-drawer-panel" style="align-items:center;justify-content:center"><div class="spinner"></div></div></div>';
+  try{
+    var r=await apiFetch('/orm/api/aims/risks/'+riskId);
+    window._aimsRiskDetailCache[riskId]=r;
+    await ormEnsureAicCache();
+    var computed=r.computed||{};
+    var controls=r.controls||[];
+    var backAssessId=window._aimsCurrentAssessment;
+    drawer.innerHTML='<div class="orm-drawer-overlay" onclick="if(event.target===this)ormCloseDrawer()">'+
+    '<div class="orm-drawer-panel" style="width:min(720px,100%)">'+
+      '<div class="orm-drawer-head">'+
+        '<div style="display:flex;justify-content:space-between;align-items:start">'+
+          '<div>'+
+            '<button class="btn btn-sm btn-secondary" onclick="ormOpenAimsDetail('+backAssessId+')" style="margin-bottom:8px">&#8592; Back to Risk Register</button>'+
+            '<div style="font-size:15px;font-weight:800;margin-top:4px">'+esc(r.ref||'')+' — '+esc((r.risk_description||'').slice(0,80))+'</div>'+
+          '</div>'+
+          '<button class="btn btn-sm btn-secondary" onclick="ormCloseDrawer()">&#10005;</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="orm-drawer-body">'+
+        ormAimsComputedPanelHtml(r,computed)+
+        ormAimsPillarBarsHtml(computed.per_pillar)+
+        '<div class="orm-drawer-section">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+            '<div class="orm-drawer-section-title" style="margin-bottom:0">Linked Controls ('+controls.length+')</div>'+
+            '<button class="btn btn-sm btn-primary" onclick="ormOpenAimsRiskControlModal('+riskId+',null)">+ Link Control</button>'+
+          '</div>'+
+          (controls.length?controls.map(function(c){return ormAimsControlRowHtml(c,riskId);}).join(''):'<div style="color:var(--muted);font-size:13px;padding:12px 0">No controls linked yet.</div>')+
+        '</div>'+
+      '</div>'+
+      '<div class="orm-drawer-footer">'+
+        '<button class="btn btn-secondary" onclick="ormEditAimsRisk('+backAssessId+',window._aimsRiskDetailCache['+riskId+']);ormCloseDrawer()">&#9998; Edit Risk</button>'+
+        '<button class="btn btn-secondary" onclick="ormDeleteAimsRisk('+riskId+','+backAssessId+');ormCloseDrawer()" style="color:var(--red)">Delete Risk</button>'+
+      '</div>'+
+    '</div></div>';
+  }catch(ex){drawer.innerHTML='';}
+};
+
+/* ── AIMS Risk <-> Control Link Modal ── */
+window.ormOpenAimsRiskControlModal=function(riskId,existing){
+  var isEdit=!!(existing&&existing.id);
+  var catalogue=(aicCache||[]).filter(function(c){return c.is_active;});
+  var byPillar={};
+  catalogue.forEach(function(c){(byPillar[c.pillar]=byPillar[c.pillar]||[]).push(c);});
+  var options='<option value="">— Custom (no catalogue link) —</option>'+
+    Object.keys(byPillar).sort().map(function(p){
+      return'<optgroup label="'+p+'">'+byPillar[p].map(function(c){
+        return'<option value="'+c.id+'"'+(isEdit&&existing.catalogue_control_id===c.id?' selected':'')+'>'+esc(c.ref+' — '+c.title)+'</option>';
+      }).join('')+'</optgroup>';
+    }).join('');
+  var treatments=['accept','mitigate','share','avoid','exploit'];
+  var html='<div class="orm-modal-overlay" id="aimsRcModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:560px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'aimsRcModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'Link')+' Control</div>'+
+      '<div class="form-group"><label>Catalogue Control</label><select id="arc_cat">'+options+'</select></div>'+
+      '<div class="form-group"><label>Control Detail (if custom / additional notes)</label><textarea id="arc_detail" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.control_detail||''):'')+'</textarea></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>ICE Score % (0-90, higher = stronger)</label><select id="arc_ice">'+[0,10,20,30,40,50,60,70,80,90].map(function(v){return'<option value="'+v+'"'+(isEdit&&existing.ice_score===v?' selected':'')+'>'+v+'%</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>or Legacy ORAAT (1-10, lower = stronger)</label><input type="number" id="arc_ice10" min="1" max="10" placeholder="optional"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Treatment</label><select id="arc_treatment">'+treatments.map(function(t){return'<option value="'+t+'"'+(isEdit&&existing.treatment===t?' selected':'')+'>'+t.charAt(0).toUpperCase()+t.slice(1)+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Control Owner</label><input id="arc_owner" value="'+esc(isEdit?(existing.control_owner||''):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Treatment Cost ($)</label><input type="number" id="arc_cost" value="'+(isEdit&&existing.treatment_cost!=null?existing.treatment_cost:0)+'"></div>'+
+        '<div class="form-group"><label>Due Date</label><input type="date" id="arc_due" value="'+(isEdit&&existing.due_date?existing.due_date.slice(0,10):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Evidence</label><input id="arc_evidence" value="'+esc(isEdit?(existing.evidence||''):'')+'"></div>'+
+        '<div class="form-group"><label>Status</label><select id="arc_status">'+['open','in_progress','completed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'aimsRcModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveAimsRiskControl('+riskId+','+(isEdit?existing.id:'null')+')">Save</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+};
+window.ormSaveAimsRiskControl=async function(riskId,id){
+  var ice10=document.getElementById('arc_ice10').value;
+  var catId=document.getElementById('arc_cat').value;
+  var data={
+    catalogue_control_id:catId?parseInt(catId):null,
+    control_detail:document.getElementById('arc_detail').value.trim(),
+    treatment:document.getElementById('arc_treatment').value,
+    control_owner:document.getElementById('arc_owner').value.trim(),
+    treatment_cost:parseFloat(document.getElementById('arc_cost').value)||0,
+    due_date:document.getElementById('arc_due').value||null,
+    evidence:document.getElementById('arc_evidence').value.trim(),
+    status:document.getElementById('arc_status').value
+  };
+  if(ice10){data.ice_score_10=parseFloat(ice10);}
+  else{data.ice_score=parseInt(document.getElementById('arc_ice').value)||0;}
+  try{
+    if(id)await apiFetch('/orm/api/aims/controls/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/aims/risks/'+riskId+'/controls',{method:'POST',body:data});
+    document.getElementById('aimsRcModal').remove();
+    if(typeof showToast==='function')showToast('Control linked');
+    ormOpenAimsRiskDetail(riskId);
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Save failed','error');}
+};
+window.ormDeleteAimsRiskControl=async function(linkId,riskId){
+  if(!confirm('Remove this control link?'))return;
+  try{
+    await apiFetch('/orm/api/aims/controls/'+linkId,{method:'DELETE'});
+    ormOpenAimsRiskDetail(riskId);
+  }catch(e){if(typeof showToast==='function')showToast(e.message||'Delete failed','error');}
 };
 
 /* ─────────────────────────── KRI FILTER ─────────────────────────── */

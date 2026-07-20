@@ -264,6 +264,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
     Legitimate Interest
   </a>
+  <a href="/sentinel/aiia" class="nav-item" data-spa="/sentinel/aiia">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>
+    AI Impact (AIIA)
+  </a>
 </div>
 <div class="sidebar-section">
   <div class="sidebar-label">Records</div>
@@ -778,6 +782,47 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- AIIA — AI IMPACT ASSESSMENTS (PLAN-20)                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="spa-view" id="view-aiia">
+  <div class="section-header">
+    <div>
+      <div class="section-title">AI Impact Assessments</div>
+      <div class="section-sub">System profile, 8-dimension impact grid, mitigation and residual classification</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" onclick="snOpenAiiaDimensionsModal()">Manage Dimensions</button>
+      <button class="btn btn-primary" onclick="snOpenAiiaDrawer()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New AIIA
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body" style="padding:12px 20px 6px">
+      <div class="filter-bar" style="flex-wrap:wrap;gap:8px">
+        <input type="text" id="snAiiaSearch" placeholder="Search AI Impact Assessments..." style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" oninput="snFilterAiiaLocal()">
+        <div id="snAiiaStatusChips" class="filter-bar" style="gap:4px">
+          <span class="filter-chip active" onclick="snSetAiiaStatus('',this)">All</span>
+          <span class="filter-chip" onclick="snSetAiiaStatus('draft',this)">Draft</span>
+          <span class="filter-chip" onclick="snSetAiiaStatus('in_progress',this)">In Progress</span>
+          <span class="filter-chip" onclick="snSetAiiaStatus('completed',this)">Completed</span>
+          <span class="filter-chip" onclick="snSetAiiaStatus('approved',this)">Approved</span>
+        </div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Ref</th><th>Title</th><th>AI System</th><th>Autonomy</th><th>Overall Classification</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="snAiiaBody">
+          <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- TRANSFERS                                                              -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="spa-view" id="view-transfers">
@@ -1132,6 +1177,7 @@
     '/sentinel/reports':'reports',
     '/sentinel/chat':'chat',
     '/sentinel/lia':'lia',
+    '/sentinel/aiia':'aiia',
     '/sentinel/transfers':'transfers',
     '/sentinel/retention':'retention',
     '/sentinel/security':'security',
@@ -1148,6 +1194,7 @@
     breaches:'Data Breaches', dsr:'Subject Requests', vendors:'Vendor Management',
     consent:'Consent Management', reports:'Reports', chat:'Ask Sentinel AI',
     lia:'Legitimate Interest Assessments',
+    aiia:'AI Impact Assessments',
     transfers:'International Transfers', retention:'Retention Schedules',
     security:'Security Measures', policies:'Privacy Policies',
     notices:'Privacy Notices', dataflows:'Data Flows',
@@ -1200,6 +1247,7 @@
         case 'reports': snLoadReports(); break;
         case 'chat': /* chat is always ready */ break;
         case 'lia': snLoadLia(); break;
+        case 'aiia': snLoadAiia(); break;
         case 'transfers': snLoadTransfers(); break;
         case 'retention': snLoadRetention(); break;
         case 'security': snLoadSecurity(); break;
@@ -2994,6 +3042,316 @@
       snLoadLia();
       if(typeof showToast==='function')showToast('LIA saved');
     }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+  };
+
+  /* ════════════════════════════════════════════════════════════════════════
+     AIIA — AI IMPACT ASSESSMENTS (PLAN-20)
+     ════════════════════════════════════════════════════════════════════════ */
+  var aiiaCache=[];var aiiaDimensionsCache=[];var aiiaStatusFilter='';
+
+  function autonomyBadge(level){
+    var map={decision_support:'badge-low',human_in_loop:'badge-medium',automated:'badge-high'};
+    var labels={decision_support:'Decision Support',human_in_loop:'Human-in-Loop',automated:'Automated'};
+    var cls=map[level]||'badge-medium';
+    return '<span class="badge '+cls+'">'+esc(labels[level]||level||'—')+'</span>';
+  }
+
+  function aiiaClassChip(classification){
+    if(!classification) return '<span class="badge badge-medium">Not Scored</span>';
+    if(classification==='unrated') return '<span style="font-size:11px;color:var(--muted);font-style:italic">Unrated (no active framework)</span>';
+    var map={very_low:'badge-low',low:'badge-low',moderate:'badge-medium',medium:'badge-medium',high:'badge-high',critical:'badge-critical'};
+    var cls=map[classification.toLowerCase()]||'badge-medium';
+    var label=classification.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
+    return '<span class="badge '+cls+'">'+esc(label)+'</span>';
+  }
+
+  window.snLoadAiia=async function(){
+    var body=document.getElementById('snAiiaBody');
+    body.innerHTML=spinner(7);
+    try{
+      var items=await apiFetch('/sentinel/api/aiias');
+      aiiaCache=Array.isArray(items)?items:(items.records||items.items||[]);
+      try{aiiaDimensionsCache=await apiFetch('/sentinel/api/aiia-dimensions');}catch(e){}
+      snRenderAiiaRows(aiiaCache);
+    }catch(e){body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">Failed to load AI Impact Assessments</td></tr>';}
+  };
+
+  window.snSetAiiaStatus=function(status,chip){
+    aiiaStatusFilter=status;
+    document.querySelectorAll('#snAiiaStatusChips .filter-chip').forEach(function(c){c.classList.remove('active');});
+    chip.classList.add('active');
+    snRenderAiiaRows(status?aiiaCache.filter(function(a){return a.status===status;}):aiiaCache);
+  };
+
+  window.snFilterAiiaLocal=function(){
+    var q=(document.getElementById('snAiiaSearch').value||'').toLowerCase();
+    var filtered=aiiaCache.filter(function(a){
+      return !q||((a.title||'')+(a.ai_system_name||'')).toLowerCase().indexOf(q)!==-1;
+    });
+    if(aiiaStatusFilter)filtered=filtered.filter(function(a){return a.status===aiiaStatusFilter;});
+    snRenderAiiaRows(filtered);
+  };
+
+  function snRenderAiiaRows(items){
+    var body=document.getElementById('snAiiaBody');
+    if(!items.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)">No AI Impact Assessments found — create one to assess an AI system\'s risk.</td></tr>';return;}
+    body.innerHTML=items.map(function(a){
+      return '<tr>'+
+        '<td><span class="item-id">'+esc(a.ref_number||'')+'</span></td>'+
+        '<td>'+esc(a.title||'')+'</td>'+
+        '<td>'+esc(a.ai_system_name||'—')+'</td>'+
+        '<td>'+autonomyBadge(a.autonomy_level)+'</td>'+
+        '<td>'+aiiaClassChip(a.overall_classification)+'</td>'+
+        '<td>'+statusBadge(a.status)+'</td>'+
+        '<td>'+actionBtns('snOpenAiiaDrawer('+a.id+')','snDeleteAiia('+a.id+')')+'</td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  function aiiaImpactRows(existingImpacts){
+    if(existingImpacts&&existingImpacts.length) return existingImpacts;
+    return (aiiaDimensionsCache||[]).filter(function(d){return d.is_active;}).map(function(d){
+      return {dimension_name:d.name,applicable:1,description:'',likelihood:null,impact:null};
+    });
+  }
+
+  window.snOpenAiiaDrawer=function(id){
+    var cached=(id!==null&&id!==undefined)?aiiaCache.find(function(x){return x.id===id;}):null;
+    if(id===null||id===undefined){snRenderAiiaDrawer(null,null);return;}
+    apiFetch('/sentinel/api/aiias/'+id).then(function(full){snRenderAiiaDrawer(id,full);}).catch(function(){snRenderAiiaDrawer(id,cached);});
+  };
+
+  function snRenderAiiaDrawer(id,r){
+    var isEdit=!!(r&&r.id);
+    var f=function(field,def){return r?(r[field]!==undefined&&r[field]!==null?r[field]:''):(def||'');};
+    var fs='width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13.5px;box-sizing:border-box';
+    var fsta=fs+';resize:vertical';
+    var lbl=function(t){return '<label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">'+t+'</label>';};
+    var fg=function(l,inner){return '<div class="form-group">'+lbl(l)+inner+'</div>';};
+    var impacts=aiiaImpactRows(r?r.impacts:null);
+    var dataCategories=['Personal','Transactional','Operational','Behavioural'];
+    var envLabels={on_prem:'On-Premises',cloud:'Cloud',hybrid:'Hybrid'};
+    var autoLabels={decision_support:'Decision Support',human_in_loop:'Human-in-Loop',automated:'Automated'};
+    var html=
+    '<div class="ropa-drawer-overlay" id="snAiiaDrawerWrap" onclick="if(event.target===this)document.getElementById(\'snAiiaDrawerWrap\').remove()">'+
+    '<div class="ropa-drawer">'+
+      '<div class="ropa-drawer-head">'+
+        '<div class="ropa-drawer-title">'+(isEdit?'Edit AI Impact Assessment':'New AI Impact Assessment')+'</div>'+
+        (isEdit&&r.ref_number?'<span class="item-id">'+esc(r.ref_number)+'</span>':'  ')+
+        '<button onclick="document.getElementById(\'snAiiaDrawerWrap\').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);padding:4px 6px;line-height:1;margin-left:6px">×</button>'+
+      '</div>'+
+      '<div class="ropa-drawer-tabs">'+
+        '<span class="ropa-drawer-tab active" data-tab="basics" onclick="snAiiaDrawerTab(this)">📋 Basics</span>'+
+        '<span class="ropa-drawer-tab" data-tab="impacts" onclick="snAiiaDrawerTab(this)">📊 Impacts</span>'+
+        '<span class="ropa-drawer-tab" data-tab="mitigation" onclick="snAiiaDrawerTab(this)">🛡 Mitigation</span>'+
+        '<span class="ropa-drawer-tab" data-tab="review" onclick="snAiiaDrawerTab(this)">✅ Review</span>'+
+      '</div>'+
+      '<div class="ropa-drawer-body">'+
+
+        '<div class="ropa-drawer-section active" id="snAiiaTab_basics">'+
+          fg('Title <span style="color:var(--red)">*</span>','<input type="text" id="aa_title" value="'+esc(f('title'))+'" placeholder="e.g. Customer churn prediction model" style="'+fs+'">')+
+          fg('AI System Name','<input type="text" id="aa_system_name" value="'+esc(f('ai_system_name'))+'" style="'+fs+'">')+
+          '<div class="form-row">'+
+            fg('Department','<input type="text" id="aa_department" value="'+esc(f('department'))+'" style="'+fs+'">')+
+            fg('Owner','<input type="text" id="aa_owner" value="'+esc(f('owner'))+'" style="'+fs+'">')+
+          '</div>'+
+          fg('System Description','<textarea id="aa_description" rows="3" style="'+fsta+'">'+esc(f('system_description'))+'</textarea>')+
+          fg('Business Process Supported','<input type="text" id="aa_business_process" value="'+esc(f('business_process'))+'" style="'+fs+'">')+
+          '<div class="form-row">'+
+            fg('Deployment Environment','<select id="aa_deployment_env" style="'+fs+'"><option value="">Select...</option>'+['on_prem','cloud','hybrid'].map(function(o){return '<option value="'+o+'"'+(f('deployment_env')===o?' selected':'')+'>'+envLabels[o]+'</option>';}).join('')+'</select>')+
+            fg('Autonomy Level','<select id="aa_autonomy" style="'+fs+'">'+['decision_support','human_in_loop','automated'].map(function(o){return '<option value="'+o+'"'+(f('autonomy_level','decision_support')===o?' selected':'')+'>'+autoLabels[o]+'</option>';}).join('')+'</select>')+
+          '</div>'+
+          '<label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;font-size:14px">'+
+            '<input type="checkbox" id="aa_third_party"'+(f('third_party')?' checked':'')+' style="width:16px;height:16px" onchange="document.getElementById(\'aaThirdPartyWrap\').style.display=this.checked?\'block\':\'none\'">'+
+            '<strong>Uses third-party AI components</strong>'+
+          '</label>'+
+          '<div id="aaThirdPartyWrap" style="display:'+(f('third_party')?'block':'none')+'">'+
+            fg('Third-Party Details','<textarea id="aa_third_party_details" rows="2" placeholder="Vendor, model, API used" style="'+fsta+'">'+esc(f('third_party_details'))+'</textarea>')+
+          '</div>'+
+          fg('Outputs / Decisions Generated','<textarea id="aa_outputs" rows="2" style="'+fsta+'">'+esc(f('outputs_decisions'))+'</textarea>')+
+          '<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;font-size:14px">'+
+            '<input type="checkbox" id="aa_influences_customers"'+(f('influences_customers')?' checked':'')+' style="width:16px;height:16px">'+
+            '<strong>Influences customer or financial decisions</strong>'+
+          '</label>'+
+        '</div>'+
+
+        '<div class="ropa-drawer-section" id="snAiiaTab_impacts">'+
+          '<div class="form-group">'+lbl('Data Categories Processed')+
+            '<div id="snAiiaDC"></div>'+
+          '</div>'+
+          '<label style="display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer;font-size:14px">'+
+            '<input type="checkbox" id="aa_sensitive_data"'+(f('sensitive_data')?' checked':'')+' style="width:16px;height:16px">'+
+            '<strong>Involves sensitive data</strong>'+
+          '</label>'+
+          '<div class="form-row">'+
+            fg('Direct Stakeholders','<textarea id="aa_stakeholders_direct" rows="2" style="'+fsta+'">'+esc(f('stakeholders_direct'))+'</textarea>')+
+            fg('Indirect Stakeholders','<textarea id="aa_stakeholders_indirect" rows="2" style="'+fsta+'">'+esc(f('stakeholders_indirect'))+'</textarea>')+
+          '</div>'+
+          '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">'+
+            '<label style="display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Impact Evaluation — Likelihood × Impact per dimension</label>'+
+            '<div id="snAiiaImpactGrid">'+
+              impacts.map(function(imp,i){
+                return '<div class="form-row" style="align-items:center;gap:8px;margin-bottom:8px;padding:8px;border:1px solid var(--border);border-radius:var(--radius)" data-dim="'+esc(imp.dimension_name)+'">'+
+                  '<label style="display:flex;align-items:center;gap:6px;font-size:13px;min-width:150px">'+
+                    '<input type="checkbox" class="aa-imp-applicable"'+(imp.applicable?' checked':'')+' style="width:15px;height:15px">'+
+                    '<strong>'+esc(imp.dimension_name)+'</strong>'+
+                  '</label>'+
+                  '<input type="text" class="aa-imp-desc" value="'+esc(imp.description||'')+'" placeholder="Notes" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12.5px">'+
+                  '<select class="aa-imp-l" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12.5px">'+
+                    '<option value="">L</option>'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'"'+(imp.likelihood===n?' selected':'')+'>'+n+'</option>';}).join('')+
+                  '</select>'+
+                  '<select class="aa-imp-i" style="width:80px;padding:6px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12.5px">'+
+                    '<option value="">I</option>'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'"'+(imp.impact===n?' selected':'')+'>'+n+'</option>';}).join('')+
+                  '</select>'+
+                '</div>';
+              }).join('')+
+            '</div>'+
+            '<p style="font-size:11.5px;color:var(--muted);margin-top:6px">Untick a dimension to exclude it from the overall classification without losing its notes. Save to see the computed classification — it uses the same rating framework as ERM.</p>'+
+          '</div>'+
+        '</div>'+
+
+        '<div class="ropa-drawer-section" id="snAiiaTab_mitigation">'+
+          fg('Required Mitigation Measures','<textarea id="aa_mitigation" rows="5" placeholder="Controls to reduce the identified risks" style="'+fsta+'">'+esc(f('mitigation_measures'))+'</textarea>')+
+          fg('Residual Classification (post-mitigation)','<select id="aa_residual" style="'+fs+'"><option value="">Select...</option>'+['very_low','low','moderate','high','critical'].map(function(o){return '<option value="'+o+'"'+(f('residual_classification')===o?' selected':'')+'>'+o.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select>')+
+          (isEdit&&r.overall_classification?('<div class="ai-risk-panel"><div class="ai-risk-panel-label">Overall Classification</div>'+aiiaClassChip(r.overall_classification)+'</div>'):'')+
+        '</div>'+
+
+        '<div class="ropa-drawer-section" id="snAiiaTab_review">'+
+          fg('Status','<select id="aa_status" style="'+fs+'">'+['draft','in_progress','completed','approved'].map(function(s){return '<option value="'+s+'"'+(f('status','draft')===s?' selected':'')+'>'+s.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select>')+
+          fg('Linked RoPA','<select id="aa_ropa_link" style="'+fs+'"><option value="">— None —</option>'+(ropaCache||[]).map(function(rpa){return '<option value="'+rpa.id+'"'+(f('ropa_id')&&parseInt(f('ropa_id'))===rpa.id?' selected':'')+'>'+esc(rpa.ref_number||'')+' '+esc(rpa.processing_name||'')+'</option>';}).join('')+'</select>')+
+          fg('Linked DPIA','<select id="aa_dpia_link" style="'+fs+'"><option value="">— None —</option>'+(dpiaCache||[]).map(function(d){return '<option value="'+d.id+'"'+(f('dpia_id')&&parseInt(f('dpia_id'))===d.id?' selected':'')+'>'+esc(d.ref_number||'')+' '+esc(d.title||'')+'</option>';}).join('')+'</select>')+
+        '</div>'+
+      '</div>'+
+      '<div class="ropa-drawer-footer">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'snAiiaDrawerWrap\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" id="snAiiaDrawerSaveBtn" onclick="snSaveAiiaDrawer('+(isEdit?id:'null')+')">'+(isEdit?'Save Changes':'Create AIIA')+'</button>'+
+      '</div>'+
+    '</div></div>';
+    var existingWrap=document.getElementById('snAiiaDrawerWrap');
+    if(existingWrap)existingWrap.remove();
+    document.body.insertAdjacentHTML('beforeend',html);
+    snRenderChipPicker('snAiiaDC',dataCategories,f('data_categories'));
+  }
+
+  window.snAiiaDrawerTab=function(tab){
+    var name=tab.dataset.tab;
+    document.querySelectorAll('#snAiiaDrawerWrap .ropa-drawer-section').forEach(function(s){s.classList.remove('active');});
+    document.querySelectorAll('#snAiiaDrawerWrap .ropa-drawer-tab').forEach(function(t){t.classList.remove('active');});
+    document.getElementById('snAiiaTab_'+name).classList.add('active');
+    tab.classList.add('active');
+  };
+
+  window.snSaveAiiaDrawer=async function(id){
+    var btn=document.getElementById('snAiiaDrawerSaveBtn');
+    var g=function(elId){var el=document.getElementById(elId);return el?el.value.trim():'';};
+    var title=g('aa_title');
+    if(!title){if(typeof showToast==='function')showToast('Title is required','error');return;}
+    var impacts=[];
+    document.querySelectorAll('#snAiiaImpactGrid [data-dim]').forEach(function(row){
+      impacts.push({
+        dimension_name:row.getAttribute('data-dim'),
+        applicable:row.querySelector('.aa-imp-applicable').checked?1:0,
+        description:row.querySelector('.aa-imp-desc').value.trim(),
+        likelihood:row.querySelector('.aa-imp-l').value?parseInt(row.querySelector('.aa-imp-l').value):null,
+        impact:row.querySelector('.aa-imp-i').value?parseInt(row.querySelector('.aa-imp-i').value):null
+      });
+    });
+    var data={
+      title:title,ai_system_name:g('aa_system_name'),department:g('aa_department'),owner:g('aa_owner'),
+      system_description:g('aa_description'),business_process:g('aa_business_process'),
+      deployment_env:g('aa_deployment_env'),autonomy_level:g('aa_autonomy'),
+      third_party:document.getElementById('aa_third_party').checked?1:0,
+      third_party_details:g('aa_third_party_details'),
+      outputs_decisions:g('aa_outputs'),
+      influences_customers:document.getElementById('aa_influences_customers').checked?1:0,
+      data_categories:snGetChips('snAiiaDC'),
+      sensitive_data:document.getElementById('aa_sensitive_data').checked?1:0,
+      stakeholders_direct:g('aa_stakeholders_direct'),stakeholders_indirect:g('aa_stakeholders_indirect'),
+      impacts:impacts,
+      mitigation_measures:g('aa_mitigation'),residual_classification:g('aa_residual'),
+      status:g('aa_status')||'draft',
+      ropa_id:g('aa_ropa_link')||null,dpia_id:g('aa_dpia_link')||null
+    };
+    if(btn){btn.disabled=true;btn.textContent='Saving...';}
+    try{
+      if(id)await apiFetch('/sentinel/api/aiias/'+id,{method:'PUT',body:data});
+      else await apiFetch('/sentinel/api/aiias',{method:'POST',body:data});
+      document.getElementById('snAiiaDrawerWrap').remove();
+      snLoadAiia();
+      if(typeof showToast==='function')showToast(id?'AI Impact Assessment updated':'AI Impact Assessment created');
+    }catch(e){
+      if(btn){btn.disabled=false;btn.textContent=id?'Save Changes':'Create AIIA';}
+      if(typeof showToast==='function')showToast('Save failed: '+(e.message||''),'error');
+    }
+  };
+
+  window.snDeleteAiia=async function(id){
+    if(!confirm('Delete this AI Impact Assessment?'))return;
+    try{await apiFetch('/sentinel/api/aiias/'+id,{method:'DELETE'});snLoadAiia();if(typeof showToast==='function')showToast('AI Impact Assessment deleted');}
+    catch(e){if(typeof showToast==='function')showToast('Delete failed','error');}
+  };
+
+  window.snOpenAiiaDimensionsModal=async function(){
+    var dims;
+    try{dims=await apiFetch('/sentinel/api/aiia-dimensions');}catch(e){dims=aiiaDimensionsCache||[];}
+    aiiaDimensionsCache=dims;
+    var existingModal=document.getElementById('aiiaDimModal');
+    if(existingModal)existingModal.remove();
+    var modal=document.createElement('div');
+    modal.id='aiiaDimModal';
+    modal.className='modal-overlay';
+    modal.onclick=function(e){if(e.target===modal)modal.remove();};
+    var rowHtml=function(d){
+      return '<div class="form-row" style="align-items:center;gap:8px;margin-bottom:6px" data-dim-id="'+(d.id||'')+'">'+
+        '<input type="text" class="aiia-dim-name" value="'+esc(d.name||'')+'" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
+        '<label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap"><input type="checkbox" class="aiia-dim-active"'+(d.is_active!==0?' checked':'')+'> Active</label>'+
+      '</div>';
+    };
+    modal.innerHTML=
+      '<div class="modal-box" style="max-width:480px">'+
+        '<button class="modal-close" onclick="document.getElementById(\'aiiaDimModal\').remove()">&times;</button>'+
+        '<div class="modal-title">Manage Impact Dimensions</div>'+
+        '<p style="font-size:12.5px;color:var(--muted);margin-top:-8px">Rename a dimension and its scored history follows. Untick Active to hide it from new assessments without deleting past data.</p>'+
+        '<div id="aiiaDimRows">'+dims.map(rowHtml).join('')+'</div>'+
+        '<button type="button" class="btn btn-sm btn-secondary" onclick="document.getElementById(\'aiiaDimRows\').insertAdjacentHTML(\'beforeend\',aiiaNewDimRow())" style="margin-top:8px">+ Add Dimension</button>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'+
+          '<button class="btn btn-secondary" onclick="document.getElementById(\'aiiaDimModal\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" onclick="snSaveAiiaDimensionsModal()">Save Dimensions</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(modal);
+  };
+
+  function aiiaNewDimRow(){
+    return '<div class="form-row" style="align-items:center;gap:8px;margin-bottom:6px" data-dim-id="">'+
+      '<input type="text" class="aiia-dim-name" value="" placeholder="New dimension name" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px">'+
+      '<label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap"><input type="checkbox" class="aiia-dim-active" checked> Active</label>'+
+    '</div>';
+  }
+  window.aiiaNewDimRow=aiiaNewDimRow;
+
+  window.snSaveAiiaDimensionsModal=async function(){
+    var rows=document.querySelectorAll('#aiiaDimRows [data-dim-id]');
+    var dimensions=[];
+    rows.forEach(function(row,i){
+      var name=row.querySelector('.aiia-dim-name').value.trim();
+      if(!name)return;
+      var idAttr=row.getAttribute('data-dim-id');
+      dimensions.push({
+        id:idAttr?parseInt(idAttr):null,
+        name:name,
+        order_idx:i+1,
+        is_active:row.querySelector('.aiia-dim-active').checked
+      });
+    });
+    try{
+      aiiaDimensionsCache=await apiFetch('/sentinel/api/aiia-dimensions',{method:'PUT',body:{dimensions:dimensions}});
+      document.getElementById('aiiaDimModal').remove();
+      if(typeof showToast==='function')showToast('Dimensions saved');
+      if(document.getElementById('view-aiia').classList.contains('active'))snLoadAiia();
+    }catch(e){
+      if(typeof showToast==='function')showToast('Save failed: '+(e.message||'a dimension name collision was rejected'),'error');
+    }
   };
 
   /* ════════════════════════════════════════════════════════════════════════

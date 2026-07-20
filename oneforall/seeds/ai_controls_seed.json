@@ -1,0 +1,578 @@
+[
+  {
+    "ref": "AIC1",
+    "title": "Assigned AI Roles and Responsibilities",
+    "description": "Assigned AI Roles and Responsibilities",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC2",
+    "title": "Competent Personnel",
+    "description": "Competent Personnel",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC3",
+    "title": "Documented responsible AI Usage Policy.",
+    "description": "Documented responsible AI Usage Policy.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC4",
+    "title": "Formalized impact assessment process.",
+    "description": "Formalized impact assessment process.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC5",
+    "title": "Data quality controls implemented.",
+    "description": "Data quality controls implemented.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC6",
+    "title": "Structured data preparation process.",
+    "description": "Structured data preparation process.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC7",
+    "title": "Logging integrated via ISO 27001 controls.",
+    "description": "Logging integrated via ISO 27001 controls.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC8",
+    "title": "Assigned AI Roles and Responsibilities",
+    "description": "Assigned AI Roles and Responsibilities",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC9",
+    "title": "Implementation of ISO 42001 A4.6 Controls that ensures competence of human resources",
+    "description": "Implementation of ISO 42001 A4.6 Controls that ensures competence of human resources",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC10",
+    "title": "Formalized impact assessment process.",
+    "description": "Formalized impact assessment process.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC11",
+    "title": "AI deployment integrated with change management.",
+    "description": "AI deployment integrated with change management.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC12",
+    "title": "AI governance roles and accountability structures are formally defined, documented, and assigned across the organization",
+    "description": "AI governance roles and accountability structures are formally defined, documented, and assigned across the organization.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC13",
+    "title": "Established mechanisms enable personnel to report AI-related concerns and ethical issues through structured escalation c",
+    "description": "Established mechanisms enable personnel to report AI-related concerns and ethical issues through structured escalation channels.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC14",
+    "title": "Personnel involved in AI systems possess defined competencies, supported by structured awareness and capability developm",
+    "description": "Personnel involved in AI systems possess defined competencies, supported by structured awareness and capability development.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC15",
+    "title": "Responsible AI usage procedures are enforced to ensure human oversight and prevent inappropriate reliance on AI outputs.",
+    "description": "Responsible AI usage procedures are enforced to ensure human oversight and prevent inappropriate reliance on AI outputs.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC16",
+    "title": "AI systems are operated strictly within documented intended use parameters.",
+    "description": "AI systems are operated strictly within documented intended use parameters.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC17",
+    "title": "An approved AI governance policy framework is established and actively maintained.",
+    "description": "An approved AI governance policy framework is established and actively maintained.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC18",
+    "title": "AI governance is integrated into existing ISMS and BCMS processes, ensuring enterprise-wide alignment.",
+    "description": "AI governance is integrated into existing ISMS and BCMS processes, ensuring enterprise-wide alignment.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC19",
+    "title": "AI impact assessments are documented and retained as evidence of governance oversight.",
+    "description": "AI impact assessments are documented and retained as evidence of governance oversight.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC20",
+    "title": "AI-related resources, including documentation supporting system operation, are formally maintained and controlled.",
+    "description": "AI-related resources, including documentation supporting system operation, are formally maintained and controlled.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC21",
+    "title": "Technical documentation for AI systems is maintained in alignment with operational usage.",
+    "description": "Technical documentation for AI systems is maintained in alignment with operational usage.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC22",
+    "title": "AI usage objectives are formally aligned to strategic intent, ensuring AI-driven personalization decisions remain within",
+    "description": "AI usage objectives are formally aligned to strategic intent, ensuring AI-driven personalization decisions remain within defined governance boundaries",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC23",
+    "title": "Users are provided with documented guidance describing AI system capabilities, limitations, and intended usage.",
+    "description": "Users are provided with documented guidance describing AI system capabilities, limitations, and intended usage.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC24",
+    "title": "AI-related responsibilities and limitations affecting customers are formally defined.",
+    "description": "AI-related responsibilities and limitations affecting customers are formally defined.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC25",
+    "title": "AI deployments are managed through change control processes that assess system readiness before release.",
+    "description": "AI deployments are managed through change control processes that assess system readiness before release.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC26",
+    "title": "Systems and infrastructure to monitor systems and servers already exist within the environment and the same will be exte",
+    "description": "Systems and infrastructure to monitor systems and servers already exist within the environment and the same will be extending to AI systems.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC27",
+    "title": "Load balancers have already been implemented for current systems and servers and the same capabilities is extended for A",
+    "description": "Load balancers have already been implemented for current systems and servers and the same capabilities is extended for AI systems.",
+    "pillar": "Technology"
+  },
+  {
+    "ref": "AIC28",
+    "title": "Defined , established and mature business continuity framework based on ISO 22301",
+    "description": "Defined , established and mature business continuity framework based on ISO 22301",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC29",
+    "title": "Disaster Recovery and Business continuity technologies have been established in the ISO 22301 framework that has been im",
+    "description": "Disaster Recovery and Business continuity technologies have been established in the ISO 22301 framework that has been implemented at Ecocash",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC30",
+    "title": "Contractual and governance structures clearly define accountability for AI service performance",
+    "description": "Contractual and governance structures clearly define accountability for AI service performance",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC31",
+    "title": "Impact assessments ensure automation does not introduce unintended harm or oversight gaps.",
+    "description": "Impact assessments ensure automation does not introduce unintended harm or oversight gaps.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC32",
+    "title": "Structured assessment evaluates operational implications before automation is implemented.",
+    "description": "Structured assessment evaluates operational implications before automation is implemented.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC33",
+    "title": "There are  clear expectations and contractual boundaries for AI-enabled services.",
+    "description": "There are  clear expectations and contractual boundaries for AI-enabled services.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC34",
+    "title": "Systems and infrastructure to monitor systems and servers already exist within the environment and the same will be exte",
+    "description": "Systems and infrastructure to monitor systems and servers already exist within the environment and the same will be extending to AI systems.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC35",
+    "title": "Define and establish process for data preparation",
+    "description": "Define and establish process for data preparation",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC36",
+    "title": "AI systems are governed within enterprise IT infrastructure to ensure compatibility with operational systems.",
+    "description": "AI systems are governed within enterprise IT infrastructure to ensure compatibility with operational systems.",
+    "pillar": "Technology"
+  },
+  {
+    "ref": "AIC37",
+    "title": "AI governance is integrated with existing enterprise management systems to ensure operational alignment.",
+    "description": "AI governance is integrated with existing enterprise management systems to ensure operational alignment.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC38",
+    "title": "AI systems are governed within enterprise IT infrastructure to ensure compatibility with operational systems.",
+    "description": "AI systems are governed within enterprise IT infrastructure to ensure compatibility with operational systems.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC39",
+    "title": "Impact assessments incorporate operational feedback to improve AI system effectiveness.",
+    "description": "Impact assessments incorporate operational feedback to improve AI system effectiveness.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC40",
+    "title": "AI initiatives undergo structured assessment to evaluate broader operational impacts.",
+    "description": "AI initiatives undergo structured assessment to evaluate broader operational impacts.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC41",
+    "title": "AI governance policies ensure optimization initiatives align with enterprise-wide objectives.",
+    "description": "AI governance policies ensure optimization initiatives align with enterprise-wide objectives.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC42",
+    "title": "AI usage objectives are aligned with long-term organizational strategy.",
+    "description": "AI usage objectives are aligned with long-term organizational strategy.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC43",
+    "title": "Periodic governance review ensures AI-driven optimization aligns with evolving business goals.",
+    "description": "Periodic governance review ensures AI-driven optimization aligns with evolving business goals.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC44",
+    "title": "Personnel are trained and equipped to understand and effectively apply AI insights.",
+    "description": "Personnel are trained and equipped to understand and effectively apply AI insights.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC45",
+    "title": "Defined accountability ensures operational teams actively engage with AI-driven optimization outputs.",
+    "description": "Defined accountability ensures operational teams actively engage with AI-driven optimization outputs.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC46",
+    "title": "Continuous monitoring of AI systems enables detection of performance degradation and emerging fraud trends.",
+    "description": "Continuous monitoring of AI systems enables detection of performance degradation and emerging fraud trends.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC47",
+    "title": "Impact assessments evaluate potential harm caused by incorrect fraud classification.",
+    "description": "Impact assessments evaluate potential harm caused by incorrect fraud classification.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC48",
+    "title": "Periodic governance review ensures AI-driven optimization aligns with evolving business goals.",
+    "description": "Periodic governance review ensures AI-driven optimization aligns with evolving business goals.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC49",
+    "title": "Personnel are trained and equipped to understand and effectively apply AI insights.",
+    "description": "Personnel are trained and equipped to understand and effectively apply AI insights.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC50",
+    "title": "Defined accountability ensures operational teams actively engage with AI-driven optimization outputs.",
+    "description": "Defined accountability ensures operational teams actively engage with AI-driven optimization outputs.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC51",
+    "title": "Personnel involved in AI decision-making possess appropriate competencies to interpret AI insights.",
+    "description": "Personnel involved in AI decision-making possess appropriate competencies to interpret AI insights.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC52",
+    "title": "Responsible AI use guidelines promote critical evaluation of AI outputs before business decisions.",
+    "description": "Responsible AI use guidelines promote critical evaluation of AI outputs before business decisions.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC53",
+    "title": "AI governance ensures AI outputs are aligned with organizational strategic planning processes.",
+    "description": "AI governance ensures AI outputs are aligned with organizational strategic planning processes.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC54",
+    "title": "Impact assessments evaluate the implications of AI-driven initiatives before implementation.",
+    "description": "Impact assessments evaluate the implications of AI-driven initiatives before implementation.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC55",
+    "title": "AI systems are used strictly within defined decision-support boundaries to prevent overreliance.",
+    "description": "AI systems are used strictly within defined decision-support boundaries to prevent overreliance.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC56",
+    "title": "Clear accountability structures ensure human oversight of AI-supported strategic decisions",
+    "description": "Clear accountability structures ensure human oversight of AI-supported strategic decisions",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC57",
+    "title": "Operational guidance ensures decision-makers understand AI model capabilities and limitations.",
+    "description": "Operational guidance ensures decision-makers understand AI model capabilities and limitations.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC58",
+    "title": "Periodic governance review ensures AI analytics remain aligned with evolving business strategies.",
+    "description": "Periodic governance review ensures AI analytics remain aligned with evolving business strategies.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC59",
+    "title": "The organization shall document a policy for the development or use of AI systems.",
+    "description": "The organization shall document a policy for the development or use of AI systems.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC60",
+    "title": "The organization shall determine where other policies can \nbe affected by or apply to, the organization’s objectives \nwi",
+    "description": "The organization shall determine where other policies can \nbe affected by or apply to, the organization’s objectives \nwith respect to AI systems.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC61",
+    "title": "The AI policy shall be reviewed at planned intervals or \nadditionally as needed to ensure its continuing suitability, \na",
+    "description": "The AI policy shall be reviewed at planned intervals or \nadditionally as needed to ensure its continuing suitability, \nadequacy and effectiveness.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC62",
+    "title": "Roles and responsibilities for AI shall be defined and allocated according to the needs of the organization.",
+    "description": "Roles and responsibilities for AI shall be defined and allocated according to the needs of the organization.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC63",
+    "title": "The organization shall define and put in place a process to \nreport concerns about the organization’s role with respect",
+    "description": "The organization shall define and put in place a process to \nreport concerns about the organization’s role with respect \nto an AI system throughout its life cycle.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC64",
+    "title": "The organization shall identify and document relevant \nresources required for the activities at given AI system life \ncy",
+    "description": "The organization shall identify and document relevant \nresources required for the activities at given AI system life \ncycle stages and other AI-related activities relevant for the \norganization.",
+    "pillar": "Technology"
+  },
+  {
+    "ref": "AIC65",
+    "title": "As part of resource identification, the organization shall \ndocument information about the data resources utilized \nfor",
+    "description": "As part of resource identification, the organization shall \ndocument information about the data resources utilized \nfor the AI system.",
+    "pillar": "Tools"
+  },
+  {
+    "ref": "AIC66",
+    "title": "As part of resource identification, the organization shall \ndocument information about the tooling resources utilized \nf",
+    "description": "As part of resource identification, the organization shall \ndocument information about the tooling resources utilized \nfor the AI system.",
+    "pillar": "Technology"
+  },
+  {
+    "ref": "AIC67",
+    "title": "As part of resource identification, the organization shall \ndocument information about the system and computing \nresourc",
+    "description": "As part of resource identification, the organization shall \ndocument information about the system and computing \nresources utilized for the AI system.",
+    "pillar": "Technology"
+  },
+  {
+    "ref": "AIC68",
+    "title": "As part of resource identification, the organization shall \ndocument information about the human resources and \ntheir co",
+    "description": "As part of resource identification, the organization shall \ndocument information about the human resources and \ntheir competences utilized for the development, deploy\nment, operation, change management, maintenance, \ntransfer and decommissioning, as well as verification and \nintegration of the AI system.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC69",
+    "title": "The organization shall establish a process to assess the \npotential consequences for individuals or groups of indi\nvidua",
+    "description": "The organization shall establish a process to assess the \npotential consequences for individuals or groups of indi\nviduals, or both, and societies that can result from the AI \nsystem throughout its life cycle.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC70",
+    "title": "The organization shall document the results of AI system \nimpact assessments and retain results for a defined period.",
+    "description": "The organization shall document the results of AI system \nimpact assessments and retain results for a defined period.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC71",
+    "title": "The organization shall assess and document the potential \nimpacts of AI systems to individuals or groups of individu\nals",
+    "description": "The organization shall assess and document the potential \nimpacts of AI systems to individuals or groups of individu\nals throughout the system’s life cycle.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC72",
+    "title": "The organization shall assess and document the potential \nsocietal impacts of their AI systems throughout their life \ncy",
+    "description": "The organization shall assess and document the potential \nsocietal impacts of their AI systems throughout their life \ncycle.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC73",
+    "title": "The organization shall identify and document objectives \nto guide the responsible development AI systems, and take \nthos",
+    "description": "The organization shall identify and document objectives \nto guide the responsible development AI systems, and take \nthose objectives into account and integrate measures to \nachieve them in the development life cycle.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC74",
+    "title": "The organization shall define and document the specific \nprocesses for the responsible design and development of \nthe AI",
+    "description": "The organization shall define and document the specific \nprocesses for the responsible design and development of \nthe AI system.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC75",
+    "title": "The organization shall specify and document require\nments for new AI systems or material enhancements to \nexisting syste",
+    "description": "The organization shall specify and document require\nments for new AI systems or material enhancements to \nexisting systems.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC76",
+    "title": "The organization shall document the AI system design and \ndevelopment based on organizational objectives, docu\nmented re",
+    "description": "The organization shall document the AI system design and \ndevelopment based on organizational objectives, docu\nmented requirements and specification criteria.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC77",
+    "title": "The organization shall define and document verification \nand validation measures for the AI system and specify \ncriteria",
+    "description": "The organization shall define and document verification \nand validation measures for the AI system and specify \ncriteria for their use.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC78",
+    "title": "The organization shall document a deployment plan and \nensure that appropriate requirements are met prior to \ndeployment",
+    "description": "The organization shall document a deployment plan and \nensure that appropriate requirements are met prior to \ndeployment.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC79",
+    "title": "The organization shall define and document the necessary \nelements for the ongoing operation of the AI system. At the \nm",
+    "description": "The organization shall define and document the necessary \nelements for the ongoing operation of the AI system. At the \nminimum, this should include system and performance \nmonitoring, repairs, updates and support.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC80",
+    "title": "The organization shall determine what AI system techni\ncal documentation is needed for each relevant category of \nintere",
+    "description": "The organization shall determine what AI system techni\ncal documentation is needed for each relevant category of \ninterested parties, such as users, partners, supervisory \nauthorities, and provide the technical documentation to \nthem in the appropriate form.",
+    "pillar": "Tools"
+  },
+  {
+    "ref": "AIC81",
+    "title": "The organization shall determine at which phases of the \nAI system life cycle, record keeping of event logs should be \ne",
+    "description": "The organization shall determine at which phases of the \nAI system life cycle, record keeping of event logs should be \nenabled, but at the minimum when the AI system is in use.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC82",
+    "title": "The organization shall define, document and implement \ndata management processes related to the development of \nAI syste",
+    "description": "The organization shall define, document and implement \ndata management processes related to the development of \nAI systems.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC83",
+    "title": "The organization shall determine and document details \nabout the acquisition and selection of the data used in AI \nsyste",
+    "description": "The organization shall determine and document details \nabout the acquisition and selection of the data used in AI \nsystems.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC84",
+    "title": "The organization shall define and document requirements \nfor data quality and ensure that data used to develop and \noper",
+    "description": "The organization shall define and document requirements \nfor data quality and ensure that data used to develop and \noperate the AI system meet those requirements.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC85",
+    "title": "The organization shall define and document a process for \nrecording the provenance of data used in its AI systems \nover",
+    "description": "The organization shall define and document a process for \nrecording the provenance of data used in its AI systems \nover the life cycles of the data and the AI system.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC86",
+    "title": "The organization shall define and document its criteria \nfor selecting data preparations and the data preparation \nmetho",
+    "description": "The organization shall define and document its criteria \nfor selecting data preparations and the data preparation \nmethods to be used.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC87",
+    "title": "The organization shall determine and provide the neces\nsary information to users of the AI system.",
+    "description": "The organization shall determine and provide the neces\nsary information to users of the AI system.",
+    "pillar": "Tools"
+  },
+  {
+    "ref": "AIC88",
+    "title": "The organization shall provide capabilities for interested \nparties to report adverse impacts of the AI system.",
+    "description": "The organization shall provide capabilities for interested \nparties to report adverse impacts of the AI system.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC89",
+    "title": "The organization shall determine and document a plan for \ncommunicating incidents to users of the AI system.",
+    "description": "The organization shall determine and document a plan for \ncommunicating incidents to users of the AI system.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC90",
+    "title": "The organization shall determine and document their \nobligations to reporting information about the AI system \nto intere",
+    "description": "The organization shall determine and document their \nobligations to reporting information about the AI system \nto interested parties.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC91",
+    "title": "The organization shall define and document the processes \nfor the responsible use of AI systems.",
+    "description": "The organization shall define and document the processes \nfor the responsible use of AI systems.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC92",
+    "title": "The organization shall identify and document objectives to \nguide the responsible use of AI systems.",
+    "description": "The organization shall identify and document objectives to \nguide the responsible use of AI systems.",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC93",
+    "title": "The organization shall ensure that the AI system is used \naccording to the intended uses of the AI system and its \naccom",
+    "description": "The organization shall ensure that the AI system is used \naccording to the intended uses of the AI system and its \naccompanying documentation.",
+    "pillar": "Systems"
+  },
+  {
+    "ref": "AIC94",
+    "title": "The organization shall ensure that responsibilities within \ntheir AI system life cycle are allocated between the organi",
+    "description": "The organization shall ensure that responsibilities within \ntheir AI system life cycle are allocated between the organi\nzation, its partners, suppliers, customers and third parties",
+    "pillar": "People"
+  },
+  {
+    "ref": "AIC95",
+    "title": "The organization shall establish a process to ensure that \nits usage of services, products or materials provided by \nsup",
+    "description": "The organization shall establish a process to ensure that \nits usage of services, products or materials provided by \nsuppliers aligns with the organization’s approach to the \nresponsible development and use of AI systems.",
+    "pillar": "Process"
+  },
+  {
+    "ref": "AIC96",
+    "title": "The organization shall ensure that its responsible approach to the development and use of AI systems considers \ntheir cu",
+    "description": "The organization shall ensure that its responsible approach to the development and use of AI systems considers \ntheir customer expectations and needs.",
+    "pillar": "People"
+  }
+]

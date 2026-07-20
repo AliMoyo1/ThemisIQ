@@ -911,3 +911,495 @@ def clear_chat(user_id):
         db.commit()
     finally:
         db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# AI CONTROLS CATALOGUE + AIMS/ORAAT RISK ENGINE (PLAN-21)
+# ═════════════════════════════════════════════════════════════════════════════
+#
+# THE SCORING CONVENTION: the source workbooks (AIMS Risk Assessment and
+# Treatment.xlsx, ISO42001 Operational Risk Assessment and Treatment.xlsx)
+# compute residual RATING as irr * mean(factor) but residual EMV as
+# emv * (1 - mean(factor)) -- opposite directions in the same row. This is
+# a bug in the sheets. Both residuals here use the SAME multiplier
+# (mean_factor); if you cross-check against the legacy sheet's EMV column
+# expect a difference -- that is the sheet's bug, not this code's.
+#
+# INPUT ENCODING (decided 2026-07-18, aligned with ERM PLAN-23's ICE):
+# control effectiveness is stored as `ice_score`, an INTEGER percent in
+# {0,10,...,90}, higher = stronger (matches the ERM ICE dropdown exactly).
+# ice_factor (the remaining-risk multiplier used in the formulas above) is
+# ALWAYS derived, never stored: ice_factor = (100 - ice_score) / 100.0.
+# Legacy ORAAT sheet values (1-10, LOWER = stronger) map on input as
+# ice_score = 100 - legacy_value * 10 (sheet 1 -> 90, sheet 10 -> 0).
+
+import re as _re
+
+_AI_PILLARS = ["People", "Process", "Systems", "Technology", "Tools"]
+
+
+def _next_catalogue_ref(db, prefix="AIC"):
+    """Next 'AIC{n}' ref, continuing from the highest existing suffix
+    (built-in or custom) so custom controls added later never collide
+    with the 96 seeded rows. No zero-padding, matching the seed's own
+    AIC1..AIC96 format."""
+    rows = db.execute(
+        "SELECT ref FROM ai_control_catalogue WHERE ref IS NOT NULL"
+    ).fetchall()
+    pattern = _re.compile(r"^" + _re.escape(prefix) + r"(\d+)$")
+    max_seq = 0
+    for row in rows:
+        m = pattern.match(row["ref"] or "")
+        if m:
+            max_seq = max(max_seq, int(m.group(1)))
+    return f"{prefix}{max_seq + 1}"
+
+
+def _next_aims_ref(db):
+    """Next 'AIMS-{n}' assessment ref, max-existing-suffix + 1."""
+    rows = db.execute("SELECT ref FROM aims_assessments WHERE ref IS NOT NULL").fetchall()
+    pattern = _re.compile(r"^AIMS-(\d+)$")
+    max_seq = 0
+    for row in rows:
+        m = pattern.match(row["ref"] or "")
+        if m:
+            max_seq = max(max_seq, int(m.group(1)))
+    return f"AIMS-{max_seq + 1}"
+
+
+def _next_risk_ref(db, assessment_id):
+    """Next 'R{n}' ref scoped to this assessment (max-existing-suffix + 1
+    within the assessment, not global) -- matches the aggregation sheet's
+    per-assessment row numbering."""
+    rows = db.execute(
+        "SELECT ref FROM aims_risks WHERE assessment_id=%s AND ref IS NOT NULL", (assessment_id,)
+    ).fetchall()
+    pattern = _re.compile(r"^R(\d+)$")
+    max_seq = 0
+    for row in rows:
+        m = pattern.match(row["ref"] or "")
+        if m:
+            max_seq = max(max_seq, int(m.group(1)))
+    return f"R{max_seq + 1}"
+
+
+def _clamp_ice_score(value):
+    try:
+        v = int(round(float(value)))
+    except (TypeError, ValueError):
+        v = 0
+    return max(0, min(90, v))
+
+
+def _resolve_ice_score(data):
+    """Accept either the new `ice_score` percent (0-90, higher = stronger)
+    or the legacy `ice_score_10` 1-10 input (lower = stronger, the ORAAT
+    sheet's own convention). ice_score_10 wins if both are present since
+    it is the explicit legacy-import path."""
+    if data.get("ice_score_10") not in (None, ""):
+        legacy = float(data["ice_score_10"])
+        return _clamp_ice_score(100 - legacy * 10)
+    if data.get("ice_score") not in (None, ""):
+        return _clamp_ice_score(data["ice_score"])
+    return 0
+
+
+# ── AI Controls Catalogue ──────────────────────────────────────────────────
+
+def list_ai_controls(pillar=None, include_inactive=False):
+    db = get_db()
+    try:
+        sql = (
+            "SELECT c.*, "
+            "(SELECT COUNT(*) FROM aims_risk_controls rc WHERE rc.catalogue_control_id=c.id) "
+            "AS link_count FROM ai_control_catalogue c WHERE 1=1"
+        )
+        params = []
+        if not include_inactive:
+            sql += " AND c.is_active=1"
+        if pillar:
+            sql += " AND c.pillar=%s"
+            params.append(pillar)
+        sql += " ORDER BY c.ref"
+        return _dicts(db.execute(sql, params).fetchall())
+    finally:
+        db.close()
+
+
+def get_ai_control(control_id):
+    db = get_db()
+    try:
+        return _dict(db.execute(
+            "SELECT * FROM ai_control_catalogue WHERE id=%s", (control_id,)
+        ).fetchone())
+    finally:
+        db.close()
+
+
+def create_ai_control(data):
+    pillar = data.get("pillar") or "Process"
+    if pillar not in _AI_PILLARS:
+        raise ValueError(f"pillar must be one of {_AI_PILLARS}")
+    db = get_db()
+    try:
+        ref = (data.get("ref") or "").strip() or _next_catalogue_ref(db)
+        cur = insert_returning_id(db,
+            "INSERT INTO ai_control_catalogue (ref, title, description, pillar, source, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,'custom',%s)",
+            (ref, data.get("title") or "Untitled control", data.get("description"),
+             pillar, data.get("business_unit_id")),
+        )
+        db.commit()
+        return cur
+    finally:
+        db.close()
+
+
+def update_ai_control(control_id, data):
+    if "pillar" in data and data["pillar"] not in _AI_PILLARS:
+        raise ValueError(f"pillar must be one of {_AI_PILLARS}")
+    db = get_db()
+    try:
+        fields, vals = [], []
+        for k in ("ref", "title", "description", "pillar", "is_active"):
+            if k in data:
+                fields.append(f"{k}=%s")
+                vals.append(data[k])
+        if fields:
+            fields.append("updated_at=%s")
+            vals.append(_now())
+            vals.append(control_id)
+            db.execute(f"UPDATE ai_control_catalogue SET {','.join(fields)} WHERE id=%s", vals)
+            db.commit()
+    finally:
+        db.close()
+
+
+def delete_ai_control(control_id):
+    """Refuses when referenced by any aims_risk_controls row -- built_in
+    rows are meant to be reworded (the 'not locked in' requirement) or
+    deactivated, never deleted out from under historical assessments.
+    Custom controls with no links can be deleted freely."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT source FROM ai_control_catalogue WHERE id=%s", (control_id,)).fetchone()
+        if not row:
+            raise ValueError("Control not found")
+        if row["source"] == "built_in":
+            raise ValueError("Built-in controls cannot be deleted. Deactivate instead.")
+        linked = db.execute(
+            "SELECT COUNT(*) c FROM aims_risk_controls WHERE catalogue_control_id=%s", (control_id,)
+        ).fetchone()["c"]
+        if linked:
+            raise ValueError("This control is linked to one or more risks and cannot be deleted. Deactivate instead.")
+        db.execute("DELETE FROM ai_control_catalogue WHERE id=%s", (control_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+# ── AIMS Assessments ────────────────────────────────────────────────────────
+
+def list_aims_assessments(bu_scope=None):
+    db = get_db()
+    try:
+        sql = (
+            "SELECT a.*, u.full_name AS owner_name, "
+            "(SELECT COUNT(*) FROM aims_risks r WHERE r.assessment_id=a.id) AS risk_count "
+            "FROM aims_assessments a LEFT JOIN users u ON u.id=a.created_by WHERE 1=1"
+        )
+        params = []
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            sql += f" AND (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
+            params.extend(bu_scope)
+        sql += " ORDER BY a.created_at DESC"
+        return _dicts(db.execute(sql, params).fetchall())
+    finally:
+        db.close()
+
+
+def get_aims_assessment(assessment_id):
+    db = get_db()
+    try:
+        return _dict(db.execute(
+            "SELECT a.*, u.full_name AS owner_name FROM aims_assessments a "
+            "LEFT JOIN users u ON u.id=a.created_by WHERE a.id=%s", (assessment_id,)
+        ).fetchone())
+    finally:
+        db.close()
+
+
+def create_aims_assessment(data):
+    db = get_db()
+    try:
+        ref = _next_aims_ref(db)
+        cur = insert_returning_id(db,
+            "INSERT INTO aims_assessments (ref, title, mode, status, eval_date, business_unit_id, created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (ref, data.get("title") or "Untitled AIMS Assessment", data.get("mode", "aims"),
+             data.get("status", "draft"), data.get("eval_date"),
+             data.get("business_unit_id"), data.get("created_by")),
+        )
+        db.commit()
+        return cur
+    finally:
+        db.close()
+
+
+def update_aims_assessment(assessment_id, data):
+    db = get_db()
+    try:
+        fields, vals = [], []
+        for k in ("title", "mode", "status", "eval_date", "business_unit_id"):
+            if k in data:
+                fields.append(f"{k}=%s")
+                vals.append(data[k])
+        if fields:
+            fields.append("updated_at=%s")
+            vals.append(_now())
+            vals.append(assessment_id)
+            db.execute(f"UPDATE aims_assessments SET {','.join(fields)} WHERE id=%s", vals)
+            db.commit()
+    finally:
+        db.close()
+
+
+def delete_aims_assessment(assessment_id):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM aims_assessments WHERE id=%s", (assessment_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+# ── AIMS Risks ──────────────────────────────────────────────────────────────
+
+_AIMS_RISK_FIELDS = (
+    "ref", "strategic_objective", "ai_objective", "risk_description",
+    "contributing_factors", "impacted_pillar", "likelihood", "impact",
+    "emv_inherent", "risk_owner", "rr_target", "rr_appetite", "rr_tolerance",
+    "catalogue_control_id", "in_scope", "implemented", "scope_justification", "status",
+)
+
+
+def list_aims_risks(assessment_id):
+    db = get_db()
+    try:
+        rows = _dicts(db.execute(
+            "SELECT r.*, "
+            "(SELECT COUNT(*) FROM aims_risk_controls rc WHERE rc.risk_id=r.id) AS control_count "
+            "FROM aims_risks r WHERE r.assessment_id=%s "
+            "ORDER BY r.likelihood*r.impact DESC", (assessment_id,)
+        ).fetchall())
+        for r in rows:
+            r["computed"] = compute_aims_risk(db, r["id"])
+        return rows
+    finally:
+        db.close()
+
+
+def get_aims_risk(risk_id):
+    db = get_db()
+    try:
+        risk = _dict(db.execute("SELECT * FROM aims_risks WHERE id=%s", (risk_id,)).fetchone())
+        if not risk:
+            return None
+        risk["controls"] = _dicts(db.execute(
+            "SELECT rc.*, cc.ref AS catalogue_ref, cc.title AS catalogue_title, cc.pillar AS catalogue_pillar "
+            "FROM aims_risk_controls rc LEFT JOIN ai_control_catalogue cc ON cc.id=rc.catalogue_control_id "
+            "WHERE rc.risk_id=%s ORDER BY rc.id", (risk_id,)
+        ).fetchall())
+        risk["computed"] = compute_aims_risk(db, risk_id)
+        return risk
+    finally:
+        db.close()
+
+
+def create_aims_risk(assessment_id, data):
+    db = get_db()
+    try:
+        params = {f: data.get(f) for f in _AIMS_RISK_FIELDS}
+        params["assessment_id"] = assessment_id
+        params.setdefault("likelihood", 5)
+        params.setdefault("impact", 5)
+        params["likelihood"] = params["likelihood"] or 5
+        params["impact"] = params["impact"] or 5
+        params["in_scope"] = 1 if params.get("in_scope", True) else 0
+        params["implemented"] = 1 if params.get("implemented") else 0
+        params["status"] = params.get("status") or "open"
+        if not params.get("risk_description"):
+            raise ValueError("risk_description is required")
+        params["ref"] = (params.get("ref") or "").strip() or _next_risk_ref(db, assessment_id)
+        cols = ["assessment_id"] + list(_AIMS_RISK_FIELDS)
+        cur = insert_returning_id(db,
+            f"INSERT INTO aims_risks ({', '.join(cols)}) VALUES ({', '.join('%(' + c + ')s' for c in cols)})",
+            params,
+        )
+        db.commit()
+        return cur
+    finally:
+        db.close()
+
+
+def update_aims_risk(risk_id, data):
+    if "in_scope" in data:
+        data["in_scope"] = 1 if data["in_scope"] else 0
+    if "implemented" in data:
+        data["implemented"] = 1 if data["implemented"] else 0
+    db = get_db()
+    try:
+        fields, vals = [], []
+        for k in _AIMS_RISK_FIELDS:
+            if k in data:
+                fields.append(f"{k}=%s")
+                vals.append(data[k])
+        if fields:
+            fields.append("updated_at=%s")
+            vals.append(_now())
+            vals.append(risk_id)
+            db.execute(f"UPDATE aims_risks SET {','.join(fields)} WHERE id=%s", vals)
+            db.commit()
+    finally:
+        db.close()
+
+
+def delete_aims_risk(risk_id):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM aims_risk_controls WHERE risk_id=%s", (risk_id,))
+        db.execute("DELETE FROM aims_risks WHERE id=%s", (risk_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+# ── AIMS Risk <-> Control links ──────────────────────────────────────────────
+
+_TREATMENTS = ("accept", "mitigate", "share", "avoid", "exploit")
+_AIMS_RC_FIELDS = (
+    "catalogue_control_id", "control_detail", "evidence", "control_owner",
+    "treatment", "action_steps", "treatment_cost", "responsible",
+    "interdependency", "due_date", "status",
+)
+
+
+def create_aims_risk_control(risk_id, data):
+    treatment = data.get("treatment") or "mitigate"
+    if treatment not in _TREATMENTS:
+        raise ValueError(f"treatment must be one of {_TREATMENTS}")
+    ice_score = _resolve_ice_score(data)
+    db = get_db()
+    try:
+        params = {f: data.get(f) for f in _AIMS_RC_FIELDS}
+        params["risk_id"] = risk_id
+        params["treatment"] = treatment
+        params["ice_score"] = ice_score
+        params["treatment_cost"] = params.get("treatment_cost") or 0
+        params["status"] = params.get("status") or "open"
+        cols = ["risk_id", "ice_score"] + list(_AIMS_RC_FIELDS)
+        cur = insert_returning_id(db,
+            f"INSERT INTO aims_risk_controls ({', '.join(cols)}) VALUES ({', '.join('%(' + c + ')s' for c in cols)})",
+            params,
+        )
+        db.commit()
+        return cur
+    finally:
+        db.close()
+
+
+def update_aims_risk_control(link_id, data):
+    if "treatment" in data and data["treatment"] not in _TREATMENTS:
+        raise ValueError(f"treatment must be one of {_TREATMENTS}")
+    if "ice_score" in data or "ice_score_10" in data:
+        data["ice_score"] = _resolve_ice_score(data)
+    db = get_db()
+    try:
+        fields, vals = [], []
+        for k in ("ice_score",) + _AIMS_RC_FIELDS:
+            if k in data:
+                fields.append(f"{k}=%s")
+                vals.append(data[k])
+        if fields:
+            vals.append(link_id)
+            db.execute(f"UPDATE aims_risk_controls SET {','.join(fields)} WHERE id=%s", vals)
+            db.commit()
+    finally:
+        db.close()
+
+
+def delete_aims_risk_control(link_id):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM aims_risk_controls WHERE id=%s", (link_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+# ── Scoring ───────────────────────────────────────────────────────────────
+
+def compute_aims_risk(db, risk_id):
+    """THE single scoring function implementing the convention documented
+    at the top of this section. Returns None if the risk does not exist."""
+    risk = db.execute("SELECT * FROM aims_risks WHERE id=%s", (risk_id,)).fetchone()
+    if not risk:
+        return None
+    controls = db.execute(
+        "SELECT rc.*, cc.pillar AS catalogue_pillar FROM aims_risk_controls rc "
+        "LEFT JOIN ai_control_catalogue cc ON cc.id = rc.catalogue_control_id "
+        "WHERE rc.risk_id=%s", (risk_id,)
+    ).fetchall()
+
+    irr = int(risk["likelihood"] or 5) * int(risk["impact"] or 5)
+    factors = [(100 - int(c["ice_score"] or 0)) / 100.0 for c in controls]
+    mean_factor = (sum(factors) / len(factors)) if factors else 1.0
+
+    emv_inherent = risk["emv_inherent"]
+    residual_rating = round(irr * mean_factor, 2)
+    residual_emv = round(emv_inherent * mean_factor, 2) if emv_inherent is not None else None
+
+    fallback_pillar = risk["impacted_pillar"] if risk["impacted_pillar"] in _AI_PILLARS else None
+    buckets = {p: [] for p in _AI_PILLARS}
+    for c in controls:
+        pillar = c["catalogue_pillar"] or fallback_pillar
+        if pillar in buckets:
+            buckets[pillar].append((100 - int(c["ice_score"] or 0)) / 100.0)
+    per_pillar = {}
+    for p, vals in buckets.items():
+        per_pillar[p] = {
+            "count": len(vals),
+            "mean_factor": round(sum(vals) / len(vals), 3) if vals else None,
+        }
+
+    return {
+        "irr": irr,
+        "mean_factor": round(mean_factor, 3),
+        "residual_rating": residual_rating,
+        "residual_emv": residual_emv,
+        "per_pillar": per_pillar,
+    }
+
+
+def get_aims_aggregation(assessment_id):
+    """One row per risk reproducing the workbook's Aggregation Sheet."""
+    db = get_db()
+    try:
+        risks = db.execute(
+            "SELECT * FROM aims_risks WHERE assessment_id=%s ORDER BY id", (assessment_id,)
+        ).fetchall()
+        out = []
+        for r in risks:
+            computed = compute_aims_risk(db, r["id"])
+            control_cost = db.execute(
+                "SELECT COALESCE(SUM(treatment_cost),0) c FROM aims_risk_controls WHERE risk_id=%s",
+                (r["id"],),
+            ).fetchone()["c"]
+            row = _dict(r)
+            row.update(computed or {})
+            row["total_treatment_cost"] = control_cost
+            out.append(row)
+        return out
+    finally:
+        db.close()

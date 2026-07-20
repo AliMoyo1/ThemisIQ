@@ -2712,6 +2712,31 @@ CREATE TABLE IF NOT EXISTS bcm_reminders (
     error           TEXT,
     created_at      TEXT DEFAULT (datetime('now'))
 );
+
+-- ── BCM: BIA Questionnaire impact rows + recovery resources (PLAN-22) ───────
+CREATE TABLE IF NOT EXISTS bcm_bia_impact_rows (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    bia_id      INTEGER NOT NULL REFERENCES bcm_bia_records(id) ON DELETE CASCADE,
+    section     TEXT NOT NULL,
+    label       TEXT NOT NULL,
+    description TEXT,
+    b1 REAL, b2 REAL, b3 REAL, b4 REAL, b5 REAL,
+    order_idx   INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_bia_impact_rows ON bcm_bia_impact_rows(bia_id);
+CREATE TABLE IF NOT EXISTS bcm_bia_resources (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    bia_id      INTEGER NOT NULL REFERENCES bcm_bia_records(id) ON DELETE CASCADE,
+    category    TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    specifics   TEXT,
+    amount      TEXT,
+    single_point_of_failure INTEGER DEFAULT 0,
+    needed_after TEXT DEFAULT 'immediately',
+    notes       TEXT,
+    order_idx   INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_bia_resources ON bcm_bia_resources(bia_id);
 """
 
 _SENTINEL_TABLES = """
@@ -3626,6 +3651,126 @@ CREATE TABLE IF NOT EXISTS risk_controls (
 );
 CREATE INDEX IF NOT EXISTS idx_risk_controls_risk ON risk_controls(risk_id);
 CREATE INDEX IF NOT EXISTS idx_risk_controls_control ON risk_controls(control_id);
+
+-- ── Sentinel: AI Impact Assessments (AIIA) ────────────────────────────────
+CREATE TABLE IF NOT EXISTS sentinel_aiia (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    ref_number          TEXT UNIQUE NOT NULL,
+    title               TEXT NOT NULL,
+    ai_system_name      TEXT,
+    application_id      INTEGER,
+    department          TEXT,
+    owner               TEXT,
+    system_description  TEXT,
+    business_process    TEXT,
+    deployment_env      TEXT,
+    third_party         INTEGER DEFAULT 0,
+    third_party_details TEXT,
+    outputs_decisions   TEXT,
+    influences_customers INTEGER DEFAULT 0,
+    autonomy_level      TEXT DEFAULT 'decision_support',
+    data_categories     TEXT,
+    sensitive_data      INTEGER DEFAULT 0,
+    stakeholders_direct TEXT,
+    stakeholders_indirect TEXT,
+    overall_classification TEXT,
+    mitigation_measures TEXT,
+    residual_classification TEXT,
+    status              TEXT DEFAULT 'draft',
+    ropa_id             INTEGER,
+    dpia_id             INTEGER,
+    business_unit_id    INTEGER,
+    created_by          INTEGER,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS sentinel_aiia_dimensions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    order_idx   INTEGER DEFAULT 0,
+    is_active   INTEGER DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS sentinel_aiia_impacts (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    aiia_id        INTEGER NOT NULL REFERENCES sentinel_aiia(id) ON DELETE CASCADE,
+    dimension_name TEXT NOT NULL,
+    applicable     INTEGER DEFAULT 1,
+    description    TEXT,
+    likelihood     INTEGER,
+    impact         INTEGER,
+    UNIQUE(aiia_id, dimension_name)
+);
+CREATE INDEX IF NOT EXISTS idx_aiia_impacts ON sentinel_aiia_impacts(aiia_id);
+
+-- ── ORM: AI controls catalogue + AIMS/ORAAT risk engine (PLAN-21) ─────────
+CREATE TABLE IF NOT EXISTS ai_control_catalogue (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ref         TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    description TEXT,
+    pillar      TEXT DEFAULT 'Process',
+    source      TEXT DEFAULT 'custom',
+    is_active   INTEGER DEFAULT 1,
+    business_unit_id INTEGER,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_aicc_ref ON ai_control_catalogue(lower(trim(ref)));
+CREATE TABLE IF NOT EXISTS aims_assessments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ref         TEXT UNIQUE NOT NULL,
+    title       TEXT NOT NULL,
+    mode        TEXT DEFAULT 'aims',
+    status      TEXT DEFAULT 'draft',
+    eval_date   TEXT,
+    business_unit_id INTEGER,
+    created_by  INTEGER,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS aims_risks (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    assessment_id       INTEGER NOT NULL REFERENCES aims_assessments(id) ON DELETE CASCADE,
+    ref                 TEXT,
+    strategic_objective TEXT,
+    ai_objective        TEXT,
+    risk_description    TEXT NOT NULL,
+    contributing_factors TEXT,
+    impacted_pillar     TEXT,
+    likelihood          INTEGER DEFAULT 5,
+    impact              INTEGER DEFAULT 5,
+    emv_inherent        REAL,
+    risk_owner          TEXT,
+    rr_target           REAL,
+    rr_appetite         REAL,
+    rr_tolerance        REAL,
+    catalogue_control_id INTEGER,
+    in_scope            INTEGER DEFAULT 1,
+    implemented         INTEGER DEFAULT 0,
+    scope_justification TEXT,
+    status              TEXT DEFAULT 'open',
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_aims_risks_assessment ON aims_risks(assessment_id);
+CREATE TABLE IF NOT EXISTS aims_risk_controls (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    risk_id             INTEGER NOT NULL REFERENCES aims_risks(id) ON DELETE CASCADE,
+    catalogue_control_id INTEGER,
+    control_detail      TEXT,
+    evidence            TEXT,
+    control_owner       TEXT,
+    ice_score           INTEGER DEFAULT 0,
+    treatment           TEXT DEFAULT 'mitigate',
+    action_steps        TEXT,
+    treatment_cost      REAL DEFAULT 0,
+    responsible         TEXT,
+    interdependency     TEXT,
+    due_date            TEXT,
+    status              TEXT DEFAULT 'open',
+    created_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_aims_rc_risk ON aims_risk_controls(risk_id);
 """
 
 # ── PostgreSQL schema variants ─────────────────────────────────────────────────
@@ -3772,6 +3917,16 @@ _COLUMN_MIGRATIONS = [
         ("bcm_bia_records", "mtpd_hours", "INTEGER"),
         ("bcm_bia_records", "calc_criticality", "TEXT"),
         ("bcm_bia_records", "calc_notes", "TEXT"),
+        # PLAN-22: BIA questionnaire (ISO 22301) Part 1 + Part 2 fields
+        ("bcm_bia_records", "key_tasks", "TEXT"),
+        ("bcm_bia_records", "obligations", "TEXT"),
+        ("bcm_bia_records", "deadlines", "TEXT"),
+        ("bcm_bia_records", "peak_periods", "TEXT"),
+        ("bcm_bia_records", "peak_workload", "TEXT"),
+        ("bcm_bia_records", "min_acceptable_level", "TEXT"),
+        ("bcm_bia_records", "resume_period", "TEXT"),
+        ("bcm_bia_records", "suggested_rto_hours", "INTEGER"),
+        ("bcm_bia_records", "business_process_id", "INTEGER"),
         # BCM-17: Plan activation columns
         ("bcm_plans", "is_active_plan", "INTEGER DEFAULT 0"),
         ("bcm_plans", "activated_at", "TEXT"),
@@ -4292,6 +4447,50 @@ def _seed_baseline_data(conn):
                     "WHERE jurisdiction_key=%s", (first[0],),
                 )
             conn.commit()
+    except Exception:
+        pass
+
+    # ── Seed AIIA impact dimensions (PLAN-20) ────────────────────────────────
+    try:
+        existing_aiia_dims = conn.execute(
+            "SELECT COUNT(*) FROM sentinel_aiia_dimensions"
+        ).fetchone()[0]
+        if existing_aiia_dims == 0:
+            for idx, name in enumerate([
+                "Financial", "Operational", "Reputational", "Regulatory/Legal",
+                "Privacy", "Security", "Ethical/Fairness", "Societal",
+            ], start=1):
+                conn.execute(
+                    "INSERT INTO sentinel_aiia_dimensions (name, order_idx) VALUES (%s,%s)",
+                    (name, idx),
+                )
+            conn.commit()
+    except Exception:
+        pass
+
+    # ── Seed AI controls catalogue (PLAN-21) ─────────────────────────────────
+    # The app never reads the source xlsx; only the committed JSON that
+    # scripts/extract_ai_controls.py produced from it once, on a dev machine.
+    try:
+        existing_aicc = conn.execute("SELECT COUNT(*) FROM ai_control_catalogue").fetchone()[0]
+        if existing_aicc == 0:
+            import json as _json
+            seed_path = os.path.join(os.path.dirname(__file__), "seeds", "ai_controls_seed.json")
+            if os.path.exists(seed_path):
+                with open(seed_path, encoding="utf-8") as f:
+                    _ai_controls = _json.load(f)
+                for row in _ai_controls:
+                    conn.execute(
+                        "INSERT INTO ai_control_catalogue (ref, title, description, pillar, source) "
+                        "VALUES (%s,%s,%s,%s,'built_in') ON CONFLICT DO NOTHING",
+                        (row["ref"], row["title"], row.get("description"), row["pillar"]),
+                    )
+                conn.commit()
+            else:
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "AI controls seed file not found at %s -- catalogue starts empty", seed_path
+                )
     except Exception:
         pass
 

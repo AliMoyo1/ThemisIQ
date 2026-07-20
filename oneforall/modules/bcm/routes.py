@@ -76,6 +76,29 @@ async def api_bia_list(request: Request):
     return JSONResponse(ds.list_bia(bu_scope=bu_scope_ids(request.state.user)))
 
 
+# NOTE: these two bucket-labels routes MUST be registered before
+# /api/bia/{bia_id} below -- FastAPI/Starlette matches routes by path
+# structure in registration order, and an untyped {bia_id} segment
+# structurally matches the literal "bucket-labels" segment too. Placed
+# after, a request here would instead hit api_bia_detail with
+# bia_id="bucket-labels" and 422 on the int conversion.
+@router.get("/api/bia/bucket-labels")
+@require_capability("module.bcm.access")
+async def api_bia_bucket_labels_get(request: Request):
+    return JSONResponse({"labels": ds.get_bucket_labels()})
+
+
+@router.put("/api/bia/bucket-labels")
+@require_capability("bcm.bia.manage")
+async def api_bia_bucket_labels_set(request: Request):
+    body = await _json_body(request)
+    try:
+        ds.set_bucket_labels(body.get("labels") or [])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"labels": ds.get_bucket_labels()})
+
+
 @router.get("/api/bia/{bia_id}")
 @require_capability("module.bcm.access")
 async def api_bia_detail(request: Request, bia_id: int):
@@ -131,6 +154,55 @@ async def api_bia_calculate(request: Request, bia_id: int):
     if not result:
         raise HTTPException(404, "BIA record not found")
     return JSONResponse(result)
+
+
+# ── BIA Questionnaire: impact rows, recovery resources, bucket labels (PLAN-22) ──
+
+@router.put("/api/bia/{bia_id}/impact-rows")
+@require_capability("bcm.bia.manage")
+async def api_bia_impact_rows_save(request: Request, bia_id: int):
+    body = await _json_body(request)
+    try:
+        result = ds.save_bia_impact_rows(bia_id, body.get("rows") or [])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse(result)
+
+
+@router.post("/api/bia/{bia_id}/seed-standard-rows")
+@require_capability("bcm.bia.manage")
+async def api_bia_seed_standard_rows(request: Request, bia_id: int):
+    seeded = ds.seed_standard_rows_if_empty(bia_id)
+    return JSONResponse({"seeded": seeded, "rows": ds.list_bia_impact_rows(bia_id)})
+
+
+@router.post("/api/bia/{bia_id}/resources")
+@require_capability("bcm.bia.manage")
+async def api_bia_resource_create(request: Request, bia_id: int):
+    body = await _json_body(request)
+    try:
+        rid = ds.create_bia_resource(bia_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"id": rid}, status_code=201)
+
+
+@router.put("/api/bia/resources/{resource_id}")
+@require_capability("bcm.bia.manage")
+async def api_bia_resource_update(request: Request, resource_id: int):
+    body = await _json_body(request)
+    try:
+        ds.update_bia_resource(resource_id, body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return JSONResponse({"ok": True})
+
+
+@router.delete("/api/bia/resources/{resource_id}")
+@require_capability("bcm.bia.manage")
+async def api_bia_resource_delete(request: Request, resource_id: int):
+    ds.delete_bia_resource(resource_id)
+    return JSONResponse({"ok": True})
 
 
 # ── Crisis Communication Templates (BCM-14) ─────────────────────────────────

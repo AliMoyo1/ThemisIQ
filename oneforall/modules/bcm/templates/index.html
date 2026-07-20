@@ -381,6 +381,9 @@
       <div class="section-sub">Assess criticality of business processes and functions</div>
     </div>
     <div class="header-actions">
+      <button class="btn btn-secondary" onclick="bcmOpenBucketLabelsModal()" title="Rename the 5 time-window columns used across every BIA">
+        &#9881; Time Buckets
+      </button>
       <button class="btn btn-primary" onclick="bcmOpenModal('bia')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add BIA Record
@@ -806,6 +809,7 @@
 <div id="bcmConfirmRoot"></div>
 <div id="bcmDocViewerRoot"></div>
 <div id="bcmConsoleRoot"></div>
+<div id="bcmBiaDrawerRoot"></div>
 
 {% endblock %}
 
@@ -908,7 +912,11 @@
       opts.body=JSON.stringify(opts.body);
     }
     var r=await fetch(url,opts);
-    if(!r.ok) throw new Error('API error '+r.status);
+    if(!r.ok){
+      var txt='';
+      try{var j=await r.json();txt=j.detail||JSON.stringify(j);}catch(e){txt=r.statusText;}
+      throw new Error(txt||'API error '+r.status);
+    }
     if(r.status===204) return null;
     return r.json();
   }
@@ -1152,11 +1160,360 @@
         var rpo=b.rpo_hours!=null?b.rpo_hours+'h':'—';
         var crit=b.calc_criticality||b.criticality||b.impact_level;
         var calcBtn='<button class="btn-bcm-ai" onclick="bcmCalcBia('+b.id+',this)" title="AI calculate criticality & MTPD">🔢</button>';
-        return '<tr><td>'+esc(b.process_name||b.title||b.name||'')+'</td><td>'+esc(b.department||'')+'</td><td>'+esc(rto)+'</td><td>'+esc(rpo)+'</td><td>'+riskBadge(crit)+'</td><td>'+statusBadge(b.status)+'</td><td><div style="display:flex;gap:4px;align-items:center">'+calcBtn+actionBtns('bcmEditBia('+b.id+')','bcmDeleteRecord(\'bia\','+b.id+')')+'</div></td></tr>';
+        var qBtn='<button class="btn btn-sm btn-secondary" onclick="bcmOpenBiaDrawer('+b.id+')" title="Open BIA Questionnaire" style="padding:4px 8px">📋</button>';
+        return '<tr><td style="cursor:pointer;color:var(--accent);font-weight:600" onclick="bcmOpenBiaDrawer('+b.id+')">'+esc(b.process_name||b.title||b.name||'')+'</td><td>'+esc(b.department||'')+'</td><td>'+esc(rto)+'</td><td>'+esc(rpo)+'</td><td>'+riskBadge(crit)+'</td><td>'+statusBadge(b.status)+'</td><td><div style="display:flex;gap:4px;align-items:center">'+qBtn+calcBtn+actionBtns('bcmEditBia('+b.id+')','bcmDeleteRecord(\'bia\','+b.id+')')+'</div></td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load BIA records');}
   };
   window.bcmEditBia=function(id){var item=biaCache.find(function(b){return b.id===id;});if(item)bcmOpenModal('bia',item);};
+
+  /* ════════════════════════════════════════════════════════════════════════
+     BIA QUESTIONNAIRE DRAWER (PLAN-22)
+     ════════════════════════════════════════════════════════════════════════ */
+  var _bcmBiaTab='details';
+  var _bcmBiaCurrent=null;
+  var _bcmBiaImpactRows=null;
+  var _bcmBizProcessCache=null;
+
+  async function _bcmEnsureBizProcesses(){
+    if(_bcmBizProcessCache) return _bcmBizProcessCache;
+    try{_bcmBizProcessCache=await apiFetch('/governance/api/business-processes');}
+    catch(e){_bcmBizProcessCache=[];}
+    return _bcmBizProcessCache;
+  }
+
+  window.bcmOpenBiaDrawer=async function(biaId){
+    var root=document.getElementById('bcmBiaDrawerRoot');
+    root.innerHTML='<div class="bcm-console-overlay"><div class="bcm-console-panel" style="align-items:center;justify-content:center;display:flex"><div class="spinner"></div></div></div>';
+    try{
+      var bia=await apiFetch('/bcm/api/bia/'+biaId);
+      _bcmBiaCurrent=bia;
+      _bcmBiaImpactRows=null;
+      await _bcmEnsureBizProcesses();
+      _bcmBiaTab='details';
+      _bcmRenderBiaDrawer();
+    }catch(e){root.innerHTML='';}
+  };
+  window.bcmCloseBiaDrawer=function(){document.getElementById('bcmBiaDrawerRoot').innerHTML='';_bcmBiaCurrent=null;_bcmBiaImpactRows=null;};
+
+  function _bcmRenderBiaDrawer(){
+    var root=document.getElementById('bcmBiaDrawerRoot');
+    var bia=_bcmBiaCurrent;
+    if(!bia) return;
+    var tabs=['details','impact','resources'];
+    var tabLabels={details:'📋 Details',impact:'📈 Impact Over Time',resources:'🧰 Recovery Resources'};
+    root.innerHTML='<div class="bcm-console-overlay" onclick="if(event.target===this)bcmCloseBiaDrawer()">'+
+      '<div class="bcm-console-panel">'+
+        '<div class="bcm-console-head">'+
+          '<div style="display:flex;justify-content:space-between;align-items:start">'+
+            '<div>'+
+              '<div style="font-size:17px;font-weight:800;color:var(--text)">'+esc(bia.process_name||'')+'</div>'+
+              '<div style="font-size:12px;color:var(--muted);margin-top:4px">BIA Questionnaire &bull; '+esc(bia.department||'No department')+'</div>'+
+            '</div>'+
+            '<button class="btn btn-sm btn-secondary" onclick="bcmCloseBiaDrawer()">&#10005; Close</button>'+
+          '</div>'+
+        '</div>'+
+        '<div class="bcm-console-tabs">'+
+          tabs.map(function(t){return '<div class="bcm-console-tab'+(_bcmBiaTab===t?' active':'')+'" onclick="bcmBiaTab(\''+t+'\')">'+tabLabels[t]+'</div>';}).join('')+
+        '</div>'+
+        '<div class="bcm-console-body" id="bcmBiaDrawerBody"></div>'+
+      '</div></div>';
+    _bcmRenderBiaTab();
+  }
+
+  window.bcmBiaTab=function(tab){
+    _bcmBiaTab=tab;
+    var tabEls=document.querySelectorAll('#bcmBiaDrawerRoot .bcm-console-tab');
+    var order=['details','impact','resources'];
+    tabEls.forEach(function(el,idx){el.classList.toggle('active',order[idx]===tab);});
+    _bcmRenderBiaTab();
+  };
+
+  function _bcmRenderBiaTab(){
+    var body=document.getElementById('bcmBiaDrawerBody');
+    if(!body) return;
+    if(_bcmBiaTab==='details') _bcmRenderBiaDetailsTab(body);
+    else if(_bcmBiaTab==='impact') _bcmRenderBiaImpactTab(body);
+    else if(_bcmBiaTab==='resources') _bcmRenderBiaResourcesTab(body);
+  }
+
+  /* ── Details tab ── */
+  function _bcmRenderBiaDetailsTab(body){
+    var bia=_bcmBiaCurrent;
+    var procs=_bcmBizProcessCache||[];
+    var rtoChip=bia.suggested_rto_hours!=null?
+      ' <button class="btn btn-sm btn-secondary" onclick="bcmApplySuggestedRto()" style="font-size:11px;padding:2px 8px" title="Copy the suggested value into RTO">Suggested: '+bia.suggested_rto_hours+'h &#8594; Apply</button>':'';
+    var taCss='width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box';
+    body.innerHTML=
+      '<div class="form-group"><label>Key Tasks</label><textarea id="bia_key_tasks" rows="2" style="'+taCss+'">'+esc(bia.key_tasks||'')+'</textarea></div>'+
+      '<div class="form-group"><label>Legal / Contractual Obligations</label><textarea id="bia_obligations" rows="2" style="'+taCss+'">'+esc(bia.obligations||'')+'</textarea></div>'+
+      '<div class="form-group"><label>Deadlines</label><input id="bia_deadlines" value="'+esc(bia.deadlines||'')+'"></div>'+
+      '<div class="form-group"><label>Linked Business Process</label><select id="bia_bp_id"><option value="">— None —</option>'+
+        procs.map(function(p){return '<option value="'+p.id+'"'+(bia.business_process_id===p.id?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+
+      '</select>'+(bia.business_process_id&&!procs.some(function(p){return p.id===bia.business_process_id;})?'<div style="font-size:11px;color:var(--muted);margin-top:4px">Previously linked: '+esc(bia.business_process_name||'—')+' (no longer in the active list)</div>':'')+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>RTO (hours)'+rtoChip+'</label><input type="number" id="bia_rto" value="'+(bia.rto_hours!=null?bia.rto_hours:'')+'"></div>'+
+        '<div class="form-group"><label>RPO (hours)</label><input type="number" id="bia_rpo" value="'+(bia.rpo_hours!=null?bia.rpo_hours:'')+'"></div>'+
+      '</div>'+
+      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 8px;border-bottom:1px solid var(--border);padding-bottom:6px">Workload (Part 2)</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Peak Periods</label><input id="bia_peak_periods" value="'+esc(bia.peak_periods||'')+'"></div>'+
+        '<div class="form-group"><label>Peak Workload</label><input id="bia_peak_workload" value="'+esc(bia.peak_workload||'')+'"></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Minimum Acceptable Level Post-Disaster</label><input id="bia_min_level" value="'+esc(bia.min_acceptable_level||'')+'"></div>'+
+        '<div class="form-group"><label>Resume-By Period</label><input id="bia_resume_period" value="'+esc(bia.resume_period||'')+'"></div>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-primary" onclick="bcmSaveBiaDetails()">Save Details</button>'+
+      '</div>';
+  }
+
+  window.bcmApplySuggestedRto=function(){
+    var input=document.getElementById('bia_rto');
+    if(input && _bcmBiaCurrent.suggested_rto_hours!=null) input.value=_bcmBiaCurrent.suggested_rto_hours;
+  };
+
+  window.bcmSaveBiaDetails=async function(){
+    var data={
+      key_tasks:document.getElementById('bia_key_tasks').value.trim(),
+      obligations:document.getElementById('bia_obligations').value.trim(),
+      deadlines:document.getElementById('bia_deadlines').value.trim(),
+      business_process_id:document.getElementById('bia_bp_id').value||null,
+      rto_hours:document.getElementById('bia_rto').value!==''?parseFloat(document.getElementById('bia_rto').value):null,
+      rpo_hours:document.getElementById('bia_rpo').value!==''?parseFloat(document.getElementById('bia_rpo').value):null,
+      peak_periods:document.getElementById('bia_peak_periods').value.trim(),
+      peak_workload:document.getElementById('bia_peak_workload').value.trim(),
+      min_acceptable_level:document.getElementById('bia_min_level').value.trim(),
+      resume_period:document.getElementById('bia_resume_period').value.trim()
+    };
+    try{
+      await apiFetch('/bcm/api/bia/'+_bcmBiaCurrent.id,{method:'PUT',body:data});
+      if(typeof showToast==='function')showToast('Details saved');
+      bcmLoadBia();
+      bcmOpenBiaDrawer(_bcmBiaCurrent.id);
+    }catch(e){alert('Save failed: '+e.message);}
+  };
+
+  /* ── Impact over time tab ── */
+  window._bcmBiaSetCell=function(idx,col,val,isGeneral){
+    if(val===''){_bcmBiaImpactRows[idx][col]=null;return;}
+    _bcmBiaImpactRows[idx][col]=isGeneral?parseInt(val,10):parseFloat(val);
+  };
+  window._bcmBiaSetLabel=function(idx,val){_bcmBiaImpactRows[idx].label=val;};
+  window._bcmBiaRemoveImpactRow=function(idx){_bcmBiaImpactRows.splice(idx,1);_bcmRenderBiaTab();};
+  window._bcmBiaAddImpactRow=function(section){
+    _bcmBiaImpactRows.push({section:section,label:'',description:null,b1:null,b2:null,b3:null,b4:null,b5:null});
+    _bcmRenderBiaTab();
+  };
+
+  function _bcmBiaImpactGridHtml(section,title,legend){
+    var labels=(_bcmBiaCurrent.bucket_labels)||['2 hours','4 hours','24 hours','48 hours','1 week'];
+    var isGeneral=section==='general';
+    var indexed=[];
+    _bcmBiaImpactRows.forEach(function(r,i){if(r.section===section)indexed.push({r:r,i:i});});
+    var bodyRows=indexed.map(function(x){
+      var r=x.r,i=x.i;
+      var cells=['b1','b2','b3','b4','b5'].map(function(col){
+        if(isGeneral){
+          var cur=r[col];
+          return '<td><select onchange="_bcmBiaSetCell('+i+',\''+col+'\',this.value,true)" style="width:64px;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:12px">'+
+            ['','1','2','3'].map(function(v){return '<option value="'+v+'"'+((cur==null?'':String(cur))===v?' selected':'')+'>'+(v||'—')+'</option>';}).join('')+
+          '</select></td>';
+        }
+        return '<td><input type="number" value="'+(r[col]!=null?r[col]:'')+'" oninput="_bcmBiaSetCell('+i+',\''+col+'\',this.value,false)" style="width:90px;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:12px"></td>';
+      }).join('');
+      return '<tr>'+
+        '<td><input value="'+esc(r.label||'')+'" oninput="_bcmBiaSetLabel('+i+',this.value)" style="width:100%;min-width:180px;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-size:12px"></td>'+
+        cells+
+        '<td><button class="btn btn-sm btn-secondary" onclick="_bcmBiaRemoveImpactRow('+i+')" style="color:var(--red)" title="Remove row">&#10005;</button></td>'+
+      '</tr>';
+    }).join('');
+    return '<div style="margin-bottom:22px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+        '<div style="font-size:12px;font-weight:700;color:var(--text)">'+title+'</div>'+
+        '<button class="btn btn-sm btn-secondary" onclick="_bcmBiaAddImpactRow(\''+section+'\')">+ Add Row</button>'+
+      '</div>'+
+      (legend?'<div style="font-size:11px;color:var(--muted);margin-bottom:6px">'+legend+'</div>':'')+
+      '<div style="overflow-x:auto"><table class="data-table" style="font-size:12px"><thead><tr><th>Impact</th>'+
+        labels.map(function(l){return '<th>'+esc(l)+'</th>';}).join('')+
+      '<th></th></tr></thead><tbody>'+
+      (bodyRows||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:12px">No rows</td></tr>')+
+      '</tbody></table></div>'+
+    '</div>';
+  }
+
+  function _bcmRenderBiaImpactTab(body){
+    if(!_bcmBiaImpactRows) _bcmBiaImpactRows=(_bcmBiaCurrent.impact_rows||[]).map(function(r){return Object.assign({},r);});
+    if(!_bcmBiaImpactRows.length){
+      body.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted)">'+
+        '<div style="margin-bottom:12px">This BIA has no impact rows yet (it predates the questionnaire).</div>'+
+        '<button class="btn btn-primary" onclick="_bcmBiaAddStandardRows()">Add Standard Rows</button>'+
+      '</div>';
+      return;
+    }
+    body.innerHTML=
+      _bcmBiaImpactGridHtml('general','General Impact (scored 1-3)','1 marginal &middot; 2 acceptable &middot; 3 high')+
+      _bcmBiaImpactGridHtml('financial','Financial Impact ($ amounts)',null)+
+      '<div style="display:flex;justify-content:flex-end">'+
+        '<button class="btn btn-primary" onclick="_bcmSaveBiaImpactRows()">Save Impact Rows</button>'+
+      '</div>';
+  }
+
+  window._bcmBiaAddStandardRows=async function(){
+    try{
+      var result=await apiFetch('/bcm/api/bia/'+_bcmBiaCurrent.id+'/seed-standard-rows',{method:'POST'});
+      _bcmBiaImpactRows=result.rows.map(function(r){return Object.assign({},r);});
+      _bcmRenderBiaTab();
+      if(typeof showToast==='function')showToast('Standard rows added');
+    }catch(e){alert('Failed: '+e.message);}
+  };
+
+  window._bcmSaveBiaImpactRows=async function(){
+    try{
+      var result=await apiFetch('/bcm/api/bia/'+_bcmBiaCurrent.id+'/impact-rows',{method:'PUT',body:{rows:_bcmBiaImpactRows}});
+      _bcmBiaCurrent.suggested_rto_hours=result.suggested_rto_hours;
+      _bcmBiaImpactRows=result.rows.map(function(r){return Object.assign({},r);});
+      if(typeof showToast==='function')showToast('Impact rows saved');
+      _bcmRenderBiaTab();
+      bcmLoadBia();
+    }catch(e){alert('Save failed: '+e.message);}
+  };
+
+  /* ── Recovery resources tab ── */
+  var _BCM_BIA_RESOURCE_CATEGORIES=['People','Applications / databases','Electronic data (outside applications)',
+    'Paper data','IT and communications equipment','Communication channels','Other equipment'];
+  var _BCM_BIA_NEEDED_AFTER=['immediately','1h','4h','24h','2d','1w','other'];
+
+  function _bcmRenderBiaResourcesTab(body){
+    var resources=_bcmBiaCurrent.resources||[];
+    var byCategory={};
+    _BCM_BIA_RESOURCE_CATEGORIES.forEach(function(c){byCategory[c]=[];});
+    resources.forEach(function(r){(byCategory[r.category]=byCategory[r.category]||[]).push(r);});
+    var html='';
+    Object.keys(byCategory).forEach(function(cat){
+      var rows=byCategory[cat];
+      html+='<div style="margin-bottom:18px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+          '<span style="font-size:12px;font-weight:700;color:var(--text)">'+esc(cat)+'</span>'+
+          '<button class="btn btn-sm btn-secondary" onclick="_bcmBiaAddResourceModal('+JSON.stringify(cat)+')">+ Add</button>'+
+        '</div>'+
+        (rows.length?rows.map(function(r){
+          return '<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">'+
+            '<div style="flex:1;font-size:12px;min-width:0">'+esc(r.name)+(r.specifics?' <span style="color:var(--muted)">('+esc(r.specifics)+')</span>':'')+'</div>'+
+            '<div style="width:90px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.amount||'')+'</div>'+
+            '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);white-space:nowrap"><input type="checkbox" '+(r.single_point_of_failure?'checked':'')+' onchange="_bcmBiaToggleSpof('+r.id+',this.checked)"> SPOF</label>'+
+            '<select onchange="_bcmBiaUpdateResourceField('+r.id+',\'needed_after\',this.value)" style="font-size:11px;padding:3px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text)">'+
+              _BCM_BIA_NEEDED_AFTER.map(function(o){return '<option value="'+o+'"'+(r.needed_after===o?' selected':'')+'>'+o+'</option>';}).join('')+
+            '</select>'+
+            '<button class="btn btn-sm btn-secondary" onclick="_bcmBiaDeleteResource('+r.id+')" style="color:var(--red)" title="Remove">&#10005;</button>'+
+          '</div>';
+        }).join(''):'<div style="font-size:11px;color:var(--muted);padding:6px 0">No resources yet</div>')+
+      '</div>';
+    });
+    body.innerHTML=html;
+  }
+
+  window._bcmBiaAddResourceModal=function(category){
+    var html='<div class="modal-overlay" id="bcmResModal" onclick="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:480px">'+
+        '<button class="modal-close" onclick="document.getElementById(\'bcmResModal\').remove()">&#10005;</button>'+
+        '<div class="modal-title">Add Resource &mdash; '+esc(category)+'</div>'+
+        '<div class="form-group"><label>Name *</label><input id="bres_name" placeholder="e.g. Primary database server"></div>'+
+        '<div class="form-group"><label>Specifics</label><input id="bres_specifics" placeholder="e.g. model, version, location"></div>'+
+        '<div class="form-row">'+
+          '<div class="form-group"><label>Amount / Quantity</label><input id="bres_amount"></div>'+
+          '<div class="form-group"><label>Needed After</label><select id="bres_needed">'+
+            _BCM_BIA_NEEDED_AFTER.map(function(o){return '<option value="'+o+'">'+o+'</option>';}).join('')+
+          '</select></div>'+
+        '</div>'+
+        '<label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:14px"><input type="checkbox" id="bres_spof"> Single point of failure</label>'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+          '<button class="btn btn-secondary" onclick="document.getElementById(\'bcmResModal\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" onclick="_bcmBiaSaveResourceModal('+JSON.stringify(category)+')">Add</button>'+
+        '</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    setTimeout(function(){var t=document.getElementById('bres_name');if(t)t.focus();},80);
+  };
+
+  window._bcmBiaSaveResourceModal=async function(category){
+    var name=document.getElementById('bres_name').value.trim();
+    if(!name){alert('Name is required');return;}
+    var data={
+      category:category,name:name,
+      specifics:document.getElementById('bres_specifics').value.trim(),
+      amount:document.getElementById('bres_amount').value.trim(),
+      needed_after:document.getElementById('bres_needed').value,
+      single_point_of_failure:document.getElementById('bres_spof').checked
+    };
+    try{
+      await apiFetch('/bcm/api/bia/'+_bcmBiaCurrent.id+'/resources',{method:'POST',body:data});
+      document.getElementById('bcmResModal').remove();
+      _bcmBiaCurrent=await apiFetch('/bcm/api/bia/'+_bcmBiaCurrent.id);
+      _bcmRenderBiaTab();
+      if(typeof showToast==='function')showToast('Resource added');
+    }catch(e){alert('Add failed: '+e.message);}
+  };
+
+  window._bcmBiaToggleSpof=async function(rid,checked){
+    try{
+      await apiFetch('/bcm/api/bia/resources/'+rid,{method:'PUT',body:{single_point_of_failure:checked}});
+      var r=(_bcmBiaCurrent.resources||[]).find(function(x){return x.id===rid;});
+      if(r) r.single_point_of_failure=checked?1:0;
+    }catch(e){alert('Update failed: '+e.message);}
+  };
+
+  window._bcmBiaUpdateResourceField=async function(rid,field,value){
+    var body={};body[field]=value;
+    try{
+      await apiFetch('/bcm/api/bia/resources/'+rid,{method:'PUT',body:body});
+      var r=(_bcmBiaCurrent.resources||[]).find(function(x){return x.id===rid;});
+      if(r) r[field]=value;
+    }catch(e){alert('Update failed: '+e.message);}
+  };
+
+  window._bcmBiaDeleteResource=async function(rid){
+    if(!confirm('Remove this resource?')) return;
+    try{
+      await apiFetch('/bcm/api/bia/resources/'+rid,{method:'DELETE'});
+      _bcmBiaCurrent.resources=(_bcmBiaCurrent.resources||[]).filter(function(r){return r.id!==rid;});
+      _bcmRenderBiaTab();
+    }catch(e){alert('Delete failed: '+e.message);}
+  };
+
+  /* ── Bucket labels (platform-wide setting, not per-BIA) ── */
+  window.bcmOpenBucketLabelsModal=async function(){
+    var labels;
+    try{labels=(await apiFetch('/bcm/api/bia/bucket-labels')).labels;}
+    catch(e){labels=['2 hours','4 hours','24 hours','48 hours','1 week'];}
+    var html='<div class="modal-overlay" id="bcmBucketModal" onclick="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:460px">'+
+        '<button class="modal-close" onclick="document.getElementById(\'bcmBucketModal\').remove()">&#10005;</button>'+
+        '<div class="modal-title">Time Bucket Labels</div>'+
+        '<div style="font-size:12px;color:var(--amber,#d97706);background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);border-radius:var(--radius);padding:8px 10px;margin-bottom:14px">'+
+          '&#9888; These 5 column headers apply to every BIA questionnaire in the system, not just this one.'+
+        '</div>'+
+        [0,1,2,3,4].map(function(i){
+          return '<div class="form-group"><label>Bucket '+(i+1)+'</label><input id="bucket_'+i+'" value="'+esc(labels[i]||'')+'"></div>';
+        }).join('')+
+        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px">'+
+          '<button class="btn btn-secondary" onclick="document.getElementById(\'bcmBucketModal\').remove()">Cancel</button>'+
+          '<button class="btn btn-primary" onclick="bcmSaveBucketLabels()">Save</button>'+
+        '</div>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  };
+
+  window.bcmSaveBucketLabels=async function(){
+    var labels=[0,1,2,3,4].map(function(i){return document.getElementById('bucket_'+i).value.trim();});
+    try{
+      await apiFetch('/bcm/api/bia/bucket-labels',{method:'PUT',body:{labels:labels}});
+      document.getElementById('bcmBucketModal').remove();
+      if(typeof showToast==='function')showToast('Time bucket labels updated');
+    }catch(e){alert('Save failed: '+e.message);}
+  };
 
   /* ════════════════════════════════════════════════════════════════════════
      PLANS CRUD

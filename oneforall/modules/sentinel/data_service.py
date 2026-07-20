@@ -390,6 +390,284 @@ def list_dpias(search=None, regulation=None, status=None, limit=500, bu_scope=No
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# AIIA — AI Impact Assessments (PLAN-20)
+# ═════════════════════════════════════════════════════════════════════════════
+
+_AIIA_FIELDS = [
+    "title", "ai_system_name", "application_id", "department", "owner",
+    "system_description", "business_process", "deployment_env",
+    "third_party", "third_party_details", "outputs_decisions",
+    "influences_customers", "autonomy_level", "data_categories",
+    "sensitive_data", "stakeholders_direct", "stakeholders_indirect",
+    "mitigation_measures", "residual_classification",
+    "status", "ropa_id", "dpia_id", "business_unit_id", "created_by",
+]
+_AIIA_BOOL_FIELDS = ("third_party", "influences_customers", "sensitive_data")
+
+
+def _normalize_aiia_bools(data):
+    for f in _AIIA_BOOL_FIELDS:
+        if f in data:
+            data[f] = 1 if data[f] else 0
+
+
+def _aiia_row(row):
+    d = dict(row)
+    d["data_categories"] = _parse_json(d.get("data_categories"), [])
+    return d
+
+
+def _get_aiia_impacts(db, aiia_id):
+    """One row per currently-active dimension (an unscored placeholder if it
+    has no row yet) plus any existing scored rows for dimensions that are no
+    longer active -- history survives a deactivation or a rename-away."""
+    active_dims = [r["name"] for r in db.execute(
+        "SELECT name FROM sentinel_aiia_dimensions WHERE is_active=1 ORDER BY order_idx, name"
+    ).fetchall()]
+    existing = {r["dimension_name"]: dict(r) for r in db.execute(
+        "SELECT * FROM sentinel_aiia_impacts WHERE aiia_id=%s", (aiia_id,)
+    ).fetchall()}
+    rows = []
+    for name in active_dims:
+        if name in existing:
+            rows.append(existing.pop(name))
+        else:
+            rows.append({"aiia_id": aiia_id, "dimension_name": name, "applicable": 1,
+                         "description": None, "likelihood": None, "impact": None})
+    rows.extend(existing.values())
+    return rows
+
+
+def _save_aiia_impacts(db, aiia_id, impacts):
+    """Replace all impact rows. Each entry:
+    {dimension_name, applicable, description, likelihood, impact}."""
+    db.execute("DELETE FROM sentinel_aiia_impacts WHERE aiia_id=%s", (aiia_id,))
+    for imp in (impacts or []):
+        name = str(imp.get("dimension_name") or "").strip()
+        if not name:
+            continue
+        lik, impv = imp.get("likelihood"), imp.get("impact")
+        db.execute(
+            "INSERT INTO sentinel_aiia_impacts "
+            "(aiia_id, dimension_name, applicable, description, likelihood, impact) "
+            "VALUES (%s,%s,%s,%s,%s,%s)",
+            (aiia_id, name, 1 if imp.get("applicable", True) else 0,
+             imp.get("description"),
+             max(1, min(5, int(lik))) if lik not in (None, "") else None,
+             max(1, min(5, int(impv))) if impv not in (None, "") else None),
+        )
+
+
+def _compute_aiia_classification(db, impacts):
+    """Band of the highest L*I product among applicable, scored rows.
+    Returns 'unrated' when no ERM framework is active -- never silently
+    reuse resolve_band's generic fallback band for a classification the
+    user never actually chose. Returns None when nothing is scored yet."""
+    from modules.erm.data_service import get_active_framework_matrix, resolve_band
+    fw_matrix = get_active_framework_matrix(db)
+    if not fw_matrix["matrix"]:
+        return "unrated"
+    best, best_product = None, -1
+    for imp in (impacts or []):
+        if not imp.get("applicable", True):
+            continue
+        L, I = imp.get("likelihood"), imp.get("impact")
+        if L is None or I is None:
+            continue
+        product = int(L) * int(I)
+        if product > best_product:
+            best_product, best = product, (int(L), int(I))
+    if best is None:
+        return None
+    return resolve_band(fw_matrix, best[0], best[1])
+
+
+def create_aiia(data):
+    data.setdefault("title", "Untitled AI Impact Assessment")
+    data.setdefault("status", "draft")
+    data.setdefault("autonomy_level", "decision_support")
+    _normalize_aiia_bools(data)
+    if "data_categories" in data:
+        data["data_categories"] = _to_json(data["data_categories"])
+    impacts = data.pop("impacts", None)
+    now = _now()
+    db = get_db()
+    try:
+        params = {f: data.get(f) for f in _AIIA_FIELDS}
+        params["ref_number"] = _gen_ref("AIIA")
+        params["created_at"] = now
+        params["updated_at"] = now
+        cols = ["ref_number"] + _AIIA_FIELDS + ["created_at", "updated_at"]
+        new_id = insert_returning_id(
+            db,
+            f"INSERT INTO sentinel_aiia ({', '.join(cols)}) "
+            f"VALUES ({', '.join('%(' + c + ')s' for c in cols)})",
+            params,
+        )
+        if impacts is not None:
+            _save_aiia_impacts(db, new_id, impacts)
+            classification = _compute_aiia_classification(db, _get_aiia_impacts(db, new_id))
+            db.execute(
+                "UPDATE sentinel_aiia SET overall_classification=%s, updated_at=%s WHERE id=%s",
+                (classification, now, new_id),
+            )
+        db.commit()
+        return new_id
+    finally:
+        db.close()
+
+
+def update_aiia(aiia_id, data):
+    _normalize_aiia_bools(data)
+    if "data_categories" in data:
+        data["data_categories"] = _to_json(data["data_categories"])
+    impacts = data.pop("impacts", None)
+    now = _now()
+    db = get_db()
+    try:
+        sets, params = [], {}
+        for k, v in data.items():
+            if k in _AIIA_FIELDS:
+                sets.append(f"{k}=%({k})s")
+                params[k] = v
+        if impacts is not None:
+            _save_aiia_impacts(db, aiia_id, impacts)
+            classification = _compute_aiia_classification(db, _get_aiia_impacts(db, aiia_id))
+            sets.append("overall_classification=%(overall_classification)s")
+            params["overall_classification"] = classification
+        if sets:
+            params["updated_at"] = now
+            params["id"] = aiia_id
+            db.execute(
+                f"UPDATE sentinel_aiia SET {','.join(sets)}, updated_at=%(updated_at)s WHERE id=%(id)s",
+                params,
+            )
+        db.commit()
+    finally:
+        db.close()
+
+
+def get_aiia(aiia_id):
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT a.*, r.ref_number AS ropa_ref, r.processing_name AS ropa_name, "
+            "d.ref_number AS dpia_ref, d.title AS dpia_title "
+            "FROM sentinel_aiia a "
+            "LEFT JOIN sentinel_ropa r ON r.id = a.ropa_id "
+            "LEFT JOIN sentinel_dpias d ON d.id = a.dpia_id "
+            "WHERE a.id=%s",
+            (aiia_id,),
+        ).fetchone()
+        if not row:
+            return None
+        result = _aiia_row(row)
+        result["impacts"] = _get_aiia_impacts(db, aiia_id)
+        return result
+    finally:
+        db.close()
+
+
+def delete_aiia(aiia_id):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM sentinel_aiia_impacts WHERE aiia_id=%s", (aiia_id,))
+        db.execute("DELETE FROM sentinel_aiia WHERE id=%s", (aiia_id,))
+        db.commit()
+    finally:
+        db.close()
+
+
+def list_aiias(search=None, status=None, limit=500, bu_scope=None):
+    sql = (
+        "SELECT a.*, r.ref_number AS ropa_ref, d.ref_number AS dpia_ref "
+        "FROM sentinel_aiia a "
+        "LEFT JOIN sentinel_ropa r ON r.id = a.ropa_id "
+        "LEFT JOIN sentinel_dpias d ON d.id = a.dpia_id "
+        "WHERE 1=1"
+    )
+    params = []
+    if search:
+        sql += " AND (a.title LIKE %s OR a.ai_system_name LIKE %s)"
+        like = f"%{search}%"
+        params += [like, like]
+    if status:
+        sql += " AND a.status=%s"
+        params.append(status)
+    if bu_scope is not None:
+        ph = ",".join(["%s"] * len(bu_scope))
+        sql += f" AND (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
+        params.extend(bu_scope)
+    sql += " ORDER BY a.updated_at DESC LIMIT %s"
+    params.append(limit)
+    db = get_db()
+    try:
+        rows = db.execute(sql, params).fetchall()
+    finally:
+        db.close()
+    return [_aiia_row(r) for r in rows]
+
+
+def list_aiia_dimensions(include_inactive=True):
+    db = get_db()
+    try:
+        sql = "SELECT * FROM sentinel_aiia_dimensions"
+        if not include_inactive:
+            sql += " WHERE is_active=1"
+        sql += " ORDER BY order_idx, name"
+        rows = db.execute(sql).fetchall()
+    finally:
+        db.close()
+    return [dict(r) for r in rows]
+
+
+def save_aiia_dimensions(dimensions):
+    """Upsert the dimension list. Each entry: {id?, name, order_idx?,
+    is_active?}. Renaming an existing dimension propagates the new name
+    onto every historical sentinel_aiia_impacts row so scored history
+    follows it, instead of orphaning it under the old name. Dimensions
+    not mentioned in the payload are left untouched (this is an upsert,
+    not a destructive full-sync)."""
+    db = get_db()
+    try:
+        existing = {r["id"]: dict(r) for r in db.execute(
+            "SELECT * FROM sentinel_aiia_dimensions"
+        ).fetchall()}
+        existing_names = {r["name"].strip().lower(): r["id"] for r in existing.values()}
+        for dim in (dimensions or []):
+            dim_id = dim.get("id")
+            name = str(dim.get("name") or "").strip()
+            if not name:
+                raise ValueError("Dimension name is required")
+            order_idx = dim.get("order_idx", 0)
+            is_active = 1 if dim.get("is_active", True) else 0
+            collision_id = existing_names.get(name.lower())
+            if collision_id is not None and collision_id != dim_id:
+                raise ValueError(f"A dimension named '{name}' already exists")
+            if dim_id and dim_id in existing:
+                old_name = existing[dim_id]["name"]
+                db.execute(
+                    "UPDATE sentinel_aiia_dimensions SET name=%s, order_idx=%s, is_active=%s WHERE id=%s",
+                    (name, order_idx, is_active, dim_id),
+                )
+                if old_name != name:
+                    db.execute(
+                        "UPDATE sentinel_aiia_impacts SET dimension_name=%s WHERE dimension_name=%s",
+                        (name, old_name),
+                    )
+            else:
+                new_id = insert_returning_id(
+                    db,
+                    "INSERT INTO sentinel_aiia_dimensions (name, order_idx, is_active) VALUES (%s,%s,%s)",
+                    (name, order_idx, is_active),
+                )
+                existing_names[name.lower()] = new_id
+        db.commit()
+    finally:
+        db.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # Breaches
 # ═════════════════════════════════════════════════════════════════════════════
 

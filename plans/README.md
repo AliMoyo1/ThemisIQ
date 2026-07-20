@@ -104,13 +104,15 @@ conventions.
 |---|---|---|---|---|---|
 | 1 | [PLAN-18](PLAN-18-security-round-2.md) | Org-enforced MFA (Part A: DONE `af5e80d`), SBU data scoping (Part B: DONE 2026-07-16), upload magic-byte checks (Part C: DONE 2026-07-16) | Closes the three real remaining security gaps; SBU scoping is the multi-tenant interior wall | ~3-4 days | Security asked first; SBU isolation is customer-visible |
 | 2 | [PLAN-19](PLAN-19-ropa-dpia-integration.md) | RoPA ↔ DPIA link + prefill + drift banner | Kills the retyping the user reported; schema hooks already half-exist | ~1-2 days | DONE (2026-07-17) |
-| 3 | [PLAN-20](PLAN-20-aiia-ai-impact-assessment.md) | AIIA assessment type in Sentinel | The explicitly requested AIIA option, with editable dimensions and ERM-consistent banding | ~3-4 days | Explicit ask; independent of everything else |
-| 4 | [PLAN-21](PLAN-21-ai-controls-catalogue-aims-engine.md) | Editable AI controls catalogue (96 seeded) + AIMS/ORAAT risk engine in ORM | Digitizes the org's real ISO 42001 working model; strongest differentiator of the batch | ~1-1.5 weeks | Largest slice; resolves a scoring contradiction in the source sheets with one documented convention |
-| 5 | [PLAN-22](PLAN-22-bia-questionnaire-engine.md) | ISO 22301 BIA questionnaire engine in BCM | Impact-over-time grids, recovery resources, suggested RTO | ~3-4 days | High value, least urgent; independent |
+| 3 | [PLAN-20](PLAN-20-aiia-ai-impact-assessment.md) | AIIA assessment type in Sentinel | The explicitly requested AIIA option, with editable dimensions and ERM-consistent banding | ~3-4 days | DONE (2026-07-19) |
+| 4 | [PLAN-21](PLAN-21-ai-controls-catalogue-aims-engine.md) | Editable AI controls catalogue (96 seeded) + AIMS/ORAAT risk engine in ORM | Digitizes the org's real ISO 42001 working model; strongest differentiator of the batch | ~1-1.5 weeks | Largest slice; resolves a scoring contradiction in the source sheets with one documented convention. DONE (2026-07-20) |
+| 5 | [PLAN-22](PLAN-22-bia-questionnaire-engine.md) | ISO 22301 BIA questionnaire engine in BCM | Impact-over-time grids, recovery resources, suggested RTO | ~3-4 days | High value, least urgent; independent. DONE (2026-07-20) |
 
 **Round 5 execution order: 18 → 19 → 20 → 21 → 22.** 19/20/21/22 are
 mutually independent; only PLAN-18's Part B (BU scoping) should precede
 the others so their list endpoints inherit the scope pattern from day one.
+
+## Round 5 status: ALL COMPLETE (18, 19, 20, 21, 22 all DONE)
 
 ## Round 6 - ERM v2: the mind-map redesign (PLAN-23..28)
 
