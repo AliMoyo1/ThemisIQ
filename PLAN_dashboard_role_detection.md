@@ -144,13 +144,24 @@ external_auditor > employee.
     reasonable local dev fixture and matches what `git status` showed as
     untouched/untracked before I started.
 
-## Status: COMPLETE, COMMITTED
+## Status: COMPLETE, COMMITTED, RECONCILED
 
 All planned changes made, verified live, and committed locally to this
-worktree's branch (`claude/goofy-kowalevski-2c4f88`). Not pushed. Still
-needs reconciliation with the overlapping uncommitted work in the main repo
-(see finding #4 above) before that other side is committed or this branch
-is merged.
+worktree's branch (`claude/goofy-kowalevski-2c4f88`) as `3b90aa8`. Not pushed.
+
+Reconciliation with the other session (see finding #4 above): it finished
+and committed its fix to `master` as `ce43a81` ("Fix NameError crashes in
+Command Centre stats and My Dashboard endpoints"), independently arriving
+at a byte-identical `_org_scope_filter(user)` helper and the same two call
+sites. Merged `ce43a81` into this branch (`git merge`, commit `b671f93`):
+auto-resolved cleanly with no conflicts, since the overlapping hunks were
+textually identical. Verified afterward: `py_compile` passes, no leftover
+conflict markers, `grep` confirms `_org_scope_filter` is defined exactly
+once and called exactly twice (no duplication), and `git diff a7f5079
+b671f93 --stat` shows only the same three files with the same net line
+counts as before the merge. This branch is now a strict superset of
+master's `ce43a81` plus the role-detection fix and the `my_dashboard.html`
+change, both of which master does not yet have.
 
 ## Summary
 
