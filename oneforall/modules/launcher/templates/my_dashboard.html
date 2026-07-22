@@ -134,9 +134,9 @@ let _prefs = { hidden_widgets: [], widget_order: [] };
 
 /* All possible widgets by role context */
 const WIDGET_CATALOG = {
-  compliance_overview: { label:'Compliance Overview', roles:['super_admin','compliance_mgr'] },
-  module_health:       { label:'Module Health',       roles:['super_admin','compliance_mgr'] },
-  recent_activity:     { label:'Recent Activity',     roles:['super_admin','compliance_mgr'] },
+  compliance_overview: { label:'Compliance Overview', roles:['super_admin','compliance_manager','grc_officer'] },
+  module_health:       { label:'Module Health',       roles:['super_admin','compliance_manager','grc_officer'] },
+  recent_activity:     { label:'Recent Activity',     roles:['super_admin','compliance_manager','grc_officer'] },
   auditor_view:        { label:'Audit Workbench',     roles:['audit_lead','auditor'] },
   privacy_view:        { label:'Privacy Dashboard',   roles:['dpo','privacy_analyst'] },
   bcm_view:            { label:'Business Continuity', roles:['bcm_manager','incident_commander','bcm_responder'] },
@@ -491,7 +491,7 @@ function widgetQuickLinks(d) {
     ],
   };
   let ctx = 'general';
-  if (['super_admin','compliance_mgr'].includes(role)) ctx = 'admin';
+  if (['super_admin','compliance_manager','grc_officer'].includes(role)) ctx = 'admin';
   else if (['audit_lead','auditor'].includes(role)) ctx = 'auditor';
   else if (['dpo','privacy_analyst'].includes(role)) ctx = 'privacy';
   else if (['bcm_manager','incident_commander','bcm_responder'].includes(role)) ctx = 'bcm';
