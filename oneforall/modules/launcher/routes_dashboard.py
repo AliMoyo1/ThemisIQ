@@ -590,13 +590,27 @@ async def api_command_centre_stats(request: Request):
     })
 
 
+# Priority order for picking a single "primary" role when a user holds more
+# than one role_key, to determine which role-specific widgets/labels the
+# dashboard shows. Ordered roughly by breadth of platform access (see
+# rbac.ROLE_DESCRIPTIONS); most users hold exactly one role, so this only
+# matters for the few who hold several.
+_DASHBOARD_ROLE_PRIORITY = [
+    "super_admin", "grc_officer", "compliance_manager", "dpo", "bcm_manager",
+    "audit_lead", "risk_owner", "incident_commander", "bcm_responder", "auditor",
+    "privacy_analyst", "policy_approver", "policy_author", "control_owner",
+    "external_auditor", "employee",
+]
+
+
 @router.get("/api/my-dashboard/data")
 @require_auth
 async def api_my_dashboard_data(request: Request):
     """Get role-specific dashboard data."""
     user = request.state.user
     uid = user["id"]
-    role = user.get("role", "employee")
+    user_roles = set(user.get("roles") or [])
+    role = next((r for r in _DASHBOARD_ROLE_PRIORITY if r in user_roles), "employee")
     db = get_db()
     data = {"role": role, "role_label": ROLE_LABELS.get(role, role)}
 
@@ -623,7 +637,7 @@ async def api_my_dashboard_data(request: Request):
         data["risks"] = {r["risk_level"]: r["c"] for r in risk_rows}
 
         # Role-specific data
-        if role in ("super_admin", "compliance_mgr"):
+        if role in ("super_admin", "compliance_manager", "grc_officer"):
             # Overview of all modules
             data["aria_controls_total"] = db.execute("SELECT COUNT(*) FROM aria_controls").fetchone()[0]
             data["aria_controls_compliant"] = db.execute(
