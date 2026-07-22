@@ -686,6 +686,15 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <span class="mod-dot" style="background:#7c3a0a"></span>
     </a>
     {% endif %}
+
+    {% if can_governance_view %}
+    <a href="/governance/" class="icon-nav-item{% if active_module == 'governance' %} active{% endif %}" title="Org Structure">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V10M18 21V10M9 21V14h6v7M3 10l9-6 9 6"/></svg>
+      <span class="icon-nav-tooltip">Org Structure — Business Units &amp; Entities</span>
+      <span class="nav-label">Org Structure</span>
+      <span class="mod-dot" style="background:#6d28d9"></span>
+    </a>
+    {% endif %}
   </div>
 
   <div class="icon-sidebar-bottom">
