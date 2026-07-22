@@ -216,6 +216,30 @@ input,select,textarea{font-family:var(--font)}
 }
 .icon-nav-item:hover .icon-nav-tooltip{display:block}
 .icon-nav-divider{width:32px;height:1px;background:rgba(255,255,255,0.08);margin:8px auto}
+
+/* ── Expanding rail (hover to peek, pin to keep open) ── */
+.icon-sidebar{transition:width .22s cubic-bezier(.4,0,.2,1)}
+@media (hover:hover){.icon-sidebar:hover{width:208px}}
+.icon-sidebar.pinned{width:208px}
+.icon-sidebar .nav-label{display:none;font-size:12.5px;font-weight:600;
+  white-space:nowrap;color:inherit;margin-left:10px}
+.icon-sidebar.pinned .nav-label{display:inline}
+@media (hover:hover){.icon-sidebar:hover .nav-label{display:inline}}
+.icon-sidebar.pinned .icon-nav-tooltip{display:none !important}
+@media (hover:hover){.icon-sidebar:hover .icon-nav-tooltip{display:none !important}}
+.icon-sidebar .nav-section-label{display:none;font-size:10px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:#475569;
+  padding:10px 14px 4px;align-self:flex-start}
+.icon-sidebar.pinned .nav-section-label{display:block}
+@media (hover:hover){.icon-sidebar:hover .nav-section-label{display:block}}
+.icon-sidebar .mod-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;
+  display:none;margin-left:auto}
+.icon-sidebar.pinned .mod-dot{display:inline-block}
+@media (hover:hover){.icon-sidebar:hover .mod-dot{display:inline-block}}
+.icon-nav-item{justify-content:flex-start;padding-left:14px;width:100%}
+.icon-sidebar:not(.pinned):not(:hover) .icon-nav-item{justify-content:center;padding-left:0}
+@media (prefers-reduced-motion:reduce){.icon-sidebar{transition:none}}
+
 .icon-sidebar-bottom{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 8px}
 .icon-sidebar-user{
   width:36px;height:36px;border-radius:50%;
@@ -598,18 +622,23 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
   </a>
 
   <div class="icon-sidebar-nav">
+    <div class="nav-section-label">Main</div>
     <!-- Platform Home -->
     <a href="/" class="icon-nav-item{% if active_module == 'platform' %} active{% endif %}" title="Command Centre">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
       <span class="icon-nav-tooltip">Command Centre</span>
+      <span class="nav-label">Command Centre</span>
     </a>
 
     <div class="icon-nav-divider"></div>
 
     {% if 'aria' in user_modules %}
+    <div class="nav-section-label">Modules</div>
     <a href="/aria/" class="icon-nav-item{% if active_module == 'aria' %} active{% endif %}" title="Governance">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       <span class="icon-nav-tooltip">Governance — Policy &amp; Compliance</span>
+      <span class="nav-label">Governance</span>
+      <span class="mod-dot" style="background:#7d6527"></span>
     </a>
     {% endif %}
 
@@ -617,6 +646,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <a href="/grid/" class="icon-nav-item{% if active_module == 'grid' %} active{% endif %}" title="Audit">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>
       <span class="icon-nav-tooltip">Audit — Audit Management</span>
+      <span class="nav-label">Audit</span>
+      <span class="mod-dot" style="background:#059669"></span>
     </a>
     {% endif %}
 
@@ -624,6 +655,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <a href="/bcm/" class="icon-nav-item{% if active_module == 'bcm' %} active{% endif %}" title="Resilience">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       <span class="icon-nav-tooltip">Resilience — Business Continuity</span>
+      <span class="nav-label">Resilience</span>
+      <span class="mod-dot" style="background:#3d4660"></span>
     </a>
     {% endif %}
 
@@ -631,6 +664,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <a href="/sentinel/" class="icon-nav-item{% if active_module == 'sentinel' %} active{% endif %}" title="Privacy">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
       <span class="icon-nav-tooltip">Privacy — Data Protection</span>
+      <span class="nav-label">Privacy</span>
+      <span class="mod-dot" style="background:#3b5bdb"></span>
     </a>
     {% endif %}
 
@@ -638,6 +673,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <a href="/erm/" class="icon-nav-item{% if active_module == 'erm' %} active{% endif %}" title="Enterprise Risk">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
       <span class="icon-nav-tooltip">Enterprise Risk</span>
+      <span class="nav-label">Enterprise Risk</span>
+      <span class="mod-dot" style="background:#881337"></span>
     </a>
     {% endif %}
 
@@ -645,21 +682,32 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     <a href="/orm/" class="icon-nav-item{% if active_module == 'orm' %} active{% endif %}" title="Operations Risk">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       <span class="icon-nav-tooltip">Operations Risk</span>
+      <span class="nav-label">Operations Risk</span>
+      <span class="mod-dot" style="background:#7c3a0a"></span>
     </a>
     {% endif %}
   </div>
 
   <div class="icon-sidebar-bottom">
+    <button class="icon-nav-item" id="railPin" aria-label="Pin navigation labels" title="Pin navigation labels" onclick="tiqToggleRail()" style="background:none;border:none;font:inherit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      <span class="nav-label">Collapse</span>
+    </button>
+    {% if is_admin or is_super_admin %}
+    <div class="nav-section-label">Platform</div>
+    {% endif %}
     {% if is_super_admin %}
     <a href="/super-admin/" class="icon-nav-item{% if active_section == 'super_admin' %} active{% endif %}" title="Super Admin" style="color:#a78bfa">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       <span class="icon-nav-tooltip">Super Admin</span>
+      <span class="nav-label">Super Admin</span>
     </a>
     {% endif %}
     {% if is_admin %}
     <a href="/admin/users" class="icon-nav-item{% if active_section == 'admin' %} active{% endif %}" title="Admin" style="color:#94a3b8">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15 1.65 1.65 0 003.17 14H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68 1.65 1.65 0 0010 3.17V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       <span class="icon-nav-tooltip">Admin Settings</span>
+      <span class="nav-label">Admin Settings</span>
     </a>
     {% endif %}
     <div class="icon-sidebar-user" onclick="toggleUserMenu()" title="{{ user.full_name }}">
@@ -686,6 +734,23 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     </div>
   </div>
 </div>
+<script>
+(function(){
+  var el=document.querySelector('.icon-sidebar');
+  if(el && localStorage.getItem('tiqRailPinned')==='1') el.classList.add('pinned');
+  window.tiqToggleRail=function(){
+    var p=el.classList.toggle('pinned');
+    localStorage.setItem('tiqRailPinned', p?'1':'0');
+    var arrow=document.querySelector('#railPin svg');
+    if(arrow) arrow.style.transform = p?'rotate(180deg)':'';
+    setTimeout(function(){window.dispatchEvent(new Event('resize'))},250);
+  };
+  if(el && el.classList.contains('pinned')){
+    var arrow=document.querySelector('#railPin svg');
+    if(arrow) arrow.style.transform='rotate(180deg)';
+  }
+})();
+</script>
 
 <!-- ═══════════════════════════════════════════════════════════════════
      MODULE SIDEBAR — module-specific navigation

@@ -186,6 +186,17 @@
   </div>
 </div>
 
+<!-- Greeting row -->
+<div class="animate-fade-up" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px">
+  <div>
+    <div id="ccGreeting" style="font-size:20px;font-weight:700;color:var(--text)">
+      Welcome back{% if user and (user.full_name or user.username) %}, {{ (user.full_name or user.username).split(' ')[0] }}{% endif %}
+    </div>
+    <div id="ccAttention" style="font-size:12.5px;color:var(--muted);margin-top:3px">Loading your day…</div>
+  </div>
+  <div id="ccToday" style="font-size:12px;color:var(--text-mid);font-family:var(--mono)"></div>
+</div>
+
 <!-- Module Tiles Grid -->
 {% if modules %}
 <div class="animate-fade-up" style="margin-bottom:24px">
@@ -565,6 +576,18 @@
     ]
   };
 
+  // ── Greeting: daypart + date (client-side -- the server is UTC and
+  // would greet half the world with the wrong daypart) ──
+  (function(){
+    var h = new Date().getHours();
+    var word = h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+    var g = document.getElementById('ccGreeting');
+    if(g) g.textContent = g.textContent.replace('Welcome back', word);
+    var t = document.getElementById('ccToday');
+    if(t) t.textContent = new Date().toLocaleDateString(undefined,
+        {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+  })();
+
   // ── Populate stats ──
   function populateStats(d){
     document.getElementById('ccCompliancePct').textContent = d.compliance_pct + '%';
@@ -670,6 +693,18 @@
 
     // Breach notification countdown alerts
     populateBreachAlerts(d.breach_alerts || []);
+
+    // ── Attention summary (greeting row) -- bound to fields this same
+    // payload already carries, no new fetch ──
+    var critHigh = d.erm_critical_high || 0;
+    var overdue = d.overdue_count || 0;
+    var attBits = [];
+    if(critHigh > 0) attBits.push(critHigh + ' critical/high risk' + (critHigh > 1 ? 's' : ''));
+    if(overdue > 0) attBits.push(overdue + ' overdue item' + (overdue > 1 ? 's' : ''));
+    var att = document.getElementById('ccAttention');
+    if(att) att.textContent = attBits.length
+      ? attBits.join(' and ') + ' need' + (critHigh + overdue === 1 ? 's' : '') + ' your attention'
+      : 'All clear. Nothing urgent today.';
   }
 
   // ── Breach Notification Countdown ──

@@ -70,12 +70,12 @@ behavior-only:
 
 **Round 4 execution order: 16 → 17.** Independent of Rounds 1-3.
 
-## Round 4 status: OPEN
+## Round 4 status: ALL COMPLETE
 
 | Plan | Status |
 |---|---|
-| [PLAN-16](PLAN-16-navigation-upgrade.md) | OPEN |
-| [PLAN-17](PLAN-17-first-impressions-refresh.md) | OPEN |
+| [PLAN-16](PLAN-16-navigation-upgrade.md) | DONE (2026-07-22) -- implemented in `templates/base_shell.html` instead of the plan's named `_icon_sidebar.html`/`_icon_sidebar_styles.html`, which turned out to be dead/orphaned files never included by any live template; see plans/PLAN-16-active.md deviation notes |
+| [PLAN-17](PLAN-17-first-impressions-refresh.md) | DONE (2026-07-22) -- most of the login-page Step 4 items (autofocus, autocomplete, submit-disable) were already implemented; added only the genuinely missing dark-mode bootstrap and a bfcache `pageshow` reset. See plans/PLAN-17-active.md for the discovery that login.html has no dark-mode CSS at all (bootstrap is a currently-invisible, forward-compatible no-op, not a visible bug fix) |
 
 ## Interstitial — ARIA Ask fixes (PLAN-14)
 

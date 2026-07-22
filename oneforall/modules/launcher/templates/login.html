@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ThemisIQ — Sign In</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
+<script>
+(function(){
+  var saved = localStorage.getItem('ofa-theme') || 'light';
+  if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
+})();
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html{--particle-color-rgb:30,70,160}
@@ -678,6 +684,12 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
     submitBtn.classList.add('loading');
     submitBtn.disabled = true;
     setTimeout(function(){ submitBtn.classList.remove('loading'); submitBtn.disabled = false; }, 8000);
+  });
+  /* Browser Back after a successful login can restore this page from
+     bfcache with the button still stuck in its disabled/loading state. */
+  window.addEventListener('pageshow', function(){
+    submitBtn.classList.remove('loading');
+    submitBtn.disabled = false;
   });
 
   /* ── 3D card tilt ── */
