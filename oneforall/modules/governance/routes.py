@@ -107,6 +107,29 @@ async def api_bu_delete(request: Request, bu_id: int):
     return JSONResponse({"ok": True})
 
 
+# ── People / BU assignment ───────────────────────────────────────────────────
+
+@router.get("/api/users")
+@require_capability("governance.bu.assign")
+async def api_assignable_users(request: Request):
+    return JSONResponse(ds.list_assignable_users())
+
+
+@router.patch("/api/users/{uid}/business-unit")
+@require_capability("governance.bu.assign")
+async def api_assign_user_bu(request: Request, uid: int):
+    body = await _json_body(request)
+    raw = body.get("business_unit_id")
+    bu_id = int(raw) if raw not in (None, "", "null") else None
+    ok = ds.assign_user_business_unit(uid, bu_id)
+    if not ok:
+        raise HTTPException(400, "Invalid or inactive business unit")
+    from core.middleware import log_audit
+    log_audit(request.state.user, "governance",
+              f"Assigned user #{uid} to business_unit {bu_id}", "user", uid)
+    return JSONResponse({"ok": True, "business_unit_id": bu_id})
+
+
 # ── Departments ─────────────────────────────────────────────────────────────
 
 @router.get("/api/departments")

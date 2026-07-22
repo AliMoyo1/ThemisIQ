@@ -106,6 +106,9 @@
     <button class="gov-tab" data-tab="ctrl" onclick="govSwitchTab('ctrl')">Controls</button>
     <button class="gov-tab" data-tab="da" onclick="govSwitchTab('da')">Data Assets</button>
     <button class="gov-tab" data-tab="reg" onclick="govSwitchTab('reg')">Regulatory Inbox</button>
+    {% if can_assign_bu %}
+    <button class="gov-tab" data-tab="people" onclick="govSwitchTab('people')">People</button>
+    {% endif %}
   </div>
 
   <!-- Business Units -->
@@ -208,6 +211,19 @@
       <tbody id="regTBody"></tbody>
     </table>
   </div>
+
+  {% if can_assign_bu %}
+  <!-- People / BU assignment -->
+  <div class="tab-view" id="tab-people">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;color:var(--muted)">Assign each user to a business unit. Users see only their unit and its sub-units; leave blank for org-wide access.</div>
+    </div>
+    <table class="gov-table" id="peopleTable">
+      <thead><tr><th>User</th><th>Email</th><th>Business Unit</th></tr></thead>
+      <tbody id="peopleBody"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Modal container (populated dynamically) -->
@@ -242,7 +258,13 @@ function govSwitchTab(tab){
   document.querySelectorAll('.tab-view').forEach(v=>v.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   var addBtn = document.querySelector('.gov-header .gov-btn');
-  if(addBtn) addBtn.innerHTML = '<span>+</span> Add ' + {bu:'Business Unit',dept:'Department',bp:'Process',app:'Application',ctrl:'Control',da:'Data Asset',reg:'Regulatory Update'}[tab];
+  if(addBtn){
+    if(tab==='people'){ addBtn.style.display='none'; }
+    else{
+      addBtn.style.display='';
+      addBtn.innerHTML = '<span>+</span> Add ' + {bu:'Business Unit',dept:'Department',bp:'Process',app:'Application',ctrl:'Control',da:'Data Asset',reg:'Regulatory Update'}[tab];
+    }
+  }
   govLoadTab(tab);
 }
 
@@ -254,6 +276,48 @@ function govLoadTab(tab){
   else if(tab==='ctrl') govLoadControls();
   else if(tab==='da') govLoadDas();
   else if(tab==='reg') govLoadReg();
+  else if(tab==='people') govLoadPeople();
+}
+
+// ── People / BU assignment ──────────────────────────────────────────
+var _buOptionsCache = null;
+function govBuOptions(selectedId){
+  var p = _buOptionsCache ? Promise.resolve(_buOptionsCache) : apiFetch('/governance/api/business-units').then(function(list){ _buOptionsCache = list || []; return _buOptionsCache; });
+  return p.then(function(list){
+    var opts = '<option value="">— Org-wide (no unit) —</option>';
+    list.forEach(function(b){
+      opts += '<option value="'+b.id+'"'+(b.id===selectedId?' selected':'')+'>'+esc(b.name)+'</option>';
+    });
+    return opts;
+  });
+}
+function govLoadPeople(){
+  var body = document.getElementById('peopleBody');
+  apiFetch('/governance/api/users').then(function(users){
+    if(!users || !users.length){ body.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:24px">No users</td></tr>'; return; }
+    return Promise.all(users.map(function(u){
+      return govBuOptions(u.business_unit_id).then(function(sel){
+        return '<tr><td><strong>'+esc(u.full_name||u.username)+'</strong><div style="font-size:11px;color:var(--muted)">@'+esc(u.username)+'</div></td>'+
+          '<td style="font-size:12px;color:var(--muted)">'+esc(u.email||'')+'</td>'+
+          '<td><select class="form-input" style="max-width:240px" onchange="govAssignBu('+u.id+', this.value)">'+sel+'</select></td></tr>';
+      });
+    })).then(function(rows){ body.innerHTML = rows.join(''); });
+  }).catch(function(){ body.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--red)">Failed to load</td></tr>'; });
+}
+function govAssignBu(uid, val){
+  fetch('/governance/api/users/'+uid+'/business-unit', {
+    method:'PATCH',
+    credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({business_unit_id: val===''? null : parseInt(val)})
+  }).then(function(r){
+    if(!r.ok){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if(typeof showToast==='function') showToast(j.detail||'Assignment failed','error');
+      });
+    }
+    if(typeof showToast==='function') showToast('Business unit updated');
+  }).catch(function(){ if(typeof showToast==='function') showToast('Network error','error'); });
 }
 
 // ── Summary ──────────────────────────────────────────────────────────

@@ -451,6 +451,7 @@
             data-email="{{ u.email or '' }}"
             data-username="{{ u.username }}"
             data-created="{{ u.created_at or '' }}"
+            data-bu="{{ u.business_unit_id or '' }}"
             onclick="openEditDrawerBtn(this)">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -633,6 +634,15 @@
              placeholder="user@example.com" maxlength="254" autocomplete="off"
              style="width:100%; box-sizing:border-box;">
     </div>
+    {% if can_assign_bu %}
+    <div class="form-group" style="margin-top:14px;">
+      <label class="form-label">Business Unit</label>
+      <select id="drawerBusinessUnit" class="form-input" style="width:100%; box-sizing:border-box;">
+        <option value="">— Org-wide (no unit) —</option>
+        {% for b in business_units %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
     <div class="form-group" style="margin-top:14px;">
       <label class="form-label">
         Username
@@ -775,17 +785,21 @@ function openEditDrawerBtn(btn) {
     btn.dataset.name,
     btn.dataset.email,
     btn.dataset.username,
-    btn.dataset.created
+    btn.dataset.created,
+    btn.dataset.bu
   );
 }
 
-function openEditDrawer(uid, fullName, email, username, createdAt) {
+function openEditDrawer(uid, fullName, email, username, createdAt, buId) {
   _drawerUid = uid;
   document.getElementById('drawerUid').value       = uid;
   document.getElementById('drawerFullName').value  = fullName;
   document.getElementById('drawerEmail').value     = email;
   document.getElementById('drawerUsername').value  = username;
   document.getElementById('drawerSubtitle').textContent = '@' + username;
+
+  var buSel = document.getElementById('drawerBusinessUnit');
+  if (buSel) buSel.value = buId || '';
 
   var created = createdAt ? createdAt.slice(0, 16).replace('T', ' ') : '—';
   document.getElementById('drawerCreated').value   = created;
@@ -832,6 +846,10 @@ async function saveEditDrawer() {
 
   var csrfToken = document.getElementById('usersPageData').dataset.csrf;
 
+  var buSel  = document.getElementById('drawerBusinessUnit');
+  var payload = { full_name: fullName, email: email };
+  if (buSel) payload.business_unit_id = buSel.value === '' ? null : parseInt(buSel.value, 10);
+
   saveBtn.disabled    = true;
   saveBtn.textContent = 'Saving…';
   errEl.style.display = 'none';
@@ -843,7 +861,7 @@ async function saveEditDrawer() {
         'Content-Type':  'application/json',
         'X-CSRF-Token': csrfToken,
       },
-      body: JSON.stringify({ full_name: fullName, email: email }),
+      body: JSON.stringify(payload),
     });
 
     var data = await resp.json();

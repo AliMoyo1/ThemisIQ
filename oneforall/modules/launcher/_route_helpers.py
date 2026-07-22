@@ -74,7 +74,9 @@ def _render_admin_users(request, user, flash=None):
             raw_users = db.execute(
                 "SELECT u.id, u.username, u.email, u.full_name, u.is_active, "
                 "u.must_change_password, u.created_at, u.last_login, u.avatar_initials, "
-                "u.org_id, o.name AS org_name, o.slug AS org_slug, o.plan AS org_plan "
+                "u.org_id, o.name AS org_name, o.slug AS org_slug, o.plan AS org_plan, "
+                "u.business_unit_id, "
+                "(SELECT name FROM business_units WHERE id=u.business_unit_id) AS business_unit_name "
                 "FROM users u LEFT JOIN organizations o ON o.id=u.org_id "
                 "WHERE u.org_id=%s ORDER BY u.is_active DESC, u.username",
                 (caller_org_id,),
@@ -83,7 +85,9 @@ def _render_admin_users(request, user, flash=None):
             raw_users = db.execute(
                 "SELECT u.id, u.username, u.email, u.full_name, u.is_active, "
                 "u.must_change_password, u.created_at, u.last_login, u.avatar_initials, "
-                "u.org_id, o.name AS org_name, o.slug AS org_slug, o.plan AS org_plan "
+                "u.org_id, o.name AS org_name, o.slug AS org_slug, o.plan AS org_plan, "
+                "u.business_unit_id, "
+                "(SELECT name FROM business_units WHERE id=u.business_unit_id) AS business_unit_name "
                 "FROM users u LEFT JOIN organizations o ON o.id=u.org_id "
                 "ORDER BY o.name NULLS LAST, u.is_active DESC, u.username"
             ).fetchall()
@@ -129,6 +133,14 @@ def _render_admin_users(request, user, flash=None):
             ).fetchall()
             all_orgs = [{"id": o["id"], "name": o["name"], "slug": o["slug"]}
                         for o in org_rows]
+
+        try:
+            bu_rows = db.execute(
+                "SELECT id, name FROM business_units WHERE is_active=1 ORDER BY name"
+            ).fetchall()
+            business_units = [{"id": b["id"], "name": b["name"]} for b in bu_rows]
+        except Exception:
+            business_units = []
     finally:
         db.close()
 
@@ -145,6 +157,8 @@ def _render_admin_users(request, user, flash=None):
         "role_chip_tone":    ROLE_CHIP_TONE,
         "csrf_token":    csrf_token,
         "flash":         flash or {},
+        "business_units": business_units,
+        "can_assign_bu":  has_capability(user, "governance.bu.assign"),
         # Stats for the summary strip
         "stat_total":      len(rows),
         "stat_active":     sum(1 for u in rows if u["is_active"]),

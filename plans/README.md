@@ -201,6 +201,32 @@ executor must respect; each is specified inside the relevant plan:
 |---|---|---|
 | PLAN-29 | ORM RCSA converges onto the ICE scale: control_effectiveness 1-5 becomes ice_score percent (map 1..5 -> 10/30/50/70/90), residual formula becomes IRR x (100 - ice)/100, RCSA UI dropdown swaps to the shared ICE selector | Decided 2026-07-18. Write after Round 6 (23-26 minimum) is live and validated in daily use, so ERM and ORM/AIMS converge on one proven convention |
 
+## Multi-SBU Completion (PLAN-SBU-01..04) — PLAN-SBU-01 DONE, 02-04 not yet started
+
+Written 2026-07-22 after an audit of the multi-SBU / business-unit federation
+support (parent org with subsidiary SBUs, e.g. a group with several
+sub-brands, each with their own users, plus group-level users who monitor all
+SBUs). The mechanism is ~70% built: `business_units` is a self-referential
+tree inside one tenant schema, `users.business_unit_id` + `bu_scope_ids()`
+(own BU + all descendants, rollup) exist, and 5 of 6 modules already filter
+their core lists by it. The gaps below are what stand between "wired up" and
+"actually usable and trustworthy for a group customer."
+
+**Ranked by leverage; execute in this order:**
+
+| Rank | Plan | What | Why this rank |
+|---|---|---|---|
+| 1 | [PLAN-SBU-01](PLAN-SBU-01-user-bu-assignment.md) | User→BU assignment UI in the Governance module (+ activate the dead `governance.bu.assign` capability so GRC Officers can self-serve; + convenience field in Admin→Users) | UNBLOCKS EVERYTHING. Today nothing can set a user's `business_unit_id` from any UI, so no user is ever scoped and the whole feature is inert. Smallest change, highest leverage. **DONE (2026-07-22)** — see [plans/PLAN-SBU-01-active.md](PLAN-SBU-01-active.md). Not yet committed. |
+| 2 | [PLAN-SBU-02](PLAN-SBU-02-complete-bu-scoping.md) | Add BU-scope filtering to the unscoped surfaces (Task Board, Evidence Vault, BCM Incidents, ORM RCSA; ARIA deliberately deferred) incl. by-id IDOR guards | Trust/security closure. A subsidiary's tasks/evidence/incidents currently leak platform-wide regardless of SBU — a demo-killer for the group sell. |
+| 3 | [PLAN-SBU-03](PLAN-SBU-03-group-rollup-dashboard.md) | "Group View": per-SBU posture cards for the parent-org / GRC-officer monitor, with drill-down | The visible payoff for the exact persona ("users who monitor the SBUs"). Needs 01 for real data, 02 for real isolation. |
+| 4 | [PLAN-SBU-04](PLAN-SBU-04-scope-legibility-and-filter.md) | Shell scope-chip ("Unit: EcoCash +2") + single-SBU drill-down `?bu=` filter honored by the scoped endpoints (with no-escape guard) | UX polish that makes scoping legible and lets a group user focus one subsidiary. Feature works without it. |
+
+Each is self-contained (goal, exact files+lines, ordered steps, edge cases,
+acceptance criteria) and written to be executed without further questions.
+Standing constraints below still apply (no em dashes, one-command-per-step for
+VPS, verify with py_compile + pytest + live browser + cleanup, no commit until
+the slice's acceptance criteria pass).
+
 ## Recommended execution order
 
 **Round 1 first: 1 → 2 → 4 → 3 → 5.**

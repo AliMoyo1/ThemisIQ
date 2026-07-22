@@ -202,6 +202,45 @@ def _is_descendant(db, candidate_id: int, ancestor_id: int) -> bool:
     return False
 
 
+def list_assignable_users() -> list[dict]:
+    """Active users in the current tenant schema with their current BU.
+    Used by the Governance 'People' tab to assign users to SBUs."""
+    db = get_db()
+    try:
+        return _dicts(db.execute(
+            "SELECT u.id, u.username, u.full_name, u.email, "
+            "u.business_unit_id, bu.name AS business_unit_name "
+            "FROM users u "
+            "LEFT JOIN business_units bu ON bu.id = u.business_unit_id "
+            "WHERE u.is_active = 1 "
+            "ORDER BY u.full_name NULLS LAST, u.username"
+        ).fetchall())
+    finally:
+        db.close()
+
+
+def assign_user_business_unit(uid: int, bu_id: "int | None") -> bool:
+    """Set (or clear, when bu_id is None) a user's business_unit_id.
+    Validates the BU exists and is active when non-null. Returns False if
+    the target BU id is invalid so the route can 400."""
+    db = get_db()
+    try:
+        if bu_id is not None:
+            ok = db.execute(
+                "SELECT 1 FROM business_units WHERE id=%s AND is_active=1", (bu_id,)
+            ).fetchone()
+            if not ok:
+                return False
+        db.execute(
+            "UPDATE users SET business_unit_id=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (bu_id, uid),
+        )
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # DEPARTMENTS
 # ═════════════════════════════════════════════════════════════════════════════
