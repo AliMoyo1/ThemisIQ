@@ -118,12 +118,24 @@ async def my_dashboard(request: Request):
     return shell_templates.TemplateResponse(request, "my_dashboard.html", ctx)
 
 
+def _org_scope_filter(user):
+    """WHERE-clause fragment + params scoping a bare `audit_log al` query to
+    the caller's org. Empty for super admins or users with no org (matches
+    the RLS default: unscoped is only safe for those two cases)."""
+    is_super = user.get("is_super_admin")
+    caller_org_id = user.get("org_id")
+    if is_super or caller_org_id is None:
+        return "", ()
+    return " WHERE al.org_id = %s", (caller_org_id,)
+
+
 # ── Command Centre Stats API ────────────────────────────────────────────────
 
 @router.get("/api/command-centre/stats")
 @require_auth
 async def api_command_centre_stats(request: Request):
     """Real-time stats for the Command Centre dashboard."""
+    user = request.state.user
     db = get_db()
     try:
         # ── Overall compliance (ARIA controls) ──
@@ -237,10 +249,7 @@ async def api_command_centre_stats(request: Request):
 
         # ── Recent activity (from audit log) ──
         # Org isolation: non-super-admins only see their own org's activity.
-        is_super = user.get("is_super_admin")
-        caller_org_id = user.get("org_id")
-        org_filter = "" if is_super or caller_org_id is None else " WHERE al.org_id = %s"
-        org_arg = () if is_super or caller_org_id is None else (caller_org_id,)
+        org_filter, org_arg = _org_scope_filter(user)
         activity_rows = db.execute(
             f"SELECT al.action AS text, al.module, al.created_at "
             f"FROM audit_log al{org_filter} ORDER BY al.created_at DESC LIMIT 6",
@@ -630,6 +639,8 @@ async def api_my_dashboard_data(request: Request):
             data["sentinel_dsrs_open"] = db.execute(
                 "SELECT COUNT(*) FROM sentinel_dsr WHERE status NOT IN ('completed','closed')"
             ).fetchone()[0]
+            # Org isolation: non-super-admins only see their own org's activity.
+            org_filter, org_arg = _org_scope_filter(user)
             data["recent_audit_entries"] = [dict(r) for r in db.execute(
                 f"SELECT al.*, u.full_name FROM audit_log al LEFT JOIN users u ON al.user_id = u.id "
                 f"{org_filter} ORDER BY al.created_at DESC LIMIT 10",
