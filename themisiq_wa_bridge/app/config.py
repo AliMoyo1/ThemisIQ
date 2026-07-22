@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     gemini_api_key: str = ""
     ollama_host: str = "http://localhost:11434"
-    ai_model: str = Field(default="claude-sonnet-4", description="Provider model id")
+    ai_model: str = Field(default="claude-opus-4-8", description="Provider model id")
 
     # --- Operational ---
     message_log_retention_days: int = 90
