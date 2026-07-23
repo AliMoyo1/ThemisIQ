@@ -1,9 +1,53 @@
 # PLAN-31: Consolidate Ecocash / Econet Wireless / Omni into one "Econet Group" org
 
-## Status: PHASE 0-1 SPEC READY (backup + recon). Phase 2 (the actual data
-## migration) is deliberately NOT designed yet -- see "Why Phase 2 isn't
-## written yet" below. Do not run anything past Phase 1 without a follow-up
-## plan update once recon results are in.
+## Status: PHASE 0-1 IN PROGRESS. Phase 2 (the actual data migration) is
+## deliberately NOT designed yet -- see "Why Phase 2 isn't written yet"
+## below. Do not run anything past Phase 1 without a follow-up plan update
+## once recon results are in.
+
+## CRITICAL ENVIRONMENT FINDING (2026-07-23) -- read before touching anything
+
+The VPS runs MULTIPLE PostgreSQL instances, and the production one is NOT
+the obvious default:
+
+- **System PostgreSQL 18 on port 5434** (socket `/var/run/postgresql/.s.PGSQL.5434`,
+  pidfile `18-main.pid`) is the **REAL production database.** Proven live:
+  `pg_stat_activity` on this instance showed 4 idle `themisiq` connections
+  from `::1` (the running app's uvicorn workers), and it holds the full 12
+  users / 4 orgs that match the UI. `sudo -u postgres psql -d themisiq`
+  reaches it (postgres superuser, bypasses RLS).
+- **Docker `project-db-1` (postgres:16-alpine) on 127.0.0.1:5432** is a
+  LEFTOVER from the original docker-compose deployment. The app is not using
+  it. It doesn't even have a `postgres` superuser role. Do not touch it.
+- **Docker `project-shadow-db-1` on 127.0.0.1:5433** -- shadow/staging copy,
+  also not the live DB.
+- Unrelated `odin-*` containers belong to a different project entirely.
+- A `project-app-1` Docker container is crash-looping ("Restarting" every
+  ~17s) -- a stale duplicate of the app; the real app runs via the
+  `themisiq-app.service` systemd unit, not this container. Worth cleaning up
+  separately, unrelated to this migration.
+
+**Consequence for backups:** any `pg_dump -h localhost` (TCP, default port
+5432) hits the abandoned Docker DB, NOT production. The FIRST backup taken
+this session was exactly that mistake and is INVALID. Every backup and every
+recon/migration query for this plan MUST target the system PG on 5434,
+via `sudo -u postgres` (superuser, socket, port 5434). RLS on this database
+silently returns 0 rows to the app's own `themisiq` role for org-scoped
+tables when no `app.current_org_id` GUC is set, so only a superuser
+connection sees the true, complete data.
+
+**Tenant model correction:** despite the `tenant_public` naming assumed
+below, the first recon pass showed only a single `public` schema and every
+domain table carrying data there -- i.e. isolation on this database is by
+`org_id` column + row-level security, NOT schema-per-tenant. This SIMPLIFIES
+the migration substantially (no cross-schema row copying / PK-remapping):
+consolidation is likely mostly `UPDATE ... SET org_id = <econet>,
+business_unit_id = <sbu>` plus dropping the emptied org rows. The full
+superuser recon (pending) confirms the exact shape before Phase 2 is
+written. The "Why this isn't a simple UPDATE" section below was written
+under the schema-per-tenant assumption and is superseded by this finding
+for the column+RLS case -- kept for history, to be rewritten in the Phase 2
+update.
 
 ## User-confirmed decisions (2026-07-23)
 
@@ -79,7 +123,14 @@ A correct, safe migration script needs real facts this session doesn't have:
 Phase 1 below answers all three, read-only. Phase 2 gets designed as a
 follow-up plan update once those results are back.
 
-## Phase 0: Mandatory backup
+## Phase 0: Mandatory backup (CORRECTED to target the real DB on 5434)
+
+The original Step 2 here used `pg_dump -h localhost` and backed up the WRONG
+(abandoned Docker) database on 5432 -- see the CRITICAL ENVIRONMENT FINDING
+above. The backup must run as the postgres superuser against the system PG
+on 5434 (bypasses RLS, captures every org's rows). Because the postgres OS
+user cannot write into the root-owned `/project/backups`, dump to `/tmp`
+first, then move it as root.
 
 Run on the VPS, one command at a time:
 
@@ -88,15 +139,26 @@ Run on the VPS, one command at a time:
 mkdir -p /project/backups
 ```
 
-**Step 2** — take a full custom-format dump (allows selective restore later,
-unlike plain SQL text):
+**Step 2** — take a full custom-format superuser dump of the REAL database
+(port 5434), writing to /tmp where the postgres user can write:
 ```
-PGPASSWORD=$(cat /project/secrets/pg_password.txt) pg_dump -U themisiq -h localhost -d themisiq -F c -f /project/backups/pre_econet_migration.dump
+sudo -u postgres pg_dump -p 5434 -d themisiq -F c -f /tmp/pre_econet_migration_5434.dump
 ```
 
 **Step 3** — confirm it was written and has a sane size (not 0 bytes):
 ```
-ls -lh /project/backups/pre_econet_migration.dump
+ls -lh /tmp/pre_econet_migration_5434.dump
+```
+
+**Step 4** — move it into the project backups directory (as root):
+```
+mv /tmp/pre_econet_migration_5434.dump /project/backups/
+```
+
+The earlier, invalid 5432 backup at `/project/backups/pre_econet_migration.dump`
+should be deleted to avoid confusion once Step 4 succeeds:
+```
+rm /project/backups/pre_econet_migration.dump
 ```
 
 Do not proceed to Phase 1 until Step 3 shows a non-trivial file size.

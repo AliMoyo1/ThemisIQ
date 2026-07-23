@@ -31,6 +31,8 @@ fallback will under-report real data due to RLS, same as the first recon
 pass did, so prefer the sudo -u postgres invocation above.
 """
 import sys
+import os
+import glob
 
 try:
     import psycopg2
@@ -41,33 +43,53 @@ except ImportError:
 SECRETS_FILE = "/project/secrets/pg_password.txt"
 DB_NAME = "themisiq"
 
-
-# Confirmed live via `sudo -u postgres psql -d themisiq -c "SHOW
-# unix_socket_directories;"` -- the real socket lives here. psycopg2-binary
-# bundles its own libpq, which often defaults to a different hardcoded
-# socket path than the system psql binary even when no host is given, so
-# this must be passed explicitly rather than left to guess.
+# The real production database is the system PostgreSQL on this VPS, whose
+# socket lives in SOCKET_DIR. Confirmed live: the running app holds idle
+# connections here (pg_stat_activity showed 4 themisiq connections from ::1)
+# and it has the full 12 users / 4 orgs matching the UI. Its port is NOT the
+# libpq default 5432 -- the actual socket file is .s.PGSQL.5434, and there
+# are unrelated leftover Docker postgres containers on 5432/5433 the app no
+# longer uses. psycopg2-binary bundles its own libpq defaulting to 5432, so
+# the port must be passed explicitly; we derive it from the socket file(s)
+# actually present, with 5434 then 5432 as fallbacks.
 SOCKET_DIR = "/var/run/postgresql"
+
+
+def _socket_ports():
+    ports = []
+    for f in glob.glob(os.path.join(SOCKET_DIR, ".s.PGSQL.*")):
+        if f.endswith(".lock"):
+            continue
+        tail = f.rsplit(".", 1)[-1]
+        if tail.isdigit():
+            ports.append(int(tail))
+    for fallback in (5434, 5432):
+        if fallback not in ports:
+            ports.append(fallback)
+    return ports
 
 
 def _connect():
     """Prefer the Postgres superuser via local peer auth (bypasses RLS
     entirely). Falls back to the app's own restricted role over TCP,
     which is subject to RLS and will under-report row counts."""
-    try:
-        conn = psycopg2.connect(dbname=DB_NAME, user="postgres", host=SOCKET_DIR)
-        conn.set_session(readonly=True, autocommit=True)
-        with conn.cursor() as cur:
-            cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
-            is_super = cur.fetchone()[0]
-        if is_super:
-            print("Connected as Postgres superuser (RLS bypassed) -- this is the complete picture.\n")
-            return conn
-        conn.close()
-    except Exception as e:
-        print(f"Superuser connection attempt failed ({e}); falling back to the app role.\n")
+    for port in _socket_ports():
+        try:
+            conn = psycopg2.connect(dbname=DB_NAME, user="postgres",
+                                    host=SOCKET_DIR, port=port)
+            conn.set_session(readonly=True, autocommit=True)
+            with conn.cursor() as cur:
+                cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
+                is_super = cur.fetchone()[0]
+            if is_super:
+                print(f"Connected as Postgres superuser on port {port} "
+                      "(RLS bypassed) -- this is the complete picture.\n")
+                return conn
+            conn.close()
+        except Exception as e:
+            print(f"Superuser attempt on port {port} failed ({e}).")
+    print("Falling back to the app role.\n")
 
-    import os
     pw = None
     if os.path.exists(SECRETS_FILE):
         try:
