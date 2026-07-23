@@ -53,6 +53,40 @@ def _gen_temp_password(length: int = 12) -> str:
     return "".join(secrets.choice(_TEMP_PW_ALPHA) for _ in range(length))
 
 
+def _group_users_by_bu(user_rows, bu_parent_names):
+    """Bucket a list of user rows (dicts with business_unit_id/
+    business_unit_name/is_active/must_change_password) by their business
+    unit. Users with no business_unit_id land in a single 'Org-wide (no
+    unit)' bucket, sorted last; named BUs are sorted alphabetically.
+
+    bu_parent_names: {bu_id: parent_bu_name_or_None}, used to show each SBU's
+    parent company context in the group header (e.g. 'Ecocash · under Econet').
+    """
+    from collections import OrderedDict
+    groups = OrderedDict()
+    for r in user_rows:
+        bu_id = r.get("business_unit_id")
+        key = bu_id or 0
+        if key not in groups:
+            groups[key] = {
+                "bu_id": bu_id,
+                "bu_name": r.get("business_unit_name") or "Org-wide (no unit)",
+                "bu_parent_name": bu_parent_names.get(bu_id) if bu_id else None,
+                "users": [],
+                "active_count": 0,
+                "inactive_count": 0,
+                "pw_pending_count": 0,
+            }
+        groups[key]["users"].append(r)
+        if r.get("is_active"):
+            groups[key]["active_count"] += 1
+        else:
+            groups[key]["inactive_count"] += 1
+        if r.get("must_change_password"):
+            groups[key]["pw_pending_count"] += 1
+    return sorted(groups.values(), key=lambda g: (g["bu_id"] is None, g["bu_name"].lower()))
+
+
 def _must_change_pw(uid: int) -> bool:
     db = get_db()
     try:
@@ -99,6 +133,19 @@ def _render_admin_users(request, user, flash=None):
             ).fetchall()
             rows.append({**dict(u), "role_keys": [r[0] for r in role_rows]})
 
+        # {bu_id: parent BU name or None} -- used to show each SBU's parent
+        # company context in the People-management grouping below.
+        bu_parent_names = {}
+        try:
+            for bu_row in db.execute(
+                "SELECT bu.id, parent.name AS parent_name "
+                "FROM business_units bu LEFT JOIN business_units parent "
+                "ON parent.id = bu.parent_id"
+            ).fetchall():
+                bu_parent_names[bu_row["id"]] = bu_row["parent_name"]
+        except Exception:
+            pass
+
         # Group users by organization when super admin
         orgs_grouped = []
         all_orgs = []
@@ -126,6 +173,8 @@ def _render_admin_users(request, user, flash=None):
                 if r.get("must_change_password"):
                     grouped[key]["pw_pending_count"] += 1
             orgs_grouped = list(grouped.values())
+            for og in orgs_grouped:
+                og["bu_groups"] = _group_users_by_bu(og["users"], bu_parent_names)
             # All orgs (for the New User org selector, includes orgs with zero users)
             org_rows = db.execute(
                 "SELECT id, name, slug FROM organizations "
@@ -141,6 +190,11 @@ def _render_admin_users(request, user, flash=None):
             business_units = [{"id": b["id"], "name": b["name"]} for b in bu_rows]
         except Exception:
             business_units = []
+
+        # Top-level BU grouping for the single-org (org-admin) view. The
+        # super-admin view instead nests a bu_groups list inside each entry
+        # of orgs_grouped (built above), one grouping per organization.
+        bu_groups = [] if is_super else _group_users_by_bu(rows, bu_parent_names)
     finally:
         db.close()
 
@@ -158,6 +212,7 @@ def _render_admin_users(request, user, flash=None):
         "csrf_token":    csrf_token,
         "flash":         flash or {},
         "business_units": business_units,
+        "bu_groups":      bu_groups,
         "can_assign_bu":  has_capability(user, "governance.bu.assign"),
         # Stats for the summary strip
         "stat_total":      len(rows),

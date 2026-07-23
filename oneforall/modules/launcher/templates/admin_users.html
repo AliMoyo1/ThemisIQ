@@ -180,6 +180,30 @@
 
 /* Section in-view hidden by filter */
 .org-section.s-hidden { display:none; }
+
+/* ── Business unit (SBU) sub-section, nested inside an org's user table ──── */
+.bu-section { border-bottom:1px solid var(--border); }
+.bu-section:last-child { border-bottom:none; }
+.bu-section.collapsed .bu-body { display:none; }
+.bu-section.collapsed .bu-chevron { transform:rotate(-90deg); }
+.bu-section.s-hidden { display:none; }
+.bu-head { display:flex; align-items:center; gap:10px; padding:10px 18px;
+           background:var(--surface2); cursor:pointer; user-select:none;
+           transition:background 0.14s; }
+.bu-head:hover { background:var(--surface3, var(--surface2)); }
+.bu-chevron { width:13px; height:13px; color:var(--muted); flex-shrink:0;
+              transition:transform 0.18s; }
+.bu-meta { flex:1; min-width:0; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.bu-name { font-size:12.5px; font-weight:700; color:var(--text); }
+.bu-parent { font-size:11px; color:var(--muted); }
+.bu-stats { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:10.5px; }
+.bu-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 8px;
+           border-radius:999px; font-weight:700; font-size:10px;
+           text-transform:uppercase; letter-spacing:0.3px; white-space:nowrap; }
+.bu-pill.users  { background:rgba(var(--accent-rgb),0.1); color:var(--accent); }
+.bu-pill.active { background:var(--good-soft); color:var(--good); }
+.bu-pill.inact  { background:var(--surface); color:var(--muted); border:1px solid var(--border); }
+.bu-pill.pwrst  { background:var(--warn-soft); color:var(--amber); }
 </style>
 {% endblock %}
 
@@ -343,6 +367,15 @@
     <option value="{{ rk }}">{{ role_labels.get(rk, rk) }}</option>
     {% endfor %}
   </select>
+  {% if business_units %}
+  <select id="buFilter" class="au-role-sel" onchange="filterUsers()" style="min-width:170px;">
+    <option value="">All Business Units</option>
+    <option value="0">Org-wide (no unit)</option>
+    {% for b in business_units %}
+    <option value="{{ b.id }}">{{ b.name }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
   {% if is_super and orgs_grouped|length > 1 %}
   <select id="orgFilter" class="au-role-sel" onchange="filterUsers()" style="min-width:160px;">
     <option value="">All Organizations</option>
@@ -362,6 +395,7 @@
 {% set is_self = (u.id|string == user.id|string) %}
 <tr data-user-id="{{ u.id }}"
     data-org-id="{{ u.org_id or 0 }}"
+    data-bu-id="{{ u.business_unit_id or 0 }}"
     data-searchtext="{{ ((u.full_name or '') ~ ' ' ~ u.username ~ ' ' ~ (u.email or ''))|lower }}"
     data-status="{{ 'active' if u.is_active else 'inactive' }}"
     data-roles="{{ u.role_keys|join(' ') }}">
@@ -505,6 +539,43 @@
 </thead>
 {% endmacro %}
 
+{# ── Business-unit-grouped user table: users bucketed under their SBU,
+     "Org-wide (no unit)" last. Reused by both the super-admin (per-org) and
+     org-admin (single-org) views so both get the same SBU grouping. ── #}
+{% macro bu_grouped_table(bu_groups) %}
+{% for bg in bu_groups %}
+<div class="bu-section" data-bu-id="{{ bg.bu_id or 0 }}">
+  <div class="bu-head" onclick="this.parentElement.classList.toggle('collapsed')">
+    <svg class="bu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+    <div class="bu-meta">
+      <span class="bu-name">{{ bg.bu_name }}</span>
+      {% if bg.bu_parent_name %}<span class="bu-parent">under {{ bg.bu_parent_name }}</span>{% endif %}
+    </div>
+    <div class="bu-stats">
+      <span class="bu-pill users">{{ bg.users|length }} {% if bg.users|length == 1 %}user{% else %}users{% endif %}</span>
+      {% if bg.active_count %}<span class="bu-pill active">{{ bg.active_count }} active</span>{% endif %}
+      {% if bg.inactive_count %}<span class="bu-pill inact">{{ bg.inactive_count }} inactive</span>{% endif %}
+      {% if bg.pw_pending_count %}<span class="bu-pill pwrst">{{ bg.pw_pending_count }} pw reset</span>{% endif %}
+    </div>
+  </div>
+  <div class="bu-body">
+    <div class="au-table-wrap">
+      <table class="au-table">
+        {{ users_thead() }}
+        <tbody>
+          {% for u in bg.users %}
+            {{ user_row(u) }}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endmacro %}
+
 {# ═══════════════════════════════════════════════════════════════════════════
    SUPER ADMIN VIEW: Users grouped by organization
    ═══════════════════════════════════════════════════════════════════════════ #}
@@ -532,18 +603,18 @@
     </div>
   </div>
   <div class="org-body">
-    <div class="au-table-wrap">
-      <table class="au-table">
-        {{ users_thead() }}
-        <tbody>
-          {% for u in og.users %}
-            {{ user_row(u) }}
-          {% else %}
+    {% if og.bu_groups %}
+      {{ bu_grouped_table(og.bu_groups) }}
+    {% else %}
+      <div class="au-table-wrap">
+        <table class="au-table">
+          {{ users_thead() }}
+          <tbody>
             <tr><td colspan="5" class="org-empty">No users in this organization.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
   </div>
 </div>
 {% endfor %}
@@ -560,22 +631,24 @@
    ORG-ADMIN VIEW: Single flat table
    ═══════════════════════════════════════════════════════════════════════════ #}
 {% else %}
+{% if bu_groups %}
 <div style="background:var(--surface); border:1px solid var(--border);
             border-radius:var(--radius); overflow:hidden; margin-bottom:20px;">
-  <div class="au-table-wrap">
-    <table class="au-table" id="usersTable">
-      {{ users_thead() }}
-      <tbody>
-        {% for u in users %}
-          {{ user_row(u) }}
-        {% else %}
-        <tr><td colspan="5" style="text-align:center; padding:48px; color:var(--muted);">
-          No users yet. Create the first user with the button above.
-        </td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  {{ bu_grouped_table(bu_groups) }}
+</div>
+{% else %}
+<div style="background:var(--surface); border:1px solid var(--border);
+            border-radius:var(--radius); padding:48px; text-align:center; color:var(--muted);
+            margin-bottom:20px;">
+  No users yet. Create the first user with the button above.
+</div>
+{% endif %}
+
+{# Empty state for filtered results (same element the grouped view uses) #}
+<div id="filterEmptyHost" style="display:none; padding:48px; text-align:center;
+     color:var(--muted); background:var(--surface); border:1px solid var(--border);
+     border-radius:var(--radius); margin-bottom:20px;">
+  No users match the current filters.
 </div>
 {% endif %}
 
@@ -919,6 +992,8 @@ function filterUsers() {
   var role   = (document.getElementById('roleFilter').value || '').trim();
   var orgSel = document.getElementById('orgFilter');
   var orgVal = orgSel ? (orgSel.value || '').trim() : '';
+  var buSel  = document.getElementById('buFilter');
+  var buVal  = buSel ? (buSel.value || '').trim() : '';
   var rows   = document.querySelectorAll('tr[data-user-id]');
   var visible = 0;
 
@@ -927,47 +1002,33 @@ function filterUsers() {
     var status = row.dataset.status || 'active';
     var roles  = (row.dataset.roles  || '');
     var orgId  = (row.dataset.orgId  || '0');
+    var buId   = (row.dataset.buId   || '0');
 
     var ok = (!q     || text.includes(q))
           && (_statusFilter === 'all' || status === _statusFilter)
           && (!role   || roles.split(' ').indexOf(role) !== -1)
-          && (!orgVal || orgId === orgVal);
+          && (!orgVal || orgId === orgVal)
+          && (!buVal  || buId === buVal);
 
     row.classList.toggle('u-hidden', !ok);
     if (ok) visible++;
   });
 
-  // Hide org sections whose visible row count is 0
-  var sections = document.querySelectorAll('.org-section');
+  var filtering = !!(q || role || orgVal || buVal || _statusFilter !== 'all');
+
+  // Hide org / business-unit sections whose visible row count is 0; auto-expand
+  // sections that still have matches so filtering doesn't hide results behind
+  // a collapsed header.
+  var sections = document.querySelectorAll('.org-section, .bu-section');
   sections.forEach(function(sec) {
     var anyVisible = sec.querySelectorAll('tr[data-user-id]:not(.u-hidden)').length > 0;
     sec.classList.toggle('s-hidden', !anyVisible);
-    // Auto-expand sections that have matches when filtering, so users find results
-    if (anyVisible && (q || role || orgVal || _statusFilter !== 'all')) {
+    if (anyVisible && filtering) {
       sec.classList.remove('collapsed');
     }
   });
 
-  // Flat-table empty state
-  var flatEmpty = document.getElementById('filterEmptyRow');
-  var flatTbody = document.querySelector('#usersTable tbody');
-  if (flatTbody) {
-    if (visible === 0 && rows.length > 0) {
-      if (!flatEmpty) {
-        flatEmpty = document.createElement('tr');
-        flatEmpty.id = 'filterEmptyRow';
-        flatEmpty.innerHTML = '<td colspan="5" style="text-align:center;padding:40px;color:var(--muted);">'
-                        + 'No users match the current filters.'
-                        + '</td>';
-        flatTbody.appendChild(flatEmpty);
-      }
-      flatEmpty.style.display = '';
-    } else if (flatEmpty) {
-      flatEmpty.style.display = 'none';
-    }
-  }
-
-  // Grouped-view empty state
+  // Empty state (shared by both the grouped and single-org views)
   var groupedEmpty = document.getElementById('filterEmptyHost');
   if (groupedEmpty) {
     groupedEmpty.style.display = (visible === 0 && rows.length > 0) ? '' : 'none';
