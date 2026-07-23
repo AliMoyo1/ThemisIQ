@@ -201,6 +201,21 @@ executor must respect; each is specified inside the relevant plan:
 |---|---|---|
 | PLAN-29 | ORM RCSA converges onto the ICE scale: control_effectiveness 1-5 becomes ice_score percent (map 1..5 -> 10/30/50/70/90), residual formula becomes IRR x (100 - ice)/100, RCSA UI dropdown swaps to the shared ICE selector | Decided 2026-07-18. Write after Round 6 (23-26 minimum) is live and validated in daily use, so ERM and ORM/AIMS converge on one proven convention |
 
+## Platform RBAC — Tenant admin role (PLAN-30, DONE 2026-07-23)
+
+Written 2026-07-23 after the user asked "which role within tenants will allow
+them to manage their tenant users?" — the answer today is none: only the
+platform-wide `super_admin` can reach `/admin/users`, so a customer's own
+admin either gets zero user-management ability or full cross-tenant power.
+Also resolves the nav confusion from PLAN-SBU-01's settings-placement
+back-and-forth by giving each of the three privilege tiers (Super Admin /
+Org Admin / GRC Officer & Compliance Manager) exactly one non-overlapping
+settings-style icon.
+
+| Plan | What | Why |
+|---|---|---|
+| [PLAN-30](PLAN-30-org-admin-role-and-settings-tiering.md) | New tenant-scoped `org_admin` role + `platform.manage_org_users` capability (reuses the already-existing but unreachable org-scoping logic in `_target_user`/`_render_admin_users`); closes the one real gap that widening opens (blocking non-super-admin grant/revoke of `super_admin`); three-tier nav icons (Super Admin / Org Admin / Governance Settings) | Direct answer to the tenant-user-management question; also the natural completion of the settings-tiering discussion from PLAN-SBU-01's nav placement changes. **DONE** — see [plans/PLAN-30-active.md](PLAN-30-active.md). Verification surfaced a real, pre-existing gap (Governance module's People tab has no org filter at all) — flagged, not fixed, out of this plan's file scope. Not yet committed. |
+
 ## Multi-SBU Completion (PLAN-SBU-01..04) — PLAN-SBU-01 DONE, 02-04 not yet started
 
 Written 2026-07-22 after an audit of the multi-SBU / business-unit federation

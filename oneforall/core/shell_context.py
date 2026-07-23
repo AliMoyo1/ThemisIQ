@@ -81,6 +81,11 @@ def shell_ctx(request, active_module: str = "platform",
         "is_admin": has_capability(user, "platform.manage_users"),
         "is_super_admin": bool(user.get("is_super_admin")),
         "can_governance_view": has_capability(user, "governance.entities.view"),
+        "can_org_admin": has_capability(user, "platform.manage_org_users")
+            and not has_capability(user, "platform.manage_users"),
+        "can_governance_settings": has_capability(user, "governance.bu.assign")
+            and not has_capability(user, "platform.manage_users")
+            and not has_capability(user, "platform.manage_org_users"),
         "license_status": _license_status(user),
         "posthog_api_key": settings.POSTHOG_API_KEY,
         "posthog_host": settings.POSTHOG_HOST,

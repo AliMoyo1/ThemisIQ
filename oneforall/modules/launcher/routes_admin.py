@@ -64,13 +64,13 @@ def _validate_webhook_url(url: str) -> None:
 # ── Admin User Management ───────────────────────────────────────────────────
 
 @router.get("/admin/users", response_class=HTMLResponse)
-@_require_cap("platform.manage_users")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
 async def admin_users_page(request: Request):
     return _render_admin_users(request, request.state.user)
 
 
 @router.post("/admin/users/create")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
 async def admin_create_user(request: Request,
                              username: str = Form(...),
                              email: str = Form(...),
@@ -147,7 +147,7 @@ async def admin_create_user(request: Request,
 
 
 @router.post("/admin/users/{uid}/roles/grant")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
 async def admin_grant_role(request: Request, uid: int,
                             role_key: str = Form(...),
                             csrf_token: str = Form("")):
@@ -159,6 +159,10 @@ async def admin_grant_role(request: Request, uid: int,
     if role_key not in ALL_ROLES:
         return _render_admin_users(request, admin,
             {"type": "error", "message": "Unknown role: " + role_key})
+    from core.rbac import SUPER_ADMIN
+    if role_key == SUPER_ADMIN and not admin.get("is_super_admin"):
+        return _render_admin_users(request, admin,
+            {"type": "error", "message": "Only a super administrator can grant the Super Administrator role."})
     db = get_db()
     try:
         target = _target_user(db, uid, admin)
@@ -180,7 +184,7 @@ async def admin_grant_role(request: Request, uid: int,
 
 
 @router.post("/admin/users/{uid}/roles/revoke")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
 async def admin_revoke_role(request: Request, uid: int,
                              role_key: str = Form(...),
                              csrf_token: str = Form("")):
@@ -188,6 +192,10 @@ async def admin_revoke_role(request: Request, uid: int,
     if not validate_csrf(request, csrf_token):
         return _render_admin_users(request, admin,
             {"type": "error", "message": "Invalid request. Please try again."})
+    from core.rbac import SUPER_ADMIN
+    if role_key == SUPER_ADMIN and not admin.get("is_super_admin"):
+        return _render_admin_users(request, admin,
+            {"type": "error", "message": "Only a super administrator can revoke the Super Administrator role."})
     db = get_db()
     try:
         target = _target_user(db, uid, admin)
@@ -235,7 +243,7 @@ async def admin_revoke_role(request: Request, uid: int,
 
 
 @router.post("/admin/users/{uid}/deactivate")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
 async def admin_deactivate_user(request: Request, uid: int,
                                  csrf_token: str = Form("")):
     admin = request.state.user
@@ -281,7 +289,7 @@ async def admin_deactivate_user(request: Request, uid: int,
 
 
 @router.post("/admin/users/{uid}/activate")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
 async def admin_activate_user(request: Request, uid: int,
                                csrf_token: str = Form("")):
     admin = request.state.user
@@ -305,7 +313,7 @@ async def admin_activate_user(request: Request, uid: int,
 
 
 @router.post("/admin/users/{uid}/reset-password")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
 async def admin_reset_password(request: Request, uid: int,
                                 csrf_token: str = Form("")):
     admin = request.state.user
@@ -338,7 +346,7 @@ async def admin_reset_password(request: Request, uid: int,
 
 
 @router.patch("/api/admin/users/{uid}")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
 async def api_admin_patch_user(request: Request, uid: int):
     """Edit a user's full_name and/or email. Accepts JSON, returns JSON."""
     import re as _re

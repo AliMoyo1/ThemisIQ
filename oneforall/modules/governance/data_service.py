@@ -202,18 +202,31 @@ def _is_descendant(db, candidate_id: int, ancestor_id: int) -> bool:
     return False
 
 
-def list_assignable_users() -> list[dict]:
+def list_assignable_users(caller: "dict | None" = None) -> list[dict]:
     """Active users in the current tenant schema with their current BU.
-    Used by the Governance 'People' tab to assign users to SBUs."""
+    Used by the Governance 'People' tab to assign users to SBUs.
+
+    Scoped to the caller's own org_id unless they are a true super admin --
+    mirrors modules/launcher/routes_admin.py's _target_user pattern. Without
+    a caller (or for a super admin), every active user platform-wide is
+    returned, matching this function's original (pre-PLAN-30) behavior."""
     db = get_db()
     try:
+        is_super = bool(caller and caller.get("is_super_admin"))
+        if is_super or not caller:
+            where = "WHERE u.is_active = 1"
+            params = ()
+        else:
+            where = "WHERE u.is_active = 1 AND u.org_id = %s"
+            params = (caller.get("org_id"),)
         return _dicts(db.execute(
             "SELECT u.id, u.username, u.full_name, u.email, "
             "u.business_unit_id, bu.name AS business_unit_name "
             "FROM users u "
             "LEFT JOIN business_units bu ON bu.id = u.business_unit_id "
-            "WHERE u.is_active = 1 "
-            "ORDER BY u.full_name NULLS LAST, u.username"
+            f"{where} "
+            "ORDER BY u.full_name NULLS LAST, u.username",
+            params,
         ).fetchall())
     finally:
         db.close()

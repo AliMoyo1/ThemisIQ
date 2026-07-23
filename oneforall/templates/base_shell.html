@@ -711,6 +711,20 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <span class="nav-label">Admin Settings</span>
     </a>
     {% endif %}
+    {% if can_org_admin %}
+    <a href="/admin/users" class="icon-nav-item{% if active_section in ('admin','users') %} active{% endif %}" title="Org Admin" style="color:#d97706">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15 1.65 1.65 0 003.17 14H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68 1.65 1.65 0 0010 3.17V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span class="icon-nav-tooltip">Org Admin — your organisation's users</span>
+      <span class="nav-label">Org Admin</span>
+    </a>
+    {% endif %}
+    {% if can_governance_settings %}
+    <a href="/governance/" class="icon-nav-item{% if active_module == 'governance' %} active{% endif %}" title="Governance Settings" style="color:#6d28d9">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V10M18 21V10M9 21V14h6v7M3 10l9-6 9 6"/></svg>
+      <span class="icon-nav-tooltip">Governance Settings — Business Units &amp; Entities</span>
+      <span class="nav-label">Governance Settings</span>
+    </a>
+    {% endif %}
     <div class="icon-sidebar-user" onclick="toggleUserMenu()" title="{{ user.full_name }}">
       {{ user.avatar_initials | default('??') }}
       <div class="user-dropdown" id="userDropdown">

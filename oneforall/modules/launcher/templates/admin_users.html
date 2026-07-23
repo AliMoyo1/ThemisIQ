@@ -419,7 +419,7 @@
         <select name="role_key" onchange="this.form.submit()"
                 class="role-add-select" aria-label="Grant role">
           <option value="" disabled selected>+ grant…</option>
-          {% for rk in all_roles %}{% if rk not in u.role_keys %}
+          {% for rk in all_roles %}{% if rk not in u.role_keys and (is_super or rk != 'super_admin') %}
             <option value="{{ rk }}">{{ role_labels.get(rk, rk) }}</option>
           {% endif %}{% endfor %}
         </select>

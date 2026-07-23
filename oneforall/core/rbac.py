@@ -24,12 +24,14 @@ PRIVACY_ANALYST   = "privacy_analyst"
 EMPLOYEE          = "employee"
 EXTERNAL_AUDITOR  = "external_auditor"
 GRC_OFFICER       = "grc_officer"  # CGRCO persona — cross-module governance oversight
+ORG_ADMIN         = "org_admin"    # tenant-scoped user administrator
 
 ALL_ROLES = [
     SUPER_ADMIN, COMPLIANCE_MGR, POLICY_AUTHOR, POLICY_APPROVER,
     CONTROL_OWNER, RISK_OWNER, AUDIT_LEAD, AUDITOR,
     BCM_MANAGER, INCIDENT_COMMANDER, BCM_RESPONDER,
     DPO, PRIVACY_ANALYST, EMPLOYEE, EXTERNAL_AUDITOR, GRC_OFFICER,
+    ORG_ADMIN,
 ]
 
 ROLE_LABELS = {
@@ -49,6 +51,7 @@ ROLE_LABELS = {
     EMPLOYEE:           "Employee",
     EXTERNAL_AUDITOR:   "External Auditor",
     GRC_OFFICER:        "Chief GRC Officer",
+    ORG_ADMIN:          "Organization Administrator",
 }
 
 ROLE_DESCRIPTIONS = {
@@ -69,6 +72,9 @@ ROLE_DESCRIPTIONS = {
     EXTERNAL_AUDITOR:   "Read-only access to controls, evidence, and audit logs.",
     GRC_OFFICER:        "Chief GRC Officer — cross-module oversight, org structure, "
                         "business unit assignment, executive reporting.",
+    ORG_ADMIN:          "Manages users, roles, and password resets within their own "
+                        "organisation only. Cannot access other tenants or "
+                        "platform-wide settings (API keys, webhooks, security).",
 }
 
 # Module the role primarily belongs to (for UI grouping)
@@ -89,6 +95,7 @@ ROLE_MODULE = {
     EMPLOYEE:           "platform",
     EXTERNAL_AUDITOR:   "platform",
     GRC_OFFICER:        "platform",
+    ORG_ADMIN:          "platform",
 }
 
 # Visual tone for role badges in admin UI
@@ -109,6 +116,7 @@ ROLE_CHIP_TONE = {
     EMPLOYEE:           "neutral",
     EXTERNAL_AUDITOR:   "neutral",
     GRC_OFFICER:        "purple",
+    ORG_ADMIN:          "warn",       # amber — elevated but not full-privilege
 }
 
 # ── Capabilities ─────────────────────────────────────────────────────────────
@@ -117,6 +125,7 @@ ROLE_CHIP_TONE = {
 CAPABILITIES: dict[str, set[str]] = {
     # ── Platform ─────────────────────────────────────────────────
     "platform.manage_users":      {SUPER_ADMIN},
+    "platform.manage_org_users":  {SUPER_ADMIN, ORG_ADMIN},
     "platform.manage_settings":   {SUPER_ADMIN},
     "platform.view_audit_log":    {SUPER_ADMIN, COMPLIANCE_MGR, DPO, EXTERNAL_AUDITOR, GRC_OFFICER},
     "manage_frameworks":          {SUPER_ADMIN, COMPLIANCE_MGR, AUDIT_LEAD, GRC_OFFICER},
@@ -127,8 +136,8 @@ CAPABILITIES: dict[str, set[str]] = {
     # is the specific right to move an entity between business units, which
     # matters for federation across SBUs.
     "governance.entities.view":   set(ALL_ROLES),
-    "governance.entities.manage": {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER},
-    "governance.bu.assign":       {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR},
+    "governance.entities.manage": {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN},
+    "governance.bu.assign":       {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, ORG_ADMIN},
 
     # ── Module access ────────────────────────────────────────────
     # GRC_OFFICER gets cross-module read access for oversight.

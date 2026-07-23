@@ -118,3 +118,42 @@ def test_list_assignable_users_includes_bu_name(test_db):
     test_db.commit()
     users = list_assignable_users()
     assert not any(u["id"] == uid for u in users)
+
+
+def test_list_assignable_users_scopes_by_org_unless_super_admin(test_db):
+    """The People tab must not leak users across organisations to a
+    non-super-admin caller (found during PLAN-30 verification: this had no
+    org filter at all before this fix)."""
+    from modules.governance.data_service import list_assignable_users
+
+    test_db.execute("INSERT INTO organizations (name, slug) VALUES (%s, %s)", ("Org A", "bu-test-org-a"))
+    test_db.execute("INSERT INTO organizations (name, slug) VALUES (%s, %s)", ("Org B", "bu-test-org-b"))
+    test_db.commit()
+    org_a = test_db.execute("SELECT id FROM organizations WHERE slug='bu-test-org-a'").fetchone()["id"]
+    org_b = test_db.execute("SELECT id FROM organizations WHERE slug='bu-test-org-b'").fetchone()["id"]
+
+    uid_a = _create_user(test_db, "org_a_user")
+    uid_b = _create_user(test_db, "org_b_user")
+    test_db.execute("UPDATE users SET org_id=%s WHERE id=%s", (org_a, uid_a))
+    test_db.execute("UPDATE users SET org_id=%s WHERE id=%s", (org_b, uid_b))
+    test_db.commit()
+
+    # A non-super caller in Org A must see only Org A's user.
+    caller = {"is_super_admin": 0, "org_id": org_a}
+    users = list_assignable_users(caller)
+    ids = {u["id"] for u in users}
+    assert uid_a in ids
+    assert uid_b not in ids
+
+    # A true super admin still sees everyone (unchanged behavior).
+    super_caller = {"is_super_admin": 1, "org_id": org_a}
+    users = list_assignable_users(super_caller)
+    ids = {u["id"] for u in users}
+    assert uid_a in ids
+    assert uid_b in ids
+
+    # No caller at all (back-compat) still returns everyone.
+    users = list_assignable_users()
+    ids = {u["id"] for u in users}
+    assert uid_a in ids
+    assert uid_b in ids

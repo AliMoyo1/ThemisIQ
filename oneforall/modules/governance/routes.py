@@ -112,12 +112,23 @@ async def api_bu_delete(request: Request, bu_id: int):
 @router.get("/api/users")
 @require_capability("governance.bu.assign")
 async def api_assignable_users(request: Request):
-    return JSONResponse(ds.list_assignable_users())
+    return JSONResponse(ds.list_assignable_users(request.state.user))
 
 
 @router.patch("/api/users/{uid}/business-unit")
 @require_capability("governance.bu.assign")
 async def api_assign_user_bu(request: Request, uid: int):
+    user = request.state.user
+    if not user.get("is_super_admin"):
+        db = get_db()
+        try:
+            target = db.execute(
+                "SELECT org_id FROM users WHERE id=%s", (uid,)
+            ).fetchone()
+        finally:
+            db.close()
+        if not target or target["org_id"] != user.get("org_id"):
+            raise HTTPException(404, "User not found")
     body = await _json_body(request)
     raw = body.get("business_unit_id")
     bu_id = int(raw) if raw not in (None, "", "null") else None
