@@ -15,8 +15,10 @@ Makes no changes whatsoever -- every query is a SELECT or COUNT. Reports:
 Run from /project on the VPS:
     python3 oneforall/scripts/econet_migration_recon.py
 
-Requires DATABASE_URL to already be set in the environment (it is, on the
-running app's systemd service and in /project/.env).
+Resolves DATABASE_URL the same way deploy.py does: environment first, then
+/project/.env, then rebuilt directly from /project/secrets/pg_password.txt.
+A plain root shell login does not have the systemd service's Environment=
+vars, so the third path is the one that actually works when run by hand.
 """
 import os
 import sys
@@ -27,21 +29,35 @@ except ImportError:
     print("psycopg2 not installed. Run: pip3 install psycopg2-binary --break-system-packages")
     sys.exit(1)
 
+SECRETS_FILE = "/project/secrets/pg_password.txt"
+
+
+def _resolve_database_url():
+    url = os.environ.get("DATABASE_URL")
+    if url:
+        return url
+
+    env_path = "/project/.env"
+    if os.path.exists(env_path):
+        for line in open(env_path):
+            line = line.strip().strip('"').strip("'")
+            if line.startswith("DATABASE_URL="):
+                candidate = line.split("=", 1)[1].strip().strip('"').strip("'")
+                if candidate:
+                    return candidate
+
+    if os.path.exists(SECRETS_FILE):
+        pw = open(SECRETS_FILE).read().strip()
+        return f"postgresql://themisiq:{pw}@localhost:5432/themisiq"
+
+    return None
+
 
 def main():
-    database_url = os.environ.get("DATABASE_URL")
+    database_url = _resolve_database_url()
     if not database_url:
-        # Fall back to reading /project/.env directly, matching how
-        # deploy.py sources its own env vars.
-        env_path = "/project/.env"
-        if os.path.exists(env_path):
-            for line in open(env_path):
-                line = line.strip()
-                if line.startswith("DATABASE_URL="):
-                    database_url = line.split("=", 1)[1]
-                    break
-    if not database_url:
-        print("DATABASE_URL not found in environment or /project/.env")
+        print("Could not resolve DATABASE_URL from the environment, /project/.env, "
+              f"or {SECRETS_FILE}.")
         sys.exit(1)
 
     conn = psycopg2.connect(database_url)
