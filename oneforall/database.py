@@ -5521,6 +5521,7 @@ def _migrate_all_tenant_schemas() -> None:
     if not settings.is_postgres():
         return
     from psycopg2 import sql as psql
+    import logging as _logging
     log = _logging.getLogger(__name__)
     pool = _get_pg_pool()
     pg_conn = pool.getconn()
@@ -5602,5 +5603,6 @@ def init_db():
         try:
             _migrate_all_tenant_schemas()
         except Exception as exc:
+            import logging as _logging
             _logging.getLogger(__name__).warning(
                 "Tenant schema migration pass failed (non-fatal): %s", exc)
