@@ -42,12 +42,20 @@ SECRETS_FILE = "/project/secrets/pg_password.txt"
 DB_NAME = "themisiq"
 
 
+# Confirmed live via `sudo -u postgres psql -d themisiq -c "SHOW
+# unix_socket_directories;"` -- the real socket lives here. psycopg2-binary
+# bundles its own libpq, which often defaults to a different hardcoded
+# socket path than the system psql binary even when no host is given, so
+# this must be passed explicitly rather than left to guess.
+SOCKET_DIR = "/var/run/postgresql"
+
+
 def _connect():
     """Prefer the Postgres superuser via local peer auth (bypasses RLS
     entirely). Falls back to the app's own restricted role over TCP,
     which is subject to RLS and will under-report row counts."""
     try:
-        conn = psycopg2.connect(dbname=DB_NAME, user="postgres")
+        conn = psycopg2.connect(dbname=DB_NAME, user="postgres", host=SOCKET_DIR)
         conn.set_session(readonly=True, autocommit=True)
         with conn.cursor() as cur:
             cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
@@ -62,10 +70,16 @@ def _connect():
     import os
     pw = None
     if os.path.exists(SECRETS_FILE):
-        pw = open(SECRETS_FILE).read().strip()
+        try:
+            pw = open(SECRETS_FILE).read().strip()
+        except PermissionError:
+            pw = None
     if not pw:
-        print(f"Could not connect as postgres superuser, and no password found at {SECRETS_FILE}.")
-        print("Re-run this script with: sudo -u postgres python3 oneforall/scripts/econet_migration_recon.py")
+        print(f"Could not connect as postgres superuser, and could not read {SECRETS_FILE} "
+              "(likely a permission error if this script is running as the postgres OS user).")
+        print("Re-run as root instead: python3 oneforall/scripts/econet_migration_recon.py")
+        print("(without sudo -u postgres) to use the themisiq-role fallback, "
+              "or fix socket/auth access for the postgres superuser path above.")
         sys.exit(1)
     print("WARNING: connected as the restricted 'themisiq' app role -- row-level "
           "security will silently hide rows belonging to other organizations. "
