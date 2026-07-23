@@ -12,15 +12,24 @@ Makes no changes whatsoever -- every query is a SELECT or COUNT. Reports:
     Ecocash/Econet Wireless/Omni already have internal sub-structure
     beyond their seeded root
 
-Run from /project on the VPS:
-    python3 oneforall/scripts/econet_migration_recon.py
+This database uses row-level security keyed on a per-request session GUC
+(app.current_org_id, set by database.py's set_rls_context() on every real
+app request). A plain connection as the app's own themisiq role never sets
+that GUC, so RLS silently hides every row of every org-scoped table --
+confirmed live: COUNT(*) FROM organizations returned 0 as themisiq but 4
+as the postgres superuser. Superusers bypass RLS entirely, which is
+exactly what a true, complete recon needs here.
 
-Resolves DATABASE_URL the same way deploy.py does: environment first, then
-/project/.env, then rebuilt directly from /project/secrets/pg_password.txt.
-A plain root shell login does not have the systemd service's Environment=
-vars, so the third path is the one that actually works when run by hand.
+Run as the postgres OS user so the peer-auth connection below lands on
+the Postgres superuser role (matching how `sudo -u postgres psql` already
+proved works), from /project on the VPS:
+    sudo -u postgres python3 oneforall/scripts/econet_migration_recon.py
+
+Falls back to the app's own themisiq-role DATABASE_URL (deploy.py's exact
+construction) only if the superuser connection isn't available -- that
+fallback will under-report real data due to RLS, same as the first recon
+pass did, so prefer the sudo -u postgres invocation above.
 """
-import os
 import sys
 
 try:
@@ -30,38 +39,45 @@ except ImportError:
     sys.exit(1)
 
 SECRETS_FILE = "/project/secrets/pg_password.txt"
+DB_NAME = "themisiq"
 
 
-def _resolve_database_url():
-    url = os.environ.get("DATABASE_URL")
-    if url:
-        return url
+def _connect():
+    """Prefer the Postgres superuser via local peer auth (bypasses RLS
+    entirely). Falls back to the app's own restricted role over TCP,
+    which is subject to RLS and will under-report row counts."""
+    try:
+        conn = psycopg2.connect(dbname=DB_NAME, user="postgres")
+        conn.set_session(readonly=True, autocommit=True)
+        with conn.cursor() as cur:
+            cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
+            is_super = cur.fetchone()[0]
+        if is_super:
+            print("Connected as Postgres superuser (RLS bypassed) -- this is the complete picture.\n")
+            return conn
+        conn.close()
+    except Exception as e:
+        print(f"Superuser connection attempt failed ({e}); falling back to the app role.\n")
 
-    env_path = "/project/.env"
-    if os.path.exists(env_path):
-        for line in open(env_path):
-            line = line.strip().strip('"').strip("'")
-            if line.startswith("DATABASE_URL="):
-                candidate = line.split("=", 1)[1].strip().strip('"').strip("'")
-                if candidate:
-                    return candidate
-
+    import os
+    pw = None
     if os.path.exists(SECRETS_FILE):
         pw = open(SECRETS_FILE).read().strip()
-        return f"postgresql://themisiq:{pw}@localhost:5432/themisiq"
-
-    return None
+    if not pw:
+        print(f"Could not connect as postgres superuser, and no password found at {SECRETS_FILE}.")
+        print("Re-run this script with: sudo -u postgres python3 oneforall/scripts/econet_migration_recon.py")
+        sys.exit(1)
+    print("WARNING: connected as the restricted 'themisiq' app role -- row-level "
+          "security will silently hide rows belonging to other organizations. "
+          "Counts below are NOT the complete picture. Re-run with "
+          "'sudo -u postgres python3 ...' for accurate results.\n")
+    conn = psycopg2.connect(f"postgresql://themisiq:{pw}@localhost:5432/{DB_NAME}")
+    conn.set_session(readonly=True, autocommit=True)
+    return conn
 
 
 def main():
-    database_url = _resolve_database_url()
-    if not database_url:
-        print("Could not resolve DATABASE_URL from the environment, /project/.env, "
-              f"or {SECRETS_FILE}.")
-        sys.exit(1)
-
-    conn = psycopg2.connect(database_url)
-    conn.set_session(readonly=True, autocommit=True)
+    conn = _connect()
     cur = conn.cursor()
 
     print("=" * 70)
@@ -73,11 +89,12 @@ def main():
 
     print()
     print("=" * 70)
-    print("TENANT SCHEMAS")
+    print("ALL SCHEMAS (excluding Postgres/system internals)")
     print("=" * 70)
     cur.execute(
         "SELECT schema_name FROM information_schema.schemata "
-        "WHERE schema_name LIKE 'tenant_%' OR schema_name = 'public' "
+        "WHERE schema_name NOT IN ('pg_catalog', 'information_schema') "
+        "AND schema_name NOT LIKE 'pg_toast%' AND schema_name NOT LIKE 'pg_temp%' "
         "ORDER BY schema_name"
     )
     schemas = [r[0] for r in cur.fetchall()]
@@ -95,6 +112,28 @@ def main():
     )
     for row in cur.fetchall():
         print(f"  {row[0]:<25} org_id={row[1]:<4} users={row[2]}")
+
+    print()
+    print("=" * 70)
+    print("ORG-SCOPING COLUMN CHECK (does each domain table carry org_id or")
+    print("business_unit_id -- i.e. is isolation done by column, not schema?)")
+    print("=" * 70)
+    _check_tables = [
+        "business_units", "departments", "business_processes", "applications",
+        "data_assets", "erm_enterprise_risks", "orm_events", "aria_documents",
+        "grid_audits", "sentinel_ropa", "bcm_plans", "evidence_items",
+        "controls", "task_board",
+    ]
+    for t in _check_tables:
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name=%s "
+            "AND column_name IN ('org_id', 'business_unit_id') "
+            "ORDER BY column_name",
+            (t,),
+        )
+        cols = [r[0] for r in cur.fetchall()]
+        print(f"  {t:<25} {', '.join(cols) if cols else '(neither column present)'}")
 
     print()
     print("=" * 70)
