@@ -79,11 +79,17 @@ def _connect():
         try:
             conn = psycopg2.connect(dbname=DB_NAME, user="postgres",
                                     host=SOCKET_DIR, port=port)
+            # Probe in autocommit mode so the rolsuper check does not open a
+            # transaction (which would make the switch to transactional mode
+            # below fail with "set_session cannot be used inside a transaction").
+            conn.autocommit = True
             with conn.cursor() as cur:
                 cur.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
-                if cur.fetchone()[0]:
-                    print(f"Connected as Postgres superuser on port {port}.\n")
-                    return conn
+                is_super = cur.fetchone()[0]
+            if is_super:
+                conn.autocommit = False  # transactional from here; no txn open yet
+                print(f"Connected as Postgres superuser on port {port}.\n")
+                return conn
             conn.close()
         except Exception as e:
             print(f"Superuser attempt on port {port} failed ({e}).")
@@ -94,8 +100,7 @@ def _connect():
 
 def main():
     commit = "--commit" in sys.argv
-    conn = _connect()
-    conn.autocommit = False
+    conn = _connect()  # already in transactional mode (autocommit=False)
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
