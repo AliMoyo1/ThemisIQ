@@ -1,9 +1,9 @@
 # PLAN-31: Consolidate Ecocash / Econet Wireless / Omni into one "Econet Group" org
 
-## Status: PHASE 0-1 IN PROGRESS. Phase 2 (the actual data migration) is
-## deliberately NOT designed yet -- see "Why Phase 2 isn't written yet"
-## below. Do not run anything past Phase 1 without a follow-up plan update
-## once recon results are in.
+## Status: PHASE 2 DESIGNED, awaiting the user's dry-run review before the
+## --commit run. Scope chosen: "users + structure only" (no domain-data
+## copy). See "Phase 2: DESIGNED" below. Recon complete; a valid superuser
+## backup of the real DB (5434) is at /project/backups/.
 
 ## CRITICAL ENVIRONMENT FINDING (2026-07-23) -- read before touching anything
 
@@ -123,6 +123,90 @@ A correct, safe migration script needs real facts this session doesn't have:
 Phase 1 below answers all three, read-only. Phase 2 gets designed as a
 follow-up plan update once those results are back.
 
+## PHASE 1 RECON RESULTS (2026-07-23, superuser on 5434)
+
+**Confirmed schema-per-tenant** (my earlier "single public schema / simple
+UPDATE" note was WRONG -- it came from the stale Docker DB's RLS-filtered
+view). Four schemas: `public` (Default/org 1), `tenant_omni` (org 4),
+`tenant_ecocash` (org 5), `tenant_econet_wireless` (org 6).
+
+**Users per org**: Default 4, Omni 4, Econet Wireless 3, Ecocash 1 (= 12).
+
+**Business unit trees**:
+- `public` (Default) already has TWO root BUs: id=1 "Company", id=2 "Econet"
+  (the latter created by the user in the screenshot). No deeper nesting.
+- `tenant_ecocash`, `tenant_econet_wireless`, `tenant_omni`: **no
+  `business_units` table exists at all** -- these schemas predate the T1.1
+  governance migration.
+
+**MAJOR complication #1 -- the tenant schemas are STALE.** `public` has 173
+tables; the tenant schemas have only 127-128. They are ~45 tables behind and
+are missing the `business_units` table (and, needs confirming, likely the
+`business_unit_id` columns and other newer columns too). Column/table
+migrations (`_run_pg_alters`, new-table creation) were applied to `public`
+but never retroactively to the existing tenant schemas -- a latent
+platform bug independent of this consolidation. Implication for the copy:
+source tables are a column-subset of their `public` targets, so an explicit
+column-list INSERT (source columns only) works and target-only columns take
+their defaults; but every copy must intersect columns dynamically, never
+`SELECT *`.
+
+**MAJOR complication #2 -- reference/seed data overlaps and must not be
+duplicated.** Much of each tenant's row count is per-tenant COPIES of the
+same seeded baseline that `public` already has its own copy of:
+`frameworks` (15 everywhere), `aria_frameworks` (15), `orm_event_templates`
+(35), `erm_risk_library` (25), `erm_risk_appetite` (8),
+`bcm_scenario_library` (8), `sentinel_jurisdiction_config` (1), and largely
+`controls` (296 in public/ecocash/omni; 23 in econet_wireless). Blindly
+copying these into `public` would duplicate the seed catalogue. Worse, real
+user-data rows reference these by FK (e.g. a `grid_control` -> a framework),
+so when the seed row is skipped, the user-data row's FK must be REMAPPED to
+public's equivalent seed row (matched by natural key: name/code), not the
+source's id. Distinguishing "seeded" from "org-customized" rows within these
+tables is itself non-trivial.
+
+**Real user-data volumes (what actually needs migrating), by org**:
+- **Ecocash** (1 user): essentially empty of real work -- 1 erm_enterprise_risk,
+  1 aria_document, 1 evidence_item, 1 evidence_link. Everything else is seed
+  data.
+- **Econet Wireless** (3 users): also essentially empty -- 4 erm_chat_messages,
+  12 analytics_snapshots, and seed data. No real risks/docs/evidence.
+- **Omni** (4 users): the only org with substantial real data -- 73
+  aria_documents, 87 evidence_items, 129 evidence_links, 74 grid_controls,
+  41 grid_evidence_files, 99 task_board, 218 notifications, 194
+  email_reminders, 22 ai_risk_predictions, 27 analytics_snapshots, 35
+  aria_control_mappings, plus grid_audits/compliance/timeline.
+
+**Also**: `public`/Default itself already holds a lot of data (311
+ai_risk_predictions, 297 aria_control_mappings, 296 controls, etc.) --
+whether that is genuine Econet-corporate data to keep at the root/Company
+level or leftover test data to clear is a Phase-2 decision.
+
+## SCOPE DECISION NEEDED before Phase 2 is written
+
+Given Ecocash and Econet Wireless have negligible real data while Omni has
+the bulk, and given the reference-data-overlap + stale-schema complications
+make a full automated cross-schema row-copy genuinely risky, the user must
+choose the migration scope:
+
+- **Option A -- Full domain-data migration**: copy every real user-data row
+  from all three tenant schemas into `public`, with PK/FK remap, seed-data
+  dedup + natural-key FK remap, polymorphic-ref handling, and business_unit
+  tagging. Highest fidelity, highest risk/effort.
+- **Option B -- Users + structure only**: create the 3 SBU business units
+  under "Econet" in `public`, move the 12 users (org_id + business_unit_id),
+  and leave the old tenant schemas' domain data behind (kept intact in their
+  schemas, or exported separately). Lowest risk. Accepts that existing
+  Ecocash/EW/Omni risks/evidence/etc. do not carry over.
+- **Option C -- Users + Omni's real data only**: Option B, plus migrate just
+  Omni's substantial real data (skip the near-empty Ecocash/EW domain data).
+  Middle ground.
+
+Phase 2 will be written to the chosen scope. Whichever is chosen, the stale-
+tenant-schema issue (complication #1) should be flagged to the user as a
+separate platform bug worth its own fix, since it affects any future work
+touching those existing tenants.
+
 ## Phase 0: Mandatory backup (CORRECTED to target the real DB on 5434)
 
 The original Step 2 here used `pg_dump -h localhost` and backed up the WRONG
@@ -193,28 +277,65 @@ Paste the full output back. That determines exactly what Phase 2's
 migration script needs to handle, and whether the business-unit structure
 should be flat (3 BUs) or preserve existing sub-departments.
 
-## Phase 2: The actual migration (NOT YET DESIGNED)
+## Phase 2: DESIGNED -- scope "users + structure only" (user chose 2026-07-23)
 
-To be written as a follow-up update to this plan once Phase 1's results are
-in. Expected shape based on the design discussion above:
-1. Rename Default -> "Econet Group" (`organizations.name`, and update
-   `slug` if it's user-facing anywhere).
-2. Create 3 business units in `tenant_public.business_units`: Ecocash,
-   Econet Wireless, Omni (parent_id = the existing root, or a new "Econet"
-   node if the user wants an extra level — the screenshot shows they'd
-   already started creating one).
-3. For each source schema, in dependency order per table: copy rows into
-   `tenant_public`, building an id-remap dict, rewriting FK columns using
-   the appropriate table's remap dict, handling polymorphic
-   `entity_type`/`entity_id` pairs explicitly, and setting
-   `business_unit_id` to the new matching BU.
-4. Update `users.org_id` and `users.business_unit_id` for every migrated
-   user.
-5. Verification pass: row counts before/after per table (should match
-   exactly, modulo any legitimate dedup), spot-check a handful of real
-   rows' FK chains survived intact.
-6. Only after the user confirms verification looks right: drop the three
-   source schemas and delete their `organizations` rows.
+After the Phase 1 recon showed Ecocash and Econet Wireless are near-empty of
+real data (Omni is the only one with substance) and that the tenant schemas
+are stale + reference-data overlaps make a full cross-schema copy risky for
+little payoff, the user chose the **users + structure only** scope. No domain
+data is copied; the source tenant schemas are left completely intact.
+
+Implemented as `oneforall/scripts/econet_consolidation_migrate.py` (dry-run
+by default, `--commit` to apply, one transaction, superuser on 5434). It:
+1. Renames Default (org 1) -> "Econet Group". Slug stays `public` (it maps to
+   the `public` schema; do not change it).
+2. Creates business units Ecocash / Econet Wireless / Omni under the existing
+   "Econet" root BU (id=2) in the `public` schema. Idempotent -- reuses them
+   if already present. (Chosen default: SBUs hang off "Econet", not the
+   original seeded "Company" root. "Company" is left untouched.)
+3. Moves each source org's users into org 1 with the matching new
+   `business_unit_id` (Omni users -> Omni BU, etc.). `users` is a single
+   shared table, so this is a safe `UPDATE org_id, business_unit_id`; a
+   collision guard aborts if any username/email would become non-unique.
+4. Deactivates the 3 emptied source orgs (`status='inactive'`) rather than
+   deleting them, so their tenant schemas + preserved domain data keep a
+   valid parent org row. (The user's original "delete once verified" was for
+   the full-migration scope; deactivate is the consistent choice here.)
+5. Clears moved users' sessions so they re-login with fresh org context.
+
+**Accepted tradeoffs of this scope** (the user understood these):
+- Moved SBU users start fresh inside Econet Group scoped to their SBU BU;
+  they do NOT see their old Omni/Ecocash/EW risks/evidence (that data stays
+  in the old tenant schemas, reachable only by reactivating those orgs or a
+  later targeted data-copy job).
+- The old tenant schemas + their data remain on disk, untouched.
+
+**Execution flow (nothing runs without user review):**
+1. Fresh backup (Phase 0 Steps 1-4 again -- data may have changed).
+2. Dry run:
+   `sudo -u postgres python3 oneforall/scripts/econet_consolidation_migrate.py`
+   -- prints the exact before/after and every user move, commits nothing.
+3. User reviews the dry-run output.
+4. Apply:
+   `sudo -u postgres python3 oneforall/scripts/econet_consolidation_migrate.py --commit`
+5. Verify in the app UI: Econet Group shows Ecocash/Econet Wireless/Omni as
+   BUs under Econet, users land in the right units, the 3 old orgs show
+   inactive.
+
+## Deferred / separate follow-ups (not in this scope)
+
+- **Stale tenant schemas** (complication #1): tenant_omni/ecocash/econet_wireless
+  are ~45 tables behind `public` and never got the forward migrations. This
+  is a latent platform bug affecting any future work on existing tenants and
+  deserves its own fix (retroactively apply `_run_pg_alters` + missing
+  CREATE TABLEs to every existing tenant schema, or a re-provision + data
+  re-load). Out of scope for this consolidation.
+- **Omni real-data migration**: if the user later wants Omni's 73 docs / 87
+  evidence items / 99 tasks etc. carried into Econet Group, that is the
+  Option C targeted copy job, written separately with seed-dedup + FK remap.
+- **Cleanup of the abandoned Docker `project-db-1`/`project-shadow-db-1`
+  containers and the crash-looping `project-app-1` container** -- unrelated
+  infra hygiene, flagged during recon.
 
 ## Standing constraints for whoever executes this
 
