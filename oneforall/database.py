@@ -5439,6 +5439,30 @@ def _run_pg_fk_cascades(conn) -> None:
             _logger.warning("FK cascade fix skipped for %s.%s: %s", table, col, exc)
 
 
+def _apply_tenant_schema_ddl(conn) -> None:
+    """Create/upgrade every module table + column and seed baseline data in
+    whatever tenant schema the connection's search_path currently points at.
+
+    Fully idempotent. Assumes search_path is already set to the target tenant
+    schema (plus public). Shared by provision_tenant_schema (new tenants) and
+    _migrate_all_tenant_schemas (bring already-provisioned tenants current), so
+    both paths apply exactly the same canonical structure.
+    """
+    conn.executescript(_PLATFORM_TABLES_PG)
+    conn.executescript(_ARIA_TABLES_PG)
+    conn.executescript(_GRID_TABLES_PG)
+    conn.executescript(_BCM_TABLES_PG)
+    conn.executescript(_SENTINEL_TABLES_PG)
+    conn.executescript(_ERM_ORM_TABLES_PG)
+    conn.commit()
+    # Column migrations (idempotent — ADD COLUMN IF NOT EXISTS).
+    _run_pg_alters(conn)
+    _run_pg_fk_cascades(conn)
+    # Baseline reference data (frameworks, regulations, etc.) — count-gated.
+    _seed_baseline_data(conn)
+    conn.commit()
+
+
 def provision_tenant_schema(slug: str) -> None:
     """Create a new tenant schema with all module tables and baseline seed data.
 
@@ -5471,20 +5495,65 @@ def provision_tenant_schema(slug: str) -> None:
         pg_conn.cursor().execute(psql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(psql.Identifier(schema_name)))
         conn.commit()
         pg_conn.cursor().execute(psql.SQL("SET search_path TO {}, public").format(psql.Identifier(schema_name)))
-        # Create platform + module tables inside the tenant schema.
-        conn.executescript(_PLATFORM_TABLES_PG)
-        conn.executescript(_ARIA_TABLES_PG)
-        conn.executescript(_GRID_TABLES_PG)
-        conn.executescript(_BCM_TABLES_PG)
-        conn.executescript(_SENTINEL_TABLES_PG)
-        conn.executescript(_ERM_ORM_TABLES_PG)
-        conn.commit()
-        # Apply column migrations (idempotent — catches column-already-exists errors).
-        _run_pg_alters(conn)
-        _run_pg_fk_cascades(conn)
-        # Seed baseline reference data (frameworks, regulations, etc.).
-        _seed_baseline_data(conn)
-        conn.commit()
+        _apply_tenant_schema_ddl(conn)
+    finally:
+        try:
+            pg_conn.rollback()
+        except Exception:
+            pass
+        pool.putconn(pg_conn)
+
+
+def _migrate_all_tenant_schemas() -> None:
+    """Replay the idempotent tenant-schema DDL against every existing
+    tenant_* schema, so forward migrations (tables/columns added to the
+    canonical definitions over time) reach already-provisioned tenants and
+    not just public.
+
+    Historically new tables and _COLUMN_MIGRATIONS were applied to public in
+    init_db() but never replayed against existing tenant schemas, leaving them
+    behind (PLAN-31 recon found the tenant schemas ~45 tables short of public).
+    This makes the app self-heal that drift on startup. Fully idempotent
+    (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS / count-gated
+    seeds). Defensive: a failure on one tenant schema is logged and skipped so
+    it can never block startup.
+    """
+    if not settings.is_postgres():
+        return
+    from psycopg2 import sql as psql
+    log = _logging.getLogger(__name__)
+    pool = _get_pg_pool()
+    pg_conn = pool.getconn()
+    wrapper = _PgConnWrapper(pg_conn)
+    if not wrapper._is_alive():
+        pool.putconn(pg_conn, close=True)
+        pg_conn = pool.getconn()
+        wrapper = _PgConnWrapper(pg_conn)
+    pg_conn.autocommit = False
+    wrapper.set_rls_bypass()
+    conn = wrapper
+    try:
+        cur = pg_conn.cursor()
+        cur.execute(
+            "SELECT schema_name FROM information_schema.schemata "
+            "WHERE schema_name LIKE 'tenant_%%' ORDER BY schema_name"
+        )
+        schemas = [r[0] for r in cur.fetchall()]
+        for schema_name in schemas:
+            try:
+                pg_conn.cursor().execute(
+                    psql.SQL("SET search_path TO {}, public").format(
+                        psql.Identifier(schema_name))
+                )
+                _apply_tenant_schema_ddl(conn)
+                log.info("Tenant schema %s brought up to current structure.", schema_name)
+            except Exception as exc:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                log.warning("Could not migrate tenant schema %s (skipped): %s",
+                            schema_name, exc)
     finally:
         try:
             pg_conn.rollback()
@@ -5525,3 +5594,13 @@ def init_db():
             apply_rls_policies(conn)
     finally:
         conn.close()
+    # Self-heal historical migration drift: replay the idempotent tenant DDL
+    # against every existing tenant schema so they carry the same tables and
+    # columns as public. Runs on its own pooled connection; wrapped so it can
+    # never block app startup.
+    if settings.is_postgres():
+        try:
+            _migrate_all_tenant_schemas()
+        except Exception as exc:
+            _logging.getLogger(__name__).warning(
+                "Tenant schema migration pass failed (non-fatal): %s", exc)
