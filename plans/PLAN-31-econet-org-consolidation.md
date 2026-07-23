@@ -1,9 +1,13 @@
 # PLAN-31: Consolidate Ecocash / Econet Wireless / Omni into one "Econet Group" org
 
-## Status: PHASE 2 DESIGNED, awaiting the user's dry-run review before the
-## --commit run. Scope chosen: "users + structure only" (no domain-data
-## copy). See "Phase 2: DESIGNED" below. Recon complete; a valid superuser
-## backup of the real DB (5434) is at /project/backups/.
+## Status: PHASE 2 COMPLETE (committed on production 2026-07-23). Scope:
+## "users + structure only" (no domain-data copy). Verified at the DB level:
+## Econet Group (org 1) active with 12 users; Omni/Ecocash/Econet Wireless
+## (orgs 4/5/6) inactive with 0 users, schemas + data preserved; BUs Omni
+## (id=6), Ecocash (id=7), Econet Wireless (id=8) created under Econet (id=2).
+## Superuser backup pre_consolidation_5434.dump held in /project/backups/.
+## The deferred follow-ups below remain open (stale tenant schemas, optional
+## Omni data copy, abandoned Docker container cleanup).
 
 ## CRITICAL ENVIRONMENT FINDING (2026-07-23) -- read before touching anything
 
