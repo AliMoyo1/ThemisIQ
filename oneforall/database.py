@@ -4087,6 +4087,8 @@ _COLUMN_MIGRATIONS = [
         ("users",             "business_unit_id",     "INTEGER"),
         # ── Governance Graph T1.3: effectiveness scoring timestamp ────────────
         ("canonical_controls", "last_scored_at",      "TEXT"),
+        # ── PLAN-33 Phase 2: safe-delete (soft delete, reversible) ────────────
+        ("users",              "deleted_at",           "TEXT"),
 ]
 
 
@@ -4153,6 +4155,7 @@ def _run_sqlite_alters(conn):
         "CREATE INDEX IF NOT EXISTS idx_workflow_inst_def ON workflow_instances(definition_id)",
         "CREATE INDEX IF NOT EXISTS idx_calendar_assigned ON calendar_events(assigned_to)",
         "CREATE INDEX IF NOT EXISTS idx_calendar_created_by ON calendar_events(created_by)",
+        "CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at)",
     ]
     for idx_sql in _POST_MIGRATION_INDEXES:
         try:

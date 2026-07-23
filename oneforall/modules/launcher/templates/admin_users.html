@@ -81,6 +81,11 @@
               padding:3px 10px; border-radius:999px;
               background:var(--surface2); color:var(--muted);
               border:1px solid var(--border); }
+.b-deleted  { display:inline-block; font-size:11.5px; font-weight:700;
+              padding:3px 10px; border-radius:999px;
+              background:var(--bad-soft); color:var(--bad);
+              border:1px solid rgba(165,80,60,0.3); }
+.au-row-deleted td { opacity:0.72; }
 
 /* ── Role chips ──────────────────────────────────────────────────────────── */
 .role-chip { display:inline-flex; align-items:center; font-size:11.5px; font-weight:600;
@@ -248,14 +253,31 @@
       Manage user accounts, roles, and platform access
     </p>
   </div>
-  <button class="btn btn-primary" style="gap:6px; display:inline-flex; align-items:center;"
-          onclick="document.getElementById('newUserModal').classList.add('show')">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-    New User
-  </button>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="btn btn-ghost" href="/admin/api/users/export" title="Export current users to CSV">
+      Export
+    </a>
+    <a class="btn btn-ghost" href="/admin/api/users/template" title="Download the bulk-import Excel template">
+      Template
+    </a>
+    <button class="btn btn-ghost" type="button"
+            onclick="document.getElementById('userImportFile').click()">
+      Import Excel
+    </button>
+    <input type="file" id="userImportFile" accept=".xlsx,.xls,.xlsm" style="display:none;"
+           onchange="importUsersExcel(this)">
+    <button class="btn btn-primary" style="gap:6px; display:inline-flex; align-items:center;"
+            onclick="document.getElementById('newUserModal').classList.add('show')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New User
+    </button>
+  </div>
 </div>
+
+{# ── Bulk import status banner ────────────────────────────────────────────── #}
+<div id="userImportResult" style="display:none; margin-bottom:16px;"></div>
 
 {# ── Flash: error ────────────────────────────────────────────────────────── #}
 {% if flash and flash.type == 'error' %}
@@ -361,6 +383,11 @@
     <button class="f-chip"        id="chip-active"   onclick="setStatusFilter('active')">Active</button>
     <button class="f-chip"        id="chip-inactive" onclick="setStatusFilter('inactive')">Inactive</button>
   </div>
+  <button class="f-chip{% if show_deleted %} active{% endif %}" type="button"
+          onclick="toggleShowDeleted()"
+          title="{% if show_deleted %}Hide deleted users{% else %}Show deleted users{% endif %}">
+    {% if show_deleted %}Hide{% else %}Show{% endif %} Deleted{% if stat_deleted %} ({{ stat_deleted }}){% endif %}
+  </button>
   <select id="roleFilter" class="au-role-sel" onchange="filterUsers()">
     <option value="">All Roles</option>
     {% for rk in all_roles %}
@@ -397,8 +424,9 @@
     data-org-id="{{ u.org_id or 0 }}"
     data-bu-id="{{ u.business_unit_id or 0 }}"
     data-searchtext="{{ ((u.full_name or '') ~ ' ' ~ u.username ~ ' ' ~ (u.email or ''))|lower }}"
-    data-status="{{ 'active' if u.is_active else 'inactive' }}"
-    data-roles="{{ u.role_keys|join(' ') }}">
+    data-status="{{ 'deleted' if u.deleted_at else ('active' if u.is_active else 'inactive') }}"
+    data-roles="{{ u.role_keys|join(' ') }}"
+    {% if u.deleted_at %}class="au-row-deleted"{% endif %}>
 
   {# ── User cell ── #}
   <td>
@@ -464,7 +492,9 @@
 
   {# ── Status cell ── #}
   <td style="text-align:center;">
-    {% if u.is_active %}
+    {% if u.deleted_at %}
+      <span class="b-deleted" title="Deleted {{ u.deleted_at | format_dt('datetime') }}">Deleted</span>
+    {% elif u.is_active %}
       <span class="b-active">Active</span>
     {% else %}
       <span class="b-inactive">Inactive</span>
@@ -478,6 +508,25 @@
 
   {# ── Actions cell ── #}
   <td style="text-align:right; white-space:nowrap;">
+    {% if u.deleted_at %}
+      {# ── Deleted user: Restore or purge permanently ── #}
+      <form method="post" action="/admin/users/{{ u.id }}/restore"
+            style="display:inline-block;"
+            onsubmit="return confirm('Restore {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nThey will reappear in the list (still inactive until you Reactivate them).');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--good);">
+          Restore
+        </button>
+      </form>
+      <form method="post" action="/admin/users/{{ u.id }}/hard-delete"
+            style="display:inline-block; margin-left:4px;"
+            onsubmit="return confirm('Permanently delete {{ (u.full_name or u.username)|replace("'", "\\'")|replace('"', '&quot;') }}?\nThis cannot be undone. Only allowed if nothing references this account (audit history, owned risks, tasks, etc) -- otherwise it will be refused.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);">
+          Delete Permanently
+        </button>
+      </form>
+    {% else %}
     {# Edit profile button #}
     <button type="button" class="au-edit-btn" title="Edit name / email"
             data-uid="{{ u.id }}"
@@ -521,6 +570,20 @@
           Reactivate
         </button>
       </form>
+    {% endif %}
+    {# Delete (safe delete -- reversible via Restore) #}
+    {% if not is_self %}
+    <form method="post" action="/admin/users/{{ u.id }}/delete"
+          style="display:inline-block; margin-left:4px;"
+          onsubmit="return false;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="button" class="btn btn-ghost" style="padding:5px 10px; font-size:12px; color:var(--bad);"
+              data-name="{{ (u.full_name or u.username)|e }}"
+              onclick="confirmDeleteUser(this)">
+        Delete
+      </button>
+    </form>
+    {% endif %}
     {% endif %}
   </td>
 </tr>
@@ -974,6 +1037,229 @@ function showDrawerErr(msg) {
   var el = document.getElementById('drawerError');
   el.textContent  = msg;
   el.style.display = 'block';
+}
+
+// ── Show deleted toggle ──────────────────────────────────────────────────────
+function toggleShowDeleted() {
+  var url = new URL(window.location.href);
+  if (url.searchParams.get('show_deleted') === '1') {
+    url.searchParams.delete('show_deleted');
+  } else {
+    url.searchParams.set('show_deleted', '1');
+  }
+  window.location.href = url.toString();
+}
+
+// ── Delete user (safe delete) with best-effort impact preview ──────────────
+async function confirmDeleteUser(btn) {
+  var form = btn.closest('form');
+  var match = form.action.match(/\/users\/(\d+)\/delete/);
+  var uid = match ? match[1] : null;
+  var name = btn.dataset.name || 'this user';
+  var msg = 'Delete ' + name + '?\n\nThey will be hidden from the list and ' +
+            'can no longer log in. This can be undone later via Restore.';
+  if (uid) {
+    btn.disabled = true;
+    try {
+      var resp = await fetch('/admin/api/users/' + uid + '/impact');
+      if (resp.ok) {
+        var data = await resp.json();
+        var refs = data.references || {};
+        var keys = Object.keys(refs);
+        if (keys.length) {
+          msg += '\n\nStill referenced by: ' +
+                 keys.map(function(k) { return refs[k] + ' ' + k; }).join(', ') + '.';
+        }
+      }
+    } catch (err) {
+      // Impact preview is best-effort; fall through to the confirm either way.
+    }
+    btn.disabled = false;
+  }
+  if (confirm(msg)) form.submit();
+}
+
+// ── Bulk user import (PLAN-33 Phase 3) ──────────────────────────────────────
+function _esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+var _userImportPreviewData = null;
+
+async function importUsersExcel(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var res = document.getElementById('userImportResult');
+  res.style.display = 'block';
+  res.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px;">Parsing Excel file…</div>';
+  var fd = new FormData();
+  fd.append('file', file);
+  try {
+    var r = await fetch('/admin/api/users/import-preview', { method: 'POST', body: fd });
+    var d = await r.json();
+    if (!r.ok || d.error) {
+      res.innerHTML = '<div style="padding:14px;color:var(--bad);font-size:13px;">' + _esc(d.error || 'Upload failed') + '</div>';
+      input.value = '';
+      return;
+    }
+    _userImportPreviewData = d;
+    res.style.display = 'none';
+    showUserImportPreview(d);
+  } catch (err) {
+    res.innerHTML = '<div style="padding:14px;color:var(--bad);font-size:13px;">Import failed: ' + _esc(err.message) + '</div>';
+  }
+  input.value = '';
+}
+
+function showUserImportPreview(d) {
+  var s = d.summary || {};
+  var buMap = d.bu_map || {};
+  var bus = d.business_units || [];
+  var warns = d.warnings || [];
+
+  function confBadge(c) {
+    var colors = { exact: 'var(--good)', fuzzy: 'var(--amber)', unmapped: 'var(--bad)', empty: 'var(--muted)' };
+    return '<span style="display:inline-block; padding:1px 7px; border-radius:8px; font-size:10px; font-weight:700; color:#fff; background:' + (colors[c] || '#999') + ';">' + _esc(c) + '</span>';
+  }
+
+  var buRows = '';
+  var buKeys = Object.keys(buMap);
+  for (var i = 0; i < buKeys.length; i++) {
+    var bk = buKeys[i], bm = buMap[bk];
+    var opts = '<option value="">-- Unassigned --</option>';
+    for (var j = 0; j < bus.length; j++) {
+      opts += '<option value="' + bus[j].id + '"' + (bm.bu_id === bus[j].id ? ' selected' : '') + '>' + _esc(bus[j].name) + '</option>';
+    }
+    buRows += '<tr><td style="font-size:12px; padding:4px;">' + _esc(bk) + '</td>' +
+      '<td style="padding:4px;"><select class="import-bu-sel" data-raw="' + _esc(bk) + '" ' +
+      'style="width:100%; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:12px; background:var(--surface2); color:var(--text);">' + opts + '</select></td>' +
+      '<td style="padding:4px;">' + confBadge(bm.confidence) + '</td></tr>';
+  }
+
+  var sampleRows = '';
+  var rows = d.rows || [];
+  var limit = Math.min(rows.length, 10);
+  for (var i = 0; i < limit; i++) {
+    var row = rows[i];
+    var status = row.error ? '<span style="color:var(--bad);">invalid</span>'
+      : (row.duplicate_email ? '<span style="color:var(--amber);">duplicate</span>' : '<span style="color:var(--good);">ok</span>');
+    sampleRows += '<tr><td style="font-size:11px; padding:4px;">' + _esc(row.full_name) + '</td>' +
+      '<td style="font-size:11px; padding:4px;">' + _esc(row.email) + '</td>' +
+      '<td style="font-size:11px; padding:4px;">' + _esc((row.roles || []).join(', ')) + '</td>' +
+      '<td style="font-size:11px; padding:4px;">' + _esc(row.business_unit_raw || '—') + '</td>' +
+      '<td style="font-size:11px; padding:4px;">' + status + '</td></tr>';
+  }
+
+  var warnHtml = '';
+  if (warns.length) {
+    var showWarns = warns.slice(0, 5);
+    warnHtml = '<div style="margin-bottom:14px; padding:10px 12px; border:1px solid var(--amber); border-radius:6px; background:var(--warn-soft); font-size:12px;">' +
+      '<strong style="color:var(--amber);">' + warns.length + ' warning(s)</strong><ul style="margin:6px 0 0 16px; padding:0;">';
+    for (var i = 0; i < showWarns.length; i++) warnHtml += '<li style="color:var(--muted);">' + _esc(showWarns[i]) + '</li>';
+    if (warns.length > 5) warnHtml += '<li style="color:var(--muted);">…and ' + (warns.length - 5) + ' more</li>';
+    warnHtml += '</ul></div>';
+  }
+
+  var statCard = function(val, label, color) {
+    return '<div style="text-align:center; padding:10px; border:1px solid var(--border); border-radius:8px;">' +
+      '<div style="font-size:20px; font-weight:700; color:' + color + ';">' + val + '</div>' +
+      '<div style="font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.3px;">' + label + '</div></div>';
+  };
+
+  var html = '<div class="modal-overlay show" id="userImportModal" onclick="if(event.target.id===\'userImportModal\')this.remove()">' +
+    '<div class="modal" style="max-width:820px; width:94vw; max-height:90vh; overflow-y:auto;">' +
+    '<div class="modal-header"><div class="modal-title">Import Users</div>' +
+    '<button type="button" class="modal-close" onclick="document.getElementById(\'userImportModal\').remove()">' +
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+    '</button></div>' +
+    '<div class="modal-body">' +
+    '<div style="font-size:12px; color:var(--muted); margin-bottom:14px;">Sheet: ' + _esc(d.sheet_name || 'Sheet1') + '</div>' +
+    '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px;">' +
+    statCard(s.total, 'Total Rows', 'var(--accent)') +
+    statCard(s.valid, 'Will Import', 'var(--good)') +
+    statCard(s.duplicates, 'Duplicates', 'var(--amber)') +
+    statCard(s.invalid, 'Invalid', 'var(--bad)') +
+    '</div>' +
+    warnHtml +
+    (buKeys.length ? '<div style="margin-bottom:16px;"><div style="font-size:13px; font-weight:700; margin-bottom:6px;">Business Unit Mapping</div>' +
+      '<table style="width:100%; border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">' +
+      '<th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">In sheet</th>' +
+      '<th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">Map to</th>' +
+      '<th style="font-size:11px; padding:4px; color:var(--muted);">Match</th></tr></thead><tbody>' + buRows + '</tbody></table></div>' : '') +
+    '<div style="margin-bottom:6px; font-size:13px; font-weight:700;">Preview (first ' + limit + ' of ' + rows.length + ')</div>' +
+    '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="border-bottom:1px solid var(--border);">' +
+    '<th style="text-align:left; padding:4px;">Name</th><th style="text-align:left; padding:4px;">Email</th>' +
+    '<th style="text-align:left; padding:4px;">Roles</th><th style="text-align:left; padding:4px;">Business Unit</th>' +
+    '<th style="text-align:left; padding:4px;">Status</th></tr></thead><tbody>' + sampleRows + '</tbody></table></div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+    '<button type="button" class="btn btn-ghost" onclick="document.getElementById(\'userImportModal\').remove()">Cancel</button>' +
+    '<button type="button" class="btn btn-primary" id="userImportCommitBtn" onclick="commitUserImport()">Import ' + s.valid + ' Users</button>' +
+    '</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function commitUserImport() {
+  if (!_userImportPreviewData || !_userImportPreviewData.rows) return;
+  var btn = document.getElementById('userImportCommitBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
+
+  var buOverrides = {};
+  document.querySelectorAll('.import-bu-sel').forEach(function(sel) {
+    buOverrides[sel.dataset.raw] = sel.value ? parseInt(sel.value, 10) : null;
+  });
+
+  var csrfToken = document.getElementById('usersPageData').dataset.csrf;
+  try {
+    var resp = await fetch('/admin/api/users/import-commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ rows: _userImportPreviewData.rows, bu_overrides: buOverrides }),
+    });
+    var r = await resp.json();
+    var modal = document.getElementById('userImportModal');
+    if (modal) modal.remove();
+
+    var res = document.getElementById('userImportResult');
+    res.style.display = 'block';
+    if (!resp.ok || r.error) {
+      res.innerHTML = '<div style="padding:14px; color:var(--bad); font-size:13px;">' + _esc(r.error || 'Import failed') + '</div>';
+      return;
+    }
+
+    var credRows = '';
+    (r.credentials || []).forEach(function(c) {
+      credRows += '<tr><td style="font-size:12px; padding:4px;">' + _esc(c.full_name) + '</td>' +
+        '<td style="font-size:12px; padding:4px; font-family:var(--mono);">' + _esc(c.username) + '</td>' +
+        '<td style="font-size:12px; padding:4px; font-family:var(--mono); font-weight:700; color:var(--accent);">' + _esc(c.temp_password) + '</td></tr>';
+    });
+    var errHtml = '';
+    if (r.errors && r.errors.length) {
+      errHtml = '<div style="margin-top:10px; font-size:12px; color:var(--muted);">' + r.errors.length + ' row(s) failed: ';
+      for (var i = 0; i < Math.min(r.errors.length, 3); i++) {
+        errHtml += _esc(r.errors[i].full_name || 'Row ' + r.errors[i].row) + ' — ' + _esc(r.errors[i].error) + '; ';
+      }
+      errHtml += '</div>';
+    }
+    res.innerHTML = '<div style="padding:16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);">' +
+      '<div style="font-size:14px; font-weight:700; color:var(--good); margin-bottom:4px;">Import Complete</div>' +
+      '<div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">' + r.created + ' created, ' + r.skipped + ' skipped. ' +
+      'Temporary passwords are shown once below — share them securely; each user must change theirs at first login.</div>' +
+      (credRows ? '<div style="overflow-x:auto; max-height:260px; overflow-y:auto;"><table style="width:100%; border-collapse:collapse;">' +
+        '<thead><tr style="border-bottom:1px solid var(--border);"><th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">Name</th>' +
+        '<th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">Username</th>' +
+        '<th style="text-align:left; font-size:11px; padding:4px; color:var(--muted);">Temp Password</th></tr></thead><tbody>' + credRows + '</tbody></table></div>' : '') +
+      errHtml +
+      '<button class="btn btn-ghost" style="margin-top:10px; font-size:12px; padding:5px 10px;" onclick="window.location.reload()">Done — Refresh List</button>' +
+      '</div>';
+    _userImportPreviewData = null;
+    if (typeof showToast === 'function') showToast('Imported ' + r.created + ' users');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Import'; }
+    if (typeof showToast === 'function') showToast('Import failed: ' + err.message, 'error');
+  }
 }
 
 // ── Client-side filtering ───────────────────────────────────────────────────

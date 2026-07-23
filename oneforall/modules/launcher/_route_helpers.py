@@ -76,9 +76,12 @@ def _group_users_by_bu(user_rows, bu_parent_names):
                 "active_count": 0,
                 "inactive_count": 0,
                 "pw_pending_count": 0,
+                "deleted_count": 0,
             }
         groups[key]["users"].append(r)
-        if r.get("is_active"):
+        if r.get("deleted_at"):
+            groups[key]["deleted_count"] += 1
+        elif r.get("is_active"):
             groups[key]["active_count"] += 1
         else:
             groups[key]["inactive_count"] += 1
@@ -99,32 +102,45 @@ def _must_change_pw(uid: int) -> bool:
 
 
 def _render_admin_users(request, user, flash=None):
+    show_deleted = str(request.query_params.get("show_deleted", "")).lower() in ("1", "true", "yes")
     db = get_db()
     try:
         is_super = bool(user.get("is_super_admin"))
         # Platform super-admins see everyone; org-level admins see only their org.
         caller_org_id = None if is_super else user.get("org_id")
+        # Deleted users (safe-delete, PLAN-33 Phase 2) are hidden by default;
+        # the "Show deleted" toggle re-includes them via ?show_deleted=1.
+        deleted_clause = "" if show_deleted else "AND u.deleted_at IS NULL "
         if caller_org_id is not None:
             raw_users = db.execute(
                 "SELECT u.id, u.username, u.email, u.full_name, u.is_active, "
                 "u.must_change_password, u.created_at, u.last_login, u.avatar_initials, "
-                "u.org_id, o.name AS org_name, o.slug AS org_slug, o.plan AS org_plan, "
+                "u.org_id, u.deleted_at, o.name AS org_name, o.slug AS org_slug, o.plan AS org_plan, "
                 "u.business_unit_id, "
                 "(SELECT name FROM business_units WHERE id=u.business_unit_id) AS business_unit_name "
                 "FROM users u LEFT JOIN organizations o ON o.id=u.org_id "
-                "WHERE u.org_id=%s ORDER BY u.is_active DESC, u.username",
+                f"WHERE u.org_id=%s {deleted_clause}"
+                "ORDER BY u.is_active DESC, u.username",
                 (caller_org_id,),
             ).fetchall()
+            stat_deleted = db.execute(
+                "SELECT COUNT(*) FROM users WHERE org_id=%s AND deleted_at IS NOT NULL",
+                (caller_org_id,),
+            ).fetchone()[0]
         else:
             raw_users = db.execute(
                 "SELECT u.id, u.username, u.email, u.full_name, u.is_active, "
                 "u.must_change_password, u.created_at, u.last_login, u.avatar_initials, "
-                "u.org_id, o.name AS org_name, o.slug AS org_slug, o.plan AS org_plan, "
+                "u.org_id, u.deleted_at, o.name AS org_name, o.slug AS org_slug, o.plan AS org_plan, "
                 "u.business_unit_id, "
                 "(SELECT name FROM business_units WHERE id=u.business_unit_id) AS business_unit_name "
                 "FROM users u LEFT JOIN organizations o ON o.id=u.org_id "
+                f"WHERE 1=1 {deleted_clause}"
                 "ORDER BY o.name NULLS LAST, u.is_active DESC, u.username"
             ).fetchall()
+            stat_deleted = db.execute(
+                "SELECT COUNT(*) FROM users WHERE deleted_at IS NOT NULL"
+            ).fetchone()[0]
         rows = []
         for u in raw_users:
             role_rows = db.execute(
@@ -164,9 +180,12 @@ def _render_admin_users(request, user, flash=None):
                         "active_count":    0,
                         "inactive_count":  0,
                         "pw_pending_count": 0,
+                        "deleted_count":   0,
                     }
                 grouped[key]["users"].append(r)
-                if r.get("is_active"):
+                if r.get("deleted_at"):
+                    grouped[key]["deleted_count"] += 1
+                elif r.get("is_active"):
                     grouped[key]["active_count"] += 1
                 else:
                     grouped[key]["inactive_count"] += 1
@@ -214,11 +233,15 @@ def _render_admin_users(request, user, flash=None):
         "business_units": business_units,
         "bu_groups":      bu_groups,
         "can_assign_bu":  has_capability(user, "governance.bu.assign"),
-        # Stats for the summary strip
-        "stat_total":      len(rows),
-        "stat_active":     sum(1 for u in rows if u["is_active"]),
-        "stat_inactive":   sum(1 for u in rows if not u["is_active"]),
-        "stat_pw_pending": sum(1 for u in rows if u["must_change_password"]),
+        "show_deleted":   show_deleted,
+        "stat_deleted":   stat_deleted,
+        # Stats for the summary strip -- excludes deleted users regardless of
+        # the Show Deleted toggle, so turning it on doesn't skew the headline
+        # counts (deleted users have their own stat_deleted figure instead).
+        "stat_total":      sum(1 for u in rows if not u.get("deleted_at")),
+        "stat_active":     sum(1 for u in rows if u["is_active"] and not u.get("deleted_at")),
+        "stat_inactive":   sum(1 for u in rows if not u["is_active"] and not u.get("deleted_at")),
+        "stat_pw_pending": sum(1 for u in rows if u["must_change_password"] and not u.get("deleted_at")),
         "stat_orgs":       len(orgs_grouped),
     })
     response = shell_templates.TemplateResponse(request, "admin_users.html", ctx)

@@ -1,10 +1,108 @@
 # PLAN-33: User Management v2 (SBU grouping, delete, bulk Excel import)
 
-## Status: PHASE 1 COMPLETE (verified live 2026-07-23). User decisions:
-## delete = safe delete (soft-delete + hide, reversible) when Phase 2 is
-## built; build directly on master; scope was Phase 1 ONLY (SBU grouping +
-## BU filter + seat counts). Phases 2-4 not started -- awaiting a
-## follow-up instruction to proceed.
+## Status: PHASES 1-3 COMPLETE (Phase 1 verified live 2026-07-23; Phases 2-3
+## implemented and verified live 2026-07-23 per "start phase 2 and 3").
+## Phase 4 (bulk row actions) not started -- optional, no follow-up
+## instruction yet.
+
+## Phase 2 implementation notes
+
+- `database.py`: added `("users", "deleted_at", "TEXT")` to
+  `_COLUMN_MIGRATIONS` (applies on both SQLite and Postgres via the existing
+  `_run_sqlite_alters`/`_run_pg_alters` idiom) plus an
+  `idx_users_deleted_at` index.
+- `routes_admin.py`: `_USER_REFERENCE_TABLES` + `_user_reference_counts(db,
+  uid)` -- a best-effort (not exhaustive) map of the schema's known
+  user-referencing columns (audit_log, erm_enterprise_risks, task_board,
+  business_units/departments.head_user_id, calendar_events,
+  workflow_instances, email_reminders, evidence_items), used by both the
+  new `GET /admin/api/users/{uid}/impact` preview endpoint and the
+  hard-delete safety gate. New routes: `POST /admin/users/{uid}/delete`
+  (soft delete -- sets `deleted_at` + `is_active=0`, clears sessions, same
+  self/last-active-admin guardrails as deactivate), `POST
+  /admin/users/{uid}/restore` (clears `deleted_at` only -- does NOT
+  reactivate, an explicit Reactivate is still required), `POST
+  /admin/users/{uid}/hard-delete` (permanent row delete, refuses with a
+  clear message if `_user_reference_counts` finds anything, falls back to
+  "use Delete (safe) instead").
+- `_route_helpers.py`: `_render_admin_users` reads `?show_deleted=1` from
+  the query string and conditionally excludes `deleted_at IS NOT NULL`
+  rows; `_group_users_by_bu` and the org-grouping loop both track a new
+  `deleted_count` separate from `active_count`/`inactive_count`. Headline
+  stats (`stat_total`/`stat_active`/`stat_inactive`/`stat_pw_pending`)
+  always exclude deleted users regardless of the toggle, so turning it on
+  doesn't skew them; a separate `stat_deleted` count feeds the toggle's
+  badge.
+- `admin_users.html`: "Show Deleted (N)" toggle chip in the toolbar
+  (reloads with/without `?show_deleted=1`); a `.b-deleted` status badge and
+  dimmed `.au-row-deleted` row style; actions cell branches to
+  Restore + Delete Permanently for deleted rows, or the existing actions
+  plus a new Delete button (with a best-effort impact-preview `confirm()`
+  fetched from the impact endpoint) for normal rows.
+- Verified live: soft-delete hid the user and dropped the header count;
+  Show Deleted revealed it with the Deleted badge + Restore/Delete
+  Permanently actions; Restore cleared `deleted_at` but correctly left
+  `is_active=0`; hard-delete on a zero-reference user fully removed the row
+  and its `user_roles`; hard-delete on a user with one `audit_log` row was
+  correctly refused with "Cannot permanently delete ...: still referenced
+  by 1 audit log entries. Use Delete (safe) instead." 6 new tests in
+  `tests/test_user_delete.py`, 200/200 full suite passing.
+
+## Phase 3 implementation notes
+
+- New `modules/launcher/_user_import.py`, mirroring the ERM risk-register
+  importer's two-phase shape: `parse_users_excel(file_bytes, is_super,
+  caller_org_id)` (preview) and `bulk_create_users(rows, admin,
+  bu_overrides, org_overrides)` (commit). Fuzzy-matches the Business Unit
+  column via `difflib.get_close_matches` against `business_units`,
+  validates emails, auto-derives usernames from full name when blank
+  (with a numeric-suffix collision fallback), validates role keys against
+  `ALL_ROLES` (dropping unrecognized ones and stripping `super_admin`
+  for non-super callers, both surfaced as warnings), flags duplicate
+  emails against both the existing `users` table and other rows in the
+  same sheet.
+- **Bug found and fixed during testing**: `_norm_header` did not strip
+  parenthetical hints ("Username (optional)", "Roles (comma-separated)")
+  before normalizing, so the *template this module itself generates*
+  failed to match its own `_HEADER_MAP` -- those two columns silently
+  fell through unmapped on every import. Fixed by stripping `(...)` before
+  normalizing. Caught by `test_parse_users_excel_drops_unrecognized_and_super_admin_roles`
+  expecting a warning that never appeared.
+  `bulk_create_users` org-scopes exactly like PLAN-30: a non-super caller's
+  rows are always forced into their own `org_id`, ignoring any
+  `organization_raw`/override; a super-admin caller may target any org
+  fuzzy-matched from an Organization column, or an explicit override.
+  Temp passwords are generated per row (`must_change_password=1`) and
+  returned once in a `credentials` list for admin handoff -- never
+  persisted anywhere else. Per-row `try/except` (with `db.rollback()` on
+  failure) so one bad row doesn't abort the batch.
+- `routes_admin.py`: `GET /admin/api/users/template` (downloadable `.xlsx`
+  with the expected headers + one example row + two reference sheets:
+  "Valid Business Units", "Valid Roles"), `GET /admin/api/users/export`
+  (CSV of current non-deleted users, org-scoped, doubles as a seat-usage
+  report), `POST /admin/api/users/import-preview` (multipart upload -> the
+  parser's preview payload), `POST /admin/api/users/import-commit` (JSON
+  body `{rows, bu_overrides, org_overrides}` -> the commit result).
+- `admin_users.html`: Export / Template / Import Excel buttons next to New
+  User; a `#userImportResult` banner; `showUserImportPreview()` renders a
+  modal (summary stat cards, BU-mapping table with confidence badges,
+  sample-rows table) mirroring the ERM import modal's structure;
+  `commitUserImport()` posts the commit and renders a credentials handoff
+  table (username + one-time temp password per created user) plus a
+  "Done -- Refresh List" button (deliberately not an auto-reload, so the
+  admin has time to copy the passwords before the page refreshes).
+- Verified live end-to-end over real HTTP (not just the unit tests):
+  uploaded a real 2-row `.xlsx` (one exact-match BU, one fuzzy-typo'd BU,
+  one multi-role row) to `/admin/api/users/import-preview`, confirmed the
+  fuzzy match ("Verify-SBU-Typo" -> "Verify SBU") and role parsing were
+  correct, rendered the real preview modal from that real response
+  (screenshotted), clicked through to a real commit, and confirmed both
+  users were created in the DB with the correct `business_unit_id`,
+  `org_id`, roles, and `must_change_password=1`. Also verified `/template`
+  returns a valid non-empty `.xlsx` and `/export` returns a well-formed CSV
+  reflecting live DB state (correctly excluding deleted/hard-deleted temp
+  users). 8 new tests in `tests/test_user_import.py`, 200/200 full suite
+  passing.
 
 ## Phase 1 implementation notes
 

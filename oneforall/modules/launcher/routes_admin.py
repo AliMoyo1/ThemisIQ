@@ -4,7 +4,7 @@ Admin routes — user management, audit logs, API keys, webhooks.
 import ipaddress
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException, Request, Form
+from fastapi import APIRouter, HTTPException, Request, Form, UploadFile, File
 from core.sanitize import sanitize_str as _s
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -38,6 +38,46 @@ def _target_user(db, uid: int, admin: dict):
         "SELECT id, username, full_name, org_id FROM users WHERE id=%s AND org_id=%s",
         (uid, admin.get("org_id")),
     ).fetchone()
+
+
+# ── PLAN-33 Phase 2: safe delete ────────────────────────────────────────────
+# Best-effort map of the schema's known user-referencing columns, used for
+# both the pre-delete impact preview and the hard-delete "zero references"
+# gate. Not exhaustive (created_by/owner_id columns exist on dozens of module
+# tables) — covers the highest-signal ownership/activity points plus audit_log,
+# which alone catches virtually any account that has ever done anything.
+# Soft delete (the default, always-safe path below) never relies on this list
+# since it never removes a row.
+_USER_REFERENCE_TABLES = [
+    ("audit_log",          ["user_id"],                "audit log entries"),
+    ("erm_enterprise_risks", ["owner_id", "reviewer_id"], "ERM risk(s)"),
+    ("task_board",         ["assigned_to", "created_by"], "task(s)"),
+    ("business_units",     ["head_user_id"],           "business unit(s) headed"),
+    ("departments",        ["head_user_id"],           "department(s) headed"),
+    ("calendar_events",    ["assigned_to", "created_by"], "calendar event(s)"),
+    ("workflow_instances", ["started_by"],             "workflow(s) started"),
+    ("email_reminders",    ["recipient_id", "created_by"], "reminder(s)"),
+    ("evidence_items",     ["uploaded_by"],            "evidence item(s)"),
+]
+
+
+def _user_reference_counts(db, uid: int) -> dict:
+    """{label: count} of rows referencing this user across the known
+    ownership/activity tables above. Used for the delete impact preview and
+    the hard-delete safety gate."""
+    counts = {}
+    for table, cols, label in _USER_REFERENCE_TABLES:
+        where = " OR ".join(f"{c}=%s" for c in cols)
+        try:
+            n = db.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE {where}",
+                tuple([uid] * len(cols)),
+            ).fetchone()[0]
+        except Exception:
+            n = 0
+        if n:
+            counts[label] = counts.get(label, 0) + n
+    return counts
 
 
 def _validate_webhook_url(url: str) -> None:
@@ -312,6 +352,171 @@ async def admin_activate_user(request: Request, uid: int,
     return RedirectResponse("/admin/users", status_code=302)
 
 
+# ── PLAN-33 Phase 2: safe delete ────────────────────────────────────────────
+
+@router.get("/admin/api/users/{uid}/impact")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_user_impact(request: Request, uid: int):
+    """Ownership/activity summary shown before a delete, so the admin sees
+    what they're about to hide/remove (audit trail entries, owned risks,
+    tasks, etc). Best-effort — see _USER_REFERENCE_TABLES."""
+    admin = request.state.user
+    db = get_db()
+    try:
+        target = _target_user(db, uid, admin)
+        if not target:
+            return _JSONResp({"error": "User not found."}, status_code=404)
+        counts = _user_reference_counts(db, uid)
+    finally:
+        db.close()
+    return _JSONResp({"username": target["username"], "references": counts})
+
+
+@router.post("/admin/users/{uid}/delete")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def admin_delete_user(request: Request, uid: int,
+                             csrf_token: str = Form("")):
+    """Safe delete: hide the user, clear their sessions, block login. Fully
+    reversible via Restore. Never removes the row, so audit history and
+    ownership references stay intact and attributable."""
+    admin = request.state.user
+    if not validate_csrf(request, csrf_token):
+        return _render_admin_users(request, admin,
+            {"type": "error", "message": "Invalid request. Please try again."})
+    if int(admin["id"]) == uid:
+        return _render_admin_users(request, admin,
+            {"type": "error", "message": "You cannot delete your own account."})
+    db = get_db()
+    try:
+        target = _target_user(db, uid, admin)
+        if not target:
+            return _render_admin_users(request, admin,
+                {"type": "error", "message": "User not found."})
+
+        from core.rbac import SUPER_ADMIN
+        is_target_admin = db.execute(
+            "SELECT 1 FROM user_roles WHERE user_id=%s AND role_key=%s",
+            (uid, SUPER_ADMIN),
+        ).fetchone()
+        if is_target_admin:
+            scope_org_id = target["org_id"]
+            other_active = db.execute("""
+                SELECT COUNT(*) FROM users u
+                JOIN user_roles ur ON ur.user_id=u.id
+                WHERE ur.role_key=%s AND u.is_active=1 AND u.deleted_at IS NULL
+                      AND u.id!=%s AND u.org_id=%s
+            """, (SUPER_ADMIN, uid, scope_org_id)).fetchone()[0]
+            if other_active == 0:
+                return _render_admin_users(request, admin, {
+                    "type": "error",
+                    "message": "Cannot delete the last active admin."
+                })
+
+        db.execute(
+            "UPDATE users SET deleted_at=CURRENT_TIMESTAMP, is_active=0 WHERE id=%s",
+            (uid,),
+        )
+        db.execute("DELETE FROM sessions WHERE user_id=%s", (uid,))
+        db.commit()
+        log_audit(admin, "platform",
+                  "Deleted (soft) user " + target["username"],
+                  "user", uid)
+    finally:
+        db.close()
+    return RedirectResponse("/admin/users", status_code=302)
+
+
+@router.post("/admin/users/{uid}/restore")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def admin_restore_user(request: Request, uid: int,
+                              csrf_token: str = Form("")):
+    """Reverse a safe delete. Leaves the account inactive — an explicit
+    Reactivate is still required before the user can log in again."""
+    admin = request.state.user
+    if not validate_csrf(request, csrf_token):
+        return _render_admin_users(request, admin,
+            {"type": "error", "message": "Invalid request. Please try again."})
+    db = get_db()
+    try:
+        target = _target_user(db, uid, admin)
+        if not target:
+            return _render_admin_users(request, admin,
+                {"type": "error", "message": "User not found."})
+        db.execute("UPDATE users SET deleted_at=NULL WHERE id=%s", (uid,))
+        db.commit()
+        log_audit(admin, "platform",
+                  "Restored user " + target["username"],
+                  "user", uid)
+    finally:
+        db.close()
+    return RedirectResponse("/admin/users?show_deleted=1", status_code=302)
+
+
+@router.post("/admin/users/{uid}/hard-delete")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def admin_hard_delete_user(request: Request, uid: int,
+                                  csrf_token: str = Form("")):
+    """Permanently remove the row. Only allowed when the user has zero
+    references across the known ownership/activity tables (see
+    _USER_REFERENCE_TABLES) -- e.g. a just-created account made by mistake.
+    Refuses (falls back to the safe delete above) if anything references it."""
+    admin = request.state.user
+    if not validate_csrf(request, csrf_token):
+        return _render_admin_users(request, admin,
+            {"type": "error", "message": "Invalid request. Please try again."})
+    if int(admin["id"]) == uid:
+        return _render_admin_users(request, admin,
+            {"type": "error", "message": "You cannot delete your own account."})
+    db = get_db()
+    try:
+        target = _target_user(db, uid, admin)
+        if not target:
+            return _render_admin_users(request, admin,
+                {"type": "error", "message": "User not found."})
+
+        counts = _user_reference_counts(db, uid)
+        if counts:
+            parts = ", ".join(f"{n} {label}" for label, n in counts.items())
+            return _render_admin_users(request, admin, {
+                "type": "error",
+                "message": (
+                    f"Cannot permanently delete {target['username']}: still "
+                    f"referenced by {parts}. Use Delete (safe) instead."
+                ),
+            })
+
+        from core.rbac import SUPER_ADMIN
+        is_target_admin = db.execute(
+            "SELECT 1 FROM user_roles WHERE user_id=%s AND role_key=%s",
+            (uid, SUPER_ADMIN),
+        ).fetchone()
+        if is_target_admin:
+            scope_org_id = target["org_id"]
+            other_active = db.execute("""
+                SELECT COUNT(*) FROM users u
+                JOIN user_roles ur ON ur.user_id=u.id
+                WHERE ur.role_key=%s AND u.is_active=1 AND u.deleted_at IS NULL
+                      AND u.id!=%s AND u.org_id=%s
+            """, (SUPER_ADMIN, uid, scope_org_id)).fetchone()[0]
+            if other_active == 0:
+                return _render_admin_users(request, admin, {
+                    "type": "error",
+                    "message": "Cannot delete the last active admin."
+                })
+
+        username = target["username"]
+        db.execute("DELETE FROM sessions WHERE user_id=%s", (uid,))
+        db.execute("DELETE FROM user_roles WHERE user_id=%s", (uid,))
+        db.execute("DELETE FROM users WHERE id=%s", (uid,))
+        db.commit()
+        log_audit(admin, "platform",
+                  "Permanently deleted user " + username,
+                  "user", uid)
+    finally:
+        db.close()
+    return RedirectResponse("/admin/users", status_code=302)
+
+
 @router.post("/admin/users/{uid}/reset-password")
 @_require_cap("platform.manage_users", "platform.manage_org_users")
 async def admin_reset_password(request: Request, uid: int,
@@ -410,6 +615,151 @@ async def api_admin_patch_user(request: Request, uid: int):
         "avatar_initials": avatar_initials,
         "business_unit_id": business_unit_id,
     })
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ADMIN — BULK USER IMPORT / EXPORT (PLAN-33 Phase 3)
+# ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/admin/api/users/template")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_users_template(request: Request):
+    """Downloadable .xlsx template with the expected columns plus reference
+    sheets listing this tenant's valid Business Unit names and role keys, so
+    imports don't fail on typos."""
+    import openpyxl
+    admin = request.state.user
+    is_super = bool(admin.get("is_super_admin"))
+    db = get_db()
+    try:
+        bu_rows = db.execute(
+            "SELECT name FROM business_units WHERE is_active=1 ORDER BY name"
+        ).fetchall()
+        bu_names = [b["name"] for b in bu_rows]
+    finally:
+        db.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Users"
+    headers = ["Full Name", "Email", "Username (optional)", "Roles (comma-separated)", "Business Unit (SBU)"]
+    if is_super:
+        headers.append("Organization (super-admin only)")
+    ws.append(headers)
+    example = ["Tatenda Chikomba", "tatenda@example.com", "", "employee", bu_names[0] if bu_names else ""]
+    if is_super:
+        example.append("")
+    ws.append(example)
+
+    ref = wb.create_sheet("Valid Business Units")
+    ref.append(["Business Unit Name"])
+    for name in bu_names:
+        ref.append([name])
+
+    roles_sheet = wb.create_sheet("Valid Roles")
+    roles_sheet.append(["Role Key", "Label"])
+    for rk in ALL_ROLES:
+        if rk == "super_admin" and not is_super:
+            continue
+        roles_sheet.append([rk, ROLE_LABELS.get(rk, rk)])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=user_import_template.xlsx"},
+    )
+
+
+@router.get("/admin/api/users/export")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_users_export(request: Request):
+    """Export the current (non-deleted) user list to CSV -- round-trips with
+    the importer's column model and doubles as a seat-usage-per-SBU report."""
+    admin = request.state.user
+    is_super = bool(admin.get("is_super_admin"))
+    db = get_db()
+    try:
+        if is_super:
+            rows = db.execute(
+                "SELECT u.id, u.username, u.email, u.full_name, u.is_active, "
+                "o.name AS org_name, "
+                "(SELECT name FROM business_units WHERE id=u.business_unit_id) AS bu_name "
+                "FROM users u LEFT JOIN organizations o ON o.id=u.org_id "
+                "WHERE u.deleted_at IS NULL ORDER BY o.name NULLS LAST, u.username"
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT u.id, u.username, u.email, u.full_name, u.is_active, "
+                "(SELECT name FROM business_units WHERE id=u.business_unit_id) AS bu_name "
+                "FROM users u WHERE u.org_id=%s AND u.deleted_at IS NULL ORDER BY u.username",
+                (admin.get("org_id"),),
+            ).fetchall()
+        role_map = {}
+        for r in db.execute("SELECT user_id, role_key FROM user_roles ORDER BY role_key").fetchall():
+            role_map.setdefault(r["user_id"], []).append(r["role_key"])
+    finally:
+        db.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    header = ["Full Name", "Email", "Username", "Roles", "Business Unit", "Status"]
+    if is_super:
+        header.insert(0, "Organization")
+    writer.writerow(header)
+    for r in rows:
+        line = [r["full_name"], r["email"], r["username"],
+                ",".join(role_map.get(r["id"], [])),
+                r["bu_name"] or "", "Active" if r["is_active"] else "Inactive"]
+        if is_super:
+            line.insert(0, r["org_name"] or "")
+        writer.writerow(line)
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=users_export.csv"},
+    )
+
+
+@router.post("/admin/api/users/import-preview")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_users_import_preview(request: Request, file: UploadFile = File(...)):
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls", ".xlsm")):
+        return _JSONResp({"error": "Please upload an Excel file (.xlsx)"}, status_code=400)
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        return _JSONResp({"error": "File too large (max 10 MB)"}, status_code=400)
+    admin = request.state.user
+    from modules.launcher._user_import import parse_users_excel
+    try:
+        result = parse_users_excel(contents, bool(admin.get("is_super_admin")), admin.get("org_id"))
+    except Exception as exc:
+        return _JSONResp({"error": f"Could not parse Excel file: {exc}"}, status_code=400)
+    if "error" in result:
+        return _JSONResp(result, status_code=400)
+    return _JSONResp(result)
+
+
+@router.post("/admin/api/users/import-commit")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_users_import_commit(request: Request):
+    admin = request.state.user
+    body = await _json_body(request)
+    rows = body.get("rows")
+    if not rows or not isinstance(rows, list):
+        return _JSONResp({"error": "No rows provided"}, status_code=400)
+    if len(rows) > 500:
+        return _JSONResp({"error": "Maximum 500 users per import"}, status_code=400)
+    bu_overrides = body.get("bu_overrides", {}) or {}
+    org_overrides = body.get("org_overrides", {}) or {}
+    from modules.launcher._user_import import bulk_create_users
+    result = bulk_create_users(rows, admin, bu_overrides, org_overrides)
+    log_audit(admin, "platform",
+              f"Bulk-imported {result['created']} user(s) from Excel",
+              "user", 0)
+    return _JSONResp({"ok": True, **result})
 
 
 # ═════════════════════════════════════════════════════════════════════════════
