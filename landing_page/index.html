@@ -17,10 +17,13 @@
   <meta name="twitter:image" content="https://themisiq.net/screenshot-command-centre.webp"/>
   <link rel="canonical" href="https://themisiq.net/"/>
   <link rel="stylesheet" href="tailwind.min.css"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist:wght@400;600;700&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+  <!-- Speed up font delivery -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&family=Geist:wght@400;600;700&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #131b2e; overflow-x: hidden; }
-    .font-heading { font-family: 'Geist', sans-serif; }
+    .font-heading { font-family: 'Plus Jakarta Sans', 'Geist', sans-serif; }
     .font-mono    { font-family: 'JetBrains Mono', monospace; }
     .material-symbols-outlined {
       font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -28,31 +31,62 @@
     }
 
     /* NAV */
-    .nav-blur { backdrop-filter: blur(10px); background-color: rgba(248,250,252,0.85); }
+    .nav-blur { backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); background-color: rgba(248,250,252,0.72); }
 
-    /* HERO grid background */
-    .hero-grid {
+
+    /* HERO: cinematic video background */
+    .hero-video {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; z-index: 0;
+    }
+    .hero-overlay {
+      position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: linear-gradient(90deg, rgba(9,14,24,0.58) 0%, rgba(9,14,24,0.46) 45%, rgba(9,14,24,0.32) 100%);
+    }
+    .hero-grid-on-video {
+      position: absolute; inset: 0; z-index: 2; pointer-events: none;
       background-image:
-        linear-gradient(rgba(55,65,81,0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(55,65,81,0.06) 1px, transparent 1px);
+        linear-gradient(rgba(255,255,255,0.09) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.09) 1px, transparent 1px);
       background-size: 40px 40px;
+      -webkit-mask-image: linear-gradient(180deg, transparent, black 15%, black 85%, transparent);
+      mask-image: linear-gradient(180deg, transparent, black 15%, black 85%, transparent);
     }
-    .hero-glow {
-      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(55,65,81,0.12) 0%, transparent 70%);
+    .hero-content { z-index: 3; }
+    .hero-viewport {
+      min-height: calc(94vh - 4rem);
+      display: flex; flex-direction: column; justify-content: center;
     }
-
-    /* SPLINE 3D / SPOTLIGHT */
-    @keyframes spotlight-in {
-      0%   { opacity: 0; transform: translate(-72%, -62%) scale(0.5); }
-      100% { opacity: 1; transform: translate(-50%, -40%) scale(1); }
+    @keyframes hero-fade-up {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: none; }
     }
-    .hero-spotlight { animation: spotlight-in 2s ease forwards 0.3s; opacity: 0; }
-    .spline-container {
-      overflow: hidden;
-      background: transparent;
-      -webkit-mask-image: radial-gradient(ellipse 80% 90% at 55% 45%, black 30%, transparent 72%);
-      mask-image: radial-gradient(ellipse 80% 90% at 55% 45%, black 30%, transparent 72%);
+    .hero-fade { animation: hero-fade-up 0.9s cubic-bezier(.22,.61,.36,1) both; }
+    @media (prefers-reduced-motion: reduce) { .hero-fade { animation: none; } }
+    .nav-link { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 14px; letter-spacing: 0.01em; }
+    .btn-refined { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.02em; }
+    .hero-btn-primary {
+      background: #ffffff; color: #111827;
+      box-shadow: 0 10px 30px -10px rgba(2,8,20,0.55);
+      transition: transform 0.22s cubic-bezier(.22,.61,.36,1), box-shadow 0.22s;
     }
+    .hero-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -12px rgba(2,8,20,0.65); }
+    .hero-btn-secondary {
+      border: 1px solid rgba(255,255,255,0.38); color: #ffffff;
+      background: rgba(255,255,255,0.10);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .hero-btn-secondary:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.55); }
+    .glass-stat {
+      background: rgba(255,255,255,0.10);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(2,8,20,0.25), inset 0 1px 0 rgba(255,255,255,0.18);
+      transition: background 0.2s, transform 0.2s;
+    }
+    .glass-stat:hover { background: rgba(255,255,255,0.16); transform: translateY(-2px); }
 
     /* MODULE CARDS */
     .module-card {
@@ -87,7 +121,7 @@
     }
 
     /* STAT NUMBER */
-    .stat-number { font-family: 'Geist', sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+    .stat-number { font-family: 'Plus Jakarta Sans', 'Geist', sans-serif; font-weight: 700; letter-spacing: -0.02em; }
 
     /* TIMELINE CONNECTOR */
     .step-connector {
@@ -183,7 +217,7 @@
       transform: translateY(-3px);
     }
     .proof-stat {
-      font-family: 'Geist', sans-serif;
+      font-family: 'Plus Jakarta Sans', 'Geist', sans-serif;
       font-size: 44px; font-weight: 700;
       letter-spacing: -0.03em; line-height: 1;
       background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
@@ -303,7 +337,7 @@
       box-shadow: 0 2px 8px rgba(55,65,81,0.3);
     }
     .price-amount {
-      font-family: 'Geist', sans-serif;
+      font-family: 'Plus Jakarta Sans', 'Geist', sans-serif;
       font-weight: 700;
       font-size: 48px;
       line-height: 1;
@@ -351,16 +385,16 @@
 
     <!-- Desktop Nav -->
     <nav class="hidden md:flex items-center gap-8">
-      <a href="#modules"     class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest">Modules</a>
-      <a href="#features"    class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest">Features</a>
-      <a href="#frameworks"  class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest">Frameworks</a>
-      <a href="#pricing"     class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest">Pricing</a>
+      <a href="#modules"     class="nav-link text-on-surface-variant hover:text-primary transition-colors">Modules</a>
+      <a href="#features"    class="nav-link text-on-surface-variant hover:text-primary transition-colors">Features</a>
+      <a href="#frameworks"  class="nav-link text-on-surface-variant hover:text-primary transition-colors">Frameworks</a>
+      <a href="#pricing"     class="nav-link text-on-surface-variant hover:text-primary transition-colors">Pricing</a>
     </nav>
 
     <!-- Desktop CTAs -->
     <div class="hidden md:flex items-center gap-3">
-      <a href="https://app.themisiq.net/login" class="text-label font-mono text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest px-3 py-2">Sign In</a>
-      <a href="#demo" class="bg-primary text-on-primary px-4 py-2 rounded-lg text-label font-mono font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest">Request Demo</a>
+      <a href="https://app.themisiq.net/login" class="nav-link text-on-surface-variant hover:text-primary transition-colors px-3 py-2">Sign In</a>
+      <a href="#demo" class="btn-refined bg-primary text-on-primary px-4 py-2 rounded-lg hover:opacity-90 hover:shadow-lg active:scale-95 transition-all">Request Demo</a>
     </div>
 
     <!-- Mobile hamburger -->
@@ -372,10 +406,10 @@
   <!-- Mobile menu -->
   <div id="mobile-menu" class="md:hidden border-t border-outline-variant bg-surface/95 backdrop-blur-md px-6 pb-4">
     <nav class="flex flex-col gap-1 pt-2">
-      <a href="#modules"    class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest border-b border-outline-variant/50">Modules</a>
-      <a href="#features"   class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest border-b border-outline-variant/50">Features</a>
-      <a href="#frameworks" class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest border-b border-outline-variant/50">Frameworks</a>
-      <a href="#pricing"    class="py-3 text-label font-mono text-on-surface-variant hover:text-primary uppercase tracking-widest">Pricing</a>
+      <a href="#modules"    class="py-3 nav-link text-on-surface-variant hover:text-primary border-b border-outline-variant/50">Modules</a>
+      <a href="#features"   class="py-3 nav-link text-on-surface-variant hover:text-primary border-b border-outline-variant/50">Features</a>
+      <a href="#frameworks" class="py-3 nav-link text-on-surface-variant hover:text-primary border-b border-outline-variant/50">Frameworks</a>
+      <a href="#pricing"    class="py-3 nav-link text-on-surface-variant hover:text-primary">Pricing</a>
     </nav>
     <div class="flex gap-3 mt-4">
       <a href="https://app.themisiq.net/login" class="flex-1 text-center border border-outline-variant rounded-lg py-2 text-label font-mono text-on-surface-variant hover:bg-surface-container transition-colors">Sign In</a>
@@ -388,94 +422,83 @@
 <!-- ═══════════════════════════════════════════
      HERO
 ════════════════════════════════════════════ -->
-<section class="pt-16 relative overflow-hidden">
-  <div class="hero-grid absolute inset-0"></div>
-  <div class="hero-glow absolute inset-0"></div>
+<section id="hero" class="pt-16 relative overflow-hidden" style="background:#0b1220">
+  <!-- Poster paints instantly; the video source is chosen + loaded by JS below
+       based on screen size and connection (skipped entirely on save-data / 2G). -->
+  <video id="hero-video" class="hero-video" muted loop playsinline preload="none"
+         poster="hero-poster.webp" aria-hidden="true"
+         data-src="hero-globe.mp4" data-src-mobile="hero-globe-720.mp4"></video>
+  <div class="hero-overlay" aria-hidden="true"></div>
+  <div class="hero-grid-on-video" aria-hidden="true"></div>
 
-  <div class="relative max-w-screen-xl mx-auto px-6 pt-10 pb-16">
-    <!-- Hero split: text left, 3D robot right -->
-    <div class="flex flex-col lg:flex-row items-center gap-8 lg:gap-12 mb-16">
+ <div class="hero-content relative max-w-screen-xl mx-auto px-6 pt-10 pb-16 hero-viewport">
+    <div class="mb-16 w-full">
 
-      <!-- Left: text content -->
-      <div class="flex-1 text-center lg:text-left">
-        <div class="mb-8 flex justify-center lg:justify-start">
-          <img src="themis-logo.webp" alt="ThemisIQ" class="w-auto object-contain" style="height:190px; filter: drop-shadow(0 2px 10px rgba(0,0,0,0.12))"/>
+      <!-- Hero content -->
+      <div class="max-w-3xl text-center lg:text-left">
+        <div class="hero-fade mb-8 flex justify-center lg:justify-start">
+          <img src="themis-logo.webp" alt="ThemisIQ" width="320" height="190" fetchpriority="high" decoding="async" class="w-auto object-contain" style="height:190px; filter: brightness(0) invert(1) drop-shadow(0 2px 12px rgba(0,0,0,0.35))"/>
         </div>
-        <div class="inline-flex items-center gap-2 mb-6">
+        <div class="hero-fade inline-flex items-center gap-2 mb-6" style="animation-delay:0.08s">
           <div class="ai-badge">
             <span class="material-symbols-outlined text-[12px]" style="font-size:12px">auto_awesome</span>
             AI-NATIVE GRC
           </div>
-          <span class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest">Enterprise Edition</span>
+          <span class="text-label-xs font-mono uppercase tracking-widest" style="color:rgba(255,255,255,0.72)">Enterprise Edition</span>
         </div>
 
-        <h1 class="font-heading text-display mb-6 leading-tight">
+        <h1 class="hero-fade font-heading text-display mb-6 leading-tight" style="color:#ffffff; animation-delay:0.16s">
           The Single Pane of Glass<br/>
-          for <span class="text-primary">Enterprise Risk.</span>
+          for <span style="color:#7dd3fc">Enterprise Risk.</span>
         </h1>
 
-        <p class="text-body-lg text-on-surface-variant max-w-2xl mx-auto lg:mx-0 mb-10">
+        <p class="hero-fade text-body-lg max-w-2xl mx-auto lg:mx-0 mb-10" style="color:rgba(255,255,255,0.85); animation-delay:0.24s">
           Six unified intelligence modules: Governance, Audit, Resilience, Privacy, Enterprise Risk, and Operations Risk. All sharing context, surfacing insights, and automating action.
         </p>
 
-        <div class="flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
-          <a href="#demo" class="inline-flex items-center justify-center gap-2 bg-primary text-on-primary px-8 py-3 rounded-lg font-mono text-label font-bold hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest">
+        <div class="hero-fade flex flex-col sm:flex-row justify-center lg:justify-start gap-4" style="animation-delay:0.32s">
+          <a href="#demo" class="btn-refined hero-btn-primary inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg active:scale-95">
             <span class="material-symbols-outlined text-[16px]" style="font-size:16px">play_circle</span>
             Request Demo
           </a>
-          <a href="#modules" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-surface-container-lowest text-on-surface px-8 py-3 rounded-lg font-mono text-label font-bold hover:bg-surface-container transition-all uppercase tracking-widest">
+          <a href="#modules" class="btn-refined hero-btn-secondary inline-flex items-center justify-center gap-2 px-8 py-3 rounded-lg">
             Explore Modules
             <span class="material-symbols-outlined text-[16px]" style="font-size:16px">arrow_forward</span>
           </a>
         </div>
       </div>
 
-      <!-- Right: Spline 3D Robot -->
-      <div class="hidden lg:block flex-1 relative" style="margin:-40px -60px -40px 0">
-        <div class="spline-container relative" style="height:560px">
-          <svg class="hero-spotlight pointer-events-none absolute z-[1] h-[169%] w-[84%] opacity-0" style="top:-160px;left:40px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3787 2842" fill="none">
-            <g filter="url(#spotlight-blur)">
-              <ellipse cx="1924.71" cy="273.501" rx="1924.71" ry="273.501" transform="matrix(-0.822377 -0.568943 -0.568943 0.822377 3631.88 2291.09)" fill="#4b5563" fill-opacity="0.21"/>
-            </g>
-            <defs>
-              <filter id="spotlight-blur" x="0.860352" y="0.838989" width="3785.16" height="2840.26" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-                <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-                <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
-                <feGaussianBlur stdDeviation="151" result="effect1_foregroundBlur"/>
-              </filter>
-            </defs>
-          </svg>
-          <canvas id="spline3d" style="width:100%;height:100%"></canvas>
-        </div>
-      </div>
-
     </div>
 
     <!-- Stats Row -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-outline-variant border border-outline-variant rounded-xl overflow-hidden max-w-2xl mx-auto">
-      <div class="stat-card bg-surface-container-lowest px-6 py-4">
-        <div class="stat-number text-h1 text-primary">6</div>
-        <div class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-1">GRC Modules</div>
+    <div class="hero-fade grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto lg:mx-0" style="animation-delay:0.4s">
+      <div class="glass-stat px-6 py-4">
+        <div class="stat-number text-h1" style="color:#ffffff">6</div>
+        <div class="text-label-xs font-mono uppercase tracking-widest mt-1" style="color:rgba(255,255,255,0.72)">GRC Modules</div>
       </div>
-      <div class="stat-card bg-surface-container-lowest px-6 py-4">
-        <div class="stat-number text-h1 text-primary">150+</div>
-        <div class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-1">Features</div>
+      <div class="glass-stat px-6 py-4">
+        <div class="stat-number text-h1" style="color:#ffffff">150+</div>
+        <div class="text-label-xs font-mono uppercase tracking-widest mt-1" style="color:rgba(255,255,255,0.72)">Features</div>
       </div>
-      <div class="stat-card bg-surface-container-lowest px-6 py-4">
-        <div class="stat-number text-h1 text-primary">27</div>
-        <div class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-1">Jurisdictions</div>
+      <div class="glass-stat px-6 py-4">
+        <div class="stat-number text-h1" style="color:#ffffff">27</div>
+        <div class="text-label-xs font-mono uppercase tracking-widest mt-1" style="color:rgba(255,255,255,0.72)">Jurisdictions</div>
       </div>
-      <div class="stat-card bg-surface-container-lowest px-6 py-4">
-        <div class="stat-number text-h1 text-primary">AI</div>
-        <div class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-1">Powered</div>
+      <div class="glass-stat px-6 py-4">
+        <div class="stat-number text-h1" style="color:#ffffff">AI</div>
+        <div class="text-label-xs font-mono uppercase tracking-widest mt-1" style="color:rgba(255,255,255,0.72)">Powered</div>
       </div>
     </div>
   </div>
+</section>
 
-  <!-- Platform Preview -->
-  <div class="relative max-w-screen-xl mx-auto px-6 mb-0">
+<!-- ═══════════════════════════════════════════
+     PLATFORM PREVIEW
+════════════════════════════════════════════ -->
+<section class="relative">
+  <div class="relative max-w-screen-xl mx-auto px-6 mb-0 pt-14">
     <div class="relative rounded-2xl overflow-hidden border border-outline-variant" style="box-shadow: 0 30px 70px -20px rgba(55,65,81,0.25);">
-      <img src="screenshot-command-centre.webp" alt="ThemisIQ Command Centre" class="w-full h-auto block"/>
+      <img loading="lazy" decoding="async" src="screenshot-command-centre.webp" alt="ThemisIQ Command Centre" class="w-full h-auto block"/>
       <div class="absolute inset-0 bg-gradient-to-t from-[#f8fafc] via-[#f8fafc]/10 to-transparent pointer-events-none"></div>
       <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-center bg-surface-container-lowest/80 backdrop-blur-sm px-5 py-2 rounded-full border border-outline-variant whitespace-nowrap">
         <p class="text-label-xs font-mono text-primary uppercase tracking-widest">Command Centre: Real-time cross-module GRC intelligence</p>
@@ -583,7 +606,7 @@
     <!-- ARIA -->
     <div class="module-card aria snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
       <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img src="screenshot-aria.webp" alt="ARIA Governance Dashboard" class="w-full h-full object-cover object-top"/>
+        <img loading="lazy" decoding="async" src="screenshot-aria.webp" alt="ARIA Governance Dashboard" class="w-full h-full object-cover object-top"/>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div class="flex items-center gap-3">
@@ -608,7 +631,7 @@
     <!-- GRID -->
     <div class="module-card grid-m snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
       <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img src="screenshot-grid.webp" alt="GRID Audit Dashboard" class="w-full h-full object-cover object-top"/>
+        <img loading="lazy" decoding="async" src="screenshot-grid.webp" alt="GRID Audit Dashboard" class="w-full h-full object-cover object-top"/>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div class="flex items-center gap-3">
@@ -633,7 +656,7 @@
     <!-- BCM -->
     <div class="module-card bcm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
       <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img src="screenshot-bcm.webp" alt="BCM Resilience Dashboard" class="w-full h-full object-cover object-top"/>
+        <img loading="lazy" decoding="async" src="screenshot-bcm.webp" alt="BCM Resilience Dashboard" class="w-full h-full object-cover object-top"/>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div class="flex items-center gap-3">
@@ -658,7 +681,7 @@
     <!-- Sentinel -->
     <div class="module-card sentinel snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
       <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img src="screenshot-sentinel.webp" alt="Sentinel Privacy Dashboard" class="w-full h-full object-cover object-top"/>
+        <img loading="lazy" decoding="async" src="screenshot-sentinel.webp" alt="Sentinel Privacy Dashboard" class="w-full h-full object-cover object-top"/>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div class="flex items-center gap-3">
@@ -683,7 +706,7 @@
     <!-- ERM -->
     <div class="module-card erm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
       <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img src="screenshot-erm.webp" alt="ERM Enterprise Risk Dashboard" class="w-full h-full object-cover object-top"/>
+        <img loading="lazy" decoding="async" src="screenshot-erm.webp" alt="ERM Enterprise Risk Dashboard" class="w-full h-full object-cover object-top"/>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div class="flex items-center gap-3">
@@ -708,7 +731,7 @@
     <!-- ORM -->
     <div class="module-card orm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
       <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img src="screenshot-orm.webp" alt="ORM Operations Risk Dashboard" class="w-full h-full object-cover object-top"/>
+        <img loading="lazy" decoding="async" src="screenshot-orm.webp" alt="ORM Operations Risk Dashboard" class="w-full h-full object-cover object-top"/>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div class="flex items-center gap-3">
@@ -733,7 +756,7 @@
     <!-- Evidence Vault -->
     <div class="module-card evidence snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
       <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img src="screenshot-command-centre.webp" alt="ThemisIQ Command Centre" class="w-full h-full object-cover object-top"/>
+        <img loading="lazy" decoding="async" src="screenshot-command-centre.webp" alt="ThemisIQ Command Centre" class="w-full h-full object-cover object-top"/>
       </div>
       <div class="p-5 flex flex-col gap-3 flex-1">
         <div class="flex items-center gap-3">
@@ -935,14 +958,14 @@
         </div>
       </div>
       <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <img src="screenshot-aria.webp" alt="ARIA Governance Dashboard" class="w-full h-auto block"/>
+        <img loading="lazy" decoding="async" src="screenshot-aria.webp" alt="ARIA Governance Dashboard" class="w-full h-auto block"/>
       </div>
     </div>
 
     <!-- Row 2: Audit GRID (visual left, text right) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
       <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
-        <img src="screenshot-grid.webp" alt="GRID Audit Dashboard" class="w-full h-auto block"/>
+        <img loading="lazy" decoding="async" src="screenshot-grid.webp" alt="GRID Audit Dashboard" class="w-full h-auto block"/>
       </div>
       <div class="order-1 lg:order-2">
         <div class="feature-badge" style="color:#047857; border-color:#6ee7b7; background:#ecfdf5">Audit · GRID</div>
@@ -1007,14 +1030,14 @@
         </div>
       </div>
       <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <img src="screenshot-sentinel.webp" alt="Sentinel Privacy Dashboard" class="w-full h-auto block"/>
+        <img loading="lazy" decoding="async" src="screenshot-sentinel.webp" alt="Sentinel Privacy Dashboard" class="w-full h-auto block"/>
       </div>
     </div>
 
     <!-- Row 4: BCM (visual left, text right) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
       <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
-        <img src="screenshot-bcm.webp" alt="BCM Resilience Dashboard" class="w-full h-auto block"/>
+        <img loading="lazy" decoding="async" src="screenshot-bcm.webp" alt="BCM Resilience Dashboard" class="w-full h-auto block"/>
       </div>
       <div class="order-1 lg:order-2">
         <div class="feature-badge" style="color:#4338ca; border-color:#c7d2fe; background:#eef2ff">Resilience · BCM</div>
@@ -1075,14 +1098,14 @@
         </div>
       </div>
       <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <img src="screenshot-erm.webp" alt="ERM Enterprise Risk Dashboard" class="w-full h-auto block"/>
+        <img loading="lazy" decoding="async" src="screenshot-erm.webp" alt="ERM Enterprise Risk Dashboard" class="w-full h-auto block"/>
       </div>
     </div>
 
     <!-- Row 6: ORM (visual left, text right) -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
       <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
-        <img src="screenshot-orm.webp" alt="ORM Operations Risk Dashboard" class="w-full h-auto block"/>
+        <img loading="lazy" decoding="async" src="screenshot-orm.webp" alt="ORM Operations Risk Dashboard" class="w-full h-auto block"/>
       </div>
       <div class="order-1 lg:order-2">
         <div class="feature-badge" style="color:#9a3412; border-color:#fed7aa; background:#fff7ed">Operations Risk · ORM</div>
@@ -1136,7 +1159,7 @@
         </div>
       </div>
       <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <img src="screenshot-command-centre.webp" alt="Evidence Vault" class="w-full h-auto block"/>
+        <img loading="lazy" decoding="async" src="screenshot-command-centre.webp" alt="Evidence Vault" class="w-full h-auto block"/>
       </div>
     </div>
 
@@ -1932,28 +1955,30 @@ function toggleBilling(mode) {
 })();
 </script>
 
-<script type="module">
-import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.82/build/runtime.js';
-(async function(){
-  var canvas = document.getElementById('spline3d');
-  if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+<script>
+// Hero video: load the right source for the device/connection, or none at all.
+// The poster (hero-poster.webp) is always shown first, so the hero paints
+// instantly regardless of whether the video ends up loading.
+(function(){
+  var hv = document.getElementById('hero-video');
+  if (!hv) return;
 
-  var rect = canvas.getBoundingClientRect();
-  if (rect.width < 1 || rect.height < 1) return;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var conn   = navigator.connection || navigator.webkitConnection || {};
+  var slow   = conn.saveData === true || /(^|-)2g$/.test(conn.effectiveType || '');
 
-  var app = new Application(canvas);
-  await app.load('https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode');
+  // Reduced-motion, Save-Data, or a 2G-class link: keep the poster, skip the download.
+  if (reduce || slow) return;
 
-  document.addEventListener('pointermove', function(e){
-    if (e.target === canvas) return;
-    canvas.dispatchEvent(new PointerEvent('pointermove', {
-      clientX: e.clientX,
-      clientY: e.clientY,
-      pointerId: 1,
-      pointerType: 'mouse',
-      bubbles: false
-    }));
-  });
+  var mobile = window.matchMedia('(max-width: 768px)').matches;
+  hv.src = (mobile && hv.dataset.srcMobile) ? hv.dataset.srcMobile : hv.dataset.src;
+  hv.addEventListener('error', function(){ hv.remove(); }, true);
+
+  var start = function(){ var p = hv.play(); if (p && p.catch) p.catch(function(){}); };
+  // Defer the network work until the browser is idle so it never competes with
+  // first paint / above-the-fold content.
+  var kick = function(){ hv.load(); (hv.readyState >= 2) ? start() : hv.addEventListener('canplay', start, { once: true }); };
+  ('requestIdleCallback' in window) ? requestIdleCallback(kick, { timeout: 1200 }) : setTimeout(kick, 200);
 })();
 </script>
 
