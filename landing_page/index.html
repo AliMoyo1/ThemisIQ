@@ -89,17 +89,43 @@
     .glass-stat:hover { background: rgba(255,255,255,0.16); transform: translateY(-2px); }
 
     /* MODULE CARDS */
-    .module-card {
-      transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s cubic-bezier(.4,0,.2,1), border-color 0.2s;
+    /* ── Module index row (replaces the 7-card carousel) ─────────────────── */
+    .grp-row {
+      position: relative; padding: 22px 0 22px 22px; border-top: 1px solid #e2e2ea;
+      transition: padding-left 0.25s cubic-bezier(.4,0,.2,1), background-color 0.25s;
     }
-    .module-card:hover { transform: translateY(-6px); }
-    .module-card.aria:hover     { border-color: #374151; box-shadow: 0 16px 32px -8px rgba(55,65,81,0.15); }
-    .module-card.grid-m:hover   { border-color: #006c49; box-shadow: 0 16px 32px -8px rgba(0,108,73,0.15); }
-    .module-card.bcm:hover      { border-color: #0058be; box-shadow: 0 16px 32px -8px rgba(0,88,190,0.15); }
-    .module-card.sentinel:hover { border-color: #2170e4; box-shadow: 0 16px 32px -8px rgba(33,112,228,0.15); }
-    .module-card.erm:hover      { border-color: #ba1a1a; box-shadow: 0 16px 32px -8px rgba(186,26,26,0.15); }
-    .module-card.orm:hover      { border-color: #9a3412; box-shadow: 0 16px 32px -8px rgba(154,52,18,0.15); }
-    .module-card.evidence:hover { border-color: #4b5563; box-shadow: 0 16px 32px -8px rgba(75,85,99,0.15); }
+    .grp-row:first-child { border-top: none; }
+    .grp-row::before {
+      content: ''; position: absolute; left: 0; top: 22px; bottom: 22px; width: 2px;
+      background: var(--c); opacity: 0.35; transition: opacity 0.25s;
+    }
+    .grp-row:hover { padding-left: 28px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 5%, transparent), transparent 60%); }
+    .grp-row:hover::before { opacity: 1; }
+    .grp-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+    .grp-cat { color: var(--c); }
+    .grp-caps { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; letter-spacing: 0.02em; }
+
+    /* ── Product screenshot frame (browser chrome, not a card) ────────────── */
+    .cc-frame {
+      border-radius: 14px; overflow: hidden; background: #0b1220;
+      box-shadow: 0 30px 70px -24px rgba(15,23,42,0.32), 0 2px 10px -2px rgba(15,23,42,0.08);
+    }
+    .cc-frame-bar { display: flex; align-items: center; gap: 8px; padding: 11px 14px; background: #161c2c; }
+    .cc-frame-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .cc-frame-url {
+      margin-left: 8px; padding: 3px 12px; border-radius: 6px; background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.45); font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    }
+
+    /* Modules section layout (plain CSS, not Tailwind arbitrary-value utilities --
+       this project ships a precompiled tailwind.min.css, not the JIT CDN script,
+       so bracket/arbitrary classes not already present in that build are no-ops) */
+    .grp-layout { display: grid; grid-template-columns: 1fr; gap: 48px; align-items: start; }
+    @media (min-width: 1024px) {
+      .grp-layout { grid-template-columns: minmax(0, 420px) 1fr; column-gap: 64px; row-gap: 48px; }
+      .grp-sticky { position: sticky; top: 112px; }
+    }
+    .grp-caps { color: #767586; }
 
     /* FEATURE CHIP */
     .feature-chip {
@@ -129,9 +155,6 @@
       margin: 0 auto;
     }
 
-    /* SCROLLBAR HIDE */
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
     /* MOBILE MENU */
     #mobile-menu { display: none; }
@@ -639,198 +662,100 @@
 <!-- ═══════════════════════════════════════════
      MODULES CAROUSEL
 ════════════════════════════════════════════ -->
-<section id="modules" class="py-20 max-w-screen-xl mx-auto px-6">
-  <div class="flex justify-between items-end mb-10">
-    <div>
-      <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-2">Platform Architecture</p>
-      <h2 class="font-heading text-display-sm text-on-surface">Integrated GRC Ecosystem</h2>
-      <p class="text-body text-on-surface-variant mt-2">Six modules. One data model. Shared context, cross-module cascades, unified RBAC.</p>
-    </div>
-    <div class="hidden md:flex gap-2 flex-shrink-0">
-      <button id="prevBtn" class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container transition-colors">
-        <span class="material-symbols-outlined">chevron_left</span>
-      </button>
-      <button id="nextBtn" class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container transition-colors">
-        <span class="material-symbols-outlined">chevron_right</span>
-      </button>
-    </div>
+<section id="modules" class="py-24 max-w-screen-xl mx-auto px-6">
+  <div class="max-w-2xl mb-14">
+    <p class="text-label-xs font-mono text-primary uppercase tracking-widest mb-2">Platform Architecture</p>
+    <h2 class="font-heading text-display-sm text-on-surface">Integrated GRC Ecosystem</h2>
+    <p class="text-body text-on-surface-variant mt-2">Six modules. One data model. Shared context, cross-module cascades, unified RBAC.</p>
   </div>
 
-  <div id="carousel" class="flex gap-4 overflow-x-auto hide-scrollbar pb-4 snap-x snap-mandatory scroll-smooth -mx-1 px-1">
+  <div class="grp-layout">
 
-    <!-- ARIA -->
-    <div class="module-card aria snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img loading="lazy" decoding="async" src="screenshot-aria.webp" alt="ARIA Governance Dashboard" class="w-full h-full object-cover object-top"/>
+    <!-- Module index: a legend, not a card grid -->
+    <div>
+      <div class="grp-row" style="--c:#b45309">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="grp-dot"></span>
+          <span class="text-label-xs font-mono uppercase tracking-widest grp-cat">Governance</span>
+        </div>
+        <h3 class="font-heading text-h2 text-on-surface leading-none mb-2">ARIA</h3>
+        <p class="text-body text-on-surface-variant mb-2">Centralized policy management and real-time regulatory cross-mapping. Import frameworks, auto-map controls, generate policies with AI.</p>
+        <p class="grp-caps">Policy lifecycle &middot; Control cross-map &middot; Ask ARIA RAG &middot; AI policy gen</p>
       </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#fdf2e9">
-            <span class="material-symbols-outlined text-[18px]" style="color:#b45309;font-size:18px">account_balance</span>
-          </div>
-          <div>
-            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#b45309">Governance</div>
-            <h3 class="font-heading text-h2 text-on-surface leading-none">ARIA</h3>
-          </div>
+
+      <div class="grp-row" style="--c:#047857">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="grp-dot"></span>
+          <span class="text-label-xs font-mono uppercase tracking-widest grp-cat">Audit</span>
         </div>
-        <p class="text-body text-on-surface-variant flex-1">Centralized policy management and real-time regulatory cross-mapping. Import frameworks, auto-map controls, generate policies with AI.</p>
-        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
-          <span class="feature-chip">Policy lifecycle</span>
-          <span class="feature-chip">Control cross-map</span>
-          <span class="feature-chip">Ask ARIA RAG</span>
-          <span class="feature-chip">AI policy gen</span>
+        <h3 class="font-heading text-h2 text-on-surface leading-none mb-2">GRID</h3>
+        <p class="text-body text-on-surface-variant mb-2">End-to-end audit lifecycle: schedule, collect evidence, track non-conformities, and generate AI-written reports in PDF or DOCX.</p>
+        <p class="grp-caps">Evidence capture &middot; NC tracking &middot; AI findings &middot; PDF/DOCX export</p>
+      </div>
+
+      <div class="grp-row" style="--c:#4338ca">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="grp-dot"></span>
+          <span class="text-label-xs font-mono uppercase tracking-widest grp-cat">Resilience</span>
         </div>
+        <h3 class="font-heading text-h2 text-on-surface leading-none mb-2">BCM</h3>
+        <p class="text-body text-on-surface-variant mb-2">Map dependencies, run BIA, activate continuity plans, manage live incidents in real time. AI-generated recovery plans.</p>
+        <p class="grp-caps">BIA scoring &middot; Incident chat &middot; AI plan gen &middot; Exercises</p>
+      </div>
+
+      <div class="grp-row" style="--c:#2170e4">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="grp-dot"></span>
+          <span class="text-label-xs font-mono uppercase tracking-widest grp-cat">Privacy</span>
+        </div>
+        <h3 class="font-heading text-h2 text-on-surface leading-none mb-2">Sentinel</h3>
+        <p class="text-body text-on-surface-variant mb-2">GDPR Art 33 72-hour breach countdown, DSR management, RoPA/DPIA automation, consent tracking across 27 jurisdictions.</p>
+        <p class="grp-caps">72h breach timer &middot; RoPA/DPIA &middot; DSR workflow &middot; 27 jurisdictions</p>
+      </div>
+
+      <div class="grp-row" style="--c:#991b1b">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="grp-dot"></span>
+          <span class="text-label-xs font-mono uppercase tracking-widest grp-cat">Enterprise Risk</span>
+        </div>
+        <h3 class="font-heading text-h2 text-on-surface leading-none mb-2">ERM</h3>
+        <p class="text-body text-on-surface-variant mb-2">Aggregate risk intelligence across the corporate hierarchy. Risk appetite monitoring, board-level reporting, auto-escalation from modules.</p>
+        <p class="grp-caps">Risk heatmaps &middot; Appetite tracking &middot; Obligations &middot; Auto-escalation</p>
+      </div>
+
+      <div class="grp-row" style="--c:#9a3412">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="grp-dot"></span>
+          <span class="text-label-xs font-mono uppercase tracking-widest grp-cat">Operations Risk</span>
+        </div>
+        <h3 class="font-heading text-h2 text-on-surface leading-none mb-2">ORM</h3>
+        <p class="text-body text-on-surface-variant mb-2">Day-to-day event logging, KRI monitoring with auto-increment triggers, RCSA workflows, AI root cause analysis, SLA tracking.</p>
+        <p class="grp-caps">Event logging &middot; KRI library &middot; RCSA templates &middot; AI root cause</p>
+      </div>
+
+      <div class="grp-row" style="--c:#475569">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="grp-dot"></span>
+          <span class="text-label-xs font-mono uppercase tracking-widest grp-cat">Cross-Module</span>
+        </div>
+        <h3 class="font-heading text-h2 text-on-surface leading-none mb-2">Evidence Vault</h3>
+        <p class="text-body text-on-surface-variant mb-2">A single, versioned evidence repository shared across all modules. Tag evidence to controls, audits, risks, and DSARs. No duplication.</p>
+        <p class="grp-caps">Versioned files &middot; Cross-module tags &middot; Audit trail &middot; Bulk upload</p>
       </div>
     </div>
 
-    <!-- GRID -->
-    <div class="module-card grid-m snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img loading="lazy" decoding="async" src="screenshot-grid.webp" alt="GRID Audit Dashboard" class="w-full h-full object-cover object-top"/>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#ecfdf5">
-            <span class="material-symbols-outlined text-[18px]" style="color:#047857;font-size:18px">fact_check</span>
-          </div>
-          <div>
-            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#047857">Audit</div>
-            <h3 class="font-heading text-h2 text-on-surface leading-none">GRID</h3>
-          </div>
+    <!-- The product itself: one real screenshot, framed like a window, not a card -->
+    <div class="grp-sticky">
+      <div class="cc-frame">
+        <div class="cc-frame-bar">
+          <span class="cc-frame-dot" style="background:#ff5f57"></span>
+          <span class="cc-frame-dot" style="background:#febc2e"></span>
+          <span class="cc-frame-dot" style="background:#28c840"></span>
+          <span class="cc-frame-url">app.themisiq.net/command-centre</span>
         </div>
-        <p class="text-body text-on-surface-variant flex-1">End-to-end audit lifecycle: schedule, collect evidence, track non-conformities, and generate AI-written reports in PDF or DOCX.</p>
-        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
-          <span class="feature-chip">Evidence capture</span>
-          <span class="feature-chip">NC tracking</span>
-          <span class="feature-chip">AI findings</span>
-          <span class="feature-chip">PDF/DOCX export</span>
-        </div>
+        <img loading="lazy" decoding="async" src="screenshot-command-centre.webp" alt="ThemisIQ Command Centre showing all seven modules on one shared data model" class="w-full h-auto block"/>
       </div>
-    </div>
-
-    <!-- BCM -->
-    <div class="module-card bcm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img loading="lazy" decoding="async" src="screenshot-bcm.webp" alt="BCM Resilience Dashboard" class="w-full h-full object-cover object-top"/>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#eef2ff">
-            <span class="material-symbols-outlined text-[18px]" style="color:#4338ca;font-size:18px">sync_alt</span>
-          </div>
-          <div>
-            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#4338ca">Resilience</div>
-            <h3 class="font-heading text-h2 text-on-surface leading-none">BCM</h3>
-          </div>
-        </div>
-        <p class="text-body text-on-surface-variant flex-1">Map dependencies, run BIA, activate continuity plans, manage live incidents in real time. AI-generated recovery plans.</p>
-        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
-          <span class="feature-chip">BIA scoring</span>
-          <span class="feature-chip">Incident chat</span>
-          <span class="feature-chip">AI plan gen</span>
-          <span class="feature-chip">Exercises</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Sentinel -->
-    <div class="module-card sentinel snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img loading="lazy" decoding="async" src="screenshot-sentinel.webp" alt="Sentinel Privacy Dashboard" class="w-full h-full object-cover object-top"/>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#f0fdf4">
-            <span class="material-symbols-outlined text-[18px]" style="color:#2170e4;font-size:18px">shield</span>
-          </div>
-          <div>
-            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#2170e4">Privacy</div>
-            <h3 class="font-heading text-h2 text-on-surface leading-none">Sentinel</h3>
-          </div>
-        </div>
-        <p class="text-body text-on-surface-variant flex-1">GDPR Art 33 72-hour breach countdown, DSR management, RoPA/DPIA automation, consent tracking across 27 jurisdictions.</p>
-        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
-          <span class="feature-chip">72h breach timer</span>
-          <span class="feature-chip">RoPA/DPIA</span>
-          <span class="feature-chip">DSR workflow</span>
-          <span class="feature-chip">27 jurisdictions</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ERM -->
-    <div class="module-card erm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img loading="lazy" decoding="async" src="screenshot-erm.webp" alt="ERM Enterprise Risk Dashboard" class="w-full h-full object-cover object-top"/>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#fef2f2">
-            <span class="material-symbols-outlined text-[18px]" style="color:#991b1b;font-size:18px">analytics</span>
-          </div>
-          <div>
-            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#991b1b">Enterprise Risk</div>
-            <h3 class="font-heading text-h2 text-on-surface leading-none">ERM</h3>
-          </div>
-        </div>
-        <p class="text-body text-on-surface-variant flex-1">Aggregate risk intelligence across the corporate hierarchy. Risk appetite monitoring, board-level reporting, auto-escalation from modules.</p>
-        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
-          <span class="feature-chip">Risk heatmaps</span>
-          <span class="feature-chip">Appetite tracking</span>
-          <span class="feature-chip">Obligations</span>
-          <span class="feature-chip">Auto-escalation</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ORM -->
-    <div class="module-card orm snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img loading="lazy" decoding="async" src="screenshot-orm.webp" alt="ORM Operations Risk Dashboard" class="w-full h-full object-cover object-top"/>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#fff7ed">
-            <span class="material-symbols-outlined text-[18px]" style="color:#9a3412;font-size:18px">bolt</span>
-          </div>
-          <div>
-            <div class="text-label-xs font-mono uppercase tracking-widest" style="color:#9a3412">Operations Risk</div>
-            <h3 class="font-heading text-h2 text-on-surface leading-none">ORM</h3>
-          </div>
-        </div>
-        <p class="text-body text-on-surface-variant flex-1">Day-to-day event logging, KRI monitoring with auto-increment triggers, RCSA workflows, AI root cause analysis, SLA tracking.</p>
-        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
-          <span class="feature-chip">Event logging</span>
-          <span class="feature-chip">KRI library</span>
-          <span class="feature-chip">RCSA templates</span>
-          <span class="feature-chip">AI root cause</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Evidence Vault -->
-    <div class="module-card evidence snap-start flex-shrink-0 w-72 md:w-80 bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col">
-      <div class="h-36 overflow-hidden border-b border-outline-variant/50">
-        <img loading="lazy" decoding="async" src="screenshot-command-centre.webp" alt="ThemisIQ Command Centre" class="w-full h-full object-cover object-top"/>
-      </div>
-      <div class="p-5 flex flex-col gap-3 flex-1">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-surface-container-high">
-            <span class="material-symbols-outlined text-primary text-[18px]" style="font-size:18px">inventory_2</span>
-          </div>
-          <div>
-            <div class="text-label-xs font-mono uppercase tracking-widest text-primary">Cross-Module</div>
-            <h3 class="font-heading text-h2 text-on-surface leading-none">Evidence Vault</h3>
-          </div>
-        </div>
-        <p class="text-body text-on-surface-variant flex-1">A single, versioned evidence repository shared across all modules. Tag evidence to controls, audits, risks, and DSARs. No duplication.</p>
-        <div class="flex flex-wrap gap-1 pt-2 border-t border-outline-variant">
-          <span class="feature-chip">Versioned files</span>
-          <span class="feature-chip">Cross-module tags</span>
-          <span class="feature-chip">Audit trail</span>
-          <span class="feature-chip">Bulk upload</span>
-        </div>
-      </div>
+      <p class="text-label-xs font-mono text-on-surface-variant uppercase tracking-widest mt-5 text-center">One login. Every discipline. Zero context-switching.</p>
     </div>
 
   </div>
@@ -1760,13 +1685,6 @@ hamburger.addEventListener('click', () => {
 mobileMenu.querySelectorAll('a').forEach(link => {
   link.addEventListener('click', () => mobileMenu.classList.remove('open'));
 });
-
-// Module Carousel
-const carousel  = document.getElementById('carousel');
-const prevBtn   = document.getElementById('prevBtn');
-const nextBtn   = document.getElementById('nextBtn');
-if (prevBtn) prevBtn.addEventListener('click', () => carousel.scrollBy({ left: -340, behavior: 'smooth' }));
-if (nextBtn) nextBtn.addEventListener('click', () => carousel.scrollBy({ left:  340, behavior: 'smooth' }));
 
 // Globe Canvas
 (function() {
