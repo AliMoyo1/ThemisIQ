@@ -127,6 +127,35 @@
     }
     .grp-caps { color: #767586; }
 
+    /* Feature deep-dive: sticky module rail + single flowing column, replacing
+       7 alternating text/image rows (same plain-CSS approach as .grp-layout) */
+    .fdd-layout { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: start; }
+    @media (min-width: 1024px) {
+      .fdd-layout { grid-template-columns: 168px 1fr; column-gap: 56px; }
+      .fdd-rail { position: sticky; top: 112px; }
+    }
+    .fdd-rail-list {
+      display: flex; flex-direction: row; gap: 4px; overflow-x: auto;
+      padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #c7c4d7;
+    }
+    @media (min-width: 1024px) {
+      .fdd-rail-list {
+        flex-direction: column; gap: 1px; overflow-x: visible;
+        padding-bottom: 0; margin-bottom: 0; border-bottom: none;
+      }
+    }
+    .fdd-rail-item {
+      display: block; padding: 7px 12px; border-left: 2px solid transparent;
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.02em;
+      color: #767586; white-space: nowrap; text-decoration: none;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .fdd-rail-item:hover { color: var(--c); border-left-color: var(--c); }
+    .fdd-block {
+      padding: 48px 0; border-top: 1px solid #c7c4d7; scroll-margin-top: 88px;
+    }
+    .fdd-block:first-child { padding-top: 0; border-top: none; }
+
     /* FEATURE CHIP */
     .feature-chip {
       display: inline-flex; align-items: center; padding: 4px 10px;
@@ -259,47 +288,41 @@
       opacity: 0.65;
     }
 
-    /* AI SECTION GLASS CARDS */
-    .ai-glass-card {
-      background: rgba(255, 255, 255, 0.04);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.12),
-        inset 1px 0 0 rgba(255, 255, 255, 0.06),
-        0 8px 32px rgba(0, 0, 0, 0.25);
-      transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s;
-      position: relative;
-      overflow: hidden;
+    /* AI SECTION: spotlight product surface + supporting capability list
+       (replaces 6 identical glass cards -- one real Ask ARIA exchange as
+       the visual anchor, the rest as a scannable spec list, not more cards) */
+    .ai-spotlight-layout {
+      display: grid; grid-template-columns: 1fr; gap: 32px; align-items: start;
     }
-    .ai-glass-card::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: 16px;
-      background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, transparent 55%);
-      pointer-events: none;
+    @media (min-width: 1024px) {
+      .ai-spotlight-layout { grid-template-columns: 1.1fr 1fr; gap: 48px; }
     }
-    .ai-glass-card:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(192, 193, 255, 0.28);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.18),
-        inset 1px 0 0 rgba(255, 255, 255, 0.08),
-        0 20px 48px rgba(70, 72, 212, 0.3);
-      transform: translateY(-4px);
+    .ai-spotlight-body { padding: 32px; }
+    .ai-spotlight-q {
+      font-family: 'Plus Jakarta Sans', 'Geist', sans-serif;
+      font-size: 19px; font-weight: 600; line-height: 1.45;
+      color: #f1f5f9; margin-bottom: 16px;
     }
-    .ai-icon-box {
-      width: 40px; height: 40px; border-radius: 10px;
-      background: rgba(70, 72, 212, 0.2);
-      border: 1px solid rgba(192, 193, 255, 0.2);
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 16px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+    .ai-spotlight-a {
+      font-size: 14px; line-height: 1.7;
+      color: rgba(241,245,249,0.78); margin-bottom: 20px;
     }
+    .ai-spotlight-a strong { color: #f1f5f9; font-weight: 600; }
+    .ai-spotlight-sources { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ai-source-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 11px; border-radius: 9999px;
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.02em;
+      color: rgba(241,245,249,0.72);
+    }
+    .ai-caplist { display: flex; flex-direction: column; }
+    .ai-cap-row {
+      display: flex; gap: 16px; align-items: flex-start;
+      padding: 20px 0; border-top: 1px solid rgba(255,255,255,0.09);
+    }
+    .ai-cap-row:first-child { padding-top: 4px; border-top: none; }
+    .ai-cap-icon { font-size: 22px; color: #9ca3af; flex-shrink: 0; margin-top: 3px; }
 
     /* GLASSMORPHISM PRICING */
     .glass-card {
@@ -837,60 +860,68 @@
       </p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="ai-spotlight-layout">
 
-      <div class="ai-glass-card">
-        <div class="ai-icon-box">
-          <span class="material-symbols-outlined text-[#9ca3af]">policy</span>
+      <div class="cc-frame">
+        <div class="cc-frame-bar">
+          <span class="cc-frame-dot" style="background:#ff5f57"></span>
+          <span class="cc-frame-dot" style="background:#febc2e"></span>
+          <span class="cc-frame-dot" style="background:#28c840"></span>
+          <span class="cc-frame-url">app.themisiq.net/aria/ask</span>
         </div>
-        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">Ask ARIA</h3>
-        <p class="text-body text-inverse-on-surface/80">RAG-powered search over your entire policy library. Ask natural language questions, get cited answers from your own documents.</p>
-        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Governance · ARIA</div>
+        <div class="ai-spotlight-body">
+          <div class="text-label-xs font-mono uppercase tracking-widest mb-4" style="color:rgba(156,163,175,0.7)">Ask ARIA &middot; RAG over your policy library</div>
+          <p class="ai-spotlight-q">&ldquo;Which controls already satisfy both ISO 27001 A.9.4 and SOC 2 CC6.1?&rdquo;</p>
+          <p class="ai-spotlight-a">Three controls satisfy both: <strong>Access Control Policy &sect;4.2</strong>, <strong>Privileged Access Review</strong> (quarterly), and <strong>MFA Enforcement Standard</strong>. All three are marked Compliant with evidence attached.</p>
+          <div class="ai-spotlight-sources">
+            <span class="ai-source-pill"><span class="material-symbols-outlined" style="font-size:14px">description</span>Access Control Policy v3.2</span>
+            <span class="ai-source-pill"><span class="material-symbols-outlined" style="font-size:14px">description</span>Q2 Privileged Access Review</span>
+            <span class="ai-source-pill"><span class="material-symbols-outlined" style="font-size:14px">description</span>MFA Enforcement Standard</span>
+          </div>
+        </div>
       </div>
 
-      <div class="ai-glass-card">
-        <div class="ai-icon-box">
-          <span class="material-symbols-outlined text-[#9ca3af]">description</span>
+      <div class="ai-caplist">
+        <div class="ai-cap-row">
+          <span class="material-symbols-outlined ai-cap-icon">description</span>
+          <div>
+            <h3 class="font-heading text-h2 text-inverse-on-surface mb-1">AI Policy Generator</h3>
+            <p class="text-body text-inverse-on-surface/80">Draft framework-aligned policies in seconds. Select a framework, enter scope, receive a structured, editable policy document.</p>
+            <div class="mt-2 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.6)">Governance &middot; ARIA</div>
+          </div>
         </div>
-        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Policy Generator</h3>
-        <p class="text-body text-inverse-on-surface/80">Draft framework-aligned policies in seconds. Select a framework, enter scope, receive a structured, editable policy document.</p>
-        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Governance · ARIA</div>
-      </div>
-
-      <div class="ai-glass-card">
-        <div class="ai-icon-box">
-          <span class="material-symbols-outlined text-[#9ca3af]">summarize</span>
+        <div class="ai-cap-row">
+          <span class="material-symbols-outlined ai-cap-icon">summarize</span>
+          <div>
+            <h3 class="font-heading text-h2 text-inverse-on-surface mb-1">AI Audit Reports</h3>
+            <p class="text-body text-inverse-on-surface/80">Turn raw audit evidence and NC logs into polished executive findings reports, complete with observations, risk ratings, and recommendations.</p>
+            <div class="mt-2 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.6)">Audit &middot; GRID</div>
+          </div>
         </div>
-        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Audit Reports</h3>
-        <p class="text-body text-inverse-on-surface/80">Turn raw audit evidence and NC logs into polished executive findings reports, complete with observations, risk ratings, and recommendations.</p>
-        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Audit · GRID</div>
-      </div>
-
-      <div class="ai-glass-card">
-        <div class="ai-icon-box">
-          <span class="material-symbols-outlined text-[#9ca3af]">gpp_maybe</span>
+        <div class="ai-cap-row">
+          <span class="material-symbols-outlined ai-cap-icon">gpp_maybe</span>
+          <div>
+            <h3 class="font-heading text-h2 text-inverse-on-surface mb-1">AI DPIA &amp; Breach Analysis</h3>
+            <p class="text-body text-inverse-on-surface/80">AI-guided DPIAs surface hidden privacy risks. Breach triage analysis determines notifiability and Art. 33 obligations within the 72-hour window.</p>
+            <div class="mt-2 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.6)">Privacy &middot; Sentinel</div>
+          </div>
         </div>
-        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI DPIA &amp; Breach Analysis</h3>
-        <p class="text-body text-inverse-on-surface/80">AI-guided DPIAs surface hidden privacy risks. Breach triage analysis determines notifiability and Art. 33 obligations within the 72-hour window.</p>
-        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Privacy · Sentinel</div>
-      </div>
-
-      <div class="ai-glass-card">
-        <div class="ai-icon-box">
-          <span class="material-symbols-outlined text-[#9ca3af]">emergency</span>
+        <div class="ai-cap-row">
+          <span class="material-symbols-outlined ai-cap-icon">emergency</span>
+          <div>
+            <h3 class="font-heading text-h2 text-inverse-on-surface mb-1">AI Continuity Plans</h3>
+            <p class="text-body text-inverse-on-surface/80">Generate BIA-informed business continuity plans automatically. Input critical processes, get structured recovery procedures with RTOs and RPOs.</p>
+            <div class="mt-2 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.6)">Resilience &middot; BCM</div>
+          </div>
         </div>
-        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Continuity Plans</h3>
-        <p class="text-body text-inverse-on-surface/80">Generate BIA-informed business continuity plans automatically. Input critical processes, get structured recovery procedures with RTOs and RPOs.</p>
-        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Resilience · BCM</div>
-      </div>
-
-      <div class="ai-glass-card">
-        <div class="ai-icon-box">
-          <span class="material-symbols-outlined text-[#9ca3af]">manage_search</span>
+        <div class="ai-cap-row">
+          <span class="material-symbols-outlined ai-cap-icon">manage_search</span>
+          <div>
+            <h3 class="font-heading text-h2 text-inverse-on-surface mb-1">AI Root Cause Analysis</h3>
+            <p class="text-body text-inverse-on-surface/80">ORM's AI chat surfaces causal patterns in operational events, identifying systemic risks before they become incidents.</p>
+            <div class="mt-2 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.6)">Operations Risk &middot; ORM</div>
+          </div>
         </div>
-        <h3 class="font-heading text-h2 text-inverse-on-surface mb-2">AI Root Cause Analysis</h3>
-        <p class="text-body text-inverse-on-surface/80">ORM's AI chat surfaces causal patterns in operational events, identifying systemic risks before they become incidents.</p>
-        <div class="mt-4 text-label-xs font-mono uppercase tracking-widest" style="color:rgba(156,163,175,0.7)">Operations Risk · ORM</div>
       </div>
 
     </div>
@@ -908,11 +939,23 @@
     <p class="text-body text-on-surface-variant max-w-lg mx-auto mt-3">Each module is built around the operational reality of regulated enterprises, not a generic workflow tool dressed up as GRC.</p>
   </div>
 
-  <div class="flex flex-col gap-24">
+  <div class="fdd-layout">
 
-    <!-- Row 1: ARIA (text left, visual right) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-      <div>
+    <nav class="fdd-rail" aria-label="Jump to module">
+      <div class="fdd-rail-list">
+        <a href="#feat-aria" class="fdd-rail-item" style="--c:#b45309">ARIA</a>
+        <a href="#feat-grid" class="fdd-rail-item" style="--c:#047857">GRID</a>
+        <a href="#feat-sentinel" class="fdd-rail-item" style="--c:#2170e4">Sentinel</a>
+        <a href="#feat-bcm" class="fdd-rail-item" style="--c:#4338ca">BCM</a>
+        <a href="#feat-erm" class="fdd-rail-item" style="--c:#991b1b">ERM</a>
+        <a href="#feat-orm" class="fdd-rail-item" style="--c:#9a3412">ORM</a>
+        <a href="#feat-evidence" class="fdd-rail-item" style="--c:#374151">Evidence Vault</a>
+      </div>
+    </nav>
+
+    <div>
+
+      <article id="feat-aria" class="fdd-block">
         <div class="feature-badge" style="color:#b45309; border-color:#fde68a; background:#fef3c7">Governance · ARIA</div>
         <h3 class="font-heading text-h1 text-on-surface mb-4">Dynamic Framework Mapping. Zero duplication of effort.</h3>
         <p class="text-body text-on-surface-variant mb-6">Import ISO 27001, NIST CSF, SOC 2, GDPR, and more. ARIA automatically cross-maps shared controls so you implement a control once and satisfy multiple frameworks simultaneously.</p>
@@ -926,7 +969,7 @@
           <span class="feature-chip">Compliance mapping viz</span>
           <span class="feature-chip">Control re-evaluation triggers</span>
         </div>
-        <div class="flex gap-6">
+        <div class="flex gap-6 mb-8">
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
             <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Active Frameworks</div>
             <div class="font-heading text-h1 text-primary mt-1">12+</div>
@@ -936,18 +979,18 @@
             <div class="font-heading text-h1 text-primary mt-1">94.2%</div>
           </div>
         </div>
-      </div>
-      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <img loading="lazy" decoding="async" src="screenshot-aria.webp" alt="ARIA Governance Dashboard" class="w-full h-auto block"/>
-      </div>
-    </div>
+        <div class="cc-frame">
+          <div class="cc-frame-bar">
+            <span class="cc-frame-dot" style="background:#ff5f57"></span>
+            <span class="cc-frame-dot" style="background:#febc2e"></span>
+            <span class="cc-frame-dot" style="background:#28c840"></span>
+            <span class="cc-frame-url">app.themisiq.net/aria</span>
+          </div>
+          <img loading="lazy" decoding="async" src="screenshot-aria.webp" alt="ARIA Governance Dashboard" class="w-full h-auto block"/>
+        </div>
+      </article>
 
-    <!-- Row 2: Audit GRID (visual left, text right) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
-        <img loading="lazy" decoding="async" src="screenshot-grid.webp" alt="GRID Audit Dashboard" class="w-full h-auto block"/>
-      </div>
-      <div class="order-1 lg:order-2">
+      <article id="feat-grid" class="fdd-block">
         <div class="feature-badge" style="color:#047857; border-color:#6ee7b7; background:#ecfdf5">Audit · GRID</div>
         <h3 class="font-heading text-h1 text-on-surface mb-4">Full audit lifecycle, on-site or fully remote.</h3>
         <p class="text-body text-on-surface-variant mb-6">GRID runs the complete audit lifecycle from scheduling to final sign-off: control sampling, remote or on-site evidence collection, NC tracking, compliance scoring, approval workflows, and AI-written findings reports in PDF or DOCX. When Sentinel confirms a breach, GRID auto-creates a post-incident audit.</p>
@@ -963,7 +1006,7 @@
           <span class="feature-chip">Post-incident audit creation</span>
           <span class="feature-chip">Vendor profile integration</span>
         </div>
-        <div class="flex gap-6">
+        <div class="flex gap-6 mb-8">
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
             <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Report Format</div>
             <div class="font-heading text-h1 mt-1" style="color:#047857">PDF + DOCX</div>
@@ -973,12 +1016,18 @@
             <div class="font-heading text-h1 mt-1" style="color:#047857">Remote / On-site</div>
           </div>
         </div>
-      </div>
-    </div>
+        <div class="cc-frame">
+          <div class="cc-frame-bar">
+            <span class="cc-frame-dot" style="background:#ff5f57"></span>
+            <span class="cc-frame-dot" style="background:#febc2e"></span>
+            <span class="cc-frame-dot" style="background:#28c840"></span>
+            <span class="cc-frame-url">app.themisiq.net/grid</span>
+          </div>
+          <img loading="lazy" decoding="async" src="screenshot-grid.webp" alt="GRID Audit Dashboard" class="w-full h-auto block"/>
+        </div>
+      </article>
 
-    <!-- Row 3: Sentinel (text left, visual right) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-      <div>
+      <article id="feat-sentinel" class="fdd-block">
         <div class="feature-badge" style="color:#2170e4; border-color:#adc6ff; background:#dbe6ff">Privacy · Sentinel</div>
         <h3 class="font-heading text-h1 text-on-surface mb-4">Complete data protection, across 27 jurisdictions.</h3>
         <p class="text-body text-on-surface-variant mb-6">Sentinel is a full privacy management suite covering GDPR, UK GDPR, LGPD, CCPA, CDPA, and 22 more jurisdictions. AI-assisted RoPA and DPIA creation, automated DSR workflows, consent and legal basis tracking, retention schedule enforcement, LIAs, international transfer mapping, and a 72-hour breach countdown that auto-starts on confirmation.</p>
@@ -996,7 +1045,7 @@
           <span class="feature-chip">AI breach notifiability analysis</span>
           <span class="feature-chip">27 jurisdictions</span>
         </div>
-        <div class="flex gap-6">
+        <div class="flex gap-6 mb-8">
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
             <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Jurisdictions</div>
             <div class="font-heading text-h1 mt-1" style="color:#2170e4">27</div>
@@ -1008,18 +1057,18 @@
             <div class="text-label-xs font-mono text-on-surface-variant mt-1">Auto-starts on breach confirmation</div>
           </div>
         </div>
-      </div>
-      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <img loading="lazy" decoding="async" src="screenshot-sentinel.webp" alt="Sentinel Privacy Dashboard" class="w-full h-auto block"/>
-      </div>
-    </div>
+        <div class="cc-frame">
+          <div class="cc-frame-bar">
+            <span class="cc-frame-dot" style="background:#ff5f57"></span>
+            <span class="cc-frame-dot" style="background:#febc2e"></span>
+            <span class="cc-frame-dot" style="background:#28c840"></span>
+            <span class="cc-frame-url">app.themisiq.net/sentinel</span>
+          </div>
+          <img loading="lazy" decoding="async" src="screenshot-sentinel.webp" alt="Sentinel Privacy Dashboard" class="w-full h-auto block"/>
+        </div>
+      </article>
 
-    <!-- Row 4: BCM (visual left, text right) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
-        <img loading="lazy" decoding="async" src="screenshot-bcm.webp" alt="BCM Resilience Dashboard" class="w-full h-auto block"/>
-      </div>
-      <div class="order-1 lg:order-2">
+      <article id="feat-bcm" class="fdd-block">
         <div class="feature-badge" style="color:#4338ca; border-color:#c7d2fe; background:#eef2ff">Resilience · BCM</div>
         <h3 class="font-heading text-h1 text-on-surface mb-4">BIA to BCP to live command. AI-assisted at every step.</h3>
         <p class="text-body text-on-surface-variant mb-6">BCM covers the full resilience lifecycle. Run Business Impact Analyses to score process criticality, then let AI generate structured Business Continuity Plans with RTOs, RPOs, and recovery procedures. When an incident occurs, activate the plan, open a real-time incident command channel, and auto-escalate SEV-1/2 events to Sentinel and ERM. Schedule exercises and plan reviews to stay audit-ready.</p>
@@ -1035,7 +1084,7 @@
           <span class="feature-chip">ISO 22301 alignment</span>
           <span class="feature-chip">DORA operational resilience</span>
         </div>
-        <div class="flex gap-6">
+        <div class="flex gap-6 mb-8">
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
             <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Plan Generation</div>
             <div class="font-heading text-h1 mt-1" style="color:#4338ca">AI</div>
@@ -1047,12 +1096,18 @@
             <div class="text-label-xs font-mono text-on-surface-variant mt-1">Sentinel + ERM notified instantly</div>
           </div>
         </div>
-      </div>
-    </div>
+        <div class="cc-frame">
+          <div class="cc-frame-bar">
+            <span class="cc-frame-dot" style="background:#ff5f57"></span>
+            <span class="cc-frame-dot" style="background:#febc2e"></span>
+            <span class="cc-frame-dot" style="background:#28c840"></span>
+            <span class="cc-frame-url">app.themisiq.net/bcm</span>
+          </div>
+          <img loading="lazy" decoding="async" src="screenshot-bcm.webp" alt="BCM Resilience Dashboard" class="w-full h-auto block"/>
+        </div>
+      </article>
 
-    <!-- Row 5: ERM (text left, visual right) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-      <div>
+      <article id="feat-erm" class="fdd-block">
         <div class="feature-badge" style="color:#991b1b; border-color:#fecaca; background:#fef2f2">Enterprise Risk · ERM</div>
         <h3 class="font-heading text-h1 text-on-surface mb-4">Board-level risk intelligence, aggregated in real time.</h3>
         <p class="text-body text-on-surface-variant mb-6">ERM sits at the apex of the ThemisIQ risk hierarchy, aggregating signals from every other module into a single enterprise risk posture. Monitor appetite against tolerance, track regulatory obligations, and generate board-ready reporting without manual aggregation.</p>
@@ -1066,7 +1121,7 @@
           <span class="feature-chip">Inherent vs. residual risk</span>
           <span class="feature-chip">ISO 31000 aligned</span>
         </div>
-        <div class="flex gap-6">
+        <div class="flex gap-6 mb-8">
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
             <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Risk Sources</div>
             <div class="font-heading text-h1 mt-1" style="color:#991b1b">6 modules</div>
@@ -1076,18 +1131,18 @@
             <div class="font-heading text-h1 mt-1" style="color:#991b1b">Real-time</div>
           </div>
         </div>
-      </div>
-      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <img loading="lazy" decoding="async" src="screenshot-erm.webp" alt="ERM Enterprise Risk Dashboard" class="w-full h-auto block"/>
-      </div>
-    </div>
+        <div class="cc-frame">
+          <div class="cc-frame-bar">
+            <span class="cc-frame-dot" style="background:#ff5f57"></span>
+            <span class="cc-frame-dot" style="background:#febc2e"></span>
+            <span class="cc-frame-dot" style="background:#28c840"></span>
+            <span class="cc-frame-url">app.themisiq.net/erm</span>
+          </div>
+          <img loading="lazy" decoding="async" src="screenshot-erm.webp" alt="ERM Enterprise Risk Dashboard" class="w-full h-auto block"/>
+        </div>
+      </article>
 
-    <!-- Row 6: ORM (visual left, text right) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow order-2 lg:order-1">
-        <img loading="lazy" decoding="async" src="screenshot-orm.webp" alt="ORM Operations Risk Dashboard" class="w-full h-auto block"/>
-      </div>
-      <div class="order-1 lg:order-2">
+      <article id="feat-orm" class="fdd-block">
         <div class="feature-badge" style="color:#9a3412; border-color:#fed7aa; background:#fff7ed">Operations Risk · ORM</div>
         <h3 class="font-heading text-h1 text-on-surface mb-4">Operational risk caught at the event level, before it escalates.</h3>
         <p class="text-body text-on-surface-variant mb-6">ORM provides day-to-day visibility into operational risk events, KRI breaches, and control failures. Auto-increment thresholds trigger escalation to ERM. RCSA templates standardize risk and control self-assessments across business units. AI root cause analysis reduces mean-time-to-understanding.</p>
@@ -1101,7 +1156,7 @@
           <span class="feature-chip">AI root cause analysis</span>
           <span class="feature-chip">Vendor risk events</span>
         </div>
-        <div class="flex gap-6">
+        <div class="flex gap-6 mb-8">
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
             <div class="text-label-xs font-mono text-outline uppercase tracking-widest">KRI Templates</div>
             <div class="font-heading text-h1 mt-1" style="color:#9a3412">150+</div>
@@ -1111,12 +1166,18 @@
             <div class="font-heading text-h1 mt-1" style="color:#9a3412">Automatic</div>
           </div>
         </div>
-      </div>
-    </div>
+        <div class="cc-frame">
+          <div class="cc-frame-bar">
+            <span class="cc-frame-dot" style="background:#ff5f57"></span>
+            <span class="cc-frame-dot" style="background:#febc2e"></span>
+            <span class="cc-frame-dot" style="background:#28c840"></span>
+            <span class="cc-frame-url">app.themisiq.net/orm</span>
+          </div>
+          <img loading="lazy" decoding="async" src="screenshot-orm.webp" alt="ORM Operations Risk Dashboard" class="w-full h-auto block"/>
+        </div>
+      </article>
 
-    <!-- Row 7: Evidence Vault (text left, visual right) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-      <div>
+      <article id="feat-evidence" class="fdd-block">
         <div class="feature-badge" style="color:#374151; border-color:#c7c4d7; background:#e2e8f0">Cross-Module · Evidence Vault</div>
         <h3 class="font-heading text-h1 text-on-surface mb-4">One evidence upload. Every framework satisfied.</h3>
         <p class="text-body text-on-surface-variant mb-6">The Evidence Vault is the connective tissue of ThemisIQ: a single, versioned, tamper-evident repository shared by every module. Upload an asset once, tag it to a control, and it automatically satisfies the same control across every mapped framework. No copies, no drift, no duplication.</p>
@@ -1130,19 +1191,25 @@
           <span class="feature-chip">DSAR &amp; risk attachments</span>
           <span class="feature-chip">Framework auto-satisfy</span>
         </div>
-        <div class="bg-surface-container border border-outline-variant rounded-lg p-4 inline-flex items-center gap-4">
+        <div class="bg-surface-container border border-outline-variant rounded-lg p-4 inline-flex items-center gap-4 mb-8">
           <span class="material-symbols-outlined text-primary" style="font-size:32px">inventory_2</span>
           <div>
             <div class="text-label-xs font-mono text-on-surface font-bold">Zero Duplication Guarantee</div>
             <div class="text-label-xs font-mono text-on-surface-variant">One upload · all frameworks · full audit trail</div>
           </div>
         </div>
-      </div>
-      <div class="rounded-xl border border-outline-variant overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-        <img loading="lazy" decoding="async" src="screenshot-command-centre.webp" alt="Evidence Vault" class="w-full h-auto block"/>
-      </div>
-    </div>
+        <div class="cc-frame">
+          <div class="cc-frame-bar">
+            <span class="cc-frame-dot" style="background:#ff5f57"></span>
+            <span class="cc-frame-dot" style="background:#febc2e"></span>
+            <span class="cc-frame-dot" style="background:#28c840"></span>
+            <span class="cc-frame-url">app.themisiq.net/evidence-vault</span>
+          </div>
+          <img loading="lazy" decoding="async" src="screenshot-command-centre.webp" alt="Evidence Vault" class="w-full h-auto block"/>
+        </div>
+      </article>
 
+    </div>
   </div>
 </section>
 
