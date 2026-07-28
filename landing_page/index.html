@@ -242,7 +242,7 @@
       display: flex;
       align-items: center;
       width: max-content;
-      animation: marquee-scroll 42s linear infinite;
+      animation: marquee-scroll 60s linear infinite;
     }
     .marquee-track:hover { animation-play-state: paused; }
     @media (prefers-reduced-motion: reduce) { .marquee-track { animation: none; } }
@@ -618,63 +618,71 @@
     <p class="text-center text-label-xs font-mono uppercase tracking-widest mb-8" style="color:rgba(156,163,175,0.5)">Built to meet the world's most rigorous frameworks</p>
     <div class="marquee-fade overflow-hidden">
       <div class="marquee-track">
-        <!-- Set 1 -->
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27001</span>
-        <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">SOC 2 TYPE II</span>
-        <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">NIST CSF 2.0</span>
-        <span class="marquee-sep"></span>
+        <!-- Set 1: full framework catalogue in the app (seeds/framework_controls.py FRAMEWORK_CONTROLS) -->
         <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">GDPR</span>
         <span class="marquee-sep"></span>
         <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">HIPAA</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">PCI DSS 4.0</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 14001:2015</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">DORA</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 20000-1:2018</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 31000</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 22301:2019</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">COBIT 2019</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27001:2022</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">FCA / PRA</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27017:2015</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">APRA CPS 234</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27701:2019</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">NIS2</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 31000:2018</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">CMMC 2.0</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 42001</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 22301</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 45001:2018</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 50001:2018</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 9001:2015</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">PCI DSS v4.0</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">SOC 2 TYPE II</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ZIMBABWE CDPA</span>
         <span class="marquee-sep"></span>
         <!-- Set 2: duplicate for seamless loop -->
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27001</span>
-        <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">SOC 2 TYPE II</span>
-        <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">NIST CSF 2.0</span>
-        <span class="marquee-sep"></span>
         <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">GDPR</span>
         <span class="marquee-sep"></span>
         <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">HIPAA</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">PCI DSS 4.0</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 14001:2015</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">DORA</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 20000-1:2018</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 31000</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 22301:2019</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">COBIT 2019</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27001:2022</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">FCA / PRA</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27017:2015</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">APRA CPS 234</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 27701:2019</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">NIS2</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 31000:2018</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">CMMC 2.0</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 42001</span>
         <span class="marquee-sep"></span>
-        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 22301</span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 45001:2018</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 50001:2018</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ISO 9001:2015</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">PCI DSS v4.0</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">SOC 2 TYPE II</span>
+        <span class="marquee-sep"></span>
+        <span class="text-h2 font-heading font-bold whitespace-nowrap" style="color:rgba(241,245,249,0.45)">ZIMBABWE CDPA</span>
         <span class="marquee-sep"></span>
       </div>
     </div>
@@ -1049,7 +1057,7 @@
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
             <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Jurisdictions</div>
             <div class="font-heading text-h1 mt-1" style="color:#2170e4">27</div>
-            <div class="text-label-xs font-mono text-on-surface-variant mt-1">GDPR · UK GDPR · LGPD · CCPA · CDPA +</div>
+            <div class="text-label-xs font-mono text-on-surface-variant mt-1">GDPR · UK GDPR · LGPD · CCPA · CDPA · POPIA · UAE PDPL · Saudi PDPL +</div>
           </div>
           <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
             <div class="text-label-xs font-mono text-outline uppercase tracking-widest">Breach Timer</div>
@@ -1582,7 +1590,7 @@
             <span class="material-symbols-outlined faq-chevron text-on-surface-variant" style="font-size:20px">expand_more</span>
           </button>
           <div class="faq-content">
-            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">ThemisIQ ships with built-in support for ISO 27001, SOC 2 Type II, NIST CSF, GDPR, HIPAA, PCI DSS, DORA, and more across 27 jurisdictions. Controls are cross-mapped automatically, so a single implementation satisfies multiple frameworks simultaneously.</p></div>
+            <div><p class="pb-5 text-body text-on-surface-variant leading-relaxed">ThemisIQ ships with built-in support for 16 frameworks, including ISO 27001, SOC 2 Type II, GDPR, HIPAA, PCI DSS, ISO 42001, ISO 22301, ISO 31000, and Zimbabwe CDPA, across 27 jurisdictions. Controls are cross-mapped automatically, so a single implementation satisfies multiple frameworks simultaneously. Don't see the one you need? We can add it on request.</p></div>
           </div>
         </div>
 
