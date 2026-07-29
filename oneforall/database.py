@@ -4089,6 +4089,13 @@ _COLUMN_MIGRATIONS = [
         ("canonical_controls", "last_scored_at",      "TEXT"),
         # ── PLAN-33 Phase 2: safe-delete (soft delete, reversible) ────────────
         ("users",              "deleted_at",           "TEXT"),
+        # ── Sentinel sub-page field gaps found in QA Pass 3 ────────────────────
+        ("sentinel_vendors",         "review_date",        "TEXT"),
+        ("sentinel_consent",         "collection_method",  "TEXT"),
+        ("sentinel_transfers",       "legal_basis",         "TEXT"),
+        ("sentinel_transfers",       "risk_level",          "TEXT"),
+        ("sentinel_privacy_notices", "notice_type",         "TEXT"),
+        ("sentinel_privacy_notices", "published_url",       "TEXT"),
 ]
 
 

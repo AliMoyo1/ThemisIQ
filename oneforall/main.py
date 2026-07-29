@@ -19,6 +19,7 @@ from database import init_db, get_db, OperationalError
 from core.middleware import (
     security_headers_middleware, csrf_origin_middleware, tenant_context_middleware,
     cors_block_middleware, body_size_limit_middleware, SanitizeJsonMiddleware,
+    module_audit_middleware,
 )
 import core.event_handlers  # noqa: F401 - registers cross-module event handlers
 
@@ -54,6 +55,10 @@ app.middleware("http")(cors_block_middleware)
 app.middleware("http")(csrf_origin_middleware)
 app.add_middleware(SanitizeJsonMiddleware)
 app.middleware("http")(tenant_context_middleware)
+# Innermost: closest to the route, so request.state.user (set inside
+# @require_auth/@require_capability) and the final response status are both
+# available. See core/middleware.py for why this exists.
+app.middleware("http")(module_audit_middleware)
 
 # -- Static files -------------------------------------------------------------
 os.makedirs("static", exist_ok=True)

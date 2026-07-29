@@ -810,6 +810,7 @@ _VENDOR_FIELDS = [
     "name", "type", "country", "services", "data_types", "data_subjects",
     "dpa_status", "dpa_date", "dpa_expiry", "risk_level", "ai_assessment",
     "contact_name", "contact_email", "website", "regulation", "notes", "canonical_id",
+    "review_date",
 ]
 
 
@@ -872,7 +873,7 @@ def list_vendors(search=None, risk=None, dpa_status=None, limit=500):
 # Privacy Notices
 # ═════════════════════════════════════════════════════════════════════════════
 
-_NOTICE_FIELDS = ["title", "regulation", "audience", "version", "content", "status", "review_date", "published_date"]
+_NOTICE_FIELDS = ["title", "regulation", "audience", "version", "content", "status", "review_date", "published_date", "notice_type", "published_url"]
 
 def create_notice(data):
     data.setdefault("title", "Untitled Notice")
@@ -901,6 +902,7 @@ def list_notices(limit=200):
 _CONSENT_FIELDS = [
     "subject_id", "subject_name", "subject_email", "purpose", "regulation",
     "legal_basis", "consent_date", "expiry_date", "withdrawal_date", "status", "evidence", "notes",
+    "collection_method",
 ]
 
 def create_consent(data):
@@ -971,9 +973,9 @@ def list_controllers(limit=200):
 # ═════════════════════════════════════════════════════════════════════════════
 
 _TRANSFER_FIELDS = [
-    "ropa_id", "destination", "recipient", "transfer_type", "safeguards",
-    "safeguard_detail", "regulation", "adequacy_decision", "data_types",
-    "frequency", "volume", "status", "review_date", "notes",
+    "ropa_id", "destination", "recipient_name", "transfer_type", "safeguard",
+    "safeguard_detail", "regulation", "legal_basis", "adequacy_decision", "data_types",
+    "frequency", "volume", "risk_level", "status", "review_date", "notes",
 ]
 
 def create_transfer(data):
@@ -1000,7 +1002,7 @@ def list_transfers(limit=500):
 
 _RET_FIELDS = [
     "category", "data_type", "retention_period", "legal_basis", "regulation",
-    "trigger_event", "deletion_method", "responsible", "review_date", "notes",
+    "trigger_event", "disposal_method", "owner", "review_date", "notes",
 ]
 
 def create_retention(data):
@@ -1026,7 +1028,7 @@ def list_retention(limit=500):
 
 _SEC_FIELDS = [
     "measure_name", "category", "description", "status",
-    "implementation_date", "review_date", "responsible", "evidence", "regulation", "notes",
+    "implementation_date", "review_date", "owner", "evidence", "regulation", "notes",
 ]
 
 def create_security(data):
@@ -1052,8 +1054,8 @@ def list_security(limit=500):
 # ═════════════════════════════════════════════════════════════════════════════
 
 _POLICY_FIELDS = [
-    "title", "type", "version", "status", "owner", "department",
-    "regulation", "content", "file_path", "file_name", "review_date",
+    "title", "policy_type", "version", "status", "owner", "department",
+    "regulation", "description", "file_path", "file_name", "review_date",
     "expiry_date", "approved_by", "approved_date", "next_review", "tags", "notes",
 ]
 

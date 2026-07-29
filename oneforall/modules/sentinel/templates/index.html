@@ -831,7 +831,7 @@
       <div class="section-title">International Transfers</div>
       <div class="section-sub">Chapter V GDPR — Cross-border data transfers and safeguards</div>
     </div>
-    <button class="btn btn-primary" onclick="snOpenModal('transfer',{})">+ Add Transfer</button>
+    <button class="btn btn-primary" onclick="snOpenModal('transfer')">+ Add Transfer</button>
   </div>
   <div id="snTransfersStats" class="sn-tab-stats"></div>
   <div id="snTransfersBanner" class="sn-expiry-banner" style="display:none"></div>
@@ -852,7 +852,7 @@
       <div class="section-title">Retention Schedules</div>
       <div class="section-sub">Article 5(1)(e) GDPR — Storage limitation and disposal schedules</div>
     </div>
-    <button class="btn btn-primary" onclick="snOpenModal('retention',{})">+ Add Schedule</button>
+    <button class="btn btn-primary" onclick="snOpenModal('retention')">+ Add Schedule</button>
   </div>
   <div id="snRetentionStats" class="sn-tab-stats"></div>
   <div id="snRetentionBanner" class="sn-suggestion-banner" style="display:none"></div>
@@ -873,7 +873,7 @@
       <div class="section-title">Security Measures</div>
       <div class="section-sub">Article 32 GDPR — Technical and organisational measures (TOMs)</div>
     </div>
-    <button class="btn btn-primary" onclick="snOpenModal('security',{})">+ Add Measure</button>
+    <button class="btn btn-primary" onclick="snOpenModal('security')">+ Add Measure</button>
   </div>
   <div id="snSecurityStats" class="sn-tab-stats"></div>
   <div class="card"><div style="overflow-x:auto">
@@ -895,7 +895,7 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-secondary" onclick="snOpenDraftPolicyModal()">✨ Draft with AI</button>
-      <button class="btn btn-primary" onclick="snOpenModal('policy',{})">+ Add Policy</button>
+      <button class="btn btn-primary" onclick="snOpenModal('policy')">+ Add Policy</button>
     </div>
   </div>
   <div id="snPoliciesStats" class="sn-tab-stats"></div>
@@ -918,7 +918,7 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-secondary" onclick="snOpenGenerateNoticeModal()">✨ Generate with AI</button>
-      <button class="btn btn-primary" onclick="snOpenModal('notice',{})">+ Add Notice</button>
+      <button class="btn btn-primary" onclick="snOpenModal('notice')">+ Add Notice</button>
     </div>
   </div>
   <div id="snNoticesStats" class="sn-tab-stats"></div>
@@ -2599,10 +2599,13 @@
     try{
       var data=await apiFetch('/sentinel/api/audit?limit=50');
       var items=data.records||data.items||data||[];
-      if(!items.length){body.innerHTML=emptyRow(5,'No audit records found');return;}
-      body.innerHTML=items.map(function(a){
-        return '<tr><td style="font-family:var(--mono);font-size:12px">'+esc(timeAgoShort(a.created_at||a.timestamp))+'</td><td>'+esc(a.user||a.username||'')+'</td><td>'+esc(a.action||'')+'</td><td>'+esc(a.entity_type||a.entity||'')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(a.details||a.description||'')+'</td></tr>';
-      }).join('');
+      if(!items.length){
+        body.innerHTML=emptyRow(5,'No audit records found');
+      }else{
+        body.innerHTML=items.map(function(a){
+          return '<tr><td style="font-family:var(--mono);font-size:12px">'+esc(timeAgoShort(a.created_at||a.timestamp))+'</td><td>'+esc(a.user||a.username||'')+'</td><td>'+esc(a.action||'')+'</td><td>'+esc(a.entity_type||a.entity||'')+'</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(a.details||a.description||'')+'</td></tr>';
+        }).join('');
+      }
     }catch(e){body.innerHTML=emptyRow(5,'Failed to load audit log');}
     // Load compliance score
     try{
@@ -2720,7 +2723,7 @@
       apiBase:'/sentinel/api/vendors',
       fields:[
         {name:'name',label:'Vendor Name',type:'text',required:true},
-        {name:'service',label:'Service Provided',type:'text'},
+        {name:'services',label:'Service Provided',type:'text'},
         {name:'contact_name',label:'Contact Person',type:'text'},
         {name:'contact_email',label:'Contact Email',type:'text'},
         {name:'dpa_status',label:'DPA Status',type:'select',options:['pending','signed','expired','not_required']},
@@ -2733,8 +2736,12 @@
       title:'Consent Record',
       apiBase:'/sentinel/api/consent',
       fields:[
+        {name:'subject_name',label:'Data Subject Name',type:'text'},
+        {name:'subject_id',label:'Data Subject ID',type:'text',placeholder:'e.g. customer or employee ID'},
+        {name:'subject_email',label:'Data Subject Email',type:'text'},
         {name:'purpose',label:'Purpose',type:'text',required:true},
         {name:'legal_basis',label:'Legal Basis',type:'select',options:['consent','legitimate_interest','contract','legal_obligation']},
+        {name:'consent_date',label:'Consent Date',type:'date'},
         {name:'collection_method',label:'Collection Method',type:'text',placeholder:'e.g. Web form, In-person'},
         {name:'status',label:'Status',type:'select',options:['active','expired','withdrawn','pending']},
         {name:'expiry_date',label:'Expiry Date',type:'date'},
@@ -2747,10 +2754,10 @@
       apiBase:'/sentinel/api/transfers',
       fields:[
         {name:'destination',label:'Destination Country / Region',type:'text',required:true},
-        {name:'recipient',label:'Recipient Organisation',type:'text'},
+        {name:'recipient_name',label:'Recipient Organisation',type:'text'},
         {name:'transfer_type',label:'Transfer Type',type:'select',options:['recurring','one-time','permanent']},
         {name:'legal_basis',label:'Legal Basis',type:'select',options:['adequacy_decision','sccs','bcrs','derogation','legitimate_interests']},
-        {name:'safeguards',label:'Safeguards',type:'textarea'},
+        {name:'safeguard',label:'Safeguards',type:'textarea'},
         {name:'risk_level',label:'Risk Level',type:'select',options:['low','medium','high']},
         {name:'status',label:'Status',type:'select',options:['active','inactive','under_review']},
         {name:'review_date',label:'Review Date',type:'date'},
@@ -2765,9 +2772,9 @@
         {name:'data_type',label:'Data Type',type:'text',placeholder:'e.g. Email addresses, Phone numbers'},
         {name:'retention_period',label:'Retention Period',type:'text',placeholder:'e.g. 3 years, 7 years + 6 months'},
         {name:'legal_basis',label:'Legal Basis',type:'select',options:['contract','legal_obligation','vital_interests','legitimate_interests','consent']},
-        {name:'deletion_method',label:'Deletion Method',type:'select',options:['secure_delete','anonymise','archive']},
+        {name:'disposal_method',label:'Deletion Method',type:'select',options:['secure_delete','anonymise','archive']},
         {name:'trigger_event',label:'Trigger Event',type:'text',placeholder:'e.g. Contract end, Customer exit'},
-        {name:'responsible',label:'Responsible Owner',type:'text'},
+        {name:'owner',label:'Responsible Owner',type:'text'},
         {name:'review_date',label:'Review Date',type:'date'},
         {name:'notes',label:'Notes',type:'textarea'}
       ]
@@ -2782,7 +2789,7 @@
         {name:'status',label:'Status',type:'select',options:['planned','in_progress','implemented','needs_review']},
         {name:'implementation_date',label:'Implementation Date',type:'date'},
         {name:'evidence',label:'Evidence Reference',type:'text',placeholder:'e.g. ISO cert, audit report ref'},
-        {name:'responsible',label:'Responsible Owner',type:'text'},
+        {name:'owner',label:'Responsible Owner',type:'text'},
         {name:'review_date',label:'Review Date',type:'date'},
         {name:'notes',label:'Notes',type:'textarea'}
       ]
@@ -2792,7 +2799,7 @@
       apiBase:'/sentinel/api/policies',
       fields:[
         {name:'title',label:'Title',type:'text',required:true},
-        {name:'type',label:'Type',type:'select',options:['policy','procedure','guideline','standard']},
+        {name:'policy_type',label:'Type',type:'select',options:['policy','procedure','guideline','standard']},
         {name:'version',label:'Version',type:'text',placeholder:'e.g. 1.0'},
         {name:'status',label:'Status',type:'select',options:['draft','in_review','approved','published','superseded']},
         {name:'owner',label:'Owner',type:'text'},
@@ -2808,12 +2815,12 @@
       apiBase:'/sentinel/api/notices',
       fields:[
         {name:'title',label:'Title',type:'text',required:true},
-        {name:'type',label:'Type',type:'select',options:['external','internal','cookie_banner','employee']},
+        {name:'notice_type',label:'Type',type:'select',options:['external','internal','cookie_banner','employee']},
         {name:'audience',label:'Audience',type:'text',placeholder:'e.g. Website visitors, Employees'},
         {name:'version',label:'Version',type:'text',placeholder:'e.g. 1.0'},
         {name:'status',label:'Status',type:'select',options:['draft','in_review','published','archived']},
-        {name:'url',label:'Published URL',type:'text',placeholder:'https://'},
-        {name:'content_summary',label:'Content Summary',type:'textarea'},
+        {name:'published_url',label:'Published URL',type:'text',placeholder:'https://'},
+        {name:'content',label:'Content Summary',type:'textarea'},
         {name:'review_date',label:'Review Date',type:'date'},
         {name:'notes',label:'Notes',type:'textarea'}
       ]
@@ -2872,7 +2879,7 @@
   window.snOpenModal=function(type,existing){
     var def=modalDefs[type];
     if(!def) return;
-    var isEdit=!!existing;
+    var isEdit=!!(existing&&existing.id);
     var html='<div class="modal-overlay" onclick="if(event.target===this)snCloseModal()">'+
       '<div class="modal-box">'+
       '<button class="modal-close" onclick="snCloseModal()">&times;</button>'+
@@ -3001,7 +3008,7 @@
           '<input id="lia_title" value="'+esc(isEdit?existing.title:'')+'"></div></div>'+
 
         '<div class="lia-part'+(isEdit&&existing.purpose_legit?' passed':isEdit?' failed':'')+'">'+
-          '<div class="lia-part-title">Part 1 — Purpose Test</div>'+
+          '<div class="lia-part-title">Part 1: Purpose Test</div>'+
           '<div class="lia-part-desc">Is there a legitimate purpose? Is it clearly defined and real?</div>'+
           '<div class="form-group"><label>Describe the legitimate interest</label>'+
             '<textarea id="lia_p1_desc" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.purpose_desc||''):'')+'</textarea></div>'+
@@ -3010,7 +3017,7 @@
         '</div>'+
 
         '<div class="lia-part'+(isEdit&&existing.necessity_pass?' passed':isEdit?' failed':'')+'">'+
-          '<div class="lia-part-title">Part 2 — Necessity Test</div>'+
+          '<div class="lia-part-title">Part 2: Necessity Test</div>'+
           '<div class="lia-part-desc">Is the processing necessary? Could a less intrusive means achieve the same goal?</div>'+
           '<div class="form-group"><label>Describe why processing is necessary</label>'+
             '<textarea id="lia_p2_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.necessity_desc||''):'')+'</textarea></div>'+
@@ -3021,14 +3028,14 @@
         '</div>'+
 
         '<div class="lia-part'+(isEdit&&existing.override_ok?' passed':isEdit?' failed':'')+'">'+
-          '<div class="lia-part-title">Part 3 — Balancing Test</div>'+
+          '<div class="lia-part-title">Part 3: Balancing Test</div>'+
           '<div class="lia-part-desc">Do the data subject\'s interests override the legitimate interest?</div>'+
           '<div class="form-group"><label>Impact on data subjects</label>'+
             '<textarea id="lia_p3_impact" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.subject_impact||''):'')+'</textarea></div>'+
           '<div class="form-group"><label>Safeguards applied to protect data subject interests</label>'+
             '<textarea id="lia_p3_safe" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.safeguards||''):'')+'</textarea></div>'+
           '<label class="lia-toggle"><input type="checkbox" id="lia_p3_pass"'+(isEdit&&existing.override_ok?' checked':'')+'>'+
-            '<span style="font-size:13px;font-weight:600">Controller interests prevail — data subjects would not be surprised or object</span></label>'+
+            '<span style="font-size:13px;font-weight:600">Controller interests prevail: data subjects would not be surprised or object</span></label>'+
         '</div>'+
 
         '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">'+
@@ -3657,7 +3664,7 @@
           thirdCountryFlows.slice(0,2).map(function(f){
             var dest=(f.destination||'').replace(/\\/g,'\\\\').replace(/'/g,'\\\'');
             var src=(f.source_system||f.source||'').replace(/\\/g,'\\\\').replace(/'/g,'\\\'');
-            return '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px" onclick="snOpenModal(\'transfer\',{destination:\''+dest+'\',recipient:\''+src+'\'})">+ Transfer for '+esc((f.destination||'').substring(0,20))+'</button>';
+            return '<button class="btn btn-sm btn-secondary" style="font-size:11px;padding:2px 8px" onclick="snOpenModal(\'transfer\',{destination:\''+dest+'\',recipient_name:\''+src+'\'})">+ Transfer for '+esc((f.destination||'').substring(0,20))+'</button>';
           }).join(' ');
       }else if(banner){banner.style.display='none';}
       // Table view
@@ -3957,8 +3964,8 @@
       var content=r.content||r.text||'';
       document.getElementById('snDraftPolicyModal').remove();
       // Open edit modal pre-filled with generated content
-      snOpenModal('policy',{title:ptype+(topic?' — '+topic:''),status:'draft',type:'policy',notes:content,regulation:reg});
-      if(typeof showToast==='function')showToast('Policy draft ready — review and save');
+      snOpenModal('policy',{title:ptype+(topic?': '+topic:''),status:'draft',policy_type:'policy',notes:content,regulation:reg});
+      if(typeof showToast==='function')showToast('Policy draft ready, review and save');
     }catch(e){
       status.style.background='rgba(220,38,38,.06)';status.style.color='var(--red)';
       status.innerHTML='Draft failed: '+(e.message||'Unknown error');

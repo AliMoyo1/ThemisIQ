@@ -562,3 +562,52 @@ def log_audit(user: Optional[dict], module: str, action: str,
         db.commit()
     finally:
         db.close()
+
+
+# ── Automatic module audit logging ───────────────────────────────────────────
+# Sentinel, BCM, ERM, and ORM never call log_audit() directly (unlike
+# platform/aria/evidence/governance), so audit_log has always been empty for
+# these 4 modules regardless of real activity. Rather than hand-add a call to
+# ~250 individual mutation endpoints across 4 files (guaranteed to miss some
+# and drift out of sync as routes are added), this middleware auto-logs every
+# successful mutation generically from the request path, and keeps working for
+# new endpoints with no further wiring.
+#
+# GRID is deliberately excluded: it already has its own log_activity() helper
+# (modules/grid/data_service.py) called from ~45 of its 64 mutation endpoints
+# with richer, entity-specific action names (e.g. "create_nc", "advance_cap")
+# than this generic middleware could produce. Including it here would double-
+# log those 45 and add noise, not close a gap. The ~19 GRID endpoints without
+# a log_activity() call are a separate, smaller follow-up: matching GRID's own
+# existing convention there is the right fix, not layering a second mechanism
+# on top of it.
+
+_AUDITED_MODULE_PATH_RE = _re.compile(
+    r"^/(sentinel|bcm|erm|orm)/api/([a-zA-Z_-]+)(?:/(\d+))?"
+)
+
+
+async def module_audit_middleware(request: Request, call_next):
+    """Auto-log successful mutations for modules with no direct log_audit() calls.
+
+    Runs after the route handler so request.state.user (set by @require_auth /
+    @require_capability) and the final response status are both available.
+    Never lets a logging failure affect the actual response.
+    """
+    response = await call_next(request)
+    if request.method in ("POST", "PUT", "PATCH", "DELETE") and 200 <= response.status_code < 300:
+        match = _AUDITED_MODULE_PATH_RE.match(request.url.path)
+        if match:
+            module, entity_type, entity_id = match.group(1), match.group(2), match.group(3)
+            try:
+                log_audit(
+                    getattr(request.state, "user", None),
+                    module,
+                    f"{request.method} {entity_type}",
+                    entity_type=entity_type,
+                    entity_id=int(entity_id) if entity_id else 0,
+                    ip=request.client.host if request.client else "",
+                )
+            except Exception:
+                pass
+    return response

@@ -181,11 +181,248 @@ because it was a concrete, reproduced crash, not speculation):**
 
 ---
 
+## Pass 3 — Sentinel's remaining 10 sub-pages
+
+**Status: COMPLETE. Findings and fixes both done, all verified live. Item #10
+(log_audit retrofit) deliberately deferred to its own follow-up, per explicit
+instruction.**
+
+**Covered:** Vendor Management, Consent Management, Legitimate Interest (LIA),
+AI Impact Assessment (AIIA), Intl. Transfers, Retention, Security Measures,
+Privacy Policies, Privacy Notices, Reports & Analytics, create flows on each.
+
+**Method:** for every entity, cross-referenced the frontend form's field config
+against (a) its backend `_XXX_FIELDS` allowlist in `data_service.py` and (b) the
+real DB table schema via `PRAGMA table_info`, so mismatches could be predicted
+before triggering them. Live-confirmed a representative sample of each bug class
+(Security Measures and Transfers both reproduced the predicted 500 crash exactly)
+rather than redundantly re-clicking through an already-proven root cause on every
+single entity; Retention and Policies were left as code-confirmed-only since the
+identical `_generic_create` root cause applies to them without doubt.
+
+**Root cause underlying 4 of the findings below:** `sentinel/data_service.py`'s
+`_generic_create`/`_generic_update` build `INSERT`/`UPDATE` statements directly
+from whatever field-name list they're given, with no validation that those names
+are real columns in the target table. Combined with a form config that was
+apparently never checked against the schema for several entities, this produces
+either a silent dropped field (frontend name wrong but backend allowlist name is
+real) or a hard 500 crash (backend allowlist name itself doesn't exist in the DB).
+
+### Findings
+
+| # | Severity | Area | Summary |
+|---|----------|------|---------|
+| 1 | High | Security Measures | Every creation attempt crashes 500 (`no column named responsible`) — `_SEC_FIELDS` uses `responsible`, real column is `owner` |
+| 2 | High | Intl. Transfers | Every creation attempt crashes 500 (`no column named recipient`) — `_TRANSFER_FIELDS` uses `recipient`/`safeguards`, real columns are `recipient_name`/`safeguard` |
+| 3 | High | Retention | Same crash predicted, not yet re-triggered live — `_RET_FIELDS` uses `deletion_method`/`responsible`, real columns are `disposal_method`/`owner` |
+| 4 | High | Privacy Policies | Same crash predicted, not yet re-triggered live — `_POLICY_FIELDS` uses `type`, real column is `policy_type` |
+| 5 | Medium | Vendor Management | Form field `service` silently lost (real column is `services`); form field `review_date` maps to no column at all |
+| 6 | Medium | Consent Management | Form field `collection_method` silently lost (creation succeeds, column stays blank); form never exposes `subject_name`/`subject_id`/`consent_date` at all, so there's no way to record who consented or when |
+| 7 | Medium | Privacy Notices | Form fields `type`/`url` map to nothing; `content_summary` should be `content` — confirmed live, `content` stays NULL despite entering text |
+| 8 | Medium | Reports | `snLoadReports()` has a bare `return` inside the audit-trail empty-check that skips the compliance-score fetch entirely whenever the audit trail is empty — meaning "Compliance Score: —" never even attempts to populate itself while the trail is empty (which it always is, see item 10) |
+| 9 | Low | Reports | The 3 differently-labeled report buttons (Audit Log Export, RoPA Report, Breach Report) and the Compliance Score card all call the identical `/api/audit-export` endpoint, which never reads its own `format`/`type` query params — all 4 actions download the byte-for-byte identical bundled ZIP regardless of label |
+| 10 | Low | Platform-wide (surfaced via Sentinel Reports) | `audit_log` is never written by Sentinel, GRID, BCM, ERM, or ORM — only `"platform"`, `"aria"`, `"evidence"`, `"governance"` call `log_audit()`. Sentinel's "Audit Trail" table (and the export ZIP's `Audit_Trail_*.json`) will always be empty regardless of real activity; this is a missing write path across 5 modules, not a display bug, and is a bigger fix than Sentinel Reports alone — flagged separately rather than bundled into this pass's fixes |
+| 11 | Low | Security Measures / Transfers / Notices | Modal shows "Edit"/"Update" even for a brand-new record (Vendor and Consent correctly show "Add"/"Create") |
+| 12 | Low | LIA | 3 em dashes in modal copy: "Part 1 — Purpose Test", "Part 3 — Balancing Test", "Controller interests prevail — data subjects would not be surprised or object" |
+
+**Positive findings (confirmed working, no action needed):** LIA works fully
+end-to-end (3-part purpose/necessity/balancing test all passed correctly, zero
+backend field-name mismatches, perfect match against the real DB schema via
+`PRAGMA`); AIIA works fully end-to-end (created with correct autonomy level and
+correct "Not Scored" default classification, also zero backend field-name
+mismatches).
+
+**Test data cleanup (testing phase):** all 6 records that actually persisted
+(Vendor "VERIFY-SUB: CloudHost Data Processing Ltd" + its auto-created
+`canonical_vendors` row, Consent "VERIFY-SUB: Marketing email consent", Notice
+"VERIFY-SUB: Website Privacy Notice", LIA "VERIFY-SUB: Fraud monitoring via
+transaction analytics", AIIA "VERIFY-SUB: Loan approval scoring model") deleted
+and confirmed removed via direct DB query. Security Measures and Transfers test
+attempts confirmed via direct DB query to have persisted zero rows (consistent
+with both crashing before their INSERT could commit), so no cleanup was needed
+for those two.
+
+### Fix log
+
+Each entry: file(s), what changed, why, live verification result.
+
+- [x] **#1-2 Security Measures / Transfers 500 crashes** — `_SEC_FIELDS`'s
+      `responsible` -> `owner`; `_TRANSFER_FIELDS`'s `recipient`/`safeguards` ->
+      `recipient_name`/`safeguard` (`modules/sentinel/data_service.py`), with the
+      matching frontend field names renamed in `modalDefs.security`/`.transfer`
+      (`modules/sentinel/templates/index.html`) so the three-way match (form
+      field name = backend allowlist name = real DB column) holds end to end.
+      **Verified live:** created a Security Measure and a Transfer; both
+      succeeded (`201 Created`, confirmed via direct DB query the `owner` /
+      `recipient_name` / `safeguard` columns hold exactly what was typed).
+- [x] **#3 Retention 500 crash** — same pattern: `_RET_FIELDS`'s
+      `deletion_method`/`responsible` -> `disposal_method`/`owner`, plus the
+      matching frontend rename.
+      **Verified live:** created a Retention schedule; succeeded, `disposal_method`
+      and `owner` confirmed correct via direct DB query.
+- [x] **#4 Privacy Policies 500 crash** — `_POLICY_FIELDS`'s `type` -> `policy_type`
+      (matching frontend rename). Also found and fixed a **second**, previously
+      uncaught mismatch on the same entity while correcting this one:
+      `_POLICY_FIELDS`'s `content` field pointed at a column that doesn't exist
+      either; the real column is `description` (backend-only rename, the form
+      never exposed a content field so there was nothing to rename there).
+      **Verified live:** created a Privacy Policy with Type=Standard; succeeded,
+      `policy_type='standard'` confirmed via direct DB query.
+- [x] **#5 Vendor Management** — `service` -> `services` in `modalDefs.vendor`.
+      `review_date` had no backing column anywhere (not a naming mismatch, a
+      genuine gap); added `sentinel_vendors.review_date` via `_COLUMN_MIGRATIONS`
+      in `database.py` (matches the existing `website`/`regulation` precedent for
+      this exact table) and added it to `_VENDOR_FIELDS`.
+      **Verified live:** created a Vendor with both fields filled; `services` and
+      `review_date` both confirmed correct via direct DB query.
+- [x] **#6 Consent Management** — `collection_method` had no backing column;
+      added `sentinel_consent.collection_method` via `_COLUMN_MIGRATIONS` and to
+      `_CONSENT_FIELDS`. Added the 4 real-but-unexposed columns
+      (`subject_name`, `subject_id`, `subject_email`, `consent_date`) to
+      `modalDefs.consent` so the form can actually record who consented and when.
+      **Verified live:** created a Consent record with all 6 fields filled; every
+      one confirmed correct via direct DB query.
+- [x] **#7 Privacy Notices** — `content_summary` -> `content` (pure rename, no
+      schema change, this was the field silently losing all typed text). `type`
+      and `url` had no backing columns; added `sentinel_privacy_notices.notice_type`
+      and `.published_url` via `_COLUMN_MIGRATIONS` (named `notice_type` rather
+      than bare `type` to avoid ambiguity, matching the `policy_type`/`transfer_type`
+      convention already used by sibling entities), wired into `_NOTICE_FIELDS`
+      and the matching frontend field names.
+      **Verified live:** created a Notice with Type/URL/Content all filled; all
+      3 confirmed correct via direct DB query (`content` in particular, previously
+      always NULL despite text being entered).
+- [x] **#8 Reports compliance score never loading** — `snLoadReports()` had a
+      bare `return` inside the audit-trail's empty-check that skipped the
+      compliance-score fetch entirely whenever the trail was empty (which is
+      always, per #10). Restructured the empty/non-empty branches into an
+      if/else so the compliance-score fetch always runs afterward regardless.
+      **Verified live:** Reports page now shows "Compliance Score: 52%" instead
+      of a permanent "—".
+- [x] **#9 Report buttons producing identical output** — `api_audit_export`
+      (`modules/sentinel/routes.py`) never read its own `type` query param.
+      Added branching: `type=ropa`/`breach`/`compliance` now each return a
+      focused single-file export (`RoPA_Report_*.json`, `Breach_Report_*.json`,
+      `Compliance_Score_*.json`); no `type` (the plain "Audit Log Export" button)
+      keeps the original full multi-file evidence pack unchanged.
+      **Verified:** direct script replicating each branch's ZIP-building logic
+      confirms 4 distinctly different file listings (comprehensive 8-file pack
+      vs. 3 single-file exports); all 4 endpoint calls return `200 OK` live.
+- [x] **#11 Modal Add/Edit mislabeling** — root cause: `snOpenModal`'s
+      `isEdit=!!existing` treated *any* object (including the `{}` five "+ Add"
+      buttons on Security/Transfer/Retention/Policy/Notice passed by mistake,
+      and a non-empty AI-draft prefill object on Policy) as "editing," since any
+      object is JS-truthy. Fixed at the root: `isEdit=!!(existing&&existing.id)`,
+      so only an object with a real persisted `id` counts as an edit. Also
+      cleaned up the 5 button call sites to omit the stray argument entirely,
+      and fixed two now-stale references surfaced by the #4/#2 renames above:
+      the AI-draft policy prefill's `type:'policy'` -> `policy_type:'policy'`,
+      and a "+ Transfer for X" quick-fill button's `recipient:` -> `recipient_name:`.
+      **Verified live:** all 5 previously-mislabeled "+ Add" buttons now show
+      "New X" / "Create"; editing an existing Security Measure still correctly
+      shows "Edit Security Measure" with the record's real data pre-filled.
+- [x] **#12 Em dashes in LIA modal copy** — `sentinel/templates/index.html`:
+      "Part 1 — Purpose Test", "Part 3 — Balancing Test", and "Controller
+      interests prevail — data subjects would not be surprised or object" all
+      changed to colons (standing house rule). Also caught and fixed a 4th,
+      identical-pattern instance in the same drawer not in the original
+      findings list: "Part 2 — Necessity Test". Also fixed 2 more found while
+      touching `api_audit_export`'s README text and the AI-draft policy
+      toast message during the #9/#11 fixes above.
+
+**Deliberately not fixed this pass:**
+
+- [ ] **#10 `audit_log` never written by 5 modules** — per explicit instruction,
+      this is scoped as its own follow-up rather than bundled here; it touches
+      every mutation endpoint across Sentinel/GRID/BCM/ERM/ORM, a materially
+      larger change than a field-name/UI fix.
+
+### Verification checklist
+
+- [x] `python -m py_compile` on all 3 touched Python files (`database.py`,
+      `modules/sentinel/data_service.py`, `modules/sentinel/routes.py`) — clean.
+- [x] `sentinel/templates/index.html` parses cleanly via Jinja `get_template()`.
+- [x] Full `pytest tests/` suite — all passing, both before and after every fix.
+- [x] Dev server restarted fresh; confirmed all 6 new `_COLUMN_MIGRATIONS`
+      columns landed (`sentinel_vendors.review_date`,
+      `sentinel_consent.collection_method`, `sentinel_transfers.legal_basis`
+      and `.risk_level`, `sentinel_privacy_notices.notice_type` and
+      `.published_url`) via direct `PRAGMA table_info` query.
+- [x] Live re-test of each of the 7 entities' create flow (Vendor, Consent,
+      Transfer, Retention, Security, Policy, Notice) — every one succeeded with
+      `201 Created` and every field verified correct via direct DB query, not
+      just assumed from a lack of errors.
+- [x] Live re-test of Reports page — Compliance Score now populates (52%,
+      previously permanently "—"); confirmed the 3 report-type branches produce
+      genuinely different file listings.
+- [x] Live re-test that fixing the Add/Edit mislabeling didn't break genuine
+      edits — opened Edit on an existing Security Measure, confirmed it still
+      correctly shows "Edit Security Measure" with real data pre-filled.
+- [x] No console errors during the entire verification pass; server error log
+      clean for every Sentinel-related request (the one error observed,
+      `RuntimeError: No response returned` on `/api/notifications`, is the
+      same pre-existing platform-wide middleware-stacking issue already
+      identified and scoped out during the ERM Framework Editor slice,
+      unrelated to any Pass 3 change).
+- [x] Test data cleanup (fix-verification phase): all 7 `PASS3-FIX-VERIFY`
+      records plus their 1 auto-generated `canonical_vendors` row deleted;
+      confirmed zero rows remain across all 8 touched tables via a text-search
+      sweep, not just the specific rows we remember creating.
+
+---
+
+## Pass 3 follow-up — audit_log retrofit (item #10)
+
+**Status: COMPLETE for Sentinel/BCM/ERM/ORM. GRID needed a different, smaller
+fix once investigation showed the original diagnosis was wrong for that one
+module specifically.**
+
+**What changed:** added `module_audit_middleware` (`core/middleware.py`),
+registered as the innermost middleware in `main.py` (after
+`tenant_context_middleware`, so `request.state.user` set by
+`@require_auth`/`@require_capability` is already populated by the time it
+runs). It matches the request path against
+`^/(sentinel|bcm|erm|orm)/api/([a-zA-Z_-]+)(?:/(\d+))?`, and on any
+successful (2xx) POST/PUT/PATCH/DELETE, calls the existing `log_audit()`
+helper with the module/entity/id parsed from the URL. This closes the gap
+for all ~250 mutation endpoints across the 4 modules at once, including
+future ones, without hand-editing every route.
+
+**Correction to the original Pass 3 diagnosis:** GRID was wrongly included
+in "5 modules with zero audit logging." A live test surfaced entries like
+`create_vendor`/`create_nc`/`advance_cap` already in `audit_log` for GRID
+activity from earlier in this session, before this fix existed. Investigation
+found `modules/grid/data_service.py`'s own `log_activity()` helper, called
+from 45 of GRID's 64 mutation endpoints, with richer per-entity action names
+than the generic middleware could produce, missed entirely by the original
+grep (which only searched for `log_audit(` calls, not `log_activity(` or raw
+`INSERT INTO audit_log`). GRID is now deliberately excluded from
+`module_audit_middleware`'s scope, since including it would have
+double-logged those 45 endpoints, not closed a real gap. Confirmed live:
+creating a GRID vendor before the exclusion produced 2 audit_log rows for
+one action (`POST vendors` from the new middleware + `create_vendor` from
+GRID's own helper); after excluding GRID, the same action produces exactly 1.
+
+**Verified:** BCM/ERM/ORM's `data_service.py` files have zero references to
+`audit_log` or any `log_*` helper (confirmed via direct grep), so the
+"genuinely audit-silent" diagnosis holds for those 3 plus Sentinel.
+`py_compile` clean on `core/middleware.py`/`main.py`; full `pytest` suite
+passing both before and after; live-verified a Sentinel vendor creation now
+appears in Sentinel's own Reports > Audit Trail table (previously always
+empty) with correct user/action/entity/timestamp.
+
+**Remaining, smaller follow-up (not done here):** ~19 of GRID's 64 mutation
+endpoints have no `log_activity()` call at all. Matching GRID's own existing
+convention there is the right fix, not layering a second mechanism on top of
+the one it already has.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
 - BCM, ORM, ARIA deep-dives
-- Remaining Sentinel sub-pages (Vendor Management, Consent, LIA, AIIA, Transfers,
-  Retention, Security Measures, Policies, Notices, Reports)
+- The ~19 uncovered GRID mutation endpoints noted above (add `log_activity()`
+  calls matching GRID's own convention)
 - Remaining personas from the original QA brief (audit_lead, risk_owner,
   bcm_manager, grc_officer, org_admin, employee)
 - Load/performance testing
