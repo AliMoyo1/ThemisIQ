@@ -1075,7 +1075,8 @@
   function esc(s){if(!s)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
   function fmtDate(ts){
     if(!ts) return '—';
-    var d=new Date(ts.includes('T')?ts:ts+'Z');
+    var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));
+    if(isNaN(d.getTime()))return ts;
     return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
   }
   function timeAgoShort(ts){
@@ -1580,11 +1581,11 @@
     if(!items.length){body.innerHTML=emptyRow(8,'No DPIAs found');return;}
     body.innerHTML=items.map(function(d){
       var residual=d.residual_risk?riskBadge(d.residual_risk):'<span style="color:var(--muted);font-size:11px">—</span>';
-      var dpoCell=d.dpo_consulted?'<span style="color:var(--good);font-size:12px;font-weight:700">✓</span>':'<span style="color:var(--muted);font-size:11px">—</span>';
+      var dpoCell=Number(d.dpo_consulted)?'<span style="color:var(--good);font-size:12px;font-weight:700">✓</span>':'<span style="color:var(--muted);font-size:11px">—</span>';
       return '<tr>'+
         '<td><strong>'+esc(d.title||d.name||'')+'</strong>'+(d.ref_number?'<br><span class="item-id" style="font-size:10px">'+esc(d.ref_number)+'</span>':'')+'</td>'+
         '<td>'+(d.ropa_ref?'<span class="item-id" style="cursor:pointer" onclick="sentinelRouter.navigate(\'/sentinel/ropa\')" title="'+esc(d.ropa_name||'')+'">'+esc(d.ropa_ref)+'</span>':'<span style="color:var(--muted);font-size:11px">—</span>')+'</td>'+
-        '<td>'+riskBadge(d.risk_level||d.risk)+'</td>'+
+        '<td>'+riskBadge(d.risk_level||d.overall_risk||d.risk)+'</td>'+
         '<td>'+residual+'</td>'+
         '<td>'+dpoCell+'</td>'+
         '<td>'+statusBadge(d.status)+'</td>'+
@@ -2207,15 +2208,15 @@
             fg('Due Date','<input type="date" id="dd_due_date" value="'+esc(f('due_date'))+'" style="'+fs+'">')+
           '</div>'+
           fg('Description','<textarea id="dd_description" rows="3" placeholder="Overview of this processing and why a DPIA is needed" style="'+fsta+'">'+esc(f('description'))+'</textarea>')+
-          (isEdit?fg('Linked RoPA',
-            '<select id="dd_ropa_link" style="'+fs+'" onchange="snDpiaLinkRopa('+id+',this.value)">'+
+          fg('Linked RoPA'+(isEdit?'':' <span style="color:var(--muted);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>'),
+            '<select id="dd_ropa_link" style="'+fs+'"'+(isEdit?' onchange="snDpiaLinkRopa('+id+',this.value)"':'')+'>'+
               '<option value="">— None —</option>'+
               (ropaCache||[]).filter(function(rpa){return !rpa.dpia_id||rpa.dpia_id===id;}).map(function(rpa){
                 return '<option value="'+rpa.id+'"'+(f('ropa_id')&&parseInt(f('ropa_id'))===rpa.id?' selected':'')+'>'+esc(rpa.ref_number||'')+' '+esc(rpa.processing_name||'')+'</option>';
               }).join('')+
             '</select>'+
-            (r&&r.ropa_ref?'<span style="font-size:11px;color:var(--muted);margin-top:4px;display:block">Currently linked: <strong>'+esc(r.ropa_ref)+'</strong> — '+esc(r.ropa_name||'')+'</span>':'')
-          ):'')+
+            (r&&r.ropa_ref?'<span style="font-size:11px;color:var(--muted);margin-top:4px;display:block">Currently linked: <strong>'+esc(r.ropa_ref)+'</strong>, '+esc(r.ropa_name||'')+'</span>':'')
+          )+
         '</div>'+
 
         '<div class="ropa-drawer-section" id="snDpiaTab_data">'+
@@ -2314,11 +2315,23 @@
     };
     if(btn){btn.disabled=true;btn.textContent='Saving...';}
     try{
-      if(id)await apiFetch('/sentinel/api/dpias/'+id,{method:'PUT',body:data});
-      else await apiFetch('/sentinel/api/dpias',{method:'POST',body:data});
-      document.getElementById('snDpiaDrawerWrap').remove();
-      snLoadDpia();
-      if(typeof showToast==='function')showToast(id?'DPIA updated':'DPIA created');
+      if(id){
+        await apiFetch('/sentinel/api/dpias/'+id,{method:'PUT',body:data});
+        document.getElementById('snDpiaDrawerWrap').remove();
+        snLoadDpia();
+        if(typeof showToast==='function')showToast('DPIA updated');
+      }else{
+        var created=await apiFetch('/sentinel/api/dpias',{method:'POST',body:data});
+        var ropaSel=g('dd_ropa_link');
+        if(created&&created.id&&ropaSel){
+          if(typeof showToast==='function')showToast('DPIA created');
+          await snDpiaLinkRopa(created.id,ropaSel);
+        }else{
+          document.getElementById('snDpiaDrawerWrap').remove();
+          snLoadDpia();
+          if(typeof showToast==='function')showToast('DPIA created');
+        }
+      }
     }catch(e){
       if(btn){btn.disabled=false;btn.textContent=id?'Save Changes':'Create DPIA';}
       if(typeof showToast==='function')showToast('Save failed: '+(e.message||''),'error');
@@ -2697,6 +2710,7 @@
         {name:'requester_name',label:'Requester Name',type:'text',required:true},
         {name:'requester_email',label:'Requester Email',type:'text'},
         {name:'received_date',label:'Date Received',type:'date'},
+        {name:'deadline_date',label:'Response Deadline',type:'date'},
         {name:'status',label:'Status',type:'select',options:['open','in_progress','completed','closed']},
         {name:'notes',label:'Notes',type:'textarea'}
       ]

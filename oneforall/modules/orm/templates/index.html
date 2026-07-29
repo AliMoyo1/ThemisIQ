@@ -574,7 +574,7 @@ var ORM_CURRENT_USER_ID = {{ user.id }};
 
 /* ─────────────────────────── HELPERS ─────────────────────────── */
 function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
-function fmtDate(ts){if(!ts)return'—';var d=new Date(ts.includes('T')?ts:ts+'Z');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
+function fmtDate(ts){if(!ts)return'—';var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));if(isNaN(d.getTime()))return ts;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
 function timeAgo(ts){if(!ts)return'';var s=Math.floor((Date.now()-new Date(ts.includes('T')?ts:ts+'Z').getTime())/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
 function fmtCurrency(v){v=parseFloat(v)||0;if(v>=1000000)return'$'+(v/1000000).toFixed(1)+'M';if(v>=1000)return'$'+(v/1000).toFixed(1)+'K';return'$'+v.toFixed(0);}
 function sevBadge(s){var m={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};return'<span class="badge '+(m[(s||'').toLowerCase()]||'badge-draft')+'">'+esc((s||'?').toUpperCase())+'</span>';}

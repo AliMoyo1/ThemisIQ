@@ -2079,10 +2079,10 @@ def breach_elevates_to_erm(event_type, source_module, entity_type,
             description=(
                 f"Confirmed data breach escalated to ERM. Severity: {severity}. "
                 f"Affected records: {affected}. "
-                f"{regulation} notification obligation applies — {breach_hours}h from discovery. "
+                f"{regulation} notification obligation applies: {breach_hours}h from discovery. "
                 f"Immediate executive escalation required."
             ),
-            category="compliance",
+            category="Compliance & Legal Risk",
             likelihood=5, impact=5,
             source_module="sentinel", source_risk_id=entity_id,
             board_visibility=1,  # Always board-visible

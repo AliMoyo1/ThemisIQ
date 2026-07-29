@@ -331,7 +331,8 @@ function today(){ return new Date().toISOString().slice(0,10); }
 
 function fmtDate(ds){
   if(!ds) return '—';
-  const d = new Date(ds+'T00:00:00');
+  const d = new Date(ds.length===10?ds+'T00:00:00':ds.replace(' ','T'));
+  if(isNaN(d.getTime())) return ds;
   return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
 }
 

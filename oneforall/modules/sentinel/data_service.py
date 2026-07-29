@@ -758,6 +758,16 @@ def create_dsr(data):
 
 
 def update_dsr(dsr_id, data):
+    if data.get("received_date") and not data.get("deadline_date"):
+        try:
+            from modules.sentinel.jurisdictions import get_dsr_deadline_days
+            existing = get_dsr(dsr_id)
+            regulation = data.get("regulation") or (existing.get("regulation") if existing else None) or "GDPR"
+            days = get_dsr_deadline_days(regulation)
+            rec = to_dt(data["received_date"][:10])
+            data["deadline_date"] = (rec + timedelta(days=days)).strftime("%Y-%m-%d")
+        except Exception:
+            pass
     _generic_update("sentinel_dsr", set(_DSR_FIELDS), data, dsr_id)
 
 

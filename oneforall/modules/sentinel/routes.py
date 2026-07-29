@@ -1,5 +1,5 @@
 """
-Sentinel module — Data Protection routes.
+Sentinel module: Data Protection routes.
 
 FastAPI router ported from the original Flask-based Data Protection Sentinel.
 Sentinel is an SPA: one HTML template serves the UI, everything else is JSON API.
@@ -7,10 +7,13 @@ All routes are prefixed with /sentinel and guarded by capability-based RBAC.
 """
 import io
 import json
+import logging
 import os
 import zipfile
 from datetime import datetime
 from core.timeutils import utcnow, to_dt
+
+log = logging.getLogger("oneforall.sentinel")
 
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
