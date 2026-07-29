@@ -2778,7 +2778,6 @@ def bcm_plan_deactivated_handler(event_type, source_module, entity_type,
 
 _BREACH_CATEGORIES = {
     "data_breach", "privacy_breach", "privacy",
-    "compliance_&_legal_risk", "technology_risk",
 }
 _BREACH_TITLE_KEYWORDS = {"data breach", "privacy breach", "pii exposure", "data leak"}
 

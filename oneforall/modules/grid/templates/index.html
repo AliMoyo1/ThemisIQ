@@ -1726,11 +1726,16 @@
     return '<span class="status-badge" style="background:'+c+'1a;color:'+c+';border:1px solid '+c+'33;font-size:11px">'+esc(s)+'</span>';
   }
 
-  window.openNewNCModal=function(){
+  window.openNewNCModal=async function(){
+    var auds=await api('/grid/api/audits')||[];
+    var audF=document.getElementById('ncAuditFilter');
+    var preselect=(audF&&audF.value)?audF.value:'';
+    var opts=auds.map(function(a){return '<option value="'+a.id+'"'+(String(a.id)===preselect?' selected':'')+'>'+esc(a.name)+'</option>';}).join('');
     showModal(
       '<div class="modal-title">New Finding</div>'+
       '<button class="modal-close" onclick="closeModal()">&times;</button>'+
       '<form onsubmit="return createNC(event)">'+
+        '<div class="form-group"><label>Audit</label><select name="audit_id" required><option value=""'+(preselect?'':' selected')+' disabled>Select an audit…</option>'+opts+'</select></div>'+
         '<div class="form-group"><label>Title</label><input name="title" required placeholder="Description of finding"></div>'+
         '<div class="form-group"><label>Severity</label><select name="severity"><option>minor</option><option>major</option><option>critical</option></select></div>'+
         '<div class="form-group"><label>Description</label><textarea name="description" rows="3" placeholder="Detailed description..."></textarea></div>'+
@@ -1744,8 +1749,9 @@
   window.createNC=async function(e){
     e.preventDefault();
     const f=e.target;
+    if(!f.audit_id.value){if(typeof showToast==='function')showToast('Select an audit','error');return false;}
     const res=await api('/grid/api/ncs',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({title:f.title.value,severity:f.severity.value,description:f.description.value})});
+      body:JSON.stringify({audit_id:parseInt(f.audit_id.value,10),title:f.title.value,severity:f.severity.value,description:f.description.value})});
     if(res&&res.id){closeModal();if(typeof showToast==='function')showToast('Finding created','success');loadFindings();}
     return false;
   };
