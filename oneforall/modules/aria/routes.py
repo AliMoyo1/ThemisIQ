@@ -592,7 +592,7 @@ async def update_control(request: Request, ctrl_id: int,
 @router.get("/api/frameworks")
 @require_module("aria")
 async def api_frameworks_list(request: Request):
-    """Return active frameworks as JSON — used by cross-module integrations."""
+    """Return active frameworks as JSON, used by cross-module integrations."""
     db = get_db()
     try:
         rows = db.execute(
@@ -2019,7 +2019,7 @@ async def api_create_control_mapping(request: Request):
         if not src or not tgt:
             return JSONResponse({"ok": False, "error": "One or both controls not found"}, status_code=404)
         if src["framework_id"] == tgt["framework_id"]:
-            return JSONResponse({"ok": False, "error": "Both controls belong to the same framework — cross-framework mapping only"}, status_code=400)
+            return JSONResponse({"ok": False, "error": "Both controls belong to the same framework, cross-framework mapping only"}, status_code=400)
 
         new_id = insert_returning_id(db,"""
             INSERT INTO aria_control_mappings
@@ -2031,7 +2031,7 @@ async def api_create_control_mapping(request: Request):
               mapping_type, notes, user["id"]))
         db.commit()
         if new_id is None:
-            # ON CONFLICT DO NOTHING fired — mapping already exists
+            # ON CONFLICT DO NOTHING fired, mapping already exists
             existing = db.execute(
                 "SELECT id FROM aria_control_mappings WHERE source_control_id=%s AND target_control_id=%s",
                 (source_ctrl_id, target_ctrl_id)
@@ -2105,7 +2105,7 @@ async def api_ims_status(request: Request):
     """Return IMS classification for all controls across the given frameworks.
 
     Query param: fw_ids=1,2,3
-    Returns three sections: integrated, partial, unique — each a list of control dicts.
+    Returns three sections: integrated, partial, unique, each a list of control dicts.
     """
     _empty = {"integrated": [], "partial": [], "unique": [], "fw_ids": [], "stats": {
         "total": 0, "integrated": 0, "partial": 0, "unique": 0, "effort_saved_pct": 0}}
@@ -2326,7 +2326,7 @@ async def ai_generator_page(request: Request):
             log.info("  Framework '%s' (id=%s): %d controls",
                      fw_name, fw_id, len(ctrls))
 
-            # Lazy-seed if empty — try exact match, then partial match
+            # Lazy-seed if empty, try exact match, then partial match
             if not ctrls:
                 seed_data = FRAMEWORK_CONTROLS.get(fw_name)
                 if not seed_data:

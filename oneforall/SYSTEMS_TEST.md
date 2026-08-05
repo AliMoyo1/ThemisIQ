@@ -756,9 +756,98 @@ id on retry.
 
 ---
 
+## Pass 6 — ARIA deep dive
+
+**Status: COMPLETE. Mostly clean pass: no live-testable functional bugs found
+in ARIA's actively-used code paths. Two structural findings documented
+below (one fixed, one deliberately not fixed pending a decision).**
+
+**Covered:** Dashboard, Document Register (create + edit), Document
+Templates (upload), Risk Register (create + update), Frameworks, Framework
+detail, IMS Control Mapping (manual + auto-generate), AI Policy Generator
+(incl. `custom_instructions` from an earlier phase), Ask ARIA (incl.
+feedback), Audit Log.
+
+**Method:** ARIA has a different architecture from every other module
+audited so far, no `data_service.py` at all; all DB logic lives directly in
+`routes.py` (2935 lines) with 10 separate server-rendered templates instead
+of one SPA `index.html`. Adapted the methodology accordingly: extracted
+every `INSERT INTO`/`UPDATE` statement from `routes.py` to find the real
+entities and their backend-wired columns, cross-referenced against a
+batched `PRAGMA table_info` sweep of every `aria_*` table, then
+cross-referenced against each template's actual form-submission JS (using
+`id="add-*"`/`id="edit-*"` + `FormData`/`fetch`, not native form
+`name=` attributes) to check for gaps.
+
+### Findings
+
+| # | Severity | Area | Summary |
+|---|----------|------|---------|
+| 1 | Info (dead schema, not a functional bug) | Platform-wide | `aria_frameworks` (16 stale rows), `aria_controls` (0 rows), and `aria_evidence` (0 rows) are fully orphaned tables: zero reads or writes anywhere in `routes.py`. The real, live functionality for frameworks/controls goes through the separate shared `frameworks`/`controls` tables via `core/framework_service.py` (confirmed: `aria_control_mappings` creation looks up `FROM controls`, not `FROM aria_controls`), and evidence goes through the shared `evidence_items` table. Left alone rather than dropped, since removing tables/data is a destructive, harder-to-reverse action warranting an explicit decision rather than being bundled into a QA pass |
+| 2 | Info (dead column, not a bug) | Document Templates | `aria_doc_templates.logo_path` is read by `branding_engine.py` when applying a template, but never written anywhere. Confirmed harmless: `apply_template()` gracefully skips logo insertion when `logo_path` is `None`, and the Templates page's own help text confirms the actual design puts the logo inside the uploaded `.docx` template's header, not as a separate upload. No fix needed, this is a superseded-by-design column, not a gap |
+| 3 | Low (style, standing rule) | Whole module | 76 em dashes across 14 files (`ai_generator.py`, `ask_service.py`, `routes.py`, and 11 templates), violating the standing no-em-dash convention. Notably, this convention isn't ARIA-specific: GRID's own tab title (`GRID — Audit Management`) has the same issue, meaning this has likely been present platform-wide rather than freshly introduced |
+
+**Positive findings (confirmed clean, no action needed):** Document
+Register create + edit (both match their `Form(...)` parameters exactly,
+including `framework`/`control_ref`/`effective_date`/`review_date` review-cycle
+logic); Risk Register create + update; Document Templates upload; Control
+Mappings manual create (validates cross-framework requirement, blocks
+self-mapping, idempotent via `ON CONFLICT DO NOTHING`) and its frontend
+call site; Ask ARIA's feedback wiring; AI Generator's `custom_instructions`
+threading (confirms the Phase 1a/1b fix from earlier in this project is
+still intact and working).
+
+### Fix log
+
+- [x] **#3 Em dashes** — fixed all 76: browser tab titles (rephrased to drop
+      the separator, e.g. `"Document Register — ARIA"` →
+      `"ARIA: Document Register"`, matching how a name/title pair reads
+      without a dash), prose sentences (colon, comma, or rephrase depending
+      on context), code/docstring comments, dropdown placeholder text
+      (`"— Select Framework —"` → `"Select Framework..."`), and the AI
+      system-prompt strings in `ai_generator.py` (e.g. `"DOCUMENT TYPE —
+      POLICY:"` → `"DOCUMENT TYPE POLICY:"`, since a colon already follows).
+      Deliberately left alone: single `"—"` used as a null-value display
+      glyph in stat cards and table cells (e.g. `risk.owner or '—'`),
+      consistent with the same convention already used elsewhere on this
+      platform, including in the ORM RCSA UI built earlier this session.
+      **Verified:** `grep -rn` for the em-dash byte sequence across the
+      whole module now returns only the intentional null-value-placeholder
+      instances; live-checked 3 of the changed pages (Documents, Mapping,
+      AI Generator) in the browser, all render correctly with no console
+      errors.
+
+**Deliberately not fixed this pass:**
+
+- [ ] **#1 Orphaned `aria_frameworks`/`aria_controls`/`aria_evidence`
+      tables** — dropping tables (and `aria_frameworks`'s 16 stale rows) is
+      a destructive, hard-to-reverse action that should be an explicit,
+      separately-confirmed decision, not something bundled into a QA pass.
+      Flagged for the user to decide.
+
+### Verification checklist
+
+- [x] `python -m py_compile` on all 3 touched Python files (`ai_generator.py`,
+      `ask_service.py`, `routes.py`) — clean.
+- [x] All 11 touched templates parse cleanly via Jinja `get_template()`
+      (verified with the app's real `format_dt` filter registered, matching
+      how `routes.py` actually configures the environment, not a bare
+      `Environment()` which would have false-failed on an unrelated,
+      pre-existing filter-registration gap in the test harness itself).
+- [x] Full `pytest tests/` suite — 200 passed, 0 failed, both before and
+      after every fix.
+- [x] Live re-check of 3 changed pages (Documents, Mapping, AI Generator) in
+      the browser: correct tab titles, correct rendered copy, no console
+      errors.
+- [x] No test data created or left behind this pass, since every change was
+      copy-only (no new DB rows were needed to verify a text substitution).
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- ARIA deep-dive
+- Decision needed: drop the 3 orphaned ARIA tables (`aria_frameworks`,
+  `aria_controls`, `aria_evidence`) or leave them, per Pass 6 finding #1
 - Remaining personas from the original QA brief (audit_lead, risk_owner,
   bcm_manager, grc_officer, org_admin, employee)
 - Load/performance testing

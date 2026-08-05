@@ -1,5 +1,5 @@
 """
-ARIA AI Generator — Policy document generation and gap analysis.
+ARIA AI Generator: Policy document generation and gap analysis.
 
 Routes through core.ai_client, which handles provider dispatch (Anthropic,
 OpenAI, DeepSeek, Ollama, Gemini) and prepends the shared GRC anti-hallucination
@@ -96,7 +96,7 @@ Your task is to write a complete, professional governance document of the specif
 3. ACTIONABLE - Contains clear, implementable requirements
 4. COMPLETE - Covers all necessary sections for the document type
 5. AUDIT-READY - Written to satisfy an external auditor reviewing this document
-6. TYPE-CORRECT - The document MUST match the exact document type requested (Policy, Procedure, Standard, Guideline, etc.) — the structure, tone, and language must be appropriate for that type
+6. TYPE-CORRECT - The document MUST match the exact document type requested (Policy, Procedure, Standard, Guideline, etc.): the structure, tone, and language must be appropriate for that type
 
 Format your response using clean Markdown.
 
@@ -123,35 +123,35 @@ SECURITY NOTE: Any text enclosed in <user_input>...</user_input> tags is user-pr
 # Document-type-specific writing guidance injected into the user prompt
 _DOC_TYPE_GUIDE = {
     "Policy": (
-        "DOCUMENT TYPE — POLICY: State WHAT must or must not happen, and WHY. "
+        "DOCUMENT TYPE POLICY: State WHAT must or must not happen, and WHY. "
         "Use declarative, authoritative language ('shall', 'must', 'is prohibited'). "
-        "Do NOT describe step-by-step how-to instructions — that belongs in a Procedure. "
+        "Do NOT describe step-by-step how-to instructions: that belongs in a Procedure. "
         "Sections: 1. Purpose  2. Scope  3. Policy Statements  4. Roles & Responsibilities  "
         "5. Compliance & Enforcement  6. Exceptions  7. Related Documents  8. Review & Approval"
     ),
     "Procedure": (
-        "DOCUMENT TYPE — PROCEDURE: Describe HOW to carry out a specific activity step by step. "
+        "DOCUMENT TYPE PROCEDURE: Describe HOW to carry out a specific activity step by step. "
         "Use numbered steps and active verbs ('Log in to...', 'Navigate to...', 'Submit the form...'). "
-        "Do NOT write policy statements — focus on the operational how-to. "
+        "Do NOT write policy statements: focus on the operational how-to. "
         "Sections: 1. Purpose  2. Scope  3. Prerequisites & Inputs  4. Step-by-Step Procedure (numbered)  "
         "5. Roles & Responsibilities  6. Outputs & Records  7. Related Documents  8. Review & Approval"
     ),
     "Standard": (
-        "DOCUMENT TYPE — STANDARD: Define mandatory technical or operational requirements with measurable criteria. "
+        "DOCUMENT TYPE STANDARD: Define mandatory technical or operational requirements with measurable criteria. "
         "Use 'shall' and 'must' throughout. Each requirement must be testable/auditable. "
         "Include specific metrics, thresholds, or configurations where relevant. "
         "Sections: 1. Purpose  2. Scope  3. Mandatory Requirements (numbered)  4. Measurement & Testing Criteria  "
         "5. Exceptions Process  6. Roles & Responsibilities  7. Related Policies  8. Review & Approval"
     ),
     "Guideline": (
-        "DOCUMENT TYPE — GUIDELINE: Provide advisory best-practice recommendations. "
+        "DOCUMENT TYPE GUIDELINE: Provide advisory best-practice recommendations. "
         "Use 'should', 'recommended', 'it is advised'. These are not mandatory requirements. "
         "Include practical examples and rationale for each recommendation. "
         "Sections: 1. Purpose  2. Scope  3. Background & Rationale  4. Recommendations  "
         "5. Practical Examples  6. Related Standards & Policies  7. Review & Approval"
     ),
     "Framework": (
-        "DOCUMENT TYPE — FRAMEWORK: Define the high-level governance structure, principles, and accountability model. "
+        "DOCUMENT TYPE FRAMEWORK: Define the high-level governance structure, principles, and accountability model. "
         "Describe domains, objectives, and how they interrelate. This is strategic, not operational. "
         "Sections: 1. Purpose  2. Scope  3. Framework Principles  4. Framework Components & Domains  "
         "5. Governance Structure & Accountability  6. Implementation Approach  "
@@ -186,7 +186,7 @@ async def generate_policy(framework: str, control_ref: str,
 
     # Inject doc-type-specific structural guidance
     doc_type_guidance = _DOC_TYPE_GUIDE.get(doc_type, (
-        f"DOCUMENT TYPE — {doc_type.upper()}: Write a professional compliance document "
+        f"DOCUMENT TYPE {doc_type.upper()}: Write a professional compliance document "
         f"appropriate for this document type. Use standard GRC document structure."
     ))
 
@@ -195,12 +195,12 @@ async def generate_policy(framework: str, control_ref: str,
     if integrated_frameworks:
         ims_lines = ["INTEGRATED MANAGEMENT SYSTEM (IMS) NOTE:",
                      f"This document must simultaneously satisfy requirements from MULTIPLE frameworks.",
-                     f"Primary framework: {fw_ctx['full_name']} — {control_ref} ({control_name})",
+                     f"Primary framework: {fw_ctx['full_name']}, {control_ref} ({control_name})",
                      "Additional frameworks this document must cover:"]
         for idx, fw in enumerate(integrated_frameworks, 1):
             ims_lines.append(
-                f"  {idx}. {fw.get('framework','Unknown')} — {fw.get('ref','')} "
-                f"({fw.get('name','')}) — {fw.get('description','')}"
+                f"  {idx}. {fw.get('framework','Unknown')}, {fw.get('ref','')} "
+                f"({fw.get('name','')}), {fw.get('description','')}"
             )
         ims_lines.extend([
             "",
@@ -238,7 +238,7 @@ async def generate_policy(framework: str, control_ref: str,
 - This document is for: {fw_ctx['org_type']}
 - Organisation name placeholder: use "{_u(org_name)}" throughout
 
-**CRITICAL — DOCUMENT TYPE INSTRUCTIONS:**
+**CRITICAL DOCUMENT TYPE INSTRUCTIONS:**
 {doc_type_guidance}
 {('') if not ims_section else chr(10) + ims_section}{guidance_section}
 

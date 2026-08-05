@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Ask ARIA — Policy Assistant{% endblock %}
+{% block title %}Ask ARIA: Policy Assistant{% endblock %}
 {% block head %}
 <style>
 /* ── Stats strip ─────────────────────────────────────────────────────────── */
@@ -268,7 +268,7 @@
         {% endfor %}
       {% else %}
         <div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 6px">
-          Nothing yet — ask your first question.
+          Nothing yet. Ask your first question.
         </div>
       {% endif %}
     </div>
@@ -601,7 +601,7 @@
       if (typeof showToast === 'function') showToast('No conversation to export yet.', 'warn');
       return;
     }
-    var lines = ['# Ask ARIA — Conversation Export', ''];
+    var lines = ['# Ask ARIA: Conversation Export', ''];
     exportLog.forEach(function (m) {
       if (m.role === 'user') {
         lines.push('## Question');

@@ -1,5 +1,5 @@
 """
-Ask ARIA — AI Q&A over the ARIA corpus (policies, controls, documents, risks).
+Ask ARIA: AI Q&A over the ARIA corpus (policies, controls, documents, risks).
 
 Design:
   * SQLite: FTS5 virtual table `aria_ask_index` (BM25 ranking via bm25()).
@@ -12,9 +12,9 @@ Design:
     we decline and suggest the nearest owner.
 
 Engine-specific entry points:
-  _search_sqlite() — FTS5 MATCH + bm25()
-  _search_pg()     — tsvector @@ to_tsquery() + ts_rank_cd()
-  rebuild_index()  — drop/recreate + reindex all (use after PG cutover)
+  _search_sqlite(): FTS5 MATCH + bm25()
+  _search_pg()     : tsvector @@ to_tsquery() + ts_rank_cd()
+  rebuild_index()  : drop/recreate + reindex all (use after PG cutover)
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from database import get_db, insert_returning_id, OperationalError
 from modules.aria.ai_generator import _call_ai
 
 
-# ── Search index DDL — engine-specific ──────────────────────────────────────
+# ── Search index DDL: engine-specific ───────────────────────────────────────
 
 _FTS_DDL_SQLITE = """
 CREATE VIRTUAL TABLE IF NOT EXISTS aria_ask_index USING fts5(

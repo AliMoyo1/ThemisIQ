@@ -1,6 +1,6 @@
 {% extends "base_shell.html" %}
 
-{% block title %}Dashboard — ARIA{% endblock %}
+{% block title %}ARIA: Dashboard{% endblock %}
 
 {% block extra_styles %}
 <style>
@@ -282,7 +282,7 @@
     arcImpl.setAttribute('stroke-dashoffset', implOffset);
   }
 
-  // In Progress arc — offset by the implemented portion
+  // In Progress arc, offset by the implemented portion
   const progPct = totals.in_progress / total;
   const progLen = circ * progPct;
   const progGap = circ - progLen;
@@ -334,7 +334,7 @@ function generateAriaReport(){
 /* ARIA uses an SPA router (navigate) rather than simple drawer openers.
    Deep-linking a 'control' entity requires also knowing the framework_id
    to generate the correct route path. Not feasible with id alone.
-   Skipping for now — add a control→framework lookup when available. */
+   Skipping for now, add a control→framework lookup when available. */
 (function(){
   var openParam = new URLSearchParams(window.location.search).get('open');
   if(!openParam) return;
