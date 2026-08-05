@@ -418,9 +418,132 @@ the one it already has.
 
 ---
 
+## Pass 4 — BCM's 14 sub-pages
+
+**Status: COMPLETE. Findings and fixes both done, all verified live.**
+
+**Covered:** Business Impact Analysis (BIA), Continuity Plans, Incidents,
+Exercises & Testing, Risk Assessment, Dependencies, Training, Crisis Comms,
+Emergency Contacts, Scenario Library, Documents, Compliance Controls,
+Vendors, Reports, create flows on each.
+
+**Method:** BCM has a different architecture from Sentinel's (hand-written
+`create_X`/`update_X` functions per entity with explicit INSERT/UPDATE
+statements, not a shared generic helper), so the bug class is different too:
+mostly frontend fields with no backend/DB counterpart at all, rather than
+allowlist/schema name mismatches. Extracted every `INSERT INTO bcm_X`
+statement's column list and every `update_X`'s field tuple via Grep, cross-
+referenced both against a single batched `PRAGMA table_info` sweep of all
+~30 BCM tables, then cross-referenced the (now backend-confirmed) column
+names against the frontend `modalDefs` config to find frontend-only dead
+fields. This found all of the findings below via static analysis alone,
+before any live testing; live testing was then used to confirm predictions,
+not to discover new ones.
+
+### Findings
+
+| # | Severity | Area | Summary |
+|---|----------|------|---------|
+| 1 | Critical | Risk Assessment | Every creation attempt crashes 500 (`ValueError: invalid literal for int()`) — `create_risk`/`update_risk` call `int()` directly on `likelihood`/`impact`, but the form sends text labels ("Rare".."Almost Certain", "Negligible".."Catastrophic") |
+| 2 | Medium | BIA | Form field `mtpd_hours` silently lost (real column, never wired into the INSERT/UPDATE); form field `status` maps to no column at all |
+| 3 | Medium | Exercises & Testing | Form field `description` maps to no column at all; `lessons_learned` maps to no column either, despite a real `aar_summary` column existing unused and unexposed anywhere in the UI |
+| 4 | Medium | Risk Assessment | Form field `risk_level` maps to no column at all, and duplicates the already-working auto-computed `bcmScoreToLevel(r.score)` severity badge shown in the risk list |
+| 5 | Medium | Dependencies | Form fields `owner` and `recovery_priority` both map to no column at all |
+| 6 | Low | Dependencies | `node_type` select isn't marked required despite being a `NOT NULL` DB column, so skipping it crashes with a raw `IntegrityError` instead of a friendly validation message |
+| 7 | Low | Continuity Plans / Scenario Library | 4 em dashes in modal/help copy and 2 JS string literals |
+
+**Ruled out (investigated, not a real bug):** while reading `bcmGenReport`/
+`bcmBoardReport`'s `apiFetch()` calls via Grep, the output initially appeared
+to show backslash-corrupted URLs (`\api\reports\definitions` instead of
+`/api/reports/definitions`), which would have broken the Reports page's
+generate buttons entirely. A follow-up Grep for the literal backslash
+pattern returned no matches, and a direct `Read` of the same lines confirmed
+the file correctly uses forward slashes throughout — the backslashes were an
+artifact of how the first Grep call's output rendered, not real file
+content. No fix needed.
+
+**Positive findings (confirmed clean, no action needed):** Continuity
+Plans, Incidents, Training, Crisis Comms, Emergency Contacts, Scenario
+Library, Documents, Compliance Controls, Vendors, and Reports all passed
+the three-way frontend/backend/DB check with zero mismatches.
+
+**Test data cleanup (fix-verification phase):** all 4 `BCM-VERIFY` records
+created to confirm the fixes (Risk "BCM-VERIFY: Test Risk Fixed", BIA
+"BCM-VERIFY: BIA Fixed" plus its 10 auto-seeded `bcm_bia_impact_rows`,
+Exercise "BCM-VERIFY: Exercise Fixed", Dependency Node "BCM-VERIFY: Node
+Fixed") deleted and confirmed removed via direct DB query (zero
+`BCM-VERIFY%` rows remain across all 4 tables).
+
+### Fix log
+
+Each entry: file(s), what changed, why, live verification result.
+
+- [x] **#1 Risk Assessment 500 crash** — added `_risk_scale_value()` plus
+      `_RISK_LIKELIHOOD_SCALE`/`_RISK_IMPACT_SCALE` lookup tables
+      (`modules/bcm/data_service.py`) that convert the text labels to
+      numbers for score arithmetic only, falling back to numeric-string
+      parsing and then to `1` rather than raising. `likelihood`/`impact`
+      are still stored as the original text for display (confirmed the
+      list view reads `r.likelihood`/`r.impact` as raw text and derives
+      its severity badge from `r.score`, not from these fields directly).
+      **Verified live:** created a risk with Likelihood=Possible,
+      Impact=Major; `201 Created`, DB confirms `likelihood='Possible',
+      impact='Major', score=12` (3×4).
+- [x] **#2 BIA dead fields** — wired the existing `mtpd_hours` column into
+      `create_bia`/`update_bia`; added `bcm_bia_records.status` (default
+      `'active'`) via `_COLUMN_MIGRATIONS` and wired it in too.
+      **Verified live:** created a BIA with MTPD=72, Status=draft; DB
+      confirms `mtpd_hours=72, status='draft'`.
+- [x] **#3 Exercise dead fields** — added `bcm_exercises.description` via
+      `_COLUMN_MIGRATIONS`, wired into `create_exercise`/`update_exercise`.
+      Renamed the frontend's `lessons_learned` field key to `aar_summary`
+      (a real, previously-unexposed column) rather than adding a new one,
+      after confirming via grep that none of the 4 `aar_*` columns had any
+      other frontend reference anywhere in `index.html` — safe rename, no
+      conflict. Visible label stays "Lessons Learned".
+      **Verified live:** created an exercise with both fields filled; DB
+      confirms `description` and `aar_summary` both hold the typed text.
+- [x] **#4 Risk `risk_level` dead field** — removed from the frontend modal
+      entirely instead of adding a backing column, since it would have
+      duplicated the already-working auto-computed severity badge and
+      created two disagreeing sources of truth for the same concept (a
+      manually-picked level vs. the score-derived one).
+- [x] **#5 Dependency Node dead fields** — added
+      `bcm_dependency_nodes.owner` (TEXT) and `.recovery_priority`
+      (INTEGER) via `_COLUMN_MIGRATIONS`, wired into
+      `create_dependency_node`/`update_dependency_node`.
+      **Verified live:** created a node with both fields filled; DB
+      confirms `owner='Owner Should Save Now', recovery_priority=1`.
+- [x] **#6 Dependency Node missing required flag** — added `required:true`
+      to the frontend's `node_type` field config so the browser blocks
+      submission before it ever reaches the server, instead of a raw
+      `IntegrityError: NOT NULL constraint failed` 500.
+- [x] **#7 Em dashes** — 4 fixed: 2 in modal/help copy (Continuity Plans,
+      Scenario Library), 2 in JS string literals (`bcmOpenDocViewer`'s
+      board-report title, a toast error message) found while investigating
+      the ruled-out backslash item above.
+
+### Verification checklist
+
+- [x] `python -m py_compile` on both touched Python files (`database.py`,
+      `modules/bcm/data_service.py`) — clean.
+- [x] `bcm/templates/index.html` parses cleanly via Jinja `get_template()`.
+- [x] Full `pytest tests/` suite — 200 passed, 0 failed, both before and
+      after every fix.
+- [x] Live re-test of all 4 affected create flows (Risk, BIA, Exercise,
+      Dependency Node) — every one succeeded and every field verified
+      correct via direct DB query, not just assumed from a lack of errors.
+- [x] Live re-test of the Dependency Node validation fix — submitting with
+      no Type selected is now blocked client-side instead of crashing.
+- [x] Test data cleanup: all 4 `BCM-VERIFY` records plus the BIA's 10
+      auto-seeded impact rows deleted; confirmed zero rows remain via a
+      text-search sweep across all 4 touched tables.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- BCM, ORM, ARIA deep-dives
+- ORM, ARIA deep-dives
 - The ~19 uncovered GRID mutation endpoints noted above (add `log_activity()`
   calls matching GRID's own convention)
 - Remaining personas from the original QA brief (audit_lead, risk_owner,

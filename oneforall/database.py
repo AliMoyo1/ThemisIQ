@@ -4096,6 +4096,11 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_transfers",       "risk_level",          "TEXT"),
         ("sentinel_privacy_notices", "notice_type",         "TEXT"),
         ("sentinel_privacy_notices", "published_url",       "TEXT"),
+        # ── BCM sub-page field gaps found in QA Pass 4 ──────────────────────────
+        ("bcm_bia_records",       "status",            "TEXT"),
+        ("bcm_exercises",         "description",       "TEXT"),
+        ("bcm_dependency_nodes",  "owner",             "TEXT"),
+        ("bcm_dependency_nodes",  "recovery_priority", "INTEGER"),
 ]
 
 

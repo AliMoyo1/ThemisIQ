@@ -76,16 +76,16 @@ def create_bia(data):
         cur = insert_returning_id(db,
             """INSERT INTO bcm_bia_records
                (process_name, department, owner, description, rto_hours, rpo_hours,
-                financial_impact_per_day, operational_impact, reputational_impact,
-                regulatory_impact, criticality, dependencies, key_tasks, obligations,
+                mtpd_hours, financial_impact_per_day, operational_impact, reputational_impact,
+                regulatory_impact, criticality, status, dependencies, key_tasks, obligations,
                 deadlines, peak_periods, peak_workload, min_acceptable_level,
                 resume_period, business_process_id, business_unit_id)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (data.get("process_name"), data.get("department"), data.get("owner"),
              data.get("description"), data.get("rto_hours"), data.get("rpo_hours"),
-             data.get("financial_impact_per_day"), data.get("operational_impact"),
+             data.get("mtpd_hours"), data.get("financial_impact_per_day"), data.get("operational_impact"),
              data.get("reputational_impact"), data.get("regulatory_impact"),
-             data.get("criticality"), data.get("dependencies"), data.get("key_tasks"),
+             data.get("criticality"), data.get("status", "active"), data.get("dependencies"), data.get("key_tasks"),
              data.get("obligations"), data.get("deadlines"), data.get("peak_periods"),
              data.get("peak_workload"), data.get("min_acceptable_level"),
              data.get("resume_period"), data.get("business_process_id"),
@@ -103,8 +103,8 @@ def update_bia(bia_id, data):
         fields = []
         vals = []
         for k in ("process_name", "department", "owner", "description", "rto_hours",
-                  "rpo_hours", "financial_impact_per_day", "operational_impact",
-                  "reputational_impact", "regulatory_impact", "criticality", "dependencies",
+                  "rpo_hours", "mtpd_hours", "financial_impact_per_day", "operational_impact",
+                  "reputational_impact", "regulatory_impact", "criticality", "status", "dependencies",
                   "key_tasks", "obligations", "deadlines", "peak_periods", "peak_workload",
                   "min_acceptable_level", "resume_period", "business_process_id",
                   "business_unit_id"):
@@ -370,12 +370,40 @@ def get_risk(risk_id):
         db.close()
 
 
+_RISK_LIKELIHOOD_SCALE = {
+    "rare": 1, "unlikely": 2, "possible": 3, "likely": 4, "almost certain": 5,
+}
+_RISK_IMPACT_SCALE = {
+    "negligible": 1, "minor": 2, "moderate": 3, "major": 4, "catastrophic": 5,
+}
+
+
+def _risk_scale_value(raw, scale):
+    """Likelihood/impact arrive from the UI as text labels (Rare..Almost
+    Certain, Negligible..Catastrophic) and are stored as-is for display in
+    the risk register table; this only converts a copy for score
+    arithmetic. Falls back to treating the value as already-numeric, then
+    to 1, rather than raising on an unrecognised label."""
+    if raw is None or raw == "":
+        return 1
+    key = str(raw).strip().lower()
+    if key in scale:
+        return scale[key]
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 1
+
+
 def create_risk(data):
     db = get_db()
     try:
         likelihood = data.get("likelihood", 1)
         impact = data.get("impact", 1)
-        score = data.get("score") or (int(likelihood) * int(impact))
+        score = data.get("score") or (
+            _risk_scale_value(likelihood, _RISK_LIKELIHOOD_SCALE)
+            * _risk_scale_value(impact, _RISK_IMPACT_SCALE)
+        )
         cur = insert_returning_id(db,
             """INSERT INTO bcm_risks
                (title, category, description, likelihood, impact, score,
@@ -401,7 +429,10 @@ def update_risk(risk_id, data):
                 vals.append(data[k])
         if "likelihood" in data and "impact" in data and "score" not in data:
             fields.append("score=%s")
-            vals.append(int(data["likelihood"]) * int(data["impact"]))
+            vals.append(
+                _risk_scale_value(data["likelihood"], _RISK_LIKELIHOOD_SCALE)
+                * _risk_scale_value(data["impact"], _RISK_IMPACT_SCALE)
+            )
         if fields:
             fields.append("updated_at=%s")
             vals.append(_now())
@@ -844,13 +875,13 @@ def create_exercise(data):
     try:
         cur = insert_returning_id(db,
             """INSERT INTO bcm_exercises
-               (title, type, scenario, plan_id, scheduled_date, duration_minutes,
-                facilitator, participants, objectives, status)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (data.get("title"), data.get("type"), data.get("scenario"),
+               (title, type, description, scenario, plan_id, scheduled_date, duration_minutes,
+                facilitator, participants, objectives, status, aar_summary)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (data.get("title"), data.get("type"), data.get("description"), data.get("scenario"),
              data.get("plan_id"), data.get("scheduled_date"), data.get("duration_minutes"),
              data.get("facilitator"), data.get("participants"), data.get("objectives"),
-             data.get("status", "planned")))
+             data.get("status", "planned"), data.get("aar_summary")))
         db.commit()
         return cur
     finally:
@@ -861,7 +892,7 @@ def update_exercise(ex_id, data):
     db = get_db()
     try:
         fields, vals = [], []
-        for k in ("title", "type", "scenario", "plan_id", "scheduled_date", "duration_minutes",
+        for k in ("title", "type", "description", "scenario", "plan_id", "scheduled_date", "duration_minutes",
                   "facilitator", "participants", "objectives", "status", "outcome",
                   "aar_summary", "aar_strengths", "aar_improvements", "aar_actions"):
             if k in data:
@@ -1408,10 +1439,11 @@ def create_dependency_node(data):
     try:
         cur = insert_returning_id(db,
             """INSERT INTO bcm_dependency_nodes
-               (node_type, name, description, criticality, ref_table, ref_id)
-               VALUES (%s,%s,%s,%s,%s,%s)""",
+               (node_type, name, description, criticality, owner, recovery_priority, ref_table, ref_id)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
             (data.get("node_type"), data.get("name"), data.get("description"),
-             data.get("criticality"), data.get("ref_table"), data.get("ref_id")))
+             data.get("criticality"), data.get("owner"), data.get("recovery_priority"),
+             data.get("ref_table"), data.get("ref_id")))
         db.commit()
         return cur
     finally:
@@ -1422,7 +1454,8 @@ def update_dependency_node(nid, data):
     db = get_db()
     try:
         fields, vals = [], []
-        for k in ("node_type", "name", "description", "criticality", "ref_table", "ref_id"):
+        for k in ("node_type", "name", "description", "criticality", "owner",
+                  "recovery_priority", "ref_table", "ref_id"):
             if k in data:
                 fields.append(f"{k}=%s")
                 vals.append(data[k])

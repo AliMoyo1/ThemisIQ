@@ -652,7 +652,7 @@
   <div class="section-header">
     <div>
       <div class="section-title">Crisis Communication Templates</div>
-      <div class="section-sub">Pre-approved templates for incident communications &mdash; internal, external, media &amp; regulatory</div>
+      <div class="section-sub">Pre-approved templates for incident communications: internal, external, media &amp; regulatory</div>
     </div>
     <div class="header-actions">
       <select id="commsFilter" class="form-control" style="min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" onchange="bcmLoadComms(this.value)">
@@ -695,7 +695,7 @@
   <div class="section-header">
     <div>
       <div class="section-title">Scenario Library</div>
-      <div class="section-sub">Pre-built tabletop and functional exercise scenarios &mdash; click <strong>Use Scenario</strong> to spawn an exercise</div>
+      <div class="section-sub">Pre-built tabletop and functional exercise scenarios, click <strong>Use Scenario</strong> to spawn an exercise</div>
     </div>
     <div class="header-actions">
       <select id="scenarioFilter" class="form-control" style="min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" onchange="bcmLoadScenarios(this.value)">
@@ -2407,7 +2407,7 @@
         {name:'scheduled_date',label:'Scheduled Date',type:'date'},
         {name:'status',label:'Status',type:'select',options:['planned','in_progress','completed','cancelled']},
         {name:'outcome',label:'Outcome',type:'select',options:['passed','partial','failed','pending']},
-        {name:'lessons_learned',label:'Lessons Learned',type:'textarea'}
+        {name:'aar_summary',label:'Lessons Learned',type:'textarea'}
       ]
     },
     risk:{
@@ -2418,7 +2418,6 @@
         {name:'category',label:'Category',type:'select',options:['Operational','Technology','Natural Disaster','Supply Chain','Regulatory','Financial','Pandemic','Cyber']},
         {name:'likelihood',label:'Likelihood',type:'select',options:['Rare','Unlikely','Possible','Likely','Almost Certain']},
         {name:'impact',label:'Impact',type:'select',options:['Negligible','Minor','Moderate','Major','Catastrophic']},
-        {name:'risk_level',label:'Risk Level',type:'select',options:['low','medium','high','critical']},
         {name:'owner',label:'Risk Owner',type:'text'},
         {name:'mitigation',label:'Mitigation Strategy',type:'textarea'},
         {name:'status',label:'Status',type:'select',options:['open','mitigated','accepted','closed']}
@@ -2428,7 +2427,7 @@
       title:'Dependency Node',apiBase:'/bcm/api/dependencies/nodes',
       fields:[
         {name:'name',label:'Node Name',type:'text',required:true},
-        {name:'node_type',label:'Type',type:'select',options:['Process','System','Application','Vendor','Facility','Team','Network']},
+        {name:'node_type',label:'Type',type:'select',options:['Process','System','Application','Vendor','Facility','Team','Network'],required:true},
         {name:'description',label:'Description',type:'textarea'},
         {name:'criticality',label:'Criticality',type:'select',options:['critical','high','medium','low']},
         {name:'owner',label:'Owner',type:'text'},
@@ -3475,10 +3474,10 @@
     try{
       var res=await apiFetch('/bcm/api/reports/board',{method:'POST'});
       btn.disabled=false;btn.textContent=origText;
-      bcmOpenDocViewer('BCM Board Report — '+new Date().toLocaleDateString('en-GB'),res.narrative||res.content||'No narrative generated.');
+      bcmOpenDocViewer('BCM Board Report: '+new Date().toLocaleDateString('en-GB'),res.narrative||res.content||'No narrative generated.');
     }catch(e){
       btn.disabled=false;btn.textContent=origText;
-      if(typeof showToast==='function')showToast('Board report failed — check API key','error');
+      if(typeof showToast==='function')showToast('Board report failed, check API key','error');
     }
   };
 
