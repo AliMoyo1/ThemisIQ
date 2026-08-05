@@ -25,6 +25,6 @@ qrcode[pil]==7.4.2
 sentry-sdk[fastapi]==2.64.0
 posthog==7.22.0
 # Transitive security pins
-cryptography==48.0.1
+cryptography==50.0.0
 pygments==2.20.0
 pydantic-settings==2.14.2
