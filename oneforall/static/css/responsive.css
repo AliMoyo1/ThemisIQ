@@ -10,12 +10,18 @@
   .topbar-search:focus { width: 200px; }
 
   /* Module sidebar (full text labels) becomes a slide-in drawer.
-     The icon sidebar at 64px stays as the primary nav. */
+     Its offset tracks the icon sidebar's ACTUAL rendered width via
+     --rail-w, not just the collapsed 64px -- the icon sidebar can be
+     wider here too (.pinned, or hover-expanded on a hover-capable
+     pointer), and without this the drawer would overlap it. */
   .module-sidebar {
-    position: fixed; top: var(--topbar-h); bottom: 0; left: var(--icon-sidebar-w);
-    z-index: 600; transform: translateX(-105%); transition: transform .22s ease-out;
+    position: fixed; top: var(--topbar-h); bottom: 0;
+    --rail-w: var(--icon-sidebar-w);
+    left: var(--rail-w);
+    z-index: 600; transform: translateX(-105%); transition: transform .22s ease-out, left .22s ease-out;
     box-shadow: 8px 0 24px rgba(0,0,0,.12);
   }
+  .icon-sidebar.pinned ~ .module-sidebar { --rail-w: var(--icon-sidebar-expanded-w); }
   .module-sidebar.open { transform: translateX(0); }
   body.has-drawer-open { overflow: hidden; }
 
@@ -28,6 +34,13 @@
   [style*="grid-template-columns: repeat(4"] {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
+}
+
+/* Hover-expand: same --rail-w handoff as .pinned above, for hover-capable
+   pointers. Unscoped by max-width since it's a no-op wherever
+   .module-sidebar isn't position:fixed (i.e. above the tablet breakpoint). */
+@media (hover: hover) {
+  .icon-sidebar:hover ~ .module-sidebar { --rail-w: var(--icon-sidebar-expanded-w); }
 }
 
 /* ── Mobile ───────────────────────────────────────────────────────────── */
@@ -49,10 +62,12 @@
   }
   .icon-sidebar.open { transform: translateX(0); }
   /* Module sidebar sits to the right of the icon drawer so labels are visible.
-     Constrain its width so it doesn't run off-screen. */
+     Constrain its width so it doesn't run off-screen. Reads --rail-w (set
+     in the tablet block above, still in effect here) so a pinned/hover-
+     expanded rail doesn't get overlapped even at this width. */
   .module-sidebar {
-    left: var(--icon-sidebar-w);
-    width: min(220px, calc(100vw - var(--icon-sidebar-w) - 24px));
+    left: var(--rail-w, var(--icon-sidebar-w));
+    width: min(220px, calc(100vw - var(--rail-w, var(--icon-sidebar-w)) - 24px));
   }
   .main-content { margin-left: 0 !important; padding: 14px 12px; }
 

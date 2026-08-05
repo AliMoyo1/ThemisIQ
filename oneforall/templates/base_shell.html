@@ -44,7 +44,7 @@
   --shadow-lg:0 8px 32px rgba(0,0,0,0.10),0 4px 12px rgba(0,0,0,0.06);
   --shadow-accent:0 8px 24px var(--accent-shadow);
   --radius:10px;--radius-lg:16px;--radius-xl:22px;
-  --topbar-h:60px;--icon-sidebar-w:64px;--sidebar-w:248px;
+  --topbar-h:60px;--icon-sidebar-w:64px;--icon-sidebar-expanded-w:208px;--sidebar-w:248px;
   --font:'Hanken Grotesk','Space Grotesk','Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;
   --particle-color-rgb:100,140,200;
   --glass-bg:rgba(255,255,255,0.72);--glass-border:rgba(255,255,255,0.80);--glass-blur:16px;
@@ -219,8 +219,8 @@ input,select,textarea{font-family:var(--font)}
 
 /* ── Expanding rail (hover to peek, pin to keep open) ── */
 .icon-sidebar{transition:width .22s cubic-bezier(.4,0,.2,1)}
-@media (hover:hover){.icon-sidebar:hover{width:208px}}
-.icon-sidebar.pinned{width:208px}
+@media (hover:hover){.icon-sidebar:hover{width:var(--icon-sidebar-expanded-w)}}
+.icon-sidebar.pinned{width:var(--icon-sidebar-expanded-w)}
 .icon-sidebar .nav-label{display:none;font-size:12.5px;font-weight:600;
   white-space:nowrap;color:inherit;margin-left:10px}
 .icon-sidebar.pinned .nav-label{display:inline}
