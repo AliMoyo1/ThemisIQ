@@ -411,10 +411,92 @@ passing both before and after; live-verified a Sentinel vendor creation now
 appears in Sentinel's own Reports > Audit Trail table (previously always
 empty) with correct user/action/entity/timestamp.
 
-**Remaining, smaller follow-up (not done here):** ~19 of GRID's 64 mutation
-endpoints have no `log_activity()` call at all. Matching GRID's own existing
-convention there is the right fix, not layering a second mechanism on top of
-the one it already has.
+**Remaining, smaller follow-up:** ~19 of GRID's 64 mutation endpoints have no
+`log_activity()` call at all. Matching GRID's own existing convention there
+is the right fix, not layering a second mechanism on top of the one it
+already has. **Done, see below.**
+
+---
+
+## Pass 3 follow-up, part 2 — GRID log_activity gap-fill
+
+**Status: COMPLETE.**
+
+**Method:** grepped every `@router.post/put/delete` decorator in
+`grid/routes.py` (64 total) and every existing `ds.log_activity(` call site
+(45), then matched each route to its real function boundary (via every
+`async def`/`def` line, not just decorator lines, since GET routes sit
+between some POST/PUT/DELETE ones and would otherwise throw off a naive
+line-range guess) to find which of the 64 had zero `log_activity()` call
+anywhere in their body.
+
+**Findings:** 20 routes had no call. 5 of those are AI-generation endpoints
+(`/api/ai/parse-checklist`, `/api/ai/suggest-control`,
+`/api/audits/{id}/ai-checklist`, `/api/ai/generate-report/{id}`,
+`/api/ai/chat`) confirmed by reading each one's body to call only the `ai`
+module and return JSON, no database write of any kind, so there is nothing
+to log and these are correctly excluded, not a gap. The other **15 are real
+gaps**, all genuine mutations with zero audit trail:
+
+| Route | Action logged |
+|---|---|
+| `POST /api/evidence-items/{control_id}` | `create_evidence_item` |
+| `DELETE /api/evidence-items/{item_id}` | `delete_evidence_item` |
+| `POST /api/controls/{cid}/comments` | `add_comment` |
+| `POST /api/reminders` | `create_reminder` |
+| `POST /api/approvals/{evidence_id}` | `request_approval` |
+| `POST /api/mappings` | `create_mapping` |
+| `DELETE /api/mappings/{mid}` | `delete_mapping` |
+| `PUT /api/timeline/{tid}` | `update_timeline` |
+| `POST /api/scores/{audit_id}` | `record_score` |
+| `POST /api/remote-sessions/{sid}/start` | `start_remote_session` |
+| `POST /api/remote-sessions/{sid}/end` | `end_remote_session` |
+| `POST /api/remote-sessions/{sid}/findings` | `create_remote_finding` |
+| `PUT /api/remote-findings/{fid}` | `update_remote_finding` |
+| `POST /api/remote-sessions/{sid}/notes` | `create_remote_note` |
+| `POST /api/remote-sessions/{sid}/participants` | `add_remote_participant` |
+
+### Fix log
+
+- [x] Added one `ds.log_activity(_uid(request), action, entity_type,
+      entity_id, ...)` call to each of the 15 routes above
+      (`modules/grid/routes.py`), placed immediately after the mutation
+      commits and before the response is returned, matching the exact
+      call shape already used successfully at the other 45 existing sites
+      in this file. Action names and entity types follow the same
+      verb_noun / real-table-name convention already established (e.g.
+      `create_vendor`, `advance_cap`).
+
+### Verification checklist
+
+- [x] `python -m py_compile modules/grid/routes.py` — clean.
+- [x] Full `pytest tests/` suite — 200 passed, 0 failed.
+- [x] Call-site count cross-check: 45 original + 15 added = 60, confirmed
+      via `grep -c "log_activity("` on the file post-fix (was 45 before).
+- [x] Live HTTP verification (real authenticated session, not a script
+      bypassing auth): fired all 15 fixed endpoints via `fetch()` from an
+      authenticated GRID page (evidence item create+delete, comment add,
+      reminder create, mapping create+delete, timeline update, score
+      record, and a full remote-session lifecycle: create session, start,
+      add a finding, update that finding, add a note, add a participant,
+      end session). All 15 returned `200`/`201`. Confirmed via direct
+      `audit_log` query that all 15 action names landed with the correct
+      `module='grid'`, `entity_type`, and `entity_id`. The 16th route,
+      `request_approval`, was not live-fired (no `grid_evidence_files` row
+      existed in the dev DB to request approval on) — left as
+      code-confirmed-only, since it is a byte-for-byte match of the
+      already-proven `decide_approval` pattern one route below it.
+- [x] Test data cleanup: all verification rows deleted (1 comment, 1
+      reminder, 1 compliance score, 1 remote session cascade-deleted with
+      its finding/note/participant, the paired evidence-item and mapping
+      create+delete left nothing behind), plus the 15 `audit_log` rows the
+      verification itself generated. One mistake caught during cleanup:
+      the timeline-update test overwrote real seed data
+      (`grid_timeline.id=31`, "Kick-off meeting") with a placeholder
+      status instead of round-tripping the original value first; restored
+      to `'Pending'` to match the other 9 seeded timeline rows, which are
+      all `'Pending'` with no exceptions. Confirmed zero `GRID-VERIFY%`
+      residue across every touched table afterward.
 
 ---
 
@@ -544,8 +626,6 @@ Each entry: file(s), what changed, why, live verification result.
 ## Open items carried forward (not yet scheduled)
 
 - ORM, ARIA deep-dives
-- The ~19 uncovered GRID mutation endpoints noted above (add `log_activity()`
-  calls matching GRID's own convention)
 - Remaining personas from the original QA brief (audit_lead, risk_owner,
   bcm_manager, grc_officer, org_admin, employee)
 - Load/performance testing

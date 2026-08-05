@@ -714,6 +714,7 @@ async def api_evidence_items_create(request: Request, control_id: int):
     desc = (body.get("description") or "").strip()
     required = body.get("required", 1)
     iid = ds.create_evidence_item(control_id, name, desc, required)
+    ds.log_activity(_uid(request), "create_evidence_item", "grid_evidence_items", iid, name)
     return JSONResponse({"id": iid}, status_code=201)
 
 
@@ -721,6 +722,7 @@ async def api_evidence_items_create(request: Request, control_id: int):
 @require_capability("grid.evidence.upload")
 async def api_evidence_items_delete(request: Request, item_id: int):
     ds.delete_evidence_item(item_id)
+    ds.log_activity(_uid(request), "delete_evidence_item", "grid_evidence_items", item_id)
     return JSONResponse({"ok": True})
 
 
@@ -736,6 +738,7 @@ async def api_comments_add(request: Request, cid: int):
     if not content:
         raise HTTPException(400, "Comment content required")
     cmid = ds.add_comment(cid, _uid(request), content)
+    ds.log_activity(_uid(request), "add_comment", "grid_control_comments", cmid, f"control {cid}")
     return JSONResponse({"id": cmid}, status_code=201)
 
 
@@ -775,6 +778,7 @@ async def api_reminders_create(request: Request):
     body = await _json_body(request)
     body["user_id"] = _uid(request)
     rid = ds.create_reminder(body)
+    ds.log_activity(_uid(request), "create_reminder", "grid_reminders", rid)
     return JSONResponse({"id": rid}, status_code=201)
 
 
@@ -1093,6 +1097,7 @@ async def api_approvals_request(request: Request, evidence_id: int):
     body = await _json_body(request)
     approver_id = body.get("approver_id", _uid(request))
     apid = ds.request_approval(evidence_id, approver_id)
+    ds.log_activity(_uid(request), "request_approval", "grid_approvals", apid)
     return JSONResponse({"id": apid}, status_code=201)
 
 
@@ -1125,6 +1130,7 @@ async def api_mappings_create(request: Request):
         body["source_control_id"], body["target_control_id"],
         body.get("mapping_type", "equivalent"), body.get("confidence"),
     )
+    ds.log_activity(_uid(request), "create_mapping", "grid_control_mappings", mid)
     return JSONResponse({"id": mid}, status_code=201)
 
 
@@ -1143,6 +1149,7 @@ async def api_mappings_bulk(request: Request):
 @require_capability("grid.cross_mapping.manage")
 async def api_mappings_delete(request: Request, mid: int):
     ds.delete_mapping(mid)
+    ds.log_activity(_uid(request), "delete_mapping", "grid_control_mappings", mid)
     return JSONResponse({"ok": True})
 
 
@@ -1221,6 +1228,7 @@ async def api_share_revoke(request: Request, sid: int):
 async def api_timeline_update(request: Request, tid: int):
     body = await _json_body(request)
     ds.update_timeline(tid, body)
+    ds.log_activity(_uid(request), "update_timeline", "grid_timeline", tid)
     return JSONResponse({"ok": True})
 
 
@@ -1233,6 +1241,8 @@ async def api_timeline_update(request: Request, tid: int):
 async def api_scores_record(request: Request, audit_id: int):
     body = await _json_body(request)
     sid = ds.record_score(audit_id, body.get("score", 0), body.get("details"))
+    ds.log_activity(_uid(request), "record_score", "grid_compliance_scores", sid,
+                    f"audit {audit_id}: {body.get('score', 0)}")
     return JSONResponse({"id": sid}, status_code=201)
 
 
@@ -1622,6 +1632,7 @@ async def api_remote_session_start(request: Request, sid: int):
         db.commit()
     finally:
         db.close()
+    ds.log_activity(_uid(request), "start_remote_session", "grid_remote_sessions", sid)
     return JSONResponse({"success": True, "status": "in_progress"})
 
 
@@ -1639,6 +1650,7 @@ async def api_remote_session_end(request: Request, sid: int):
         db.commit()
     finally:
         db.close()
+    ds.log_activity(_uid(request), "end_remote_session", "grid_remote_sessions", sid)
     return JSONResponse({"success": True, "status": "completed"})
 
 
@@ -1671,6 +1683,8 @@ async def api_remote_finding_create(request: Request, sid: int):
         db.commit()
     finally:
         db.close()
+    ds.log_activity(_uid(request), "create_remote_finding", "grid_remote_findings", fid,
+                    data.get("title", ""))
     # Emit GRID_FINDING_CREATED so ERM/event handlers can auto-create risks
     severity = data.get("severity", "minor")
     if severity in ("major", "critical"):
@@ -1712,6 +1726,7 @@ async def api_remote_finding_update(request: Request, fid: int):
             db.commit()
     finally:
         db.close()
+    ds.log_activity(_uid(request), "update_remote_finding", "grid_remote_findings", fid)
     return JSONResponse({"success": True})
 
 
@@ -1733,6 +1748,7 @@ async def api_remote_note_create(request: Request, sid: int):
         db.commit()
     finally:
         db.close()
+    ds.log_activity(_uid(request), "create_remote_note", "grid_remote_notes", nid)
     return JSONResponse({"id": nid}, status_code=201)
 
 
@@ -1755,6 +1771,8 @@ async def api_remote_participant_add(request: Request, sid: int):
         db.commit()
     finally:
         db.close()
+    ds.log_activity(_uid(request), "add_remote_participant", "grid_remote_participants", pid,
+                    data.get("name", ""))
     return JSONResponse({"id": pid}, status_code=201)
 
 
