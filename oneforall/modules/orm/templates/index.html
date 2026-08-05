@@ -1495,6 +1495,7 @@ window.ormOpenKriModal=async function(existing){
           }).join('')+
         '</select>'+
       '</div>'+
+      '<div class="form-group"><label>Auto-update notes <span style="font-size:10px;color:var(--muted)">(optional)</span></label><input id="kr_auto_notes" placeholder="e.g. increments by 1 per matching event" value="'+esc(isEdit?(existing.auto_update_notes||''):'')+'"></div>'+
       '<div class="form-group"><label>Owner</label><select id="kr_owner">'+
         '<option value="">— Unassigned —</option>'+
         users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+
@@ -1509,7 +1510,7 @@ window.ormOpenKriModal=async function(existing){
 window.ormSaveKri=async function(id){
   var name=document.getElementById('kr_name').value.trim();
   if(!name){if(typeof showToast==='function')showToast('Name required','error');return;}
-  var data={name:name,description:document.getElementById('kr_desc').value.trim(),metric_type:document.getElementById('kr_type').value,unit:document.getElementById('kr_unit').value.trim(),threshold_warn:parseFloat(document.getElementById('kr_warn').value)||null,threshold_crit:parseFloat(document.getElementById('kr_crit').value)||null,current_value:parseFloat(document.getElementById('kr_val').value)||0,frequency:document.getElementById('kr_freq').value,owner_id:document.getElementById('kr_owner').value||null,auto_update_event_type:document.getElementById('kr_auto_type').value||null};
+  var data={name:name,description:document.getElementById('kr_desc').value.trim(),metric_type:document.getElementById('kr_type').value,unit:document.getElementById('kr_unit').value.trim(),threshold_warn:parseFloat(document.getElementById('kr_warn').value)||null,threshold_crit:parseFloat(document.getElementById('kr_crit').value)||null,current_value:parseFloat(document.getElementById('kr_val').value)||0,frequency:document.getElementById('kr_freq').value,owner_id:document.getElementById('kr_owner').value||null,auto_update_event_type:document.getElementById('kr_auto_type').value||null,auto_update_notes:document.getElementById('kr_auto_notes').value.trim()||null};
   try{
     if(id)await apiFetch('/orm/api/kris/'+id,{method:'PUT',body:data});
     else await apiFetch('/orm/api/kris',{method:'POST',body:data});
@@ -1862,6 +1863,15 @@ window.ormOpenTemplateModal=async function(existing){
         '<div class="form-group"><label>Root Cause Category</label><select id="tm_rcc">'+['','people','process','system','external'].map(function(c){return'<option value="'+c+'"'+(isEdit&&existing.root_cause_category===c?' selected':'')+'>'+esc(c||'— Select —')+'</option>';}).join('')+'</select></div>'+
         '<div class="form-group"><label>Tags (comma-separated)</label><input id="tm_tags" placeholder="e.g. fraud,cyber,payment" value="'+esc(isEdit?(existing.tags||''):'')+'"></div>'+
       '</div>'+
+      '<div class="form-group"><label>Basel III Category <span style="font-size:10px;color:var(--muted);font-weight:400">(optional — financial services)</span></label>'+
+        '<select id="tm_basel">'+
+          '<option value="">— Not specified —</option>'+
+          ['internal_fraud','external_fraud','employment_practices','clients_products','physical_assets','business_disruption','execution_delivery'].map(function(c){
+            var labels={internal_fraud:'Internal Fraud',external_fraud:'External Fraud',employment_practices:'Employment Practices & Workplace Safety',clients_products:'Clients, Products & Business Practices',physical_assets:'Damage to Physical Assets',business_disruption:'Business Disruption & System Failures',execution_delivery:'Execution, Delivery & Process Management'};
+            return'<option value="'+c+'"'+(isEdit&&existing.basel_category===c?' selected':'')+'>'+esc(labels[c]||c)+'</option>';
+          }).join('')+
+        '</select>'+
+      '</div>'+
       '<div class="form-group"><label>Corrective Action Template</label><textarea id="tm_corr" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.corrective_action||''):'')+'</textarea></div>'+
       '<div class="form-group"><label>Preventive Action Template</label><textarea id="tm_prev" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.preventive_action||''):'')+'</textarea></div>'+
       '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
@@ -1875,7 +1885,7 @@ window.ormOpenTemplateModal=async function(existing){
 window.ormSaveTemplate=async function(id){
   var title=document.getElementById('tm_title').value.trim();
   if(!title){if(typeof showToast==='function')showToast('Title required','error');return;}
-  var data={title:title,description:document.getElementById('tm_desc').value.trim(),category:document.getElementById('tm_cat').value,event_type:document.getElementById('tm_type').value,severity:document.getElementById('tm_sev').value,department:document.getElementById('tm_dept').value.trim()||null,process_affected:document.getElementById('tm_proc').value.trim()||null,root_cause_category:document.getElementById('tm_rcc').value||null,tags:document.getElementById('tm_tags').value.trim()||null,corrective_action:document.getElementById('tm_corr').value.trim()||null,preventive_action:document.getElementById('tm_prev').value.trim()||null,is_active:1};
+  var data={title:title,description:document.getElementById('tm_desc').value.trim(),category:document.getElementById('tm_cat').value,event_type:document.getElementById('tm_type').value,severity:document.getElementById('tm_sev').value,department:document.getElementById('tm_dept').value.trim()||null,process_affected:document.getElementById('tm_proc').value.trim()||null,root_cause_category:document.getElementById('tm_rcc').value||null,basel_category:document.getElementById('tm_basel').value||null,tags:document.getElementById('tm_tags').value.trim()||null,corrective_action:document.getElementById('tm_corr').value.trim()||null,preventive_action:document.getElementById('tm_prev').value.trim()||null,is_active:1};
   try{
     if(id)await apiFetch('/orm/api/event-templates/'+id,{method:'PUT',body:data});
     else await apiFetch('/orm/api/event-templates',{method:'POST',body:data});
@@ -2055,6 +2065,10 @@ window.ormOpenRcsaDetail=async function(assessId){
     var a=await apiFetch('/orm/api/rcsa/'+assessId);
     var risks=await apiFetch('/orm/api/rcsa/'+assessId+'/risks');
     var actions=await apiFetch('/orm/api/rcsa/'+assessId+'/actions');
+    await Promise.all(risks.map(async function(r){r.controls=await apiFetch('/orm/api/rcsa/risks/'+r.id+'/controls');}));
+    window._rcsaControlsCache={};window._rcsaActionsCache={};
+    risks.forEach(function(r){(r.controls||[]).forEach(function(c){window._rcsaControlsCache[c.id]=c;});});
+    actions.forEach(function(ac){window._rcsaActionsCache[ac.id]=ac;});
     drawer.innerHTML='<div class="orm-drawer-overlay" onclick="if(event.target===this)ormCloseDrawer()">'+
     '<div class="orm-drawer-panel" style="width:min(720px,100%)">'+
       '<div class="orm-drawer-head">'+
@@ -2116,6 +2130,32 @@ window.ormOpenRcsaDetail=async function(assessId){
                     return ctrl.trim()?'<div style="font-size:11px;color:var(--muted);padding:2px 0">&#8226; '+esc(ctrl.trim())+'</div>':'';
                   }).join('')+
                 '</div>':'')+
+              '<div style="margin-top:10px">'+
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'+
+                  '<span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Controls ('+((r.controls||[]).length)+')</span>'+
+                  '<button class="btn btn-sm btn-secondary" style="font-size:10px;padding:2px 8px" onclick="ormOpenRcsaControlModal('+r.id+',null,'+assessId+')">+ Control</button>'+
+                '</div>'+
+                ((r.controls&&r.controls.length)?r.controls.map(function(c){
+                  var cActs=actions.filter(function(ac){return ac.control_id===c.id;});
+                  var deColor=c.design_effectiveness==='adequate'?'var(--good,#16a34a)':c.design_effectiveness==='inadequate'?'var(--red,#dc2626)':'var(--muted)';
+                  var oeColor=c.operating_effectiveness==='effective'?'var(--good,#16a34a)':c.operating_effectiveness==='ineffective'?'var(--red,#dc2626)':'var(--muted)';
+                  return'<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;margin-bottom:6px">'+
+                    '<div style="display:flex;justify-content:space-between;align-items:center">'+
+                      '<span style="font-size:12px;font-weight:600">'+esc(c.name)+'</span>'+
+                      '<div style="display:flex;gap:4px">'+
+                        '<button class="btn btn-sm btn-secondary" style="padding:1px 6px" onclick="ormOpenRcsaControlModal('+r.id+',window._rcsaControlsCache['+c.id+'],'+assessId+')" title="Edit">&#9998;</button>'+
+                        '<button class="btn btn-sm btn-secondary" style="padding:1px 6px;color:var(--red)" onclick="ormDeleteRcsaControl('+c.id+','+assessId+')" title="Delete">&#10005;</button>'+
+                      '</div>'+
+                    '</div>'+
+                    '<div style="font-size:10px;color:var(--muted);margin-top:2px">Design: <span style="color:'+deColor+';font-weight:600">'+(c.design_effectiveness||'—').replace(/_/g,' ')+'</span>&nbsp;&bull;&nbsp;Operating: <span style="color:'+oeColor+';font-weight:600">'+(c.operating_effectiveness||'—').replace(/_/g,' ')+'</span></div>'+
+                    (c.gap_description?'<div style="font-size:11px;color:var(--red,#dc2626);margin-top:3px">Gap: '+esc(c.gap_description)+'</div>':'')+
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">'+
+                      '<span style="font-size:10px;color:var(--muted)">'+cActs.length+' action(s)'+(cActs.length?': '+cActs.map(function(ac){return esc(ac.title);}).join(', '):'')+'</span>'+
+                      '<button class="btn btn-sm btn-secondary" style="font-size:10px;padding:1px 6px" onclick="ormOpenRcsaActionModal('+c.id+',null,'+assessId+')">+ Action</button>'+
+                    '</div>'+
+                  '</div>';
+                }).join(''):'<div style="font-size:11px;color:var(--muted);padding:4px 0">No controls recorded</div>')+
+              '</div>'+
             '</div>';
           }).join(''):'<div style="color:var(--muted);font-size:13px;padding:12px 0">No risks assessed yet</div>')+
         '</div>'+
@@ -2130,7 +2170,11 @@ window.ormOpenRcsaDetail=async function(assessId){
                   '<div style="font-size:13px;font-weight:600">'+esc(ac.title)+'</div>'+
                   '<div style="font-size:11px;color:var(--muted)">'+esc(ac.control_name||'')+(ac.due_date?' &bull; Due '+fmtDate(ac.due_date):'')+'</div>'+
                 '</div>'+
-                '<span class="badge '+s+'">'+esc((ac.status||'open').replace(/_/g,' '))+'</span>'+
+                '<div style="display:flex;gap:6px;align-items:center">'+
+                  '<span class="badge '+s+'">'+esc((ac.status||'open').replace(/_/g,' '))+'</span>'+
+                  '<button class="btn btn-sm btn-secondary" style="padding:1px 6px" onclick="ormOpenRcsaActionModal('+ac.control_id+',window._rcsaActionsCache['+ac.id+'],'+assessId+')" title="Edit">&#9998;</button>'+
+                  '<button class="btn btn-sm btn-secondary" style="padding:1px 6px;color:var(--red)" onclick="ormDeleteRcsaAction('+ac.id+','+assessId+')" title="Delete">&#10005;</button>'+
+                '</div>'+
               '</div>';
             }).join('')+
           '</div>':'')+'</div>'+
@@ -2177,6 +2221,99 @@ window.ormSaveRcsaRisk=async function(assessId){
     ormCloseDrawer();ormOpenRcsaDetail(assessId);
     if(typeof showToast==='function')showToast('Risk added');
   }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+
+/* ── RCSA Control Add/Edit Modal ── */
+window.ormOpenRcsaControlModal=async function(riskId,existing,assessId){
+  var isEdit=!!(existing&&existing.id);
+  var users=await ormLoadUsers();
+  var html='<div class="orm-modal-overlay" id="rcsaControlModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:560px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'rcsaControlModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Control</div>'+
+      '<div class="form-group"><label>Control Name *</label><input id="rc_name" placeholder="e.g. Dual approval for payments over $10k" value="'+esc(isEdit?(existing.name||''):'')+'"></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Design Effectiveness</label><select id="rc_design">'+['adequate','not_assessed','inadequate'].map(function(v){return'<option value="'+v+'"'+(isEdit&&existing.design_effectiveness===v?' selected':'')+'>'+v.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Operating Effectiveness</label><select id="rc_operating">'+['effective','partially_effective','ineffective','not_tested'].map(function(v){return'<option value="'+v+'"'+(isEdit&&existing.operating_effectiveness===v?' selected':'')+'>'+v.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Test Date</label><input type="date" id="rc_test_date" value="'+(isEdit&&existing.test_date?existing.test_date.slice(0,10):'')+'"></div>'+
+        '<div class="form-group"><label>Tested By</label><select id="rc_tested_by"><option value="">— Unassigned —</option>'+users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.tested_by==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+'</select></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Evidence Notes</label><textarea id="rc_evidence" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.evidence_notes||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Gap Description <span style="font-size:10px;color:var(--muted)">(if any)</span></label><textarea id="rc_gap" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.gap_description||''):'')+'</textarea></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'rcsaControlModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveRcsaControl('+riskId+','+(isEdit?existing.id:'null')+','+assessId+')">Save Control</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('rc_name');if(t)t.focus();},80);
+};
+window.ormSaveRcsaControl=async function(riskId,id,assessId){
+  var name=document.getElementById('rc_name').value.trim();
+  if(!name){if(typeof showToast==='function')showToast('Control name required','error');return;}
+  var data={name:name,design_effectiveness:document.getElementById('rc_design').value,operating_effectiveness:document.getElementById('rc_operating').value,test_date:document.getElementById('rc_test_date').value||null,tested_by:document.getElementById('rc_tested_by').value||null,evidence_notes:document.getElementById('rc_evidence').value.trim()||null,gap_description:document.getElementById('rc_gap').value.trim()||null};
+  try{
+    if(id)await apiFetch('/orm/api/rcsa/controls/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/rcsa/risks/'+riskId+'/controls',{method:'POST',body:data});
+    document.getElementById('rcsaControlModal').remove();
+    ormOpenRcsaDetail(assessId);
+    if(typeof showToast==='function')showToast('Control saved');
+  }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+window.ormDeleteRcsaControl=async function(controlId,assessId){
+  if(!confirm('Delete this control? Any linked actions will remain but lose their control reference.'))return;
+  try{
+    await apiFetch('/orm/api/rcsa/controls/'+controlId,{method:'DELETE'});
+    ormOpenRcsaDetail(assessId);
+    if(typeof showToast==='function')showToast('Control deleted');
+  }catch(e){if(typeof showToast==='function')showToast('Delete failed','error');}
+};
+
+/* ── RCSA Action Add/Edit Modal ── */
+window.ormOpenRcsaActionModal=async function(controlId,existing,assessId){
+  var isEdit=!!(existing&&existing.id);
+  var users=await ormLoadUsers();
+  var html='<div class="orm-modal-overlay" id="rcsaActionModal" onclick="if(event.target===this)this.remove()">'+
+    '<div class="modal-box" style="max-width:520px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'rcsaActionModal\').remove()">&#10005;</button>'+
+      '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Remediation Action</div>'+
+      '<div class="form-group"><label>Title *</label><input id="ra_title" placeholder="e.g. Implement quarterly access review" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
+      '<div class="form-group"><label>Description</label><textarea id="ra_desc" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Owner</label><select id="ra_owner"><option value="">— Unassigned —</option>'+users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Due Date</label><input type="date" id="ra_due" value="'+(isEdit&&existing.due_date?existing.due_date.slice(0,10):'')+'"></div>'+
+      '</div>'+
+      '<div class="form-group"><label>Status</label><select id="ra_status">'+['open','in_progress','completed','overdue'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/_/g,' ')+'</option>';}).join('')+'</select></div>'+
+      '<div class="form-group"><label>Notes</label><textarea id="ra_notes" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.notes||''):'')+'</textarea></div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'rcsaActionModal\').remove()">Cancel</button>'+
+        '<button class="btn btn-primary" onclick="ormSaveRcsaAction('+controlId+','+(isEdit?existing.id:'null')+','+assessId+')">Save Action</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  setTimeout(function(){var t=document.getElementById('ra_title');if(t)t.focus();},80);
+};
+window.ormSaveRcsaAction=async function(controlId,id,assessId){
+  var title=document.getElementById('ra_title').value.trim();
+  if(!title){if(typeof showToast==='function')showToast('Title required','error');return;}
+  var data={title:title,description:document.getElementById('ra_desc').value.trim()||null,owner_id:document.getElementById('ra_owner').value||null,due_date:document.getElementById('ra_due').value||null,status:document.getElementById('ra_status').value,notes:document.getElementById('ra_notes').value.trim()||null};
+  try{
+    if(id)await apiFetch('/orm/api/rcsa/actions/'+id,{method:'PUT',body:data});
+    else await apiFetch('/orm/api/rcsa/controls/'+controlId+'/actions',{method:'POST',body:data});
+    document.getElementById('rcsaActionModal').remove();
+    ormOpenRcsaDetail(assessId);
+    if(typeof showToast==='function')showToast('Action saved');
+  }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
+};
+window.ormDeleteRcsaAction=async function(actionId,assessId){
+  if(!confirm('Delete this remediation action?'))return;
+  try{
+    await apiFetch('/orm/api/rcsa/actions/'+actionId,{method:'DELETE'});
+    ormOpenRcsaDetail(assessId);
+    if(typeof showToast==='function')showToast('Action deleted');
+  }catch(e){if(typeof showToast==='function')showToast('Delete failed','error');}
 };
 
 /* ─────────────────────────── AI CONTROLS CATALOGUE (PLAN-21) ─────────────────────────── */
@@ -2472,9 +2609,11 @@ window.ormOpenAimsRiskModal=function(assessId,existing){
         '<div class="form-group"><label>RR Tolerance</label><input type="number" step="0.01" id="ar_tolerance" value="'+(isEdit&&existing.rr_tolerance!=null?existing.rr_tolerance:'')+'"></div>'+
       '</div>'+
       '<div class="form-row">'+
-        '<div class="form-group"><label>In Scope</label><select id="ar_scope"><option value="1"'+((!isEdit||existing.in_scope)?' selected':'')+'>Yes</option><option value="0"'+(isEdit&&!existing.in_scope?' selected':'')+'>No</option></select></div>'+
-        '<div class="form-group"><label>Status</label><select id="ar_status">'+['open','mitigating','closed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>In Scope</label><select id="ar_scope" onchange="document.getElementById(\'ar_just_row\').style.display=this.value===\'0\'?\'block\':\'none\'"><option value="1"'+((!isEdit||existing.in_scope)?' selected':'')+'>Yes</option><option value="0"'+(isEdit&&!existing.in_scope?' selected':'')+'>No</option></select></div>'+
+        '<div class="form-group"><label>Implemented</label><select id="ar_impl"><option value="0"'+(!isEdit||!existing.implemented?' selected':'')+'>No</option><option value="1"'+(isEdit&&existing.implemented?' selected':'')+'>Yes</option></select></div>'+
       '</div>'+
+      '<div class="form-group" id="ar_just_row" style="display:'+(isEdit&&!existing.in_scope?'block':'none')+'"><label>Scope Justification <span style="font-size:10px;color:var(--muted)">(why is this out of scope?)</span></label><input id="ar_just" value="'+esc(isEdit?(existing.scope_justification||''):'')+'"></div>'+
+      '<div class="form-group"><label>Status</label><select id="ar_status">'+['open','mitigating','closed'].map(function(s){return'<option value="'+s+'"'+(isEdit&&existing.status===s?' selected':'')+'>'+s.replace(/\b\w/g,function(c){return c.toUpperCase();})+'</option>';}).join('')+'</select></div>'+
       '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
         '<button class="btn btn-secondary" onclick="document.getElementById(\'aimsRiskModal\').remove()">Cancel</button>'+
         '<button class="btn btn-primary" onclick="ormSaveAimsRisk('+assessId+','+(isEdit?existing.id:'null')+')">Save</button>'+
@@ -2500,6 +2639,8 @@ window.ormSaveAimsRisk=async function(assessId,id){
     rr_appetite:document.getElementById('ar_appetite').value!==''?parseFloat(document.getElementById('ar_appetite').value):null,
     rr_tolerance:document.getElementById('ar_tolerance').value!==''?parseFloat(document.getElementById('ar_tolerance').value):null,
     in_scope:document.getElementById('ar_scope').value==='1',
+    implemented:document.getElementById('ar_impl').value==='1',
+    scope_justification:document.getElementById('ar_just').value.trim()||null,
     status:document.getElementById('ar_status').value
   };
   try{
@@ -2627,6 +2768,11 @@ window.ormOpenAimsRiskControlModal=function(riskId,existing){
       '<div class="modal-title">'+(isEdit?'Edit':'Link')+' Control</div>'+
       '<div class="form-group"><label>Catalogue Control</label><select id="arc_cat">'+options+'</select></div>'+
       '<div class="form-group"><label>Control Detail (if custom / additional notes)</label><textarea id="arc_detail" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.control_detail||''):'')+'</textarea></div>'+
+      '<div class="form-group"><label>Action Steps</label><textarea id="arc_steps" rows="2" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.action_steps||''):'')+'</textarea></div>'+
+      '<div class="form-row">'+
+        '<div class="form-group"><label>Responsible</label><input id="arc_responsible" value="'+esc(isEdit?(existing.responsible||''):'')+'"></div>'+
+        '<div class="form-group"><label>Interdependency</label><input id="arc_interdep" placeholder="e.g. depends on Control X" value="'+esc(isEdit?(existing.interdependency||''):'')+'"></div>'+
+      '</div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>ICE Score % (0-90, higher = stronger)</label><select id="arc_ice">'+[0,10,20,30,40,50,60,70,80,90].map(function(v){return'<option value="'+v+'"'+(isEdit&&existing.ice_score===v?' selected':'')+'>'+v+'%</option>';}).join('')+'</select></div>'+
         '<div class="form-group"><label>or Legacy ORAAT (1-10, lower = stronger)</label><input type="number" id="arc_ice10" min="1" max="10" placeholder="optional"></div>'+
@@ -2656,6 +2802,9 @@ window.ormSaveAimsRiskControl=async function(riskId,id){
   var data={
     catalogue_control_id:catId?parseInt(catId):null,
     control_detail:document.getElementById('arc_detail').value.trim(),
+    action_steps:document.getElementById('arc_steps').value.trim()||null,
+    responsible:document.getElementById('arc_responsible').value.trim()||null,
+    interdependency:document.getElementById('arc_interdep').value.trim()||null,
     treatment:document.getElementById('arc_treatment').value,
     control_owner:document.getElementById('arc_owner').value.trim(),
     treatment_cost:parseFloat(document.getElementById('arc_cost').value)||0,

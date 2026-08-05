@@ -623,9 +623,142 @@ Each entry: file(s), what changed, why, live verification result.
 
 ---
 
+## Pass 5 — ORM deep dive
+
+**Status: COMPLETE. Findings and fixes both done, all verified live.**
+
+**Covered:** Events, KRI Indicators, Event Templates, RCSA (Assessments, Risks,
+Controls, Actions), AI Controls, AI Risk (AIMS Assessments/Risks/Risk-Controls),
+create flows on each.
+
+**Method:** ORM uses hand-written CRUD like BCM (no shared generic helper),
+so the same "dead field" bug class applied. Extracted every `INSERT INTO`
+column list and every `update_X`'s allowed-fields tuple from `data_service.py`,
+cross-referenced against a batched `PRAGMA table_info` sweep of all ORM/AIMS
+tables, then cross-referenced the backend-confirmed columns against every
+frontend field-collection site in `templates/index.html` (found via every
+`apiFetch('/orm/api/...', {method:'POST'|'PUT', body:...})` call site, not
+just a `modalDefs`-style search, since ORM builds its `data` object inline
+per save function rather than through a shared config table).
+
+### Findings
+
+| # | Severity | Area | Summary |
+|---|----------|------|---------|
+| 1 | Critical | KRI Indicators | `auto_update_event_type`/`auto_update_notes` collected by a real, prominently-featured form control (with a pre-built 11-item KRI library showcasing it) but never read by `create_kri`/`update_kri` — every KRI's auto-increment-from-events configuration was silently discarded, permanently starving `orm_event_logged_handler`'s `WHERE auto_update_event_type=%s` query. This meant the platform's advertised "KRIs auto-update when their configured event type fires" feature (per the module's own README) never worked for any KRI created through the UI |
+| 2 | High | RCSA | `orm_rcsa_controls` and `orm_rcsa_actions` had full backend CRUD (create/update/delete) plus an effectiveness roll-up calculation (`_recompute_risk_effectiveness`), but zero frontend UI — no "+Add Control"/"+Add Action" anywhere, only a read-only Actions list. Risks could only be scored via a single manual slider, so the roll-up logic was permanently unreachable |
+| 3 | Medium | Event Templates | `basel_category` is a real, backend-wired column and appears on the live Event form, but the Template modal never exposed it, so templates could never carry a Basel category into pre-filled events |
+| 4 | Medium | AI Risk (AIMS) | `aims_risks.implemented`/`.scope_justification` are real columns already in the backend's `_AIMS_RISK_FIELDS` allowlist but had no UI control anywhere |
+| 5 | Medium | AI Risk (AIMS) | `aims_risk_controls.action_steps`/`.responsible`/`.interdependency` are real columns already in `_AIMS_RC_FIELDS` but had no UI control in the Link Control modal |
+| 6 | Low | Events | `orm_events.parent_event_id` is read by the frontend for parent/child event grouping display, but nothing anywhere (no escalate/split-event flow) ever writes it, so that display code can never actually show anything. Left deferred, not fixed: fixing it means designing a "link to parent event" picker UX, a genuinely different kind of work than wiring an existing input |
+
+**Ruled out (not a bug, no action needed):** `orm_events.business_unit_id`,
+`orm_rcsa_assessments.business_unit_id`, and `orm_rcsa_controls.canonical_control_id`
+all have zero frontend references anywhere, consistent with the already-known,
+already-documented Governance T1.2 deferral (BU-scoping and canonical-controls
+unification are explicitly future work, not a fresh gap). `orm_events.root_cause`
+has no manual-entry UI (only a Root Cause *Category* dropdown), but this looks
+intentional — it's most likely meant to be filled by the existing
+`/api/ai/analyze/{id}` AI root-cause-analysis endpoint rather than typed by hand;
+not conclusively a bug, left alone.
+
+**Dev-tooling note (not an application bug):** while verifying the KRI fix,
+the running `uvicorn --reload` dev server logged `WatchFiles detected changes
+in 'modules\orm\data_service.py'. Reloading...` but kept serving the old
+bytecode (confirmed: the identical fix worked instantly when invoked directly
+via a Python script, and worked over HTTP only after a manual server
+stop/restart). Recorded here for transparency since it cost real debugging
+time and could resurface on a future session; not a code defect.
+
+**Test data cleanup:** all `ORM-VERIFY`-prefixed rows created during
+verification (KRI, Event Template, AIMS Assessment/Risk/Risk-Control, RCSA
+Assessment/Risk/Control/Action) deleted and confirmed removed via direct DB
+query. One mistake caught during the RCSA UI test: the timeline-update-style
+slip did *not* recur here, but a wrong hardcoded action id was used on a
+first edit attempt (my own test-script error, not an app bug) — self-caught
+via a DB check showing the status hadn't changed, corrected with the right
+id on retry.
+
+### Fix log
+
+- [x] **#1 KRI auto-update fields** — added `auto_update_event_type`/
+      `auto_update_notes` to `create_kri`'s INSERT and `update_kri`'s
+      allowed-fields tuple (`modules/orm/data_service.py`); added an
+      "Auto-update notes" input to the KRI modal and included both fields
+      in `ormSaveKri`'s request body (`modules/orm/templates/index.html`).
+      **Verified live:** created and updated a KRI with
+      `auto_update_event_type='fraud'`/`'system_failure'`; DB confirms both
+      persist correctly on create and update.
+- [x] **#2 RCSA Controls + Actions UI** — built from scratch, since the
+      backend routes already existed in full
+      (`GET/POST/PUT/DELETE /api/rcsa/risks/{id}/controls` and
+      `/api/rcsa/controls/{id}/actions`) and needed no changes. Added a
+      nested "Controls" section under each Risk row in the RCSA drawer
+      (add/edit/delete, design/operating effectiveness, test date, tested
+      by, evidence notes, gap description), a nested Actions list per
+      Control with its own add/edit/delete, and edit/delete icons on the
+      existing flat "Remediation Actions" summary. All three share the
+      existing `_DESIGN_EFF`/`_OPER_EFF` value vocab so the roll-up
+      calculation reads what the UI writes.
+      **Verified live, full lifecycle, in the actual browser:** created an
+      assessment, added a risk (control effectiveness 60%, residual 3.6),
+      added a control with Design=adequate/Operating=effective — the
+      previously-dead roll-up fired immediately and correctly: effectiveness
+      jumped to 100%, residual dropped to 0.0, health score to 100%. Added
+      an action under that control, confirmed it rendered both nested and
+      in the flat summary. Edited the action's status (in_progress →
+      completed, confirmed via DB). Deleted the action and the control,
+      confirmed both removed via DB.
+- [x] **#3 Event Template basel_category** — added the same Basel III
+      Category dropdown already used on the live Event modal to the
+      Template modal, and added `basel_category` to `ormSaveTemplate`'s body.
+      **Verified live:** created a template with Basel=Internal Fraud; DB
+      confirms `basel_category='internal_fraud'`.
+- [x] **#4 AIMS Risk implemented/scope_justification** — added an
+      "Implemented" Yes/No select next to "In Scope", and a conditionally-
+      shown "Scope Justification" field (only relevant when out of scope),
+      to `ormOpenAimsRiskModal`/`ormSaveAimsRisk`.
+      **Verified live:** created a risk with In Scope=No,
+      Implemented=Yes, Scope Justification filled; DB confirms
+      `in_scope=0, implemented=1`, and the justification text, all correct.
+- [x] **#5 AIMS Risk-Control action_steps/responsible/interdependency** —
+      added all three to the Link Control modal
+      (`ormOpenAimsRiskControlModal`/`ormSaveAimsRiskControl`).
+      **Verified live:** created a control link with all three filled; DB
+      confirms all three persist correctly.
+
+**Deliberately not fixed this pass:**
+
+- [ ] **#6 `parent_event_id` has no write path** — needs a "link to parent
+      event" picker UX decision (which events are eligible? one level or a
+      full chain?) rather than a straightforward field-wiring fix; flagged
+      for a future pass rather than designed under this one.
+
+### Verification checklist
+
+- [x] `python -m py_compile` on `modules/orm/data_service.py` — clean.
+- [x] `orm/templates/index.html` parses cleanly via Jinja `get_template()`.
+- [x] Full `pytest tests/` suite — 200 passed, 0 failed, both before and
+      after every fix.
+- [x] Live re-test of all 5 fixed create/update flows (KRI, Event Template,
+      AIMS Risk, AIMS Risk-Control, and the full RCSA Control/Action
+      lifecycle) — every field verified correct via direct DB query, not
+      just assumed from a lack of errors.
+- [x] Live re-test specifically confirming the RCSA effectiveness roll-up
+      (`_recompute_risk_effectiveness`) now actually executes and produces
+      correct numbers, since that was the entire point of building the
+      Controls UI.
+- [x] No server errors in the dev log across the whole verification pass
+      (aside from the unrelated reload anomaly noted above, which affected
+      test timing, not application behavior).
+- [x] Test data cleanup: all `ORM-VERIFY` rows across all 8 touched tables
+      deleted; confirmed zero rows remain via a text-search sweep.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- ORM, ARIA deep-dives
+- ARIA deep-dive
 - Remaining personas from the original QA brief (audit_lead, risk_owner,
   bcm_manager, grc_officer, org_admin, employee)
 - Load/performance testing

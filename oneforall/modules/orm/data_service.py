@@ -181,12 +181,14 @@ def create_kri(data):
     try:
         cur = insert_returning_id(db,
             "INSERT INTO orm_kris (name, description, metric_type, threshold_warn, threshold_crit, "
-            "current_value, unit, frequency, owner_id, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "current_value, unit, frequency, owner_id, status, auto_update_event_type, auto_update_notes) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (data.get("name"), data.get("description"), data.get("metric_type", "count"),
              data.get("threshold_warn"), data.get("threshold_crit"),
              data.get("current_value", 0), data.get("unit", "events"),
              data.get("frequency", "monthly"), data.get("owner_id"),
-             data.get("status", "active")),
+             data.get("status", "active"),
+             data.get("auto_update_event_type") or None, data.get("auto_update_notes")),
         )
         db.commit()
         return cur
@@ -199,7 +201,8 @@ def update_kri(kri_id, data, user_id=None):
     try:
         fields, vals = [], []
         for k in ("name", "description", "metric_type", "threshold_warn", "threshold_crit",
-                  "current_value", "unit", "frequency", "owner_id", "status", "trend"):
+                  "current_value", "unit", "frequency", "owner_id", "status", "trend",
+                  "auto_update_event_type", "auto_update_notes"):
             if k in data:
                 fields.append(f"{k}=%s"); vals.append(data[k])
         value_changed = "current_value" in data
