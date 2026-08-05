@@ -139,9 +139,9 @@ async def api_command_centre_stats(request: Request):
     db = get_db()
     try:
         # ── Overall compliance (ARIA controls) ──
-        total_controls = db.execute("SELECT COUNT(*) FROM aria_controls").fetchone()[0]
+        total_controls = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
         compliant_controls = db.execute(
-            "SELECT COUNT(*) FROM aria_controls WHERE status = 'compliant'"
+            "SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Approved')"
         ).fetchone()[0]
         compliance_pct = round((compliant_controls / total_controls) * 100) if total_controls else 0
 
@@ -639,9 +639,9 @@ async def api_my_dashboard_data(request: Request):
         # Role-specific data
         if role in ("super_admin", "compliance_manager", "grc_officer"):
             # Overview of all modules
-            data["aria_controls_total"] = db.execute("SELECT COUNT(*) FROM aria_controls").fetchone()[0]
+            data["aria_controls_total"] = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
             data["aria_controls_compliant"] = db.execute(
-                "SELECT COUNT(*) FROM aria_controls WHERE status = 'compliant'"
+                "SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Approved')"
             ).fetchone()[0]
             data["grid_audits_active"] = db.execute(
                 "SELECT COUNT(*) FROM grid_audits WHERE status IN ('Planning','Active')"
@@ -695,7 +695,7 @@ async def api_my_dashboard_data(request: Request):
                 "SELECT id, doc_id, title, status FROM aria_documents ORDER BY updated_at DESC LIMIT 10"
             ).fetchall()]
             data["controls_needing_review"] = db.execute(
-                "SELECT COUNT(*) FROM aria_controls WHERE status IN ('not_implemented','partially_implemented')"
+                "SELECT COUNT(*) FROM controls WHERE status NOT IN ('Implemented','Approved')"
             ).fetchone()[0]
 
     finally:

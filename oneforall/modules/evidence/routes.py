@@ -939,7 +939,8 @@ async def api_evidence_suggest_links(request: Request, eid: int):
             "SELECT module, entity_type, entity_id FROM evidence_links WHERE evidence_id = %s AND deleted_at IS NULL", (eid,)
         ).fetchall()]
         controls = [dict(r) for r in db.execute(
-            "SELECT id, reference_code, title, framework_name FROM aria_controls LIMIT 100"
+            "SELECT c.id, c.ref AS reference_code, c.name AS title, f.name AS framework_name "
+            "FROM controls c JOIN frameworks f ON f.id = c.framework_id LIMIT 100"
         ).fetchall()]
         audits = [dict(r) for r in db.execute(
             "SELECT id, name, framework_name FROM grid_audits WHERE status != 'closed' LIMIT 30"

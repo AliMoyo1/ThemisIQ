@@ -405,8 +405,8 @@ async def api_analytics_capture_snapshot(request: Request):
         metrics = []
 
         # Compliance metrics
-        total_controls = db.execute("SELECT COUNT(*) FROM aria_controls").fetchone()[0]
-        compliant = db.execute("SELECT COUNT(*) FROM aria_controls WHERE status = 'compliant'").fetchone()[0]
+        total_controls = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
+        compliant = db.execute("SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Approved')").fetchone()[0]
         pct = round((compliant / total_controls * 100), 1) if total_controls else 0
         metrics.append(("compliance_pct", pct, "aria"))
         metrics.append(("controls_total", total_controls, "aria"))

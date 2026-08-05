@@ -177,8 +177,8 @@ def collect_telemetry(db) -> dict:
     try:
         row = db.execute(
             "SELECT COUNT(*) AS total, "
-            "SUM(CASE WHEN status = 'compliant' THEN 1 ELSE 0 END) AS ok "
-            "FROM aria_controls"
+            "SUM(CASE WHEN status IN ('Implemented','Approved') THEN 1 ELSE 0 END) AS ok "
+            "FROM controls"
         ).fetchone()
         total = row["total"] or 0
         ok = row["ok"] or 0

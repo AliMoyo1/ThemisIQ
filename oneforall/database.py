@@ -1817,23 +1817,6 @@ CREATE TABLE IF NOT EXISTS aria_risks (
     updated_at      TEXT DEFAULT (datetime('now'))
 );
 
--- ── ARIA: Evidence ──────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS aria_evidence (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    evidence_id     TEXT UNIQUE NOT NULL,
-    framework       TEXT NOT NULL,
-    control_ref     TEXT,
-    description     TEXT NOT NULL,
-    evidence_type   TEXT,
-    collected_by    TEXT DEFAULT '',
-    collection_date TEXT,
-    storage_location TEXT DEFAULT '',
-    expiry_date     TEXT,
-    status          TEXT DEFAULT 'Current',
-    notes           TEXT DEFAULT '',
-    created_at      TEXT DEFAULT (datetime('now'))
-);
-
 -- ── ARIA: Ask ARIA (FTS5 search index + Q&A log) ──────────────────────────
 CREATE TABLE IF NOT EXISTS aria_ask_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

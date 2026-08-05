@@ -844,10 +844,82 @@ still intact and working).
 
 ---
 
+## Pass 6 correction — the "orphaned tables" finding was wrong for 2 of 3
+
+**Status: COMPLETE. Corrects Pass 6 finding #1 after the user asked to act
+on it and a deeper investigation (prompted by that request) found the
+original conclusion was based on an incomplete search.**
+
+**What happened:** Pass 6 concluded `aria_frameworks`, `aria_controls`, and
+`aria_evidence` were all orphaned based on grepping only
+`modules/aria/routes.py`. That was too narrow. A full-repo, execution-verified
+recheck (not just grep, actually running the queries) found:
+
+- **`aria_frameworks`: not orphaned.** Actively synced by
+  `core/event_handlers.py`'s `sync_framework_to_aria` (on
+  `framework.activated`) and a "backward compat" block in
+  `database.py`, and actively read by `main.py` (legacy-table bootstrap
+  migration) and `core/event_handlers.py`. Left entirely alone, this table
+  was never actually a problem.
+- **`aria_controls`: not orphaned, and the real bug was more interesting
+  than "dead table."** It has 0 rows (ARIA's own UI never writes to it,
+  correctly using the separate shared `controls` table with 324 real
+  rows instead), but it's structurally wired into the Governance Graph's
+  canonical-controls backfill in `database.py` (found only because a
+  targeted, non-grep-friendly search caught the dynamic `f"...FROM
+  {src_table}..."` construction), has dedicated `business_unit_id`/
+  `canonical_control_id` column migrations, and an FK cascade rule. More
+  importantly: **`modules/launcher/routes_dashboard.py` (×2 call sites),
+  `modules/launcher/routes_platform.py`, and `core/predictive_risk.py` were
+  all reading compliance stats from this permanently-empty table** instead
+  of the real, populated `controls` table, meaning the Command Centre's
+  "Overall Compliance" stat card (shown to every super_admin/
+  compliance_manager/grc_officer on login) and the predictive risk engine's
+  ARIA compliance signal were silently always wrong. A 5th site,
+  `modules/evidence/routes.py`'s AI-evidence-link-suggestion query, was
+  outright broken: it selected columns (`reference_code`, `title`,
+  `framework_name`) that don't exist on `aria_controls` at all, and would
+  have thrown `no such column` the moment it was ever exercised.
+- **`aria_evidence`: genuinely orphaned, confirmed this time via exhaustive
+  search including dynamic-SQL and quoted-string-literal patterns, not
+  just literal `FROM aria_evidence` grep.** Dropped.
+
+**Fix log:**
+
+- [x] Redirected all 5 broken read sites from `aria_controls` to the real
+      `controls` table, matching the exact status vocabulary ARIA's own
+      working compliance-percentage endpoint already uses correctly
+      (`status IN ('Implemented','Approved')`, not the literal `'compliant'`
+      string the broken sites were checking for, which doesn't exist in the
+      real status vocabulary `['Not Started','In Progress','Draft','Under
+      Review','Approved','Implemented','Needs Update']` at all).
+      **Verified live:** `GET /api/my-dashboard/data` as a real
+      compliance_manager-capable user now returns `aria_controls_total:
+      324` (previously always `0`), definitive proof the fix is live, not
+      just theoretically correct. `compliant: 0` is the honest, correct
+      value for the current data, none of the 324 real controls are yet
+      marked Implemented or Approved, this is accurate reporting of an
+      early-stage compliance posture, not a bug.
+- [x] Fixed `modules/evidence/routes.py`'s broken column references,
+      aliased to preserve the exact same output shape the downstream AI
+      prompt expects (`c.ref AS reference_code, c.name AS title, f.name AS
+      framework_name`, joined against `frameworks`).
+- [x] Removed `aria_evidence`'s `CREATE TABLE` from `database.py` and
+      dropped it from the dev DB. Left `aria_frameworks` and `aria_controls`
+      table definitions untouched.
+
+**Verification:** `python -m py_compile` on all 5 touched files (`database.py`,
+`modules/launcher/routes_dashboard.py`, `modules/launcher/routes_platform.py`,
+`core/predictive_risk.py`, `modules/evidence/routes.py`) — clean. Full
+`pytest tests/` — 200 passed, 0 failed. Live-confirmed via
+`/api/my-dashboard/data` and `/api/command-centre/stats` as above. No
+server errors in the dev log. No test data created (all verification was
+read-only against real data).
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- Decision needed: drop the 3 orphaned ARIA tables (`aria_frameworks`,
-  `aria_controls`, `aria_evidence`) or leave them, per Pass 6 finding #1
 - Remaining personas from the original QA brief (audit_lead, risk_owner,
   bcm_manager, grc_officer, org_admin, employee)
 - Load/performance testing
