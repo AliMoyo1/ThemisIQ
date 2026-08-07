@@ -1,8 +1,14 @@
 # ThemisIQ Pre-Launch Tracker
 
-**Last updated:** 2026-06-25
+**Last updated:** 2026-08-07 (reconciled against 168 commits made between 2026-06-25 and now — this doc had not been touched since v1.0.2 despite that entire body of work)
 **Target URL:** https://themisiq.net / https://app.themisiq.net
 **Stack:** FastAPI, PostgreSQL, Nginx, Cloudflare, Hetzner VPS
+
+**Reframing note:** Commits `PLAN-31` (9 commits) show a full "Econet consolidation" applied directly to production ("PLAN-31 Phase 2 COMPLETE: Econet consolidation applied on production"), plus an active WhatsApp bridge and recurring production-crash fixes (semicolons breaking PG executescript, missing columns on `sentinel_breaches`, missing `workflow_actions` columns) that were fixed *in* production. This reads as an app already carrying live tenant traffic, not a system still waiting to launch. Confirm with Ali whether "pre-launch" is still the right frame, or whether this doc should become an ops/hardening backlog for an already-live product.
+
+**What could not be verified from the repo alone** (ops/dashboard-side state, not code): current deployed commit on the VPS, whether API keys were regenerated after the PBKDF2 hashing upgrade (`3ad2671`). These are called out inline below and need Ali to confirm rather than being inferred.
+
+**Cross-checked against `ThemisIQ_PreLaunch_Tracker.xlsx` (2026-08-07):** the xlsx mirror turned out to be carrying newer information than this file for several ops items — its "Pre-Launch Checklist" sheet already marks log rotation, uptime monitoring, email delivery (tested end-to-end), nginx rate limiting, firewall rules, and Sentry alert rules as **Done**, and Cloudflare WAF as **N/A — Free plan, Free Managed Ruleset active**. That's relayed below, but it's Ali's own prior record, not something re-verified from code this session — flag it if any of it has since drifted. The xlsx also had one genuine internal contradiction (its own "Post-Launch" sheet still showed image optimization and WAF as Pending) which has now been fixed in the xlsx to match the Checklist sheet and this doc's code-verified findings.
 
 ---
 
@@ -66,6 +72,21 @@
 - [x] Clear-text logging: DATABASE_URL redacted in startup output (start_app.py)
 - [x] Information exposure: 10+ API error responses replaced str(exc) with generic messages
 - [x] Legacy code removal: 10auditsphere, complianceos, BCM, Sentinel folders removed from repo
+
+### Phase 9: Post-v1.0.2 Hardening (2026-06-25 to present, previously undocumented)
+- [x] API key hashing upgraded from HMAC-SHA256 to PBKDF2-SHA256, 100k iterations (`3ad2671`)
+- [x] PostgreSQL Row Level Security enabled on shared public tables (`ca82af2`, fixed startup crash in `71d54d7`/`d3c5ee7`)
+- [x] Second CodeQL sweep: DOM XSS (documents.html, BCM doc viewer, analytics.html, notification handler — 6 separate fixes), path traversal/injection in report/grid endpoints (4 fixes), ReDoS in tag-stripping regex, clear-text secret storage in `.env`, SECRET_KEY logging removed
+- [x] Login CSRF loop fixed: csrf_token cookie now set on error responses (`0190833`)
+- [x] Audit log org isolation hardened: strict filtering for non-super-admins (`27f8446`)
+- [x] AI prompt-injection protection + AI-endpoint rate limiting (`4ab948a`)
+- [x] All user inputs sanitized at request boundaries (`6d00661`)
+- [x] Upload magic-byte validation added (PLAN-18 B/C, `c14108b`)
+- [x] `sanitize_json_middleware` ASGI `receive()` contract bug fixed — was the root cause of intermittent 500s (`1dec2fe`)
+- [x] nginx rate-limiting fixed to key off real client IP behind Cloudflare, not the shared CF edge IP (`94459ee`) — the config lives at `oneforall/scripts/nginx/themisiq-zones.conf`, confirmed present
+- [ ] **Needs confirmation from Ali:** were API keys regenerated after the PBKDF2 rehash in `3ad2671`? Old HMAC-format keys will not validate against the new hash scheme.
+
+**Verify this section stays current:** run `git log v1.0.2..HEAD --oneline --grep=-i security` periodically — this list was hand-assembled from 168 commits and may miss something.
 
 ---
 
@@ -143,11 +164,11 @@
 - [x] Rollback procedure documented (checkout previous tag, restart service)
 
 ### Remaining
-- [ ] Log rotation: configure logrotate for app logs and backup logs
-- [ ] Uptime monitoring: set up external ping (UptimeRobot or similar)
-- [ ] Email delivery verification: confirm SMTP credentials and test flow
-- [ ] Nginx hardening: add rate limiting at proxy level
-- [ ] Firewall rules: verify only ports 80, 443 exposed
+- [x] Log rotation: config exists at `oneforall/scripts/logrotate.d/themisiq` (confirmed present in repo). The xlsx tracker's Checklist sheet separately marks this **Done** (installed on VPS), so treating as fully done.
+- [x] Nginx hardening: rate limiting confirmed live at `oneforall/scripts/nginx/themisiq-zones.conf` (login/api/general zones), fixed for real-client-IP-behind-Cloudflare in `94459ee`. xlsx also marks this Done.
+- [x] Uptime monitoring: xlsx Checklist sheet marks this **Done** (external ping service). Not independently re-verified this session — no evidence either way in-repo, since this is pure ops/dashboard state.
+- [x] Email delivery verification: xlsx Checklist sheet marks this **Done** ("Verify SMTP credentials and test full flow"). `core/email.py` + `core/reminder_scheduler.py` also look complete in code. Not independently re-tested this session.
+- [x] Firewall rules: xlsx Checklist sheet marks this **Done**. Server-side state, cannot check from repo; relaying Ali's own prior record.
 
 ---
 
@@ -160,9 +181,9 @@ Cloudflare provides the following protections at the edge:
 - [x] HSTS enforcement (6 months, includeSubDomains)
 - [x] CDN caching for static assets
 - [x] Bot management (basic)
-- [ ] WAF rules: review and enable OWASP Core Rule Set
-- [ ] Page rules: configure caching rules for API vs static
-- [ ] Rate limiting rules: configure at edge for login/API endpoints
+- [x] WAF rules: xlsx Checklist sheet says N/A — Free Cloudflare plan, Free Managed Ruleset active (the paid OWASP Core Rule Set isn't available on this plan). Not independently re-verified this session.
+- [x] Page rules: xlsx Checklist sheet marks this Done (caching rules for API vs static configured)
+- [x] Rate limiting rules: xlsx Checklist sheet marks this Done ("nginx layers + CF leaked-credential rule")
 
 ---
 
@@ -187,24 +208,27 @@ Cloudflare provides the following protections at the edge:
 - [x] Sentry PYTHON-FASTAPI-G fixed: SSL stale connection (_ensure_alive ping)
 - [x] Sentry PYTHON-FASTAPI-F fixed: UndefinedColumn title in evidence resolvers
 - [x] Sentry PYTHON-FASTAPI-C fixed: UndefinedColumn owner in sentinel retention
-- [ ] Alert rules: configure notifications for new errors
+- [x] Alert rules: xlsx Checklist sheet marks this Done. Not independently re-verified this session.
 - [x] Release tracking: git tags v1.0.0, v1.0.1, v1.0.2 pushed and deployed
 
 ---
 
 ## 9. Landing Page
 
-- [x] Tailwind CSS: replaced CDN (3MB JS) with compiled purged CSS (25KB)
-- [x] Three.js deduplication: removed eager-loaded duplicate
-- [x] WebGL zero-dimension guard added to Spline 3D canvas
-- [x] Console errors reduced from 260+ to 0 (6 unavoidable Spline warnings remain)
-- [ ] Image optimization: compress hero images, add WebP fallbacks
-- [ ] SEO meta tags: verify Open Graph, Twitter Card, description
+**The whole landing page was rebuilt from scratch since this doc was last touched** — it now lives at `landing_page/index.html` (served statically by nginx from `/var/www/themisiq`, per `oneforall/scripts/nginx/themisiq`), not as a Jinja template. Spline 3D was removed entirely in favor of a cinematic hero video. Everything below this line replaces the old Tailwind/Spline-era checklist, which no longer describes the current page.
+
+- [x] Full rebuild: dark liquid-glass design system, hero video with poster fallback, module cards, AI capability cards, feature deep-dive rows, pricing/FAQ/footer (confirmed current in `landing_page/index.html`)
+- [x] Spline removed entirely — replaced with `hero-poster.webp` + video, eliminating the WebGL/Three.js issues the old checklist was tracking
+- [x] Image optimization: every image on the page (logo, hero poster, all 7 module screenshots) is `.webp`, most with `loading="lazy" decoding="async"` — confirmed by direct grep
+- [x] SEO meta tags: `description`, full Open Graph set (type/url/title/description/image/site_name), and Twitter Card (summary_large_image + title/description/image) all present and populated — confirmed by direct grep
+- [x] Em dashes removed from terms/privacy pages (including ones hidden as `&mdash;` entities)
+- [ ] **Not yet verified this session:** live console-error count on the current rebuild (the "0 errors, 6 Spline warnings" note is from the old page and no longer applies since Spline is gone)
 
 ---
 
 ## 10. Bug Fixes (Completed)
 
+### Original batch (through v1.0.2)
 - [x] GRID program-dashboard 500: PostgreSQL GROUP BY compliance
 - [x] PostHog JS syntax error: Jinja2 auto-escaping producing '&amp;' in script blocks
 - [x] MFA silently disabling on /mfa/setup visit
@@ -220,10 +244,37 @@ Cloudflare provides the following protections at the edge:
 - [x] Sentry PYTHON-FASTAPI-F: UndefinedColumn "title" in evidence resolvers
 - [x] Sentry PYTHON-FASTAPI-C: UndefinedColumn "owner" in sentinel retention
 
+### Bug Audit B1-B22 (all closed)
+- [x] B15: N+1 queries, risk pagination, datetime filter, task board limit
+- [x] B16: orphaned NC evidence/signoffs
+- [x] B17: physical file leak on delete
+- [x] B18/B19/B22: NC status validation, vault cleanup, workflow ordering
+- [x] B20: deduplicated ERM appetite breach events
+- [x] B21: `delete_enterprise_risk()` now cleans up linked rows
+
+### Full 6-module QA deep-dive (this session's SYSTEMS_TEST.md sweep)
+- [x] GRID: audit-log gap-fill (15 mutation endpoints missing `log_activity()`), finding-creation 500, false-positive breach cascade
+- [x] Sentinel: 7 sub-page field mismatches (Security Measures, Retention, Transfers, Policies, Vendors, Consent, Notices), Reports page early-return bug, modal Add/Edit mislabeling
+- [x] BCM: risk-creation crash, 4 sub-page dead fields, console modal z-index, Add-as-Action onclick, delete-button quote escaping
+- [x] ORM: KRI auto-update fields never saved, missing fields on 3 entities, built the RCSA Controls/Actions UI that had no frontend at all
+- [x] ARIA: 76 em dashes cleaned up; a table mis-flagged as orphaned in first pass was corrected, and the *real* bug (5 sites reading compliance stats from the wrong table) was fixed instead
+- [x] Platform-wide: `fmtDate()` Invalid Date bug across 7 templates, GRID Link Evidence modal z-index collision, Themis AI widget z-index over modals, DSR deadline auto-calc
+
+### Production incident fixes (found live, not in QA)
+- [x] Semicolons inside SQL comments breaking PostgreSQL `executescript` on startup (hit twice: `76b04e5`, `a5d44d1`)
+- [x] `workflow_actions` missing `due_at`/`acted_at` columns on PostgreSQL
+- [x] `sentinel_breaches` missing columns causing a production breach-creation failure
+- [x] Predictive risk engine: Sentinel breach signal was structurally always zero
+- [x] 429 rate-limit incorrectly hitting the first login of the day
+- [x] Tenant provisioning FK ordering hazard: `applications.vendor_id` referenced a table created later in the same script (hit and fixed twice — `9103e45`, `6daa517`)
+- [x] Excel export crash on framework names containing colons
+- [x] `NameError` crashes in Command Centre stats, My Dashboard, and `database.py` startup (`_logging` undefined)
+
 ---
 
 ## 11. Feature Development (Completed)
 
+### Original batch (through v1.0.2)
 - [x] Multi-tenancy with org isolation
 - [x] Super admin SaaS-grade tenant management
 - [x] Public REST API v1 with X-API-Key authentication
@@ -237,6 +288,56 @@ Cloudflare provides the following protections at the edge:
 - [x] Control card actions, clear button, policy pre-fill
 - [x] Enhanced frameworks page with integrable framework pairs
 
+### The Governance Graph — Tier 1 (major architecture addition, not previously tracked)
+- [x] T1.1: 5 new node-type tables (business_units, departments, business_processes, applications, data_assets) + `business_unit_id` scoping across ERM/ORM/ARIA/GRID/Sentinel/BCM
+- [x] T1.2: unified canonical controls model (`canonical_controls` + `risk_controls` bridge table)
+- [x] T1.3: Control Effectiveness Engine
+- [x] T1.4: Residual Risk Engine — ERM and ORM now converge on one formula instead of disagreeing
+- [x] Governance module UI: entity admin pages, Ctrl+K command palette, entity deep links, related-items panel
+- [x] Multi-SBU federation: Org Admin role, tenant-scoped settings tiering, People-tab business-unit assignment
+- [x] Governance Timeline + Evidence Confidence Score
+- [x] Regulatory Inbox + deterministic compliance drift detection
+- [x] A00: Proactive daily governance briefing (advisories engine)
+
+### ERM Risk Rating Framework (3 slices, full lifecycle)
+- [x] Slice 1: configurable rating engine seeded with the OmniContact template (9 impact dimensions, 5×5 matrix, taxonomy)
+- [x] Slice 2: framework editor + import/export, so other orgs can bring their own rating system
+- [x] Slice 3/4: taxonomy-driven category dropdown, multi-dimension impact scoring
+- [x] Round 6 (ERM v2): CF/ICE scoring engine, assessment workspace, per-CF treatments, dashboard v2, objectives, external-context/emerging-risk scanning with AI web search
+- [x] Excel risk register import: two-phase preview/commit flow with fuzzy column/category/owner matching
+
+### Evidence Vault & document overhaul
+- [x] Evidence Vault rewritten as a real file repository (was ARIA-fallback only), with working download, editing, PDF export, and cascade-safe archive/restore/permanent-delete
+- [x] Word export overhaul: proper markdown-table/bold conversion, branding engine rewritten to preserve template structure, doc_id collision fix
+- [x] ARIA documents auto-sync to Evidence Vault on upload (not just on approval), auto-attach to GRID
+
+### Workflow engine
+- [x] Role resolution, auth check, status handling, and task-delete bugs fixed
+- [x] SLA auto-check scheduler, multi-role steps, auto-trigger, step deadlines, delegation
+- [x] Concurrency-safe workflow and task-board updates (PLAN-03)
+
+### Integrations
+- [x] WhatsApp bridge added alongside Slack/Teams: signed webhook fan-out, RBAC-scoped delivery (several commits fixing real delivery bugs)
+- [x] Demo request pipeline: DB persistence, success-state UI, super-admin dashboard view
+
+### AI features
+- [x] Ask ARIA: multi-turn conversation memory, greeting/small-talk handling, actionable error messages
+- [x] AI Impact Assessment, AI controls catalogue, AIMS/ORAAT engine
+- [x] BIA questionnaire engine (BCM)
+- [x] AI score suggestions + multi-dimension impact scoring (ERM)
+- [x] Migrated off the retired `claude-sonnet-4-20250514` model id to `claude-sonnet-5`
+
+### UI / UX
+- [x] Expanding nav rail (pin/hover/labels) — and, this session, redesigned again to a theme-aware glass rail
+- [x] Command Centre greeting + login polish
+- [x] Vanity metric tiles replaced with actionable GRC stats on Command Centre
+- [x] Full landing page rebuild (see Section 9)
+
+### Production/tenant operations (new category — this work didn't exist in the old tracker)
+- [x] PLAN-31: Econet organisation consolidation — planned, dry-run tested, then **applied on production** (users + structure migration, BU reassignment, oversight roles, SBU rename)
+- [x] PLAN-32: tenant-schema self-heal for migration drift on startup
+- [x] PLAN-01/PLAN-18: audit-log tenant isolation, org-enforced MFA + Security UI
+
 ---
 
 ## 12. Pre-Launch Checklist (Critical)
@@ -248,17 +349,17 @@ Cloudflare provides the following protections at the edge:
 - [x] Database backups automated
 - [x] Sentry error tracking active
 - [x] PostHog analytics active
-- [x] Deploy latest code to VPS (cookie hardening commit, pulled 2026-06-20)
-- [x] CodeQL static analysis: all high/medium alerts remediated (2026-06-24)
+- [x] CodeQL static analysis: all high/medium alerts remediated, twice (2026-06-24 and a second sweep post-v1.0.2, see Section 1 Phase 9)
 - [x] Git version control: semantic versioning with tagged releases (v1.0.0 - v1.0.2)
 - [x] Legacy code cleanup: removed 5 defunct project folders (9,750 files)
-- [x] Sentry production errors: all 4 active errors fixed
-- [ ] Deploy v1.0.2 to VPS (security hardening release)
-- [ ] Run full test suite on production after deploy
-- [ ] Verify email delivery works end-to-end
-- [ ] Configure Sentry alert rules
-- [ ] Set up uptime monitoring
-- [ ] Review Cloudflare WAF rules
+- [x] Sentry production errors: all 4 original active errors fixed, plus 8+ later production incidents fixed (Section 10)
+- [x] Log rotation and nginx rate-limiting configs confirmed present in-repo (Section 5)
+- [x] Landing page image optimization + SEO meta tags confirmed done (Section 9)
+- [x] **Superseded by events, not literally done:** "Deploy v1.0.2 to VPS" — 168 commits and multiple confirmed production deploys (including the Econet consolidation) have happened since v1.0.2 was tagged, so the VPS is almost certainly running something far newer than v1.0.2. The checkbox as originally written no longer maps to reality; see the open item below instead.
+- [ ] **Confirm with Ali:** what commit/tag is actually running on the VPS right now, and whether it's meaningfully behind `master`
+- [ ] Run full test suite on production after next deploy
+- [x] Email delivery, Sentry alert rules, uptime monitoring, and Cloudflare WAF: all marked Done (WAF as N/A/free-plan) in the xlsx tracker's Checklist sheet — see the cross-check note at the top of this file. Not independently re-verified this session.
+- [ ] Confirm API keys were regenerated after the PBKDF2 rehash (`3ad2671`) — old keys will not validate
 
 ---
 
@@ -285,7 +386,10 @@ Cloudflare provides the following protections at the edge:
 | v1.0.0 | 2026-06-21 | Pre-launch release: all modules, IMS, AI generator, Sentry bug fixes |
 | v1.0.1 | 2026-06-21 | Repo cleanup: removed 5 legacy project folders (9,750 files) |
 | v1.0.2 | 2026-06-25 | Security hardening: CodeQL alerts fixed (SQL injection, XSS, path traversal, info exposure) |
+| *(untagged)* | 2026-06-25 → 2026-08-07 | **168 commits, no version tag cut.** Covers: Phase 9 security hardening (PBKDF2, PG row-level security, 2nd CodeQL sweep), the full Governance Graph Tier 1, the ERM Risk Rating Framework (3 slices + Excel import), an Evidence Vault rewrite, a workflow-engine overhaul, the WhatsApp integration, a complete landing-page rebuild, the Econet production consolidation, and a full 6-module QA sweep. See Sections 1, 9, 10, 11 for the breakdown. |
 
-**VPS running:** v1.0.1 (v1.0.2 pushed, pending deploy)
+**VPS running:** unknown as of this reconciliation — needs Ali to confirm the deployed commit. Given the Econet production-consolidation commits, the VPS has clearly been deployed to multiple times since v1.0.2, so it's running *something* well past that tag, just not tracked here.
 
-**Note:** v1.0.2 HMAC migration will invalidate existing API keys. Regenerate keys after deploy.
+**Suggested next step:** cut a `v1.1.0` tag at current `HEAD` to give this entire block of work a version boundary to deploy and roll back against — ask before doing this, since tagging is a deliberate release action, not a doc edit.
+
+**Note:** the PBKDF2 rehash in `3ad2671` (post-v1.0.2) will invalidate API keys hashed under the old scheme, same caveat as the original v1.0.2 HMAC migration note. Regenerate keys if this hasn't happened yet.
