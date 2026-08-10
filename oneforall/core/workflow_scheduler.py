@@ -70,16 +70,17 @@ def _run_sla_checks() -> None:
                 for admin in admins:
                     existing = db.execute(
                         "SELECT id FROM notifications WHERE user_id = %s "
-                        "AND category = 'sla_warning' AND link = %s AND created_at > %s",
+                        "AND module = 'sla_warning' AND link = %s AND created_at > %s",
                         (admin["id"], link, dedup_cutoff)
                     ).fetchone()
                     if not existing:
                         db.execute(
-                            "INSERT INTO notifications (user_id, title, message, link, category) "
+                            "INSERT INTO notifications (user_id, title, message, link, module) "
                             "VALUES (%s, %s, %s, %s, 'sla_warning')",
                             (admin["id"],
                              f"SLA At Risk: {sla['sla_name']}",
-                             f"SLA for {sla['entity_type']} #{sla['entity_id']} is due within 2 hours.")
+                             f"SLA for {sla['entity_type']} #{sla['entity_id']} is due within 2 hours.",
+                             link)
                         )
             db.commit()
             log.info("Pre-breach warnings sent for %d at-risk SLAs", len(at_risk))
@@ -116,17 +117,18 @@ def _run_workflow_step_reminders() -> None:
             link = f"/workflows?instance={action['instance_id']}"
             existing = db.execute(
                 "SELECT id FROM notifications WHERE user_id = %s "
-                "AND category = 'workflow' AND link = %s "
+                "AND module = 'workflow' AND link = %s "
                 "AND title LIKE 'Overdue%%' AND created_at > %s",
                 (action["assigned_to"], link, reminder_cutoff)
             ).fetchone()
             if not existing:
                 db.execute(
-                    "INSERT INTO notifications (user_id, title, message, link, category) "
+                    "INSERT INTO notifications (user_id, title, message, link, module) "
                     "VALUES (%s, %s, %s, %s, 'workflow')",
                     (action["assigned_to"],
                      f"Overdue Workflow Step: {action['workflow_name']}",
-                     f"Step {action['step_index'] + 1} was due at {action['due_at']} and is still pending.")
+                     f"Step {action['step_index'] + 1} was due at {action['due_at']} and is still pending.",
+                     link)
                 )
                 notified += 1
 

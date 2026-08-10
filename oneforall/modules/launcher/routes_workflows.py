@@ -370,7 +370,7 @@ def _create_step_action(db, iid: int, step_index: int, step: dict, defn_name: st
                 (iid, step_index, action_type, uid, due_at)
             )
             db.execute(
-                "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+                "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
                 (uid, f"Action Required: {defn_name}",
                  f"Step {step_index + 1}: {step.get('name', 'Review & Approve')}",
                  f"/workflows?instance={iid}", "workflow")
@@ -496,7 +496,7 @@ async def api_workflow_action_decide(request: Request, aid: int):
                 db.commit()
                 if inst["started_by"]:
                     db.execute(
-                        "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+                        "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
                         (inst["started_by"], f"Workflow Completed: {defn['name']}",
                          "All approval steps have been completed.",
                          f"/workflows?instance={iid}", "workflow")
@@ -510,7 +510,7 @@ async def api_workflow_action_decide(request: Request, aid: int):
             db.commit()
             if inst["started_by"]:
                 db.execute(
-                    "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+                    "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
                     (inst["started_by"], f"Workflow Rejected: {defn['name']}",
                      f"Rejected at step {action['step_index'] + 1}: {comment}",
                      f"/workflows?instance={iid}", "workflow")
@@ -527,7 +527,7 @@ async def api_workflow_action_decide(request: Request, aid: int):
                 _create_step_action(db, iid, return_to, steps[return_to], defn["name"])
             if inst["started_by"]:
                 db.execute(
-                    "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+                    "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
                     (inst["started_by"], f"Workflow Returned for Revision: {defn['name']}",
                      f"Returned to step {return_to + 1}: {comment or 'Please review and resubmit.'}",
                      f"/workflows?instance={iid}", "workflow")
@@ -567,7 +567,7 @@ async def api_workflow_action_delegate(request: Request, aid: int):
         defn = db.execute("SELECT name FROM workflow_definitions WHERE id = %s",
                           (inst["definition_id"],)).fetchone()
         db.execute(
-            "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+            "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
             (target["id"], f"Workflow Action Delegated: {defn['name']}",
              f"Step {action['step_index'] + 1} has been delegated to you.",
              f"/workflows?instance={action['instance_id']}", "workflow")

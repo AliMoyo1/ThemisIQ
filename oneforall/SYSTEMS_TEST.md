@@ -1180,7 +1180,132 @@ fuzz-created risks/evidence deleted after.
 
 ---
 
+## Pass 11 — Notifications
+
+**Status: COMPLETE.** 1 high-impact finding (2 distinct bugs) fixed same session, verified live, full pytest pass.
+
+**Method:** identified two separate systems both called "notifications": the in-app bell
+(`GET/POST/DELETE /api/notifications*` in `routes_platform.py`, backed by the `notifications`
+table) and outbound Slack/Teams/WhatsApp webhooks (`core/notifications.py`). Focused on the
+bell first since it's the everyday user-facing surface, then light-touch-checked the webhook
+connectors. Created a temporary `risk_owner`-role test user (a role with zero other holders in
+this dev DB, so test notifications never touched a real account) plus a throwaway 2-step
+workflow definition, then drove the full lifecycle live: start instance → approve step 1 →
+approve step 2 (completes) → check bell contents → mark-read → mark-all-read → dismiss.
+
+**Finding — every notification-creating code path referenced a `category` column that
+doesn't exist on `notifications`.** The table's real columns are `id, user_id, module, title,
+message, link, is_read, created_at` — there is no `category`. Six call sites across three
+files used `category` anyway: `_create_step_action`'s "Action Required" notification and the
+workflow delegate/complete/reject/return-for-revision notifications (5 sites in
+`modules/launcher/routes_workflows.py`), the task-assignment notification
+(`modules/launcher/routes_platform.py`), and both the SELECT dedup-check and INSERT in the two
+`core/workflow_scheduler.py` background jobs (SLA at-risk warnings, overdue workflow-step
+reminders). Live-confirmed: starting a workflow instance returned a 500
+(`sqlite3.OperationalError: table notifications has no column named category`), and because the
+broken notification INSERT shared an uncommitted transaction with the step's own
+`workflow_actions` INSERT, the action row was silently rolled back too — the workflow instance
+row (committed separately, earlier) was left orphaned with **zero** actionable steps, invisible
+and stuck, while the user just saw a generic 500. This is a core-workflow-engine bug, not a
+cosmetic notification miss: workflow start, approve-to-completion, reject, return-for-revision,
+delegate, and task assignment were all broken by it, and the two scheduler jobs were silently
+no-op-crashing every 5 minutes (caught by their own outer `except Exception: log.error(...)`,
+so nothing user-facing broke, but SLA warnings and overdue-step reminders have never actually
+fired).
+
+**Second bug found in the same statements while fixing the first:** the SLA-warning INSERT in
+`workflow_scheduler.py` had 4 `%s` placeholders (`user_id, title, message, link`) but only 3
+values in its params tuple — `link` was computed but never passed. Same pattern repeated in the
+overdue-step-reminder INSERT. Both would have raised `sqlite3.ProgrammingError: Incorrect
+number of bindings supplied` even after the column-name fix alone.
+
+**Fix:** all 8 sites (6 `category`→`module` column swaps, 2 missing-`link`-parameter fixes)
+corrected across `modules/launcher/routes_workflows.py`, `modules/launcher/routes_platform.py`,
+and `core/workflow_scheduler.py`.
+
+**Verified live:** full workflow lifecycle (start → approve × 2 → complete) now returns clean
+200/201s throughout; the step-0 `workflow_actions` row is confirmed present (no more silent
+rollback); "Action Required" and "Workflow Completed" notifications both appear correctly in
+`GET /api/notifications` with `module: "workflow"` populated; task-assignment notification
+verified separately with `module: "task"`. Bell UI actions (mark-read, mark-all-read, dismiss)
+all confirmed working. Both scheduler jobs smoke-tested by direct invocation with logging
+enabled — no more `ERROR` lines (previously would have logged the `OperationalError` on every
+5-minute run if any at-risk/overdue rows existed; none currently do in this dev DB, so this
+confirms no *new* breakage rather than exercising the INSERT path itself — the INSERT shape was
+already independently verified via the interactive workflow path above, same table/columns).
+Outbound Slack/Teams/WhatsApp connectors confirmed to report `configured: false` and
+`notify_connectors()` returns cleanly with nothing configured (already correctly written to
+fail closed). `python -m py_compile` clean on all 3 touched files. Full `pytest tests/` —
+200 passed, 0 failed. Temporary user, workflow definition/instance/actions, and all
+test-created notifications deleted after (cleanup swept by `created_by`/`user_id` rather than
+an in-memory list, so it stays robust even across a server restart mid-pass, which happened
+twice — the dev server unexpectedly dropped its listener partway through this pass on two
+separate occasions; each time a plain `preview_stop`+`preview_start` recovered it immediately
+with no data loss, so noted here as an environment observation rather than an app bug).
+
+---
+
+## Pass 12 — Import/export round-trip testing
+
+**Status: COMPLETE.** 1 finding fixed same session, verified live, full pytest pass.
+
+**Method:** tested the two genuine export→import pairs in the app (ERM risk frameworks,
+platform users) end-to-end with a temporary test user, rather than spot-checking export
+content in isolation.
+
+**ERM framework export → import: clean, no finding (after fixing the test itself).**
+Exported the seeded "OmniContact Rating System" framework, re-imported the exact JSON as a new
+framework, then diffed every structural section (dimensions, likelihood, impact_scale,
+control_effectiveness, bands, matrix, taxonomy) between source and copy. First pass reported
+`dimensions` and `taxonomy` as mismatched — on inspection the only differences were the
+database-assigned `id` fields on the newly-created child rows, which are *supposed* to differ
+for a fresh import; every actual content field (names, descriptions, threshold labels, level
+numbers) was byte-identical. Re-ran with `id` keys stripped before comparison: full pass, all
+7 sections match exactly. Recorded as a lesson in test methodology, not a product bug.
+
+**Finding — admin users export produced CSV; the importer only accepts .xlsx/.xls/.xlsm.**
+`api_admin_users_export`'s own docstring claimed it "round-trips with the importer's column
+model," but it wrote `media_type="text/csv"` / `filename=users_export.csv`, while
+`api_admin_users_import_preview` hard-rejects any upload whose filename doesn't end in
+`.xlsx`/`.xls`/`.xlsm` before even looking at the content
+(`{"error": "Please upload an Excel file (.xlsx)"}`, HTTP 400). Confirmed live: feeding the
+freshly-exported CSV straight into `import-preview` was rejected outright — the round trip the
+docstring promised did not exist. Traced `parse_users_excel`'s header matching
+(`_HEADER_MAP`/`_norm_header` in `_user_import.py`) and confirmed it fuzzy-matches column
+headers by normalized name regardless of order or exact wording (it already strips
+`"(...)"` hints so the *template's own* headers match its own parser) — so the only actual
+blocker was the file format/extension, not column naming.
+
+**Fix:** rewrote `api_admin_users_export` to build a genuine `.xlsx` workbook via `openpyxl`
+(same library already used by the template and the parser) with identical column data,
+changing only the output format — no changes needed to the already-correct fuzzy-matching
+import side.
+
+**Verified live:** re-exported after the fix — now `content-type:
+application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`,
+`filename=users_export.xlsx`. Fed straight into `import-preview`: 200, correctly parsed 5 real
+user rows with full field fidelity (`full_name`, `email`, `username`, `roles` as a list,
+`business_unit`/`organization` mapping), each correctly flagged `duplicate_email: true` since
+they're existing accounts (proving the safety check that prevents accidental re-creation also
+survives the round trip). Did not call `import-commit` — `import-preview`'s parse/validate
+stage is the meaningful round-trip proof, and committing would have been a no-op given every
+row is a duplicate. Note: got a false "0 rows parsed" on the first live attempt — traced to the
+temp test user having the `user_roles` "super_admin" role (which correctly satisfies
+capability-gated routes) but not the separate `users.is_super_admin` column that this specific
+export endpoint's org-scope branching checks; the temp user's `org_id` was also unset, so the
+non-super branch's `WHERE org_id = %s` matched nothing. Not a product bug — a deliberate
+two-tier model (broadly-grantable capability vs. a harder super-admin flag) that this session's
+established temp-user creation pattern hadn't needed to account for until this specific
+endpoint. Set `is_super_admin=1` directly on the test user to properly exercise the org-wide
+path and re-verified cleanly.
+
+`python -m py_compile` clean. Full `pytest tests/` — 200 passed, 0 failed. Temporary user and
+the leftover re-imported framework copy (from the first, since-corrected test run) deleted
+after — the framework via its real DELETE endpoint for proper cascade cleanup, not raw SQL.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- Import/export round-trip testing
-- Notifications
+(none — persona sweep, load/performance, fuzzing, notifications, and import/export are all
+complete as of this session; future passes should be scoped fresh based on what's changed)

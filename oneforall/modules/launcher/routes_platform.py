@@ -727,7 +727,7 @@ async def api_task_create(request: Request):
         db2 = get_db()
         try:
             db2.execute(
-                "INSERT INTO notifications (user_id, title, message, link, category) VALUES (%s,%s,%s,%s,%s)",
+                "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
                 (assigned_to, f"New Task: {title}", description[:100], "/tasks", "task")
             )
             db2.commit()

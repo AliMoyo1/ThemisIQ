@@ -675,8 +675,10 @@ async def api_admin_users_template(request: Request):
 @router.get("/admin/api/users/export")
 @_require_cap("platform.manage_users", "platform.manage_org_users")
 async def api_admin_users_export(request: Request):
-    """Export the current (non-deleted) user list to CSV -- round-trips with
-    the importer's column model and doubles as a seat-usage-per-SBU report."""
+    """Export the current (non-deleted) user list to .xlsx -- round-trips with
+    the importer's column model (which only accepts .xlsx/.xls/.xlsm) and
+    doubles as a seat-usage-per-SBU report."""
+    import openpyxl
     admin = request.state.user
     is_super = bool(admin.get("is_super_admin"))
     db = get_db()
@@ -702,24 +704,27 @@ async def api_admin_users_export(request: Request):
     finally:
         db.close()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Users"
     header = ["Full Name", "Email", "Username", "Roles", "Business Unit", "Status"]
     if is_super:
         header.insert(0, "Organization")
-    writer.writerow(header)
+    ws.append(header)
     for r in rows:
         line = [r["full_name"], r["email"], r["username"],
                 ",".join(role_map.get(r["id"], [])),
                 r["bu_name"] or "", "Active" if r["is_active"] else "Inactive"]
         if is_super:
             line.insert(0, r["org_name"] or "")
-        writer.writerow(line)
+        ws.append(line)
 
+    buf = io.BytesIO()
+    wb.save(buf)
     return Response(
-        content=output.getvalue(),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=users_export.csv"},
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=users_export.xlsx"},
     )
 
 
