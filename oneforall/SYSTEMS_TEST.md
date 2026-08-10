@@ -982,9 +982,58 @@ audit. Worth a dedicated pass if that link's discoverability matters.
 
 ---
 
+## Pass 9 — Load/performance testing
+
+**Status: COMPLETE.** Finding fixed same session, verified live, full pytest pass.
+
+**Method:** wrote a real concurrent-load script (`httpx.AsyncClient`, `asyncio.gather`,
+not the senior-backend skill's `api_load_tester.py` stub — that script turned out
+to be an unfilled template with no actual logic). Logged in for real as a temporary
+super_admin test user, then fired 25 concurrent requests per endpoint against 15
+representative routes (health/ready, Command Centre, all 6 module index pages, a
+few API/data routes), 3 rounds. Caveat stated up front: this is against the local
+SQLite dev DB, not the production PostgreSQL setup, so absolute numbers aren't
+representative of production capacity — this pass is about catching pathologically
+slow routes and outright crashes/errors under concurrency, not capacity planning.
+
+**Result:** 1,125 requests total, **zero errors, zero non-200 responses** across
+every endpoint and every round. No crashes, no timeouts.
+
+**Finding:** `/grid/` was a consistent, reproducible outlier — averaging
+~2050-2190ms across all 3 rounds, roughly 3-4x slower than every sibling module
+page (aria/bcm/erm/sentinel/orm all landed in the 550-860ms range). Root-caused
+by comparing `modules/grid/routes.py` against every other module: every other
+module builds its `Jinja2Templates` instance **once at module import time**
+(`sentinel/routes.py` even has an explicit comment: "Templates instantiated once
+at module load — not per-request"). `grid_index()` was the one route that
+constructed a brand-new `Jinja2Templates(directory=[tpl_dir, "templates"])`
+**inside the request handler itself**, re-parsing/re-initializing the Jinja2
+environment (including the shared `templates/` directory containing
+`base_shell.html`) on every single request to the GRID module's index page.
+Ruled out template file size (grid's `index.html` is 247KB, smaller than
+sentinel's 295KB and erm's 280KB, both of which were fast), template directory
+file count (grid has 3 files, same as the fast bcm/sentinel), and the
+`require_module`/`shell_ctx` shared infrastructure (identical for every module,
+so couldn't explain a grid-specific slowdown) before landing on the actual
+differentiator.
+
+**Fix:** moved the `Jinja2Templates` construction in `modules/grid/routes.py` to
+module scope (right after `router = APIRouter(...)`, matching every sibling
+module's pattern exactly, including copying sentinel's explanatory comment),
+and updated `grid_index()` to use the shared instance instead of building its own.
+
+**Verified live:** re-ran the load test against `/grid/`, `/bcm/`, `/erm/`,
+`/aria/` after a full dev-server restart (not just relying on the `--reload`
+watcher, per this session's earlier documented false-negative with it). `/grid/`
+now lands at 655-1036ms across 2 rounds, statistically indistinguishable from
+its siblings (651-971ms) — the ~1200-1500ms gap is gone. `python -m py_compile`
+clean. Full `pytest tests/` still green (200/200). Temporary load-test user and
+its sessions/roles deleted after.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- Load/performance testing
 - Deliberate malformed-input / injection fuzzing
 - Import/export round-trip testing
 - Notifications

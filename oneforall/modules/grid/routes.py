@@ -33,6 +33,10 @@ from core.events import (
 
 router = APIRouter(prefix="/grid", tags=["grid"])
 
+# Templates instantiated once at module load — not per-request
+_tpl_dir = os.path.join(os.path.dirname(__file__), "templates")
+_templates = Jinja2Templates(directory=[_tpl_dir, "templates"])
+
 UPLOAD_DIR = Path(os.getenv("GRID_UPLOAD_DIR", "data/grid_uploads"))
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
@@ -70,8 +74,6 @@ def _check_locked(fn, *args, **kwargs):
 @require_module("grid")
 async def grid_index(request: Request):
     """Serve the GRID SPA shell."""
-    tpl_dir = os.path.join(os.path.dirname(__file__), "templates")
-    tpl = Jinja2Templates(directory=[tpl_dir, "templates"])
     # Determine active section from the URL for sidebar highlighting
     path = request.url.path.rstrip("/")
     section_map = {
@@ -86,7 +88,7 @@ async def grid_index(request: Request):
         "/grid/chat": "chat",
     }
     active_section = section_map.get(path, "dashboard")
-    return tpl.TemplateResponse(request, "index.html", {
+    return _templates.TemplateResponse(request, "index.html", {
         "user": request.state.user,
         "module": "grid",
         **shell_ctx(request, active_module="grid", active_section=active_section),
