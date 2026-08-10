@@ -767,7 +767,7 @@ async def api_admin_users_import_commit(request: Request):
 # ═════════════════════════════════════════════════════════════════════════════
 
 @router.get("/admin/logs", response_class=HTMLResponse)
-@_require_cap("platform.manage_users")
+@_require_cap("platform.view_audit_log")
 async def admin_logs_page(request: Request):
     """Platform-wide audit log page."""
     ctx = shell_ctx(request, active_module="platform", active_section="logs")
@@ -775,7 +775,7 @@ async def admin_logs_page(request: Request):
 
 
 @router.get("/admin/api/logs")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.view_audit_log")
 async def admin_api_logs(request: Request):
     """JSON API for audit logs with filtering and pagination."""
     db = get_db()
@@ -855,7 +855,7 @@ async def admin_api_logs(request: Request):
 
 
 @router.get("/admin/api/logs/export")
-@_require_cap("platform.manage_users")
+@_require_cap("platform.view_audit_log")
 async def admin_api_logs_export(request: Request):
     """Export audit logs as CSV."""
     db = get_db()

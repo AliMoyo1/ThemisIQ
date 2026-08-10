@@ -80,6 +80,7 @@ def shell_ctx(request, active_module: str = "platform",
         "show_sidebar": show_sidebar,
         "is_admin": has_capability(user, "platform.manage_users"),
         "is_super_admin": bool(user.get("is_super_admin")),
+        "can_view_audit_log": has_capability(user, "platform.view_audit_log"),
         "can_governance_view": has_capability(user, "governance.entities.view"),
         "can_org_admin": has_capability(user, "platform.manage_org_users")
             and not has_capability(user, "platform.manage_users"),

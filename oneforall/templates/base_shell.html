@@ -806,7 +806,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         {% if is_super_admin %}<a href="/super-admin/" style="color:var(--accent)">Super Admin</a>{% endif %}
         {% if is_admin %}<a href="/admin/users">User Management</a>{% endif %}
         {% if is_admin %}<a href="/admin/frameworks">Framework Activation</a>{% endif %}
-        {% if is_admin %}<a href="/admin/logs">Audit Log</a>{% endif %}
+        {% if is_admin or can_view_audit_log %}<a href="/admin/logs">Audit Log</a>{% endif %}
         {% if is_admin %}<a href="/admin/api-keys">API Keys</a>{% endif %}
         {% if is_admin %}<a href="/admin/webhooks">Webhooks</a>{% endif %}
         {% if is_admin %}<a href="/admin/email">Email Settings</a>{% endif %}
@@ -864,13 +864,15 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M8 7h8M8 11h6"/></svg>
       Frameworks
     </a>
-    <a href="/admin/logs" class="nav-item{% if active_section == 'logs' %} active{% endif %}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-      Audit Log
-    </a>
     <a href="/governance/" class="nav-item{% if active_section == 'org_structure' %} active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V10M18 21V10M9 21V14h6v7M3 10l9-6 9 6"/></svg>
       Org Structure
+    </a>
+    {% endif %}
+    {% if is_admin or can_view_audit_log %}
+    <a href="/admin/logs" class="nav-item{% if active_section == 'logs' %} active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Audit Log
     </a>
     {% endif %}
     <a href="/risk-register" class="nav-item{% if active_section == 'risks' %} active{% endif %}">

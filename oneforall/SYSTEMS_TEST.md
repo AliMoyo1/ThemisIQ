@@ -918,10 +918,72 @@ read-only against real data).
 
 ---
 
+## Pass 8 — Remaining persona RBAC sweep (audit_lead, risk_owner, bcm_manager, grc_officer, org_admin, employee)
+
+**Status: COMPLETE.** Finding fixed same session, verified live, full pytest pass.
+
+**Method:** for each role, created a temporary user holding only that role,
+logged in for real, confirmed the Command Centre module tiles matched
+`core/rbac.py`'s `module.*.access` grants exactly, then hit a handful of
+routes directly via authenticated `fetch()` to confirm enforcement matches
+the UI (not just hidden in nav) — both the routes that should succeed and
+the ones that should 403. All 6 temporary users and their sessions were
+deleted after.
+
+**Results:**
+
+| Persona | Modules shown (matched rbac.py) | Route-level checks | Result |
+|---|---|---|---|
+| audit_lead | Governance, Audit, Enterprise Risk, Operations Risk | GRID/ERM read: 200; BCM/Sentinel: 403; framework-manage: 403 | Clean |
+| risk_owner | Governance, Resilience, Enterprise Risk, Operations Risk | BCM: 200; GRID/Sentinel: 403; framework POST reached validation (400, not 403) | Clean |
+| bcm_manager | Resilience, Enterprise Risk, Operations Risk | BCM: 200; ARIA/GRID/Sentinel: 403; framework POST: 403 (correctly distinct from risk_owner's 400) | Clean |
+| grc_officer | Governance, Audit, Resilience, Privacy, Enterprise Risk (no Operations Risk — rbac.py doesn't grant `module.orm.access` to this role) | ARIA/GRID/BCM/Sentinel: 200; ORM: 403; `/admin/users`: 403 | **1 finding, fixed** — see below |
+| org_admin | none (pure user-admin role, no module access by design) | `/admin/users`: 200; every module route: 403; `/admin/logs`: 403 (correctly still blocked post-fix); `/governance/`: 200 | Clean. Also re-confirmed PLAN-30's SUPER_ADMIN-escalation block is still intact. |
+| employee | Governance, Resilience | ARIA/BCM: 200; GRID/Sentinel/ERM/ORM/admin: 403 | Clean |
+
+**Finding — `platform.view_audit_log` capability declared but never enforced.**
+`core/rbac.py` grants this capability to `{SUPER_ADMIN, COMPLIANCE_MGR, DPO,
+EXTERNAL_AUDITOR, GRC_OFFICER}`, but `grep` across the whole codebase showed
+zero call sites actually checking it — all three audit-log routes
+(`GET /admin/logs`, `GET /admin/api/logs`, `GET /admin/api/logs/export`)
+were gated on `platform.manage_users` instead (SUPER_ADMIN only), and the
+nav link's visibility (`is_admin` in `shell_context.py`) used the same wrong
+flag. Net effect: compliance_manager, dpo, external_auditor, and
+grc_officer could not view the audit log at all, contradicting the
+permission model's own stated intent. Confirmed the underlying query
+already does correct org-isolation for non-super-admins before widening
+access, so the fix doesn't reopen the earlier tenant-isolation bug.
+
+**Fix:**
+- `modules/launcher/routes_admin.py`: all 3 routes now check
+  `platform.view_audit_log` instead of `platform.manage_users`.
+- `core/shell_context.py`: added `can_view_audit_log` context flag.
+- `templates/base_shell.html`: both Audit Log nav links (user dropdown and
+  the admin sidebar list) now show on `is_admin or can_view_audit_log`;
+  pulled the sidebar link out of the blanket `is_admin` block it was
+  incorrectly bundled into so User Management/Frameworks/Org Structure
+  stay admin-only.
+
+**Verified live:** grc_officer now gets 200 on all three routes and the nav
+link renders; org_admin (which correctly lacks `platform.view_audit_log`)
+still gets 403 and no link, confirming the fix didn't over-widen access.
+`python -m py_compile` clean on both touched Python files. Full `pytest
+tests/` — 200 passed, 0 failed.
+
+**Not fixed, flagged only:** while investigating, noticed the "Framework
+Activation" nav link is also gated on `is_admin` even though the actual
+`/admin/frameworks` page route only requires `@require_auth` (any logged-in
+user) and the real capability that matters, `manage_frameworks`, is granted
+to a broader set (SUPER_ADMIN, COMPLIANCE_MGR, AUDIT_LEAD, GRC_OFFICER).
+This is a narrower, lower-severity version of the same nav-lags-behind-
+capability pattern, but not a security hole (page is already open, just
+under-promoted), so left alone rather than scope-creeping into a full nav
+audit. Worth a dedicated pass if that link's discoverability matters.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- Remaining personas from the original QA brief (audit_lead, risk_owner,
-  bcm_manager, grc_officer, org_admin, employee)
 - Load/performance testing
 - Deliberate malformed-input / injection fuzzing
 - Import/export round-trip testing
