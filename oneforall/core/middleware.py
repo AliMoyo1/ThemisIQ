@@ -411,8 +411,20 @@ import html as _html
 _HTML_TAG_RE = _re.compile(r"<[^>]+>")
 
 
-def _strip_tags_deep(obj):
-    """Recursively strip HTML tags from all string values in a JSON structure."""
+_MAX_STRIP_TAGS_DEPTH = 100
+
+
+def _strip_tags_deep(obj, _depth=0):
+    """Recursively strip HTML tags from all string values in a JSON structure.
+
+    Depth is capped so a pathologically nested payload can't exhaust the
+    recursion limit; nesting beyond the cap is left unstripped rather than
+    raising, matching the fail-safe (not fail-crash) intent of this
+    middleware — downstream per-route sanitize_dict() and endpoint-level
+    validators provide the next layer of defense.
+    """
+    if _depth >= _MAX_STRIP_TAGS_DEPTH:
+        return obj
     if isinstance(obj, str):
         cleaned = _html.unescape(obj)
         cleaned = _HTML_TAG_RE.sub("", cleaned)
@@ -420,9 +432,9 @@ def _strip_tags_deep(obj):
             cleaned = cleaned[:50000]
         return cleaned
     if isinstance(obj, dict):
-        return {k: _strip_tags_deep(v) for k, v in obj.items()}
+        return {k: _strip_tags_deep(v, _depth + 1) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [_strip_tags_deep(item) for item in obj[:1000]]
+        return [_strip_tags_deep(item, _depth + 1) for item in obj[:1000]]
     return obj
 
 

@@ -390,8 +390,8 @@ async def api_evidence_permanent_delete(request: Request, eid: int):
         db.close()
     if item["file_path"]:
         try:
-            fp = Path(item["file_path"])
-            if fp.exists():
+            fp = (EVIDENCE_DIR / item["file_path"]).resolve()
+            if str(fp).startswith(str(EVIDENCE_DIR.resolve())) and fp.exists():
                 fp.unlink()
         except Exception:
             pass

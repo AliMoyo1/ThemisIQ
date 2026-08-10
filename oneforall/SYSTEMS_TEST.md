@@ -1032,8 +1032,155 @@ its sessions/roles deleted after.
 
 ---
 
+## Pass 10 — Malformed-input / injection fuzzing
+
+**Status: COMPLETE.** 3 findings fixed same session, verified live, full pytest pass.
+
+**Method:** wrote a real fuzzing script (`httpx.AsyncClient`, same login-via-
+scraped-CSRF-token pattern as Pass 9's load test) against a temporary
+super_admin test user. Targeted a representative set of endpoints rather
+than every route: `POST /erm/api/risks` (create+update) for XSS/SQLi/type-
+confusion payloads in free-text and numeric fields, `POST
+/erm/api/frameworks/import` for a deep-nesting regression test against the
+existing taxonomy depth-20 guard, the global 5MB body-size-limit
+middleware, and `POST /evidence/api/items` for path-traversal +
+XSS-in-filename via upload. All fuzz-created risks/evidence were swept up
+and deleted after each run — the cleanup step queries the DB directly by
+`created_by` rather than relying on an in-memory id list, so it stays
+robust even if the script itself crashes mid-run (which happened once,
+see below).
+
+**Clean (no finding):**
+- **Stored XSS** — `<script>`, `<img onerror>`, `<svg onload>`, `<iframe
+  src=javascript:>` etc. in ERM risk title/description all came back with
+  tags fully stripped at storage time (`core/sanitize.py`'s
+  `sanitize_dict()`, applied to every JSON body via each module's
+  `_json_body()` helper). Evidence upload filenames containing `<script>`
+  tags are stored raw but rendered through a `textContent`-round-trip
+  `escHtml()` before ever touching the DOM (`evidence_index.html:268`) —
+  correctly escaped.
+- **SQLi** — `' OR '1'='1`, `'; DROP TABLE users; --`, UNION-based
+  extraction attempts, etc. in both a POST body field and a GET filter
+  query param all came back as inert literal strings (201 Created with the
+  payload stored verbatim as a title, or a clean empty-result 200 on the
+  filter) — parameterized queries hold. Confirmed the `users` table
+  survived intact by querying it directly afterward (a same-session
+  re-login check in the script itself gave a false alarm here — see below).
+- **Path traversal** — uploaded a file with filename
+  `../../../../etc/<script>alert(1)</script>.pdf`. Upload/download
+  round-tripped correctly with matching bytes; on-disk storage uses a
+  server-generated `uuid4().hex` + extension (`evidence/routes.py:219`),
+  never the user-supplied name, so the traversal segments never reach the
+  filesystem layer.
+
+**Finding 1 — `sanitize_dict()` had no recursion depth cap.**
+A JSON payload nested ~500 levels deep (well within what a client can
+trivially construct, and tiny in byte size so it sails under the 5MB
+body-size limit) crashed `POST /erm/api/frameworks/import` with an
+unhandled `RecursionError` inside `core/sanitize.py:68`, producing a
+generic 500 instead of the clean, purpose-built "taxonomy nesting exceeds
+20 levels" 400 that `validate_framework_payload`'s own depth-20 guard was
+specifically built to return — that guard never got a chance to run
+because sanitization crashed first, earlier in the request pipeline. The
+global ASGI-level `SanitizeJsonMiddleware._strip_tags_deep()` has the same
+unbounded-recursion shape but already caught `RecursionError` — silently
+*failing open* (passing the original unsanitized body through) rather than
+rejecting cleanly, which isn't independently exploitable today (every
+endpoint that accepts nested data also enforces its own shallower depth
+cap) but is the same underlying gap.
+
+**Fix:** added a depth parameter (cap 100, well above the app's own
+deepest legitimate structure at 20, well below Python's ~1000 recursion
+limit) to both `sanitize_dict()` (`core/sanitize.py`) and
+`_strip_tags_deep()` (`core/middleware.py`). Past the cap, both now return
+the substructure unchanged and stop recursing rather than raising —
+consistent with the existing "cap and continue" pattern already used for
+breadth (`_strip_tags_deep` already truncated lists to 1000 items and
+strings to 50,000 chars). This lets `validate_framework_payload`'s own
+depth-20 check run and reject cleanly, which is where domain-specific
+validation belongs.
+
+**Finding 2 — ERM risk `likelihood`/`impact` accepted any JSON value.**
+`_compute_scores()` in `erm/data_service.py` does bare `int(L) * int(I)`
+with no validation. A string (`"not_a_number"`), a list (`[1,2,3]`), or
+`None` cast fine or crashed unpredictably (`int("not_a_number")` and
+`int([1,2,3])` both raised unhandled `ValueError`/`TypeError` → 500), and
+out-of-range integers like `999999` or `-5` were silently accepted and
+stored (201) even though the risk matrix and every band lookup assume
+values 1-5 — a risk record with `likelihood=999999` is silently
+meaningless (would never match any matrix cell, never resolve to a
+band). Same unguarded `int(data.get("likelihood", 3))` pattern existed
+independently in `modules/launcher/routes_risks.py`'s risk-register create
+and update handlers (a second, separate risk-tracking surface).
+`bcm/data_service.py`'s equivalent (`_risk_scale_value`) was already
+hardened against this — it falls back to 1 on unparseable input by design
+— so BCM was not affected.
+
+**Fix:** added `_validate_score_fields()` in `modules/erm/routes.py`
+(checked for `likelihood`, `impact`, `residual_likelihood`,
+`residual_impact` in both create and update) and `_validate_score()` in
+`modules/launcher/routes_risks.py` (create and update) — both reject
+non-integer or out-of-1-5-range values with a clean 400 before the value
+reaches score arithmetic, while still letting an absent/`None` field fall
+through to its existing default (unchanged prior behavior).
+
+**Finding 3 — Evidence permanent-delete never removed the file from disk.**
+`api_evidence_permanent_delete` (`evidence/routes.py:393`, pre-fix) did
+`fp = Path(item["file_path"])` directly — `file_path` in the DB is just a
+bare UUID filename (e.g. `a1b2c3....pdf`), not prefixed with
+`EVIDENCE_DIR`. Since the app's working directory is `oneforall/` (not
+`oneforall/data/evidence/`), `fp.exists()` checked the wrong location
+every time, silently found nothing (swallowed by a bare `except Exception:
+pass`), and skipped the `unlink()`. The DB row was correctly deleted but
+the physical file was never removed — every "permanently deleted" evidence
+item has actually been leaking its file on disk indefinitely. Notable on a
+compliance/evidence-retention platform specifically, since "permanent
+delete" implies to the user that the artifact is actually gone. Confirmed
+empirically: uploaded a file, checked it existed at
+`data/evidence/<uuid>.pdf`, ran archive + permanent-delete via the real
+API, confirmed the file was still sitting there afterward.
+
+**Fix:** changed the path construction to `(EVIDENCE_DIR /
+item["file_path"]).resolve()` with the same `startswith(EVIDENCE_DIR)`
+prefix guard already used by the download/preview endpoints in the same
+file, for consistency (not fixing an active traversal exploit — upload
+already guarantees a safe UUID-based name — just matching the established
+defensive pattern).
+
+**Also observed, not a bug:** submitting the oversized 6MB body and the
+first deep-taxonomy attempt initially surfaced as raw `httpx` transport
+exceptions in the fuzz script rather than clean HTTP responses. Traced
+this to keep-alive connection reuse racing against the 500s from Findings
+1-2 earlier in the same run, not an independent issue — after the fixes
+above, a full re-run with no preceding server errors got a clean `413
+{"detail":"Request body too large."}` and clean `400` responses for both
+taxonomy depths on the first attempt. The fuzz script's own
+"re-login after SQLi" sanity check also reported a false-alarm failure
+both times it ran — an artifact of attempting to re-scrape a CSRF token
+while already authenticated (same class of issue documented earlier this
+session for the employee-persona login flow), not a real DB integrity
+problem; `users` table integrity was independently confirmed via a direct
+query.
+
+**Verified live:** re-ran the full fuzz suite against a freshly restarted
+dev server (not relying on `--reload`) after all three fixes. Type-
+confusion cases now return clean `400`s with a specific message;
+`likelihood=None` still creates successfully (201, unchanged default
+behavior). Both the depth-25 boundary case and the depth-500 stress case
+now return `400` with the full `validate_framework_payload` error list,
+confirmed to include `"taxonomy nesting exceeds 20 levels"` — the
+originally-implemented depth guard now actually reachable and working as
+designed. Oversized body: clean `413`. Evidence permanent-delete:
+re-verified file removal now succeeds (`exists=False` post-delete).
+`python -m py_compile` clean on all 5 touched files
+(`core/sanitize.py`, `core/middleware.py`, `modules/evidence/routes.py`,
+`modules/erm/routes.py`, `modules/launcher/routes_risks.py`). Full
+`pytest tests/` — 200 passed, 0 failed. Temporary fuzz-test user and all
+fuzz-created risks/evidence deleted after.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- Deliberate malformed-input / injection fuzzing
 - Import/export round-trip testing
 - Notifications

@@ -12,6 +12,21 @@ from modules.launcher._route_helpers import (
 router = APIRouter()
 
 
+def _validate_score(data: dict, key: str, default: int) -> int:
+    """Validate an L/I field is an integer 1-5, raising a clean 400 instead
+    of letting int() throw on a non-numeric/out-of-range value."""
+    raw = data.get(key, default)
+    if raw in (None, ""):
+        raw = default
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        raise HTTPException(400, f"{key} must be an integer between 1 and 5")
+    if not (1 <= val <= 5):
+        raise HTTPException(400, f"{key} must be an integer between 1 and 5")
+    return val
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # CROSS-MODULE RISK REGISTER
 # ═════════════════════════════════════════════════════════════════════════════
@@ -121,8 +136,8 @@ async def api_risk_create(request: Request):
     data = await _json_body(request)
     db = get_db()
     try:
-        likelihood = int(data.get("likelihood", 3))
-        impact = int(data.get("impact", 3))
+        likelihood = _validate_score(data, "likelihood", 3)
+        impact = _validate_score(data, "impact", 3)
         score = likelihood * impact
         level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
         rid = insert_returning_id(
@@ -234,8 +249,8 @@ async def api_risk_update(request: Request, rid: int):
         # Recalculate risk_level if likelihood or impact changed
         if "likelihood" in data or "impact" in data:
             current = db.execute("SELECT likelihood, impact FROM risk_register WHERE id = %s", (rid,)).fetchone()
-            l = int(data.get("likelihood", current["likelihood"]))
-            i = int(data.get("impact", current["impact"]))
+            l = _validate_score(data, "likelihood", current["likelihood"])
+            i = _validate_score(data, "impact", current["impact"])
             score = l * i
             level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
             sets.append("risk_level = %s")

@@ -25,6 +25,25 @@ router = APIRouter(prefix="/erm", tags=["erm"])
 templates = Jinja2Templates(directory=["modules/erm/templates", "templates"])
 
 
+_SCORE_FIELDS = ("likelihood", "impact", "residual_likelihood", "residual_impact")
+
+
+def _validate_score_fields(body: dict) -> None:
+    """Reject non-numeric or out-of-range L/I values before they reach
+    _compute_scores' bare int(L)*int(I) arithmetic, which otherwise raises
+    an unhandled ValueError/TypeError (e.g. on a string or list value)."""
+    for key in _SCORE_FIELDS:
+        if key not in body or body[key] in (None, ""):
+            continue
+        try:
+            val = int(body[key])
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"{key} must be an integer between 1 and 5")
+        if not (1 <= val <= 5):
+            raise HTTPException(400, f"{key} must be an integer between 1 and 5")
+        body[key] = val
+
+
 def _uid(request: Request) -> int:
     return request.state.user["id"]
 
@@ -147,6 +166,7 @@ async def api_risk_detail(request: Request, risk_id: int):
 @require_capability("erm.risk.manage")
 async def api_risk_create(request: Request):
     body = await _json_body(request)
+    _validate_score_fields(body)
     body["created_by"] = _uid(request)
     rid = ds.create_enterprise_risk(body)
     emit(
@@ -171,6 +191,7 @@ async def api_risk_create(request: Request):
 @require_capability("erm.risk.manage")
 async def api_risk_update(request: Request, risk_id: int):
     body = await _json_body(request)
+    _validate_score_fields(body)
     ds.update_enterprise_risk(risk_id, body)
     # Emit ERM_RISK_CLOSED so appetite recalculates and linked modules are notified
     if (body.get("status") or "").lower() == "closed":
