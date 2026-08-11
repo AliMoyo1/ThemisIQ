@@ -105,21 +105,6 @@
 .typing-indicator{display:none;flex-direction:column;align-items:center;
                   justify-content:center;height:440px;gap:18px}
 .typing-indicator.active{display:flex}
-.ai-spinner{width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;
-            display:flex;align-items:center;justify-content:center;
-            animation:pulse-glow 1.6s ease-in-out infinite}
-.ai-spinner svg{width:22px;height:22px}
-@keyframes pulse-glow{
-  0%,100%{box-shadow:0 0 0 0 rgba(var(--accent-rgb,100,100,100),.35);transform:scale(1)}
-  50%{box-shadow:0 0 0 14px rgba(var(--accent-rgb,100,100,100),0);transform:scale(1.04)}
-}
-.typing-text{font-size:13.5px;color:var(--muted)}
-.typing-dots span{display:inline-block;width:6px;height:6px;border-radius:50%;
-                  background:var(--accent);margin:0 2px;
-                  animation:bounce 1.2s ease-in-out infinite}
-.typing-dots span:nth-child(2){animation-delay:.2s}
-.typing-dots span:nth-child(3){animation-delay:.4s}
-@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
 /* ── Markdown document ──────────────────────────────────────────────────── */
 .policy-output{font-size:14.5px;line-height:1.8;color:var(--text)}
 .policy-output h1{font-size:21px;font-weight:800;margin-bottom:8px;color:var(--text);letter-spacing:-.3px}
@@ -365,15 +350,7 @@
 
         {# Loading state #}
         <div class="typing-indicator" id="loadingState">
-          <div class="ai-spinner">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <div>
-            <div class="typing-text" id="loadingMsg">Generating your policy document...</div>
-            <div class="typing-dots" style="text-align:center;margin-top:8px">
-              <span></span><span></span><span></span>
-            </div>
-          </div>
+          <div id="loadingTraceMount" style="width:100%;max-width:420px;margin:0 auto"></div>
         </div>
 
         {# Document output #}
@@ -413,12 +390,8 @@
           </button>
         </div>
         <div class="gap-output-area" id="gapOutputArea">
-          <div id="gapLoading" style="display:none;text-align:center;padding:40px">
-            <div class="ai-spinner" style="margin:0 auto 16px">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            </div>
-            <div class="typing-text">Analysing compliance gaps...</div>
-            <div class="typing-dots" style="text-align:center;margin-top:8px"><span></span><span></span><span></span></div>
+          <div id="gapLoading" style="display:none;padding:40px">
+            <div id="gapTraceMount" style="width:100%;max-width:420px;margin:0 auto"></div>
           </div>
           <div class="policy-output" id="gapContent" style="display:none"></div>
           <div style="color:var(--muted);font-size:13px;line-height:1.7" id="gapEmpty">
@@ -696,13 +669,25 @@ function selectControl(id, ref, name, desc) {
 }
 
 /* ── Policy generation ─────────────────────────────────────────────────── */
+var policyTrace = null;
 function setPolicyLoading(on, msg) {
   document.getElementById('emptyState').style.display   = on ? 'none'  : 'none';
   document.getElementById('outputBody').style.display   = on ? 'none'  : 'none';
   document.getElementById('metaBar').style.display      = on ? 'none'  : 'none';
   document.getElementById('outputActions').style.display = on ? 'none' : 'none';
   document.getElementById('loadingState').classList.toggle('active', on);
-  if (on && msg) document.getElementById('loadingMsg').textContent = msg;
+  if (policyTrace) { policyTrace.destroy(); policyTrace = null; }
+  if (on) {
+    policyTrace = window.ThinkingTrace.open(document.getElementById('loadingTraceMount'), {
+      variant: 'steps',
+      activeLabel: msg || 'Generating your policy document',
+      rows: [
+        { primary: 'Reading the control requirements' },
+        { primary: 'Drafting the document' },
+        { primary: 'Applying your formatting and tone' }
+      ]
+    });
+  }
 }
 
 /* ── Guide the AI (optional custom instructions) ───────────────────────── */
@@ -754,7 +739,7 @@ async function generatePolicy() {
     var data = await resp.json();
     var elapsed = ((Date.now() - start) / 1000).toFixed(1);
 
-    document.getElementById('loadingState').classList.remove('active');
+    setPolicyLoading(false);
 
     if (data.success) {
       lastGenerated = data.content;
@@ -776,7 +761,7 @@ async function generatePolicy() {
       if (typeof showToast === 'function') showToast(data.error || 'Generation failed', 'error');
     }
   } catch (e) {
-    document.getElementById('loadingState').classList.remove('active');
+    setPolicyLoading(false);
     document.getElementById('emptyState').style.display = 'flex';
     if (typeof showToast === 'function') showToast('Network error. Is the server running?', 'error');
   }
@@ -785,13 +770,30 @@ async function generatePolicy() {
 }
 
 /* ── Gap analysis ──────────────────────────────────────────────────────── */
+var gapTrace = null;
+function setGapLoading(on) {
+  document.getElementById('gapLoading').style.display = on ? 'block' : 'none';
+  if (gapTrace) { gapTrace.destroy(); gapTrace = null; }
+  if (on) {
+    gapTrace = window.ThinkingTrace.open(document.getElementById('gapTraceMount'), {
+      variant: 'steps',
+      activeLabel: 'Analysing compliance gaps',
+      rows: [
+        { primary: 'Comparing controls against the framework' },
+        { primary: 'Identifying gaps and partial coverage' },
+        { primary: 'Writing recommendations' }
+      ]
+    });
+  }
+}
+
 async function generateGapAnalysis() {
   var fwId = document.getElementById('gapFwSelect').value;
   if (!fwId) { if (typeof showToast === 'function') showToast('Select a framework first.', 'warn'); return; }
 
   document.getElementById('gapEmpty').style.display   = 'none';
   document.getElementById('gapContent').style.display = 'none';
-  document.getElementById('gapLoading').style.display = 'block';
+  setGapLoading(true);
   document.getElementById('gapBtnText').textContent   = 'Analysing...';
 
   var form = new FormData();
@@ -800,7 +802,7 @@ async function generateGapAnalysis() {
   try {
     var resp = await fetch('/aria/api/generate-gap-analysis', { method: 'POST', body: form });
     var data = await resp.json();
-    document.getElementById('gapLoading').style.display = 'none';
+    setGapLoading(false);
     document.getElementById('gapBtnText').textContent   = 'Run Gap Analysis';
 
     if (data.success) {
@@ -813,7 +815,7 @@ async function generateGapAnalysis() {
       if (typeof showToast === 'function') showToast(data.error || 'Error', 'error');
     }
   } catch (e) {
-    document.getElementById('gapLoading').style.display = 'none';
+    setGapLoading(false);
     document.getElementById('gapBtnText').textContent   = 'Run Gap Analysis';
     document.getElementById('gapEmpty').style.display   = 'block';
     if (typeof showToast === 'function') showToast('Network error', 'error');

@@ -148,14 +148,6 @@
 .msg-action-btn.thumbed-down{opacity:1;color:var(--bad,#dc2626)}
 .msg-latency{font-size:10.5px;color:var(--dim);margin-right:4px}
 
-/* ── Typing indicator ─────────────────────────────────────────────────────── */
-.typing{display:inline-flex;gap:3px;padding:3px 0}
-.typing span{width:6px;height:6px;border-radius:50%;background:var(--muted);
-             animation:bounce 1.2s infinite}
-.typing span:nth-child(2){animation-delay:.15s}
-.typing span:nth-child(3){animation-delay:.3s}
-@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
-
 /* ── Input area ───────────────────────────────────────────────────────────── */
 .chat-input-wrap{padding:14px 18px;border-top:1px solid var(--border);background:var(--surface2)}
 .chat-input-box{background:var(--surface);border:1.5px solid var(--border2);
@@ -510,17 +502,25 @@
     exportLog.push({ role: 'user', text: q, ts: new Date().toISOString() });
   }
 
-  /* ── Typing indicator ────────────────────────────────────────────────── */
-  function addTyping() {
+  /* ── Thinking trace (replaces the old 3-dot typing indicator) ─────────── */
+  function addThinking() {
     var el = document.createElement('div');
     el.className = 'msg msg-bot';
     el.innerHTML = '<div class="msg-avatar">A</div>' +
-      '<div class="msg-content"><div class="msg-meta">ARIA · thinking…</div>' +
-      '<div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>' +
-      '</div>';
+      '<div class="msg-content"><div class="msg-bubble"></div></div>';
     body.appendChild(el);
+    var mount = el.querySelector('.msg-bubble');
+    var trace = window.ThinkingTrace.open(mount, {
+      variant: 'steps',
+      activeLabel: 'Thinking',
+      rows: [
+        { primary: 'Searching the knowledge base' },
+        { primary: 'Reading the most relevant sources' },
+        { primary: 'Writing the answer' }
+      ]
+    });
     body.scrollTop = body.scrollHeight;
-    return el;
+    return { el: el, trace: trace };
   }
 
   /* ── Render ARIA response ────────────────────────────────────────────── */
@@ -624,7 +624,7 @@
   /* ── Ask ─────────────────────────────────────────────────────────────── */
   async function doAsk(question) {
     addUserMsg(question);
-    var typing = addTyping();
+    var thinking = addThinking();
     sendBtn.disabled = true;
 
     var fwFilter = document.getElementById('fwFilter').value;
@@ -638,9 +638,10 @@
     try {
       var resp = await fetch('/aria/api/ask', { method: 'POST', body: fd });
       var data = await resp.json();
-      typing.remove();
 
       if (!resp.ok || !data.success) {
+        thinking.trace.destroy();
+        thinking.el.remove();
         var errEl = document.createElement('div');
         errEl.className = 'msg msg-bot';
         errEl.innerHTML = '<div class="msg-avatar">A</div>' +
@@ -649,6 +650,10 @@
           '</div>';
         body.appendChild(errEl);
       } else {
+        var chunks = data.chunks_retrieved || 0;
+        thinking.trace.settle({
+          appendRows: chunks ? [{ primary: 'Found ' + chunks + ' source' + (chunks !== 1 ? 's' : '') }] : []
+        });
         body.appendChild(renderBotMsg(data));
         conversationHistory.push({role: 'user', content: question});
         conversationHistory.push({role: 'assistant', content: data.answer || ''});
@@ -656,7 +661,8 @@
       }
       body.scrollTop = body.scrollHeight;
     } catch (e) {
-      typing.remove();
+      thinking.trace.destroy();
+      thinking.el.remove();
       var netErrEl = document.createElement('div');
       netErrEl.className = 'msg msg-bot';
       netErrEl.innerHTML = '<div class="msg-avatar">A</div>' +
