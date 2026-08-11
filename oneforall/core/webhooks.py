@@ -28,11 +28,13 @@ Payload shape (stable contract for subscribers):
 """
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import hmac
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -45,6 +47,12 @@ log = logging.getLogger("oneforall.webhooks")
 
 _MAX_RETRIES = 3
 _BACKOFF_BASE = 1.0  # seconds; 1, 2, 4, ...
+
+# Delivery (including retry backoff sleeps) runs off the request thread so a
+# slow or unreachable external endpoint never adds latency to the request/job
+# that triggered the event. A handful of workers is plenty -- this is fan-out
+# to a small number of registered webhooks per org, not a queue of real work.
+_delivery_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="webhook-delivery")
 _TIMEOUT = 10.0
 
 
@@ -182,3 +190,26 @@ def dispatch_event(event_type: str, source_module: str, entity_type: str,
         except Exception as exc:  # a bad URL/config must not crash emit()
             log.exception("webhook %s delivery raised: %s", wh["id"], exc)
             _log_attempt(wh["id"], event_type, env, 0, f"error: {exc}", False)
+
+
+def dispatch_event_background(event_type: str, source_module: str, entity_type: str,
+                              entity_id: int, payload: dict, user_id: Optional[int],
+                              org_id: Optional[int]) -> None:
+    """Submit dispatch_event() to the delivery pool instead of running it inline.
+
+    Delivery includes retry backoff sleeps (up to ~7s across 3 attempts per
+    webhook), which must never add latency to the request/job that triggered
+    the event. contextvars.copy_context() snapshots the calling thread's
+    tenant/org ContextVars (see database.py) so the worker thread sees the
+    same set_current_tenant()/set_current_org() state the caller had --
+    without this, RLS-gated tables like webhooks would silently see zero
+    rows on the worker thread regardless of the org_id filter above.
+
+    dispatch_event() itself stays directly callable for tests that want
+    synchronous, deterministic delivery.
+    """
+    ctx = contextvars.copy_context()
+    _delivery_pool.submit(
+        ctx.run, dispatch_event,
+        event_type, source_module, entity_type, entity_id, payload, user_id, org_id,
+    )

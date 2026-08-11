@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
-from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED
+from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED, ERM_RISK_UPDATED
 from core.timeutils import utcnow, to_dt
 from modules.erm import data_service as ds
 from modules.erm import ai_service as ai
@@ -193,10 +193,28 @@ async def api_risk_update(request: Request, risk_id: int):
     body = await _json_body(request)
     _validate_score_fields(body)
     ds.update_enterprise_risk(risk_id, body)
-    # Emit ERM_RISK_CLOSED so appetite recalculates and linked modules are notified
-    if (body.get("status") or "").lower() == "closed":
-        risk = ds.get_enterprise_risk(risk_id)
-        if risk:
+    risk = ds.get_enterprise_risk(risk_id)
+    if risk:
+        uid = request.state.user.get("id") if request.state.user else None
+        # Emitted on every successful update so subscribers (webhooks, the
+        # public API's future sync consumers) see field-level changes, not
+        # just the closed-status transition below.
+        emit(
+            ERM_RISK_UPDATED,
+            source_module="erm",
+            entity_type="enterprise_risk",
+            entity_id=risk_id,
+            payload={
+                "title": risk.get("title", ""),
+                "category": risk.get("category", ""),
+                "status": risk.get("status", ""),
+                "likelihood": risk.get("likelihood"),
+                "impact": risk.get("impact"),
+            },
+            user_id=uid,
+        )
+        # Emit ERM_RISK_CLOSED so appetite recalculates and linked modules are notified
+        if (body.get("status") or "").lower() == "closed":
             emit(
                 ERM_RISK_CLOSED,
                 source_module="erm",
@@ -208,7 +226,7 @@ async def api_risk_update(request: Request, risk_id: int):
                     "source_module": risk.get("source_module", "erm"),
                     "source_risk_id": risk.get("source_risk_id"),
                 },
-                user_id=request.state.user.get("id") if request.state.user else None,
+                user_id=uid,
             )
     return JSONResponse({"ok": True})
 

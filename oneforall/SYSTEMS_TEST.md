@@ -1378,9 +1378,100 @@ design, not something this fix needed to resolve.
 
 ---
 
+## Pass 14 — Inbound API-key write surface, erm.risk.updated emit, background webhook delivery
+
+**Status: COMPLETE.** All 3 items built, verified live (21/21 checks), full pytest pass.
+Direct follow-on to Pass 13 — closes the two items that pass explicitly deferred, plus
+a third (background delivery) identified during that review's design discussion.
+
+**1. `erm.risk.updated` emit on plain risk edits.** `modules/erm/routes.py`'s
+`api_risk_update()` previously only emitted an event (`ERM_RISK_CLOSED`) when the
+status transitioned to closed — a plain field edit (category, likelihood, owner, ...)
+was invisible to the event bus and therefore to webhook subscribers. Added a new
+`ERM_RISK_UPDATED` event type (`core/events.py`) fired unconditionally on every
+successful update, alongside the existing conditional `ERM_RISK_CLOSED`; both reuse
+the single post-update risk fetch already in the handler.
+
+**2. Inbound API-key write surface.** `modules/launcher/routes_api_v1.py` had a
+working read-only surface (`GET /risks|/audits|/breaches`, `X-API-Key` header,
+`_require_read_key` dependency) but no write path. Refactored the auth dependency
+into a shared `_authenticate_key(x_api_key, required_scope)` used by both
+`_require_read_key` ("read" scope, unchanged behaviour) and a new
+`_require_write_key` ("write" scope). Added Pydantic `RiskCreate`/`RiskUpdate` models
+(likelihood/impact constrained to 1-5 via `Field(ge=1, le=5)`, replacing the
+existing internal endpoint's hand-rolled `_validate_score`) and two new routes:
+- `POST /api/v1/risks` — inserts into `risk_register`, `created_by` set from the
+  API key's own `created_by` (the admin who issued the key), never from the
+  request body — a client cannot attribute a risk to an arbitrary user id.
+- `PATCH /api/v1/risks/{rid}` — partial update via `model_dump(exclude_unset=True)`;
+  404s on a nonexistent id (the pre-existing internal `PUT` endpoint does not do
+  this existence check — deliberately added here since an external API consumer
+  can't "just check the UI" to notice a silent no-op the way an internal admin can).
+Both recompute `risk_level` from the same likelihood x impact threshold ladder the
+internal CRUD uses (critical >= 20, high >= 12, medium >= 6, else low) when either
+score field changes.
+
+**3. Background webhook delivery.** `core.webhooks.dispatch_event()` ran
+synchronously on the request/job thread that called `emit()`, including up to 3
+retries with exponential backoff (~7s worst case) per subscribed webhook — a slow
+or unreachable external endpoint added that latency to whatever triggered the event
+(an ERM risk save, a scheduler job, ...). Added a module-level
+`ThreadPoolExecutor` (`_delivery_pool`, 4 workers) and a
+`dispatch_event_background()` wrapper that submits `dispatch_event()` to it via
+`contextvars.copy_context()` + `executor.submit(ctx.run, ...)` — the standard-library
+pattern for carrying a calling thread's `ContextVar` state into a new OS thread,
+since `ThreadPoolExecutor.submit()` does not do this automatically (unlike
+`asyncio` tasks, which inherit context for free). `core.events.emit()` now calls
+`dispatch_event_background()` instead of `dispatch_event()` directly; the org_id
+resolution via `get_current_org()` still happens on the calling thread, before the
+handoff, since that ContextVar is only meaningfully "current" there.
+`dispatch_event()` itself is unchanged and stays directly callable for tests that
+want synchronous, deterministic delivery.
+
+**Verified live:** single script (`TestClient` wrapping the real `main.app`, real
+dev SQLite DB, temp org/user/session/API-keys/webhook/risks, all deleted after):
+- Item 1: plain `PUT /erm/api/risks/{id}` edit (category only) fires
+  `ERM_RISK_UPDATED` and *not* `ERM_RISK_CLOSED`; a second `PUT` with
+  `status=closed` fires both, with the updated-payload category reflecting the
+  edit.
+- Item 3: a local HTTP receiver made to sleep 1.5s before responding: `emit()`
+  returned in 0.009s (proving the request path is no longer blocked), the
+  receiver still received the signed POST within a 6s poll window, the HMAC
+  signature verified, the delivered envelope carried the correct `organisation_id`,
+  and `webhook_logs` recorded a successful attempt.
+- Item 2: no key -> 401; read-only key attempting `POST` -> 403 (scope enforced);
+  write key -> `201` with correctly computed `risk_level` (4x5=20 -> critical) and
+  `created_by` equal to the key's creator, not client-suppliable; `PATCH` changing
+  only `impact` -> `200` with `risk_level` correctly recomputed (4x1=4 -> low);
+  `PATCH` on a nonexistent id -> `404`; existing read-only key traffic (`GET
+  /risks`) unaffected.
+
+21/21 checks passed. `python -m py_compile` clean on all 4 touched files
+(`core/webhooks.py`, `core/events.py`, `modules/erm/routes.py`,
+`modules/launcher/routes_api_v1.py`). Full `pytest tests/` — 200 passed, 0 failed
+(no change in count — no new permanent pytest cases added this pass; verification
+was the standalone live script above). Temp org/user/session/API keys/webhook/risk
+rows all deleted after.
+
+**Side-effect regression found and fixed in passing:** the pre-existing manual
+integration script `tests/live_webhook_test.py` (not part of the pytest suite —
+`python tests/live_webhook_test.py`, run by hand against a booted dev DB) registers
+its own webhook and calls `emit()` directly. It predates Pass 13's org-scoping fix
+and inserted its webhook with no `org_id`; post-Pass-13, `dispatch_event()`'s
+fail-closed filter (`org_id = %s`, and `NULL = NULL` is never true in SQL) correctly
+stopped delivering to it, since neither the webhook nor the emitted event had a
+real org. Confirmed by actually running the script before touching it (it failed:
+`AssertionError: No webhook delivery received!`). Fixed the script itself, not the
+application (the app's fail-closed behaviour is correct) — it now creates a real
+temp organisation, scopes the webhook and the `emit()` call to it, and cleans up
+the org/webhook/webhook_logs rows it creates so repeat manual runs don't hit the
+`organizations.slug` uniqueness constraint. Re-ran twice consecutively to confirm
+both the fix and the new cleanup: both passed.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-- Inbound integration surface for external webapps (API-key-authenticated REST for
-  the risk register) — discussed, not built
-- `erm.risk.updated` emit on plain risk edits (currently only closes emit) — noted
-  during the integration design discussion, not yet built
+- None from this pass — all 3 items Pass 13 deferred (inbound API-key write
+  surface, `erm.risk.updated` emit) plus background webhook delivery are now built
+  and verified.

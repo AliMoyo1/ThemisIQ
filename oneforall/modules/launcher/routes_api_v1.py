@@ -2,7 +2,7 @@
 ThemisIQ public REST API v1.
 
 Authentication: X-API-Key header (PBKDF2-SHA256, checked against api_keys table).
-All endpoints are read-only and require scope 'read'.
+Read endpoints require scope 'read'; write endpoints require scope 'write'.
 Docs available at /docs (FastAPI OpenAPI UI).
 """
 import hashlib
@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel, Field
 
-from database import get_db, set_current_tenant
+from database import get_db, insert_returning_id, set_current_tenant
 
 log = logging.getLogger(__name__)
 
@@ -33,18 +34,20 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _has_read_scope(scopes_str: str) -> bool:
-    return "read" in {s.strip() for s in (scopes_str or "").split(",")}
+def _has_scope(scopes_str: str, scope: str) -> bool:
+    return scope in {s.strip() for s in (scopes_str or "").split(",")}
 
 
-async def _require_read_key(x_api_key: str = Header(None, alias="X-API-Key")):
+async def _authenticate_key(x_api_key: str, required_scope: str) -> dict:
+    """Shared auth flow for both read and write API keys: hash lookup,
+    active/expiry/scope checks, last_used_at bump, tenant-context set."""
     if not x_api_key:
         raise HTTPException(status_code=401, detail="X-API-Key header required")
     key_hash = _hash_key(x_api_key)
     db = get_db()
     try:
         row = db.execute(
-            "SELECT ak.id, ak.scopes, ak.expires_at, ak.org_id, o.slug AS org_slug"
+            "SELECT ak.id, ak.scopes, ak.expires_at, ak.org_id, ak.created_by, o.slug AS org_slug"
             " FROM api_keys ak LEFT JOIN organizations o ON o.id = ak.org_id"
             " WHERE ak.key_hash=%s AND ak.is_active=1",
             (key_hash,),
@@ -53,8 +56,8 @@ async def _require_read_key(x_api_key: str = Header(None, alias="X-API-Key")):
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")
         if row["expires_at"] and row["expires_at"] < _now_iso():
             raise HTTPException(status_code=401, detail="API key expired")
-        if not _has_read_scope(row["scopes"]):
-            raise HTTPException(status_code=403, detail="API key does not have read scope")
+        if not _has_scope(row["scopes"], required_scope):
+            raise HTTPException(status_code=403, detail=f"API key does not have {required_scope} scope")
         try:
             db.execute(
                 "UPDATE api_keys SET last_used_at=%s WHERE id=%s",
@@ -69,6 +72,51 @@ async def _require_read_key(x_api_key: str = Header(None, alias="X-API-Key")):
         return dict(row)
     finally:
         db.close()
+
+
+async def _require_read_key(x_api_key: str = Header(None, alias="X-API-Key")):
+    return await _authenticate_key(x_api_key, "read")
+
+
+async def _require_write_key(x_api_key: str = Header(None, alias="X-API-Key")):
+    return await _authenticate_key(x_api_key, "write")
+
+
+class RiskCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=500)
+    description: str = ""
+    source_module: str = ""
+    source_entity_type: str = ""
+    source_entity_id: Optional[int] = None
+    category: str = "operational"
+    likelihood: int = Field(3, ge=1, le=5)
+    impact: int = Field(3, ge=1, le=5)
+    owner_id: Optional[int] = None
+    treatment: str = "mitigate"
+    treatment_plan: str = ""
+    status: str = "open"
+    review_date: Optional[str] = None
+
+
+class RiskUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=500)
+    description: Optional[str] = None
+    category: Optional[str] = None
+    likelihood: Optional[int] = Field(None, ge=1, le=5)
+    impact: Optional[int] = Field(None, ge=1, le=5)
+    owner_id: Optional[int] = None
+    treatment: Optional[str] = None
+    treatment_plan: Optional[str] = None
+    status: Optional[str] = None
+    review_date: Optional[str] = None
+    source_module: Optional[str] = None
+    source_entity_type: Optional[str] = None
+    source_entity_id: Optional[int] = None
+
+
+def _risk_level(likelihood: int, impact: int) -> str:
+    score = likelihood * impact
+    return "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
 
 
 @router.get("/risks", summary="List risks")
@@ -187,3 +235,69 @@ async def list_breaches(
         db.close()
 
     return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
+@router.post("/risks", status_code=201, summary="Create a risk")
+async def create_risk(body: RiskCreate, key=Depends(_require_write_key)):
+    """Create a risk in the cross-module risk register."""
+    level = _risk_level(body.likelihood, body.impact)
+    db = get_db()
+    try:
+        rid = insert_returning_id(
+            db,
+            "INSERT INTO risk_register (title, description, source_module, source_entity_type, "
+            "source_entity_id, category, likelihood, impact, risk_level, owner_id, treatment, "
+            "treatment_plan, status, review_date, created_by) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (
+                body.title,
+                body.description,
+                body.source_module,
+                body.source_entity_type,
+                body.source_entity_id,
+                body.category,
+                body.likelihood, body.impact, level,
+                body.owner_id,
+                body.treatment,
+                body.treatment_plan,
+                body.status,
+                body.review_date,
+                key["created_by"],
+            ),
+        )
+        db.commit()
+    finally:
+        db.close()
+    return {"id": rid, "risk_level": level, "risk_score": body.likelihood * body.impact}
+
+
+@router.patch("/risks/{rid}", summary="Update a risk")
+async def update_risk(rid: int, body: RiskUpdate, key=Depends(_require_write_key)):
+    """Partially update a risk. Only fields present in the request body are changed."""
+    data = body.model_dump(exclude_unset=True)
+    db = get_db()
+    try:
+        current = db.execute(
+            "SELECT likelihood, impact FROM risk_register WHERE id=%s", (rid,)
+        ).fetchone()
+        if not current:
+            raise HTTPException(status_code=404, detail="Risk not found")
+
+        sets = []
+        vals = []
+        for k, v in data.items():
+            sets.append(f"{k} = %s")
+            vals.append(v)
+        if "likelihood" in data or "impact" in data:
+            l = data.get("likelihood", current["likelihood"])
+            i = data.get("impact", current["impact"])
+            sets.append("risk_level = %s")
+            vals.append(_risk_level(l, i))
+        if sets:
+            sets.append("updated_at = CURRENT_TIMESTAMP")
+            vals.append(rid)
+            db.execute(f"UPDATE risk_register SET {', '.join(sets)} WHERE id = %s", vals)
+            db.commit()
+    finally:
+        db.close()
+    return {"id": rid, "success": True}

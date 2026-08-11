@@ -71,16 +71,22 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
             _mark_failed(event_id, str(exc))
 
     # Fan out to registered outbound webhooks (best-effort; never blocks).
+    # Runs on a background thread (see core.webhooks._delivery_pool) so
+    # retry backoff sleeps never add latency to the request/job that
+    # triggered the event.
     try:
-        from core.webhooks import dispatch_event
+        from core.webhooks import dispatch_event_background
         from database import get_current_org
         # Explicit org_id wins; otherwise fall back to the request-scoped
         # tenant context set by auth middleware. A caller with neither (e.g.
         # a scheduler querying a table with no org column to key off) gets
         # None here, which dispatch_event() treats as "match no webhook" --
-        # fail closed rather than fan out to every tenant.
+        # fail closed rather than fan out to every tenant. Resolved here
+        # (on the calling thread) rather than inside the background thread,
+        # since get_current_org() reads a request-scoped ContextVar that is
+        # only meaningfully "current" before the handoff.
         effective_org_id = org_id if org_id is not None else get_current_org()
-        dispatch_event(
+        dispatch_event_background(
             event_type=event_type,
             source_module=source_module,
             entity_type=entity_type,
@@ -153,6 +159,7 @@ SENTINEL_DSR_OVERDUE       = "sentinel.dsr.overdue"
 
 # ERM
 ERM_RISK_IDENTIFIED   = "erm.risk.identified"
+ERM_RISK_UPDATED      = "erm.risk.updated"
 ERM_RISK_ESCALATED    = "erm.risk.escalated"
 ERM_RISK_MITIGATED    = "erm.risk.mitigated"
 ERM_RISK_CLOSED       = "erm.risk.closed"
