@@ -141,19 +141,27 @@ def deliver(webhook_id: int, url: str, secret: str, payload: dict) -> bool:
 def dispatch_event(event_type: str, source_module: str, entity_type: str,
                    entity_id: int, payload: dict, user_id: Optional[int],
                    org_id: Optional[int]) -> None:
-    """Fan out an emitted event to all active webhooks subscribed to it.
+    """Fan out an emitted event to all active webhooks subscribed to it,
+    scoped to the tenant that owns the event.
 
     Intended to be called from core.events.emit() AFTER in-process handlers
     run, so webhook delivery never blocks or fails the source operation.
+
+    org_id=None means the caller has no known tenant for this event (e.g. a
+    scheduler job querying across tenants with no org column to key off).
+    The query below matches no rows in that case -- "org_id = NULL" is never
+    true in SQL on either PostgreSQL or SQLite -- so a webhook is only ever
+    delivered an event that shares its own org_id, never a blanket
+    "deliver to everyone" fallback.
     """
     envelope = _build_payload(event_type, source_module, entity_type,
                               entity_id, payload, user_id, org_id)
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT id, url, secret, events FROM webhooks "
-            "WHERE is_active = 1 AND events LIKE %s",
-            (f"%{event_type}%",),
+            "SELECT id, url, secret, events, org_id FROM webhooks "
+            "WHERE is_active = 1 AND events LIKE %s AND org_id = %s",
+            (f"%{event_type}%", org_id),
         ).fetchall()
     except Exception as exc:
         log.warning("webhook subscriber lookup failed: %s", exc)
@@ -167,10 +175,8 @@ def dispatch_event(event_type: str, source_module: str, entity_type: str,
         if event_type not in subscribed:
             continue
         secret = wh["secret"] or ""
-        # Stamp the envelope with this webhook's org context (webhooks table
-        # has no org_id column; left as None — emit() carries no org either).
         env = dict(envelope)
-        env["organisation_id"] = None
+        env["organisation_id"] = wh["org_id"]
         try:
             deliver(wh["id"], wh["url"], secret, env)
         except Exception as exc:  # a bad URL/config must not crash emit()

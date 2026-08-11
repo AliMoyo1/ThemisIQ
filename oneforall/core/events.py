@@ -31,8 +31,15 @@ def on(event_type: str):
 
 
 def emit(event_type: str, source_module: str, entity_type: str = "",
-         entity_id: int = 0, payload: dict = None, user_id: int = None):
-    """Emit an event: store it and run all registered handlers."""
+         entity_id: int = 0, payload: dict = None, user_id: int = None,
+         org_id: int = None):
+    """Emit an event: store it and run all registered handlers.
+
+    org_id scopes outbound webhook delivery (see the dispatch block below).
+    Pass it explicitly when the caller has no live request context but does
+    know the tenant (e.g. a scheduler looping per-org); otherwise it is
+    resolved automatically from the current request's tenant context.
+    """
     db = get_db()
     try:
         event_id = insert_returning_id(db,
@@ -66,6 +73,13 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
     # Fan out to registered outbound webhooks (best-effort; never blocks).
     try:
         from core.webhooks import dispatch_event
+        from database import get_current_org
+        # Explicit org_id wins; otherwise fall back to the request-scoped
+        # tenant context set by auth middleware. A caller with neither (e.g.
+        # a scheduler querying a table with no org column to key off) gets
+        # None here, which dispatch_event() treats as "match no webhook" --
+        # fail closed rather than fan out to every tenant.
+        effective_org_id = org_id if org_id is not None else get_current_org()
         dispatch_event(
             event_type=event_type,
             source_module=source_module,
@@ -73,7 +87,7 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
             entity_id=entity_id,
             payload=payload or {},
             user_id=user_id,
-            org_id=None,  # emit() has no org context; webhook keeps its own org_id
+            org_id=effective_org_id,
         )
     except Exception as exc:
         # Webhook delivery must never break the source operation.

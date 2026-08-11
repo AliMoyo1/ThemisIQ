@@ -5349,6 +5349,25 @@ def _seed_baseline_data(conn):
                 conn.rollback()
             except Exception:
                 pass
+
+        # ── Backfill webhooks.org_id from the creating admin (idempotent) ─────
+        # org_id was added to webhooks after the table existed in production;
+        # any row created before that migration ran has org_id=NULL. Without
+        # this, dispatch_event()'s org_id filter would silently stop
+        # delivering events to those legacy webhooks forever. After the
+        # first run this UPDATE matches zero rows.
+        try:
+            conn.execute(
+                "UPDATE webhooks SET org_id = ("
+                "SELECT u.org_id FROM users u WHERE u.id = webhooks.created_by) "
+                "WHERE webhooks.org_id IS NULL AND webhooks.created_by IS NOT NULL"
+            )
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
     except Exception:
         try:
             conn.rollback()

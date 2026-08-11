@@ -1,7 +1,8 @@
 """PostgreSQL Row Level Security policies for the public schema.
 
-Protects shared tables (users, audit_log, licenses) from cross-tenant reads
-when the application's connection pool serves multiple organisations.
+Protects shared tables (users, audit_log, licenses, webhooks) from
+cross-tenant reads when the application's connection pool serves multiple
+organisations.
 
 Context variables (PostgreSQL session settings):
   app.current_org_id  - integer org id as text, set per request
@@ -45,6 +46,15 @@ _STMTS = [
     "ALTER TABLE public.licenses FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation ON public.licenses",
     f"CREATE POLICY tenant_isolation ON public.licenses USING {_USING}",
+
+    # webhooks - defense-in-depth alongside dispatch_event()'s own org_id
+    # filter (core/webhooks.py). Registered outbound integration endpoints
+    # are tenant-owned; a webhook from one org must never be visible to, or
+    # receive events dispatched on behalf of, another org.
+    "ALTER TABLE public.webhooks ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.webhooks FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.webhooks",
+    f"CREATE POLICY tenant_isolation ON public.webhooks USING {_USING}",
 ]
 
 
@@ -63,7 +73,7 @@ def apply_rls_policies(db) -> None:
         for stmt in _STMTS:
             db.execute(stmt)
         db.commit()
-        _logger.info("RLS policies applied to public.users, public.audit_log, public.licenses")
+        _logger.info("RLS policies applied to public.users, public.audit_log, public.licenses, public.webhooks")
     except Exception as exc:
         _logger.error("RLS policy application failed (non-fatal): %s", exc)
         try:

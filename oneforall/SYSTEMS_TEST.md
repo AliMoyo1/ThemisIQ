@@ -1305,7 +1305,82 @@ after — the framework via its real DELETE endpoint for proper cascade cleanup,
 
 ---
 
+## Pass 13 — Webhook cross-tenant isolation (integration security review)
+
+**Status: COMPLETE.** 1 finding fixed same session, verified live, full pytest pass.
+
+**Context:** prompted by a design discussion on connecting the risk register and event
+triggers to other webapps. The outbound webhook system (`core/webhooks.py`,
+`core/events.py`) was reviewed as the mechanism for that, and a real cross-tenant
+leak was found before any external integration work started.
+
+**Finding — every registered webhook received every organisation's events.**
+`webhooks.org_id` was already added via migration (comment: `── Webhook org isolation
+──`), but the fix was left half-done: `dispatch_event()`'s SELECT never filtered by
+it, and `core.events.emit()` hardcoded `org_id=None` on every call. Net effect: org A
+registering a webhook for `erm.risk.identified` would receive org B's risk data too —
+a real tenant-isolation gap in a compliance product, same "column added, enforcement
+never wired" pattern as the notifications `category` bug in Pass 11. Traced the
+correct fix path by first confirming how org context actually flows: `core/middleware.py`
+sets a per-request `ContextVar` (`database.set_current_org`) immediately after session
+validation, which `get_db()` already reads to drive PostgreSQL RLS on `users`,
+`audit_log`, and `licenses` — but `webhooks` was never added to that RLS policy list
+either. Also found `sentinel/scheduler.py`'s DSR-overdue job calls `emit()` from a
+background job with no request context (and `sentinel_dsr` has no `org_id` column at
+all), so any fix had to fail closed there rather than crash or over-deliver.
+
+**Fix:**
+- `core/events.py`: `emit()` gained an optional `org_id` parameter; resolves to that
+  value if given, otherwise falls back to `database.get_current_org()` (the same
+  ContextVar RLS already trusts). No changes needed to any of the 25+ existing call
+  sites — all but one run inside a request where the ContextVar is already correct.
+- `core/webhooks.py`: `dispatch_event()`'s query now filters `AND org_id = %s`. When
+  `org_id` is `None` (the scheduler case), `org_id = NULL` is never true in SQL on
+  either backend, so the query matches zero rows — fails closed rather than falling
+  back to "delete every tenant's webhook."
+- `database.py`: added an idempotent backfill for `webhooks.org_id` from
+  `created_by`'s user org, mirroring the existing `audit_log.org_id` backfill
+  precedent verbatim — without it, any webhook registered before the org_id migration
+  ran would have silently stopped receiving events forever once the filter shipped.
+- `core/rls.py`: added `webhooks` to the RLS policy list (same `USING` clause as
+  `users`/`licenses`) as defense-in-depth for production PostgreSQL. Not exercised by
+  this session's tests — RLS is a no-op on SQLite dev by design
+  (`apply_rls_policies()` early-returns when not Postgres) — verified only by
+  structural parity with the existing policies, not live.
+
+**Verified live:** wrote a 6-check script exercising `emit()` -> `dispatch_event()`
+directly against the dev DB (the real call path, `deliver()` monkeypatched to capture
+without real network POSTs) with two temporary orgs, two temporary webhooks, and a
+simulated legacy NULL-org webhook:
+1. `emit()` under org A context -> only org A's webhook receives it.
+2. `emit()` under org B context -> only org B's webhook receives it (the actual
+   cross-tenant-leak check, confirmed closed in both directions).
+3. `emit()` with no org context -> zero webhooks fire (fail-closed, matching the
+   sentinel-scheduler case).
+4. Explicit `org_id` parameter correctly overrides ambient context.
+5. The backfill UPDATE correctly repairs a legacy NULL-org webhook to its creator's
+   org.
+6. Post-backfill, that webhook is reachable again for its own org's events, still
+   isolated from the other org.
+
+All 6 passed. `python -m py_compile` clean on all 4 touched files
+(`core/events.py`, `core/webhooks.py`, `core/rls.py`, `database.py`). Full
+`pytest tests/` — 200 passed, 0 failed. Temporary orgs, users, and webhooks deleted
+after.
+
+**Not done, deliberately out of scope for this pass:** the actual inbound integration
+work (API-key-authenticated REST for external webapps to read/write the risk
+register) discussed alongside this — this pass only closed the org-scoping gap in the
+outbound half that already existed. `emit()`'s move to org_id-parameterised dispatch
+also does not touch `get_db_background()`'s broader RLS-context-under-scheduler
+question, which is a separate, pre-existing characteristic of the ContextVar/RLS
+design, not something this fix needed to resolve.
+
+---
+
 ## Open items carried forward (not yet scheduled)
 
-(none — persona sweep, load/performance, fuzzing, notifications, and import/export are all
-complete as of this session; future passes should be scoped fresh based on what's changed)
+- Inbound integration surface for external webapps (API-key-authenticated REST for
+  the risk register) — discussed, not built
+- `erm.risk.updated` emit on plain risk edits (currently only closes emit) — noted
+  during the integration design discussion, not yet built
