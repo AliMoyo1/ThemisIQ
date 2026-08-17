@@ -33,15 +33,34 @@ The adapted, production version already exists — reuse it, don't recreate it:
   matching the codebase's existing convention for this kind of widget (see
   the sibling `static/js/ai-guidance-dialog.js`: no framework, no build step,
   inline-styled with `var(--token)` + literal fallbacks, injected on demand).
-- **Wired into**: `modules/aria/templates/ask.html` (chat "thinking…" →
-  `addThinking()` / `doAsk()`, variant `steps`, settled trace stays visible
-  in chat history above the answer) and `modules/aria/templates/ai_generator.html`
-  (`setPolicyLoading()` / `setGapLoading()`, same variant, trace is destroyed
-  rather than settled since the whole loading panel disappears on completion).
-- **Include it** via `<script src="/static/js/thinking-trace.js"></script>` —
-  already added to `modules/aria/templates/base.html`'s `extra_scripts` block,
-  which both pages above extend. If wiring a page outside ARIA's base, add
-  the same `<script>` tag to that page's own `extra_scripts` block.
+- **Wired into**:
+  - `modules/aria/templates/ask.html` — chat "thinking…" → `addThinking()` /
+    `doAsk()`, variant `steps`, settled trace stays visible in chat history
+    above the answer.
+  - `modules/aria/templates/ai_generator.html` — `setPolicyLoading()` /
+    `setGapLoading()`, variant `steps`, trace is destroyed rather than
+    settled since the whole loading panel disappears on completion.
+  - `modules/sentinel/templates/index.html` — four surfaces: `snSendChat()`
+    (Sentinel's own separate AI chat, same settle-and-persist pattern as
+    ARIA's, but built with `insertAdjacentHTML` — see gotcha below),
+    `snAiSuggestRisks()`, `snSubmitGenerateNotice()`, `snSubmitDraftPolicy()`
+    (all three: destroy-before-replace into an existing status/panel div).
+  - `modules/erm/templates/index.html` — two surfaces: `extRunScan()` (the
+    emerging-risk web-search scanner) and `ermBoardReport()` (board
+    narrative generator), both destroy-before-hide into a newly-added mount
+    div (neither surface had a dedicated loading area before this).
+- **Include it** via `<script src="/static/js/thinking-trace.js"></script>`.
+  Added to `modules/aria/templates/base.html`'s `extra_scripts` block (both
+  ARIA pages above extend it), and directly to `modules/sentinel/templates/index.html`
+  and `modules/erm/templates/index.html`'s own `extra_scripts` blocks (these
+  two are monolithic SPA templates with no shared base to hook into).
+  **Check this on every page you wire, every time** — ERM's script tag was
+  planned but not actually added in one pass of this work; nothing failed
+  loudly, `window.ThinkingTrace` was just silently `undefined` and every
+  call would have thrown the moment a real (non-erroring) AI response came
+  back. Live-verifying caught it immediately (`typeof window.ThinkingTrace`
+  in the console); reading the diff back would not have, since the missing
+  line is an *absence*, not a visible mistake.
 
 ### Theme token mapping used
 
@@ -99,24 +118,75 @@ Behaviour contract, load-bearing — don't regress these when touching the file:
   defeats the point of an inspectable trace).
 - `prefers-reduced-motion: reduce` disables the shimmer/spin animation.
 
+### The `insertAdjacentHTML` gotcha (chat-style, growing-container surfaces)
+
+Any surface that keeps *appending* messages to a growing container (a chat
+log) and mounts the trace as one of those messages must never touch that
+container with `container.innerHTML += '<div>...</div>'` again after the
+trace is mounted. `innerHTML +=` reserializes the *entire* subtree to a
+string and reparses it — every existing child, including the trace's live
+DOM (its header button's click listener, its pending collapse `setTimeout`)
+gets silently replaced by an inert, listener-less copy. Nothing throws;
+the trace just freezes expanded forever and stops responding to clicks.
+
+Use `container.insertAdjacentHTML('beforeend', '...')` instead for every
+append that happens *after* `ThinkingTrace.open()` — it only adds new
+nodes and never touches siblings that already exist. `snSendChat()` in
+`modules/sentinel/templates/index.html` is the reference example (it used
+to build every message via `innerHTML +=`; converting the ones after the
+trace mount to `insertAdjacentHTML` was a required part of adding the
+trace there, not a style preference). If a surface you're wiring builds
+messages this way, check for this before assuming a straight port of the
+`open()`/`settle()` calls is enough.
+
+### The "search" variant needs real per-source data, not just "web search happened"
+
+Don't reach for the `search` variant just because the backend call is
+web-search-backed. It needs an actual `row.href`/`row.secondary` per
+source to render as a clickable link — if the route only returns a count
+and a boolean (`{"created": N, "grounded": bool}`, as ERM's
+`/erm/api/emerging/scan` does), there is nothing honest to put in those
+rows. Check the actual route handler's response shape
+(`modules/<module>/routes.py`) before picking a variant, not just the
+docstring or the endpoint name. ERM's scanner looked like the obvious
+`search`-variant candidate going in; it shipped as `steps` once the
+response shape turned out not to carry per-source data to the frontend.
+
 ### Applying it to a new surface in this repo
 
 1. Find the real async call the surface makes (`fetch(...)`, `await ...json()`).
 2. Add `<script src="/static/js/thinking-trace.js"></script>` if that page's
-   base template doesn't already load it.
-3. Pick 2-4 short, present-tense row labels that describe what the backend
+   base template doesn't already load it — **then verify it actually
+   loaded** (`typeof window.ThinkingTrace === 'object'` in the browser
+   console) before trusting the rest of the wiring. Don't assume the tag
+   landed just because you intended to add it earlier in the same session.
+3. Check whether the surface appends to a growing container (chat-style) —
+   if so, read the insertAdjacentHTML gotcha above before touching it.
+4. Pick 2-4 short, present-tense row labels that describe what the backend
    route *actually does* for that call — don't reuse generic ice-cream-demo
    copy. Check the route handler in `modules/<module>/routes.py` if unsure
-   what the call does step-by-step.
-4. `open()` right before the fetch; `settle()` (chat/persistent surfaces) or
+   what the call does step-by-step, and see the search-variant note above
+   before picking anything other than `steps`.
+5. `open()` right before the fetch; `settle()` (chat/persistent surfaces) or
    `destroy()` (surfaces where the loading area itself disappears on
-   completion) in both the success and error/catch paths.
-5. Live-verify in the browser per this project's standing rule — start the
+   completion) in both the success and error/catch paths. If there's no
+   existing dedicated loading area to mount into (many small AI-triggering
+   buttons only swap their own `textContent` to a spinner glyph with no
+   surrounding panel), don't force one in — a multi-row trace crammed into
+   a small icon-button context reads as broken, not polished. Either add a
+   small mount div near the trigger (as done for ERM's two surfaces, which
+   had none) if the operation is substantial enough to warrant it, or leave
+   the existing minimal treatment alone.
+6. Live-verify in the browser per this project's standing rule — start the
    dev server, trigger the real call, confirm timing/expand-collapse/dark
-   mode, check the console for errors. A slow local HTTP handler or an
-   artificial `await new Promise(r => setTimeout(r, 3000))` swap-in is the
-   fastest way to see the mid-flight optimistic reveal if the real backend
-   call is normally too fast to observe.
+   mode, check the console for errors, and check `read_network_requests`
+   for the actual response code (a fast failure and a fast success can look
+   identical from a screenshot taken a moment too late — check the network
+   log, not just the absence of a visible error, before concluding a path
+   was actually exercised). A slow local HTTP handler or an artificial
+   `await new Promise(r => setTimeout(r, 3000))` swap-in is the fastest way
+   to see the mid-flight optimistic reveal if the real backend call is
+   normally too fast to observe.
 
 ## Applying this pattern to a different app
 

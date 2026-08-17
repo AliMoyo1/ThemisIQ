@@ -1065,6 +1065,7 @@
 
 {% block extra_scripts %}
 <script src="/static/js/ai-guidance-dialog.js"></script>
+<script src="/static/js/thinking-trace.js"></script>
 <script>
 (function(){
   'use strict';
@@ -2348,10 +2349,20 @@
     if(!actType&&!cats.length){if(typeof showToast==='function')showToast('Select an activity type or data categories first','error');return;}
     var orig=btn.innerHTML;btn.innerHTML='⏳ Thinking...';btn.disabled=true;
     panel.style.display='block';
-    panel.innerHTML='<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;color:var(--muted);font-size:12px;text-align:center"><div class="spinner" style="margin:0 auto 8px"></div>Generating AI risk suggestions...</div>';
+    panel.innerHTML='';
+    var trace=window.ThinkingTrace.open(panel,{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing the activity and data categories'},
+        {primary:'Checking applicable regulations'},
+        {primary:'Drafting risk scenarios'}
+      ]
+    });
     try{
       var r=await apiFetch('/sentinel/api/ai/risks',{method:'POST',body:{activity:actType||'Data processing',regulation:reg,categories:cats}});
       var risks=Array.isArray(r)?r:(r.risks||[]);
+      trace.destroy();
       if(!risks.length){panel.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px">No suggestions returned.</div>';btn.innerHTML=orig;btn.disabled=false;return;}
       var colMap={'High':'rgba(220,38,38,.06)','Medium':'rgba(245,158,11,.06)','Low':'rgba(16,185,129,.06)'};
       var borMap={'High':'rgba(220,38,38,.2)','Medium':'rgba(245,158,11,.2)','Low':'rgba(16,185,129,.2)'};
@@ -2374,6 +2385,7 @@
       window._dpiaSuggestedRisks=risks;
       btn.innerHTML=orig;btn.disabled=false;
     }catch(e){
+      trace.destroy();
       panel.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px">AI suggestion failed: '+esc(e.message||'')+'</div>';
       btn.innerHTML=orig;btn.disabled=false;
     }
@@ -2627,20 +2639,35 @@
     if(!msg) return;
     input.value='';
     var container=document.getElementById('snChatMessages');
-    container.innerHTML+='<div class="chat-msg user">'+esc(msg)+'</div>';
+    // insertAdjacentHTML, not innerHTML+=: the trace mounted below attaches
+    // live listeners/timers to real DOM nodes -- innerHTML+= would reserialize
+    // and reparse the whole container on every later append, silently
+    // detaching those nodes (trace would freeze expanded, header would stop
+    // responding to clicks).
+    container.insertAdjacentHTML('beforeend','<div class="chat-msg user">'+esc(msg)+'</div>');
     container.scrollTop=container.scrollHeight;
-    // Show typing indicator
-    var typingId='typing-'+Date.now();
-    container.innerHTML+='<div class="chat-msg ai" id="'+typingId+'"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div></div>';
+    var traceId='thinking-'+Date.now();
+    container.insertAdjacentHTML('beforeend','<div class="chat-msg ai" id="'+traceId+'"></div>');
     container.scrollTop=container.scrollHeight;
+    var trace=window.ThinkingTrace.open(document.getElementById(traceId),{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing your privacy programme'},
+        {primary:'Checking the relevant regulations'},
+        {primary:'Writing the answer'}
+      ]
+    });
     try{
       var data=await apiFetch('/sentinel/api/ai/chat',{method:'POST',body:{message:msg}});
       var reply=data.response||data.reply||data.message||data.answer||'I could not generate a response.';
-      var el=document.getElementById(typingId);
-      if(el) el.innerHTML=esc(reply).replace(/\n/g,'<br>');
+      trace.settle();
+      container.insertAdjacentHTML('beforeend','<div class="chat-msg ai">'+esc(reply).replace(/\n/g,'<br>')+'</div>');
     }catch(e){
-      var el2=document.getElementById(typingId);
-      if(el2) el2.innerHTML='Sorry, I encountered an error. Please try again.';
+      trace.destroy();
+      var traceEl=document.getElementById(traceId);
+      if(traceEl) traceEl.remove();
+      container.insertAdjacentHTML('beforeend','<div class="chat-msg ai">Sorry, I encountered an error. Please try again.</div>');
     }
     container.scrollTop=container.scrollHeight;
   };
@@ -3903,11 +3930,21 @@
     if(!reg){if(typeof showToast==='function')showToast('Select a regulation','error');return;}
     var status=document.getElementById('snGenNoticeStatus');
     status.style.display='block';status.style.background='var(--surface2)';status.style.color='var(--muted)';
-    status.innerHTML='<div class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;margin-right:8px"></div>Generating privacy notice with AI...';
+    status.innerHTML='';
+    var trace=window.ThinkingTrace.open(status,{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:"Reviewing the regulation's notice requirements"},
+        {primary:'Drafting the notice'},
+        {primary:'Checking required disclosures'}
+      ]
+    });
     document.querySelectorAll('#snGenNoticeModal button').forEach(function(b){b.disabled=true;});
     try{
       var r=await apiFetch('/sentinel/api/ai/privacy-notice',{method:'POST',body:{regulation:reg,audience:audience,org_name:org}});
       var noticeText=r.notice||r.text||'';
+      trace.destroy();
       // Save as draft notice
       await apiFetch('/sentinel/api/notices',{method:'POST',body:{
         title:(audience||reg)+' Privacy Notice',
@@ -3918,6 +3955,7 @@
       snLoadNotices();
       if(typeof showToast==='function')showToast('Privacy notice generated and saved as draft');
     }catch(e){
+      trace.destroy();
       status.style.background='rgba(220,38,38,.06)';status.style.color='var(--red)';
       status.innerHTML='Generation failed: '+(e.message||'Unknown error');
       document.querySelectorAll('#snGenNoticeModal button').forEach(function(b){b.disabled=false;});
@@ -3955,18 +3993,29 @@
     var reg=document.getElementById('snDraftPolicyReg').value||'GDPR';
     var status=document.getElementById('snDraftPolicyStatus');
     status.style.display='block';status.style.background='var(--surface2)';status.style.color='var(--muted)';
-    status.innerHTML='<div class="spinner" style="display:inline-block;width:14px;height:14px;border-width:2px;margin-right:8px"></div>Drafting policy with AI...';
+    status.innerHTML='';
+    var trace=window.ThinkingTrace.open(status,{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing the topic and regulation'},
+        {primary:'Drafting the policy'},
+        {primary:'Checking for required clauses'}
+      ]
+    });
     document.querySelectorAll('#snDraftPolicyModal button').forEach(function(b){b.disabled=true;});
     try{
       var r=await apiFetch('/sentinel/api/ai/generate-policy',{method:'POST',body:{
         policy_type:ptype,topic:topic,regulation:reg
       }});
       var content=r.content||r.text||'';
+      trace.destroy();
       document.getElementById('snDraftPolicyModal').remove();
       // Open edit modal pre-filled with generated content
       snOpenModal('policy',{title:ptype+(topic?': '+topic:''),status:'draft',policy_type:'policy',notes:content,regulation:reg});
       if(typeof showToast==='function')showToast('Policy draft ready, review and save');
     }catch(e){
+      trace.destroy();
       status.style.background='rgba(220,38,38,.06)';status.style.color='var(--red)';
       status.innerHTML='Draft failed: '+(e.message||'Unknown error');
       document.querySelectorAll('#snDraftPolicyModal button').forEach(function(b){b.disabled=false;});

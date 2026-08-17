@@ -548,6 +548,7 @@
       <button class="btn btn-primary" id="extScanBtn" onclick="extRunScan(this)">🔍 Scan for emerging risks</button>
     </div>
   </div>
+  <div id="extScanTraceMount" style="display:none;max-width:420px;margin-bottom:14px"></div>
   <div class="erm-filter-bar" id="extStatusBar" style="margin-bottom:14px">
     <span class="erm-chip active" data-status="new">New</span>
     <span class="erm-chip" data-status="dismissed">Dismissed</span>
@@ -621,6 +622,7 @@
     </div>
     <button class="btn-erm-ai" id="ermBoardRptBtn" onclick="ermBoardReport(this)">&#128202; Generate Board Report</button>
   </div>
+  <div id="boardRptTraceMount" style="display:none;max-width:420px;margin-bottom:20px"></div>
   <!-- Stats strip -->
   <div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:20px">
     <div class="stat-card" id="rptTotal"><div class="stat-label">Total Risks</div><div class="stat-value">—</div></div>
@@ -749,6 +751,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/js/thinking-trace.js"></script>
 <script>
 (function(){
 'use strict';
@@ -2848,13 +2851,29 @@ window.ermLoadAgingChart=async function(){
 };
 window.ermBoardReport=async function(btn){
   var orig=btn.textContent;btn.disabled=true;btn.textContent='Generating…';
+  var mount=document.getElementById('boardRptTraceMount');
+  mount.style.display='block';
+  var trace=window.ThinkingTrace.open(mount,{
+    variant:'steps',
+    activeLabel:'Thinking',
+    rows:[
+      {primary:'Reviewing the risk register'},
+      {primary:'Checking appetite and posture trends'},
+      {primary:'Writing the board narrative'}
+    ]
+  });
   try{
     var res=await apiFetch('/erm/api/ai/board-report',{method:'POST'});
     btn.disabled=false;btn.textContent=orig;
+    trace.destroy();mount.style.display='none';
     var out=document.getElementById('boardRptOutput');var txt=document.getElementById('boardRptText');
     if(out&&txt){txt.textContent=res.narrative||'No narrative generated.';out.style.display='';}
     typeof showToast==='function'&&showToast('Board report generated ✓');
-  }catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('Report failed','error');}
+  }catch(e){
+    btn.disabled=false;btn.textContent=orig;
+    trace.destroy();mount.style.display='none';
+    typeof showToast==='function'&&showToast('Report failed','error');
+  }
 };
 
 /* ────────────────── RISK MODAL ────────────────── */
@@ -3623,15 +3642,30 @@ window.extAddToRegister=async function(id){
 window.extRunScan=async function(btn){
   var orig=btn.textContent;
   btn.disabled=true;
-  btn.innerHTML='<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></div>Scanning…';
+  btn.textContent='Scanning…';
+  var scanMount=document.getElementById('extScanTraceMount');
+  scanMount.style.display='block';
+  var trace=window.ThinkingTrace.open(scanMount,{
+    variant:'steps',
+    activeLabel:'Scanning for emerging risks',
+    rows:[
+      {primary:'Checking recent developments'},
+      {primary:'Cross-referencing your risk register'},
+      {primary:'Drafting candidate risks'}
+    ]
+  });
   try{
     var res=await apiFetch('/erm/api/emerging/scan',{method:'POST'});
     var n=res.created||0;
     var modeLabel=res.grounded?'(live web scan)':'(model knowledge only)';
     var msg=n+' candidate'+(n===1?'':'s')+' added '+modeLabel;
+    trace.destroy();scanMount.style.display='none';
     typeof showToast==='function'&&showToast(msg);
     ermLoadExternal();
-  }catch(e){typeof showToast==='function'&&showToast('Scan failed: '+e.message,'error');}
+  }catch(e){
+    trace.destroy();scanMount.style.display='none';
+    typeof showToast==='function'&&showToast('Scan failed: '+e.message,'error');
+  }
   finally{btn.disabled=false;btn.textContent=orig;}
 };
 window.extOpenAddModal=function(){
