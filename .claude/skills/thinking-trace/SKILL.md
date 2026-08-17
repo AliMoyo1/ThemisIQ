@@ -49,18 +49,40 @@ The adapted, production version already exists — reuse it, don't recreate it:
     emerging-risk web-search scanner) and `ermBoardReport()` (board
     narrative generator), both destroy-before-hide into a newly-added mount
     div (neither surface had a dedicated loading area before this).
+  - `modules/grid/templates/index.html` — three surfaces: `sendGridChat()`
+    (settle-and-persist, `insertAdjacentHTML`), `openAiChecklistModal()`
+    (destroy-before-replace into an existing `#aiClLoading` panel, same
+    shape as Sentinel's notice/policy generators), `downloadReport()` (a
+    *file-download* AI narrative, not rendered content — no per-audit
+    container existed, so a small mount div (`id="reportTrace"+auditId`)
+    was added to each audit's report card; the trace runs during the
+    fetch/blob wait and is destroyed in `finally`, alongside the existing
+    button-restore, right before the browser save-dialog fires).
+  - `modules/bcm/templates/index.html` — four surfaces: `bcmAskDoc()` and
+    `bcmSendChat()` (both settle-and-persist growing chats, same
+    `insertAdjacentHTML` treatment), `bcmSubmitGeneratePlan()` (destroy,
+    new mount div added inside the "Generate Plan" modal, same shape as
+    Sentinel's draft-policy modal), `bcmBoardReport()` (destroy, new mount
+    div added next to the button — direct copy of ERM's board-report
+    treatment).
 - **Include it** via `<script src="/static/js/thinking-trace.js"></script>`.
   Added to `modules/aria/templates/base.html`'s `extra_scripts` block (both
-  ARIA pages above extend it), and directly to `modules/sentinel/templates/index.html`
-  and `modules/erm/templates/index.html`'s own `extra_scripts` blocks (these
-  two are monolithic SPA templates with no shared base to hook into).
+  ARIA pages above extend it), and directly to each of `modules/sentinel/`,
+  `modules/erm/`, `modules/grid/`, `modules/bcm/templates/index.html`'s own
+  `extra_scripts` blocks (all four are monolithic SPA templates with no
+  shared base to hook into — each `index.html` opens straight into an
+  inline `<script>` IIFE at its own `extra_scripts` block; add the tag
+  *before* that inline script, and add it *first*, before writing or
+  touching any of the surface wiring in that file).
   **Check this on every page you wire, every time** — ERM's script tag was
   planned but not actually added in one pass of this work; nothing failed
   loudly, `window.ThinkingTrace` was just silently `undefined` and every
   call would have thrown the moment a real (non-erroring) AI response came
   back. Live-verifying caught it immediately (`typeof window.ThinkingTrace`
   in the console); reading the diff back would not have, since the missing
-  line is an *absence*, not a visible mistake.
+  line is an *absence*, not a visible mistake. Doing the script-tag edit
+  *first* on GRID and BCM (before touching any function) is what prevented
+  a repeat of that exact mistake the next two times around.
 
 ### Theme token mapping used
 
@@ -151,6 +173,24 @@ rows. Check the actual route handler's response shape
 docstring or the endpoint name. ERM's scanner looked like the obvious
 `search`-variant candidate going in; it shipped as `steps` once the
 response shape turned out not to carry per-source data to the frontend.
+
+### File-download results (no rendered content container at all)
+
+Some AI-narrative generations don't render into the page — the response is
+a PDF/DOCX blob that triggers a browser save dialog (`URL.createObjectURL`
++ a synthetic `<a click>`), as in GRID's `downloadReport()`. There's
+nothing to `settle()` into visually once the file downloads, and often no
+existing container of any kind near the trigger. Two things follow:
+- `destroy()` in `finally`, not in the success/catch branches separately —
+  the button-disabled/button-text restore already happens in `finally` in
+  this shape of function; put the trace teardown right next to it so both
+  reset together regardless of which path was taken.
+- If the trigger button is one of *several* identical buttons rendered in
+  a loop (GRID's report buttons: one PDF + one DOCX button per audit card,
+  N audit cards on the page), a single shared mount id won't work — two
+  cards' triggers would fight over the same DOM node. Key the mount id to
+  the row's own id (`id="reportTrace"+auditId`) and generate one per row
+  in the same template loop that generates the buttons.
 
 ### Applying it to a new surface in this repo
 

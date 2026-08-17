@@ -609,6 +609,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/js/thinking-trace.js"></script>
 <script>
 (function(){
   /* ── Role flags (server-rendered) ── */
@@ -1492,6 +1493,7 @@
      ═══════════════════════════════════════════════════════════════════════ */
   var _aiChecklistItems=null;
   var _aiChecklistAuditId=null;
+  var _aiChecklistTrace=null;
 
   window.openAiChecklistModal=async function(auditId){
     _aiChecklistAuditId=auditId;
@@ -1499,11 +1501,7 @@
     showModal(
       '<div class="modal-title">AI Post-Incident Checklist</div>'+
       '<button class="modal-close" onclick="closeModal()">&times;</button>'+
-      '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">Generating checklist items based on the linked incident. This may take a moment...</p>'+
-      '<div id="aiClLoading" style="text-align:center;padding:32px">'+
-        '<div class="spinner" style="margin:0 auto 12px"></div>'+
-        '<div style="font-size:13px;color:var(--muted)">Analysing incident and generating checklist...</div>'+
-      '</div>'+
+      '<div id="aiClLoading" style="padding:8px 0"></div>'+
       '<div id="aiClPreview" style="display:none"></div>'+
       '<div id="aiClFooter" style="display:none;display:flex;justify-content:flex-end;gap:8px;margin-top:16px">'+
         '<button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>'+
@@ -1511,22 +1509,34 @@
       '</div>',
       {width:'720px'}
     );
+    _aiChecklistTrace=window.ThinkingTrace.open(document.getElementById('aiClLoading'),{
+      variant:'steps',
+      activeLabel:'Analysing the incident',
+      rows:[
+        {primary:'Reading the linked incident'},
+        {primary:'Identifying required checklist steps'},
+        {primary:'Drafting the checklist'}
+      ]
+    });
     try{
       var resp=await fetch('/grid/api/audits/'+auditId+'/ai-checklist',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
       var data=await resp.json();
       if(!resp.ok){
+        _aiChecklistTrace.destroy();
         document.getElementById('aiClLoading').innerHTML='<div style="color:var(--danger);font-size:13px">'+(data.detail||'Failed to generate checklist')+'</div>';
         return;
       }
       _aiChecklistItems=data.items||[];
       renderAiChecklistPreview(data);
     }catch(e){
+      _aiChecklistTrace.destroy();
       var el=document.getElementById('aiClLoading');
       if(el) el.innerHTML='<div style="color:var(--danger);font-size:13px">Network error. Please try again.</div>';
     }
   };
 
   function renderAiChecklistPreview(data){
+    if(_aiChecklistTrace){_aiChecklistTrace.destroy();_aiChecklistTrace=null;}
     var loading=document.getElementById('aiClLoading');
     if(loading) loading.style.display='none';
     var preview=document.getElementById('aiClPreview');
@@ -2467,6 +2477,7 @@
             'Word Report'+
           '</button>'+
         '</div>'+
+        '<div id="reportTrace'+a.id+'" style="display:none;margin-top:10px"></div>'+
       '</div>';
     }).join('');
   }
@@ -2475,7 +2486,20 @@
     const origHTML=btn.innerHTML;
     btn.disabled=true;
     btn.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/></svg>Generating...</span>';
-    if(typeof showToast==='function')showToast('Generating '+format.toUpperCase()+' report with AI narrative...','info');
+    const traceMount=document.getElementById('reportTrace'+auditId);
+    let trace=null;
+    if(traceMount){
+      traceMount.style.display='block';
+      trace=window.ThinkingTrace.open(traceMount,{
+        variant:'steps',
+        activeLabel:'Generating '+format.toUpperCase()+' report',
+        rows:[
+          {primary:'Reviewing audit findings and controls'},
+          {primary:'Writing the report narrative'},
+          {primary:'Formatting the document'}
+        ]
+      });
+    }
     try{
       const resp=await fetch('/grid/api/reports/'+format+'/'+auditId,{credentials:'same-origin'});
       if(!resp.ok){
@@ -2496,6 +2520,8 @@
       if(typeof showToast==='function')showToast(e.message||'Report generation failed','error');
     }finally{
       btn.disabled=false;btn.innerHTML=origHTML;
+      if(trace){trace.destroy();}
+      if(traceMount)traceMount.style.display='none';
     }
   };
 
@@ -2714,18 +2740,31 @@
     const container=document.getElementById('chatMessages');
     // Clear welcome message on first send
     if(container.querySelector('.empty-state,div[style*="text-align:center"]'))container.innerHTML='';
-    container.innerHTML+='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><div style="background:var(--accent);color:white;padding:10px 14px;border-radius:var(--radius-lg) var(--radius-lg) 4px var(--radius-lg);max-width:75%;font-size:14px">'+esc(msg)+'</div></div>';
+    // insertAdjacentHTML, not innerHTML+=, for every append from here on:
+    // the trace mounted below attaches live listeners/timers to real DOM
+    // nodes, and innerHTML+= would reserialize and reparse the whole
+    // container on each later append, silently detaching them.
+    container.insertAdjacentHTML('beforeend','<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><div style="background:var(--accent);color:white;padding:10px 14px;border-radius:var(--radius-lg) var(--radius-lg) 4px var(--radius-lg);max-width:75%;font-size:14px">'+esc(msg)+'</div></div>');
     container.scrollTop=container.scrollHeight;
 
-    container.innerHTML+='<div id="chatLoading" style="margin-bottom:12px"><div class="spinner" style="width:20px;height:20px"></div></div>';
+    const traceId='chatTrace-'+Date.now();
+    container.insertAdjacentHTML('beforeend','<div id="'+traceId+'" style="margin-bottom:12px"></div>');
     container.scrollTop=container.scrollHeight;
+    const trace=window.ThinkingTrace.open(document.getElementById(traceId),{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing the audit programme'},
+        {primary:'Checking relevant controls and findings'},
+        {primary:'Writing the answer'}
+      ]
+    });
 
     const res=await api('/grid/api/ai/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
-    const loading=document.getElementById('chatLoading');
-    if(loading)loading.remove();
+    trace.settle();
 
     const answer=res&&res.answer?res.answer:'Sorry, I need an AI API key configured to respond. Please set up your AI provider in config.';
-    container.innerHTML+='<div style="display:flex;margin-bottom:12px"><div style="background:var(--surface2);padding:10px 14px;border-radius:4px var(--radius-lg) var(--radius-lg) var(--radius-lg);max-width:75%;font-size:14px;line-height:1.6;color:var(--text)">'+esc(answer)+'</div></div>';
+    container.insertAdjacentHTML('beforeend','<div style="display:flex;margin-bottom:12px"><div style="background:var(--surface2);padding:10px 14px;border-radius:4px var(--radius-lg) var(--radius-lg) var(--radius-lg);max-width:75%;font-size:14px;line-height:1.6;color:var(--text)">'+esc(answer)+'</div></div>');
     container.scrollTop=container.scrollHeight;
   };
 

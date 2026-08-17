@@ -592,6 +592,7 @@
       <button class="btn-bcm-gen" id="boardReportBtn" onclick="bcmBoardReport(this)">📊 Board Report</button>
     </div>
   </div>
+  <div id="boardRptTraceMount" style="display:none;max-width:420px;margin-bottom:16px"></div>
   <div class="stats-row" style="margin-bottom:24px">
     <div class="stat-card" style="cursor:pointer" onclick="bcmGenReport('coverage')">
       <div class="stat-label">BIA Coverage Report</div>
@@ -814,6 +815,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="/static/js/thinking-trace.js"></script>
 <script>
 (function(){
   'use strict';
@@ -2113,15 +2115,31 @@
     var q=input.value.trim();if(!q) return;
     input.value='';
     var msgs=document.getElementById('bcmDocChatMsgs');
-    msgs.innerHTML+='<div class="chat-msg user">'+esc(q)+'</div>';
+    // insertAdjacentHTML, not innerHTML+=: the trace mounted below attaches
+    // live listeners/timers to real DOM nodes, which innerHTML+= would
+    // silently detach on the next append.
+    msgs.insertAdjacentHTML('beforeend','<div class="chat-msg user">'+esc(q)+'</div>');
     var tid='dt-'+Date.now();
-    msgs.innerHTML+='<div class="chat-msg ai" id="'+tid+'"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div></div>';
+    msgs.insertAdjacentHTML('beforeend','<div class="chat-msg ai" id="'+tid+'"></div>');
     msgs.scrollTop=msgs.scrollHeight;
+    var trace=window.ThinkingTrace.open(document.getElementById(tid),{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reading the uploaded documents'},
+        {primary:'Finding the relevant passages'},
+        {primary:'Writing the answer'}
+      ]
+    });
     try{
       var d=await apiFetch('/bcm/api/documents/ask',{method:'POST',body:{question:q}});
-      var el=document.getElementById(tid);
-      if(el) el.innerHTML=esc(d.answer||'No answer returned').replace(/\n/g,'<br>');
-    }catch(e){var el2=document.getElementById(tid);if(el2) el2.innerHTML='Error getting answer.';}
+      trace.settle();
+      msgs.insertAdjacentHTML('beforeend','<div class="chat-msg ai">'+esc(d.answer||'No answer returned').replace(/\n/g,'<br>')+'</div>');
+    }catch(e){
+      trace.destroy();
+      var traceEl=document.getElementById(tid);if(traceEl) traceEl.remove();
+      msgs.insertAdjacentHTML('beforeend','<div class="chat-msg ai">Error getting answer.</div>');
+    }
     msgs.scrollTop=msgs.scrollHeight;
   };
 
@@ -2333,19 +2351,32 @@
     var msg=input.value.trim();if(!msg) return;
     input.value='';
     var container=document.getElementById('bcmChatMessages');
-    container.innerHTML+='<div class="chat-msg user">'+esc(msg)+'</div>';
+    // insertAdjacentHTML, not innerHTML+=: the trace mounted below attaches
+    // live listeners/timers to real DOM nodes, which innerHTML+= would
+    // silently detach on the next append.
+    container.insertAdjacentHTML('beforeend','<div class="chat-msg user">'+esc(msg)+'</div>');
     container.scrollTop=container.scrollHeight;
     var typingId='typing-'+Date.now();
-    container.innerHTML+='<div class="chat-msg ai" id="'+typingId+'"><div class="spinner" style="width:16px;height:16px;border-width:2px"></div></div>';
+    container.insertAdjacentHTML('beforeend','<div class="chat-msg ai" id="'+typingId+'"></div>');
     container.scrollTop=container.scrollHeight;
+    var trace=window.ThinkingTrace.open(document.getElementById(typingId),{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing the continuity programme'},
+        {primary:'Checking relevant plans and incidents'},
+        {primary:'Writing the answer'}
+      ]
+    });
     try{
       var data=await apiFetch('/bcm/api/chat',{method:'POST',body:{message:msg}});
       var reply=data.response||data.reply||data.answer||data.message||'I could not generate a response.';
-      var el=document.getElementById(typingId);
-      if(el) el.innerHTML=esc(reply).replace(/\n/g,'<br>');
+      trace.settle();
+      container.insertAdjacentHTML('beforeend','<div class="chat-msg ai">'+esc(reply).replace(/\n/g,'<br>')+'</div>');
     }catch(e){
-      var el2=document.getElementById(typingId);
-      if(el2) el2.innerHTML='Sorry, I encountered an error. Please try again.';
+      trace.destroy();
+      var typingEl=document.getElementById(typingId);if(typingEl) typingEl.remove();
+      container.insertAdjacentHTML('beforeend','<div class="chat-msg ai">Sorry, I encountered an error. Please try again.</div>');
     }
     container.scrollTop=container.scrollHeight;
   };
@@ -3273,6 +3304,7 @@
           '<input id="gp_scope" placeholder="e.g. Finance Department — AP/AR and payroll operations" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></div>'+
         '<div class="form-group"><label>Industry (optional)</label>'+
           '<input id="gp_industry" placeholder="e.g. Financial Services, Healthcare, Retail" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:14px;box-sizing:border-box"></div>'+
+        '<div id="gpTraceMount" style="display:none;margin-top:8px"></div>'+
         '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
           '<button class="btn btn-secondary" onclick="document.getElementById(\'genPlanModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" id="gpSubmitBtn" onclick="bcmSubmitGeneratePlan()">&#10024; Generate Plan</button>'+
@@ -3288,8 +3320,20 @@
     btn.disabled=true;btn.textContent='Generating…';
     var scenario=document.getElementById('gp_scenario').value;
     var industry=document.getElementById('gp_industry').value.trim();
+    var traceMount=document.getElementById('gpTraceMount');
+    traceMount.style.display='block';
+    var trace=window.ThinkingTrace.open(traceMount,{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing the scenario and scope'},
+        {primary:'Drafting the continuity plan'},
+        {primary:'Checking required sections'}
+      ]
+    });
     try{
       var res=await apiFetch('/bcm/api/ai/generate-plan',{method:'POST',body:{scenario:scenario,scope:scope,industry:industry}});
+      trace.destroy();
       document.getElementById('genPlanModal').remove();
       _bcmDocContent=res.content||'';
       _bcmGenPlanMeta={scenario:scenario,scope:scope,content:res.content};
@@ -3304,6 +3348,7 @@
         btns.insertBefore(saveBtn,btns.firstChild);
       }
     }catch(e){
+      trace.destroy();traceMount.style.display='none';
       btn.disabled=false;btn.textContent='&#10024; Generate Plan';
       if(typeof showToast==='function')showToast('Plan generation failed — check API key','error');
     }
@@ -3471,12 +3516,25 @@
   window.bcmBoardReport=async function(btn){
     var origText=btn.textContent;
     btn.disabled=true;btn.textContent='Generating…';
+    var traceMount=document.getElementById('boardRptTraceMount');
+    traceMount.style.display='block';
+    var trace=window.ThinkingTrace.open(traceMount,{
+      variant:'steps',
+      activeLabel:'Thinking',
+      rows:[
+        {primary:'Reviewing plans, incidents, and BIA coverage'},
+        {primary:'Checking programme metrics'},
+        {primary:'Writing the board narrative'}
+      ]
+    });
     try{
       var res=await apiFetch('/bcm/api/reports/board',{method:'POST'});
       btn.disabled=false;btn.textContent=origText;
+      trace.destroy();traceMount.style.display='none';
       bcmOpenDocViewer('BCM Board Report: '+new Date().toLocaleDateString('en-GB'),res.narrative||res.content||'No narrative generated.');
     }catch(e){
       btn.disabled=false;btn.textContent=origText;
+      trace.destroy();traceMount.style.display='none';
       if(typeof showToast==='function')showToast('Board report failed, check API key','error');
     }
   };
