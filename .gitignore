@@ -23,9 +23,22 @@ ThemisIQ_Demo_Script.md
 ThemisIQ_User_Manual.md
 ThemisIQ_Architecture.html
 ThemisIQ_PreLaunch_Tracker.xlsx
+ThemisIQ-Competitive-Feature-Analysis.html
+ThemisIQ-Competitive-Feature-Analysis.pdf
 themisiq-logo-clear.png
 themisiq-logo-dark.png
 generate_docs.py
+
+# Redundant local backup of the already-tracked plans/ directory
+plans.zip
+
+# Ad hoc local screenshots, not authored documentation
+pics/
+
+# Personal/mixed-project dev tool config (Claude Code preview launcher) --
+# spans other local projects (EcoAegis, SHE BRS, Odin) outside this repo's
+# scope per AGENTS.md; each contributor keeps their own
+.claude/launch.json
 
 # OS noise
 .DS_Store
