@@ -6,7 +6,7 @@
 
 **Reframing note:** Commits `PLAN-31` (9 commits) show a full "Econet consolidation" applied directly to production ("PLAN-31 Phase 2 COMPLETE: Econet consolidation applied on production"), plus an active WhatsApp bridge and recurring production-crash fixes (semicolons breaking PG executescript, missing columns on `sentinel_breaches`, missing `workflow_actions` columns) that were fixed *in* production. This reads as an app already carrying live tenant traffic, not a system still waiting to launch. Confirm with Ali whether "pre-launch" is still the right frame, or whether this doc should become an ops/hardening backlog for an already-live product.
 
-**What could not be verified from the repo alone** (ops/dashboard-side state, not code): current deployed commit on the VPS, whether API keys were regenerated after the PBKDF2 hashing upgrade (`3ad2671`). These are called out inline below and need Ali to confirm rather than being inferred.
+**What could not be verified from the repo alone** (ops/dashboard-side state, not code): current deployed commit on the VPS, whether API keys were regenerated after the PBKDF2 hashing upgrade (`3ad2671`). **Resolved 2026-08-19:** VPS confirmed running `4524f5b` (includes the PBKDF2 fix; 4 commits behind current `master`), and `api_keys` has 0 rows in production, so there was nothing to regenerate. See Sections 1 and 12.
 
 **Cross-checked against `ThemisIQ_PreLaunch_Tracker.xlsx` (2026-08-07):** the xlsx mirror turned out to be carrying newer information than this file for several ops items — its "Pre-Launch Checklist" sheet already marks log rotation, uptime monitoring, email delivery (tested end-to-end), nginx rate limiting, firewall rules, and Sentry alert rules as **Done**, and Cloudflare WAF as **N/A — Free plan, Free Managed Ruleset active**. That's relayed below, but it's Ali's own prior record, not something re-verified from code this session — flag it if any of it has since drifted. The xlsx also had one genuine internal contradiction (its own "Post-Launch" sheet still showed image optimization and WAF as Pending) which has now been fixed in the xlsx to match the Checklist sheet and this doc's code-verified findings.
 
@@ -84,7 +84,7 @@
 - [x] Upload magic-byte validation added (PLAN-18 B/C, `c14108b`)
 - [x] `sanitize_json_middleware` ASGI `receive()` contract bug fixed — was the root cause of intermittent 500s (`1dec2fe`)
 - [x] nginx rate-limiting fixed to key off real client IP behind Cloudflare, not the shared CF edge IP (`94459ee`) — the config lives at `oneforall/scripts/nginx/themisiq-zones.conf`, confirmed present
-- [ ] **Needs confirmation from Ali:** were API keys regenerated after the PBKDF2 rehash in `3ad2671`? Old HMAC-format keys will not validate against the new hash scheme.
+- [x] **Confirmed 2026-08-19:** `api_keys` table has 0 rows in production (verified via read-only query against the live DB) — no keys existed before or after the PBKDF2 rehash in `3ad2671`, so nothing needed regenerating.
 
 **Verify this section stays current:** run `git log v1.0.2..HEAD --oneline --grep=-i security` periodically — this list was hand-assembled from 168 commits and may miss something.
 
@@ -355,11 +355,11 @@ Cloudflare provides the following protections at the edge:
 - [x] Sentry production errors: all 4 original active errors fixed, plus 8+ later production incidents fixed (Section 10)
 - [x] Log rotation and nginx rate-limiting configs confirmed present in-repo (Section 5)
 - [x] Landing page image optimization + SEO meta tags confirmed done (Section 9)
-- [x] **Superseded by events, not literally done:** "Deploy v1.0.2 to VPS" — 168 commits and multiple confirmed production deploys (including the Econet consolidation) have happened since v1.0.2 was tagged, so the VPS is almost certainly running something far newer than v1.0.2. The checkbox as originally written no longer maps to reality; see the open item below instead.
-- [ ] **Confirm with Ali:** what commit/tag is actually running on the VPS right now, and whether it's meaningfully behind `master`
+- [x] **Superseded by events, not literally done:** "Deploy v1.0.2 to VPS" — 168 commits and multiple confirmed production deploys (including the Econet consolidation) have happened since v1.0.2 was tagged, so the VPS is almost certainly running something far newer than v1.0.2. The checkbox as originally written no longer maps to reality; see the resolved item below instead.
+- [x] **Confirmed 2026-08-19:** VPS is running `4524f5b` ("Add ERM update event, API-key write endpoints, and background webhook delivery") — 4 commits behind current `master` (missing the thinking-trace widget rollout and the working-tree cleanup, neither behavior-critical). Verified via `git rev-parse HEAD` on the VPS matched against local `git log`.
 - [ ] Run full test suite on production after next deploy
 - [x] Email delivery, Sentry alert rules, uptime monitoring, and Cloudflare WAF: all marked Done (WAF as N/A/free-plan) in the xlsx tracker's Checklist sheet — see the cross-check note at the top of this file. Not independently re-verified this session.
-- [ ] Confirm API keys were regenerated after the PBKDF2 rehash (`3ad2671`) — old keys will not validate
+- [x] **Confirmed 2026-08-19:** `api_keys` table has 0 rows in production — nothing existed to regenerate.
 
 ---
 
@@ -388,8 +388,8 @@ Cloudflare provides the following protections at the edge:
 | v1.0.2 | 2026-06-25 | Security hardening: CodeQL alerts fixed (SQL injection, XSS, path traversal, info exposure) |
 | *(untagged)* | 2026-06-25 → 2026-08-07 | **168 commits, no version tag cut.** Covers: Phase 9 security hardening (PBKDF2, PG row-level security, 2nd CodeQL sweep), the full Governance Graph Tier 1, the ERM Risk Rating Framework (3 slices + Excel import), an Evidence Vault rewrite, a workflow-engine overhaul, the WhatsApp integration, a complete landing-page rebuild, the Econet production consolidation, and a full 6-module QA sweep. See Sections 1, 9, 10, 11 for the breakdown. |
 
-**VPS running:** unknown as of this reconciliation — needs Ali to confirm the deployed commit. Given the Econet production-consolidation commits, the VPS has clearly been deployed to multiple times since v1.0.2, so it's running *something* well past that tag, just not tracked here.
+**VPS running:** confirmed 2026-08-19 as `4524f5b` (`git rev-parse HEAD` on the VPS) — 4 commits behind current `master` (missing the thinking-trace widget rollout: `5b650fb`, `4d3fb17`, `9ac4739`; and the working-tree cleanup: `3eb1007`). None of the gap is security- or data-relevant.
 
 **Suggested next step:** cut a `v1.1.0` tag at current `HEAD` to give this entire block of work a version boundary to deploy and roll back against — ask before doing this, since tagging is a deliberate release action, not a doc edit.
 
-**Note:** the PBKDF2 rehash in `3ad2671` (post-v1.0.2) will invalidate API keys hashed under the old scheme, same caveat as the original v1.0.2 HMAC migration note. Regenerate keys if this hasn't happened yet.
+**Note:** the PBKDF2 rehash in `3ad2671` (post-v1.0.2) would have invalidated API keys hashed under the old scheme. **Confirmed 2026-08-19:** `api_keys` has 0 rows in production, so this never affected a real key.
