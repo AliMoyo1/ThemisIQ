@@ -47,12 +47,15 @@ async def _authenticate_key(x_api_key: str, required_scope: str) -> dict:
     db = get_db()
     try:
         row = db.execute(
-            "SELECT ak.id, ak.scopes, ak.expires_at, ak.org_id, ak.created_by, o.slug AS org_slug"
+            "SELECT ak.id, ak.scopes, ak.expires_at, ak.org_id, ak.created_by, "
+            "o.slug AS org_slug, o.status AS org_status"
             " FROM api_keys ak LEFT JOIN organizations o ON o.id = ak.org_id"
             " WHERE ak.key_hash=%s AND ak.is_active=1",
             (key_hash,),
         ).fetchone()
         if not row:
+            raise HTTPException(status_code=401, detail="Invalid or inactive API key")
+        if row["org_id"] and row["org_status"] != "active":
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")
         if row["expires_at"] and row["expires_at"] < _now_iso():
             raise HTTPException(status_code=401, detail="API key expired")

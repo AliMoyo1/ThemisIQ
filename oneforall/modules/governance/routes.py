@@ -14,7 +14,6 @@ from core.middleware import require_capability
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
 from modules.governance import data_service as ds
-from database import get_db
 
 
 router = APIRouter(prefix="/governance", tags=["governance"])
@@ -118,27 +117,11 @@ async def api_assignable_users(request: Request):
 @router.patch("/api/users/{uid}/business-unit")
 @require_capability("governance.bu.assign")
 async def api_assign_user_bu(request: Request, uid: int):
-    user = request.state.user
-    if not user.get("is_super_admin"):
-        db = get_db()
-        try:
-            target = db.execute(
-                "SELECT org_id FROM users WHERE id=%s", (uid,)
-            ).fetchone()
-        finally:
-            db.close()
-        if not target or target["org_id"] != user.get("org_id"):
-            raise HTTPException(404, "User not found")
-    body = await _json_body(request)
-    raw = body.get("business_unit_id")
-    bu_id = int(raw) if raw not in (None, "", "null") else None
-    ok = ds.assign_user_business_unit(uid, bu_id)
-    if not ok:
-        raise HTTPException(400, "Invalid or inactive business unit")
-    from core.middleware import log_audit
-    log_audit(request.state.user, "governance",
-              f"Assigned user #{uid} to business_unit {bu_id}", "user", uid)
-    return JSONResponse({"ok": True, "business_unit_id": bu_id})
+    raise HTTPException(
+        409,
+        "Direct assignment is disabled. Use Administration > Users > Move SBU "
+        "so the transfer is validated and recorded.",
+    )
 
 
 # ── Departments ─────────────────────────────────────────────────────────────

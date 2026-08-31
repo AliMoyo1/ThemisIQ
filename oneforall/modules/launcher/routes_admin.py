@@ -32,10 +32,12 @@ def _target_user(db, uid: int, admin: dict):
     """
     if admin.get("is_super_admin"):
         return db.execute(
-            "SELECT id, username, full_name, org_id FROM users WHERE id=%s", (uid,)
+            "SELECT id, username, full_name, email, org_id, business_unit_id "
+            "FROM users WHERE id=%s", (uid,)
         ).fetchone()
     return db.execute(
-        "SELECT id, username, full_name, org_id FROM users WHERE id=%s AND org_id=%s",
+        "SELECT id, username, full_name, email, org_id, business_unit_id "
+        "FROM users WHERE id=%s AND org_id=%s",
         (uid, admin.get("org_id")),
     ).fetchone()
 
@@ -553,7 +555,7 @@ async def admin_reset_password(request: Request, uid: int,
 @router.patch("/api/admin/users/{uid}")
 @_require_cap("platform.manage_users", "platform.manage_org_users")
 async def api_admin_patch_user(request: Request, uid: int):
-    """Edit a user's full_name and/or email. Accepts JSON, returns JSON."""
+    """Edit profile fields only. SBU moves use the controlled transfer API."""
     import re as _re
     admin = request.state.user
 
@@ -567,8 +569,6 @@ async def api_admin_patch_user(request: Request, uid: int):
 
     full_name = (data.get("full_name") or "").strip()
     email     = (data.get("email") or "").strip().lower()
-    bu_id_raw = data.get("business_unit_id")
-    business_unit_id = int(bu_id_raw) if bu_id_raw is not None and bu_id_raw != "" else None
 
     if not full_name:
         return _JSONResp({"success": False, "error": "Full name cannot be empty."})
@@ -596,8 +596,8 @@ async def api_admin_patch_user(request: Request, uid: int):
         avatar_initials = "".join(w[0].upper() for w in full_name.split()[:2]) or "?"
         db.execute(
             "UPDATE users SET full_name=%s, email=%s, avatar_initials=%s, "
-            "business_unit_id=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
-            (full_name, email, avatar_initials, business_unit_id, uid),
+            "updated_at=CURRENT_TIMESTAMP WHERE id=%s",
+            (full_name, email, avatar_initials, uid),
         )
         db.commit()
         log_audit(
@@ -613,8 +613,107 @@ async def api_admin_patch_user(request: Request, uid: int):
         "full_name": full_name,
         "email": email,
         "avatar_initials": avatar_initials,
-        "business_unit_id": business_unit_id,
+        "business_unit_id": target["business_unit_id"],
     })
+
+
+def _transfer_target_error(admin: dict, target) -> str | None:
+    if not target:
+        return "User not found."
+    if int(target["id"]) == int(admin["id"]):
+        return "You cannot transfer your own account."
+    if target["org_id"] is None or admin.get("org_id") is None:
+        return "Both the administrator and user must belong to an organization."
+    if int(target["org_id"]) != int(admin["org_id"]):
+        return (
+            "Open the target organization's tenant before moving this user. "
+            "Cross-organization transfers are not supported by this workflow."
+        )
+    return None
+
+
+@router.get("/api/admin/users/{uid}/business-unit-transfer-preview")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_user_transfer_preview(request: Request, uid: int):
+    admin = request.state.user
+    if not has_capability(admin, "governance.bu.assign"):
+        return _JSONResp({"success": False, "error": "SBU assignment permission required."}, status_code=403)
+    try:
+        to_bu_id = int(request.query_params.get("to_business_unit_id", ""))
+    except (TypeError, ValueError):
+        return _JSONResp({"success": False, "error": "Choose a destination business unit."}, status_code=400)
+
+    db = get_db()
+    try:
+        target = _target_user(db, uid, admin)
+        error = _transfer_target_error(admin, target)
+    finally:
+        db.close()
+    if error:
+        status = 404 if not target else 409
+        return _JSONResp({"success": False, "error": error}, status_code=status)
+
+    from modules.governance.data_service import (
+        BusinessUnitTransferError,
+        preview_user_business_unit_transfer,
+    )
+    try:
+        preview = preview_user_business_unit_transfer(uid, to_bu_id, target["org_id"])
+    except BusinessUnitTransferError as exc:
+        return _JSONResp({"success": False, "error": str(exc)}, status_code=409)
+    return _JSONResp({"success": True, "preview": preview})
+
+
+@router.post("/api/admin/users/{uid}/business-unit-transfer")
+@_require_cap("platform.manage_users", "platform.manage_org_users")
+async def api_admin_user_transfer(request: Request, uid: int):
+    admin = request.state.user
+    if not has_capability(admin, "governance.bu.assign"):
+        return _JSONResp({"success": False, "error": "SBU assignment permission required."}, status_code=403)
+    try:
+        data = await _json_body(request)
+        to_bu_id = int(data.get("to_business_unit_id"))
+    except (TypeError, ValueError):
+        return _JSONResp({"success": False, "error": "Choose a destination business unit."}, status_code=400)
+
+    db = get_db()
+    try:
+        target = _target_user(db, uid, admin)
+        error = _transfer_target_error(admin, target)
+    finally:
+        db.close()
+    if error:
+        status = 404 if not target else 409
+        return _JSONResp({"success": False, "error": error}, status_code=status)
+
+    from modules.governance.data_service import (
+        BusinessUnitTransferError,
+        transfer_user_business_unit,
+    )
+    try:
+        result = transfer_user_business_unit(
+            uid,
+            to_bu_id,
+            target["org_id"],
+            int(admin["id"]),
+            data.get("reason") or "",
+            handover_confirmed=data.get("handover_confirmed") is True,
+            roles_reviewed=data.get("roles_reviewed") is True,
+        )
+    except BusinessUnitTransferError as exc:
+        return _JSONResp({"success": False, "error": str(exc)}, status_code=409)
+
+    old_name = result["current_business_unit"]["name"]
+    new_name = result["destination_business_unit"]["name"]
+    log_audit(
+        admin,
+        "governance",
+        f"Transferred {target['username']} from {old_name} to {new_name}; "
+        f"transfer_id={result['transfer_id']}; reason={data.get('reason', '').strip()}",
+        "business_unit_transfer",
+        result["transfer_id"],
+    )
+    return _JSONResp({"success": True, "transfer": result})
 
 
 # ═════════════════════════════════════════════════════════════════════════════

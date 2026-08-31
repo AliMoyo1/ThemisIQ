@@ -534,13 +534,23 @@
             data-email="{{ u.email or '' }}"
             data-username="{{ u.username }}"
             data-created="{{ u.created_at or '' }}"
-            data-bu="{{ u.business_unit_id or '' }}"
             onclick="openEditDrawerBtn(this)">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
         <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
       </svg>
     </button>
+    {% if can_assign_bu and not is_self and u.org_id|string == user.org_id|string and business_units %}
+    <button type="button" class="btn btn-ghost"
+            style="padding:5px 10px; font-size:12px; margin-left:4px;"
+            data-uid="{{ u.id }}"
+            data-name="{{ u.full_name or u.username }}"
+            data-current-bu="{{ u.business_unit_id or '' }}"
+            data-current-bu-name="{{ u.business_unit_name or 'Unassigned' }}"
+            onclick="openTransferModal(this)">
+      Move SBU
+    </button>
+    {% endif %}
     {# Reset password #}
     <form method="post" action="/admin/users/{{ u.id }}/reset-password"
           style="display:inline-block; margin-left:4px;"
@@ -770,15 +780,6 @@
              placeholder="user@example.com" maxlength="254" autocomplete="off"
              style="width:100%; box-sizing:border-box;">
     </div>
-    {% if can_assign_bu %}
-    <div class="form-group" style="margin-top:14px;">
-      <label class="form-label">Business Unit</label>
-      <select id="drawerBusinessUnit" class="form-input" style="width:100%; box-sizing:border-box;">
-        <option value="">— Org-wide (no unit) —</option>
-        {% for b in business_units %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-      </select>
-    </div>
-    {% endif %}
     <div class="form-group" style="margin-top:14px;">
       <label class="form-label">
         Username
@@ -803,6 +804,73 @@
     </button>
   </div>
 </div>
+
+{# ═════════════════════════════════════════════════════════════════════════════
+   BUSINESS UNIT TRANSFER MODAL
+   ════════════════════════════════════════════════════════════════════════════ #}
+{% if can_assign_bu %}
+<div class="modal-overlay" id="transferModal"
+     onclick="if(event.target.id==='transferModal') closeTransferModal()">
+  <div class="modal" style="max-width:560px; width:94vw;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Move to Another SBU</div>
+        <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+          <span id="transferUserName"></span>
+          <span style="margin:0 5px;">from</span>
+          <strong id="transferCurrentBu"></strong>
+        </div>
+      </div>
+      <button type="button" class="modal-close" onclick="closeTransferModal()" title="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="transferError" class="ed-error" style="margin-bottom:12px;"></div>
+      <div class="form-group">
+        <label class="form-label">Destination Business Unit</label>
+        <select id="transferDestination" class="form-input"
+                style="width:100%; box-sizing:border-box;"
+                onchange="loadTransferPreview()">
+          <option value="">Select a destination</option>
+          {% for b in business_units %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div id="transferPreview" style="display:none; margin-top:14px; padding:12px;
+           border:1px solid var(--border); border-radius:8px; background:var(--surface2);
+           font-size:12px; color:var(--muted);"></div>
+      <div class="form-group" style="margin-top:14px;">
+        <label class="form-label">Reason for Transfer</label>
+        <textarea id="transferReason" class="form-input" rows="3" maxlength="1000"
+                  placeholder="Example: Internal transfer from EcoCash operations to Omni customer experience"
+                  style="width:100%; box-sizing:border-box; resize:vertical;"></textarea>
+      </div>
+      <label style="display:flex; gap:9px; align-items:flex-start; margin-top:14px;
+                    font-size:12.5px; color:var(--text);">
+        <input type="checkbox" id="transferRolesReviewed" style="margin-top:2px;">
+        <span>I reviewed the user's roles and confirmed they remain appropriate in the destination SBU.</span>
+      </label>
+      <label style="display:flex; gap:9px; align-items:flex-start; margin-top:11px;
+                    font-size:12.5px; color:var(--text);">
+        <input type="checkbox" id="transferHandoverConfirmed" style="margin-top:2px;">
+        <span>I reviewed the responsibilities shown above and confirmed the required handover.</span>
+      </label>
+      <div style="margin-top:13px; padding:10px 12px; border-radius:7px;
+                  background:var(--warn-soft); color:var(--muted); font-size:11.5px;">
+        The move takes effect immediately. Existing sessions are revoked so the new SBU scope
+        applies at the user's next sign-in. Historical ownership remains unchanged.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" onclick="closeTransferModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" id="transferSubmitBtn"
+              onclick="submitBusinessUnitTransfer()">Activate Transfer</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {# ═════════════════════════════════════════════════════════════════════════════
    NEW USER MODAL
@@ -921,21 +989,17 @@ function openEditDrawerBtn(btn) {
     btn.dataset.name,
     btn.dataset.email,
     btn.dataset.username,
-    btn.dataset.created,
-    btn.dataset.bu
+    btn.dataset.created
   );
 }
 
-function openEditDrawer(uid, fullName, email, username, createdAt, buId) {
+function openEditDrawer(uid, fullName, email, username, createdAt) {
   _drawerUid = uid;
   document.getElementById('drawerUid').value       = uid;
   document.getElementById('drawerFullName').value  = fullName;
   document.getElementById('drawerEmail').value     = email;
   document.getElementById('drawerUsername').value  = username;
   document.getElementById('drawerSubtitle').textContent = '@' + username;
-
-  var buSel = document.getElementById('drawerBusinessUnit');
-  if (buSel) buSel.value = buId || '';
 
   var created = createdAt ? createdAt.slice(0, 16).replace('T', ' ') : '—';
   document.getElementById('drawerCreated').value   = created;
@@ -982,9 +1046,7 @@ async function saveEditDrawer() {
 
   var csrfToken = document.getElementById('usersPageData').dataset.csrf;
 
-  var buSel  = document.getElementById('drawerBusinessUnit');
   var payload = { full_name: fullName, email: email };
-  if (buSel) payload.business_unit_id = buSel.value === '' ? null : parseInt(buSel.value, 10);
 
   saveBtn.disabled    = true;
   saveBtn.textContent = 'Saving…';
@@ -1037,6 +1099,129 @@ function showDrawerErr(msg) {
   var el = document.getElementById('drawerError');
   el.textContent  = msg;
   el.style.display = 'block';
+}
+
+// ── Controlled SBU transfer ─────────────────────────────────────────────────
+var _transferUid = null;
+var _transferCurrentBu = '';
+
+function openTransferModal(btn) {
+  _transferUid = btn.dataset.uid;
+  _transferCurrentBu = btn.dataset.currentBu || '';
+  document.getElementById('transferUserName').textContent = btn.dataset.name || 'User';
+  document.getElementById('transferCurrentBu').textContent = btn.dataset.currentBuName || 'Unassigned';
+  document.getElementById('transferDestination').value = '';
+  Array.from(document.getElementById('transferDestination').options).forEach(function(opt) {
+    opt.disabled = !!opt.value && opt.value === _transferCurrentBu;
+  });
+  document.getElementById('transferReason').value = '';
+  document.getElementById('transferRolesReviewed').checked = false;
+  document.getElementById('transferHandoverConfirmed').checked = false;
+  document.getElementById('transferPreview').style.display = 'none';
+  document.getElementById('transferPreview').innerHTML = '';
+  showTransferError('');
+  document.getElementById('transferModal').classList.add('show');
+}
+
+function closeTransferModal() {
+  var modal = document.getElementById('transferModal');
+  if (modal) modal.classList.remove('show');
+  _transferUid = null;
+}
+
+function showTransferError(message) {
+  var el = document.getElementById('transferError');
+  if (!el) return;
+  el.textContent = message || '';
+  el.style.display = message ? 'block' : 'none';
+}
+
+async function loadTransferPreview() {
+  var destination = document.getElementById('transferDestination').value;
+  var previewEl = document.getElementById('transferPreview');
+  showTransferError('');
+  if (!_transferUid || !destination) {
+    previewEl.style.display = 'none';
+    previewEl.innerHTML = '';
+    return;
+  }
+  previewEl.style.display = 'block';
+  previewEl.textContent = 'Reviewing current roles and responsibilities...';
+  try {
+    var resp = await fetch(
+      '/api/admin/users/' + _transferUid +
+      '/business-unit-transfer-preview?to_business_unit_id=' + encodeURIComponent(destination)
+    );
+    var data = await resp.json();
+    if (!resp.ok || !data.success) {
+      previewEl.style.display = 'none';
+      showTransferError(data.error || 'Could not prepare the transfer preview.');
+      return;
+    }
+    var p = data.preview;
+    var roles = p.roles && p.roles.length ? p.roles.join(', ') : 'No assigned roles';
+    var impact = p.responsibility_impact || {};
+    var impactKeys = Object.keys(impact);
+    var impactText = impactKeys.length
+      ? impactKeys.map(function(k) { return impact[k] + ' ' + k; }).join(', ')
+      : 'No linked responsibilities found';
+    previewEl.innerHTML =
+      '<div><strong style="color:var(--text)">' + _esc(p.current_business_unit.name) +
+      '</strong> &rarr; <strong style="color:var(--accent)">' +
+      _esc(p.destination_business_unit.name) + '</strong></div>' +
+      '<div style="margin-top:7px"><strong>Roles:</strong> ' + _esc(roles) + '</div>' +
+      '<div style="margin-top:4px"><strong>Responsibility impact:</strong> ' +
+      _esc(impactText) + '</div>';
+  } catch (err) {
+    previewEl.style.display = 'none';
+    showTransferError('Network error. Could not prepare the transfer preview.');
+  }
+}
+
+async function submitBusinessUnitTransfer() {
+  var destination = document.getElementById('transferDestination').value;
+  var reason = document.getElementById('transferReason').value.trim();
+  var rolesReviewed = document.getElementById('transferRolesReviewed').checked;
+  var handoverConfirmed = document.getElementById('transferHandoverConfirmed').checked;
+  if (!destination) { showTransferError('Choose a destination business unit.'); return; }
+  if (reason.length < 10) { showTransferError('Provide a transfer reason of at least 10 characters.'); return; }
+  if (!rolesReviewed || !handoverConfirmed) {
+    showTransferError('Complete both review confirmations before activating the transfer.');
+    return;
+  }
+
+  var btn = document.getElementById('transferSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Activating...';
+  showTransferError('');
+  try {
+    var resp = await fetch('/api/admin/users/' + _transferUid + '/business-unit-transfer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.getElementById('usersPageData').dataset.csrf,
+      },
+      body: JSON.stringify({
+        to_business_unit_id: parseInt(destination, 10),
+        reason: reason,
+        roles_reviewed: rolesReviewed,
+        handover_confirmed: handoverConfirmed,
+      }),
+    });
+    var data = await resp.json();
+    if (!resp.ok || !data.success) {
+      showTransferError(data.error || 'The transfer could not be activated.');
+      return;
+    }
+    closeTransferModal();
+    if (typeof showToast === 'function') showToast('SBU transfer activated. Refreshing users...');
+    window.setTimeout(function() { window.location.reload(); }, 500);
+  } catch (err) {
+    showTransferError('Network error. The transfer was not activated.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Activate Transfer';
+  }
 }
 
 // ── Show deleted toggle ──────────────────────────────────────────────────────

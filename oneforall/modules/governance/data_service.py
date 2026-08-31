@@ -7,6 +7,9 @@ These are shared, cross-module organisational entities. Every other module's
 scoped tables (risks, controls, policies, evidence, audits, plans, etc.)
 reference these via optional business_unit_id / department_id / etc. FKs.
 """
+import json
+
+from config import settings
 from database import get_db, insert_returning_id
 from core.timeutils import utcnow
 
@@ -30,12 +33,16 @@ def _now():
 def bu_scope_ids(user: dict) -> "list[int] | None":
     """Return the BU-id subtree the user is confined to, or None for unrestricted.
 
-    None means: see everything (super admin or no BU assigned).
+    None means: see everything (super admin only).
+    [-1] means: no assigned BU, so only explicitly organization-wide rows
+    (business_unit_id IS NULL) are visible to existing scope queries.
     A list means: only rows whose business_unit_id is in the list, or NULL.
     The list always includes the user's own BU plus all active descendants.
     """
-    if user.get("is_super_admin") or not user.get("business_unit_id"):
+    if user.get("is_super_admin"):
         return None
+    if not user.get("business_unit_id"):
+        return [-1]
     root_id = int(user["business_unit_id"])
     db = get_db()
     try:
@@ -233,7 +240,11 @@ def list_assignable_users(caller: "dict | None" = None) -> list[dict]:
 
 
 def assign_user_business_unit(uid: int, bu_id: "int | None") -> bool:
-    """Set (or clear, when bu_id is None) a user's business_unit_id.
+    """Bootstrap helper for initial data and maintenance scripts.
+
+    Interactive routes must use transfer_user_business_unit() so every move
+    receives validation, history, acknowledgements, and session revocation.
+    Set (or clear, when bu_id is None) a user's business_unit_id.
     Validates the BU exists and is active when non-null. Returns False if
     the target BU id is invalid so the route can 400."""
     db = get_db()
@@ -250,6 +261,232 @@ def assign_user_business_unit(uid: int, bu_id: "int | None") -> bool:
         )
         db.commit()
         return True
+    finally:
+        db.close()
+
+
+class BusinessUnitTransferError(ValueError):
+    """A safe, user-displayable validation failure for an SBU transfer."""
+
+
+_TRANSFER_REFERENCE_TABLES = (
+    ("erm_enterprise_risks", ("owner_id", "reviewer_id"), "ERM risks"),
+    ("task_board", ("assigned_to", "created_by"), "tasks"),
+    ("business_units", ("head_user_id",), "business units headed"),
+    ("departments", ("head_user_id",), "departments headed"),
+    ("business_processes", ("owner_user_id",), "business processes owned"),
+    ("applications", ("owner_user_id",), "applications owned"),
+    ("data_assets", ("owner_user_id",), "data assets owned"),
+)
+
+
+def _validate_transfer_context(expected_org_id: int | None) -> int:
+    if expected_org_id is None:
+        raise BusinessUnitTransferError("An organization context is required.")
+    from database import get_current_org
+    context_org_id = get_current_org()
+    if context_org_id is not None and int(context_org_id) != int(expected_org_id):
+        raise BusinessUnitTransferError("Organization context does not match the target user.")
+    return int(expected_org_id)
+
+
+def _transfer_preview_with_db(db, uid: int, to_bu_id: int, org_id: int) -> dict:
+    target = db.execute(
+        "SELECT u.id, u.username, u.full_name, u.org_id, u.created_at, "
+        "u.business_unit_id, bu.name AS current_business_unit_name "
+        "FROM users u LEFT JOIN business_units bu ON bu.id=u.business_unit_id "
+        "WHERE u.id=%s AND u.org_id=%s AND u.is_active=1 "
+        "AND u.deleted_at IS NULL",
+        (uid, org_id),
+    ).fetchone()
+    if not target:
+        raise BusinessUnitTransferError("Active user not found in this organization.")
+
+    destination = db.execute(
+        "SELECT id, name, code, parent_id FROM business_units "
+        "WHERE id=%s AND is_active=1",
+        (to_bu_id,),
+    ).fetchone()
+    if not destination:
+        raise BusinessUnitTransferError("Destination business unit is missing or inactive.")
+    if target["business_unit_id"] == destination["id"]:
+        raise BusinessUnitTransferError("The user is already assigned to that business unit.")
+
+    roles = [
+        row["role_key"]
+        for row in db.execute(
+            "SELECT role_key FROM user_roles WHERE user_id=%s ORDER BY role_key",
+            (uid,),
+        ).fetchall()
+    ]
+    impact = {}
+    for table, columns, label in _TRANSFER_REFERENCE_TABLES:
+        where = " OR ".join(f"{column}=%s" for column in columns)
+        count = db.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE {where}",
+            tuple(uid for _ in columns),
+        ).fetchone()[0]
+        if count:
+            impact[label] = int(count)
+
+    return {
+        "user": {
+            "id": target["id"],
+            "username": target["username"],
+            "full_name": target["full_name"],
+        },
+        "organization_id": org_id,
+        "current_business_unit": {
+            "id": target["business_unit_id"],
+            "name": target["current_business_unit_name"] or "Unassigned",
+        },
+        "destination_business_unit": dict(destination),
+        "roles": roles,
+        "responsibility_impact": impact,
+        "created_at": target["created_at"],
+    }
+
+
+def preview_user_business_unit_transfer(
+    uid: int, to_bu_id: int, expected_org_id: int | None
+) -> dict:
+    """Return the current assignment and responsibilities before a move."""
+    org_id = _validate_transfer_context(expected_org_id)
+    db = get_db()
+    try:
+        return _transfer_preview_with_db(db, int(uid), int(to_bu_id), org_id)
+    finally:
+        db.close()
+
+
+def transfer_user_business_unit(
+    uid: int,
+    to_bu_id: int,
+    expected_org_id: int | None,
+    actor_id: int,
+    reason: str,
+    *,
+    handover_confirmed: bool,
+    roles_reviewed: bool,
+) -> dict:
+    """Activate a same-organization SBU move as one atomic transaction.
+
+    Historical ownership references are preserved. The current authorization
+    scope, linked People Directory entry, assignment ledger, transfer record,
+    and active sessions change together or not at all.
+    """
+    org_id = _validate_transfer_context(expected_org_id)
+    reason = (reason or "").strip()
+    if len(reason) < 10:
+        raise BusinessUnitTransferError("Provide a transfer reason of at least 10 characters.")
+    if len(reason) > 1000:
+        raise BusinessUnitTransferError("Transfer reason must be 1000 characters or fewer.")
+    if not handover_confirmed:
+        raise BusinessUnitTransferError("Confirm that current responsibilities were reviewed.")
+    if not roles_reviewed:
+        raise BusinessUnitTransferError("Confirm that the user's roles were reviewed.")
+
+    uid = int(uid)
+    to_bu_id = int(to_bu_id)
+    actor_id = int(actor_id)
+    effective_at = utcnow().isoformat()
+    db = get_db()
+    try:
+        lock_sql = "SELECT id FROM users WHERE id=%s AND org_id=%s"
+        if settings.is_postgres():
+            lock_sql += " FOR UPDATE"
+        if not db.execute(lock_sql, (uid, org_id)).fetchone():
+            raise BusinessUnitTransferError("User not found in this organization.")
+
+        preview = _transfer_preview_with_db(db, uid, to_bu_id, org_id)
+        from_bu_id = preview["current_business_unit"]["id"]
+        active_assignment = db.execute(
+            "SELECT id, business_unit_id FROM user_business_unit_assignments "
+            "WHERE org_id=%s AND user_id=%s AND assignment_type='primary' "
+            "AND status='active' ORDER BY valid_from DESC LIMIT 1",
+            (org_id, uid),
+        ).fetchone()
+        if (
+            active_assignment
+            and active_assignment["business_unit_id"] != from_bu_id
+        ):
+            raise BusinessUnitTransferError(
+                "Assignment history does not match the user's current business unit."
+            )
+
+        db.execute(
+            "UPDATE user_business_unit_assignments SET status='ended', "
+            "valid_until=%s, updated_at=%s WHERE org_id=%s AND user_id=%s "
+            "AND assignment_type='primary' AND status='active'",
+            (effective_at, effective_at, org_id, uid),
+        )
+        if from_bu_id is not None and not active_assignment:
+            db.execute(
+                "INSERT INTO user_business_unit_assignments "
+                "(org_id, user_id, business_unit_id, assignment_type, valid_from, "
+                "valid_until, status, reason, requested_by, approved_by) "
+                "VALUES (%s,%s,%s,'primary',%s,%s,'ended',%s,%s,%s)",
+                (
+                    org_id,
+                    uid,
+                    from_bu_id,
+                    preview.get("created_at") or effective_at,
+                    effective_at,
+                    "Legacy assignment captured before controlled transfer",
+                    actor_id,
+                    actor_id,
+                ),
+            )
+
+        insert_returning_id(
+            db,
+            "INSERT INTO user_business_unit_assignments "
+            "(org_id, user_id, business_unit_id, assignment_type, valid_from, "
+            "status, reason, requested_by, approved_by) "
+            "VALUES (%s,%s,%s,'primary',%s,'active',%s,%s,%s)",
+            (org_id, uid, to_bu_id, effective_at, reason, actor_id, actor_id),
+        )
+        transfer_id = insert_returning_id(
+            db,
+            "INSERT INTO business_unit_transfers "
+            "(org_id, user_id, from_business_unit_id, to_business_unit_id, "
+            "effective_at, status, reason, requested_by, approved_by, "
+            "handover_confirmed, roles_reviewed, roles_snapshot, impact_snapshot, "
+            "activated_at) VALUES (%s,%s,%s,%s,%s,'completed',%s,%s,%s,1,1,%s,%s,%s)",
+            (
+                org_id,
+                uid,
+                from_bu_id,
+                to_bu_id,
+                effective_at,
+                reason,
+                actor_id,
+                actor_id,
+                json.dumps(preview["roles"], sort_keys=True),
+                json.dumps(preview["responsibility_impact"], sort_keys=True),
+                effective_at,
+            ),
+        )
+        db.execute(
+            "UPDATE users SET business_unit_id=%s, updated_at=%s WHERE id=%s AND org_id=%s",
+            (to_bu_id, effective_at, uid, org_id),
+        )
+        db.execute(
+            "UPDATE people_directory SET business_unit_id=%s, updated_at=%s WHERE user_id=%s",
+            (to_bu_id, effective_at, uid),
+        )
+        revoked = db.execute("DELETE FROM sessions WHERE user_id=%s", (uid,)).rowcount
+        db.commit()
+
+        return {
+            **preview,
+            "transfer_id": transfer_id,
+            "effective_at": effective_at,
+            "sessions_revoked": max(int(revoked or 0), 0),
+        }
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 

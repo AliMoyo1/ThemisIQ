@@ -1069,6 +1069,56 @@ CREATE TABLE IF NOT EXISTS business_units (
 CREATE INDEX IF NOT EXISTS idx_bu_parent ON business_units(parent_id);
 CREATE INDEX IF NOT EXISTS idx_bu_active ON business_units(is_active);
 
+-- ── Effective-dated user assignment and SBU transfer history ─────────────
+-- The current assignment remains on public.users for fast authorization.
+-- These tenant-local ledgers preserve where a user was assigned over time
+-- and why a controlled move was activated.
+CREATE TABLE IF NOT EXISTS user_business_unit_assignments (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id              INTEGER NOT NULL REFERENCES organizations(id),
+    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    business_unit_id    INTEGER NOT NULL REFERENCES business_units(id),
+    assignment_type     TEXT NOT NULL DEFAULT 'primary',
+    valid_from          TEXT NOT NULL,
+    valid_until         TEXT,
+    status              TEXT NOT NULL DEFAULT 'active',
+    reason              TEXT,
+    requested_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_user_bu_assignments_user
+    ON user_business_unit_assignments(org_id, user_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_bu_assignments_bu
+    ON user_business_unit_assignments(business_unit_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_bu_assignments_one_active
+    ON user_business_unit_assignments(org_id, user_id, assignment_type)
+    WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS business_unit_transfers (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                  INTEGER NOT NULL REFERENCES organizations(id),
+    user_id                 INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    from_business_unit_id   INTEGER REFERENCES business_units(id),
+    to_business_unit_id     INTEGER NOT NULL REFERENCES business_units(id),
+    effective_at            TEXT NOT NULL,
+    status                  TEXT NOT NULL DEFAULT 'completed',
+    reason                  TEXT NOT NULL,
+    requested_by            INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_by             INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    handover_confirmed      INTEGER NOT NULL DEFAULT 0,
+    roles_reviewed          INTEGER NOT NULL DEFAULT 0,
+    roles_snapshot          TEXT NOT NULL DEFAULT '[]',
+    impact_snapshot         TEXT NOT NULL DEFAULT '{}',
+    activated_at            TEXT,
+    created_at              TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bu_transfers_user
+    ON business_unit_transfers(org_id, user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_bu_transfers_status
+    ON business_unit_transfers(status, effective_at);
+
 -- ── Governance Graph: Departments ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS departments (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1615,6 +1665,56 @@ CREATE TABLE IF NOT EXISTS business_units (
 );
 CREATE INDEX IF NOT EXISTS idx_bu_parent ON business_units(parent_id);
 CREATE INDEX IF NOT EXISTS idx_bu_active ON business_units(is_active);
+
+-- ── Effective-dated user assignment and SBU transfer history ─────────────
+-- The current assignment remains on public.users for fast authorization.
+-- These tenant-local ledgers preserve where a user was assigned over time
+-- and why a controlled move was activated.
+CREATE TABLE IF NOT EXISTS user_business_unit_assignments (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id              INTEGER NOT NULL REFERENCES organizations(id),
+    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    business_unit_id    INTEGER NOT NULL REFERENCES business_units(id),
+    assignment_type     TEXT NOT NULL DEFAULT 'primary',
+    valid_from          TEXT NOT NULL,
+    valid_until         TEXT,
+    status              TEXT NOT NULL DEFAULT 'active',
+    reason              TEXT,
+    requested_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_user_bu_assignments_user
+    ON user_business_unit_assignments(org_id, user_id, status);
+CREATE INDEX IF NOT EXISTS idx_user_bu_assignments_bu
+    ON user_business_unit_assignments(business_unit_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_bu_assignments_one_active
+    ON user_business_unit_assignments(org_id, user_id, assignment_type)
+    WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS business_unit_transfers (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                  INTEGER NOT NULL REFERENCES organizations(id),
+    user_id                 INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    from_business_unit_id   INTEGER REFERENCES business_units(id),
+    to_business_unit_id     INTEGER NOT NULL REFERENCES business_units(id),
+    effective_at            TEXT NOT NULL,
+    status                  TEXT NOT NULL DEFAULT 'completed',
+    reason                  TEXT NOT NULL,
+    requested_by            INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_by             INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    handover_confirmed      INTEGER NOT NULL DEFAULT 0,
+    roles_reviewed          INTEGER NOT NULL DEFAULT 0,
+    roles_snapshot          TEXT NOT NULL DEFAULT '[]',
+    impact_snapshot         TEXT NOT NULL DEFAULT '{}',
+    activated_at            TEXT,
+    created_at              TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bu_transfers_user
+    ON business_unit_transfers(org_id, user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_bu_transfers_status
+    ON business_unit_transfers(status, effective_at);
 
 -- ── Governance Graph: Departments ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS departments (
@@ -4063,6 +4163,7 @@ _COLUMN_MIGRATIONS = [
         ("evidence_items",         "verified_at", "TEXT"),
         ("evidence_items",         "confidence_score", "INTEGER"),
         ("task_board",             "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("people_directory",       "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         # ── Governance Graph T1.2: canonical control linkage + user BU ────────
         ("aria_controls",     "canonical_control_id", "INTEGER"),
         ("grid_controls",     "canonical_control_id", "INTEGER"),
