@@ -1486,6 +1486,25 @@ def create_emerging(data, origin="manual"):
         db.close()
 
 
+def emerging_title_exists(title: str) -> bool:
+    """Case-insensitive check for a non-dismissed inbox item with this
+    title. Used by the AI scan to skip obvious repeats across scans --
+    matching the idempotency convention every other module scheduler in
+    this codebase follows (e.g. BCM's _task_exists)."""
+    title = (title or "").strip()
+    if not title:
+        return False
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id FROM erm_emerging_risks WHERE LOWER(title)=LOWER(%s) AND status IN ('new','added')",
+            (title,),
+        ).fetchone()
+        return row is not None
+    finally:
+        db.close()
+
+
 def dismiss_emerging(eid):
     """Flip status to 'dismissed'. Raises ValueError if not found or
     already added to the register (a completed item's lifecycle is over)."""

@@ -163,8 +163,10 @@ def test_scan_emerging_risks_grounded_citation_cross_check(test_db, monkeypatch)
     assert rows["Uncited Risk C"]["source_url"] is None
 
     # (b) empty citations list -> even a previously-cited-looking URL is untrusted.
+    # Fresh title (not "Cited Risk A"): the scan's dedupe guard would
+    # otherwise skip this as an existing non-dismissed item from case (a).
     monkeypatch.setattr(ai_mod, "create_message_web_search", lambda *a, **k: {
-        "text": json.dumps([items[0]]), "citations": [], "searches_used": 1,
+        "text": json.dumps([{**items[0], "title": "Cited Risk A Redux"}]), "citations": [], "searches_used": 1,
     })
     created2 = ai_mod.scan_emerging_risks_grounded({"pillars": [], "frameworks": [], "top_categories": []})
     rows2 = {r["id"]: r for r in list_emerging()}

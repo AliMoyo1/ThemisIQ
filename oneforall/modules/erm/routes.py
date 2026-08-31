@@ -526,30 +526,11 @@ async def api_emerging_scan(request: Request):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
 
-    from database import get_db as _get_db
-    db = _get_db()
-    try:
-        org_context = ds.build_org_context(db)
-    finally:
-        db.close()
-
-    # Try the grounded (live web search) path first; any failure -- wrong
-    # provider, no key, web search disabled for the org, or a parse error --
-    # falls through to the knowledge-only generator rather than a 500. An
-    # empty grounded result (model found nothing worth surfacing) also falls
-    # through, per the acceptance criteria.
-    grounded = False
-    created_ids = []
-    try:
-        created_ids = ai.scan_emerging_risks_grounded(org_context)
-        grounded = bool(created_ids)
-    except Exception as exc:
-        log.warning("Grounded emerging-risk scan unavailable, falling back to knowledge-only: %s", exc)
-    if not created_ids:
-        created_ids = ai.scan_emerging_risks(org_context)
-        grounded = False
-
-    return JSONResponse({"created": len(created_ids), "grounded": grounded})
+    # run_emerging_scan() also backs the weekly scheduled job
+    # (modules/erm/scheduler.py) -- shared here so both callers get the
+    # same grounded-then-fallback behavior from one code path.
+    result = ai.run_emerging_scan()
+    return JSONResponse(result)
 
 
 # ── ERM v2 (PLAN-25): Per-CF treatments ───────────────────────────────────────

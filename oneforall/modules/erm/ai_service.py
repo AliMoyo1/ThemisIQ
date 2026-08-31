@@ -12,7 +12,7 @@ from core.ai_client import (
     safe_json_parse, wrap_user_input as _u,
 )
 from config import settings
-from modules.erm.data_service import create_emerging
+from modules.erm.data_service import create_emerging, emerging_title_exists, build_org_context
 
 log = logging.getLogger(__name__)
 
@@ -382,6 +382,8 @@ def scan_emerging_risks_grounded(org_context: dict) -> list:
         title = str(item.get("title") or "").strip()
         if not title:
             continue
+        if emerging_title_exists(title):
+            continue
         rationale = str(item.get("rationale") or "").strip()
         raw_url = str(item.get("source_url") or "").strip()
         base = {
@@ -444,6 +446,8 @@ def scan_emerging_risks(org_context: dict) -> list:
         title = str(item.get("title") or "").strip()
         if not title:
             continue
+        if emerging_title_exists(title):
+            continue
         rationale = str(item.get("rationale") or "").strip()
         eid = create_emerging(
             {
@@ -458,3 +462,30 @@ def scan_emerging_risks(org_context: dict) -> list:
         )
         created.append(eid)
     return created
+
+
+def run_emerging_scan() -> dict:
+    """Shared orchestration for the on-demand scan endpoint and the weekly
+    scheduled job: build org context, try the grounded (live web search)
+    path first, fall back to knowledge-only on any failure -- wrong
+    provider, no key, web search disabled, or a parse error -- or an empty
+    grounded result. Opens and closes its own db connection; never raises."""
+    from database import get_db as _get_db
+    db = _get_db()
+    try:
+        org_context = build_org_context(db)
+    finally:
+        db.close()
+
+    grounded = False
+    created_ids = []
+    try:
+        created_ids = scan_emerging_risks_grounded(org_context)
+        grounded = bool(created_ids)
+    except Exception as exc:
+        log.warning("Grounded emerging-risk scan unavailable, falling back to knowledge-only: %s", exc)
+    if not created_ids:
+        created_ids = scan_emerging_risks(org_context)
+        grounded = False
+
+    return {"created": len(created_ids), "grounded": grounded}

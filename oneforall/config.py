@@ -71,10 +71,15 @@ class Settings:
     # code change.
     ERM_SCAN_MODEL: str = os.getenv("ERM_SCAN_MODEL", "claude-sonnet-5")
     ERM_SCAN_MAX_SEARCHES: int = int(os.getenv("ERM_SCAN_MAX_SEARCHES", "8"))
+    # Tailored to this deployment's actual sector (telecom) and jurisdiction
+    # (Zimbabwe/Africa) rather than a generic EU/US list: general GRC +
+    # cyber authorities, telecom-sector bodies, and Zimbabwe/regional
+    # regulators relevant to a mobile-money product (EcoCash).
     ERM_SCAN_ALLOWED_DOMAINS: list = [d.strip() for d in os.getenv(
         "ERM_SCAN_ALLOWED_DOMAINS",
-        "enisa.europa.eu,edpb.europa.eu,ico.org.uk,nist.gov,cisa.gov,"
-        "iso.org,weforum.org,reuters.com,csoonline.com,darkreading.com"
+        "iso.org,weforum.org,reuters.com,nist.gov,cisa.gov,enisa.europa.eu,"
+        "csoonline.com,darkreading.com,gsma.com,itu.int,rbz.co.zw,"
+        "potraz.gov.zw,fatf-gafi.org"
     ).split(",") if d.strip()]
 
     # ── Email provider ────────────────────────────────────────────────────────

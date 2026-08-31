@@ -198,6 +198,13 @@ async def startup():
     except Exception as exc:
         log.warning("Evidence scheduler failed to start: %s", exc)
 
+    # Start ERM scheduler (weekly emerging-risk horizon scan)
+    try:
+        from modules.erm.scheduler import start_scheduler as erm_start
+        erm_start()
+    except Exception as exc:
+        log.warning("ERM scheduler failed to start: %s", exc)
+
     # Start Advisory scheduler (daily governance briefing at 05:30 UTC)
     try:
         from modules.launcher.advisory_scheduler import start_scheduler as advisory_start
@@ -272,6 +279,11 @@ async def shutdown():
     try:
         from modules.evidence.scheduler import stop_scheduler as evidence_stop
         evidence_stop()
+    except Exception:
+        pass
+    try:
+        from modules.erm.scheduler import stop_scheduler as erm_stop
+        erm_stop()
     except Exception:
         pass
     try:
