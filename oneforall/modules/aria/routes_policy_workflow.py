@@ -12,8 +12,10 @@ functions -- @require_module("aria") here is only the coarse "has ARIA at
 all" gate, per the plan's section 5 instruction not to rely solely on
 route decorators.
 """
+import asyncio
+
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from database import get_db
 from core.middleware import require_module
@@ -119,6 +121,88 @@ async def api_recover_policy_draft(request: Request, draft_id: str):
     finally:
         db.close()
     return JSONResponse({"ok": True, "draft": draft})
+
+
+@router.post("/api/policy-drafts/{draft_id}/build")
+@require_module("aria")
+async def api_build_policy_draft(request: Request, draft_id: str):
+    """Runs the full build sequence (source -> branded -> converted PDF).
+    Blocking; offloaded to a thread so it never stalls the event loop
+    while it polls the conversion worker."""
+    actor = request.state.user
+    payload = await _json_body(request)
+    template_id = payload.get("template_id")
+    expected_lock_version = payload.get("expected_lock_version")
+    if template_id is None or expected_lock_version is None:
+        return JSONResponse(
+            {"ok": False, "error": {"code": "INVALID_INPUT",
+             "message": "template_id and expected_lock_version are required.", "retryable": False}},
+            status_code=422,
+        )
+    db = get_db()
+    try:
+        draft = await asyncio.to_thread(
+            svc.build_draft, db, actor, draft_id, template_id, expected_lock_version
+        )
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({
+        "ok": True, "draft": draft,
+        "preview_url": f"/aria/api/policy-drafts/{draft_id}/preview?build_id={draft['build_id']}",
+    })
+
+
+@router.get("/api/policy-drafts/{draft_id}/preview")
+@require_module("aria")
+async def api_preview_policy_draft(request: Request, draft_id: str):
+    """Serves the exact PDF from the draft's current ready build only --
+    requires a matching build_id so a stale link (from before a rebuild)
+    fails closed rather than silently serving newer content under an old
+    URL, or vice versa."""
+    build_id = request.query_params.get("build_id")
+    actor = request.state.user
+    db = get_db()
+    try:
+        draft = svc.get_draft(db, actor, draft_id)
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+
+    if draft["state"] != "ready" or not draft.get("preview_path"):
+        return JSONResponse(
+            {"ok": False, "error": {"code": "BUILD_REQUIRED",
+             "message": "This draft has no ready build yet.", "retryable": False}},
+            status_code=409,
+        )
+    if build_id and draft.get("build_id") != build_id:
+        return JSONResponse(
+            {"ok": False, "error": {"code": "STALE_DRAFT",
+             "message": "That build is no longer current for this draft.", "retryable": False}},
+            status_code=409,
+        )
+
+    from modules.aria import policy_storage as storage
+    try:
+        pdf_path = storage.resolve_stored_path(draft["preview_path"])
+    except storage.PathContainmentError:
+        return JSONResponse(
+            {"ok": False, "error": {"code": "PREVIEW_UNAVAILABLE",
+             "message": "Preview reference is invalid.", "retryable": False}},
+            status_code=503,
+        )
+    if not pdf_path.exists():
+        return JSONResponse(
+            {"ok": False, "error": {"code": "PREVIEW_UNAVAILABLE",
+             "message": "Preview file is missing.", "retryable": False}},
+            status_code=503,
+        )
+    return FileResponse(
+        str(pdf_path), media_type="application/pdf",
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.post("/api/documents/{doc_id}/revision-drafts")

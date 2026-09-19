@@ -37,6 +37,17 @@ services:
       - ./data/backups:/app/data/backups
       - ./data/grid_uploads:/app/data/grid_uploads
       - ./data/evidence:/app/data/evidence
+      # PLAN-35 T05: durable ARIA storage. The Compose app previously had
+      # no mount for these at all -- confirmed directly by reading this
+      # file before adding these two lines -- so ARIA uploads/templates
+      # and the policy-workflow artifact tree lived only inside the
+      # container's own writable layer and would have been lost on any
+      # container recreation. aria_preview_spool is shared with the
+      # aria-preview service below; it is exchange space, not the
+      # artifact archive (final files live under aria_uploads).
+      - ./data/aria_uploads:/app/data/aria_uploads
+      - ./data/aria_templates:/app/data/aria_templates
+      - aria_preview_spool:/app/data/aria_preview_spool
     depends_on:
       db:
         condition: service_healthy
@@ -55,5 +66,46 @@ services:
       timeout: 5s
       retries: 3
 
+  # PLAN-35 T05/7.6: ARIA policy DOCX-to-PDF conversion worker. Isolated
+  # from the app: no ports, no network, no access to the database or the
+  # app's .env -- exchanges jobs with the app only through the shared
+  # aria_preview_spool volume. Uses an explicitly pinned image; do not
+  # switch this to `:latest` or add package upgrades inside a running
+  # container. Replace the image tag and re-run readiness (see this
+  # service's healthcheck and deploy/aria-preview/runtime-manifest.json)
+  # to update the converter; the app does not need to stop to do this.
+  aria-preview:
+    image: themisiq/aria-preview:PIN_ME_AT_RELEASE_TIME
+    build:
+      context: .
+      dockerfile: deploy/aria-preview/Dockerfile
+    restart: unless-stopped
+    environment:
+      ARIA_POLICY_PREVIEW_SPOOL_DIR: /spool
+      ARIA_POLICY_PREVIEW_EXECUTABLE: soffice
+      ARIA_POLICY_PREVIEW_TIMEOUT_SECONDS: "60"
+    volumes:
+      - aria_preview_spool:/spool
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/ariaworker:uid=1001,gid=1001
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    network_mode: none
+    mem_limit: 1g
+    cpus: 1.5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
 volumes:
   pgdata:
+  # Private exchange space between app and aria-preview only. Not a backup
+  # target: final artifacts live under the aria_uploads bind mount above,
+  # this volume holds only in-flight conversion jobs.
+  aria_preview_spool:

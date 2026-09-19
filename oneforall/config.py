@@ -136,5 +136,55 @@ class Settings:
     SESSION_COOKIE_NAME: str = "ofa_session"
     SESSION_MAX_AGE: int = 86400  # 24 hours
 
+    # ── PLAN-35: ARIA policy authoring workflow ─────────────────────────────
+    # Disabled by default. ARIA_POLICY_AUTHORING_ORG_IDS empty means no
+    # tenant is enabled even if the flag above is somehow set true --
+    # enabling authoring is an explicit per-org allowlist, never a blanket
+    # default-on switch.
+    ARIA_POLICY_AUTHORING_ENABLED: bool = os.getenv(
+        "ARIA_POLICY_AUTHORING_ENABLED", "false"
+    ).lower() in ("1", "true", "yes", "on")
+    ARIA_POLICY_AUTHORING_ORG_IDS: list = [
+        int(x.strip()) for x in os.getenv("ARIA_POLICY_AUTHORING_ORG_IDS", "").split(",")
+        if x.strip().isdigit()
+    ]
+    # App-side settings only: the shared spool directory exchanged with the
+    # converter worker container, and how long to wait for a conversion
+    # before giving up. The converter executable path is the WORKER
+    # container's own environment setting (ARIA_POLICY_PREVIEW_EXECUTABLE,
+    # section 7.4/7.6) -- the app process never invokes LibreOffice directly
+    # and has no business knowing where its binary lives.
+    ARIA_POLICY_PREVIEW_SPOOL_DIR: str = os.getenv(
+        "ARIA_POLICY_PREVIEW_SPOOL_DIR", str(BASE_DIR / "data" / "aria_preview_spool")
+    )
+    ARIA_POLICY_PREVIEW_TIMEOUT_SECONDS: int = int(
+        os.getenv("ARIA_POLICY_PREVIEW_TIMEOUT_SECONDS", "60")
+    )
+    ARIA_POLICY_DRAFT_EXPIRY_DAYS: int = int(os.getenv("ARIA_POLICY_DRAFT_EXPIRY_DAYS", "30"))
+    ARIA_POLICY_ORPHAN_GRACE_HOURS: int = int(os.getenv("ARIA_POLICY_ORPHAN_GRACE_HOURS", "24"))
+    ARIA_POLICY_TRASH_RETENTION_DAYS: int = int(
+        os.getenv("ARIA_POLICY_TRASH_RETENTION_DAYS", "7")
+    )
+
 
 settings = Settings()
+
+
+def _validate_aria_policy_workflow_settings(s: "Settings") -> None:
+    """Fail fast at startup on a nonsensical PLAN-35 setting (e.g. a
+    negative timeout) rather than surface it later as a confusing runtime
+    error deep inside a build or cleanup job. int(os.getenv(...)) above
+    already fails fast on a non-numeric value; this checks the remaining
+    "numeric but meaningless" cases."""
+    checks = (
+        ("ARIA_POLICY_PREVIEW_TIMEOUT_SECONDS", s.ARIA_POLICY_PREVIEW_TIMEOUT_SECONDS),
+        ("ARIA_POLICY_DRAFT_EXPIRY_DAYS", s.ARIA_POLICY_DRAFT_EXPIRY_DAYS),
+        ("ARIA_POLICY_ORPHAN_GRACE_HOURS", s.ARIA_POLICY_ORPHAN_GRACE_HOURS),
+        ("ARIA_POLICY_TRASH_RETENTION_DAYS", s.ARIA_POLICY_TRASH_RETENTION_DAYS),
+    )
+    for name, value in checks:
+        if value <= 0:
+            raise RuntimeError(f"{name} must be a positive integer, got {value}.")
+
+
+_validate_aria_policy_workflow_settings(settings)

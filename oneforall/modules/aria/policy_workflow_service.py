@@ -19,7 +19,7 @@ import uuid
 from core.timeutils import utcnow
 from database import insert_returning_id
 from modules.aria.policy_access import (
-    resolve_create_bu, document_read_ok, reserve_document_number,
+    resolve_create_bu, document_read_ok, reserve_document_number, bu_scope_ids,
 )
 
 MAX_BODY_CHARS = 50_000
@@ -64,6 +64,21 @@ class InvalidInputError(PolicyWorkflowError):
 class ContentTooLargeError(PolicyWorkflowError):
     def __init__(self, message):
         super().__init__("CONTENT_TOO_LARGE", message, 413)
+
+
+class InvalidTemplateError(PolicyWorkflowError):
+    def __init__(self, message):
+        super().__init__("INVALID_TEMPLATE", message, 422)
+
+
+class PreviewUnavailableError(PolicyWorkflowError):
+    def __init__(self, message="The document conversion service is currently unavailable."):
+        super().__init__("PREVIEW_UNAVAILABLE", message, 503)
+
+
+class PreviewTimeoutError(PolicyWorkflowError):
+    def __init__(self, message="Conversion timed out. You can retry the build."):
+        super().__init__("PREVIEW_TIMEOUT", message, 504)
 
 
 def _row_to_dict(row):
@@ -413,6 +428,169 @@ def _draft_can_edit_document(actor: dict, document: dict) -> bool:
         return False
     owner_id = document.get("owner_user_id")
     return owner_id is not None and int(owner_id) == int(actor["id"])
+
+
+BUILDER_FORMAT_VERSION = 1  # bump whenever build_policy_docx's output shape changes
+
+
+def _load_scoped_template(db, actor: dict, template_id: int) -> dict:
+    row = db.execute(
+        "SELECT * FROM aria_doc_templates WHERE id=%s", (template_id,)
+    ).fetchone()
+    if not row:
+        raise NotFoundError("Template not found.")
+    tpl = _row_to_dict(row)
+    if not tpl.get("is_active", 1):
+        raise InvalidTemplateError("This template has been retired. Choose an active template.")
+    tpl_org_id = tpl.get("org_id")
+    if tpl_org_id is not None:
+        if tpl_org_id != actor.get("org_id"):
+            raise NotFoundError("Template not found.")
+        scope = bu_scope_ids(actor)
+        bu_id = tpl.get("business_unit_id")
+        if scope is not None and bu_id is not None and int(bu_id) not in scope:
+            raise NotFoundError("Template not found.")
+    return tpl
+
+
+def _input_fingerprint(draft: dict, template_sha256: str) -> str:
+    """Canonical fingerprint of everything that determines a build's output
+    (section 7.3 step 1): unchanged inputs make a retry return the existing
+    build instead of reconverting."""
+    import hashlib
+    parts = [
+        draft.get("body") or "",
+        draft.get("metadata_json") or "",
+        draft.get("reserved_doc_id") or "",
+        str(draft.get("version_major")), str(draft.get("version_minor")),
+        str(draft.get("org_id")), str(draft.get("business_unit_id")),
+        template_sha256,
+        str(BUILDER_FORMAT_VERSION),
+    ]
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+
+
+def build_draft(db, actor: dict, draft_id: str, template_id: int, expected_lock_version: int) -> dict:
+    """Build sequence (section 7.3): generate source DOCX, brand it, convert
+    to PDF, hash everything, atomically attach, then reauthorize and attach
+    inside a short transaction. Blocking (file I/O, and poll_conversion_result
+    sleeps) -- callers in an async context MUST run this via
+    asyncio.to_thread(), never call it directly from an async def body.
+
+    Idempotent: if the draft is already 'ready' with a build whose
+    fingerprint matches what these exact inputs would produce, returns
+    that existing build rather than reconverting (cheap retries).
+    """
+    from modules.aria import policy_storage as storage
+    from modules.aria import policy_preview as preview
+    from modules.aria.branding_engine import build_policy_docx, apply_template
+
+    draft = get_draft(db, actor, draft_id)
+    if not _draft_can_edit(actor, draft):
+        raise ForbiddenError()
+    if draft["state"] not in ("editing", "ready"):
+        raise PolicyWorkflowError("INVALID_INPUT", f"Cannot build a draft in state '{draft['state']}'.", 422)
+    if not (draft.get("body") or "").strip():
+        raise PolicyWorkflowError("INVALID_INPUT", "Cannot build an empty draft.", 422)
+    if draft["lock_version"] != expected_lock_version:
+        raise StaleDraftError()
+
+    template = _load_scoped_template(db, actor, template_id)
+    # Templates are stored relative to ARIA_TEMPLATE_DIR (routes.py's
+    # existing convention for aria_doc_templates.file_path), a different
+    # root than the policy_workflow tree policy_storage manages, so this
+    # resolves directly against that root rather than through
+    # policy_storage's workflow-only path helper.
+    from modules.aria.routes import ARIA_TEMPLATE_DIR
+    template_abs_path = ARIA_TEMPLATE_DIR / template["file_path"]
+    if not template_abs_path.exists():
+        raise InvalidTemplateError("Template file is missing on disk.")
+    template_sha256 = storage.sha256_file(template_abs_path)
+
+    fingerprint = _input_fingerprint(draft, template_sha256)
+    if draft["state"] == "ready" and draft.get("build_input_sha256") == fingerprint:
+        try:
+            existing_source = storage.resolve_stored_path(draft["source_path"])
+            existing_branded = storage.resolve_stored_path(draft["branded_path"])
+            existing_preview = storage.resolve_stored_path(draft["preview_path"])
+            if existing_source.exists() and existing_branded.exists() and existing_preview.exists():
+                return draft  # identical inputs, still-valid build: cheap retry
+        except (PolicyWorkflowError, storage.PathContainmentError, KeyError, TypeError):
+            pass  # fall through and rebuild
+
+    build_id, staging = storage.new_staging_dir(draft["org_id"])
+
+    reserved_doc_id = draft.get("reserved_doc_id")
+    if not reserved_doc_id and draft.get("source_document_id"):
+        existing_doc = db.execute(
+            "SELECT doc_id FROM aria_documents WHERE id=%s", (draft["source_document_id"],)
+        ).fetchone()
+        reserved_doc_id = existing_doc["doc_id"] if existing_doc else ""
+    version_str = f"{draft['version_major']}.{draft['version_minor']}"
+    metadata = json.loads(draft.get("metadata_json") or "{}")
+
+    try:
+        source_doc = build_policy_docx(draft["body"], include_preamble=False)
+    except Exception as exc:
+        raise PolicyWorkflowError("INVALID_INPUT", f"Could not build source document: {exc}", 422)
+    source_path = staging / "source.docx"
+    source_doc.save(str(source_path))
+    storage.validate_docx(source_path)
+
+    branded_path = staging / "branded.docx"
+    try:
+        apply_template(
+            source_path=str(source_path), template_path=str(template_abs_path),
+            output_path=str(branded_path), logo_path=template.get("logo_path"),
+            doc_title=metadata.get("title", ""), doc_id=reserved_doc_id or "",
+            version=version_str, framework=metadata.get("framework_label", ""),
+            author_name=actor.get("full_name", ""), generated_body=True,
+        )
+    except Exception as exc:
+        raise PolicyWorkflowError("INVALID_INPUT", f"Branding failed: {exc}", 422)
+    storage.validate_docx(branded_path)
+
+    job_id = preview.submit_conversion_job(branded_path.read_bytes())
+    try:
+        pdf_bytes = preview.poll_conversion_result(job_id)
+    except preview.ConversionTimeoutError as exc:
+        raise PreviewTimeoutError(str(exc))
+    except preview.ConversionFailedError as exc:
+        raise PreviewUnavailableError(exc.message)
+    finally:
+        preview.cleanup_job(job_id)
+
+    preview_path = staging / "preview.pdf"
+    preview_path.write_bytes(pdf_bytes)
+
+    source_sha256 = storage.sha256_file(source_path)
+    branded_sha256 = storage.sha256_file(branded_path)
+    preview_sha256 = storage.sha256_file(preview_path)
+
+    artifacts = storage.attach_build(draft["org_id"], build_id)
+    source_rel = storage.relative_path(artifacts / "source.docx")
+    branded_rel = storage.relative_path(artifacts / "branded.docx")
+    preview_rel = storage.relative_path(artifacts / "preview.pdf")
+
+    now = utcnow().isoformat()
+    updated = db.execute(
+        "UPDATE aria_policy_drafts SET state='ready', lock_version=lock_version+1, "
+        "template_id=%s, build_id=%s, build_input_sha256=%s, template_sha256=%s, "
+        "source_path=%s, branded_path=%s, preview_path=%s, "
+        "source_sha256=%s, branded_sha256=%s, preview_sha256=%s, updated_at=%s "
+        "WHERE id=%s AND lock_version=%s",
+        (template_id, build_id, fingerprint, template_sha256,
+         source_rel, branded_rel, preview_rel,
+         source_sha256, branded_sha256, preview_sha256, now,
+         draft_id, expected_lock_version),
+    )
+    if getattr(updated, "rowcount", 1) == 0:
+        # Someone edited/discarded concurrently: leave the orphaned
+        # artifacts for the cleanup job rather than attach them to a draft
+        # state that no longer matches what we authorized against.
+        raise StaleDraftError()
+    db.commit()
+    return get_draft(db, actor, draft_id)
 
 
 def _is_postgres() -> bool:

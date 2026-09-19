@@ -1561,7 +1561,7 @@ application test execution or converter installation is claimed by this edit.
 | T02 authorization/numbering | Complete | See detailed notes below. |
 | T03 builder | Complete | See detailed notes below. |
 | T04 drafts | Complete | See detailed notes below. |
-| T05 artifacts/preview | Not started | Requires VPS converter image, persistent storage and readiness |
+| T05 artifacts/preview | Code and mocked tests complete; real-converter gate open | See detailed notes below. |
 | T06 confirmation | Not started | |
 | T07 approvals | Not started | |
 | T08 legacy/scope closure | Not started | |
@@ -1982,6 +1982,104 @@ drafts, the one-open-revision guard (backed by T01's own partial unique
 index, not just an application-level check), and permission denial for a
 user with neither edit_own nor edit_any. Full regression suite re-run
 clean. `py_compile` clean on all touched/new files.
+
+### T05 detailed notes (2026-09-19)
+
+Files touched: `oneforall/config.py` (7 new settings, all disabled/safe by
+default, plus a startup validator that rejects a nonsensical value rather
+than surfacing it later); `oneforall/modules/aria/policy_storage.py` (new:
+scoped path helpers, DOCX validation, hashing, atomic staging-to-artifacts
+attach, cleanup dry-run listing); `oneforall/modules/aria/policy_preview.py`
+(new: the app-side spool client -- submit/poll/cleanup); `oneforall/scripts/aria_policy_preview_worker.py`
+(new: the actual conversion worker, run as a separate process/container);
+`oneforall/modules/aria/policy_workflow_service.py` (extended: `build_draft`,
+the orchestration tying source-build -> branding -> conversion -> hashing
+-> atomic attach together); `oneforall/modules/aria/routes_policy_workflow.py`
+(new build and preview endpoints); `oneforall/requirements-preview.txt`
+(new, worker-only dependencies); `deploy/aria-preview/Dockerfile` and
+`deploy/aria-preview/runtime-manifest.json` (new); `docker-compose.yml`
+(new `aria-preview` service, a shared spool volume, and the durable
+`aria_uploads`/`aria_templates` mounts on `app` that were confirmed missing
+during the plan's own T00-era clarification); `oneforall/.env.example`
+(documented the new settings); four new test files (`test_aria_policy_storage.py`
+20 tests, `test_aria_policy_preview.py` 10 tests, `test_aria_policy_build.py`
+12 tests -- 42 total, all passing together).
+
+**What is genuinely proven in this session, with real evidence, not
+assumed**:
+- DOCX validation against an actual malicious-input corpus: path
+  traversal and absolute-path zip entries, a real macro-signaling member
+  (`word/vbaProject.bin`), an OLE embedding path, an entry with the
+  encryption bit set (flipped directly in a real zip's central directory
+  bytes, not simulated), an entry-count flood, and a genuine zip-bomb
+  (5 MiB of one repeated byte compressing to a tiny archive, well past the
+  configured expansion-ratio limit) -- all correctly rejected; a real,
+  valid python-docx-generated file correctly passes.
+- Path containment: a path outside `ARIA_UPLOAD_DIR`, an absolute stored
+  path, and a `../` traversal in a stored path are all rejected by
+  resolving and checking `is_relative_to` against the real filesystem, not
+  a string prefix comparison.
+- The full spool protocol end-to-end, submit through claim, convert
+  (mocked), result, poll, and cleanup, plus every named failure mode:
+  converter timeout, converter process error (with the real stderr
+  surfaced), the app timing out when the worker never runs at all, an
+  already-expired job being refused without ever invoking the converter,
+  a malformed/missing manifest, a missing input file, two claim attempts
+  on the same job (only one wins), and the worker's own singleton lock.
+- The build orchestration's actual pass condition -- **no stale build ever
+  attaches** -- proven by two concurrency tests: an edit that changes
+  `lock_version` while a build is "in flight" against the old token causes
+  the final attach to be refused (`StaleDraftError`) and the draft's
+  `build_id` stays `None`; the same for a concurrent discard. Also proven:
+  idempotent retry (unchanged inputs return the existing build without a
+  second conversion call, verified by asserting the mock was called
+  exactly once across two `build_draft` calls) and fault injection at each
+  of source-build, branding, conversion-timeout, conversion-failure, and
+  atomic-attach, each leaving the draft completely unchanged.
+- `docker-compose.yml` is syntactically valid YAML (parsed and inspected
+  directly), and the durable ARIA mounts genuinely were absent before this
+  change (confirmed by reading the file before editing it, matching the
+  plan's own T00-era finding).
+
+**What is explicitly NOT verified, and cannot be from this session, tracked
+as open items**:
+- **The task's own stated pass condition** -- "one real branded DOCX
+  renders to PDF using the configured converter" -- has not been run. No
+  LibreOffice binary and no Docker runtime are available in this sandboxed
+  session. Every conversion test above mocks the single `convert()` call
+  site in the worker; the worker's actual `subprocess.run([...soffice...])`
+  invocation has never executed for real. This needs to run on a host that
+  actually has LibreOffice (or the built `aria-preview` image) available.
+- The `Dockerfile`'s base image is pinned to a literal placeholder
+  (`sha256:PIN_ME_AT_RELEASE_TIME`), not a real digest -- I have no
+  registry access to resolve and verify one, and inventing a digest would
+  be worse than being explicit that this is unresolved. Same placeholder
+  pattern in `docker-compose.yml`'s `aria-preview` image tag and in
+  `runtime-manifest.json`'s template fields. None of these may pass
+  readiness as-is, per the plan's own instruction.
+- `pypdf==5.1.0` in `requirements-preview.txt` is pinned to a version from
+  my training data, not confirmed against PyPI or current security
+  advisories in this session (no network access to verify). Needs the
+  project's normal dependency-audit pass before being trusted, exactly as
+  the plan itself says to do and not treat as evergreen-safe.
+- The image has not been built, so font substitution, page breaks, logo
+  placement, and multilingual text have not been visually verified in a
+  real converted PDF at all -- section 7.6 item 7's "measure representative
+  long policies, tables, logos and multilingual text before enabling" is
+  entirely unstarted.
+- The cleanup/retention *job* itself (scheduled sweep of expired drafts and
+  orphaned staging directories) is not implemented -- `policy_storage.cleanup_dry_run`
+  exists and is tested as a listing primitive, but nothing calls it on a
+  schedule yet. Section 7.5's full cleanup policy is more naturally T09's
+  concern (publication, retention, and scheduler lifecycle is that task's
+  explicit title); noting this now rather than silently deferring it
+  without a record.
+
+Given the above, T05 should be read as: the code, the storage/validation/
+orchestration logic, and everything mockable are done and tested; the
+actual document-conversion pass condition requires your environment
+(a host or container with LibreOffice, or the Docker Compose service once
+its image is actually built) to close out.
 
 Suggested implementation-session prompt:
 

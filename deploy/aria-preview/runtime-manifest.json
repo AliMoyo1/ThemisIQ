@@ -1,0 +1,11 @@
+{
+  "_comment": "PLAN-35 T05: template only. The REAL manifest is generated at image build time from the actual installed package versions -- this file documents the expected shape so a build script has a concrete target, not a value to ship as-is. Every field below with a placeholder value must be filled from the real build before this image passes readiness (section 7.6 item 2: 'No placeholder version/checksum may pass readiness').",
+  "base_image_digest": "PIN_ME_AT_RELEASE_TIME",
+  "libreoffice_version": "FILL_AT_BUILD_TIME (e.g. `soffice --version` output captured during image build)",
+  "font_package_versions": {
+    "fonts-liberation2": "FILL_AT_BUILD_TIME (`dpkg -s fonts-liberation2` during image build)"
+  },
+  "worker_build_id": "FILL_AT_BUILD_TIME (git commit SHA or CI build number)",
+  "pypdf_version": "FILL_AT_BUILD_TIME (must match requirements-preview.txt's pin)",
+  "built_at": "FILL_AT_BUILD_TIME (UTC ISO-8601 timestamp of the build)"
+}

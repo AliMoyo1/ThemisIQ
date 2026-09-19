@@ -1,0 +1,10 @@
+# PLAN-35 T05: dependencies for the ARIA policy conversion worker ONLY.
+# Deliberately separate from requirements.txt: the worker image must never
+# install (or need) the application's own dependency set, and vice versa.
+#
+# pypdf: strict PDF parsing to validate a converted file (page count,
+# encryption, parse errors) before it is trusted as a build artifact.
+# Version pinned; re-run the project's normal dependency audit
+# (pip-audit / whatever CI already uses for requirements.txt) against this
+# file too before bumping the pin, not just against requirements.txt.
+pypdf==5.1.0
