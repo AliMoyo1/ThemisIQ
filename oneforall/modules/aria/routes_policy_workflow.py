@@ -295,6 +295,113 @@ async def api_download_policy_version(request: Request, version_id: int):
     )
 
 
+@router.get("/api/policy-versions/{version_id}/approvers")
+@require_module("aria")
+async def api_list_eligible_approvers(request: Request, version_id: int):
+    actor = request.state.user
+    db = get_db()
+    try:
+        approvers = svc.list_eligible_approvers_for_version(db, actor, version_id)
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "approvers": approvers})
+
+
+@router.post("/api/policy-versions/{version_id}/submit-approval")
+@require_module("aria")
+async def api_submit_for_approval(request: Request, version_id: int):
+    actor = request.state.user
+    payload = await _json_body(request)
+    approver_id = payload.get("approver_id")
+    request_id = payload.get("request_id")
+    expected_lock_version = payload.get("expected_lock_version")
+    if approver_id is None or not request_id or expected_lock_version is None:
+        return JSONResponse(
+            {"ok": False, "error": {"code": "INVALID_INPUT",
+             "message": "approver_id, request_id, and expected_lock_version are required.",
+             "retryable": False}},
+            status_code=422,
+        )
+    db = get_db()
+    try:
+        approval = svc.submit_for_approval(
+            db, actor, version_id, approver_id, payload.get("request_note", ""),
+            request_id, expected_lock_version,
+        )
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "approval": approval}, status_code=201)
+
+
+@router.get("/api/policy-approvals")
+@require_module("aria")
+async def api_list_policy_approvals(request: Request):
+    if request.query_params.get("assigned_to") != "me":
+        return JSONResponse(
+            {"ok": False, "error": {"code": "INVALID_INPUT",
+             "message": "Only ?assigned_to=me is supported.", "retryable": False}},
+            status_code=422,
+        )
+    actor = request.state.user
+    db = get_db()
+    try:
+        approvals = svc.list_pending_approvals_for(db, actor)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "approvals": approvals})
+
+
+@router.post("/api/policy-approvals/{approval_id}/decide")
+@require_module("aria")
+async def api_decide_policy_approval(request: Request, approval_id: int):
+    actor = request.state.user
+    payload = await _json_body(request)
+    decision = payload.get("decision")
+    expected_lock_version = payload.get("expected_lock_version")
+    if not decision or expected_lock_version is None:
+        return JSONResponse(
+            {"ok": False, "error": {"code": "INVALID_INPUT",
+             "message": "decision and expected_lock_version are required.", "retryable": False}},
+            status_code=422,
+        )
+    db = get_db()
+    try:
+        approval = svc.decide_approval(
+            db, actor, approval_id, decision, payload.get("comments", ""), expected_lock_version,
+        )
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "approval": approval})
+
+
+@router.post("/api/policy-approvals/{approval_id}/withdraw")
+@require_module("aria")
+async def api_withdraw_policy_approval(request: Request, approval_id: int):
+    actor = request.state.user
+    payload = await _json_body(request)
+    expected_lock_version = payload.get("expected_lock_version")
+    if expected_lock_version is None:
+        return JSONResponse(
+            {"ok": False, "error": {"code": "INVALID_INPUT",
+             "message": "expected_lock_version is required.", "retryable": False}},
+            status_code=422,
+        )
+    db = get_db()
+    try:
+        approval = svc.withdraw_approval(db, actor, approval_id, payload.get("reason", ""), expected_lock_version)
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "approval": approval})
+
+
 @router.post("/api/documents/{doc_id}/revision-drafts")
 @require_module("aria")
 async def api_start_revision_draft(request: Request, doc_id: str):

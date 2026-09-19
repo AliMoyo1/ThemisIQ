@@ -87,6 +87,43 @@ def test_attach_build_moves_staging_to_artifacts():
     assert not staging.exists()
 
 
+def test_attach_build_retries_past_a_transient_permission_error(monkeypatch):
+    """Proves the Windows-transient-lock retry actually retries and
+    succeeds, rather than trusting the loop by inspection alone."""
+    build_id, staging = storage.new_staging_dir(org_id=1)
+    (staging / "source.docx").write_bytes(b"content")
+
+    real_rename = os.rename
+    state = {"calls": 0}
+
+    def flaky_rename(src, dst):
+        state["calls"] += 1
+        if state["calls"] < 3:
+            raise PermissionError("simulated transient Windows lock")
+        return real_rename(src, dst)
+
+    monkeypatch.setattr(storage.os, "rename", flaky_rename)
+    monkeypatch.setattr(storage.time, "sleep", lambda *_: None)  # don't actually wait in tests
+
+    artifacts = storage.attach_build(org_id=1, build_id=build_id)
+    assert state["calls"] == 3
+    assert (artifacts / "source.docx").exists()
+
+
+def test_attach_build_gives_up_after_persistent_permission_errors(monkeypatch):
+    build_id, staging = storage.new_staging_dir(org_id=1)
+    (staging / "source.docx").write_bytes(b"content")
+
+    def always_fails(src, dst):
+        raise PermissionError("simulated persistent lock")
+
+    monkeypatch.setattr(storage.os, "rename", always_fails)
+    monkeypatch.setattr(storage.time, "sleep", lambda *_: None)
+
+    with pytest.raises(PermissionError):
+        storage.attach_build(org_id=1, build_id=build_id)
+
+
 def test_attach_build_refuses_to_overwrite_an_existing_attachment():
     build_id, staging = storage.new_staging_dir(org_id=1)
     (staging / "source.docx").write_bytes(b"content")

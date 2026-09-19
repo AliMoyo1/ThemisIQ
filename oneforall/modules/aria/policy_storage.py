@@ -27,6 +27,7 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
+import time
 import uuid
 import zipfile
 from pathlib import Path
@@ -100,7 +101,27 @@ def attach_build(org_id: int, build_id: str) -> Path:
     artifacts.parent.mkdir(parents=True, exist_ok=True)
     if artifacts.exists():
         raise FileExistsError(f"Artifact build {build_id} already attached; use a new build id.")
-    os.rename(str(staging), str(artifacts))
+
+    # Windows only: a just-created directory can transiently fail to
+    # rename with WinError 5 (Access is denied) if antivirus/indexing has
+    # it open for scanning for a moment -- observed directly in this
+    # project's own test runs (intermittent, same directory succeeds on
+    # retry seconds later). Not applicable to this project's actual Linux
+    # production target, but retrying briefly costs nothing there either
+    # (POSIX rename doesn't hit this error class, so the loop exits on
+    # the first attempt).
+    last_exc = None
+    for attempt in range(5):
+        try:
+            os.rename(str(staging), str(artifacts))
+            last_exc = None
+            break
+        except PermissionError as exc:
+            last_exc = exc
+            time.sleep(0.1 * (attempt + 1))
+    if last_exc is not None:
+        raise last_exc
+
     return _verify_contained(artifacts, WORKFLOW_ROOT)
 
 

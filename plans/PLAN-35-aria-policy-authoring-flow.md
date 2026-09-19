@@ -1563,7 +1563,7 @@ application test execution or converter installation is claimed by this edit.
 | T04 drafts | Complete | See detailed notes below. |
 | T05 artifacts/preview | Code and mocked tests complete; real-converter gate open | See detailed notes below. |
 | T06 confirmation | Complete | See detailed notes below. |
-| T07 approvals | Not started | |
+| T07 approvals | Complete | See detailed notes below. |
 | T08 legacy/scope closure | Not started | |
 | T09 publication/cleanup | Not started | |
 | T10 UI | Not started | |
@@ -2161,6 +2161,101 @@ above, confirm-without-a-build refusal, mismatched-build-id refusal,
 stale-lock-token refusal, a tampered source file refusal, a missing
 branded file refusal, and both version-read paths proven to omit every
 filesystem path field. Full regression suite re-run clean. `py_compile`
+clean on all touched/new files.
+
+### T07 detailed notes (2026-09-19)
+
+Files touched: `oneforall/modules/aria/policy_workflow_service.py` (new:
+`submit_for_approval`, `decide_approval`, `withdraw_approval`,
+`list_eligible_approvers_for_version`, `get_approval`,
+`list_pending_approvals_for`, `_exclusion_set_for_version`,
+`_approval_to_public_dict`, and `AlreadyDecidedError`/
+`ApproverIneligibleError`/`InvalidDecisionError`);
+`oneforall/modules/aria/routes_policy_workflow.py` (new: approvers list,
+submit, pending-queue, decide, withdraw endpoints);
+`oneforall/modules/aria/policy_storage.py` (small addition: a bounded
+retry around `attach_build`'s rename, see below);
+`oneforall/tests/test_aria_policy_approvals.py` (new, 20 tests);
+`oneforall/tests/test_aria_policy_storage.py` (2 tests added for the
+retry logic).
+
+This was the task where the most genuine bugs surfaced, all caught by the
+tests actually failing, not by a second read of the code:
+
+**A real state-machine gap**: section 6.2's own table explicitly allows
+resubmitting a `withdrawn` version back to `pending` ("Resubmit unchanged
+-> pending... only if still current candidate and base matches"). The
+first draft of `submit_for_approval` only accepted `state == 'draft'`,
+so a legitimate withdraw-then-resubmit was rejected outright. Fixed by
+accepting `withdrawn` too, gated by the same stale-base concept
+`confirm_draft` already uses.
+
+**A real bug in that same stale-base check's first version**: comparing
+a version's own `base_version_id` against the document's
+`current_policy_version_id` is right for a *revision* candidate, but
+wrong for a brand-new policy's first version, which has no
+`base_version_id` (nothing preceded it) yet legitimately IS the current
+pointer once confirmed (it points at itself). The first fix compared
+these unconditionally and incorrectly refused a completely valid
+withdraw-then-resubmit of a first version. Fixed by treating either
+"this version is itself current" or "the document's current pointer
+still equals what this version was based on" as valid -- two distinct
+legitimate shapes the single-field comparison couldn't tell apart.
+
+**A deliberately imprecise, not narrowed, test in two places**: submitting
+a version already in `pending` initially fell through to a generic
+`INVALID_INPUT` rather than the more actionable `OPEN_REVISION_EXISTS`
+section 8 names for exactly this case -- fixed in the service, since a
+real API client benefits from the more specific code. Separately, two
+tests (an approver whose role was removed; an approver moved to a sibling
+BU) initially asserted one specific exception class each, but the code
+correctly catches both scenarios at an *earlier*, more general check
+(losing `aria.policy.approve` entirely denies access before the
+eligibility re-check is even reached; moving out of scope hits
+`document_read_ok`'s 404 before eligibility is reached). Rather than
+restructure working, correct check ordering just to make one specific
+exception class fire, the tests were loosened to accept either of the two
+substantively-correct rejections -- the requirement under test ("decision
+rejects removed roles... moved SBUs") is satisfied either way.
+
+**Audit/notification atomicity carried over from T06's fix, not
+reintroduced as a bug this time**: `submit_for_approval`, `decide_approval`,
+and `withdraw_approval` all insert directly into `audit_log` and
+`notifications` on their own connection, never through `core.middleware.log_audit()`,
+for the same reason established in T06.
+
+**A real, if minor, environment-specific flakiness found and fixed**:
+`policy_storage.attach_build`'s `os.rename()` intermittently raised
+`PermissionError: [WinError 5] Access is denied` during this session's own
+test runs -- twice, on two different tests, in different full-suite runs,
+always succeeding on a bare re-run. This is a known Windows behavior
+(a just-created directory transiently locked by antivirus/indexing) that
+does not apply to this project's actual Linux production target, but it
+made the test suite unreliable on this dev machine. Added a small bounded
+retry (5 attempts, short backoff) around the rename, Windows-specific in
+practice since POSIX rename doesn't raise this error class, so the loop
+exits on the first attempt everywhere else. Added two dedicated tests
+(retry succeeds on the 3rd attempt; gives up and re-raises after
+persistent failure) rather than trusting the loop by inspection.
+
+Test evidence: `test_aria_policy_approvals.py` 20/20 passing -- owner
+excluded from their own eligible-approver list, submission rejecting an
+ineligible approver and the owner-as-self-approver case, hash/round-number
+binding verified against the actual version row, submission idempotency,
+the one-pending-submission guard, approval promoting the current version
+and inserting exactly one publication job, double-approval refused,
+reject-requires-a-comment, the document-projection rule for both a
+first-ever rejection (status reverts to Draft, pointer stays on the
+rejected version, per section 6.3's "beside the retained snapshot") and a
+revision rejection (the previously approved version and status are
+completely untouched), decision refusing a deactivated approver/removed
+role/moved-BU approver/stale token/wrong person, withdraw-then-resubmit
+end to end including the round number incrementing, refusing to withdraw
+an already-decided submission, and a REAL two-thread concurrency test
+against a real file-based database proving exactly one decision wins, the
+loser gets `AlreadyDecidedError`, and exactly one publication job exists
+afterward despite two decision attempts. Full regression suite (now several
+hundred tests across the whole project) re-run clean twice. `py_compile`
 clean on all touched/new files.
 
 Suggested implementation-session prompt:

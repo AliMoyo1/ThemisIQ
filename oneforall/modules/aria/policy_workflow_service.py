@@ -91,6 +91,21 @@ class BuildRequiredError(PolicyWorkflowError):
         super().__init__("BUILD_REQUIRED", message, 409)
 
 
+class AlreadyDecidedError(PolicyWorkflowError):
+    def __init__(self, message="This approval has already been decided."):
+        super().__init__("ALREADY_DECIDED", message, 409)
+
+
+class ApproverIneligibleError(PolicyWorkflowError):
+    def __init__(self, message="That user is not an eligible approver for this document."):
+        super().__init__("APPROVER_INELIGIBLE", message, 403)
+
+
+class InvalidDecisionError(PolicyWorkflowError):
+    def __init__(self, message="Decision must be 'approve' or 'reject'."):
+        super().__init__("INVALID_DECISION", message, 422)
+
+
 def _row_to_dict(row):
     return dict(row) if row else None
 
@@ -821,6 +836,376 @@ def get_version_file_path(db, actor: dict, version_id: int, kind: str):
     if not path.exists():
         raise PolicyWorkflowError("PREVIEW_UNAVAILABLE", "File is missing.", 503)
     return path
+
+
+def _exclusion_set_for_version(version: dict, document: dict) -> set[int]:
+    """Owner, all content contributors, and (by convention: caller adds the
+    requester separately, since that's only known at submission time, not
+    from the version/document rows alone) -- section 5.2's approver
+    eligibility exclusion list, applied to super admins too."""
+    ids = set()
+    owner_id = document.get("owner_user_id")
+    if owner_id is not None:
+        ids.add(int(owner_id))
+    for uid in json.loads(version.get("author_user_ids_json") or "[]"):
+        ids.add(int(uid))
+    return ids
+
+
+def list_eligible_approvers_for_version(db, actor: dict, version_id: int) -> list[dict]:
+    from modules.aria.policy_access import eligible_approvers
+    version = get_version(db, actor, version_id)
+    doc = db.execute("SELECT * FROM aria_documents WHERE id=%s", (version["document_id"],)).fetchone()
+    if not doc:
+        raise NotFoundError("Document not found.")
+    doc = dict(doc)
+    exclude = _exclusion_set_for_version(version, doc)
+    candidates = eligible_approvers(db, doc, exclude)
+    return [{"id": c["id"], "username": c["username"], "full_name": c["full_name"]} for c in candidates]
+
+
+def submit_for_approval(
+    db, actor: dict, version_id: int, approver_id: int,
+    request_note: str, request_id: str, expected_lock_version: int,
+) -> dict:
+    """Section 9.2. request_id makes a resubmission with the identical
+    payload idempotent; a different payload under the same request_id is a
+    client bug, not a race, and is refused."""
+    from modules.aria.policy_access import eligible_approvers
+
+    version = get_version(db, actor, version_id)
+    doc_row = db.execute("SELECT * FROM aria_documents WHERE id=%s", (version["document_id"],)).fetchone()
+    if not doc_row:
+        raise NotFoundError("Document not found.")
+    doc = dict(doc_row)
+    if not _draft_can_edit_document(actor, doc):
+        raise ForbiddenError()
+
+    org_id = version["org_id"]
+    existing = db.execute(
+        "SELECT * FROM aria_document_approvals WHERE org_id=%s AND requested_by=%s AND request_id=%s",
+        (org_id, actor["id"], request_id),
+    ).fetchone()
+    if existing:
+        existing = dict(existing)
+        if existing["policy_version_id"] != version_id or existing["approver_id"] != approver_id:
+            raise PolicyWorkflowError(
+                "INVALID_INPUT", "This request_id was already used for a different submission.", 409,
+            )
+        return _approval_to_public_dict(existing)
+
+    if version["lock_version"] != expected_lock_version:
+        raise StaleDraftError()
+    if version["state"] == "pending":
+        raise OpenRevisionExistsError("This version already has a pending submission.")
+    if version["state"] == "withdrawn":
+        # Section 6.2: "withdrawn -> Resubmit unchanged -> pending... only
+        # if still current candidate and base matches". Two legitimate
+        # shapes: a brand-new policy's first version IS current (points at
+        # its own id, base_version_id is None since nothing preceded it);
+        # a revision candidate is valid only while the document's current
+        # pointer still equals what THIS version was based on. Anything
+        # else means something else was approved/promoted since.
+        current_ptr = doc.get("current_policy_version_id")
+        still_valid = current_ptr == version["id"] or current_ptr == version.get("base_version_id")
+        if not still_valid:
+            raise StaleBaseError()
+    elif version["state"] != "draft":
+        raise PolicyWorkflowError(
+            "INVALID_INPUT", f"Cannot submit a version in state '{version['state']}'.", 422,
+        )
+    open_pending = db.execute(
+        "SELECT id FROM aria_document_approvals WHERE document_id=%s AND status='pending'",
+        (doc["id"],),
+    ).fetchone()
+    if open_pending:
+        raise OpenRevisionExistsError("A submission is already pending for this document.")
+
+    exclude = _exclusion_set_for_version(version, doc)
+    exclude.add(actor["id"])  # the requester cannot approve their own submission
+    eligible_ids = {c["id"] for c in eligible_approvers(db, doc, exclude)}
+    if approver_id not in eligible_ids:
+        raise ApproverIneligibleError()
+
+    round_number = (db.execute(
+        "SELECT COALESCE(MAX(round_number), 0) FROM aria_document_approvals WHERE policy_version_id=%s",
+        (version_id,),
+    ).fetchone()[0] or 0) + 1
+
+    now = utcnow().isoformat()
+    approval_pk = insert_returning_id(
+        db,
+        "INSERT INTO aria_document_approvals "
+        "(org_id, business_unit_id, document_id, policy_version_id, round_number, "
+        "approver_id, requested_by, approver_identity_json, requester_identity_json, "
+        "status, submitted_version, submitted_input_sha256, submitted_branded_sha256, "
+        "submitted_preview_sha256, request_note, requested_at, request_id, lock_version) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s,%s,%s,%s,1)",
+        (org_id, doc.get("business_unit_id"), doc["id"], version_id, round_number,
+         approver_id, actor["id"], json.dumps({"id": approver_id}),
+         json.dumps({"id": actor["id"], "name": actor.get("full_name", "")}),
+         version["version"], version.get("input_sha256"), version.get("branded_sha256"),
+         version.get("preview_sha256"), request_note or "", now, request_id),
+    )
+
+    db.execute("UPDATE aria_policy_versions SET state='pending', lock_version=lock_version+1 WHERE id=%s", (version_id,))
+    was_ever_approved = db.execute(
+        "SELECT id FROM aria_policy_versions WHERE document_id=%s AND state='approved'", (doc["id"],)
+    ).fetchone()
+    if not was_ever_approved:
+        db.execute("UPDATE aria_documents SET status='Under Review', updated_at=%s WHERE id=%s", (now, doc["id"]))
+
+    db.execute(
+        "INSERT INTO notifications (user_id, module, title, message, link) VALUES (%s,'aria',%s,%s,%s)",
+        (approver_id, "Policy approval requested",
+         f"{actor.get('full_name', 'Someone')} submitted {doc['doc_id']} v{version['version']} for your approval.",
+         f"/aria/documents?open={doc['doc_id']}"),
+    )
+    db.execute(
+        "INSERT INTO audit_log (user_id, username, module, action, entity_type, entity_id, details, org_id) "
+        "VALUES (%s,%s,'aria','submit','document',%s,%s,%s)",
+        (actor["id"], actor.get("username", ""), doc["id"],
+         f"Submitted {doc['doc_id']} v{version['version']} for approval", org_id),
+    )
+    db.commit()
+    return get_approval(db, actor, approval_pk)
+
+
+def get_approval(db, actor: dict, approval_id: int) -> dict:
+    row = db.execute("SELECT * FROM aria_document_approvals WHERE id=%s", (approval_id,)).fetchone()
+    if not row:
+        raise NotFoundError("Approval not found.")
+    approval = dict(row)
+    doc = db.execute(
+        "SELECT org_id, business_unit_id, policy_workflow_managed FROM aria_documents WHERE id=%s",
+        (approval["document_id"],),
+    ).fetchone()
+    if not doc or not document_read_ok(actor, dict(doc)):
+        raise NotFoundError("Approval not found.")
+    is_approver = approval["approver_id"] == actor["id"]
+    is_requester = approval["requested_by"] == actor["id"]
+    from core.rbac import has_capability
+    if not (is_approver or is_requester or has_capability(actor, "aria.policy.edit_any")):
+        raise ForbiddenError()
+    return _approval_to_public_dict(approval)
+
+
+def _approval_to_public_dict(approval: dict) -> dict:
+    fields = ("id", "document_id", "policy_version_id", "round_number", "approver_id",
+              "requested_by", "status", "submitted_version", "request_note", "requested_at",
+              "decision_by", "decided_at", "comments", "lock_version")
+    return {k: approval.get(k) for k in fields}
+
+
+def list_pending_approvals_for(db, actor: dict) -> list[dict]:
+    rows = db.execute(
+        "SELECT a.* FROM aria_document_approvals a "
+        "JOIN aria_documents d ON d.id = a.document_id "
+        "WHERE a.approver_id=%s AND a.status='pending' AND d.org_id=%s "
+        "ORDER BY a.requested_at",
+        (actor["id"], actor.get("org_id")),
+    ).fetchall()
+    # Re-verify scope per row (a BU/role change can retroactively remove
+    # visibility even though the row still names this user as approver).
+    out = []
+    for row in rows:
+        approval = dict(row)
+        doc = db.execute(
+            "SELECT org_id, business_unit_id, policy_workflow_managed FROM aria_documents WHERE id=%s",
+            (approval["document_id"],),
+        ).fetchone()
+        if doc and document_read_ok(actor, dict(doc)):
+            out.append(_approval_to_public_dict(approval))
+    return out
+
+
+def decide_approval(db, actor: dict, approval_id: int, decision: str, comments: str, expected_lock_version: int) -> dict:
+    """Section 9.3. Lock order: document, version, approval. The first
+    committed decision on a given approval wins; a later request against
+    the same (by-then-decided) row is refused, never silently ignored."""
+    if decision not in ("approve", "reject"):
+        raise InvalidDecisionError()
+    if decision == "reject" and not (comments or "").strip():
+        raise InvalidDecisionError("A comment is required to reject.")
+
+    approval_row = db.execute("SELECT * FROM aria_document_approvals WHERE id=%s", (approval_id,)).fetchone()
+    if not approval_row:
+        raise NotFoundError("Approval not found.")
+    approval = dict(approval_row)
+    document_id = approval["document_id"]
+
+    lock_suffix = " FOR UPDATE" if _is_postgres() else ""
+    doc = db.execute(f"SELECT * FROM aria_documents WHERE id=%s{lock_suffix}", (document_id,)).fetchone()
+    if not doc:
+        raise NotFoundError("Document not found.")
+    doc = dict(doc)
+    version = db.execute(
+        f"SELECT * FROM aria_policy_versions WHERE id=%s{lock_suffix}", (approval["policy_version_id"],)
+    ).fetchone()
+    if not version:
+        raise NotFoundError("Version not found.")
+    version = dict(version)
+    approval = dict(db.execute(f"SELECT * FROM aria_document_approvals WHERE id=%s{lock_suffix}", (approval_id,)).fetchone())
+
+    if not document_read_ok(actor, doc):
+        raise NotFoundError("Approval not found.")
+    if approval["status"] != "pending":
+        raise AlreadyDecidedError()
+    if approval["lock_version"] != expected_lock_version:
+        raise StaleDraftError()
+
+    from modules.aria.policy_access import can_decide, eligible_approvers
+    if not can_decide(actor, approval):
+        raise ForbiddenError()
+    # Full re-check, not just "are you the named approver": role, activation,
+    # BU, and separation of duties can all have changed since submission.
+    exclude = _exclusion_set_for_version(version, doc)
+    exclude.add(approval["requested_by"])
+    still_eligible = any(c["id"] == actor["id"] for c in eligible_approvers(db, doc, exclude))
+    if not still_eligible:
+        raise ApproverIneligibleError(
+            "You are no longer an eligible approver for this document (role, activation, "
+            "or business unit may have changed since submission)."
+        )
+
+    # Hash integrity: the file this approver is looking at must be exactly
+    # what was submitted, not something rebuilt since. A mismatch is an
+    # integrity incident, not an ordinary validation error -- log it and
+    # leave the submission pending for a human to investigate/recover,
+    # never silently decide against tampered evidence.
+    for submitted_field, version_field in (
+        ("submitted_branded_sha256", "branded_sha256"), ("submitted_preview_sha256", "preview_sha256"),
+    ):
+        if approval.get(submitted_field) != version.get(version_field):
+            db.execute(
+                "INSERT INTO audit_log (user_id, username, module, action, entity_type, entity_id, details, org_id) "
+                "VALUES (%s,%s,'aria','integrity_incident','approval',%s,%s,%s)",
+                (actor["id"], actor.get("username", ""), approval_id,
+                 f"Hash mismatch on {version_field} at decision time for approval {approval_id}",
+                 doc.get("org_id")),
+            )
+            db.commit()
+            raise PolicyWorkflowError(
+                "INVALID_INPUT",
+                "The submitted artifact no longer matches its recorded hash. "
+                "This has been logged; the submission remains pending for review.",
+                409,
+            )
+
+    now = utcnow().isoformat()
+    decision_status = "approved" if decision == "approve" else "rejected"
+    updated = db.execute(
+        "UPDATE aria_document_approvals SET status=%s, decision_by=%s, "
+        "decision_identity_json=%s, decided_at=%s, comments=%s, lock_version=lock_version+1 "
+        "WHERE id=%s AND status='pending' AND lock_version=%s",
+        (decision_status, actor["id"], json.dumps({"id": actor["id"], "name": actor.get("full_name", "")}),
+         now, comments or "", approval_id, expected_lock_version),
+    )
+    if getattr(updated, "rowcount", 1) == 0:
+        raise AlreadyDecidedError()  # someone else's decision won the race
+
+    if decision == "approve":
+        db.execute(
+            "UPDATE aria_policy_versions SET state='approved', approved_by=%s, approved_at=%s WHERE id=%s",
+            (actor["id"], now, version["id"]),
+        )
+        db.execute(
+            "UPDATE aria_documents SET current_policy_version_id=%s, version=%s, body=%s, "
+            "status='Approved', reviewed_by=%s, reviewed_at=%s, updated_at=%s WHERE id=%s",
+            (version["id"], version["version"], version["body"], actor["id"], now, now, doc["id"]),
+        )
+        publication_key = f"org{doc['org_id']}-version{version['id']}"
+        db.execute(
+            "INSERT INTO aria_policy_publication_jobs "
+            "(org_id, business_unit_id, policy_version_id, document_id, publication_key, state) "
+            "VALUES (%s,%s,%s,%s,%s,'pending')",
+            (doc["org_id"], doc.get("business_unit_id"), version["id"], doc["id"], publication_key),
+        )
+    else:
+        db.execute("UPDATE aria_policy_versions SET state='rejected' WHERE id=%s", (version["id"],))
+        ever_approved = db.execute(
+            "SELECT id FROM aria_policy_versions WHERE document_id=%s AND state='approved'", (doc["id"],)
+        ).fetchone()
+        if not ever_approved:
+            # This was the document's first-ever version and it was just
+            # rejected: nothing has ever been approved, so there is no
+            # projection to preserve. Section 6.3's "reject before first
+            # approval: document status = Draft".
+            db.execute("UPDATE aria_documents SET status='Draft', updated_at=%s WHERE id=%s", (now, doc["id"]))
+        # else: an approved version already exists and stays current
+        # untouched (section 6.3: "rejection/withdrawal leaves 1.0 current").
+
+    db.execute(
+        "INSERT INTO notifications (user_id, module, title, message, link) VALUES (%s,'aria',%s,%s,%s)",
+        (approval["requested_by"], f"Policy {decision_status}",
+         f"{doc['doc_id']} v{version['version']} was {decision_status} by {actor.get('full_name', 'the approver')}.",
+         f"/aria/documents?open={doc['doc_id']}"),
+    )
+    db.execute(
+        "INSERT INTO audit_log (user_id, username, module, action, entity_type, entity_id, details, org_id) "
+        "VALUES (%s,%s,'aria',%s,'document',%s,%s,%s)",
+        (actor["id"], actor.get("username", ""), decision, doc["id"],
+         f"{decision_status.capitalize()} {doc['doc_id']} v{version['version']}", doc["org_id"]),
+    )
+    db.commit()
+    return get_approval(db, actor, approval_id)
+
+
+def withdraw_approval(db, actor: dict, approval_id: int, reason: str, expected_lock_version: int) -> dict:
+    if not (reason or "").strip():
+        raise InvalidInputError("A reason is required to withdraw a submission.")
+
+    approval_row = db.execute("SELECT * FROM aria_document_approvals WHERE id=%s", (approval_id,)).fetchone()
+    if not approval_row:
+        raise NotFoundError("Approval not found.")
+    approval = dict(approval_row)
+    doc = db.execute("SELECT * FROM aria_documents WHERE id=%s", (approval["document_id"],)).fetchone()
+    if not doc:
+        raise NotFoundError("Document not found.")
+    doc = dict(doc)
+    if not document_read_ok(actor, doc):
+        raise NotFoundError("Approval not found.")
+
+    is_requester = approval["requested_by"] == actor["id"]
+    from core.rbac import has_capability
+    if not (is_requester or has_capability(actor, "aria.policy.edit_any")):
+        raise ForbiddenError()
+    if approval["status"] != "pending":
+        raise AlreadyDecidedError("Only a pending submission can be withdrawn.")
+    if approval["lock_version"] != expected_lock_version:
+        raise StaleDraftError()
+
+    now = utcnow().isoformat()
+    updated = db.execute(
+        "UPDATE aria_document_approvals SET status='withdrawn', comments=%s, decided_at=%s, "
+        "lock_version=lock_version+1 WHERE id=%s AND status='pending' AND lock_version=%s",
+        (reason, now, approval_id, expected_lock_version),
+    )
+    if getattr(updated, "rowcount", 1) == 0:
+        raise AlreadyDecidedError()
+
+    db.execute("UPDATE aria_policy_versions SET state='withdrawn' WHERE id=%s", (approval["policy_version_id"],))
+    ever_approved = db.execute(
+        "SELECT id FROM aria_policy_versions WHERE document_id=%s AND state='approved'", (doc["id"],)
+    ).fetchone()
+    if not ever_approved:
+        db.execute("UPDATE aria_documents SET status='Draft', updated_at=%s WHERE id=%s", (now, doc["id"]))
+
+    if approval.get("approver_id"):
+        db.execute(
+            "INSERT INTO notifications (user_id, module, title, message, link) VALUES (%s,'aria',%s,%s,%s)",
+            (approval["approver_id"], "Policy submission withdrawn",
+             f"{doc['doc_id']} was withdrawn from your approval queue: {reason}",
+             f"/aria/documents?open={doc['doc_id']}"),
+        )
+    db.execute(
+        "INSERT INTO audit_log (user_id, username, module, action, entity_type, entity_id, details, org_id) "
+        "VALUES (%s,%s,'aria','withdraw','document',%s,%s,%s)",
+        (actor["id"], actor.get("username", ""), doc["id"], f"Withdrew submission for {doc['doc_id']}: {reason}",
+         doc.get("org_id")),
+    )
+    db.commit()
+    return get_approval(db, actor, approval_id)
 
 
 def _is_postgres() -> bool:
