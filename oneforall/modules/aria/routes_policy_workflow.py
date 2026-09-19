@@ -205,6 +205,96 @@ async def api_preview_policy_draft(request: Request, draft_id: str):
     )
 
 
+@router.post("/api/policy-drafts/{draft_id}/confirm")
+@require_module("aria")
+async def api_confirm_policy_draft(request: Request, draft_id: str):
+    actor = request.state.user
+    payload = await _json_body(request)
+    build_id = payload.get("build_id")
+    expected_lock_version = payload.get("expected_lock_version")
+    if build_id is None or expected_lock_version is None:
+        return JSONResponse(
+            {"ok": False, "error": {"code": "INVALID_INPUT",
+             "message": "build_id and expected_lock_version are required.", "retryable": False}},
+            status_code=422,
+        )
+    db = get_db()
+    try:
+        result = svc.confirm_draft(db, actor, draft_id, build_id, expected_lock_version)
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({
+        "ok": True, **result,
+        "detail_url": f"/aria/documents?open={result['doc_id']}",
+    })
+
+
+@router.get("/api/documents/{doc_id}/policy-versions")
+@require_module("aria")
+async def api_list_document_versions(request: Request, doc_id: str):
+    actor = request.state.user
+    db = get_db()
+    try:
+        versions = svc.list_document_versions(db, actor, doc_id)
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "versions": versions})
+
+
+@router.get("/api/policy-versions/{version_id}")
+@require_module("aria")
+async def api_get_policy_version(request: Request, version_id: int):
+    actor = request.state.user
+    db = get_db()
+    try:
+        version = svc.get_version(db, actor, version_id)
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "version": svc._version_to_public_dict(version)})
+
+
+@router.get("/api/policy-versions/{version_id}/preview")
+@require_module("aria")
+async def api_get_policy_version_preview(request: Request, version_id: int):
+    actor = request.state.user
+    db = get_db()
+    try:
+        pdf_path = svc.get_version_file_path(db, actor, version_id, "preview")
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return FileResponse(
+        str(pdf_path), media_type="application/pdf",
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.get("/api/policy-versions/{version_id}/download")
+@require_module("aria")
+async def api_download_policy_version(request: Request, version_id: int):
+    actor = request.state.user
+    db = get_db()
+    try:
+        docx_path = svc.get_version_file_path(db, actor, version_id, "branded")
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return FileResponse(
+        str(docx_path),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+        filename=f"policy-v{version_id}.docx",
+    )
+
+
 @router.post("/api/documents/{doc_id}/revision-drafts")
 @require_module("aria")
 async def api_start_revision_draft(request: Request, doc_id: str):

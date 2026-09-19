@@ -81,6 +81,16 @@ class PreviewTimeoutError(PolicyWorkflowError):
         super().__init__("PREVIEW_TIMEOUT", message, 504)
 
 
+class StaleBaseError(PolicyWorkflowError):
+    def __init__(self, message="This document changed since your draft was based on it. Start a new revision."):
+        super().__init__("STALE_BASE", message, 409)
+
+
+class BuildRequiredError(PolicyWorkflowError):
+    def __init__(self, message="Build this draft before confirming it."):
+        super().__init__("BUILD_REQUIRED", message, 409)
+
+
 def _row_to_dict(row):
     return dict(row) if row else None
 
@@ -591,6 +601,226 @@ def build_draft(db, actor: dict, draft_id: str, template_id: int, expected_lock_
         raise StaleDraftError()
     db.commit()
     return get_draft(db, actor, draft_id)
+
+
+_VERSION_PUBLIC_FIELDS = (
+    "id", "document_id", "draft_id", "base_version_id", "version_major",
+    "version_minor", "version", "state", "origin", "template_id",
+    "created_by", "created_at", "approved_by", "approved_at", "lock_version",
+)
+
+
+def _version_to_public_dict(row: dict) -> dict:
+    """Strips filesystem paths and the raw body from a version row for API
+    responses (section 8: 'no file paths or bodies by default'). Hashes are
+    kept -- they're integrity/audit identifiers, not paths, and section 11
+    explicitly wants them visible in a details panel."""
+    hash_fields = ("input_sha256", "source_sha256", "branded_sha256",
+                   "preview_sha256", "template_sha256", "renderer_manifest_sha256")
+    out = {k: row.get(k) for k in _VERSION_PUBLIC_FIELDS}
+    out.update({k: row.get(k) for k in hash_fields})
+    return out
+
+
+def confirm_draft(db, actor: dict, draft_id: str, build_id: str, expected_lock_version: int) -> dict:
+    """Section 9.1. One commit boundary; no files are regenerated or
+    renamed here -- what was previewed (the exact build_id's artifacts) is
+    exactly what becomes the immutable version. No Vault/GRID publish
+    happens here (that is T07/T09's job, triggered by approval)."""
+    draft = get_draft(db, actor, draft_id)
+    if not _draft_can_edit(actor, draft):
+        raise ForbiddenError()
+
+    # Retry of an already-committed draft: reauthorize (done above) and
+    # return the original result. Do not demand the stale pre-confirm
+    # token just to hand back what already exists (section 9.1 item 8).
+    if draft["state"] == "committed":
+        version = db.execute(
+            "SELECT * FROM aria_policy_versions WHERE id=%s", (draft["committed_version_id"],)
+        ).fetchone()
+        if not version:
+            raise PolicyWorkflowError("INVALID_INPUT", "Committed draft has no matching version record.", 500)
+        version = dict(version)
+        doc = db.execute("SELECT doc_id FROM aria_documents WHERE id=%s", (version["document_id"],)).fetchone()
+        return {
+            "document_id": version["document_id"], "doc_id": doc["doc_id"] if doc else None,
+            "version_id": version["id"], "version": version["version"],
+        }
+
+    if draft["state"] != "ready":
+        raise BuildRequiredError()
+    if draft.get("build_id") != build_id:
+        raise PolicyWorkflowError(
+            "STALE_DRAFT", "That build is no longer current for this draft; rebuild first.", 409,
+        )
+    if draft["lock_version"] != expected_lock_version:
+        raise StaleDraftError()
+
+    # Re-hash every attached file: proves what is about to be committed is
+    # byte-identical to what the build recorded, not silently tampered with
+    # or replaced on disk since the build completed.
+    from modules.aria import policy_storage as storage
+    for path_field, hash_field in (
+        ("source_path", "source_sha256"), ("branded_path", "branded_sha256"),
+        ("preview_path", "preview_sha256"),
+    ):
+        rel = draft.get(path_field)
+        expected_hash = draft.get(hash_field)
+        if not rel or not expected_hash:
+            raise BuildRequiredError()
+        try:
+            actual_path = storage.resolve_stored_path(rel)
+        except storage.PathContainmentError:
+            raise PolicyWorkflowError("INVALID_INPUT", f"Recorded {path_field} is invalid.", 500)
+        if not actual_path.exists() or storage.sha256_file(actual_path) != expected_hash:
+            raise PolicyWorkflowError(
+                "INVALID_INPUT", f"{path_field} has changed or is missing since the build completed.", 409,
+            )
+
+    metadata = draft.get("metadata_json") or "{}"
+    identity = json.dumps({
+        "created_by_id": actor["id"], "created_by_name": actor.get("full_name", ""),
+    })
+    version_str = f"{draft['version_major']}.{draft['version_minor']}"
+    now = utcnow().isoformat()
+
+    if draft.get("source_document_id") is None:
+        # New policy: create the document under its reserved number.
+        doc_id_str = draft.get("reserved_doc_id")
+        if not doc_id_str:
+            raise PolicyWorkflowError("INVALID_INPUT", "Draft has no reserved document number.", 500)
+        new_doc_pk = insert_returning_id(
+            db,
+            "INSERT INTO aria_documents "
+            "(doc_id, framework, title, doc_type, version, status, body, "
+            "org_id, business_unit_id, owner_user_id, policy_workflow_managed, "
+            "created_at, updated_at) "
+            "VALUES (%s,%s,%s,%s,%s,'Draft',%s,%s,%s,%s,1,%s,%s)",
+            (doc_id_str, json.loads(metadata).get("framework_label", ""),
+             json.loads(metadata).get("title", doc_id_str),
+             json.loads(metadata).get("doc_type", "Policy"), version_str, draft["body"],
+             draft["org_id"], draft["business_unit_id"], actor["id"], now, now),
+        )
+        document_id = new_doc_pk
+        promote_to_current = True
+    else:
+        document_id = draft["source_document_id"]
+        lock_sql = "SELECT * FROM aria_documents WHERE id=%s"
+        if _is_postgres():
+            lock_sql += " FOR UPDATE"
+        doc = db.execute(lock_sql, (document_id,)).fetchone()
+        if not doc:
+            raise NotFoundError("Document not found.")
+        doc = dict(doc)
+        if doc.get("current_policy_version_id") != draft.get("base_version_id"):
+            raise StaleBaseError()
+        existing_candidate = db.execute(
+            "SELECT id FROM aria_policy_versions WHERE document_id=%s AND state IN ('draft','pending') "
+            "AND id != COALESCE(%s, -1)",
+            (document_id, draft.get("committed_version_id")),
+        ).fetchone()
+        if existing_candidate:
+            raise OpenRevisionExistsError("Another candidate version already exists for this document.")
+        promote_to_current = doc.get("current_policy_version_id") is None
+        doc_id_str = doc["doc_id"]
+
+    version_pk = insert_returning_id(
+        db,
+        "INSERT INTO aria_policy_versions "
+        "(org_id, business_unit_id, document_id, draft_id, base_version_id, "
+        "version_major, version_minor, version, state, origin, body, metadata_json, "
+        "identity_json, author_user_ids_json, input_sha256, source_sha256, branded_sha256, "
+        "preview_sha256, template_sha256, build_id, source_path, branded_path, preview_path, "
+        "template_id, renderer_manifest_json, renderer_manifest_sha256, created_by, created_at, lock_version) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'draft','authored',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)",
+        (draft["org_id"], draft["business_unit_id"], document_id, draft["id"], draft.get("base_version_id"),
+         draft["version_major"], draft["version_minor"], version_str, draft["body"], metadata,
+         identity, draft.get("author_user_ids_json"), draft.get("input_sha256"),
+         draft.get("source_sha256"), draft.get("branded_sha256"), draft.get("preview_sha256"),
+         draft.get("template_sha256"), draft.get("build_id"), draft.get("source_path"),
+         draft.get("branded_path"), draft.get("preview_path"), draft.get("template_id"),
+         draft.get("renderer_manifest_json"), draft.get("renderer_manifest_sha256"),
+         actor["id"], now),
+    )
+
+    if promote_to_current:
+        db.execute(
+            "UPDATE aria_documents SET current_policy_version_id=%s, version=%s, "
+            "body=%s, status='Draft', updated_at=%s WHERE id=%s",
+            (version_pk, version_str, draft["body"], now, document_id),
+        )
+    else:
+        db.execute("UPDATE aria_documents SET updated_at=%s WHERE id=%s", (now, document_id))
+
+    db.execute(
+        "UPDATE aria_policy_drafts SET state='committed', committed_version_id=%s, "
+        "lock_version=lock_version+1, updated_at=%s WHERE id=%s AND lock_version=%s",
+        (version_pk, now, draft_id, expected_lock_version),
+    )
+
+    # Deliberately NOT core.middleware.log_audit(): it opens its own
+    # connection and commits immediately, which would let an audit row
+    # exist for a confirmation whose main transaction later failed to
+    # commit. Section 9.1 item 7 requires the audit row on the SAME
+    # connection, committed once together with everything else above.
+    db.execute(
+        "INSERT INTO audit_log (user_id, username, module, action, entity_type, "
+        "entity_id, details, org_id) VALUES (%s,%s,'aria','confirm','document',%s,%s,%s)",
+        (actor["id"], actor.get("username", ""), document_id,
+         f"Confirmed policy version {version_str} for {doc_id_str}", draft["org_id"]),
+    )
+
+    db.commit()
+    return {"document_id": document_id, "doc_id": doc_id_str, "version_id": version_pk, "version": version_str}
+
+
+def get_version(db, actor: dict, version_id: int) -> dict:
+    row = db.execute("SELECT * FROM aria_policy_versions WHERE id=%s", (version_id,)).fetchone()
+    if not row:
+        raise NotFoundError("Version not found.")
+    version = _row_to_dict(row)
+    doc = db.execute(
+        "SELECT org_id, business_unit_id, policy_workflow_managed FROM aria_documents WHERE id=%s",
+        (version["document_id"],),
+    ).fetchone()
+    if not doc or not document_read_ok(actor, dict(doc)):
+        raise NotFoundError("Version not found.")
+    return version
+
+
+def list_document_versions(db, actor: dict, doc_id: str) -> list[dict]:
+    doc = db.execute(
+        "SELECT id, org_id, business_unit_id, policy_workflow_managed FROM aria_documents WHERE doc_id=%s",
+        (doc_id,),
+    ).fetchone()
+    if not doc or not document_read_ok(actor, dict(doc)):
+        raise NotFoundError("Document not found.")
+    rows = db.execute(
+        "SELECT * FROM aria_policy_versions WHERE document_id=%s ORDER BY created_at DESC",
+        (doc["id"],),
+    ).fetchall()
+    return [_version_to_public_dict(_row_to_dict(r)) for r in rows]
+
+
+def get_version_file_path(db, actor: dict, version_id: int, kind: str):
+    """kind is 'preview' or 'branded'. Returns a resolved, contained
+    filesystem Path -- never a raw stored string -- or raises NotFoundError/
+    PolicyWorkflowError. This is the only function version download/preview
+    routes should call; it is what keeps 'no filesystem paths' true at the
+    API layer while still letting the route serve the actual file."""
+    version = get_version(db, actor, version_id)
+    field = "preview_path" if kind == "preview" else "branded_path"
+    rel = version.get(field)
+    if not rel:
+        raise NotFoundError("No file recorded for this version.")
+    from modules.aria import policy_storage as storage
+    try:
+        path = storage.resolve_stored_path(rel)
+    except storage.PathContainmentError:
+        raise PolicyWorkflowError("PREVIEW_UNAVAILABLE", "Stored file reference is invalid.", 503)
+    if not path.exists():
+        raise PolicyWorkflowError("PREVIEW_UNAVAILABLE", "File is missing.", 503)
+    return path
 
 
 def _is_postgres() -> bool:

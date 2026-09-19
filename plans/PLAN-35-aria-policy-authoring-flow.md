@@ -1562,7 +1562,7 @@ application test execution or converter installation is claimed by this edit.
 | T03 builder | Complete | See detailed notes below. |
 | T04 drafts | Complete | See detailed notes below. |
 | T05 artifacts/preview | Code and mocked tests complete; real-converter gate open | See detailed notes below. |
-| T06 confirmation | Not started | |
+| T06 confirmation | Complete | See detailed notes below. |
 | T07 approvals | Not started | |
 | T08 legacy/scope closure | Not started | |
 | T09 publication/cleanup | Not started | |
@@ -2080,6 +2080,88 @@ orchestration logic, and everything mockable are done and tested; the
 actual document-conversion pass condition requires your environment
 (a host or container with LibreOffice, or the Docker Compose service once
 its image is actually built) to close out.
+
+### T06 detailed notes (2026-09-19)
+
+Files touched: `oneforall/modules/aria/policy_workflow_service.py` (new:
+`confirm_draft`, `get_version`, `list_document_versions`,
+`get_version_file_path`, the `_version_to_public_dict` field-stripping
+helper, and `StaleBaseError`/`BuildRequiredError`);
+`oneforall/modules/aria/routes_policy_workflow.py` (new: confirm, version
+list/detail/preview/download endpoints); `oneforall/tests/test_aria_policy_versions.py`
+(new, 12 tests).
+
+**Real atomicity bug caught and fixed before this was reported done**: the
+first draft of `confirm_draft` called the codebase's existing
+`core.middleware.log_audit()` for the lifecycle audit row, the same helper
+every other ARIA route already uses. Reading its body showed it opens its
+OWN `get_db()` connection and calls `commit()` immediately on that
+connection, independently of the caller's transaction. Section 9.1 item 7
+is explicit that the audit row must be inserted "using the same
+connection" and committed once, together with everything else, precisely
+so an audit row can never exist for a confirmation whose actual document/
+version/draft writes later failed to commit. Using `log_audit()` here
+would have created exactly that gap: a confirmation could show as
+"Confirmed policy version 1.0 for DOC-0042" in the audit trail even if the
+document was never actually created, since the audit commit and the main
+commit would be on two unrelated connections. Fixed by inserting directly
+into `audit_log` on `confirm_draft`'s own connection instead of calling the
+shared helper -- this is a case where matching the rest of the codebase's
+convention would have been the wrong choice for this specific, explicitly
+atomicity-sensitive operation. First test run surfaced this immediately as
+a `KeyError` (an incomplete test fixture happened to trigger it first), so
+this was caught by running the tests, not by a second read of the plan
+text alone.
+
+**Retry semantics implemented literally as section 9.1 item 8 states**:
+`confirm_draft` checks `draft["state"] == "committed"` FIRST, before any
+token check, and if so reads back and returns the exact result from the
+prior confirmation without demanding the (by now certainly stale)
+pre-confirm `expected_lock_version`. Tested directly: calling confirm
+twice with the same original token returns identical results and creates
+exactly one version row, not two.
+
+**Stale-base check implemented and tested against a real race, not just a
+direct field comparison**: for a revision, confirm now locks the target
+document (`SELECT ... FOR UPDATE` on PostgreSQL) and compares its CURRENT
+`current_policy_version_id` against the draft's recorded `base_version_id`.
+The test for this doesn't just set mismatched values by hand; it drives a
+real second version through to 'approved' and promotes it to current via
+direct rows (simulating a competing confirm+approval having already
+happened), then proves the ORIGINAL draft's confirm is refused with
+`StaleBaseError` rather than silently creating a second, confusing
+candidate.
+
+**Hash re-verification at confirm time, not just at build time**: T05's
+`build_draft` records hashes when it builds; `confirm_draft` independently
+re-hashes all three files (source/branded/preview) from disk and compares
+against what was recorded, refusing confirmation if either the file is
+missing or its hash no longer matches. Tested by writing tampered bytes
+directly over a real built artifact after the build completed and
+confirming the mismatch is caught, and separately by deleting a built
+artifact and confirming its absence is caught -- both leave zero rows
+created in `aria_documents`.
+
+**"No filesystem paths in responses" enforced by one shared function, not
+scattered ad hoc field-dropping**: `_version_to_public_dict` is the single
+place that decides which version fields are safe to return over the API;
+both the list and detail read paths route through it. Tested directly by
+asserting `source_path`/`branded_path`/`preview_path`/`template_snapshot_path`/`body`
+are absent from what either read path returns, not by inspecting the route
+code and assuming.
+
+Test evidence: `test_aria_policy_versions.py` 12/12 passing -- new-policy
+confirm creating a real document + version 1.0 with the document correctly
+promoted to current, confirm retry returning identical results with
+exactly one version row (not two), confirmed hashes matching the actual
+build's recorded hashes, revision confirm leaving an existing Approved
+document's version/status/body/current-pointer completely untouched while
+the new candidate exists separately, the stale-base race proof described
+above, confirm-without-a-build refusal, mismatched-build-id refusal,
+stale-lock-token refusal, a tampered source file refusal, a missing
+branded file refusal, and both version-read paths proven to omit every
+filesystem path field. Full regression suite re-run clean. `py_compile`
+clean on all touched/new files.
 
 Suggested implementation-session prompt:
 
