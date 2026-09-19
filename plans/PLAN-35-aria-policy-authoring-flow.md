@@ -1363,13 +1363,16 @@ Files: `policy_publication.py`, `scheduler.py` (new ARIA files), `main.py`,
 `core/events.py`, `core/event_handlers.py`, GRID/Evidence adapters,
 publication/cleanup tests.
 
-- [ ] Implement version-keyed Vault and GRID evidence references and retry jobs.
-- [ ] Add current-version-aware search indexing.
-- [ ] Register scheduler start/stop and explicit per-tenant context.
-- [ ] Use leases so multiple app workers do not process the same job unsafely.
-- [ ] Implement safe expiry/orphan detection/dry-run/trash behavior.
-- [ ] Surface job failures and scoped retry without reversing approval.
-- [ ] Test job replay, partial copy failure, tenant context leakage and cleanup races.
+- [x] Implement version-keyed Vault and GRID evidence references and retry jobs.
+- [x] Add current-version-aware search indexing.
+- [x] Register scheduler start/stop and explicit per-tenant context.
+- [x] Use leases so multiple app workers do not process the same job unsafely.
+- [x] Implement safe expiry/orphan detection/dry-run/trash behavior.
+- [x] Surface job failures and scoped retry without reversing approval.
+- [x] Test job replay, partial copy failure, tenant context leakage and cleanup races
+      (cleanup races: prevented by the 24h grace period plus max_instances=1,
+      not by a lease -- see notes; no other module's scheduler in this
+      codebase has cross-worker cleanup locking either).
 
 Pass: repeat publication creates no duplicate first-party evidence; retained
 versions survive cleanup; approved current files remain available during failures.
@@ -2430,6 +2433,295 @@ soft-retirement leaving the row and file intact, and template upload
 scoping to the creator. Full regression suite (360 tests total) re-run
 clean three times across this task's edits. `py_compile` clean on all
 touched files.
+
+### T09 detailed notes (2026-09-19)
+
+Files touched: `oneforall/modules/aria/policy_publication.py` (new),
+`oneforall/modules/aria/scheduler.py` (new), `oneforall/main.py` (start/stop
+wiring), `oneforall/core/events.py` (`emit` returns event id),
+`oneforall/core/event_handlers.py` (`policy_published_handler` branches on
+`version_id`; also fixed a pre-existing `NameError` -- see below),
+`oneforall/modules/aria/policy_workflow_service.py` (real `expires_at`
+values instead of always NULL; `expire_stale_drafts`;
+`gather_referenced_storage_paths`; a real bug fix in `confirm_draft` -- see
+below), `oneforall/modules/aria/policy_storage.py` (`move_orphans_to_trash`,
+`purge_expired_trash`), `oneforall/modules/aria/ask_service.py`
+(`reindex_document` prefers the current approved version's body),
+`oneforall/modules/aria/routes_policy_workflow.py` (publication-status and
+retry endpoints; also completed a pre-existing route that never returned a
+response -- see below), `oneforall/modules/grid/routes.py` and
+`oneforall/modules/evidence/routes.py` (recognize the new
+`aria://policy-versions/{id}` virtual path and redirect into ARIA's own
+scope-checked endpoints), `oneforall/tests/test_aria_policy_publication.py`
+(new, 24 tests).
+
+Section 10.3 and section 7.5 are the two specs this task implements; both
+turned out to depend on schema T01 had already anticipated:
+`evidence_items.aria_policy_version_id` and
+`grid_evidence_files.aria_policy_version_id` (with their unique partial
+indexes) already existed, as did `aria_policy_drafts.expires_at` with its
+own `idx_aria_drafts_expiry` index -- this task is the first to actually
+populate and consume them.
+
+**A real, previously undiscovered bug found by writing this task's own
+setup helper**: `confirm_draft`'s brand-new-document INSERT never included
+`control_ref`, even though `create_draft_from_generation` captures it in
+the draft's metadata. Every document created through the full
+generate-draft-confirm pipeline therefore had `control_ref` permanently
+NULL, silently breaking GRID auto-attachment (and this task's own
+version-keyed GRID evidence copy, which is exactly how the gap was
+caught: `test_grid_evidence_attached_when_control_matches` failed with no
+evidence attached at all). Fixed by adding `control_ref` to that INSERT
+from the same metadata dict the other fields already read from.
+
+**A second real, previously undiscovered bug, found by testing
+`policy_published_handler` directly for the first time in this project's
+history**: its legacy Evidence Vault sync block calls `os.environ.get(...)`,
+but `core/event_handlers.py` never imports `os` at all, at module or
+function scope. Every legacy policy approval (`update_document` setting
+status to Approved) has been silently failing to sync to the Evidence
+Vault since this code was written -- caught by the function's own broad
+`except Exception as ev_exc: log.warning(...)`, so it never surfaced
+anywhere, including in this project's own logs unless someone was
+specifically watching for that warning line. Fixed by importing `os`
+(aliased `_os`, matching this block's existing style of aliased local
+imports for hashlib/shutil/uuid) and updating both call sites.
+
+**A third, smaller pre-existing gap, found while adding new endpoints to
+the same file**: `api_start_revision_draft` in `routes_policy_workflow.py`
+had no return statement at all -- every call returned FastAPI's default
+`null` body instead of the created draft. Not reachable from any existing
+test (only the underlying service function was tested directly), so this
+had never been caught. Fixed as part of inserting the new
+publication-status/retry endpoints immediately after it.
+
+**Design decisions where the spec's literal wording didn't match this
+schema, resolved by verifying rather than guessing**:
+- Section 10.3 asks to "validate the audit/control's organization and BU
+  against the policy scope" before GRID auto-attachment. Directly checked:
+  `grid_audits` has no `org_id` column at all, and neither does
+  `business_units` -- GRID audits are not org-scoped in this schema by any
+  column that exists. `business_unit_id` is the one dimension both sides
+  actually carry, so `_compatible_business_unit` checks that alone (an
+  audit with no BU set is treated as org-wide/shared, matching the same
+  NULL-means-organization-wide convention already used throughout
+  `policy_access.py`). Documented in `policy_publication.py`'s own
+  docstring rather than silently claiming full compliance with the
+  literal spec text.
+- Section 10.3's "renew" (of the claim lease) before writes was not built
+  as a separate call: the actual work a publication job does (copy an
+  already-built file, insert 1-2 rows) is fast and bounded, unlike a
+  LibreOffice conversion, so a single generous lease (120s) was judged
+  sufficient, with the completion write still gated on `lease_token`
+  matching so a hypothetically reclaimed lease can never silently
+  overwrite another worker's result.
+- Section 7.5's "run per organization... with a lease" for retention: no
+  other scheduler in this codebase (ERM, Evidence, GRID, BCM, Governance,
+  the reminder processor) has any cross-worker locking at all -- each
+  just loops synchronously on its own schedule. Implemented the
+  per-organization loop (explicit tenant context, a fresh referenced-paths
+  snapshot per org) but relied on APScheduler's own `max_instances=1`
+  rather than inventing a new distributed-lease mechanism nothing else in
+  the project uses; the 24-hour orphan grace period is what actually
+  protects an in-progress build from being touched, not a lock.
+
+**Claim/lease locking mirrors `reserve_document_number`'s already-proven
+pattern** (`BEGIN IMMEDIATE` on SQLite, `SELECT ... FOR UPDATE SKIP LOCKED`
+on PostgreSQL) applied to picking one due row out of a queue instead of a
+singleton counter, with the claim transaction committed immediately
+(releasing SQLite's whole-database lock) before the actual copy work
+begins, rather than held across it.
+
+**Idempotency is real, not assumed**: both `_copy_to_evidence_vault` and
+`_copy_to_grid_evidence` check for an existing row first, and additionally
+catch a unique-constraint violation as "already done" (racing against the
+unique indexes T01 already created) rather than only trusting the
+pre-check. `test_replaying_a_completed_job_does_not_duplicate_vault_evidence`
+proves a second `process_job` call on the same already-completed job data
+creates no duplicate. Because both copies commit together in one
+transaction per attempt, there is no partially-committed state a replay
+could observe -- a crash between the two inserts rolls both back, so the
+idempotency checks matter for the case that actually can happen: the job
+fully succeeded and committed, but the final "mark complete" write was
+lost (lease reclaimed, or the worker died right after committing), and
+the job gets reprocessed by a fresh claim.
+
+Test evidence (superseded in part by the review-fix pass immediately
+below -- see there for the business-unit compatibility direction, which
+this paragraph originally described backwards): `test_aria_policy_publication.py`
+24/24 passing at the time -- a real two-thread concurrency test proving
+exactly one claimant ever wins a pending job, lease expiry making a
+crashed worker's job reclaimable, version-keyed vault/GRID copies with
+replay idempotency proven directly, a real failure scheduling bounded
+backoff without touching the approved version or document status,
+permanent failure after `MAX_ATTEMPTS` with a manager notification, the
+explicit retry action working for a scoped manager and refusing an
+out-of-scope one, draft expiry correctly clearing file references while
+preserving body text, a save refreshing `expires_at` to a real future
+timestamp, orphan-to-trash respecting both the grace period and live
+references, trash purge respecting retention, and the
+`policy_published_handler` branch proven both ways (skips the legacy copy
+for a managed publication, still runs it unchanged for a plain legacy
+one). Full regression suite (384 tests total) re-run clean. `py_compile`
+clean on all touched/new files.
+
+### T09 review-fix pass (2026-09-19)
+
+An external code review of the T09 diff found 8 issues, 6 rated P1. Each
+was verified against the actual code (not taken on faith) before fixing;
+all 8 were confirmed real. Files touched: `oneforall/database.py` (new
+`list_active_tenants`/`tenant_context` helpers, `events.dedup_key` column
++ unique index), `oneforall/core/events.py` (`emit` gains `dedup_key`),
+`oneforall/modules/aria/scheduler.py` (binds tenant context per org),
+`oneforall/modules/aria/policy_publication.py` (fixed double-close, wired
+`dedup_key`, fixed the BU-compatibility direction, BU-scoped failure
+notifications), `oneforall/modules/aria/ask_service.py` (`reindex_document`
+no longer falls back to a candidate body), `oneforall/modules/aria/routes_policy_workflow.py`
+(publication-status gated by capability), `oneforall/tests/test_aria_policy_publication.py`
+(+8 tests, 24 -> 32).
+
+**1 [P1] Background jobs never entered tenant PostgreSQL schemas.**
+Confirmed directly: `get_db()`'s PostgreSQL branch only calls
+`wrapper.set_tenant(slug)`/`set_rls_context(org_id, ...)` when
+`_current_tenant`/`_current_org_id` (ContextVars set once per request by
+session middleware) are already bound -- a scheduler tick has no request
+to inherit them from, so every background job silently ran against
+whatever the default/public schema and RLS scope are, never reaching any
+other tenant's schema. No other scheduler in this codebase does this
+either (grepped for `set_current_tenant`/`set_current_org`: only
+middleware and `core/webhooks.py`, which propagates an *existing* calling
+context via `copy_context()` rather than establishing one from nothing --
+not applicable to a self-initiated timer with no caller to copy from).
+Added `database.list_active_tenants()` (org_id, slug for every
+`status='active'` org) and `database.tenant_context(org_id, slug)` (a
+context manager binding then restoring the three ContextVars, using
+`.reset(token)` so a reused scheduler thread never leaks one run's
+tenant into the next). Both of `scheduler.py`'s jobs now loop over every
+active tenant, binding context around that org's own slice of work --
+including, for the publication drain, everything `run_due_jobs` triggers
+synchronously within that call (the `ARIA_POLICY_PUBLISHED` handlers, the
+Ask ARIA reindex), since ContextVars propagate down a synchronous call
+stack for free once bound at the top. Retrofitting every *other*
+pre-existing scheduler in the codebase (ERM, Evidence, GRID, BCM,
+Governance, the reminder/workflow processors -- all of which appear to
+have the identical gap) was left alone as a separate, platform-wide
+concern well beyond this task's scope; flagged to the user rather than
+silently expanded into.
+
+**2 [P1] The empty-queue poll double-closed a pooled PostgreSQL
+connection.** Confirmed: `_PgConnWrapper.close()` unconditionally calls
+`pool.putconn()` with no idempotency guard, and `run_due_jobs` closed the
+same connection once inside `if not job:` and again in `finally` --
+returning one physical connection to the pool twice, which could then be
+handed to two unrelated callers simultaneously. Removed the inner close;
+`break` still reaches the same `finally` exactly once.
+
+**3 [P1] Publication replay was not fully idempotent.** Confirmed: the
+vault/GRID copies commit, then `emit()` runs every `ARIA_POLICY_PUBLISHED`
+handler and dispatches webhooks, and only *after* that does the job get
+marked complete. A crash or lease reclaim in that window (the job stays
+`running` with an unexpired lease, becomes reclaimable once it expires,
+and gets reprocessed from a fresh claim) replays the emit -- the vault/GRID
+copies correctly no-op on replay, but `_insert_task`, `create_cross_module_link`,
+`auto_resolve_grid_policy_requests`, workflow triggers and webhook
+dispatch are not themselves idempotent, so a replay duplicates all of
+them. Added `events.dedup_key` (nullable, unique-when-set) and an
+optional `dedup_key` parameter to `emit()`: a second `emit()` for the same
+key returns the first call's event id without running handlers or
+dispatching webhooks again, backed by the real unique index (checked
+before inserting, and the insert's own `IntegrityError` caught as "lost
+the race" and re-resolved) rather than a bare check-then-insert. `process_job`
+now passes `dedup_key=job["publication_key"]`. Existing callers that never
+pass `dedup_key` are completely unaffected. Also exposed the previously
+invisible per-handler failure status: `api_document_publication_status`
+now looks up `events.status` via the job's `event_id` for a manager
+caller. The original replay test only checked `evidence_items` row
+count, which would not have caught this -- added a second test that
+explicitly counts `events` (by `dedup_key`) and `task_board` rows after a
+replay, which required an explicit `import core.event_handlers` in the
+test (the `@on(...)` registration is a decorator side effect of that
+import; without forcing it, whether the handler even fires depended on
+which other test happened to run first in the same process -- a real
+test-isolation gap caught while writing this fix, not a production bug).
+
+**4 [P1] Ask ARIA could index an unapproved first version.** Confirmed
+directly, and confirmed reachable (not just theoretical): `confirm_draft`
+sets `aria_documents.current_policy_version_id` immediately for a
+brand-new document's very first version -- inserted with `state='draft'`
+and staying that way until someone actually approves it, which is
+deliberate (section 6.3 needs a "points at itself" candidate before any
+decision). `aria_documents.body` holds that same unapproved text at that
+point. `reindex_document`'s fallback chain (`current_policy_version_id` ->
+approved-version body -> **document body**) meant an unapproved candidate
+fell through to the document row's own body, which is a draft/candidate
+body by another name. Reachable today through the admin "rebuild index"
+action (`rebuild_all()` calls `reindex_document` for every document
+unconditionally), not only through a hypothetical race. Fixed: a managed
+document now indexes its current version's body only when that version's
+own `state` is actually `'approved'`; otherwise it is removed from the
+index rather than falling back to the document row at all. Legacy
+(non-managed) documents are unaffected.
+
+**5 [P1] A BU-private policy could attach to an organization-wide GRID
+audit.** Confirmed the exact direction was backwards:
+`_compatible_business_unit` treated `audit_bu_id is None` as compatible
+with *any* policy, when an org-wide audit's audience (every BU in the
+org) is broader than a BU-private policy's own -- and GRID's evidence
+listing does not itself re-check ARIA scope before showing the attached
+evidence's title/notes/document-version metadata, so this was a real
+metadata leak across subsidiary boundaries, not merely a display-layer
+gap elsewhere. Fixed the direction: an org-wide (`NULL` BU) policy may
+attach to any audit (its audience is already broader than any single BU),
+but a BU-specific policy may only attach to an audit scoped to that exact
+same BU, never to a `NULL`/org-wide one. The existing "no-BU audit is
+compatible" test was inverted (it was asserting the bug's own behavior);
+added a companion test proving an org-wide policy still attaches to both
+an org-wide and a BU-specific audit, so the fix isn't overcorrected into
+blocking a legitimate case.
+
+**6 [P1] Failure notifications were not BU-scoped.** Confirmed:
+`_notify_scoped_managers_of_failure` selected every `compliance_manager`/`super_admin`
+in the organization by `org_id` alone, with no BU check at all -- a
+manager in an unrelated business unit who happens to hold the role would
+be notified of a BU-private policy's title and a direct link to it.
+Fixed by loading the document's own org/BU/managed columns and filtering
+every candidate through `document_read_ok`, the same scope rule used
+everywhere else in this workflow. Added a test with a same-org,
+different-BU `compliance_manager` who must not receive the notification,
+alongside the existing test proving an in-scope manager still does.
+
+**7 [P2] Publication diagnostics were exposed too broadly.** Same
+endpoint as item 3's exposed-status addition, so fixed together:
+`api_document_publication_status` used `document_read_ok`, a plain READ
+check that any ARIA-module user (including an employee or external
+auditor with no approval authority) passes, to gate `last_error` and
+attempt detail that the endpoint's own docstring already framed as
+manager-facing. Added a capability check (`aria.policy.approve` or
+`aria.policy.edit_any`); a non-manager now gets only `{state,
+needs_attention}`. Not fully addressed: returning a stable sanitized
+error *code* instead of the raw (truncated) exception string for the
+manager's own view would need a real error taxonomy at the point of
+failure, which is a larger design exercise left as a further refinement
+rather than attempted as a quick pass here -- the actual exposure (to
+non-managers) is closed either way.
+
+**8 [P2] The expiry-refresh test was clock-resolution dependent.**
+Confirmed the mechanism, not just the symptom: two live `utcnow()` calls
+a few lines apart can read the identical system clock tick on Windows,
+which would make the test's strict `>` comparison flaky rather than a
+real assertion about the refresh behavior. Rewritten to monkeypatch
+`utcnow` with two deterministic, clearly-separated timestamps and assert
+the exact expected `expires_at` at each step, not just their relative
+order.
+
+Test evidence: `test_aria_policy_publication.py` 32/32 passing (8 new:
+tenant-context bind/restore including on exception, `list_active_tenants`
+excluding an inactive org, the scheduler actually binding per-org context
+around `run_due_jobs`, replay proven not to duplicate the `events`/`task_board`
+rows this time instead of only `evidence_items`, the BU-compatibility
+direction both ways, the failure-notification BU exclusion, and the
+unapproved-version indexing gap directly). Full regression suite (392
+tests total) re-run clean. `py_compile` clean on all touched files.
 
 Suggested implementation-session prompt:
 

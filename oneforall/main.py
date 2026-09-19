@@ -233,6 +233,14 @@ async def startup():
     except Exception as exc:
         log.warning("Governance scheduler failed to start: %s", exc)
 
+    # Start ARIA policy workflow scheduler (publication queue drain every
+    # 60s, retention sweep daily at 02:00 UTC)
+    try:
+        from modules.aria.scheduler import start_scheduler as aria_policy_start
+        aria_policy_start()
+    except Exception as exc:
+        log.warning("ARIA policy scheduler failed to start: %s", exc)
+
     # Migrate: add due_at column to workflow_actions (idempotent via IF NOT EXISTS)
     try:
         _db_wf = get_db()
@@ -304,6 +312,11 @@ async def shutdown():
     try:
         from modules.governance.scheduler import stop_scheduler as governance_stop
         governance_stop()
+    except Exception:
+        pass
+    try:
+        from modules.aria.scheduler import stop_scheduler as aria_policy_stop
+        aria_policy_stop()
     except Exception:
         pass
     log.info("ThemisIQ shutting down")

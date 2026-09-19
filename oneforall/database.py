@@ -9,6 +9,7 @@ import os
 import re
 import threading
 import datetime as _dt
+from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from config import settings
@@ -67,6 +68,45 @@ def set_current_org(org_id: "int | None", is_super_admin: bool = False):
     """Set the org context for RLS enforcement in the current async context."""
     _current_org_id.set(org_id)
     _current_is_super.set(is_super_admin)
+
+
+def list_active_tenants() -> "list[tuple[int, str]]":
+    """(org_id, slug) for every active organization -- for a background job
+    that must visit every tenant's schema/RLS scope in turn (a scheduler has
+    no request to inherit tenant context from; get_db() silently stays on
+    the public schema and default RLS scope unless something binds it
+    explicitly first). Queries with no tenant bound, which is correct here:
+    the organizations registry itself always lives in the shared/public
+    schema, never inside a per-tenant one."""
+    db = get_db_background()
+    try:
+        rows = db.execute("SELECT id, slug FROM organizations WHERE status='active'").fetchall()
+        return [(r["id"], r["slug"]) for r in rows]
+    finally:
+        db.close()
+
+
+@contextmanager
+def tenant_context(org_id: "int | None", slug: "str | None", is_super_admin: bool = True):
+    """Bind (slug, org_id) as the current tenant context for the duration of
+    the with-block, then restore whatever was bound before -- for a
+    background job iterating every tenant in turn. A live request already
+    gets this once per request from session middleware; this is only for
+    code with no request to inherit from. is_super_admin defaults True: a
+    background job acting on an org's own data is not a specific
+    BU-restricted user, so it should see everything within that one org
+    (the schema/org_id binding already limits it to that org; this only
+    affects RLS scope *within* it). A no-op on SQLite, which never reads
+    these ContextVars (see get_db())."""
+    tenant_token = _current_tenant.set(slug)
+    org_token = _current_org_id.set(org_id)
+    super_token = _current_is_super.set(is_super_admin)
+    try:
+        yield
+    finally:
+        _current_tenant.reset(tenant_token)
+        _current_org_id.reset(org_token)
+        _current_is_super.reset(super_token)
 
 
 def _ensure_dir():
@@ -4114,6 +4154,10 @@ _COLUMN_MIGRATIONS = [
         # keeps its existing path, a typed reference takes precedence when present)
         ("evidence_items", "aria_policy_version_id", "INTEGER REFERENCES aria_policy_versions(id)"),
         ("grid_evidence_files", "aria_policy_version_id", "INTEGER REFERENCES aria_policy_versions(id)"),
+        # PLAN-35 T09: lets emit() de-duplicate a caller-supplied stable key
+        # (e.g. a publication_key) so a crash/lease-reclaim replay of the
+        # same logical event never re-runs handlers/webhooks a second time.
+        ("events", "dedup_key", "TEXT"),
         # Sentinel DPIA — columns referenced by data_service but missing from CREATE TABLE
         ("sentinel_dpias", "org_name", "TEXT"),
         ("sentinel_dpias", "controller_name", "TEXT"),
@@ -4387,6 +4431,10 @@ def _run_sqlite_alters(conn):
         # equivalent runner. Keep both copies in sync if either changes.
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_evidence_items_policy_version ON evidence_items(aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_grid_evidence_control_version ON grid_evidence_files(control_id, aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
+        # PLAN-35 T09: also a correctness constraint (emit()'s dedup_key
+        # checkpoint), duplicated in _run_pg_alters() below for the same
+        # reason as the two indexes directly above.
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
         # S-9: Performance indexes for high-frequency status/regulation filters
         "CREATE INDEX IF NOT EXISTS idx_bcm_incidents_status    ON bcm_incidents(status)",
         "CREATE INDEX IF NOT EXISTS idx_bcm_risks_status        ON bcm_risks(status)",
@@ -5676,6 +5724,7 @@ def _run_pg_alters(conn) -> None:
     for idx_sql in (
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_evidence_items_policy_version ON evidence_items(aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_grid_evidence_control_version ON grid_evidence_files(control_id, aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
     ):
         try:
             conn.execute(idx_sql)

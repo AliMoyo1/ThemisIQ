@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import timedelta
 
 from core.timeutils import utcnow
 from database import insert_returning_id
@@ -24,6 +25,16 @@ from modules.aria.policy_access import (
 
 MAX_BODY_CHARS = 50_000
 MAX_TITLE_CHARS = 200
+
+
+def _draft_expiry_timestamp(now) -> str:
+    """PLAN-35 T09 (section 7.5): 'a save refreshes draft expiry'. Computed
+    fresh at every touch point (create, save, revision-start, recover)
+    rather than left NULL -- the retention job's idx_aria_drafts_expiry
+    index only helps if this column holds a real, directly comparable
+    timestamp instead of always NULL."""
+    from config import settings
+    return (now + timedelta(days=settings.ARIA_POLICY_DRAFT_EXPIRY_DAYS)).isoformat()
 
 
 class PolicyWorkflowError(Exception):
@@ -217,7 +228,8 @@ def create_draft_from_generation(
         "review_date": None,
     }
 
-    now = utcnow().isoformat()
+    now_dt = utcnow()
+    now = now_dt.isoformat()
     draft_id = str(uuid.uuid4())
     try:
         db.execute(
@@ -226,13 +238,13 @@ def create_draft_from_generation(
             "source_document_id, base_version_id, reserved_doc_id, "
             "version_major, version_minor, content_kind, body, metadata_json, "
             "author_user_ids_json, state, lock_version, generation_request_id, "
-            "created_at, updated_at) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'markdown',%s,%s,%s,'editing',1,%s,%s,%s)",
+            "created_at, updated_at, expires_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'markdown',%s,%s,%s,'editing',1,%s,%s,%s,%s)",
             (draft_id, org_id, bu_id, actor["id"], actor["id"], actor["id"],
              source_document_id, base_version_id, reserved_doc_id,
              version_major, version_minor, generated_content,
              json.dumps(metadata), json.dumps([actor["id"]]), request_id,
-             now, now),
+             now, now, _draft_expiry_timestamp(now_dt)),
         )
     except Exception as exc:
         if _is_unique_violation(exc):
@@ -315,12 +327,13 @@ def save_draft_body(
     author_ids = set(json.loads(draft.get("author_user_ids_json") or "[]"))
     author_ids.add(actor["id"])
 
-    now = utcnow().isoformat()
+    now_dt = utcnow()
+    now = now_dt.isoformat()
     updated = db.execute(
         "UPDATE aria_policy_drafts SET "
         "body=COALESCE(%s, body), metadata_json=%s, author_user_ids_json=%s, "
         "last_edited_by=%s, state='editing', lock_version=lock_version+1, "
-        "updated_at=%s, expires_at=NULL, "
+        "updated_at=%s, expires_at=%s, "
         # Editing invalidates any prior successful build (section 6.1).
         "build_id=NULL, build_input_sha256=NULL, template_sha256=NULL, "
         "source_path=NULL, branded_path=NULL, preview_path=NULL, "
@@ -328,7 +341,7 @@ def save_draft_body(
         "preview_sha256=NULL, renderer_manifest_json=NULL, renderer_manifest_sha256=NULL "
         "WHERE id=%s AND lock_version=%s",
         (body, json.dumps(metadata), json.dumps(sorted(author_ids)),
-         actor["id"], now, draft_id, expected_lock_version),
+         actor["id"], now, _draft_expiry_timestamp(now_dt), draft_id, expected_lock_version),
     )
     if getattr(updated, "rowcount", 1) == 0:
         raise StaleDraftError()
@@ -352,6 +365,72 @@ def discard_draft(db, actor: dict, draft_id: str, expected_lock_version: int) ->
     db.commit()
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# Retention (PLAN-35 T09, section 7.5)
+# ─────────────────────────────────────────────────────────────────────────
+
+_DRAFT_PATH_COLUMNS = (
+    "uploaded_source_path", "source_path", "branded_path",
+    "preview_path", "template_snapshot_path",
+)
+_VERSION_PATH_COLUMNS = (
+    "source_path", "branded_path", "preview_path", "template_snapshot_path",
+)
+
+
+def gather_referenced_storage_paths(db, org_id: int) -> set[str]:
+    """Every relative path a live record still points at, for this org --
+    the retention job's caller passes this to policy_storage's cleanup
+    functions so a directory is never trashed while anything still
+    references it. Committed drafts/versions/legacy revisions are never
+    age-deleted by this job (section 7.5) simply because nothing here ever
+    clears their path columns; this only reads what each table already
+    has, matching whichever rows exist right now regardless of state."""
+    referenced: set[str] = set()
+    draft_cols = ", ".join(_DRAFT_PATH_COLUMNS)
+    for row in db.execute(
+        f"SELECT {draft_cols} FROM aria_policy_drafts WHERE org_id=%s", (org_id,)
+    ).fetchall():
+        row = dict(row)
+        for col in _DRAFT_PATH_COLUMNS:
+            if row.get(col):
+                referenced.add(row[col])
+    version_cols = ", ".join(_VERSION_PATH_COLUMNS)
+    for row in db.execute(
+        f"SELECT {version_cols} FROM aria_policy_versions WHERE org_id=%s", (org_id,)
+    ).fetchall():
+        row = dict(row)
+        for col in _VERSION_PATH_COLUMNS:
+            if row.get(col):
+                referenced.add(row[col])
+    return referenced
+
+
+def expire_stale_drafts(db, org_id: int) -> int:
+    """Section 7.5: a draft untouched (no save) since its own expires_at
+    (set at create/save time by _draft_expiry_timestamp -- now +
+    ARIA_POLICY_DRAFT_EXPIRY_DAYS, refreshed on every save) moves to
+    'expired' and its file references are cleared in this same guarded
+    update -- the underlying artifact directory itself becomes an orphan
+    for policy_storage's separate move-to-trash pass to find later, once
+    its own grace period also passes. Body/metadata are kept for recovery
+    (recover_draft), never hard-deleted here. Returns the number expired."""
+    now_iso = utcnow().isoformat()
+    updated = db.execute(
+        "UPDATE aria_policy_drafts SET state='expired', updated_at=%s, "
+        "build_id=NULL, build_input_sha256=NULL, template_sha256=NULL, "
+        "source_path=NULL, branded_path=NULL, preview_path=NULL, "
+        "template_snapshot_path=NULL, source_sha256=NULL, branded_sha256=NULL, "
+        "preview_sha256=NULL, renderer_manifest_json=NULL, renderer_manifest_sha256=NULL "
+        "WHERE org_id=%s AND state IN ('editing','ready') "
+        "AND expires_at IS NOT NULL AND expires_at < %s",
+        (now_iso, org_id, now_iso),
+    )
+    count = getattr(updated, "rowcount", 0) or 0
+    db.commit()
+    return count
+
+
 def recover_draft(db, actor: dict, draft_id: str) -> dict:
     """Create a fresh editable draft seeded from a discarded/expired one's
     last saved content. The original record is kept as history, never
@@ -365,19 +444,20 @@ def recover_draft(db, actor: dict, draft_id: str) -> dict:
         )
 
     new_id = str(uuid.uuid4())
-    now = utcnow().isoformat()
+    now_dt = utcnow()
+    now = now_dt.isoformat()
     db.execute(
         "INSERT INTO aria_policy_drafts "
         "(id, org_id, business_unit_id, owner_user_id, created_by, last_edited_by, "
         "source_document_id, base_version_id, reserved_doc_id, "
         "version_major, version_minor, content_kind, body, metadata_json, "
-        "author_user_ids_json, state, lock_version, created_at, updated_at) "
+        "author_user_ids_json, state, lock_version, created_at, updated_at, expires_at) "
         "SELECT %s, org_id, business_unit_id, owner_user_id, created_by, %s, "
         "source_document_id, base_version_id, reserved_doc_id, "
         "version_major, version_minor, content_kind, body, metadata_json, "
-        "author_user_ids_json, 'editing', 1, %s, %s "
+        "author_user_ids_json, 'editing', 1, %s, %s, %s "
         "FROM aria_policy_drafts WHERE id=%s",
-        (new_id, actor["id"], now, now, draft_id),
+        (new_id, actor["id"], now, now, _draft_expiry_timestamp(now_dt), draft_id),
     )
     db.commit()
     return get_draft(db, actor, new_id)
@@ -421,19 +501,20 @@ def start_revision_draft(db, actor: dict, doc_id: str, copied_from_version_id: i
     }
 
     draft_id = str(uuid.uuid4())
-    now = utcnow().isoformat()
+    now_dt = utcnow()
+    now = now_dt.isoformat()
     try:
         db.execute(
             "INSERT INTO aria_policy_drafts "
             "(id, org_id, business_unit_id, owner_user_id, created_by, last_edited_by, "
             "source_document_id, base_version_id, copied_from_version_id, "
             "version_major, version_minor, content_kind, body, metadata_json, "
-            "author_user_ids_json, state, lock_version, created_at, updated_at) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'markdown',%s,%s,%s,'editing',1,%s,%s)",
+            "author_user_ids_json, state, lock_version, created_at, updated_at, expires_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'markdown',%s,%s,%s,'editing',1,%s,%s,%s)",
             (draft_id, doc["org_id"], doc["business_unit_id"], actor["id"], actor["id"], actor["id"],
              doc["id"], doc.get("current_policy_version_id"), copied_from_version_id,
              version_major, version_minor, seed_body, json.dumps(metadata),
-             json.dumps([actor["id"]]), now, now),
+             json.dumps([actor["id"]]), now, now, _draft_expiry_timestamp(now_dt)),
         )
     except Exception as exc:
         if _is_unique_violation(exc):
@@ -707,11 +788,12 @@ def confirm_draft(db, actor: dict, draft_id: str, build_id: str, expected_lock_v
         new_doc_pk = insert_returning_id(
             db,
             "INSERT INTO aria_documents "
-            "(doc_id, framework, title, doc_type, version, status, body, "
+            "(doc_id, framework, control_ref, title, doc_type, version, status, body, "
             "org_id, business_unit_id, owner_user_id, policy_workflow_managed, "
             "created_at, updated_at) "
-            "VALUES (%s,%s,%s,%s,%s,'Draft',%s,%s,%s,%s,1,%s,%s)",
+            "VALUES (%s,%s,%s,%s,%s,%s,'Draft',%s,%s,%s,%s,1,%s,%s)",
             (doc_id_str, json.loads(metadata).get("framework_label", ""),
+             json.loads(metadata).get("control_ref", ""),
              json.loads(metadata).get("title", doc_id_str),
              json.loads(metadata).get("doc_type", "Policy"), version_str, draft["body"],
              draft["org_id"], draft["business_unit_id"], actor["id"], now, now),

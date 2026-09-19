@@ -356,8 +356,21 @@ def policy_published_handler(event_type, source_module, entity_type,
     When ARIA publishes a policy:
     - Create a task to review evidence alignment
     - Link the policy to its framework via cross_module_links
+    - Sync the document to the Evidence Vault (legacy documents only --
+      see the version_id branch below)
     - Notify admins
     """
+    # PLAN-35 T09 (section 10.3): "For managed-version events, existing
+    # policy handlers must read the specified snapshot or delegate to this
+    # adapter. Avoid calling both the old mutable-document Vault copy and
+    # the new copy." A managed publication's payload carries version_id --
+    # policy_publication.py's job already copied that exact version into
+    # the Evidence Vault (keyed by aria_policy_version_id, never
+    # overwriting an earlier version's row) before emitting this event, so
+    # the legacy vault-sync block below must not run a second, competing
+    # copy keyed by the mutable document id instead.
+    is_managed_publication = payload.get("version_id") is not None
+
     db = get_db()
     try:
         title = payload.get("title", f"Policy #{entity_id}")
@@ -391,7 +404,20 @@ def policy_published_handler(event_type, source_module, entity_type,
                         relationship="implements", user_id=user_id, db=db,
                     )
 
-        # ── Sync full policy document to Evidence Vault ─────────────
+        if is_managed_publication:
+            _notify_admins(
+                db, "aria",
+                f"Policy Published: {title}",
+                f"ARIA policy '{title}' approved (version {payload.get('version')}) "
+                f"— synced to the Evidence Vault.",
+                "/aria/#documents",
+            )
+            db.commit()
+            log.info("Handled managed policy published for '%s' (id=%d, version_id=%s)",
+                      title, entity_id, payload.get("version_id"))
+            return
+
+        # ── Sync full policy document to Evidence Vault (legacy path) ───
         doc_row = db.execute(
             "SELECT doc_id, title, doc_type, version, "
             "       file_path, branded_file_path, file_name "
@@ -401,12 +427,19 @@ def policy_published_handler(event_type, source_module, entity_type,
 
         try:
             import hashlib as _hashlib
+            import os as _os
             import shutil as _shutil
             from pathlib import Path as _Path
             import uuid as _uuid
 
-            aria_dir = _Path(os.environ.get("ARIA_UPLOAD_DIR", "data/aria_uploads"))
-            ev_dir = _Path(os.environ.get("EVIDENCE_DIR", "data/evidence"))
+            # This block previously called the bare name `os`, which this
+            # file never imports at module level -- every legacy policy
+            # publication has been silently failing to sync to the
+            # Evidence Vault, caught by this function's own broad except
+            # below and only ever logged. Discovered directly by testing
+            # this handler for the first time (PLAN-35 T09).
+            aria_dir = _Path(_os.environ.get("ARIA_UPLOAD_DIR", "data/aria_uploads"))
+            ev_dir = _Path(_os.environ.get("EVIDENCE_DIR", "data/evidence"))
             ev_dir.mkdir(parents=True, exist_ok=True)
 
             src_rel = None

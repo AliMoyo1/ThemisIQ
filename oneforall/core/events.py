@@ -14,7 +14,7 @@ from datetime import datetime
 from core.timeutils import utcnow
 from typing import Callable, Optional
 
-from database import get_db, get_db_background, insert_returning_id
+from database import get_db, get_db_background, insert_returning_id, IntegrityError
 
 log = logging.getLogger("oneforall.events")
 
@@ -32,29 +32,67 @@ def on(event_type: str):
 
 def emit(event_type: str, source_module: str, entity_type: str = "",
          entity_id: int = 0, payload: dict = None, user_id: int = None,
-         org_id: int = None):
+         org_id: int = None, dedup_key: str = None) -> int:
     """Emit an event: store it and run all registered handlers.
 
     org_id scopes outbound webhook delivery (see the dispatch block below).
     Pass it explicitly when the caller has no live request context but does
     know the tenant (e.g. a scheduler looping per-org); otherwise it is
     resolved automatically from the current request's tenant context.
+
+    dedup_key (PLAN-35 T09, section 10.3): pass a stable, globally-unique
+    key (e.g. a publication_key) when the caller might retry/replay the
+    same logical event after a crash -- a job that committed its own
+    durable side effects but died before recording completion, and gets
+    reprocessed by a fresh claim. Without this, a replay re-runs every
+    handler (duplicate tasks, cross-module links, notifications) and
+    re-dispatches to every webhook subscriber a second time, none of which
+    are idempotent on their own. With it, a second emit() for the same key
+    returns the first call's event id without running handlers or
+    dispatching webhooks again -- backed by a real unique index
+    (uq_events_dedup_key), not just a check-then-insert race.
+
+    Returns the event's row id (a publication job persists this id after a
+    successful emit; also how a dedup_key caller finds the original
+    event's handler-failure status later via events.status). Existing
+    callers that ignore the return value, or never pass dedup_key, are
+    unaffected.
     """
     db = get_db()
     try:
-        event_id = insert_returning_id(db,
-            "INSERT INTO events (event_type, source_module, source_entity_type, "
-            "source_entity_id, payload, created_by) VALUES (%s, %s, %s, %s, %s, %s)",
-            (
-                event_type,
-                source_module,
-                entity_type,
-                entity_id,
-                json.dumps(payload) if payload else "{}",
-                user_id,
-            ),
-        )
-        db.commit()
+        if dedup_key:
+            existing = db.execute(
+                "SELECT id FROM events WHERE dedup_key=%s", (dedup_key,)
+            ).fetchone()
+            if existing:
+                return existing[0]
+        try:
+            event_id = insert_returning_id(db,
+                "INSERT INTO events (event_type, source_module, source_entity_type, "
+                "source_entity_id, payload, created_by, dedup_key) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    event_type,
+                    source_module,
+                    entity_type,
+                    entity_id,
+                    json.dumps(payload) if payload else "{}",
+                    user_id,
+                    dedup_key,
+                ),
+            )
+            db.commit()
+        except IntegrityError:
+            if not dedup_key:
+                raise
+            # Lost a race with a concurrent emit() for the same dedup_key --
+            # its row is authoritative; this call must not run handlers too.
+            db.rollback()
+            existing = db.execute(
+                "SELECT id FROM events WHERE dedup_key=%s", (dedup_key,)
+            ).fetchone()
+            if not existing:
+                raise
+            return existing[0]
     finally:
         db.close()
 
@@ -98,6 +136,8 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
     except Exception as exc:
         # Webhook delivery must never break the source operation.
         log.warning("webhook dispatch failed for %s: %s", event_type, exc)
+
+    return event_id
 
 
 def _mark_processed(event_id: int):

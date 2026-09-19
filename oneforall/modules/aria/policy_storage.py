@@ -219,10 +219,10 @@ def validate_docx(path: Path) -> None:
             )
 
 
-def cleanup_dry_run(org_id: int, referenced_relative_paths: set[str]) -> dict:
-    """List (never delete) staging/artifacts entries under this org that
-    are not referenced by any live record, for the retention job's dry-run
-    mode (section 7.5). Returns counts and paths only, no file contents."""
+def _list_orphans(org_id: int, referenced_relative_paths: set[str]) -> list[tuple[str, Path]]:
+    """Shared by cleanup_dry_run and move_orphans_to_trash: (relative_path,
+    absolute_path) for every staging/artifacts entry not referenced by any
+    live record."""
     org_root = _org_root(org_id)
     orphans = []
     if org_root.exists():
@@ -238,5 +238,79 @@ def cleanup_dry_run(org_id: int, referenced_relative_paths: set[str]) -> dict:
                 if rel not in referenced_relative_paths and not any(
                     ref.startswith(rel + "/") for ref in referenced_relative_paths
                 ):
-                    orphans.append(rel)
+                    orphans.append((rel, entry))
+    return orphans
+
+
+def cleanup_dry_run(org_id: int, referenced_relative_paths: set[str]) -> dict:
+    """List (never delete) staging/artifacts entries under this org that
+    are not referenced by any live record, for the retention job's dry-run
+    mode (section 7.5). Returns counts and paths only, no file contents."""
+    orphans = [rel for rel, _ in _list_orphans(org_id, referenced_relative_paths)]
     return {"org_id": org_id, "orphan_count": len(orphans), "orphans": orphans}
+
+
+def move_orphans_to_trash(org_id: int, referenced_relative_paths: set[str],
+                           grace_hours: int) -> list[str]:
+    """Moves each orphaned staging/artifacts entry older than grace_hours
+    into trash/<same-name>, stamped with a .trashed_at sidecar recording
+    when it arrived (section 7.5's 24-hour default grace period before an
+    unreferenced directory is even touched, guarding against a build still
+    in flight -- a candidate an in-progress request has staged but not yet
+    attached). Returns the relative trash paths actually moved."""
+    now = time.time()
+    cutoff = now - grace_hours * 3600
+    moved = []
+    for rel, abs_path in _list_orphans(org_id, referenced_relative_paths):
+        try:
+            mtime = abs_path.stat().st_mtime
+        except OSError:
+            continue
+        if mtime > cutoff:
+            continue  # not old enough yet -- may still be an in-progress build
+
+        entry_name = abs_path.name
+        trash_dir = _org_root(org_id) / "trash"
+        trash_dir.mkdir(parents=True, exist_ok=True)
+        dest = trash_dir / entry_name
+        if dest.exists():
+            dest = trash_dir / f"{entry_name}_{uuid.uuid4().hex[:8]}"
+        try:
+            os.rename(str(abs_path), str(dest))
+        except OSError as exc:
+            continue
+        try:
+            (dest / ".trashed_at").write_text(str(now), encoding="utf-8")
+        except OSError:
+            pass
+        moved.append(relative_path(dest))
+    return moved
+
+
+def purge_expired_trash(org_id: int, retention_days: int) -> list[str]:
+    """Permanently deletes trash/<entry> whose .trashed_at sidecar shows it
+    has sat longer than retention_days (section 7.5's 7-day default). A
+    trash entry with no readable sidecar (should not normally happen) is
+    left alone rather than guessed at."""
+    import shutil
+    trash_dir = _org_root(org_id) / "trash"
+    if not trash_dir.exists():
+        return []
+    now = time.time()
+    cutoff = now - retention_days * 86400
+    purged = []
+    for entry in trash_dir.iterdir():
+        sidecar = entry / ".trashed_at"
+        try:
+            trashed_at = float(sidecar.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            continue
+        if trashed_at > cutoff:
+            continue
+        try:
+            rel = relative_path(entry)
+            shutil.rmtree(entry)
+            purged.append(rel)
+        except OSError:
+            continue
+    return purged

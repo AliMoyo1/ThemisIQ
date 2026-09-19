@@ -148,20 +148,59 @@ def remove_from_index(content_type: str, content_id: str):
 
 
 def reindex_document(doc_id: str):
-    """(Re)index a single document by doc_id."""
+    """(Re)index a single document by doc_id.
+
+    PLAN-35 T09 (section 10.2): "never index editable drafts or candidate
+    bodies" and index the *current* version. For a policy-workflow-managed
+    document, aria_documents.body is set once at confirm time and never
+    refreshed on later revisions -- the durable content lives on the
+    immutable aria_policy_versions row instead, promoted only on approval.
+
+    A managed document's current_policy_version_id is NOT itself proof of
+    approval: confirm_draft sets it immediately for a brand-new document's
+    very first version, which is inserted with state='draft' and stays
+    that way until someone actually approves it (this is deliberate --
+    section 6.3's projection rules need a "points at itself" candidate
+    before it is ever decided). aria_documents.body holds that exact same
+    unapproved candidate text at that point, so falling back to it here
+    would index a draft/candidate body after all -- confirmed reachable
+    directly through the admin "rebuild index" action, not just a
+    theoretical race. A managed document therefore indexes its current
+    version's body only when that version's state is actually 'approved';
+    otherwise it is removed from the index (nothing effective exists yet
+    to search), never backed by the document row's own body/comments.
+    Legacy (non-managed) documents are unaffected: they keep reading
+    aria_documents.body/comments exactly as before.
+    """
     db = get_db()
     try:
         doc = db.execute(
             "SELECT * FROM aria_documents WHERE doc_id=%s", (doc_id,)
         ).fetchone()
+        if not doc:
+            return
+        doc = dict(doc)
+        is_managed = bool(doc.get("policy_workflow_managed"))
+        if is_managed:
+            body_source = None
+            if doc.get("current_policy_version_id"):
+                version = db.execute(
+                    "SELECT body, state FROM aria_policy_versions WHERE id=%s",
+                    (doc["current_policy_version_id"],),
+                ).fetchone()
+                if version and version["state"] == "approved":
+                    body_source = version["body"] or ""
+            if body_source is None:
+                _clear_by("document", doc_id)
+                return
+        else:
+            body_source = doc.get("body") or doc.get("comments") or ""
     finally:
         db.close()
-    if not doc:
-        return
 
     _clear_by("document", doc_id)
 
-    body = doc["body"] or doc["comments"] or ""
+    body = body_source
     if body.strip():
         chunks = _chunk_markdown(body)
     else:

@@ -10,7 +10,7 @@ import hashlib
 from pathlib import Path
 
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_auth, require_capability
@@ -422,6 +422,19 @@ async def api_evidence_download(request: Request, eid: int):
         fname = item["file_name"] or "download"
         mime = item["mime_type"] or "application/octet-stream"
 
+        # PLAN-35 T09 (section 10.3): a managed-policy evidence item stores
+        # this virtual pointer, never a real path, so download always
+        # re-authorizes through ARIA's own version-scoped endpoint instead
+        # of resolving a path here. This also fixes the "current-document
+        # fallback" gap below for a managed document: that block reads
+        # aria_documents.file_path/branded_file_path, which decide_approval
+        # never sets (content lives on the immutable version row instead),
+        # so without this branch a version-keyed item 404's rather than
+        # ever risking a wrong/stale version being served.
+        if fp_rel.startswith("aria://policy-versions/"):
+            version_id = fp_rel.rsplit("/", 1)[-1]
+            return RedirectResponse(url=f"/aria/api/policy-versions/{version_id}/download", status_code=302)
+
         # Primary: look in the evidence directory
         if fp_rel:
             candidate = (EVIDENCE_DIR / fp_rel).resolve()
@@ -478,9 +491,17 @@ async def api_evidence_download_pdf(request: Request, eid: int):
         if not item:
             raise HTTPException(404, "Evidence not found")
 
+        # PLAN-35 T09: a managed-policy evidence item's preview is a PDF
+        # already built at approval time -- redirect to ARIA's own
+        # version-scoped preview rather than on-demand LibreOffice
+        # conversion of a path this row doesn't actually have.
+        fp_rel = item["file_path"] or ""
+        if fp_rel.startswith("aria://policy-versions/"):
+            version_id = fp_rel.rsplit("/", 1)[-1]
+            return RedirectResponse(url=f"/aria/api/policy-versions/{version_id}/preview", status_code=302)
+
         # Resolve the actual file (same fallback logic as download)
         file_path = None
-        fp_rel = item["file_path"] or ""
         if fp_rel:
             candidate = (EVIDENCE_DIR / fp_rel).resolve()
             if str(candidate).startswith(str(EVIDENCE_DIR.resolve())) and candidate.exists():

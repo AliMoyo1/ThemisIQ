@@ -417,3 +417,78 @@ async def api_start_revision_draft(request: Request, doc_id: str):
     finally:
         db.close()
     return JSONResponse({"ok": True, "draft": draft}, status_code=201)
+
+
+@router.get("/api/documents/{doc_id}/publication-status")
+@require_module("aria")
+async def api_document_publication_status(request: Request, doc_id: str):
+    """Lets a caller with read access to the document see whether its
+    current approved version finished publishing to the Evidence
+    Vault/GRID, so the UI can show 'evidence synchronization needs
+    attention'. document_read_ok is a READ check, not an edit/approval
+    one -- ARIA module access alone (any employee, an external auditor)
+    is enough to pass it, so the internal last_error text and attempt
+    detail (which section 10.3 frames as manager-facing) are withheld from
+    anyone who isn't actually a scoped manager, not just gated by the
+    weaker read check."""
+    from core.rbac import has_capability
+    from modules.aria.policy_access import document_read_ok
+    actor = request.state.user
+    db = get_db()
+    try:
+        doc = db.execute(
+            "SELECT id, org_id, business_unit_id, policy_workflow_managed, "
+            "current_policy_version_id FROM aria_documents WHERE doc_id=%s",
+            (doc_id,),
+        ).fetchone()
+        if not doc or not document_read_ok(actor, dict(doc)):
+            return JSONResponse({"ok": False, "error": {"code": "NOT_FOUND",
+                                 "message": "Document not found.", "retryable": False}}, status_code=404)
+        doc = dict(doc)
+        if not doc.get("current_policy_version_id"):
+            return JSONResponse({"ok": True, "job": None})
+        job = db.execute(
+            "SELECT id, state, attempts, last_error, next_attempt_at, updated_at, event_id "
+            "FROM aria_policy_publication_jobs WHERE policy_version_id=%s",
+            (doc["current_policy_version_id"],),
+        ).fetchone()
+        if not job:
+            return JSONResponse({"ok": True, "job": None})
+        job = dict(job)
+
+        is_manager = (has_capability(actor, "aria.policy.approve")
+                      or has_capability(actor, "aria.policy.edit_any"))
+        if not is_manager:
+            return JSONResponse({"ok": True, "job": {
+                "state": job["state"], "needs_attention": job["state"] == "failed",
+            }})
+
+        # Section 10.3: "expose failed event-handler status" -- the job
+        # itself can be 'complete' while a downstream handler still failed
+        # (emit() catches and records that per-handler, on the events row,
+        # separately from the job's own state).
+        handler_status = None
+        if job.get("event_id"):
+            ev = db.execute("SELECT status FROM events WHERE id=%s", (job["event_id"],)).fetchone()
+            if ev:
+                handler_status = ev["status"]
+        job["event_handler_status"] = handler_status
+        job.pop("event_id", None)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "job": job})
+
+
+@router.post("/api/publication-jobs/{job_id}/retry")
+@require_module("aria")
+async def api_retry_publication_job(request: Request, job_id: int):
+    from modules.aria import policy_publication
+    actor = request.state.user
+    db = get_db()
+    try:
+        job = policy_publication.retry_now(db, actor, job_id)
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, "job": job})

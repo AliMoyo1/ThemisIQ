@@ -532,6 +532,16 @@ async def api_evidence_download(request: Request, eid: int):
     if not ef:
         raise HTTPException(404, "Evidence file not found")
     fp_str = ef.get("file_path") or ""
+    # PLAN-35 T09 (section 10.3): "Update GRID policy-reference resolution
+    # to authorize both the GRID record and the ARIA version before
+    # serving the file." A version-keyed evidence file (created by
+    # policy_publication.py) stores this virtual path rather than a real
+    # one, so downloading it always re-enters ARIA's own scope check
+    # (api_download_policy_version) instead of serving bytes straight from
+    # whatever path happens to be on the row.
+    if fp_str.startswith("aria://policy-versions/"):
+        version_id = fp_str.rsplit("/", 1)[-1]
+        return RedirectResponse(url=f"/aria/api/policy-versions/{version_id}/download", status_code=302)
     if fp_str.startswith("aria://documents/"):
         # Extract the ARIA document id from the virtual path and redirect
         aria_doc_id = fp_str.split("/")[-1]
