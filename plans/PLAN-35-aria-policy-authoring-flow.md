@@ -1339,13 +1339,19 @@ Dependencies: T02, T06, T07.
 Files: `routes.py`, `documents.html`, `ask_service.py`, launcher/grid consumers,
 legacy-route and retrieval tests.
 
-- [ ] Enforce the complete legacy compatibility table in section 10.1.
-- [ ] Route managed upload/template changes into draft/candidate operations.
-- [ ] Remove generic lifecycle selectors and free-text authorization.
-- [ ] Gate document search, counts, exports and AI context by scope/visibility.
-- [ ] Filter stale Ask ARIA index entries by current version.
-- [ ] Ensure feature-flag rollback does not re-enable legacy bypasses.
-- [ ] Search all document mutations again and record any remaining justified path.
+- [x] Enforce the complete legacy compatibility table in section 10.1
+      (except "Assign owner" as a dedicated real-user-id picker and
+      "file-reference safeguards" on legacy delete -- both are new
+      features with no existing endpoint to close a bypass in; see notes).
+- [x] Route managed upload/template changes into draft/candidate operations.
+- [x] Remove generic lifecycle selectors and free-text authorization.
+- [x] Gate document search, counts, exports and AI context by scope/visibility.
+- [ ] Filter stale Ask ARIA index entries by current version -- deferred to
+      T09: the indexer only reads aria_documents today, never
+      aria_policy_versions, so there is no per-version staleness yet to
+      filter (see notes).
+- [x] Ensure feature-flag rollback does not re-enable legacy bypasses.
+- [x] Search all document mutations again and record any remaining justified path.
 
 Pass: an HTTP caller cannot bypass approval by using any old add/import/update/
 upload/template/delete endpoint, and draft/candidate text never leaks downstream.
@@ -2257,6 +2263,173 @@ loser gets `AlreadyDecidedError`, and exactly one publication job exists
 afterward despite two decision attempts. Full regression suite (now several
 hundred tests across the whole project) re-run clean twice. `py_compile`
 clean on all touched/new files.
+
+### T08 detailed notes (2026-09-19)
+
+Files touched: `oneforall/modules/aria/routes.py` (many routes -- see below);
+`oneforall/modules/aria/ask_service.py` (`_filter_chunks_by_scope`);
+`oneforall/modules/launcher/routes_platform.py` (global search, cross-module
+link title resolution); `oneforall/modules/launcher/routes_dashboard.py`
+("my_docs" widget); `oneforall/modules/grid/data_service.py` and
+`oneforall/modules/grid/routes.py` (AI-checklist policy titles, the
+evidence-linking picker and attach action); `oneforall/tests/test_aria_policy_legacy.py`
+(new, 21 tests).
+
+This task turned out to have a much larger surface than its own file list
+first suggested. `routes.py` alone had eleven separate unscoped or
+under-scoped mutation/read paths, not the five originally found:
+
+**Route-by-route (`routes.py`)**:
+- `add_document`: forced to Draft only (closing the direct-to-Approved
+  bypass) and switched to `reserve_document_number`, as before -- plus a
+  fix not caught the first time around: it never set `org_id`/
+  `business_unit_id`/`owner_user_id`, so every document it created was
+  permanently "legacy" (org_id NULL) and visible platform-wide forever.
+  Now defaults all three from the creating user.
+- `upload_new_document`: a **second, separate** "create a document"
+  route this task had missed entirely. It still had the original
+  `SUBSTRING(doc_id FROM 5)` PostgreSQL-only bug (confirmed to raise
+  `sqlite3.OperationalError` on every call against real SQLite -- this
+  route could never have worked in dev), the same direct-to-Approved
+  bypass `add_document` already had closed, and the same missing
+  org/BU/owner assignment. Fixed identically to `add_document`.
+- `update_document`, `upload_document_revision`, `apply_template_to_document`,
+  `download_document`: as previously recorded (managed-document 409
+  guards, `document_read_ok` scope checks, `owner_user_id`-first
+  ownership, `is_relative_to` path containment).
+- `apply_template_to_document`: one more gap found on re-inspection -- the
+  *template* lookup itself (for legacy, non-managed documents, which still
+  reach this far) had no scope check, so a document owner could brand
+  their document with another organization's private template and logo.
+  Added the same `template_scope_sql` filter used elsewhere.
+- `delete_document`: had no scope check at all (cross-organization hard
+  delete by anyone holding `aria.policy.delete`) and no managed-document
+  guard. Section 10.1 calls for "soft archive" on managed records, which
+  does not exist as a feature yet, so managed documents now refuse
+  deletion outright (409) rather than either hard-deleting an approved
+  compliance record or silently doing nothing -- fail closed until
+  archive is actually built. Legacy deletes are now scope-checked.
+- `document_revisions` ("history" per section 10.2): had no scope check;
+  any authenticated ARIA user could pull another organization's revision
+  history by doc_id alone.
+- `frameworks_list`, `api_ims_status`, `ai_generator_page`, `ask_page`:
+  four read paths feeding aggregate stats, control-classification hints,
+  or suggested questions from `aria_documents` with no scope filter --
+  "framework coverage", the IMS `doc_refs` set, the AI Generator's
+  "recent documents"/per-framework stats, and Ask ARIA's random title
+  suggestions (section 10.2 names two of these explicitly: "Generator
+  recent documents/stats" and "Ask ARIA suggestions"). All now filtered
+  through `document_scope_sql`.
+- `api_templates_upload`, `api_templates_delete`, `api_templates_download`:
+  the whole template-management surface had the same class of gaps as
+  documents once did -- upload never set org/BU (every new template
+  defaulted to platform-wide-legacy visibility, silently undermining
+  every other template scope check going forward), delete had no scope
+  check and hard-deleted the row and file even though `aria_documents.template_id`
+  can still reference it, and download had no scope check and the same
+  string-prefix path-containment weakness already fixed elsewhere for
+  `download_document`. Delete is now a soft retirement (`is_active=0`,
+  row and file both kept) rather than a hard delete, matching section
+  10.1's "soft retirement" requirement and avoiding orphaning any
+  document's template history.
+
+**Consumers outside `modules/aria` (section 10.2)**: grepped the whole
+tree for `aria_documents`/`aria_doc_revisions` references and checked
+every hit.
+- `launcher/routes_platform.py`: the global search's ARIA-document branch
+  and the generic cross-module link title resolver's `("aria","document")`
+  case were both unscoped (the latter across all 11 linkable entity
+  types generically -- only the ARIA case was fixed; per section 10.2,
+  "do not claim [to complete] an unrelated audit of every other module").
+- `launcher/routes_dashboard.py`: the `policy_author`/`policy_approver`/
+  `control_owner`/`risk_owner` dashboard's "my_docs" widget had no
+  scoping at all -- despite the name, it showed the platform's 10 most
+  recently updated documents, any organization's.
+- `grid/data_service.py` + `grid/routes.py`: `get_aria_policy_titles`
+  (feeds an AI-generated incident checklist -- a real cross-tenant
+  leak into AI context, exactly what section 10.2 warns about) and
+  `list_aria_policies`/`attach_aria_policy_as_evidence` (the
+  evidence-linking picker and its attach action) were all unscoped.
+  `attach_aria_policy_as_evidence` also serves the system-initiated
+  auto-attach flows (matching a new document to GRID controls by
+  framework/control_ref, not by caller-supplied id), so it took an
+  optional `actor` parameter rather than requiring one, preserving that
+  internal path unchanged.
+
+**Deliberately not touched, with reasons**:
+- `evidence/routes.py`'s two download/download-pdf "current-document
+  fallback" reads and `core/event_handlers.py`'s document-approved sync
+  into the Evidence Vault (both named in section 10.2, "its
+  current-document fallbacks must not bypass exact-version access").
+  Both are explicitly T09's files (`GRID/Evidence adapters`,
+  `core/event_handlers.py`), and "exact-version access" isn't a concept
+  that exists yet for a managed document -- that's what T09's publication
+  pipeline is for. Fixing these now would mean guessing at semantics T09
+  is supposed to define.
+- GRID's own control-auto-attach matching (`auto_attach_aria_policies_for_document`,
+  `_attach_doc_to_matching_controls`, `auto_attach_aria_policies_to_audit`):
+  these match by framework name/control_ref against `grid_audits`/
+  `grid_controls`, which use GRID's own pre-existing `business_unit_id`-list
+  scoping convention (`list_audits(bu_scope=...)`), not ARIA's
+  org/legacy/managed model, and `grid_audits` has no `org_id` column at
+  all. Reconciling two different authorization models for a different
+  module's own entities is a separate investigation, not a policy-workflow
+  bypass closure -- left alone per the same section 10.2 instruction above.
+- The other 10 entity-type branches in `routes_platform.py`'s global
+  search and the other 10 pairs in its cross-module link resolver
+  (sentinel/grid/bcm/risk/evidence, all similarly unscoped) -- pre-existing,
+  unrelated to ARIA policies, out of this plan's scope.
+- `modules/governance/data_service.py`'s `aria_documents` reference is a
+  reference-count guard for business-unit deletion (can this BU be
+  deleted, given what still points at it) -- not a content/read exposure,
+  no action needed.
+- "Assign owner" as a dedicated real-user-id picker (section 10.1) and
+  "file-reference safeguards" on legacy delete: both describe features
+  that do not exist as any reachable endpoint today. Managed documents
+  already fully block ad hoc owner changes (the existing 409 guard);
+  legacy documents keep the free-text `owner` field exactly as before,
+  now with `owner_user_id` preferred wherever it is set. Building a new
+  owner-assignment endpoint or a delete-time reference scan would be a
+  new feature, not a bypass closure, and was left as a documented gap
+  rather than invented under this task's banner.
+
+**Test coverage added, and where it was deliberately not**: wrote 21 tests
+in `test_aria_policy_legacy.py` covering the routes.py fixes directly
+(including `upload_new_document` -- the single most important test here,
+since a successful call at all proves the SQLite-breaking SUBSTRING bug
+is gone -- `delete_document`'s scope/managed guards, and the three
+template-management routes). The `launcher`/`grid` fixes reuse the
+already-tested `document_scope_sql`/`document_read_ok`/`template_scope_sql`
+helpers (19 dedicated tests in `test_aria_policy_access.py`) as a
+single additional `WHERE`/if-check per call site, with no new logic of
+their own; rather than add a parallel test scaffold for two modules that
+had none before this task, these were verified by the full regression
+suite plus direct reading of each diff. Flagging this explicitly rather
+than presenting it as equally test-proven: if dedicated launcher/grid
+route tests are wanted, that is a reasonable, separate follow-up.
+
+**The `_FakeRequest` authentication gap**: the first draft of
+`test_aria_policy_legacy.py` used a bare object with only `.state.user`
+set, matching what the route bodies themselves read. All but 2 of the
+initial tests failed with `AttributeError: '_FakeRequest' object has no
+attribute 'cookies'` -- every route here is also wrapped by
+`require_module`/`require_capability` (`core/middleware.py`), which
+re-authenticates independently via `get_current_user(request)`, reading
+`request.cookies`. Rather than construct real session cookies, an
+autouse fixture monkeypatches `core.middleware.get_current_user` to
+return the test's chosen actor directly, resolved at call time from
+`core.middleware`'s own module namespace (not captured at import time
+in `routes.py`) -- so the patch applies no matter which decorator a
+given route uses.
+
+Test evidence: `test_aria_policy_legacy.py` 21/21 passing -- direct-to-Approved
+bypass closed on both creation routes, both now correctly assigning
+org/BU/owner, delete's scope and managed-document guards, both template
+scope checks (apply-to-document and the management endpoints), template
+soft-retirement leaving the row and file intact, and template upload
+scoping to the creator. Full regression suite (360 tests total) re-run
+clean three times across this task's edits. `py_compile` clean on all
+touched files.
 
 Suggested implementation-session prompt:
 

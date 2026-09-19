@@ -160,11 +160,19 @@ def _can_edit_control(user, control=None):
 
 
 def _can_approve_policy(user, doc):
-    """Check approval capability with separation-of-duties enforcement."""
+    """Check approval capability with separation-of-duties enforcement.
+
+    PLAN-35 T08: removed the prior `platform.manage_users` override that
+    let an admin approve their own document. Section 5.1's confirmed
+    decision is "Approval override: None in this release, including for
+    super administrators" -- there is deliberately no exception here for
+    any capability, matching policy_access.can_decide's own no-override
+    rule for the new managed-document approval flow. This function still
+    only applies to the legacy, free-text-owner-based path for documents
+    that predate/aren't using that flow.
+    """
     if not has_capability(user, "aria.policy.approve"):
         return False
-    if has_capability(user, "platform.manage_users"):
-        return True
     doc_owner = (doc.get("owner") or "").strip().lower()
     uname = (user.get("username") or "").strip().lower()
     fname = (user.get("full_name") or "").strip().lower()
@@ -336,10 +344,13 @@ async def frameworks_list(request: Request):
         # Document coverage per framework
         doc_counts = {}
         try:
+            from modules.aria.policy_access import document_scope_sql
+            _scope_sql, _scope_params = document_scope_sql(user)
             doc_rows = db.execute(
-                "SELECT framework, COUNT(*) as cnt, "
-                "COUNT(DISTINCT control_ref) as ctrl_covered "
-                "FROM aria_documents GROUP BY framework"
+                f"SELECT framework, COUNT(*) as cnt, "
+                f"COUNT(DISTINCT control_ref) as ctrl_covered "
+                f"FROM aria_documents WHERE {_scope_sql} GROUP BY framework",
+                _scope_params
             ).fetchall()
             for dr in doc_rows:
                 doc_counts[dr["framework"]] = {
@@ -921,26 +932,33 @@ async def add_document(request: Request,
             {"error": "You need policy author or compliance manager role."},
             403,
         )
-    if status == "Approved" and not has_capability(user, "aria.policy.approve"):
-        status = "Draft"
+    # PLAN-35 T08: "Add/import document... create Draft only" (section
+    # 10.1). Creating a document as Approved directly, bypassing review
+    # entirely, used to be reachable by anyone holding aria.policy.approve;
+    # that capability governs DECIDING a submission, not skipping one.
+    status = "Draft"
 
+    from modules.aria.policy_access import reserve_document_number
     db = get_db()
     try:
-        max_num = db.execute(
-            "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
-            "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
-        ).fetchone()[0]
-        doc_id = "DOC-%04d" % (max_num + 1)
+        doc_id = reserve_document_number(db, is_postgres=settings.is_postgres())
         now = datetime.now().isoformat()
+        # PLAN-35 T08 (section 10.1): "explicit owner/org/BU" -- a document
+        # created here is not policy_workflow_managed (it keeps the old
+        # direct-edit behavior), but it must still be scoped to the
+        # creator's own org/BU rather than left org_id=NULL, which would
+        # make it "legacy" and visible platform-wide to every organization.
         new_id = insert_returning_id(db,"""
             INSERT INTO aria_documents
             (doc_id, framework, control_ref, title, doc_type, version, status,
              owner, approver, effective_date, review_date, location, comments,
-             created_at, updated_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             org_id, business_unit_id, owner_user_id, created_at, updated_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (doc_id, framework, control_ref, title, doc_type, version, status,
               owner, approver, effective_date or None, review_date or None,
-              location, comments, now, now))
+              location, comments,
+              user.get("org_id"), user.get("business_unit_id"), user["id"],
+              now, now))
         db.commit()
 
         if review_date:
@@ -958,20 +976,9 @@ async def add_document(request: Request,
             except Exception:
                 pass  # Never let GRID auto-attach break ARIA saves
 
-        # Emit policy published event when created as Approved
-        if status == "Approved":
-            emit(
-                ARIA_POLICY_PUBLISHED,
-                source_module="aria",
-                entity_type="document",
-                entity_id=new_id,
-                payload={
-                    "doc_id": doc_id, "title": title,
-                    "doc_type": doc_type, "framework": framework,
-                    "control_ref": control_ref, "version": version,
-                },
-                user_id=user["id"],
-            )
+        # No ARIA_POLICY_PUBLISHED emit here: status is always Draft now
+        # (see above), so this path never creates an already-approved
+        # document. Approval publishes through decide_approval instead.
     finally:
         db.close()
 
@@ -1023,16 +1030,22 @@ async def upload_new_document(
         return JSONResponse(
             {"error": "You need policy author or compliance manager role."}, 403
         )
-    if status == "Approved" and not has_capability(user, "aria.policy.approve"):
-        status = "Draft"
+    # PLAN-35 T08 (section 10.1): "Add/import document ... create Draft
+    # only" -- this route used to let anyone holding aria.policy.approve
+    # create an already-Approved document straight from a file upload,
+    # bypassing review entirely, exactly like add_document did before its
+    # own T08 fix. That capability governs DECIDING a submission, not
+    # skipping one.
+    status = "Draft"
 
+    from modules.aria.policy_access import reserve_document_number
     db = get_db()
     try:
-        max_num = db.execute(
-            "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
-            "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
-        ).fetchone()[0]
-        doc_id = "DOC-%04d" % (max_num + 1)
+        # PLAN-35 T08: SUBSTRING(doc_id FROM 5) is PostgreSQL-only syntax
+        # and raises sqlite3.OperationalError on real SQLite -- this route
+        # could never have worked against the dev database. Use the shared,
+        # race-safe allocator instead (also used by add_document).
+        doc_id = reserve_document_number(db, is_postgres=settings.is_postgres())
         now = datetime.now().isoformat()
 
         stored_name = None
@@ -1057,17 +1070,22 @@ async def upload_new_document(
             else "[" + source_tag + "]"
         )
 
+        # PLAN-35 T08 (section 10.1): explicit owner/org/BU, scoped to the
+        # creator, instead of leaving org_id NULL (platform-wide legacy
+        # visibility) -- mirrors the same fix in add_document.
         new_id = insert_returning_id(db, """
             INSERT INTO aria_documents
             (doc_id, framework, control_ref, title, doc_type, version, status,
              owner, approver, effective_date, review_date, location, comments,
-             file_path, file_name, file_size, created_at, updated_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             file_path, file_name, file_size,
+             org_id, business_unit_id, owner_user_id, created_at, updated_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             doc_id, framework, control_ref, title, doc_type, version, status,
             owner, approver, effective_date or None, review_date or None,
             location, comments_tagged,
-            stored_name, orig_filename, file_size, now, now,
+            stored_name, orig_filename, file_size,
+            user.get("org_id"), user.get("business_unit_id"), user["id"], now, now,
         ))
         db.commit()
 
@@ -1085,16 +1103,9 @@ async def upload_new_document(
             )
             db.commit()
 
-        if status == "Approved":
-            emit(
-                ARIA_POLICY_PUBLISHED,
-                source_module="aria", entity_type="document", entity_id=new_id,
-                payload={
-                    "doc_id": doc_id, "title": title, "doc_type": doc_type,
-                    "framework": framework, "version": version,
-                },
-                user_id=user["id"],
-            )
+        # No ARIA_POLICY_PUBLISHED emit here: status is always Draft now
+        # (see above), so this path never creates an already-approved
+        # document. Approval publishes through decide_approval instead.
     finally:
         db.close()
 
@@ -1129,11 +1140,25 @@ async def update_document(request: Request, doc_id: str,
         if not existing:
             return JSONResponse({"error": "Document not found"}, 404)
         doc = dict(existing)
+        # PLAN-35 T08: this route had no org/BU scope check at all.
+        from modules.aria.policy_access import document_read_ok
+        if not document_read_ok(user, doc):
+            return JSONResponse({"error": "Document not found"}, 404)
 
-        is_own = (doc.get("owner") or "").strip().lower() in (
-            (user.get("full_name") or "").strip().lower(),
-            (user.get("username") or "").strip().lower(),
-        )
+        # PLAN-35 T08: prefer owner_user_id (a real account) over the
+        # free-text owner display field for the actual authorization
+        # decision -- a legacy record with no owner_user_id yet still
+        # falls back to the free-text comparison. This closes a real gap:
+        # free text alone let anyone whose name happened to match the
+        # owner string claim ownership, coincidentally or not.
+        owner_uid = doc.get("owner_user_id")
+        if owner_uid is not None:
+            is_own = int(owner_uid) == int(user["id"])
+        else:
+            is_own = (doc.get("owner") or "").strip().lower() in (
+                (user.get("full_name") or "").strip().lower(),
+                (user.get("username") or "").strip().lower(),
+            )
         can_edit = has_capability(user, "aria.policy.edit_any") or (
             has_capability(user, "aria.policy.edit_own") and is_own
         )
@@ -1143,7 +1168,33 @@ async def update_document(request: Request, doc_id: str,
                 403,
             )
 
-        if status == "Approved" and status != doc.get("status"):
+        # PLAN-35 T08 (section 10.1): a managed document's actual content
+        # lifecycle -- status, version, owner, approver -- belongs to the
+        # draft/confirm/submit/decide flow exclusively. This generic form
+        # only ever touches non-content metadata on a managed record, and
+        # only once nothing is pending review.
+        is_managed = bool(doc.get("policy_workflow_managed"))
+        if is_managed:
+            attempted_content_fields = [
+                name for name, val in
+                (("status", status), ("version", version), ("owner", owner), ("approver", approver))
+                if val is not None
+            ]
+            if attempted_content_fields:
+                return JSONResponse({
+                    "error": "This document is managed by the policy workflow. "
+                             f"{', '.join(attempted_content_fields)} can only change through "
+                             "a draft, submission, and approval -- start a revision instead.",
+                }, 409)
+            pending = db.execute(
+                "SELECT id FROM aria_document_approvals WHERE document_id=%s AND status='pending'",
+                (doc["id"],),
+            ).fetchone()
+            if pending:
+                return JSONResponse({
+                    "error": "This document has a pending approval; metadata is locked until it is decided.",
+                }, 409)
+        elif status == "Approved" and status != doc.get("status"):
             if not _can_approve_policy(user, doc):
                 return JSONResponse({
                     "error": "You cannot approve this document. "
@@ -1228,6 +1279,31 @@ async def delete_document(request: Request, doc_id: str):
         )
     db = get_db()
     try:
+        # PLAN-35 T08 (section 10.1): this route had no org/BU scope check
+        # at all -- anyone holding the delete capability could hard-delete
+        # any organization's document by doc_id.
+        existing = db.execute(
+            "SELECT * FROM aria_documents WHERE doc_id=%s", (doc_id,)
+        ).fetchone()
+        if not existing:
+            return JSONResponse({"error": "Document not found"}, 404)
+        doc = dict(existing)
+        from modules.aria.policy_access import document_read_ok
+        if not document_read_ok(user, doc):
+            return JSONResponse({"error": "Document not found"}, 404)
+
+        # Section 10.1: "Managed records use soft archive and state guards."
+        # Soft archive is not implemented yet (tracked separately) -- until
+        # it exists, refusing outright is the safe interim state. The old
+        # behavior (unconditional hard delete of an approved, audited
+        # compliance record) is exactly the bypass this task closes; there
+        # is no safe legacy-style fallback to leave open here.
+        if doc.get("policy_workflow_managed"):
+            return JSONResponse({
+                "error": "This document is managed by the policy workflow and "
+                         "cannot be deleted here. Archiving is not yet available.",
+            }, 409)
+
         db.execute("DELETE FROM aria_documents WHERE doc_id=%s", (doc_id,))
         db.commit()
         log_audit(user, "aria", "Deleted document " + doc_id,
@@ -1447,6 +1523,20 @@ async def upload_document_revision(request: Request, doc_id: str,
         if not doc:
             return JSONResponse({"error": "Document not found"}, 404)
         doc = dict(doc)
+        # PLAN-35 T08: this route had no org/BU scope check at all.
+        from modules.aria.policy_access import document_read_ok
+        if not document_read_ok(user, doc):
+            return JSONResponse({"error": "Document not found"}, 404)
+
+        # PLAN-35 T08 (section 10.1): "Upload revision | Managed document
+        # routes to the upload-candidate flow." A managed document's file
+        # only ever changes through a draft build + confirm, never a
+        # direct file replace -- fail before writing anything to disk.
+        if doc.get("policy_workflow_managed"):
+            return JSONResponse({
+                "error": "This document is managed by the policy workflow. "
+                         "Start a revision draft and build it instead of uploading a file directly.",
+            }, 409)
 
         ARIA_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         stored_name = f"{uuid.uuid4().hex}{ext}"
@@ -1539,13 +1629,22 @@ async def upload_document_revision(request: Request, doc_id: str,
 async def download_document(request: Request, doc_id: str):
     """Download the current document file (uploaded revision or branded version)."""
     from fastapi.responses import FileResponse as FR
+    from modules.aria.policy_access import document_read_ok
+    user = request.state.user
     db = get_db()
     try:
         doc = db.execute(
-            "SELECT file_path, file_name, branded_file_path, title "
+            "SELECT file_path, file_name, branded_file_path, title, "
+            "org_id, business_unit_id, policy_workflow_managed "
             "FROM aria_documents WHERE doc_id=%s", (doc_id,)
         ).fetchone()
         if not doc:
+            raise HTTPException(404, "Document not found")
+        doc = dict(doc)
+        # PLAN-35 T08: this endpoint had no scope check at all -- any
+        # authenticated ARIA user could download any document's file
+        # regardless of organization or business unit.
+        if not document_read_ok(user, doc):
             raise HTTPException(404, "Document not found")
 
         # Prefer branded version, fall back to uploaded file
@@ -1553,8 +1652,11 @@ async def download_document(request: Request, doc_id: str):
         if not fp_str:
             raise HTTPException(404, "No file uploaded for this document yet")
 
+        # PLAN-35 T08: resolve + is_relative_to, not a string prefix check
+        # (a string check can be fooled by a sibling directory sharing a
+        # prefix, e.g. "aria_uploads_evil" vs "aria_uploads").
         fp = (ARIA_UPLOAD_DIR / fp_str).resolve()
-        if not str(fp).startswith(str(ARIA_UPLOAD_DIR.resolve())):
+        if not fp.is_relative_to(ARIA_UPLOAD_DIR.resolve()):
             raise HTTPException(403, "Access denied")
         if not fp.exists():
             raise HTTPException(404, "File not found on disk")
@@ -1578,17 +1680,28 @@ async def download_document(request: Request, doc_id: str):
 @require_module("aria")
 async def document_revisions(request: Request, doc_id: str):
     """Get revision history for a document."""
+    from modules.aria.policy_access import document_read_ok
+    user = request.state.user
     db = get_db()
     try:
-        doc = db.execute("SELECT id FROM aria_documents WHERE doc_id=%s", (doc_id,)).fetchone()
+        doc = db.execute(
+            "SELECT id, org_id, business_unit_id, policy_workflow_managed "
+            "FROM aria_documents WHERE doc_id=%s", (doc_id,)
+        ).fetchone()
         if not doc:
+            return JSONResponse({"error": "Document not found"}, 404)
+        doc = dict(doc)
+        # PLAN-35 T08 (section 10.2, "ARIA ... history"): this endpoint had
+        # no scope check -- any authenticated ARIA user could pull another
+        # organization's revision history by doc_id alone.
+        if not document_read_ok(user, doc):
             return JSONResponse({"error": "Document not found"}, 404)
         rows = db.execute(
             "SELECT r.*, u.full_name AS uploaded_by_name "
             "FROM aria_doc_revisions r "
             "LEFT JOIN users u ON r.uploaded_by=u.id "
             "WHERE r.document_id=%s ORDER BY r.created_at DESC",
-            (doc[0],),
+            (doc["id"],),
         ).fetchall()
     finally:
         db.close()
@@ -1673,14 +1786,18 @@ async def api_templates_upload(request: Request,
                 "UPDATE aria_doc_templates SET is_default=0 WHERE doc_type=%s",
                 (doc_type,),
             )
+        # PLAN-35 T08 (section 10.1, "Template ... Same organization/BU
+        # authorization"): without an explicit org/BU, every new template
+        # defaulted to org_id NULL -- template_scope_sql's legacy branch --
+        # meaning it stayed visible and usable platform-wide forever.
         tid = insert_returning_id(db,
             "INSERT INTO aria_doc_templates "
             "(name, description, doc_type, file_path, file_name, file_size, "
-            " is_default, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            " is_default, created_by, org_id, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (name.strip(), description.strip(), doc_type, stored,
              file.filename, len(content), int(is_default == "1"),
-             user["id"]),
+             user["id"], user.get("org_id"), user.get("business_unit_id")),
         )
         db.commit()
         log_audit(user, "aria", f"Uploaded template: {name}", "template", tid)
@@ -1692,21 +1809,27 @@ async def api_templates_upload(request: Request,
 @router.delete("/api/templates/{tid}")
 @require_capability("aria.policy.delete")
 async def api_templates_delete(request: Request, tid: int):
-    """Delete a branding template."""
+    """Retire a branding template (soft; the file and row are kept so
+    documents that already reference this template_id keep their history
+    and can still be re-downloaded)."""
     user = request.state.user
     db = get_db()
     try:
-        row = db.execute("SELECT file_path FROM aria_doc_templates WHERE id=%s", (tid,)).fetchone()
-        if row and row[0]:
-            fp = ARIA_TEMPLATE_DIR / row[0]
-            try:
-                if fp.exists():
-                    fp.unlink()
-            except OSError:
-                pass
-        db.execute("DELETE FROM aria_doc_templates WHERE id=%s", (tid,))
+        # PLAN-35 T08 (section 10.1): this route had no scope check at all
+        # (any user holding aria.policy.delete could remove any
+        # organization's template) and hard-deleted the row and file even
+        # though existing documents may still reference this template_id
+        # for their own history.
+        _tpl_scope_sql, _tpl_scope_params = template_scope_sql(user, include_inactive=True)
+        row = db.execute(
+            f"SELECT t.id FROM aria_doc_templates t WHERE t.id=%s AND {_tpl_scope_sql}",
+            (tid, *_tpl_scope_params),
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "Template not found"}, 404)
+        db.execute("UPDATE aria_doc_templates SET is_active=0 WHERE id=%s", (tid,))
         db.commit()
-        log_audit(user, "aria", f"Deleted template #{tid}", "template", tid)
+        log_audit(user, "aria", f"Retired template #{tid}", "template", tid)
     finally:
         db.close()
     return JSONResponse({"ok": True})
@@ -1717,17 +1840,23 @@ async def api_templates_delete(request: Request, tid: int):
 async def api_templates_download(request: Request, tid: int):
     """Download a template file."""
     from fastapi.responses import FileResponse as FR
+    # PLAN-35 T08 (section 10.1): this route had no scope check at all.
+    _tpl_scope_sql, _tpl_scope_params = template_scope_sql(request.state.user, include_inactive=True)
     db = get_db()
     try:
         row = db.execute(
-            "SELECT file_path, file_name FROM aria_doc_templates WHERE id=%s", (tid,)
+            f"SELECT t.file_path, t.file_name FROM aria_doc_templates t "
+            f"WHERE t.id=%s AND {_tpl_scope_sql}",
+            (tid, *_tpl_scope_params),
         ).fetchone()
         if not row:
             raise HTTPException(404, "Template not found")
     finally:
         db.close()
+    # PLAN-35 T08: resolve + is_relative_to, not a string prefix check (see
+    # the identical fix in download_document).
     fp = (ARIA_TEMPLATE_DIR / row["file_path"]).resolve()
-    if not str(fp).startswith(str(ARIA_TEMPLATE_DIR.resolve())):
+    if not fp.is_relative_to(ARIA_TEMPLATE_DIR.resolve()):
         raise HTTPException(403, "Access denied")
     if not fp.exists():
         raise HTTPException(404, "Template file missing")
@@ -1749,11 +1878,33 @@ async def apply_template_to_document(request: Request, doc_id: str,
         if not doc:
             return JSONResponse({"error": "Document not found"}, 404)
         doc = dict(doc)
+        # PLAN-35 T08: this route had no org/BU scope check at all.
+        from modules.aria.policy_access import document_read_ok
+        if not document_read_ok(user, doc):
+            return JSONResponse({"error": "Document not found"}, 404)
+
+        # PLAN-35 T08 (section 10.1): "Apply template | For managed
+        # records, operate only on an editable draft/candidate creation
+        # flow. Never rebrand approved/pending files in place." Managed
+        # documents brand through build_draft; this endpoint would
+        # otherwise silently rewrite an approved document's branded file.
+        if doc.get("policy_workflow_managed"):
+            return JSONResponse({
+                "error": "This document is managed by the policy workflow. "
+                         "Build a draft with the chosen template instead of applying one directly.",
+            }, 409)
 
         if not doc.get("file_path"):
             return JSONResponse({"error": "No uploaded file to apply template to"}, 400)
 
-        tpl = db.execute("SELECT * FROM aria_doc_templates WHERE id=%s", (template_id,)).fetchone()
+        # PLAN-35 T08: the template lookup itself had no scope check, so a
+        # legacy document owner could apply another organization's private
+        # branding template (and its logo) to their own document.
+        _tpl_scope_sql, _tpl_scope_params = template_scope_sql(user)
+        tpl = db.execute(
+            f"SELECT * FROM aria_doc_templates t WHERE t.id=%s AND {_tpl_scope_sql}",
+            (template_id, *_tpl_scope_params),
+        ).fetchone()
         if not tpl:
             return JSONResponse({"error": "Template not found"}, 404)
         tpl = dict(tpl)
@@ -2158,8 +2309,11 @@ async def api_ims_status(request: Request):
 
             doc_refs = set()
             try:
+                _scope_sql, _scope_params = document_scope_sql(request.state.user)
                 doc_rows = db.execute(
-                    "SELECT DISTINCT framework, control_ref FROM aria_documents"
+                    f"SELECT DISTINCT framework, control_ref FROM aria_documents "
+                    f"WHERE {_scope_sql}",
+                    _scope_params
                 ).fetchall()
                 for dr in doc_rows:
                     doc_refs.add((dr["framework"], dr["control_ref"]))
@@ -2416,27 +2570,39 @@ async def ai_generator_page(request: Request):
         db.close()
 
     # ── Document stats & recent docs ──────────────────────────────────────────
+    # PLAN-35 T08 (section 10.2: "Generator recent documents/stats"): none
+    # of these queries were scoped -- "recent_docs" in particular showed
+    # every organization's 5 most recently updated policy titles to anyone
+    # who opened this page.
+    _gen_scope_sql, _gen_scope_params = document_scope_sql(user)
     db3 = get_db()
     try:
         doc_rows = db3.execute(
-            "SELECT framework, COUNT(*) as cnt FROM aria_documents GROUP BY framework"
+            f"SELECT framework, COUNT(*) as cnt FROM aria_documents "
+            f"WHERE {_gen_scope_sql} GROUP BY framework",
+            _gen_scope_params
         ).fetchall()
         docs_by_fw_map = {r["framework"]: r["cnt"] for r in doc_rows}
         total_docs = sum(docs_by_fw_map.values())
 
         controls_with_docs = db3.execute(
-            "SELECT COUNT(DISTINCT control_ref || '|' || framework) FROM aria_documents"
+            f"SELECT COUNT(DISTINCT control_ref || '|' || framework) FROM aria_documents "
+            f"WHERE {_gen_scope_sql}",
+            _gen_scope_params
         ).fetchone()[0]
 
         recent_docs = [dict(r) for r in db3.execute(
-            "SELECT doc_id, title, framework, doc_type, control_ref, updated_at "
-            "FROM aria_documents ORDER BY updated_at DESC LIMIT 5"
+            f"SELECT doc_id, title, framework, doc_type, control_ref, updated_at "
+            f"FROM aria_documents WHERE {_gen_scope_sql} ORDER BY updated_at DESC LIMIT 5",
+            _gen_scope_params
         ).fetchall()]
 
         doc_ctrl_ref_set = [
             r["framework"] + "|" + r["control_ref"]
             for r in db3.execute(
-                "SELECT DISTINCT framework, control_ref FROM aria_documents"
+                f"SELECT DISTINCT framework, control_ref FROM aria_documents "
+                f"WHERE {_gen_scope_sql}",
+                _gen_scope_params
             ).fetchall()
         ]
     finally:
@@ -2709,11 +2875,15 @@ async def ask_page(request: Request):
             WHERE username=%s
             ORDER BY id DESC LIMIT 12
         """, (user["username"],)).fetchall()
-        suggestions_rows = db.execute("""
+        # PLAN-35 T08 (section 10.2, "Ask ARIA suggestions"): unscoped, so
+        # a suggested question could quote another organization's policy
+        # title to any user who opened this page.
+        _ask_scope_sql, _ask_scope_params = document_scope_sql(user)
+        suggestions_rows = db.execute(f"""
             SELECT title FROM aria_documents
-            WHERE body IS NOT NULL AND length(body) > 200
+            WHERE body IS NOT NULL AND length(body) > 200 AND {_ask_scope_sql}
             ORDER BY RANDOM() LIMIT 5
-        """).fetchall()
+        """, _ask_scope_params).fetchall()
     finally:
         db.close()
 

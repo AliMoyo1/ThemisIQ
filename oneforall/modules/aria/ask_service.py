@@ -519,6 +519,50 @@ _GREETING_RESPONSE = (
 )
 
 
+def _filter_chunks_by_scope(chunks: list[dict], user: Optional[dict]) -> list[dict]:
+    """PLAN-35 T08 (section 10.2): "The Ask ARIA index is not an
+    authorization database. Join/validate every document hit against the
+    current authorized document before sending text to an AI provider."
+    `search()` has no notion of the asking user at all; this is a
+    post-filter on its results, applied here rather than inside the
+    FTS5/tsvector query so the search internals stay untouched.
+
+    Scoped to content_type == 'document' only, which is what PLAN-35 is
+    actually about: aria_documents rows now carry org_id/business_unit_id/
+    policy_workflow_managed (T01) and policy_access.document_read_ok (T02)
+    already knows how to apply the same rule used everywhere else in this
+    plan. Control and risk chunks have a separate, pre-existing
+    authorization model this plan does not change; they pass through
+    unfiltered, same as before this fix.
+    """
+    if not user:
+        return []  # no actor at all: nothing is authorized to retrieve
+    document_chunks = [c for c in chunks if c.get("content_type") == "document"]
+    other_chunks = [c for c in chunks if c.get("content_type") != "document"]
+    if not document_chunks:
+        return chunks
+
+    from modules.aria.policy_access import document_read_ok
+    doc_ids = {c["content_id"] for c in document_chunks}
+    db = get_db()
+    try:
+        placeholders = ",".join(["%s"] * len(doc_ids))
+        rows = db.execute(
+            f"SELECT doc_id, org_id, business_unit_id, policy_workflow_managed "
+            f"FROM aria_documents WHERE doc_id IN ({placeholders})",
+            list(doc_ids),
+        ).fetchall()
+    finally:
+        db.close()
+    scope_by_doc_id = {r["doc_id"]: dict(r) for r in rows}
+
+    allowed_document_chunks = [
+        c for c in document_chunks
+        if c["content_id"] in scope_by_doc_id and document_read_ok(user, scope_by_doc_id[c["content_id"]])
+    ]
+    return other_chunks + allowed_document_chunks
+
+
 async def ask(question: str, user: Optional[dict] = None,
               framework_filter: str = "",
               conversation_history: list = None) -> dict:
@@ -543,6 +587,7 @@ async def ask(question: str, user: Optional[dict] = None,
 
     init_index()
     chunks = search(question, k=8, framework_filter=framework_filter)
+    chunks = _filter_chunks_by_scope(chunks, user)
     if not chunks:
         result = {
             "success": True, "covered": False,

@@ -16,6 +16,7 @@ from modules.launcher._route_helpers import (
     require_capability as _require_cap,
     shell_ctx, shell_templates, settings, get_db,
     _json_body,)
+from modules.aria.policy_access import document_scope_sql
 
 router = APIRouter()
 
@@ -113,10 +114,15 @@ async def api_global_search(request: Request):
                             "title": r["ref"] + " - " + r["name"],
                             "subtitle": r["framework_name"], "link": f"/aria/?open=control:{r['id']}"})
 
-        # ARIA documents
+        # ARIA documents -- PLAN-35 T08 (section 10.2): this shared search
+        # had no org/BU scoping at all, so any authenticated user could
+        # find another organization's policy titles/doc_ids. Scoped the
+        # same way as the ARIA module's own document list/detail views.
+        _doc_scope_sql, _doc_scope_params = document_scope_sql(request.state.user)
         for r in db.execute(
-            "SELECT id, doc_id, title FROM aria_documents WHERE title LIKE %s OR doc_id LIKE %s LIMIT 10",
-            (search_term, search_term)
+            f"SELECT id, doc_id, title FROM aria_documents "
+            f"WHERE (title LIKE %s OR doc_id LIKE %s) AND {_doc_scope_sql} LIMIT 10",
+            (search_term, search_term, *_doc_scope_params)
         ).fetchall():
             results.append({"module": "aria", "type": "document", "id": r["id"],
                             "title": r["title"], "subtitle": r["doc_id"], "link": f"/aria/?open=document:{r['id']}"})
@@ -1999,10 +2005,16 @@ async def api_links_get(request: Request, module: str, etype: str, eid: int):
             table, col = _LINKABLE[key]
             ids = [x[1] for x in items]
             placeholders = ",".join(["%s"] * len(ids))
-            title_rows = db.execute(
-                f"SELECT id, {col} AS title FROM {table} WHERE id IN ({placeholders})",
-                ids,
-            ).fetchall()
+            query = f"SELECT id, {col} AS title FROM {table} WHERE id IN ({placeholders})"
+            params = list(ids)
+            if key == ("aria", "document"):
+                # PLAN-35 T08 (section 10.2): an out-of-scope linked policy
+                # keeps appearing as a link (id/module/type), but its title
+                # is withheld the same way the rest of ARIA withholds it.
+                scope_sql, scope_params = document_scope_sql(request.state.user)
+                query += f" AND {scope_sql}"
+                params += scope_params
+            title_rows = db.execute(query, params).fetchall()
             for tr in title_rows:
                 title_map[(om, ot, tr["id"])] = tr["title"]
 

@@ -691,8 +691,15 @@ async def api_my_dashboard_data(request: Request):
             ).fetchone()[0]
 
         elif role in ("policy_author", "policy_approver", "control_owner", "risk_owner"):
+            # PLAN-35 T08 (section 10.2): "my_docs" had no scoping at all --
+            # every caller with this role saw the platform's 10 most
+            # recently updated documents, including other organizations'.
+            from modules.aria.policy_access import document_scope_sql
+            _scope_sql, _scope_params = document_scope_sql(user)
             data["my_docs"] = [dict(r) for r in db.execute(
-                "SELECT id, doc_id, title, status FROM aria_documents ORDER BY updated_at DESC LIMIT 10"
+                f"SELECT id, doc_id, title, status FROM aria_documents "
+                f"WHERE {_scope_sql} ORDER BY updated_at DESC LIMIT 10",
+                _scope_params
             ).fetchall()]
             data["controls_needing_review"] = db.execute(
                 "SELECT COUNT(*) FROM controls WHERE status NOT IN ('Implemented','Approved')"

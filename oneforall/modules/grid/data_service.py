@@ -258,13 +258,23 @@ def get_incident_source_for_audit(audit_id):
         db.close()
 
 
-def get_aria_policy_titles():
-    """Return a list of ARIA policy titles for AI matching."""
+def get_aria_policy_titles(actor=None):
+    """Return a list of ARIA policy titles for AI matching, scoped to the
+    calling user's org/BU (PLAN-35 T08, section 10.2) so one organization's
+    policy titles never enter another's AI-generated content. actor=None
+    is kept only for callers that predate this scoping and returns []
+    rather than silently falling back to an unscoped, cross-tenant query."""
+    if actor is None:
+        return []
     db = get_db()
     try:
+        from modules.aria.policy_access import document_scope_sql
+        scope_sql, scope_params = document_scope_sql(actor)
         rows = db.execute(
-            "SELECT title FROM aria_documents WHERE status IN ('Approved','Published','Active') "
-            "ORDER BY title"
+            f"SELECT title FROM aria_documents "
+            f"WHERE status IN ('Approved','Published','Active') AND {scope_sql} "
+            f"ORDER BY title",
+            scope_params
         ).fetchall()
         return [r["title"] for r in rows]
     except Exception:
@@ -2233,10 +2243,16 @@ def get_program_dashboard():
 # ARIA policy integration
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_aria_policies(framework_name=None, control_ref=None, status="Approved"):
+def list_aria_policies(framework_name=None, control_ref=None, status="Approved", actor=None):
     """
     Fetch approved ARIA documents available for linking as GRID evidence.
     Optionally filter by framework name and control ref.
+
+    actor=None preserves the old unscoped (platform-wide) behavior for any
+    pre-existing internal caller; every HTTP-reachable caller must pass the
+    requesting user so results are scoped to their org/BU (PLAN-35 T08,
+    section 10.2) -- otherwise this picker offers every organization's
+    approved policies for linking as if they were the caller's own.
     """
     db = get_db()
     try:
@@ -2255,26 +2271,43 @@ def list_aria_policies(framework_name=None, control_ref=None, status="Approved")
         if control_ref:
             q += " AND (',' || control_ref || ',') LIKE %s"
             params.append("%," + control_ref + ",%")
+        if actor is not None:
+            from modules.aria.policy_access import document_scope_sql
+            scope_sql, scope_params = document_scope_sql(actor)
+            q += f" AND {scope_sql}"
+            params += scope_params
         q += " ORDER BY framework, control_ref, title"
         return _dicts(db.execute(q, params).fetchall())
     finally:
         db.close()
 
 
-def attach_aria_policy_as_evidence(control_id, aria_doc_id, user_id):
+def attach_aria_policy_as_evidence(control_id, aria_doc_id, user_id, actor=None):
     """
     Create a grid_evidence_file record pointing to an ARIA policy document.
     Returns the evidence file id, or None if the ARIA doc doesn't exist.
+
+    actor=None preserves the old behavior for internal/system callers (the
+    auto-attach flows, which discover aria_doc_id by matching the document's
+    own framework/control_ref rather than accepting caller-supplied input).
+    A real HTTP caller must pass the requesting user's actor dict so an
+    out-of-scope document id cannot be attached by guessing/enumerating ids
+    (PLAN-35 T08, section 10.2).
     """
     db = get_db()
     try:
         doc = db.execute(
-            "SELECT id, title, doc_id, framework, control_ref, version "
+            "SELECT id, title, doc_id, framework, control_ref, version, "
+            "org_id, business_unit_id, policy_workflow_managed "
             "FROM aria_documents WHERE id=%s",
             (aria_doc_id,),
         ).fetchone()
         if not doc:
             return None
+        if actor is not None:
+            from modules.aria.policy_access import document_read_ok
+            if not document_read_ok(actor, dict(doc)):
+                return None
 
         # Check for duplicate — don't attach same policy twice to same control
         existing = db.execute(

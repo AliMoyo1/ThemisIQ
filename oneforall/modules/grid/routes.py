@@ -1379,7 +1379,7 @@ async def api_ai_checklist(request: Request, audit_id: int):
         raise HTTPException(400, "No linked incident found for this audit")
 
     regulations = ds.get_active_regulations()
-    policies = ds.get_aria_policy_titles()
+    policies = ds.get_aria_policy_titles(request.state.user)
 
     try:
         items = ai.generate_incident_checklist(incident, regulations, policies)
@@ -2191,6 +2191,7 @@ async def api_aria_policies(request: Request):
     return JSONResponse(ds.list_aria_policies(
         framework_name=framework,
         control_ref=control_ref,
+        actor=request.state.user,
     ))
 
 
@@ -2202,7 +2203,7 @@ async def api_attach_aria_policy(request: Request, cid: int):
     aria_doc_id = body.get("aria_document_id")
     if not aria_doc_id:
         raise HTTPException(400, "aria_document_id required")
-    eid = ds.attach_aria_policy_as_evidence(cid, int(aria_doc_id), _uid(request))
+    eid = ds.attach_aria_policy_as_evidence(cid, int(aria_doc_id), _uid(request), actor=request.state.user)
     if eid is None:
         raise HTTPException(404, "ARIA document not found")
     ds.log_activity(_uid(request), "attach_aria_policy", "grid_evidence_files", eid,
