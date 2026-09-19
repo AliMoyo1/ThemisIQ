@@ -133,6 +133,118 @@ def _is_content_start(el) -> bool:
     return False
 
 
+def build_policy_docx(
+    content: str,
+    org_name: str = "",
+    doc_heading: str = "",
+    control_label: str = "",
+    include_preamble: bool = True,
+) -> Document:
+    """Parse policy markdown into a python-docx Document.
+
+    Extracted from routes.py's export_word (PLAN-35 T03), which owns the
+    only prior copy of this parser. include_preamble=True reproduces
+    export_word's exact prior behavior: a centered org-name heading (level
+    0) plus a control-label heading (level 1) before the parsed content --
+    used for the standalone Word export, which has no branding template of
+    its own to supply a cover. include_preamble=False is the authoring
+    path (PLAN-35 section 7.1): the branding template supplies the cover
+    and document metadata, so the generated body must start directly with
+    real content and carry no preamble for apply_template()'s
+    generated_body mode to append after the template's front matter.
+
+    doc_heading, when given, is used as the level-0 heading instead of
+    org_name (kept as a separate parameter for callers that already have a
+    document title rather than an organisation name).
+    """
+    doc = Document()
+    style = doc.styles["Normal"]
+    style.font.name = "Calibri"
+    style.font.size = Pt(11)
+
+    if include_preamble:
+        heading = doc.add_heading(_sanitise(doc_heading or org_name) or "Policy Document", level=0)
+        heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if control_label:
+            sub = doc.add_heading(_sanitise(control_label), level=1)
+            sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        doc.add_paragraph("")
+
+    def _add_formatted_runs(paragraph, text):
+        """Parse inline markdown (bold, italic) into Word runs."""
+        parts = re.split(r'(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*)', text)
+        for part in parts:
+            if not part:
+                continue
+            if part.startswith("***") and part.endswith("***"):
+                run = paragraph.add_run(part[3:-3])
+                run.bold = True
+                run.italic = True
+            elif part.startswith("**") and part.endswith("**"):
+                run = paragraph.add_run(part[2:-2])
+                run.bold = True
+            elif part.startswith("*") and part.endswith("*"):
+                run = paragraph.add_run(part[1:-1])
+                run.italic = True
+            else:
+                paragraph.add_run(part)
+
+    # XML-invalid control characters would otherwise raise inside
+    # python-docx (or silently corrupt the saved package); strip them the
+    # same way _sanitise() already does for template metadata fields, but
+    # per-line so legitimate newlines between lines are preserved.
+    clean_content = "\n".join(_sanitise(line) for line in content.splitlines())
+
+    lines = clean_content.splitlines()
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].rstrip()
+
+        if stripped.startswith("### "):
+            doc.add_heading(stripped[4:], level=3)
+        elif stripped.startswith("## "):
+            doc.add_heading(stripped[3:], level=2)
+        elif stripped.startswith("# "):
+            doc.add_heading(stripped[2:], level=1)
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            p = doc.add_paragraph(style="List Bullet")
+            _add_formatted_runs(p, stripped[2:])
+        elif re.match(r'^\d+[\.\)]\s', stripped):
+            p = doc.add_paragraph(style="List Number")
+            _add_formatted_runs(p, re.sub(r'^\d+[\.\)]\s', '', stripped))
+        elif stripped.startswith("|") and stripped.endswith("|"):
+            table_lines = []
+            while i < len(lines) and lines[i].rstrip().startswith("|") and lines[i].rstrip().endswith("|"):
+                row_text = lines[i].rstrip()
+                if not re.match(r'^\|[\s\-:|]+\|$', row_text):
+                    cells = [c.strip() for c in row_text.strip("|").split("|")]
+                    table_lines.append(cells)
+                i += 1
+            if table_lines:
+                cols = max(len(r) for r in table_lines)
+                tbl = doc.add_table(rows=len(table_lines), cols=cols, style="Table Grid")
+                for ri, row_cells in enumerate(table_lines):
+                    for ci, cell_text in enumerate(row_cells):
+                        if ci < cols:
+                            cell = tbl.cell(ri, ci)
+                            cell.text = ""
+                            p = cell.paragraphs[0]
+                            _add_formatted_runs(p, cell_text)
+                            if ri == 0:
+                                for run in p.runs:
+                                    run.bold = True
+            continue
+        elif stripped == "":
+            doc.add_paragraph("")
+        else:
+            p = doc.add_paragraph()
+            _add_formatted_runs(p, stripped)
+
+        i += 1
+
+    return doc
+
+
 def apply_template(
     *,
     source_path: str,
@@ -144,6 +256,7 @@ def apply_template(
     version: str = "1.0",
     framework: str = "",
     author_name: str = "",
+    generated_body: bool = False,
 ) -> str:
     """
     Merge source document content into a branding template.
@@ -154,6 +267,19 @@ def apply_template(
     3. Update metadata fields (title, version, dates, revision history)
     4. Append source content after the template front matter
     5. Save as the output file.
+
+    generated_body (PLAN-35 T03): the legacy heuristic mode
+    (generated_body=False, unchanged default) skips the source document's
+    own preamble/cover paragraphs via _is_content_start(), a narrow
+    keyword match ("purpose"/"scope"/"introduction"/"objective", or a
+    numbered Heading1/2) meant for uploaded documents that carry their own
+    title page ahead of the real policy text. An arbitrary first heading
+    that matches none of those keywords means content_started never
+    becomes true and the ENTIRE source is silently dropped -- confirmed
+    directly by inspecting _is_content_start. A source built by
+    build_policy_docx(include_preamble=False) has no such cover to strip in
+    the first place, so generated_body=True bypasses the heuristic and
+    copies every paragraph/table from the source body unconditionally.
 
     Returns the output path.
     """
@@ -226,7 +352,7 @@ def apply_template(
         sect_pr = children[-1] if children else None
 
     # ── Copy source content, skipping the title/preamble block ──
-    content_started = False
+    content_started = generated_body
 
     for element in source.element.body:
         tag = _element_tag(element)

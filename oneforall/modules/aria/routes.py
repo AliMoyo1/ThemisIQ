@@ -2673,14 +2673,8 @@ async def api_gap_analysis(request: Request,
 async def export_word(request: Request, control_id: str = Form(""), content: str = Form(...), org_name: str = Form("Your Organisation")):
     """Convert AI-generated policy markdown to a .docx download."""
     control_id, org_name = _s(control_id), _s(org_name)
-    from docx import Document
-    from docx.shared import Pt, RGBColor
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-
-    doc = Document()
-    style = doc.styles["Normal"]
-    style.font.name = "Calibri"
-    style.font.size = Pt(11)
+    import re as _re
+    from modules.aria.branding_engine import build_policy_docx
 
     db = get_db()
     try:
@@ -2690,81 +2684,7 @@ async def export_word(request: Request, control_id: str = Form(""), content: str
 
     ctrl_label = f"{ctrl_row['ref']} - {ctrl_row['name']}" if ctrl_row else "Policy Document"
 
-    heading = doc.add_heading(f"{org_name}", level=0)
-    heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    sub = doc.add_heading(ctrl_label, level=1)
-    sub.alignment = WD_ALIGN_PARAGRAPH.LEFT
-
-    doc.add_paragraph("")
-
-    import re as _re
-
-    def _add_formatted_runs(paragraph, text):
-        """Parse inline markdown (bold, italic) into Word runs."""
-        parts = _re.split(r'(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*)', text)
-        for part in parts:
-            if not part:
-                continue
-            if part.startswith("***") and part.endswith("***"):
-                run = paragraph.add_run(part[3:-3])
-                run.bold = True
-                run.italic = True
-            elif part.startswith("**") and part.endswith("**"):
-                run = paragraph.add_run(part[2:-2])
-                run.bold = True
-            elif part.startswith("*") and part.endswith("*"):
-                run = paragraph.add_run(part[1:-1])
-                run.italic = True
-            else:
-                paragraph.add_run(part)
-
-    lines = content.splitlines()
-    i = 0
-    while i < len(lines):
-        stripped = lines[i].rstrip()
-
-        if stripped.startswith("### "):
-            doc.add_heading(stripped[4:], level=3)
-        elif stripped.startswith("## "):
-            doc.add_heading(stripped[3:], level=2)
-        elif stripped.startswith("# "):
-            doc.add_heading(stripped[2:], level=1)
-        elif stripped.startswith("- ") or stripped.startswith("* "):
-            p = doc.add_paragraph(style="List Bullet")
-            _add_formatted_runs(p, stripped[2:])
-        elif _re.match(r'^\d+[\.\)]\s', stripped):
-            p = doc.add_paragraph(style="List Number")
-            _add_formatted_runs(p, _re.sub(r'^\d+[\.\)]\s', '', stripped))
-        elif stripped.startswith("|") and stripped.endswith("|"):
-            table_lines = []
-            while i < len(lines) and lines[i].rstrip().startswith("|") and lines[i].rstrip().endswith("|"):
-                row_text = lines[i].rstrip()
-                if not _re.match(r'^\|[\s\-:|]+\|$', row_text):
-                    cells = [c.strip() for c in row_text.strip("|").split("|")]
-                    table_lines.append(cells)
-                i += 1
-            if table_lines:
-                cols = max(len(r) for r in table_lines)
-                tbl = doc.add_table(rows=len(table_lines), cols=cols, style="Table Grid")
-                for ri, row_cells in enumerate(table_lines):
-                    for ci, cell_text in enumerate(row_cells):
-                        if ci < cols:
-                            cell = tbl.cell(ri, ci)
-                            cell.text = ""
-                            p = cell.paragraphs[0]
-                            _add_formatted_runs(p, cell_text)
-                            if ri == 0:
-                                for run in p.runs:
-                                    run.bold = True
-            continue
-        elif stripped == "":
-            doc.add_paragraph("")
-        else:
-            p = doc.add_paragraph()
-            _add_formatted_runs(p, stripped)
-
-        i += 1
+    doc = build_policy_docx(content, org_name=org_name, control_label=ctrl_label, include_preamble=True)
 
     buf = io.BytesIO()
     doc.save(buf)

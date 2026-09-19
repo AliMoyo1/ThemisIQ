@@ -1559,7 +1559,7 @@ application test execution or converter installation is claimed by this edit.
 | T00 baseline | Mostly complete | See detailed notes below. HEAD still `d66f4da` (no drift). Two items need VPS access and remain open. |
 | T01 schema/adoption | Complete (SQLite gate) | See detailed notes below. PG dedicated-suite gate not yet run, no disposable PG instance in this session (open since T00). |
 | T02 authorization/numbering | Complete | See detailed notes below. |
-| T03 builder | Not started | |
+| T03 builder | Complete | See detailed notes below. |
 | T04 drafts | Not started | |
 | T05 artifacts/preview | Not started | Requires VPS converter image, persistent storage and readiness |
 | T06 confirmation | Not started | |
@@ -1838,6 +1838,70 @@ SBU-transfer invariant, three create-time BU resolution cases, three
 approver-eligibility exclusion cases, the no-override decide check, and two
 number-allocator tests including real concurrency). Full regression suite
 re-run clean after these changes. `py_compile` clean on all touched/new files.
+
+### T03 detailed notes (2026-09-19)
+
+Files touched: `oneforall/modules/aria/branding_engine.py` (new
+`build_policy_docx()`; `apply_template()` gains `generated_body: bool =
+False`); `oneforall/modules/aria/routes.py` (`export_word` reduced from
+~115 lines to a ~15-line wrapper around the extracted builder, filename
+generation and the StreamingResponse untouched); `oneforall/tests/test_aria_policy_builder.py`
+(new, 13 tests).
+
+**Confirmed the exact bug section 2 flagged, by reading `_is_content_start()`
+directly**: the legacy heuristic in `apply_template()` sets
+`content_started = True` only when a paragraph's text starts with
+"purpose"/"scope"/"introduction"/"objective", or is a numbered Heading1/2
+(`^\d+[\.\)]?\s`), or when any table appears. If a source document's first
+heading matches none of those (e.g. a generated policy titled "# Data
+Retention Policy"), `content_started` never flips and every single
+paragraph is silently skipped, since the loop's `else: continue` branch
+runs for the whole document. `test_heuristic_mode_drops_content_with_an_unrecognized_first_heading`
+reproduces this exactly against the legacy `generated_body=False` path
+(asserting the content is indeed absent, not present) before proving the
+fix (`generated_body=True`) preserves the same content.
+
+**The fix is a one-line change**: `content_started = generated_body`
+instead of `content_started = False`. When `generated_body=True`, every
+element in the source body is copied unconditionally (still filtered to
+`p`/`tbl` tags and excluding `sectPr`, unchanged from before) — correct
+because a source built via `build_policy_docx(include_preamble=False)` has
+no preamble to strip in the first place, unlike an uploaded legacy document
+which might carry its own cover page.
+
+**Added control-character sanitization that did not exist in the original
+`export_word`**: the plan's own T03 checklist asks to test control
+characters, and the original inline parser had no sanitization at all —
+raw control characters could either crash `python-docx` or corrupt the
+saved package. `build_policy_docx` now runs each line through
+`branding_engine._sanitise()` (the same stripping this file already uses
+for template metadata fields: removes `\x00-\x08`, `\x0b`, `\x0c`,
+`\x0e-\x1f`, explicitly preserving tab/newline/CR) before parsing. This is
+new, additive hardening on a path that previously had none, not a
+behavior change for any input that was already valid.
+
+**One test bug caught and fixed before reporting complete** (not a builder
+bug): `test_unicode_content_preserved` initially asserted against the wrong
+paragraph index, having miscounted the blank-line paragraph that a `\n\n`
+in the source markdown produces between the heading and the following
+text. Fixed the index, not the assertion's intent.
+
+Test evidence: `test_aria_policy_builder.py` 13/13 passing — preamble
+on/off behavior (proving `include_preamble=True` reproduces the exact prior
+`export_word` heading structure), heading levels 1-3, bullet and numbered
+lists, table parsing with header-row bolding, bold/italic/bold-italic
+emphasis, Unicode text (French accents, Japanese, an emoji) preserved
+verbatim, control characters stripped without crashing `doc.save()`,
+tab/newline explicitly NOT stripped, the heuristic-drops-content regression
+proof, the generated_body-preserves-content fix proof (including tables),
+and a regression guard that the legacy heuristic path is completely
+unchanged for a properly-prefaced legacy-shaped upload. Full regression
+suite re-run clean. `py_compile` clean on all touched/new files.
+
+Tests check semantic structure (paragraph text, style names, table cell
+values, run.bold/run.italic) rather than raw DOCX bytes, per the plan's own
+instruction that ZIP timestamps and package metadata can legitimately
+differ between runs.
 
 Suggested implementation-session prompt:
 
