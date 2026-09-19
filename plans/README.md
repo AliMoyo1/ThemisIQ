@@ -242,6 +242,17 @@ Standing constraints below still apply (no em dashes, one-command-per-step for
 VPS, verify with py_compile + pytest + live browser + cleanup, no commit until
 the slice's acceptance criteria pass).
 
+## ARIA policy authoring (PLAN-35)
+
+| Plan | Status | Scope |
+|---|---|---|
+| [PLAN-35](PLAN-35-aria-policy-authoring-flow.md) | NOT STARTED; specification revised 2026-09-19 | Separate authoring drafts, immutable policy versions, local branded PDF preview, named approvals, organization/BU authorization, legacy-route guards, publication/cleanup recovery, and ordered tasks with verification gates |
+
+Execute PLAN-35 in its T00-T11 order. Its execution ledger distinguishes planned
+work from verified completion. The current approved policy stays active during
+revision. Real document conversion, isolated PostgreSQL checks, and browser
+verification are required before enabling the feature.
+
 ## Recommended execution order
 
 **Round 1 first: 1 → 2 → 4 → 3 → 5.**

@@ -37,6 +37,7 @@ from core.events import (
     emit, ARIA_POLICY_PUBLISHED, ARIA_POLICY_UPDATED,
     ARIA_RISK_CREATED, ARIA_RISK_ESCALATED, ARIA_CONTROL_UPDATED,
 )
+from modules.aria.policy_access import document_scope_sql, template_scope_sql
 
 router = APIRouter(prefix="/aria", tags=["aria"])
 templates = Jinja2Templates(directory=["modules/aria/templates", "templates"])
@@ -825,13 +826,14 @@ async def documents_page(request: Request,
                          framework: str = "", status: str = "",
                          doc_type: str = "", search: str = ""):
     user = request.state.user
+    scope_sql, scope_params = document_scope_sql(user)
     db = get_db()
     try:
         q = ("SELECT id, doc_id, framework, control_ref, title, doc_type, "
              "version, status, owner, approver, effective_date, review_date, "
              "location, comments, created_at, updated_at "
-             "FROM aria_documents WHERE 1=1")
-        params = []
+             f"FROM aria_documents WHERE {scope_sql}")
+        params = list(scope_params)
         if framework:
             q += " AND framework LIKE %s"
             params.append("%" + framework + "%")
@@ -851,23 +853,28 @@ async def documents_page(request: Request,
             "SELECT id, name FROM frameworks WHERE is_active = 1 ORDER BY name"
         ).fetchall()
 
-        total = db.execute("SELECT COUNT(*) FROM aria_documents").fetchone()[0]
+        total = db.execute(
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql}", scope_params
+        ).fetchone()[0]
         approved = db.execute(
-            "SELECT COUNT(*) FROM aria_documents WHERE status='Approved'"
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} AND status='Approved'",
+            scope_params,
         ).fetchone()[0]
         draft = db.execute(
-            "SELECT COUNT(*) FROM aria_documents WHERE status='Draft'"
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} AND status='Draft'",
+            scope_params,
         ).fetchone()[0]
         ai_gen = db.execute(
-            "SELECT COUNT(*) FROM aria_documents "
-            "WHERE comments LIKE '%AI Generated%'"
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} "
+            "AND comments LIKE '%AI Generated%'",
+            scope_params,
         ).fetchone()[0]
         in_30 = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
         review_due = db.execute(
-            "SELECT COUNT(*) FROM aria_documents "
-            "WHERE review_date IS NOT NULL AND review_date != '' "
+            f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} "
+            "AND review_date IS NOT NULL AND review_date != '' "
             "AND status != 'Retired' AND review_date <= %s",
-            (in_30,),
+            [*scope_params, in_30],
         ).fetchone()[0]
     finally:
         db.close()
@@ -1593,15 +1600,19 @@ async def document_revisions(request: Request, doc_id: str):
 @router.get("/templates", response_class=HTMLResponse)
 @require_module("aria")
 async def templates_page(request: Request):
-    """Template management page."""
+    """Template management page. Shows retired templates too (management
+    view), unlike api_templates_list's picker."""
     user = request.state.user
+    scope_sql, scope_params = template_scope_sql(user, include_inactive=True)
     db = get_db()
     try:
         tpls = [dict(r) for r in db.execute(
             "SELECT t.*, u.full_name AS created_by_name "
             "FROM aria_doc_templates t "
             "LEFT JOIN users u ON t.created_by=u.id "
-            "ORDER BY t.is_default DESC, t.name"
+            f"WHERE {scope_sql} "
+            "ORDER BY t.is_default DESC, t.name",
+            scope_params,
         ).fetchall()]
     finally:
         db.close()
@@ -1613,14 +1624,18 @@ async def templates_page(request: Request):
 @router.get("/api/templates")
 @require_module("aria")
 async def api_templates_list(request: Request):
-    """List all document templates."""
+    """List active, in-scope document templates (the apply-template picker;
+    retired or out-of-scope templates are not offered)."""
+    scope_sql, scope_params = template_scope_sql(request.state.user)
     db = get_db()
     try:
         rows = db.execute(
             "SELECT t.*, u.full_name AS created_by_name "
             "FROM aria_doc_templates t "
             "LEFT JOIN users u ON t.created_by=u.id "
-            "ORDER BY t.is_default DESC, t.name"
+            f"WHERE {scope_sql} "
+            "ORDER BY t.is_default DESC, t.name",
+            scope_params,
         ).fetchall()
     finally:
         db.close()
