@@ -1965,6 +1965,160 @@ CREATE TABLE IF NOT EXISTS governance_advisories (
     UNIQUE(briefing_date, signal_key)
 );
 CREATE INDEX IF NOT EXISTS idx_advisories_date ON governance_advisories(briefing_date);
+
+-- ── PLAN-35: ARIA policy authoring — drafts, immutable versions, approvals ──
+-- Draft IDs are server-generated UUID strings (TEXT PK), not autoincrement:
+-- they are addressed by clients before any integer identity would exist.
+CREATE TABLE IF NOT EXISTS aria_policy_drafts (
+    id                      TEXT PRIMARY KEY,
+    org_id                  INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id        INTEGER REFERENCES business_units(id),
+    owner_user_id           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_by              INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    last_edited_by          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    source_document_id      INTEGER REFERENCES aria_documents(id),
+    base_version_id         INTEGER REFERENCES aria_policy_versions(id),
+    copied_from_version_id  INTEGER REFERENCES aria_policy_versions(id),
+    reserved_doc_id         TEXT,
+    version_major           INTEGER CHECK(version_major IS NULL OR version_major >= 0),
+    version_minor           INTEGER CHECK(version_minor IS NULL OR version_minor >= 0),
+    content_kind            TEXT NOT NULL DEFAULT 'markdown' CHECK(content_kind IN ('markdown','uploaded_docx')),
+    body                    TEXT,
+    uploaded_source_path    TEXT,
+    uploaded_source_sha256  TEXT,
+    metadata_json           TEXT,
+    author_user_ids_json    TEXT,
+    identity_json           TEXT,
+    state                   TEXT NOT NULL DEFAULT 'editing' CHECK(state IN ('editing','ready','committed','discarded','expired')),
+    lock_version            INTEGER NOT NULL DEFAULT 1,
+    body_sha256             TEXT,
+    input_sha256            TEXT,
+    template_id             INTEGER REFERENCES aria_doc_templates(id),
+    build_id                TEXT,
+    build_input_sha256      TEXT,
+    template_sha256         TEXT,
+    source_path             TEXT,
+    branded_path            TEXT,
+    preview_path            TEXT,
+    template_snapshot_path  TEXT,
+    source_sha256           TEXT,
+    branded_sha256          TEXT,
+    preview_sha256          TEXT,
+    renderer_manifest_json  TEXT,
+    renderer_manifest_sha256 TEXT,
+    generation_request_id   TEXT,
+    created_at              TEXT DEFAULT (datetime('now')),
+    updated_at              TEXT DEFAULT (datetime('now')),
+    expires_at              TEXT,
+    committed_version_id    INTEGER REFERENCES aria_policy_versions(id),
+    discarded_at            TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_aria_drafts_owner_state ON aria_policy_drafts(org_id, owner_user_id, state, updated_at);
+CREATE INDEX IF NOT EXISTS idx_aria_drafts_expiry ON aria_policy_drafts(state, expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_drafts_generation_request ON aria_policy_drafts(org_id, created_by, generation_request_id) WHERE generation_request_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_drafts_open_revision ON aria_policy_drafts(org_id, source_document_id) WHERE source_document_id IS NOT NULL AND state IN ('editing','ready');
+
+-- Immutable content/artifact snapshot created once per confirmation. No
+-- version-body update path exists at the service/API layer by design.
+CREATE TABLE IF NOT EXISTS aria_policy_versions (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                  INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id        INTEGER REFERENCES business_units(id),
+    document_id             INTEGER NOT NULL REFERENCES aria_documents(id) ON DELETE RESTRICT,
+    draft_id                TEXT UNIQUE REFERENCES aria_policy_drafts(id),
+    base_version_id         INTEGER REFERENCES aria_policy_versions(id),
+    version_major           INTEGER NOT NULL,
+    version_minor           INTEGER NOT NULL,
+    version                 TEXT NOT NULL,
+    state                   TEXT NOT NULL CHECK(state IN ('draft','pending','approved','rejected','withdrawn','legacy')),
+    origin                  TEXT NOT NULL CHECK(origin IN ('authored','uploaded','legacy')),
+    body                    TEXT,
+    metadata_json           TEXT,
+    identity_json           TEXT,
+    author_user_ids_json    TEXT,
+    input_sha256            TEXT,
+    source_sha256           TEXT,
+    branded_sha256          TEXT,
+    preview_sha256          TEXT,
+    template_sha256         TEXT,
+    build_id                TEXT,
+    source_path             TEXT,
+    branded_path            TEXT,
+    preview_path            TEXT,
+    template_snapshot_path  TEXT,
+    template_id             INTEGER REFERENCES aria_doc_templates(id),
+    renderer_manifest_json  TEXT,
+    renderer_manifest_sha256 TEXT,
+    created_by              INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at              TEXT DEFAULT (datetime('now')),
+    approved_by             INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_at             TEXT,
+    lock_version            INTEGER NOT NULL DEFAULT 1
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_versions_doc_version ON aria_policy_versions(document_id, version);
+CREATE INDEX IF NOT EXISTS idx_aria_versions_doc_created ON aria_policy_versions(org_id, document_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_versions_open_candidate ON aria_policy_versions(document_id) WHERE state IN ('draft','pending');
+
+-- Named, per-round approval. A pending row is the live decision surface;
+-- approved/rejected/withdrawn rows are permanent history, never reset.
+CREATE TABLE IF NOT EXISTS aria_document_approvals (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                   INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id         INTEGER REFERENCES business_units(id),
+    document_id              INTEGER NOT NULL REFERENCES aria_documents(id) ON DELETE RESTRICT,
+    policy_version_id        INTEGER NOT NULL REFERENCES aria_policy_versions(id) ON DELETE RESTRICT,
+    round_number             INTEGER NOT NULL,
+    approver_id              INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    requested_by             INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approver_identity_json   TEXT,
+    requester_identity_json  TEXT,
+    status                   TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','withdrawn')),
+    submitted_version        TEXT,
+    submitted_input_sha256   TEXT,
+    submitted_branded_sha256 TEXT,
+    submitted_preview_sha256 TEXT,
+    request_note             TEXT,
+    requested_at             TEXT DEFAULT (datetime('now')),
+    decision_by              INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    decision_identity_json   TEXT,
+    decided_at               TEXT,
+    comments                 TEXT DEFAULT '',
+    request_id               TEXT NOT NULL,
+    lock_version             INTEGER NOT NULL DEFAULT 1
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_approvals_request ON aria_document_approvals(org_id, requested_by, request_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_approvals_round ON aria_document_approvals(policy_version_id, round_number);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aria_approvals_one_pending ON aria_document_approvals(document_id) WHERE status='pending';
+CREATE INDEX IF NOT EXISTS idx_aria_approvals_approver ON aria_document_approvals(org_id, approver_id, status);
+CREATE INDEX IF NOT EXISTS idx_aria_approvals_document ON aria_document_approvals(document_id, requested_at);
+
+-- Singleton document-number allocator. No org/BU field: it is infrastructure
+-- shared by every document-creation path, replacing MAX()+1 races.
+CREATE TABLE IF NOT EXISTS aria_document_number_sequence (
+    id          INTEGER PRIMARY KEY CHECK(id=1),
+    next_value  INTEGER NOT NULL
+);
+
+-- Retryable, lease-claimed publication of an approved version into
+-- Evidence Vault / GRID / search. Created once per approval, never reused.
+CREATE TABLE IF NOT EXISTS aria_policy_publication_jobs (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id             INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id   INTEGER REFERENCES business_units(id),
+    policy_version_id  INTEGER NOT NULL UNIQUE REFERENCES aria_policy_versions(id) ON DELETE RESTRICT,
+    document_id        INTEGER NOT NULL REFERENCES aria_documents(id) ON DELETE RESTRICT,
+    publication_key    TEXT NOT NULL UNIQUE,
+    state              TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','running','complete','failed')),
+    attempts           INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at    TEXT,
+    lease_until        TEXT,
+    lease_token        TEXT,
+    last_error         TEXT,
+    event_id           INTEGER,
+    created_at         TEXT DEFAULT (datetime('now')),
+    updated_at         TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_aria_publication_jobs_due ON aria_policy_publication_jobs(state, next_attempt_at);
 """
 
 _GRID_TABLES = """
@@ -3941,6 +4095,25 @@ _COLUMN_MIGRATIONS = [
         ("aria_documents", "branded_file_path", "TEXT"),
         ("aria_documents", "reviewed_by", "INTEGER REFERENCES users(id)"),
         ("aria_documents", "reviewed_at", "TEXT"),
+        # PLAN-35: ARIA policy authoring — projection columns on the existing
+        # document identity table. org_id is nullable (legacy rows predate
+        # organizations); the service requires it for every new/adopted record.
+        ("aria_documents", "org_id", "INTEGER REFERENCES organizations(id)"),
+        ("aria_documents", "owner_user_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"),
+        ("aria_documents", "current_policy_version_id", "INTEGER REFERENCES aria_policy_versions(id)"),
+        ("aria_documents", "policy_workflow_managed", "INTEGER NOT NULL DEFAULT 0"),
+        ("aria_documents", "archived_at", "TEXT"),
+        ("aria_documents", "lock_version", "INTEGER NOT NULL DEFAULT 1"),
+        # PLAN-35: template scope, soft retirement, and integrity hash
+        ("aria_doc_templates", "org_id", "INTEGER REFERENCES organizations(id)"),
+        ("aria_doc_templates", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("aria_doc_templates", "is_active", "INTEGER NOT NULL DEFAULT 1"),
+        ("aria_doc_templates", "file_sha256", "TEXT"),
+        ("aria_doc_templates", "updated_at", "TEXT"),
+        # PLAN-35: version-keyed evidence references (nullable; legacy evidence
+        # keeps its existing path, a typed reference takes precedence when present)
+        ("evidence_items", "aria_policy_version_id", "INTEGER REFERENCES aria_policy_versions(id)"),
+        ("grid_evidence_files", "aria_policy_version_id", "INTEGER REFERENCES aria_policy_versions(id)"),
         # Sentinel DPIA — columns referenced by data_service but missing from CREATE TABLE
         ("sentinel_dpias", "org_name", "TEXT"),
         ("sentinel_dpias", "controller_name", "TEXT"),
@@ -4202,6 +4375,18 @@ def _run_sqlite_alters(conn):
     _POST_MIGRATION_INDEXES = [
         "CREATE INDEX IF NOT EXISTS idx_evidence_items_hash ON evidence_items(file_hash)",
         "CREATE INDEX IF NOT EXISTS idx_evidence_items_parent ON evidence_items(parent_id)",
+        # PLAN-35: performance indexes on the new aria_documents projection
+        # columns (not correctness constraints — safe to be SQLite-only,
+        # matching every other index in this list).
+        "CREATE INDEX IF NOT EXISTS idx_aria_documents_org    ON aria_documents(org_id)",
+        "CREATE INDEX IF NOT EXISTS idx_aria_documents_owner  ON aria_documents(owner_user_id)",
+        # PLAN-35: these two ARE correctness constraints (dedup rule for
+        # version-keyed evidence, section 10.3), not just performance — they
+        # are duplicated verbatim in _run_pg_alters() below because
+        # _POST_MIGRATION_INDEXES itself is SQLite-only and has no PG
+        # equivalent runner. Keep both copies in sync if either changes.
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_evidence_items_policy_version ON evidence_items(aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_grid_evidence_control_version ON grid_evidence_files(control_id, aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
         # S-9: Performance indexes for high-frequency status/regulation filters
         "CREATE INDEX IF NOT EXISTS idx_bcm_incidents_status    ON bcm_incidents(status)",
         "CREATE INDEX IF NOT EXISTS idx_bcm_risks_status        ON bcm_risks(status)",
@@ -5484,6 +5669,19 @@ def _run_pg_alters(conn) -> None:
         except Exception:
             pass
     conn.commit()
+    # PLAN-35: correctness constraints on version-keyed evidence columns that
+    # were just added above. _run_sqlite_alters' _POST_MIGRATION_INDEXES has
+    # no PG equivalent runner, so these two are duplicated verbatim here to
+    # actually reach production Postgres — keep both copies in sync.
+    for idx_sql in (
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_evidence_items_policy_version ON evidence_items(aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_grid_evidence_control_version ON grid_evidence_files(control_id, aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
+    ):
+        try:
+            conn.execute(idx_sql)
+        except Exception:
+            pass
+    conn.commit()
 
 
 def _run_pg_fk_cascades(conn) -> None:
@@ -5579,6 +5777,55 @@ def _apply_tenant_schema_ddl(conn) -> None:
     # Baseline reference data (frameworks, regulations, etc.) — count-gated.
     _seed_baseline_data(conn)
     conn.commit()
+
+
+_ARIA_POLICY_WORKFLOW_TABLES = (
+    "aria_policy_drafts", "aria_policy_versions", "aria_document_approvals",
+    "aria_document_number_sequence", "aria_policy_publication_jobs",
+)
+_ARIA_POLICY_WORKFLOW_COLUMNS = (
+    ("aria_documents", "current_policy_version_id"),
+    ("aria_documents", "policy_workflow_managed"),
+    ("aria_doc_templates", "is_active"),
+    ("evidence_items", "aria_policy_version_id"),
+    ("grid_evidence_files", "aria_policy_version_id"),
+)
+
+
+def aria_policy_workflow_schema_ready(conn) -> tuple[bool, list[str]]:
+    """PLAN-35 T01: verify every required relation exists in THIS
+    connection's current schema specifically, not merely somewhere on a
+    PostgreSQL search_path (e.g. found only in 'public' while the intended
+    tenant schema is missing it). Returns (ready, missing) where missing
+    names each absent table/column. Read-only; safe to call on every
+    request path that is about to enable authoring for a tenant."""
+    missing: list[str] = []
+    is_pg = settings.is_postgres()
+
+    for table in _ARIA_POLICY_WORKFLOW_TABLES:
+        if is_pg:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM pg_tables "
+                "WHERE schemaname = current_schema() AND tablename = %s",
+                (table,),
+            ).fetchone()
+            found = bool(row and row[0])
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = %s",
+                (table,),
+            ).fetchone()
+            found = bool(row and row[0])
+        if not found:
+            missing.append(f"table:{table}")
+
+    for table, column in _ARIA_POLICY_WORKFLOW_COLUMNS:
+        try:
+            conn.execute(f"SELECT {column} FROM {table} LIMIT 0")
+        except Exception:
+            missing.append(f"column:{table}.{column}")
+
+    return (len(missing) == 0, missing)
 
 
 def provision_tenant_schema(slug: str) -> None:
