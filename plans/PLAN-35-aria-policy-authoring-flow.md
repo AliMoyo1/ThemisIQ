@@ -1560,7 +1560,7 @@ application test execution or converter installation is claimed by this edit.
 | T01 schema/adoption | Complete (SQLite gate) | See detailed notes below. PG dedicated-suite gate not yet run, no disposable PG instance in this session (open since T00). |
 | T02 authorization/numbering | Complete | See detailed notes below. |
 | T03 builder | Complete | See detailed notes below. |
-| T04 drafts | Not started | |
+| T04 drafts | Complete | See detailed notes below. |
 | T05 artifacts/preview | Not started | Requires VPS converter image, persistent storage and readiness |
 | T06 confirmation | Not started | |
 | T07 approvals | Not started | |
@@ -1902,6 +1902,86 @@ Tests check semantic structure (paragraph text, style names, table cell
 values, run.bold/run.italic) rather than raw DOCX bytes, per the plan's own
 instruction that ZIP timestamps and package metadata can legitimately
 differ between runs.
+
+### T04 detailed notes (2026-09-19)
+
+Files touched: `oneforall/modules/aria/policy_workflow_service.py` (new:
+`create_draft_from_generation`, `get_draft`, `list_my_drafts`,
+`save_draft_body`, `discard_draft`, `recover_draft`, `start_revision_draft`,
+the `PolicyWorkflowError` hierarchy matching section 8's error codes);
+`oneforall/modules/aria/routes_policy_workflow.py` (new router: list/get/
+save/discard/recover drafts, start a revision); `oneforall/modules/aria/routes.py`
+(`api_generate_policy`'s persistence block replaced, three new optional
+form fields: `request_id`, `target_business_unit_id`, `org_wide`);
+`oneforall/main.py` (new router registered); `oneforall/tests/test_aria_policy_drafts.py`
+(new, 15 tests).
+
+**Confirmed `api_generate_policy` still had the exact `SUBSTRING(doc_id
+FROM 5)` PostgreSQL-only bug found during T01/T03** (same code, unchanged
+until now) — fully retired by this task, since persistence now goes
+through `create_draft_from_generation` -> `policy_access.reserve_document_number`
+(the portable, lock-tested allocator from T02).
+
+**Real bug caught by the tests, not by inspection**: `start_revision_draft`'s
+own `SELECT` for the target document didn't include `owner_user_id`, so
+`_draft_can_edit_document`'s ownership check always compared against `None`
+regardless of the real data, silently denying every non-`edit_any` owner.
+An ad hoc debug script written to investigate the first test failure
+initially masked this (it manually included `owner_user_id` in its own copy
+of the query), which itself is a small lesson: the debug script had to be
+made to call the actual function, not a hand-rolled equivalent of it,
+before the real bug surfaced. Fixed by adding the missing column to the
+service's own query.
+
+**Scoped version reservation as preview-only for this task**: `_next_preview_version`
+computes what version a draft WOULD become (current version's minor + 1, or
+1.0 for a new policy) purely for display, not a final race-proofed
+reservation. Section 4.6's full "include all previously reserved draft and
+confirmed numbers, never reuse an abandoned one" guarantee is a confirm-time
+concern (T06), which does not exist yet — noted directly in the function's
+docstring so this isn't mistaken for the final mechanism later.
+
+**Legacy document adoption is deliberately NOT performed here**: both
+`create_draft_from_generation` and `start_revision_draft` record
+`source_document_id` against an existing document (managed or still
+legacy/unmanaged) so the draft knows what it's revising, but neither
+creates an `aria_policy_versions` legacy baseline or flips
+`policy_workflow_managed`. Section 4.8 item 9 places actual adoption at
+first revision/submission under a document lock -- T06's job, not T04's.
+
+**Two API-contract endpoints from section 8 not built in this task**:
+`POST /aria/api/policy-drafts/{draft_id}/source` (multipart file-based
+draft upload) and the full `content_kind='uploaded_docx'` path. T04's own
+checklist item is "validate input kind for markdown versus uploaded DOCX
+drafts," which `save_draft_body` already satisfies (a markdown save on a
+non-markdown draft returns 409, per section 8's own text), not "build the
+upload-and-replace endpoint" -- that reads as this same file-based-draft
+feature area but a distinct deliverable, left for whichever later task
+actually needs it (the plan does not name a specific one).
+
+**Consistent with the rest of this codebase rather than the plan's literal
+"strict JSON models" wording**: the new mutation endpoints parse a plain
+JSON dict (with explicit required-field checks) rather than Pydantic
+`BaseModel` request bodies, since nothing else in this codebase uses
+Pydantic body models either -- introducing one isolated pocket of that
+pattern seemed like the wrong kind of consistency to add.
+
+Test evidence: `test_aria_policy_drafts.py` 15/15 passing -- new-vs-revision
+detection, the module's actual pass condition proven twice (a single
+generation and three repeated generations against the same control both
+leave an approved document's title/version/status/body completely
+untouched), IMS metadata storage, request_id idempotency (including that a
+duplicate submission does not create a second row), oversized content
+rejected before any row is written (not truncated), an oversized save
+rejected the same way, the stale-edit conflict itself (two editors load the
+same draft, the first save wins, the second's stale token is refused, and
+the final body proves the second write never applied), save invalidating a
+previously-set build, discard-then-recover creating a new draft while the
+original stays discarded, list scoping to the owner's own non-discarded
+drafts, the one-open-revision guard (backed by T01's own partial unique
+index, not just an application-level check), and permission denial for a
+user with neither edit_own nor edit_any. Full regression suite re-run
+clean. `py_compile` clean on all touched/new files.
 
 Suggested implementation-session prompt:
 

@@ -2483,7 +2483,10 @@ async def api_generate_policy(request: Request,
                               org_name: str = Form("Your Organisation"),
                               doc_type_override: str = Form(""),
                               integrated_framework_id: str = Form(""),
-                              custom_instructions: str = Form("")):
+                              custom_instructions: str = Form(""),
+                              request_id: str = Form(""),
+                              target_business_unit_id: str = Form(""),
+                              org_wide: bool = Form(False)):
     """Generate a governance document for a control.
 
     Set integrated_framework_id to a framework ID (or comma-separated IDs) to
@@ -2574,59 +2577,43 @@ async def api_generate_policy(request: Request,
                     fw_names.append(extra["framework"])
         fw_label = ", ".join(fw_names)
 
+        from modules.aria import policy_workflow_service as _pws
+        bu_id_int = int(target_business_unit_id) if target_business_unit_id.strip().isdigit() else None
         db = get_db()
         try:
             db.execute(
                 "UPDATE controls SET last_updated=%s WHERE id=%s",
                 (datetime.now().strftime("%Y-%m-%d"), control_id),
             )
-            existing = db.execute(
-                "SELECT doc_id FROM aria_documents "
-                "WHERE control_ref=%s AND framework=%s",
-                (ctrl["ref"], ctrl["fw_name"]),
-            ).fetchone()
-            now = datetime.now().isoformat()
-            policy_body = result.get("content", "")
-            if existing:
-                old_ver = db.execute(
-                    "SELECT version FROM aria_documents WHERE doc_id=%s",
-                    (existing["doc_id"],),
-                ).fetchone()["version"]
-                try:
-                    parts = old_ver.split(".")
-                    new_ver = parts[0] + "." + str(int(parts[1]) + 1)
-                except (IndexError, ValueError):
-                    new_ver = "1.1"
-                db.execute("""
-                    UPDATE aria_documents
-                    SET framework=%s, version=%s, status='Draft', updated_at=%s,
-                        comments='AI Generated -- updated ' || %s,
-                        body=%s
-                    WHERE doc_id=%s
-                """, (fw_label, new_ver, now, datetime.now().strftime("%Y-%m-%d"),
-                      policy_body, existing["doc_id"]))
-            else:
-                max_num = db.execute(
-                    "SELECT COALESCE(MAX(CAST(SUBSTRING(doc_id FROM 5) AS INTEGER)), 0) "
-                    "FROM aria_documents WHERE doc_id LIKE 'DOC-%%'"
-                ).fetchone()[0]
-                doc_id = "DOC-%04d" % (max_num + 1)
-                db.execute("""
-                    INSERT INTO aria_documents
-                    (doc_id, framework, control_ref, title, doc_type,
-                     version, status, owner, created_at, updated_at,
-                     comments, body)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (doc_id, fw_label, ctrl["ref"],
-                      ctrl["name"] + " -- " + resolved_doc_type,
-                      resolved_doc_type, "1.0", "Draft",
-                      user.get("full_name", ""),
-                      now, now,
-                      "AI Generated on " + datetime.now().strftime("%Y-%m-%d"),
-                      policy_body))
-            db.commit()
+            try:
+                draft = _pws.create_draft_from_generation(
+                    db, user,
+                    control=dict(ctrl),
+                    generated_content=result.get("content", ""),
+                    org_name=org_name,
+                    doc_type=resolved_doc_type,
+                    framework_label=fw_label,
+                    integrated_controls=integrated_frameworks,
+                    request_id=request_id.strip() or None,
+                    target_business_unit_id=bu_id_int,
+                    org_wide=org_wide,
+                )
+            except _pws.PolicyWorkflowError as exc:
+                db.rollback()
+                # A successful AI response must not be reported as a
+                # successful save if persistence actually failed (section 8).
+                return JSONResponse({
+                    "success": False,
+                    "error": f"Content generated but not saved: {exc.message}",
+                    "content": result.get("content", ""),
+                }, status_code=exc.http_status)
         finally:
             db.close()
+
+        result["draft_id"] = draft["id"]
+        result["state"] = draft["state"]
+        result["lock_version"] = draft["lock_version"]
+        result["resume_url"] = f"/aria/ai-generator?draft={draft['id']}"
 
     return JSONResponse(result)
 

@@ -406,6 +406,7 @@ from modules.launcher.routes_super_admin import router as super_admin_router
 from modules.launcher.routes_api_v1 import router as api_v1_router
 from modules.launcher.routes_people import router as people_router
 from modules.aria.routes import router as aria_router
+from modules.aria.routes_policy_workflow import router as aria_policy_workflow_router
 from modules.grid.routes import router as grid_router
 from modules.bcm.routes import router as bcm_router
 from modules.sentinel.routes import router as sentinel_router
@@ -419,6 +420,7 @@ app.include_router(api_v1_router)
 app.include_router(launcher_router)
 app.include_router(people_router)
 app.include_router(aria_router)
+app.include_router(aria_policy_workflow_router)
 app.include_router(grid_router)
 app.include_router(bcm_router)
 app.include_router(sentinel_router)
