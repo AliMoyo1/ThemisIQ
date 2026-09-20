@@ -123,6 +123,23 @@ async def api_recover_policy_draft(request: Request, draft_id: str):
     return JSONResponse({"ok": True, "draft": draft})
 
 
+def _build_draft_sync(actor, draft_id, template_id, expected_lock_version):
+    """Opens and closes its own connection entirely within the worker
+    thread asyncio.to_thread runs this on. PLAN-35 T10: the route
+    previously opened `db` on the event-loop thread and handed that same
+    connection into asyncio.to_thread, which raised
+    'sqlite3.ProgrammingError: SQLite objects created in a thread can only
+    be used in that same thread' on every single call -- confirmed
+    directly via a real browser build attempt, not a review guess. Every
+    automated test calls svc.build_draft(db, ...) directly on one thread,
+    so this never had a chance to surface there."""
+    db = get_db()
+    try:
+        return svc.build_draft(db, actor, draft_id, template_id, expected_lock_version)
+    finally:
+        db.close()
+
+
 @router.post("/api/policy-drafts/{draft_id}/build")
 @require_module("aria")
 async def api_build_policy_draft(request: Request, draft_id: str):
@@ -139,15 +156,12 @@ async def api_build_policy_draft(request: Request, draft_id: str):
              "message": "template_id and expected_lock_version are required.", "retryable": False}},
             status_code=422,
         )
-    db = get_db()
     try:
         draft = await asyncio.to_thread(
-            svc.build_draft, db, actor, draft_id, template_id, expected_lock_version
+            _build_draft_sync, actor, draft_id, template_id, expected_lock_version
         )
     except svc.PolicyWorkflowError as exc:
         return _error_response(exc)
-    finally:
-        db.close()
     return JSONResponse({
         "ok": True, "draft": draft,
         "preview_url": f"/aria/api/policy-drafts/{draft_id}/preview?build_id={draft['build_id']}",
@@ -406,6 +420,19 @@ async def api_withdraw_policy_approval(request: Request, approval_id: int):
 @require_module("aria")
 async def api_start_revision_draft(request: Request, doc_id: str):
     actor = request.state.user
+    # PLAN-35 T11: same tenant-level feature gate as api_generate_policy
+    # (routes.py) -- see its comment for why this lives at the route layer
+    # rather than inside start_revision_draft itself. Section 15's rollback
+    # guidance is "disable new authoring/submission entry points... keep
+    # read/history/download available" -- starting a new revision is new
+    # authoring, so it is gated even for a document this org already has
+    # under management; everything else this file exposes (read, download,
+    # submit/decide an already-open item) is unaffected.
+    from modules.aria.policy_access import policy_authoring_enabled_for
+    if not policy_authoring_enabled_for(actor.get("org_id")):
+        return JSONResponse({"ok": False, "error": {"code": "ACTION_FORBIDDEN",
+            "message": "In-app policy authoring is not yet enabled for your organization. "
+                       "Contact your administrator.", "retryable": False}}, status_code=403)
     payload = await _json_body(request)
     db = get_db()
     try:

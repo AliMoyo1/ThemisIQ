@@ -1,0 +1,49 @@
+{
+  "_comment": "PLAN-35 T10 (section 17 references LibreOffice/PDF.js/DOMPurify by name; this records the exact pinned build of each). Every hash below was cross-checked against jsdelivr own published SRI hash for that exact file at fetch time and confirmed byte-identical -- see the T10 execution-ledger entry for the verification commands. Do not bump a version here without repeating that check and updating the hash. Hashes are computed directly from the files on disk by this same script, never hand-typed.",
+  "vendored_at": "2026-09-20",
+  "libraries": [
+    {
+      "name": "marked",
+      "purpose": "Markdown -> HTML rendering, replacing the previous unpinned https://cdn.jsdelivr.net/npm/marked/marked.min.js import in ai_generator.html.",
+      "version": "18.0.13",
+      "source": "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.umd.js",
+      "file": "marked.umd.js",
+      "sha256_hex": "b147274a9ce27d17276587167e49483d719f6893eeca3a3667a59797661d3556",
+      "license": "MIT",
+      "license_file": "marked.LICENSE",
+      "global": "window.marked (marked.parse(md) -> HTML string; output is NOT sanitized on its own -- always pass through DOMPurify, see aria_markdown.js)"
+    },
+    {
+      "name": "dompurify",
+      "purpose": "Sanitizes marked's HTML output before it ever reaches innerHTML -- the actual XSS defense; marked alone passes raw HTML/script through unchanged.",
+      "version": "3.4.15",
+      "source": "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.min.js",
+      "file": "purify.min.js",
+      "sha256_hex": "f263b05369e050fa175d4ecb9c9358eb4253602d510297adfb31df48b2f1c4d5",
+      "license": "Apache-2.0 OR MPL-2.0 (dual-licensed)",
+      "license_file": "purify.LICENSE, purify.LICENSE-MPL",
+      "global": "window.DOMPurify (DOMPurify.sanitize(html, config) -> safe HTML string)"
+    },
+    {
+      "name": "pdfjs-dist",
+      "purpose": "Renders a build's PDF preview inline in the browser (canvas), so a draft/version's branded preview never needs a manual download.",
+      "version": "6.3.289",
+      "source": "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs",
+      "file": "pdfjs/pdf.min.mjs",
+      "sha256_hex": "f80490490320511e5df18c580b9edd6b5db8058dceebaf6f161992e0a964b9e2",
+      "license": "Apache-2.0",
+      "license_file": "pdfjs/LICENSE",
+      "note": "ES module build (type=module script tag) -- pdfjs-dist dropped the legacy UMD build in recent major versions. Loaded only by the draft-preview/version-preview UI, never by the print/policy/gap markdown views."
+    },
+    {
+      "name": "pdfjs-dist worker",
+      "purpose": "PDF.js's own background-thread parser, referenced by pdf.min.mjs via GlobalWorkerOptions.workerSrc -- must be the exact same version as pdf.min.mjs.",
+      "version": "6.3.289",
+      "source": "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs",
+      "file": "pdfjs/pdf.worker.min.mjs",
+      "sha256_hex": "8ab0e5e30031b4a06ecfddd5ae9562f0227f830ee7ec9ed1a968b134243d2386",
+      "license": "Apache-2.0",
+      "license_file": "pdfjs/LICENSE"
+    }
+  ]
+}

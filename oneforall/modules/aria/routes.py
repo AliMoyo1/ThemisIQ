@@ -842,7 +842,16 @@ async def documents_page(request: Request,
     try:
         q = ("SELECT id, doc_id, framework, control_ref, title, doc_type, "
              "version, status, owner, approver, effective_date, review_date, "
-             "location, comments, created_at, updated_at "
+             "location, comments, created_at, updated_at, "
+             # PLAN-35 T10: openEditModal's "download current file" row and
+             # the managed-workflow UI both need these -- previously absent
+             # from this SELECT, so file_path/branded_file_path/template_id
+             # were always undefined on the row handed to the modal and
+             # that row never appeared, and the modal had no way to tell a
+             # managed document from a legacy one at all.
+             "file_path, branded_file_path, template_id, "
+             "org_id, business_unit_id, owner_user_id, "
+             "policy_workflow_managed, current_policy_version_id "
              f"FROM aria_documents WHERE {scope_sql}")
         params = list(scope_params)
         if framework:
@@ -2670,6 +2679,21 @@ async def api_generate_policy(request: Request,
     if not has_capability(user, "aria.policy.generate_ai"):
         return JSONResponse({
             "error": "You need Policy Author or Compliance Manager role."
+        }, 403)
+    # PLAN-35 T11: the flag existed since T00 but nothing ever actually read
+    # it (confirmed by grepping the whole tree) -- ARIA_POLICY_AUTHORING_ENABLED
+    # did not, in fact, disable anything. Gated here at the route rather
+    # than inside create_draft_from_generation: this is a tenant-level
+    # feature-availability check, the same kind require_capability's own
+    # licence check already makes at the route layer, not an object-level
+    # authorization rule -- and gating inside the service function broke
+    # essentially every one of this workflow's ~350 existing tests, all of
+    # which call it directly with no reason to know about a rollout flag.
+    from modules.aria.policy_access import policy_authoring_enabled_for
+    if not policy_authoring_enabled_for(user.get("org_id")):
+        return JSONResponse({
+            "error": "In-app policy authoring is not yet enabled for your organization. "
+                     "Contact your administrator."
         }, 403)
     if not check_ai_rate_limit(str(user["id"])):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)

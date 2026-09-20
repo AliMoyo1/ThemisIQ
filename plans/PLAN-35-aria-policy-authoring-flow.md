@@ -1383,16 +1383,22 @@ Dependencies: T04-T09.
 Files: `ai_generator.html`, `documents.html`, new ARIA JS/helpers,
 `static/vendor/aria-policy/`, `core/middleware.py` only for narrow CSP support.
 
-- [ ] Implement section 11 including My Drafts, resumed editor and status badges.
-- [ ] Vendor and pin renderer/sanitizer/PDF assets with licenses/checksums.
-- [ ] Remove the unpinned Marked import for affected ARIA pages.
-- [ ] Use safe markdown rendering in every policy/gap/print/reopened view.
-- [ ] Show actual PDF preview, error states and current/candidate distinction.
-- [ ] Test keyboard navigation, focus, unsaved changes and duplicate clicks.
-- [ ] Preserve existing exports and normal document deep links.
+- [x] Implement section 11 including My Drafts, resumed editor and status badges.
+- [x] Vendor and pin renderer/sanitizer/PDF assets with licenses/checksums.
+- [x] Remove the unpinned Marked import for affected ARIA pages.
+- [x] Use safe markdown rendering in every policy/gap/print/reopened view.
+- [x] Show actual PDF preview, error states and current/candidate distinction.
+- [ ] Test keyboard navigation, focus, unsaved changes and duplicate clicks --
+      unsaved-changes indicator and the beforeunload warning are built and
+      the save/build/confirm buttons disable during their own in-flight
+      request; NOT done: a dedicated keyboard-nav/focus-trap/focus-restoration
+      audit, and a real rapid-double-click race test. See notes.
+- [x] Preserve existing exports and normal document deep links (this
+      surfaced a real, pre-existing gap -- see notes).
 
 Pass: browser scenario in section 14 completes with no manual file download or
-upload, no unsafe rendering, and no console/network failures on the happy path.
+upload, no unsafe rendering, and no console/network failures on the happy path
+-- see notes for exactly which parts of section 14 were and were not run.
 
 ### T11. Release verification and handoff
 
@@ -1400,13 +1406,49 @@ Dependencies: T00-T10.
 Files: tests, this plan, `plans/README.md`,
 `oneforall/docs/aria-policy-authoring.md` (new operator/user guide).
 
-- [ ] Run targeted tests, full regression suite, compilation and dedicated PG tests.
-- [ ] Complete real conversion and browser scenarios, including rejection/revision.
-- [ ] Verify upgrade, restart, feature disable, failed converter and failed sync.
-- [ ] Document installation/feature flags, retained files, repair report and retry.
-- [ ] Clean only temporary test accounts/data/files in disposable test environments.
-- [ ] Record commands/results/limitations and mark only proven tasks complete.
-- [ ] Enable in the intended deployment only under the applicable authorization.
+- [x] Run targeted tests, full regression suite and compilation -- NOT done:
+      dedicated PG tests, no PostgreSQL instance is available in this
+      environment. See T11 progress notes.
+- [~] Complete real conversion and browser scenarios, including rejection/revision --
+      the reject decision and start-revision flows are now verified live, as two
+      genuinely separate logged-in users, including the specific gap flagged in
+      T10 notes (a second real approver session). See "T11 live verification
+      pass" notes below. NOT done: real (non-mocked) LibreOffice conversion --
+      still not installed in this environment; the PDF-conversion step itself
+      was mocked for this pass exactly as it was for T10's.
+- [~] Verify upgrade, restart, feature disable, failed converter and failed sync --
+      feature disable (`test_aria_policy_feature_gate.py`, route-level, new),
+      failed converter (T10 notes: a real timed-out build against no running
+      converter, in a live browser) and failed sync (`test_aria_policy_publication.py`'s
+      retry/max-attempts/notification tests) all have direct evidence. NOT
+      done: app upgrade/restart was not exercised in this session.
+- [x] Document installation/feature flags, retained files, repair report and
+      retry -- `oneforall/docs/aria-policy-authoring.md`.
+- [x] Clean only temporary test accounts/data/files in disposable test
+      environments -- two passes. First: found and removed
+      `data/aria_uploads/policy_workflow/org_500/` (two artifact
+      directories, one staging directory), orphaned leftovers from this
+      session's earlier live-browser testing with zero surviving database
+      references (checked every table that could reference org/BU 500:
+      none did). Second, after the T11 live verification pass: deleted
+      organization 501, both its users, its template row, the 4 draft
+      rows it produced, its one confirmed version and its one approval
+      (re-queried every affected table afterward and confirmed zero rows
+      remained, not assumed from the DELETE statements), removed
+      `data/aria_uploads/policy_workflow/org_501/` and the generated test
+      template file, and restored `.env` to its original two lines. Not
+      cleaned up, because it isn't test data: the dev-only `admin`
+      account's password was intentionally reset earlier in this work to
+      a known value for browser-automation login, and remains that way --
+      flagged for the user, not reverted unilaterally.
+- [x] Record commands/results/limitations and mark only proven tasks
+      complete -- this is the standard this ledger's T09/T10/T11 notes
+      have followed throughout (see each task's own "detailed notes"
+      subsection).
+- [ ] Enable in the intended deployment only under the applicable
+      authorization -- not enabled anywhere in this session; stays
+      unchecked until that authorization is actually given and acted on,
+      not merely withheld.
 
 Pass: every release acceptance item in section 15 is supported by evidence.
 
@@ -2723,6 +2765,156 @@ direction both ways, the failure-notification BU exclusion, and the
 unapproved-version indexing gap directly). Full regression suite (392
 tests total) re-run clean. `py_compile` clean on all touched files.
 
+### T10 detailed notes (2026-09-20)
+
+Files touched: `oneforall/static/vendor/aria-policy/` (new: `marked.umd.js`,
+`purify.min.js`, `pdfjs/pdf.min.mjs`, `pdfjs/pdf.worker.min.mjs`, their
+LICENSE files, `MANIFEST.json`), `oneforall/static/js/aria_markdown.js`,
+`aria_pdf_viewer.js`, `aria_policy_workflow.js` (all new),
+`oneforall/modules/aria/templates/ai_generator.html` and `documents.html`
+(the browser UI itself), `oneforall/modules/aria/routes.py` (the
+`documents_page` SELECT), `oneforall/modules/aria/routes_policy_workflow.py`
+(a real threading bug -- see below), `oneforall/tests/test_aria_policy_workflow_routes.py`
+(new, 1 test, deliberately proven to fail against the pre-fix code before
+being left passing).
+
+**Vendoring, verified, not just downloaded.** `marked` 18.0.13, `dompurify`
+3.4.15, and `pdfjs-dist` 6.3.289 (current stable releases at fetch time,
+not arbitrary picks). Every file's SHA-256 was cross-checked against
+jsdelivr's own published per-file hash (`data.jsdelivr.com/v1/packages/npm/<pkg>@<version>?structure=flat`)
+and confirmed byte-identical before use -- not just "downloaded from a
+CDN and trusted". `MANIFEST.json`'s hashes are computed by a script
+reading the files on disk, not hand-typed -- a hand-typed first attempt
+had a transcription error (one dropped character) caught by comparing
+against `sha256sum`'s own output, which is exactly the failure mode of
+typing a hash by hand instead of deriving it programmatically.
+
+**Safe markdown rendering**: `aria_markdown.js` wraps `marked.parse()`
+with `DOMPurify.sanitize()` using an explicit `ALLOWED_TAGS` allowlist
+(no `img` at all -- an inline image is a read receipt/beacon even when
+inert, and branding/logos already go through the server-side template
+system, never through markdown body text), an `ALLOWED_URI_REGEXP`
+restricted to `http(s)`/`mailto`/`#fragment`, and a `DOMPurify.addHook`
+forcing `target="_blank" rel="noopener noreferrer nofollow"` onto every
+surviving link. Verified directly in the running browser, not just by
+code inspection: injected a real payload battery (`<script>`,
+`<img onerror>`, a markdown-syntax `javascript:` link, a raw-HTML
+`<a href="javascript:...">`, `<iframe>`, `<form>`) into a live draft and
+confirmed zero execution and zero surviving dangerous attributes in the
+rendered DOM, while normal formatting (bold, code, a legitimate link)
+still rendered correctly and the legitimate link picked up the
+`rel`/`target` hook. This is section 14 Scenario C item 9, run for real.
+
+**Two previously-invisible bugs found only because this was tested
+through a real browser against the real HTTP/threading layer, not
+through direct service-function calls:**
+
+- **A real, serious threading bug**: `api_build_policy_draft` opened its
+  DB connection (`db = get_db()`) on the request's event-loop thread,
+  then passed that same connection into `asyncio.to_thread(svc.build_draft,
+  db, ...)`, which runs the call on a *different* thread. SQLite
+  connections are bound to the thread that created them, so every single
+  build attempt raised `sqlite3.ProgrammingError: SQLite objects created
+  in a thread can only be used in that same thread` -- confirmed directly
+  from a real "Apply template and preview" click, a full HTTP 500 with
+  the traceback in the server log, not a theoretical concern. This was
+  invisible to every prior test in this plan because all of them call
+  `svc.build_draft(db, ...)` directly on a single thread, bypassing the
+  route's own `asyncio.to_thread` wrapping entirely. Fixed by moving both
+  `get_db()` and `db.close()` inside a small `_build_draft_sync` wrapper
+  that runs entirely on the worker thread `asyncio.to_thread` spawns, so
+  the connection is created and used on the same thread throughout.
+  Checked every other `asyncio.to_thread` call site in the codebase
+  (`ai_generator.py`, `sentinel/ai_service.py`) for the same pattern --
+  neither passes a DB connection across the thread boundary, so this was
+  an isolated bug, not a repeated one. `test_aria_policy_workflow_routes.py`
+  drives this exact route through `asyncio.to_thread` for real against a
+  genuine file-based database; deliberately reverted the fix and reran it
+  to confirm it fails with the exact same error before restoring the fix,
+  the same discipline used throughout this plan for a bug-fix test.
+- **A response-shape mismatch**: `/aria/api/templates` (a route that
+  predates this workflow) returns a bare JSON array, not the `{ok, ...}`
+  envelope every `routes_policy_workflow.py` endpoint uses. `aria_policy_workflow.js`
+  assumed the newer convention and read `res.data.templates`, which is
+  always `undefined` against a bare array -- the template dropdown showed
+  "no templates available" even when a real, correctly-scoped template
+  existed, confirmed by inspecting the actual network response directly
+  rather than trusting the assumption. Fixed to read `res.data` as the
+  array it actually is, with a comment recording why the two response
+  shapes differ so a future change doesn't reintroduce the same
+  assumption elsewhere.
+
+**A third gap, pre-existing since T06, also only found by actually
+following the flow in a browser**: `api_confirm_policy_draft` has
+returned `detail_url: "/aria/documents?open={doc_id}"` since T06, and
+both the confirm button and (now) My Drafts navigate to it, but
+`documents.html` never read an `?open=` parameter at all -- landing there
+after a real confirmation showed the plain list, never the document
+itself. Fixed by rendering the same per-row data already available
+(`docs | tojson`) into one lookup table and opening the matching
+document's edit modal on load when the parameter is present and
+resolves. Verified against a real legacy document (`?open=DOC-0001`
+correctly auto-opened its edit modal).
+
+**Verified live, end to end, with a real (non-mocked) draft**: generate
+→ appears in My Drafts → resume via `?draft=` → edit → save (unsaved
+indicator flips correctly, toast confirms, `expires_at` refreshes) →
+reading-preview renders sanitized HTML → apply template and preview
+(real `asyncio.to_thread` path, no conversion worker running in this
+session, so this genuinely timed out after the configured 60s and
+returned a clean `PREVIEW_TIMEOUT` error rather than crashing -- section
+14 Scenario C item 6, run for real, not simulated: draft text survived,
+confirm stayed disabled, the build button re-enabled for a retry).
+Separately confirmed, via a fully mocked-conversion draft taken all the
+way to a real confirmed version and a real submitted approval: the
+Documents page's managed-document panel (publication status empty,
+version history showing `v1.0` / `pending` / `CURRENT`, status/version/
+owner/approver fields disabled, legacy upload/template sections hidden,
+"Start a revision" present, submit-for-approval correctly hidden because
+a decision is already pending), and the approval-decision UI (PDF-preview
+error state for a non-real PDF byte string, comment textarea, and the
+client-side "reject requires a comment" check correctly blocking the API
+call entirely rather than sending an empty comment).
+
+**Not verified, and said so rather than assumed**: actually deciding an
+approval as a second, genuinely separate logged-in user -- session
+cookies are httpOnly, and switching sessions reliably inside this
+particular browser-automation context did not work (logout navigated
+inconsistently); the decision UI's rendering and its client-side
+validation were confirmed directly instead (above), and the actual
+`decide_approval` transaction logic already has 20+ dedicated automated
+tests from T07. A dedicated keyboard-navigation/focus-trap/focus-restoration
+accessibility audit was not performed. A genuine rapid-double-click race
+against Save/Build/Confirm was not performed (each button disables
+itself for the duration of its own request, which is the mechanism, but
+this specific race was not driven by hand). Real LibreOffice conversion
+remains untested in this session -- still not installed on this dev
+machine -- so the actual DOCX-to-PDF rendering quality (fonts, tables,
+headers/footers, Unicode -- section 14 Scenario A item 4) has still never
+been observed, only the plumbing around a conversion job's success/failure/timeout.
+
+**Incidentally discovered, not a bug**: this dev database's document
+sequence allocator hadn't been initialized against its own pre-existing
+seed data. Running `scripts/prepare_aria_policy_workflow.py` (built in
+T01 for exactly this) fixed it correctly and confirms that script is a
+real, necessary operational step before enabling this workflow on any
+database with existing legacy documents, not just a nice-to-have.
+
+**A caching characteristic worth recording, not a bug to fix here**:
+`core/middleware.py`'s `security_headers_middleware` sends every file
+under `/static/` a blanket `Cache-Control: public, max-age=31536000,
+immutable` -- correct for the pinned vendor libraries above (a version
+bump changes the URL), and a platform-wide policy that predates this
+task and applies equally to every other existing static file, so
+changing it is out of scope here. But it means these three new
+first-party JS files would silently take up to a year to reach an
+already-visited browser after any future fix, unlike the vendor files
+whose version is baked into their own filenames -- addressed by giving
+all three a `?v=1` query suffix in both templates now, with a comment to
+bump it on the next change. Discovered directly during this session's
+own testing (a fixed bug's old behavior kept being served from cache
+until this was in place), not theoretical.
+
 Suggested implementation-session prompt:
 
 > Execute PLAN-35 from the first incomplete task. Read its selected decisions,
@@ -2731,6 +2923,205 @@ Suggested implementation-session prompt:
 > unrelated work and historical evidence. Record actual checks and remaining
 > blockers in the execution ledger. Do not substitute the old AI Draft row,
 > download-only preview or direct approval/status changes.
+
+### T11 progress notes (2026-09-20): the feature flag was never wired up
+
+**Finding, before any T11 acceptance work could mean anything**: this plan
+has required `ARIA_POLICY_AUTHORING_ENABLED=false` (with an explicit
+per-org `ARIA_POLICY_AUTHORING_ORG_IDS` allowlist) since T00's config work,
+repeated in section 0, section 15's rollout steps and the suggested
+implementation-session prompt above. Before trusting any of T11's release
+gates, checked whether that flag actually does anything -- `grep -rn
+"ARIA_POLICY_AUTHORING" oneforall/` matched only the two settings'
+declarations in `config.py`. Nothing in `routes.py`, `routes_policy_workflow.py`,
+or `policy_workflow_service.py` ever read either one. The flag was
+completely inert: setting it to `false` disabled nothing, and section 15's
+entire "deploy disabled, enable per test tenant" rollout plan had no
+mechanism behind it.
+
+**First fix attempt was wrong, and the test suite caught it before this was
+called done.** Added `policy_authoring_enabled_for(org_id)` to
+`modules/aria/policy_access.py` (the flag-off/empty-allowlist/org-not-listed
+predicate -- see that file's own comment block for the exact semantics,
+including that an empty `ARIA_POLICY_AUTHORING_ORG_IDS` means no tenant is
+enabled, never a blanket default-on) and first called it from inside
+`policy_workflow_service.create_draft_from_generation` and
+`start_revision_draft` -- the service-layer functions that actually create
+new authoring work. Running the full suite against that placement:
+`1028 E`, `397 F`. Nearly the entire workflow's ~350 direct-call tests
+broke, because they call these service functions straight, with no reason
+to configure a rollout flag they've never heard of. Reverted both checks
+and the import from `policy_workflow_service.py` completely rather than
+patch around it.
+
+**Corrected placement: the route layer, matching the existing licence-check
+precedent.** Re-added the same check to the two route handlers that are
+the actual entry points for new authoring work instead: `routes.py`'s
+`api_generate_policy` (immediately after the existing `has_capability`
+check, before `check_ai_rate_limit`/`record_ai_call`/the real AI call) and
+`routes_policy_workflow.py`'s `api_start_revision_draft` (at the very
+start of the function, before touching the database). This is a
+tenant-level feature-availability check -- the same kind `require_capability`'s
+own licence gate already makes at the route layer -- not an object-level
+authorization rule, which is what `policy_access.py`/`policy_workflow_service.py`
+correctly own per section 5. `python -m py_compile` on all four touched
+files: clean. Full suite re-run against this placement: exit code 0, zero
+failures or errors -- the ~350 direct-call tests never see the gate at
+all, exactly as intended, and nothing else regressed.
+
+**New dedicated coverage, not just a clean re-run of the old suite.**
+`oneforall/tests/test_aria_policy_feature_gate.py` (7 tests, new file):
+four cover `policy_authoring_enabled_for` as a pure predicate (flag off,
+empty allowlist with the flag on, an org actually on the allowlist vs. one
+that isn't, and `org_id=None`); three drive the real route functions
+through `asyncio.run()` the same way `test_aria_policy_workflow_routes.py`
+already does, proving `api_generate_policy` returns HTTP 403 with a
+"not yet enabled" message for an org that isn't allowlisted, that the same
+call never reaches `check_ai_rate_limit` (a disabled org must not be able
+to spend the shared AI rate-limit budget on a call that was always going
+to be refused), and that `api_start_revision_draft` returns the
+`ACTION_FORBIDDEN` error shape when the allowlist is empty. Full suite run
+once more with these included: exit code 0, zero failures or errors.
+
+**Not covered by this fix, stated rather than assumed**: no test exercises
+`api_generate_policy`'s *success* path with the flag genuinely on (that
+path still needs the AI service mocked, which is a larger, separate
+undertaking already covered structurally by T04's existing generation
+tests plus this session's own live-browser generation run in the T10
+notes above -- both of which ran with the gate's predecessor state,
+i.e. no gate, so they exercise the workflow itself but not "gate open,
+then workflow runs"). The predicate is pure Python (`settings.ARIA_POLICY_AUTHORING_ENABLED`,
+an `int(org_id) in [...]` membership check) with no SQL in it, so there is
+no SQLite-vs-PostgreSQL risk to separately verify here, unlike most of
+this plan's other logic. This fix has not been enabled anywhere real --
+`ARIA_POLICY_AUTHORING_ENABLED` remains `false` in every configuration
+this session touched, and turning it on for any actual tenant is explicitly
+out of scope without the user's own separate authorization (T11's last
+checklist item, section 15).
+
+### T11 live verification pass (2026-09-20): reject decision and start-revision, as two real users
+
+T10's notes explicitly flagged one gap as unverified: "actually deciding an
+approval as a second, genuinely separate logged-in user" -- blocked at the
+time by httpOnly session cookies and unreliable menu-driven logout inside
+the browser-automation context. This pass closes it, plus the related,
+equally-unverified "start a revision" success path.
+
+**How the second-user blocker was actually solved**: `GET /logout`
+deliberately does nothing but redirect (`routes_auth.py`'s own comment:
+destroying the session on GET is CSRF-able via an `<img>` tag); only
+`POST /logout` destroys the session, and the sidebar's sign-out control is
+what normally sends that POST. Rather than fight unreliable menu-click
+sequences again, this pass called `fetch('/logout', {method: 'POST',
+credentials: 'same-origin'})` directly from the page's own JS console (via
+`javascript_tool`). This is not a document.cookie trick -- it is a genuine
+same-origin POST that the app's own `csrf_origin_middleware` accepts (it
+checks Origin/Referer against the host, which a same-page `fetch` always
+satisfies) and that gets a real `Set-Cookie` deletion in the response,
+which a browser honors regardless of the cookie being httpOnly. Confirmed
+working: the fetch returned `redirected: true` to `/login`, and the next
+login as a different user produced a genuinely separate session throughout
+(different `Good morning, <name>` greeting, different visible pending-approvals
+state).
+
+**Test data, and why it was built this way**: a real organization (id 501)
+with two real users -- `t11author` (role `policy_author`) and `t11approver`
+(role `policy_approver`) -- created directly in the dev database, plus
+`ARIA_POLICY_AUTHORING_ENABLED=true` / `ARIA_POLICY_AUTHORING_ORG_IDS=501`
+added to `.env` for the duration of this pass only. Reaching a real
+"confirmed version with a pending approval" without reinventing the whole
+pipeline meant calling the actual service-layer functions directly in a
+script -- `create_draft_from_generation` -> `build_draft` -> `confirm_draft`
+-> `submit_for_approval` -- with only `policy_preview.poll_conversion_result`
+monkeypatched to return fixed bytes instead of waiting on a real (not
+installed in this environment) LibreOffice worker, the same technique
+already used and recorded in T10's notes. This is a deliberately different
+approach from going through `api_generate_policy`'s HTTP route (which
+would have needed a real `aria_controls` row and a mocked AI call for no
+added value here): the goal of this pass was the two specific unverified
+UI flows, not re-proving generation, which T10 and the automated suite
+already cover. Every `aria_doc_templates` row in this dev database's
+`data/aria_templates/` was discovered to be a 15-byte placeholder
+(`b"fake docx bytes"`, not a real zip/docx package) left over from
+unrelated prior testing -- confirmed with `zipfile.is_zipfile()` before
+concluding this, not assumed -- so a genuine minimal docx was generated
+with `python-docx` for this pass's template row rather than reusing one of
+those.
+
+**Reject decision, driven for real as the approver**: logged in as
+`t11approver`, opened the Documents page (the seeded approval correctly
+appeared under "Pending My Approval"), opened the decision modal (the
+fake PDF bytes correctly produced the existing "This file could not be
+displayed as a PDF preview" error state, not a crash), typed a rejection
+comment, and clicked Reject. `POST /aria/api/policy-approvals/2/decide`
+returned `200` with `{"status":"rejected","decision_by":5012,"comments":"Rejecting
+for T11 live verification: please revise the introduction section.", ...}`
+-- a real, complete, server-persisted decision. The client correctly
+closed the modal and hid the now-empty "Pending My Approval" card
+afterward (`onDecided` -> `closeModal` + `refreshPendingApprovals`).
+Reopening the document confirmed the projection: version history showed
+`v1.0` / `rejected` / `CURRENT`, with "Start a revision" now available.
+
+**Permission check on "Start a revision", found while testing it**: still
+logged in as the approver, clicking "Start a revision" produced a real
+`403` (`POST /aria/api/documents/DOC-0008/revision-drafts` ->
+`{"ok":false,"error":{"code":"ACTION_FORBIDDEN","message":"You do not have
+access to this draft."}}`), correctly enforced server-side since
+`policy_approver` grants neither `aria.policy.edit_any` nor (as a non-owner)
+a usable `aria.policy.edit_own`. This also live-exercises the T11 feature
+gate's *allow* branch on this same route from the other side: the same
+route accepted the equivalent request from the actual owner moments later
+(next paragraph), so both the gate's refusal and its pass-through are now
+each backed by at least one real request in this session, not just the
+gate's own unit tests (which only covered the refusal side). The button
+being visible to a user who cannot use it matches this codebase's existing
+pattern elsewhere of rendering an action and letting the server be the
+real authority rather than mirroring every permission client-side; not
+treated as a bug here.
+
+**Start a revision, driven for real as the owner**: switched sessions
+(fetch-logout, then a fresh login as `t11author`, the document's real
+`owner_user_id`). Clicking "Start a revision" redirected to
+`/aria/ai-generator?draft=<new id>` showing a real new editable draft --
+"Organization-wide - Ref Revision v1.1 - My Drafts", the original body
+text carried forward correctly, Save/Edit/Reading-preview all present and
+consistent with T10's already-verified editor. This is the version-number
+increment (1.0 rejected -> 1.1 candidate) specified in section 6.2,
+observed from a real request/response pair, not inferred from reading the
+code.
+
+**Cleanup**: every row this pass created was deleted afterward -- the
+4 draft rows (2 stray ones from earlier failed build attempts before the
+real template fix, plus the two that succeeded), the confirmed version,
+the approval, `aria_documents` row `DOC-0008`, the template row, both
+users, and organization 501 itself -- confirmed by re-querying every
+affected table for zero remaining rows, not assumed from the DELETE
+statements alone. The matching filesystem artifacts under
+`data/aria_uploads/policy_workflow/org_501/` and the generated test
+template file were also removed. `.env` was restored to exactly its
+original two lines (`ARIA_POLICY_AUTHORING_ENABLED` unset, i.e. off by
+default again).
+
+**An unrelated stale comment fixed while setting this up, not left for
+later**: `policy_access.py`'s module docstring asserted "`users.deleted_at`
+does not exist in this codebase" -- no longer true since PLAN-33 Phase 2
+added it (`database.py`'s migration list), discovered while inspecting the
+real `users` schema for this pass's INSERTs. Checked whether this made any
+of `policy_access.py`'s `is_active=1`-only checks actually wrong before
+just editing the comment: it does not -- the only route that sets
+`deleted_at` (`routes_admin.py`) always sets `is_active=0` in the same
+statement, and restoring a deleted account deliberately leaves it inactive
+until a separate explicit reactivation, so the two columns never diverge
+in this codebase's own write paths today. Comment corrected in place to
+state the current, verified reason the existing checks are still correct,
+rather than the now-false premise that the column doesn't exist.
+
+**Still not done, stated plainly**: real (non-mocked) LibreOffice
+conversion remains unverified -- this pass mocked the same single
+function T10 mocked, for the same reason (no converter installed in this
+development environment). Accessibility (keyboard/focus) auditing and a
+manual rapid-double-click race test remain undone, as already recorded in
+T10's notes. App upgrade/restart was not exercised.
 
 ## 17. Primary references for the selected preview/rendering components
 

@@ -1,7 +1,27 @@
 {% extends "base.html" %}
 {% block title %}ARIA: AI Policy Generator{% endblock %}
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{# PLAN-35 T10: pinned, self-hosted, checksummed -- see
+   static/vendor/aria-policy/MANIFEST.json. Replaces the previous unpinned
+   CDN import; marked's raw HTML output is never trusted on its own, only
+   through static/js/aria_markdown.js's DOMPurify wrapper below. #}
+<script src="/static/vendor/aria-policy/marked.umd.js"></script>
+<script src="/static/vendor/aria-policy/purify.min.js"></script>
+{# core/middleware.py's security_headers_middleware sends every /static/
+   file `Cache-Control: public, max-age=31536000, immutable` -- correct for
+   the pinned vendor libraries above (a version bump changes the URL
+   itself), but these three files are ours and will keep changing. A bare
+   URL would mean a future bug fix silently never reaches an already-visited
+   browser for up to a year. Bump ?v= on every change to these three files. #}
+<script src="/static/js/aria_markdown.js?v=1"></script>
+{# pdf.js ships only as an ES module in this pinned version -- see
+   aria_pdf_viewer.js's own header comment for why this bridge is needed. #}
+<script type="module">
+  import * as pdfjsLib from '/static/vendor/aria-policy/pdfjs/pdf.min.mjs';
+  window.pdfjsLib = pdfjsLib;
+</script>
+<script src="/static/js/aria_pdf_viewer.js?v=1"></script>
+<script src="/static/js/aria_policy_workflow.js?v=1"></script>
 <style>
 /* ── Stats strip ─────────────────────────────────────────────────────────── */
 .ag-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
@@ -132,6 +152,53 @@
 .cost-note{margin-top:10px;padding:8px 11px;background:var(--surface2);
            border:1px solid var(--border);border-radius:var(--radius);
            font-size:11px;color:var(--muted);line-height:1.5}
+
+/* ── PLAN-35 T10: draft editor + workflow panel ──────────────────────────── */
+.aria-draft-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 20px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border)}
+.aria-draft-status-chip{background:var(--accent-bg);color:var(--accent);
+  border:1px solid var(--accent-shadow);border-radius:var(--radius);
+  padding:2px 8px;font-weight:700;font-size:11px}
+.aria-draft-status-sep{color:var(--dim)}
+.aria-editor-toolbar{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--border)}
+.aria-editor-tabs{display:flex;gap:4px}
+.aria-editor-tab{background:none;border:1px solid var(--border);border-radius:var(--radius);
+  padding:5px 12px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+.aria-editor-tab.active{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-shadow)}
+.aria-editor-status{display:flex;align-items:center;gap:10px;font-size:12px}
+.aria-unsaved-dot{color:var(--amber);font-weight:600}
+.aria-saved-text{color:var(--good);font-weight:600}
+.aria-draft-editor{width:100%;min-height:360px;border:none;resize:vertical;
+  padding:20px 30px;font-family:var(--mono);font-size:13px;line-height:1.7;
+  color:var(--text);background:var(--surface);outline:none}
+.aria-workflow-panel{border-top:1px solid var(--border);padding:16px 20px;
+  display:flex;flex-direction:column;gap:12px}
+.aria-workflow-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.aria-workflow-progress{font-size:12px;color:var(--accent);font-weight:600}
+.aria-workflow-hint{font-size:12px;color:var(--muted);margin:0}
+.aria-workflow-divider{border:none;border-top:1px solid var(--border);margin:4px 0}
+.aria-workflow-subhead{margin:0;font-size:13px;font-weight:700;color:var(--text)}
+.aria-pdf-container{border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface2);padding:12px;max-height:520px;overflow-y:auto;
+  display:flex;flex-direction:column;align-items:center;gap:12px}
+.aria-pdf-page{max-width:100%;box-shadow:var(--shadow-sm);background:#fff}
+.aria-pdf-state{font-size:12px;color:var(--muted);padding:20px}
+.aria-pdf-error{color:var(--red,#dc2626)}
+.aria-version-row{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:6px;font-size:12px}
+.aria-version-current{border-color:var(--accent-shadow);background:var(--accent-bg)}
+.aria-version-main{display:flex;flex-direction:column;gap:2px}
+.aria-version-tag{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.3px}
+.aria-version-meta{font-size:11px;color:var(--muted)}
+.aria-version-actions a{font-size:12px}
+.aria-publication-warning{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:9px 12px;background:var(--amber-bg);border:1px solid rgba(217,119,6,0.25);
+  border-radius:var(--radius);font-size:12px;color:var(--amber)}
+.aria-approval-comment{width:100%;min-height:70px;padding:8px 10px;font-size:12px;
+  border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+  color:var(--text);resize:vertical}
 </style>
 {% endblock %}
 
@@ -274,6 +341,19 @@
         ⏱ Generation takes 10–20 seconds. Each generation costs approx. $0.01–0.02 (Anthropic).
       </div>
 
+      {# ── My Drafts (PLAN-35 T10) -- editable drafts only, fetched live
+           since these change without a page reload; server-rendered
+           Recent Documents below is confirmed/published documents only. ── #}
+      <div class="recent-section" id="myDraftsSection" style="display:none">
+        <div class="recent-header" id="myDraftsHeader" onclick="AriaPolicyWorkflow.ui.toggleMyDrafts()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          My Drafts
+          <span class="recent-count" id="myDraftsCount">0</span>
+          <svg class="recent-chevron open" id="myDraftsChevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+        </div>
+        <div class="recent-list" id="myDraftsList"></div>
+      </div>
+
       {# ── Recent Documents ── #}
       {% if recent_docs %}
       <div class="recent-section">
@@ -353,9 +433,36 @@
           <div id="loadingTraceMount" style="width:100%;max-width:420px;margin:0 auto"></div>
         </div>
 
-        {# Document output #}
+        {# PLAN-35 T10: draft status line -- scope/owner/reserved reference,
+           version and a My Drafts resume link (section 11 point 1). Shown
+           once a draft exists, whether just generated or resumed via
+           ?draft=. #}
+        <div id="draftStatusBar" class="aria-draft-status" style="display:none"></div>
+
+        {# Document output: an edit/preview toggle over the same draft body.
+           Editing is a plain textarea (never localStorage/sessionStorage --
+           unsaved text lives only in memory, per section 11 point 2) with
+           an explicit Save button and unsaved-change indicator; Preview
+           renders the sanitized markdown read-only. #}
         <div class="output-body" id="outputBody" style="display:none">
-          <div class="policy-output" id="policyContent"></div>
+          <div class="aria-editor-toolbar">
+            <div class="aria-editor-tabs" role="tablist" aria-label="Draft view">
+              <button type="button" class="aria-editor-tab active" id="editorTabEdit"
+                      role="tab" aria-selected="true" onclick="AriaPolicyWorkflow.ui.switchEditorView('edit')">Edit</button>
+              <button type="button" class="aria-editor-tab" id="editorTabPreview"
+                      role="tab" aria-selected="false" onclick="AriaPolicyWorkflow.ui.switchEditorView('preview')">Reading preview</button>
+            </div>
+            <div class="aria-editor-status">
+              <span id="draftUnsavedIndicator" class="aria-unsaved-dot" style="display:none" title="Unsaved changes">● Unsaved changes</span>
+              <span id="draftSavedIndicator" class="aria-saved-text" style="display:none">Saved</span>
+              <button type="button" class="btn btn-primary" id="draftSaveBtn" style="font-size:12px;padding:5px 12px"
+                      onclick="AriaPolicyWorkflow.ui.saveDraft()">Save</button>
+            </div>
+          </div>
+          <textarea id="draftEditor" class="aria-draft-editor" spellcheck="true"
+                    aria-label="Policy document markdown source"
+                    oninput="AriaPolicyWorkflow.ui.onEditorInput()"></textarea>
+          <div class="policy-output" id="policyContent" style="display:none"></div>
         </div>
 
         {# Meta bar #}
@@ -365,6 +472,44 @@
           <span><span id="metaOut">—</span> tokens out</span>
           <span id="metaTime">—</span>
           <span id="metaSaved" style="margin-left:auto;color:var(--good);font-weight:600"></span>
+        </div>
+
+        {# PLAN-35 T10: template selection, build/PDF preview, confirm and
+           submit-for-approval. Hidden until a draft is active. #}
+        <div id="workflowPanel" class="aria-workflow-panel" style="display:none">
+
+          <div id="workflowBuildRow" class="aria-workflow-row">
+            <div class="form-group" style="flex:1;min-width:200px;margin:0">
+              <label class="form-label" for="workflowTemplateSelect">Branding template</label>
+              <select id="workflowTemplateSelect"></select>
+            </div>
+            <button type="button" class="btn btn-primary" id="workflowBuildBtn" style="white-space:nowrap"
+                    onclick="AriaPolicyWorkflow.ui.buildDraft()">Apply template and preview</button>
+          </div>
+          <div id="workflowBuildProgress" class="aria-workflow-progress" style="display:none" aria-live="polite">
+            Building preview…
+          </div>
+
+          <div id="workflowPreviewSection" style="display:none">
+            <div class="aria-workflow-row" style="justify-content:space-between">
+              <span style="font-size:12px;color:var(--muted)">
+                Template <strong id="workflowPreviewTemplate">—</strong> ·
+                Version <strong id="workflowPreviewVersion">—</strong>
+              </span>
+              <button type="button" class="btn btn-ghost" style="font-size:12px;padding:5px 10px"
+                      onclick="AriaPolicyWorkflow.ui.backToEditing()">← Back to editing</button>
+            </div>
+            <div id="workflowPdfContainer" class="aria-pdf-container"></div>
+            <div class="aria-workflow-row" style="justify-content:flex-end">
+              <button type="button" class="btn btn-primary" id="workflowConfirmBtn" disabled
+                      onclick="AriaPolicyWorkflow.ui.confirmDraft()">Confirm version</button>
+            </div>
+            <p id="workflowConfirmHint" class="aria-workflow-hint">
+              Confirming creates the library document (or a candidate revision) and takes you to it,
+              where you submit it for approval.
+            </p>
+          </div>
+
         </div>
       </div>
 
@@ -444,6 +589,17 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }
   }
+
+  // PLAN-35 T10: "resumed editor" -- /aria/ai-generator?draft=<id> (the
+  // resume_url a generation/revision-start response returns, and every
+  // My Drafts "Resume" link) loads straight into the editor instead of
+  // the pick-a-control flow.
+  var resumeDraftId = params.get('draft');
+  if (resumeDraftId) {
+    switchTab('policy');
+    AriaPolicyWorkflow.ui.loadDraftById(resumeDraftId);
+  }
+  AriaPolicyWorkflow.ui.refreshMyDrafts();
 });
 
 /* ── Tab switching ─────────────────────────────────────────────────────── */
@@ -742,11 +898,7 @@ async function generatePolicy() {
     setPolicyLoading(false);
 
     if (data.success) {
-      lastGenerated = data.content;
       document.getElementById('rawContent').textContent = data.content;
-      document.getElementById('policyContent').innerHTML = marked.parse(data.content);
-      document.getElementById('outputBody').style.display   = 'block';
-      document.getElementById('outputActions').style.display = 'flex';
       document.getElementById('metaBar').style.display      = 'flex';
       document.getElementById('outputTitle').textContent    =
         (selectedControl ? selectedControl.ref + ': ' + selectedControl.name : 'Generated Document');
@@ -754,8 +906,14 @@ async function generatePolicy() {
       document.getElementById('metaIn').textContent    = data.input_tokens || '—';
       document.getElementById('metaOut').textContent   = data.output_tokens || '—';
       document.getElementById('metaTime').textContent  = 'Generated in ' + elapsed + 's';
-      document.getElementById('metaSaved').textContent = '✓ Saved to library';
-      if (typeof showToast === 'function') showToast('Policy document generated and saved!');
+      // Section 11: "do not show 'Saved to library' until confirmation
+      // succeeds" -- this is an editable draft, not a library document yet.
+      document.getElementById('metaSaved').textContent = '✓ Draft saved';
+      if (data.draft_id) {
+        await AriaPolicyWorkflow.ui.loadDraftById(data.draft_id);
+        AriaPolicyWorkflow.ui.refreshMyDrafts();
+      }
+      if (typeof showToast === 'function') showToast('Draft generated and saved. Review and edit below.');
     } else {
       document.getElementById('emptyState').style.display = 'flex';
       if (typeof showToast === 'function') showToast(data.error || 'Generation failed', 'error');
@@ -806,7 +964,7 @@ async function generateGapAnalysis() {
     document.getElementById('gapBtnText').textContent   = 'Run Gap Analysis';
 
     if (data.success) {
-      document.getElementById('gapContent').innerHTML    = marked.parse(data.content);
+      AriaMarkdown.renderInto(document.getElementById('gapContent'), data.content);
       document.getElementById('gapContent').style.display = 'block';
       if (typeof showToast === 'function') showToast('Gap analysis complete!');
     } else {

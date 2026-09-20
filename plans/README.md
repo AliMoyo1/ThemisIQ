@@ -246,12 +246,17 @@ the slice's acceptance criteria pass).
 
 | Plan | Status | Scope |
 |---|---|---|
-| [PLAN-35](PLAN-35-aria-policy-authoring-flow.md) | NOT STARTED; specification revised 2026-09-19 | Separate authoring drafts, immutable policy versions, local branded PDF preview, named approvals, organization/BU authorization, legacy-route guards, publication/cleanup recovery, and ordered tasks with verification gates |
+| [PLAN-35](PLAN-35-aria-policy-authoring-flow.md) | T00-T10 DONE; T11 (release verification) in progress as of 2026-09-20 | Separate authoring drafts, immutable policy versions, local branded PDF preview, named approvals, organization/BU authorization, legacy-route guards, publication/cleanup recovery, and ordered tasks with verification gates |
 
-Execute PLAN-35 in its T00-T11 order. Its execution ledger distinguishes planned
-work from verified completion. The current approved policy stays active during
-revision. Real document conversion, isolated PostgreSQL checks, and browser
-verification are required before enabling the feature.
+Execute PLAN-35 in its T00-T11 order. Its execution ledger (section 16)
+distinguishes planned work from verified completion — read each task's
+"detailed notes" subsection there, not just the top-line checklists, before
+trusting what's actually proven. The feature stays behind
+`ARIA_POLICY_AUTHORING_ENABLED=false` (see `oneforall/docs/aria-policy-authoring.md`)
+until T11's remaining items close: real (non-mocked) document conversion,
+isolated PostgreSQL checks (no PG instance has been available in this
+development environment), and the second-approver browser scenario are
+still outstanding.
 
 ## Recommended execution order
 

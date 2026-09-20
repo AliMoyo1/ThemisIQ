@@ -17,18 +17,46 @@ visibility until it is actually adopted. This is intentionally incremental,
 not a loophole: T08 ("close legacy bypasses") is where the remaining
 unscoped legacy paths get closed, not this module in isolation.
 
-`users.deleted_at` does not exist in this codebase (verified directly against
-database.py; there is no such column or migration entry) -- user removal
-here is `is_active=0` (soft) or the row no longer existing at all (hard
-delete, several FKs use ON DELETE CASCADE). Every "the account still exists
-and isn't deleted" check below is `is_active=1` combined with a real JOIN
-against `users` (which naturally excludes hard-deleted rows), not a
-deleted_at comparison.
+`users.deleted_at` exists (added by PLAN-33 Phase 2, after this note was
+first written) but every "the account still exists and isn't deleted"
+check below relies on `is_active=1` alone, not a `deleted_at IS NULL`
+comparison -- confirmed still correct, not merely convenient: the only
+route that sets `deleted_at` (`routes_admin.py`'s safe-delete) always sets
+`is_active=0` in the same statement, and restoring a deleted account
+clears `deleted_at` but deliberately leaves `is_active=0` until an explicit
+separate reactivation. So `is_active=1` and `deleted_at IS NOT NULL` never
+co-occur in this codebase's own write paths; a hard-deleted row is excluded
+by the real JOIN against `users` regardless. If a future change ever sets
+`is_active` and `deleted_at` independently, re-check every predicate below.
 """
 from __future__ import annotations
 
 from modules.governance.data_service import bu_scope_ids
 from core.rbac import has_capability
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Feature gate (PLAN-35 T11: the flag existed since T00's config work but
+# was never actually read anywhere -- confirmed directly by grepping the
+# whole tree -- so ARIA_POLICY_AUTHORING_ENABLED=false did not, in fact,
+# disable anything. T04 already retired the old direct-to-document AI
+# generation path this workflow replaces, so there is no "old system" left
+# to silently fall back to when the flag is off; a disabled org must get a
+# clear refusal at the entry points that create new work (generation,
+# starting a revision), not a broken or bypassed gate.)
+# ─────────────────────────────────────────────────────────────────────────
+
+def policy_authoring_enabled_for(org_id) -> bool:
+    """False whenever the flag is off, org_id is missing, or the org isn't
+    on the explicit allowlist -- an empty ARIA_POLICY_AUTHORING_ORG_IDS
+    means no tenant is enabled, never a blanket default-on (config.py's
+    own comment on that setting)."""
+    from config import settings
+    if not settings.ARIA_POLICY_AUTHORING_ENABLED:
+        return False
+    if org_id is None:
+        return False
+    return int(org_id) in settings.ARIA_POLICY_AUTHORING_ORG_IDS
 
 
 # ─────────────────────────────────────────────────────────────────────────
