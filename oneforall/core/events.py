@@ -44,13 +44,28 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
     key (e.g. a publication_key) when the caller might retry/replay the
     same logical event after a crash -- a job that committed its own
     durable side effects but died before recording completion, and gets
-    reprocessed by a fresh claim. Without this, a replay re-runs every
-    handler (duplicate tasks, cross-module links, notifications) and
-    re-dispatches to every webhook subscriber a second time, none of which
-    are idempotent on their own. With it, a second emit() for the same key
-    returns the first call's event id without running handlers or
-    dispatching webhooks again -- backed by a real unique index
-    (uq_events_dedup_key), not just a check-then-insert race.
+    reprocessed by a fresh claim.
+
+    A second emit() for the same key never inserts a second row (backed by
+    a real unique index, uq_events_dedup_key, not just a check-then-insert
+    race) and never re-runs handlers/webhooks once the first call's row
+    reaches status='processed'. Until then -- status is still 'pending'
+    (this call is racing an in-flight first attempt) or 'failed' (a
+    handler raised) -- a replay DOES re-run handlers/webhooks against the
+    existing event id, rather than returning it untouched. This is a
+    deliberate change from treating "a row exists" as "it was delivered":
+    the row is committed before handlers run (committing only after would
+    hold this connection's write lock for as long as arbitrary handler
+    code takes to run, risking a self-deadlock against a handler's own,
+    separate write connection), so a crash in that window used to produce
+    a permanently un-processed event that every future replay would
+    silently treat as already handled. The tradeoff this accepts is the
+    ordinary at-least-once one: a handler invoked for the same logical
+    event more than once, on the rare replay that lands after a crash or
+    failure. Every handler registered for a dedup_key-using event type
+    must tolerate that (see workflow_trigger_on_aria_policy's own note in
+    core/event_handlers.py for the one that is not currently idempotent
+    against it and why that gap is accepted for now).
 
     Returns the event's row id (a publication job persists this id after a
     successful emit; also how a dedup_key caller finds the original
@@ -59,54 +74,66 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
     unaffected.
     """
     db = get_db()
+    event_id = None
     try:
         if dedup_key:
             existing = db.execute(
-                "SELECT id FROM events WHERE dedup_key=%s", (dedup_key,)
+                "SELECT id, status FROM events WHERE dedup_key=%s", (dedup_key,)
             ).fetchone()
             if existing:
+                if existing["status"] == "processed":
+                    return existing["id"]
+                event_id = existing["id"]  # replay: skip the insert, rerun delivery below
+
+        if event_id is None:
+            try:
+                event_id = insert_returning_id(db,
+                    "INSERT INTO events (event_type, source_module, source_entity_type, "
+                    "source_entity_id, payload, created_by, dedup_key) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        event_type,
+                        source_module,
+                        entity_type,
+                        entity_id,
+                        json.dumps(payload) if payload else "{}",
+                        user_id,
+                        dedup_key,
+                    ),
+                )
+                db.commit()
+            except IntegrityError:
+                if not dedup_key:
+                    raise
+                # Lost a race with a concurrent emit() for the same dedup_key --
+                # its row is authoritative; this call must not run handlers too.
+                db.rollback()
+                existing = db.execute(
+                    "SELECT id FROM events WHERE dedup_key=%s", (dedup_key,)
+                ).fetchone()
+                if not existing:
+                    raise
                 return existing[0]
-        try:
-            event_id = insert_returning_id(db,
-                "INSERT INTO events (event_type, source_module, source_entity_type, "
-                "source_entity_id, payload, created_by, dedup_key) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (
-                    event_type,
-                    source_module,
-                    entity_type,
-                    entity_id,
-                    json.dumps(payload) if payload else "{}",
-                    user_id,
-                    dedup_key,
-                ),
-            )
-            db.commit()
-        except IntegrityError:
-            if not dedup_key:
-                raise
-            # Lost a race with a concurrent emit() for the same dedup_key --
-            # its row is authoritative; this call must not run handlers too.
-            db.rollback()
-            existing = db.execute(
-                "SELECT id FROM events WHERE dedup_key=%s", (dedup_key,)
-            ).fetchone()
-            if not existing:
-                raise
-            return existing[0]
     finally:
         db.close()
 
-    # Run handlers
+    # Run handlers. Status reflects the WHOLE loop's outcome, set once at
+    # the end -- a later handler's success must never overwrite an earlier
+    # handler's failure (PLAN-35 T11 review finding), and an event type
+    # with zero registered handlers still reaches a terminal 'processed'
+    # state rather than sitting at 'pending' forever (which would make
+    # every future dedup_key replay treat it as never-delivered and
+    # re-dispatch webhooks indefinitely).
     handlers = _handlers.get(event_type, [])
+    any_failed = False
     for handler in handlers:
         try:
             handler(event_type=event_type, source_module=source_module,
                     entity_type=entity_type, entity_id=entity_id,
                     payload=payload or {}, user_id=user_id)
-            _mark_processed(event_id)
         except Exception as exc:
+            any_failed = True
             log.exception("Event handler %s failed for %s: %s", handler.__name__, event_type, exc)
-            _mark_failed(event_id, str(exc))
+    _set_status(event_id, "failed" if any_failed else "processed")
 
     # Fan out to registered outbound webhooks (best-effort; never blocks).
     # Runs on a background thread (see core.webhooks._delivery_pool) so
@@ -140,27 +167,13 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
     return event_id
 
 
-def _mark_processed(event_id: int):
+def _set_status(event_id: int, status: str):
     # Low-priority bookkeeping — use background connection (fail-fast, don't block UI)
     db = get_db_background()
     try:
         db.execute(
-            "UPDATE events SET status='processed', processed_at=%s WHERE id=%s",
-            (utcnow().isoformat(), event_id),
-        )
-        db.commit()
-    except Exception:
-        pass  # Bookkeeping failure is non-critical
-    finally:
-        db.close()
-
-
-def _mark_failed(event_id: int, error: str):
-    db = get_db_background()
-    try:
-        db.execute(
-            "UPDATE events SET status='failed', processed_at=%s WHERE id=%s",
-            (utcnow().isoformat(), event_id),
+            "UPDATE events SET status=%s, processed_at=%s WHERE id=%s",
+            (status, utcnow().isoformat(), event_id),
         )
         db.commit()
     except Exception:

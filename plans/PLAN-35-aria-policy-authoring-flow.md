@@ -3123,6 +3123,214 @@ development environment). Accessibility (keyboard/focus) auditing and a
 manual rapid-double-click race test remain undone, as already recorded in
 T10's notes. App upgrade/restart was not exercised.
 
+### T11 external review-fix pass (2026-09-20): rollback scope, event delivery, publication races
+
+A second external code review (6 findings: 4 P1, 2 P2) covered the parts
+of this workflow a live-browser pass cannot exercise: what actually
+happens under a crash, a stale worker, or a mixed-outcome event delivery.
+Each finding was verified against the real code before any fix, per this
+plan's own established discipline; all 6 were confirmed real.
+
+**P1 -- feature disable did not stop submissions or publication.**
+`ARIA_POLICY_AUTHORING_ENABLED`/`ORG_IDS` (wired up earlier this same day,
+see the progress notes above) only covered `api_generate_policy` and
+`api_start_revision_draft`. Section 15's own rollback text is explicit --
+"disable new authoring/**submission** entry points... stop new
+**conversion**/**publication** claims" -- so `api_build_policy_draft`
+("conversion"), `api_confirm_policy_draft`, `api_submit_for_approval`
+("submission"), and `api_retry_publication_job` ("resume retry jobs
+*after* resolving the issue" implies retries pause during it) were all
+gated the same way, via a new shared `_authoring_gate(actor)` helper in
+`routes_policy_workflow.py` (the existing `api_start_revision_draft` check
+was refactored onto it too, no behavior change there).
+
+The publication *scheduler* needed a different mechanism: `claim_next_job`
+now filters candidates by `org_id IN (<currently enabled orgs>)` at the
+SQL level, and short-circuits entirely when the flag is globally off.
+Deliberately NOT "claim then release if disabled": a claim already
+increments `attempts`, so releasing would inflate it every ~120s lease
+cycle purely from sitting disabled and could trip `MAX_ATTEMPTS` the
+moment the org is re-enabled; and with `ORDER BY created_at ASC LIMIT 1`,
+a disabled org's older job would keep winning the claim and being
+released, starving a newer job from a still-enabled org behind it in the
+queue. Filtering the candidate set avoids both.
+
+Explicitly NOT gated: save/discard/recover a draft, decide/withdraw an
+approval, and every read/download/status endpoint -- these resolve or
+expose work that already exists rather than advancing anything new,
+matching "keep read/history/download and recorded approvals available."
+
+This broke the same category of existing test as the first gate-placement
+attempt earlier today, for the same reason: `test_aria_policy_publication.py`
+(~14 tests) and `test_aria_policy_workflow_routes.py`'s one test call
+`claim_next_job`/`api_build_policy_draft` directly to test claiming and
+threading mechanics, with no reason to know about the flag. Fixed by
+enabling authoring for those files' own fixture orgs in their `autouse`
+fixtures (not by weakening the gate) -- the same resolution as before,
+now a confirmed pattern for this plan's gate placements. New tests: 5 in
+`test_aria_policy_feature_gate.py` (build/confirm/submit/retry refuse when
+disabled, build passes through when enabled), 2 in
+`test_aria_policy_publication.py` (`claim_next_job` skips a disabled org
+without starving an enabled one or inflating its attempts; returns `None`
+outright when the flag is globally off).
+
+**P1 -- event deduplication could permanently lose deliveries; P2 -- a
+later handler could hide an earlier one's failure.** Both in
+`core/events.py`'s `emit()`, same root cause: the event row commits before
+handlers run, and each handler independently overwrote the shared
+`events.status` column. A crash (or any handler exception, which has no
+other recovery path) between the commit and the handler loop finishing
+left a row that every future `dedup_key` replay found and returned
+unchanged -- "the row exists" was being treated as "it was delivered",
+permanently, with no retry. Considered committing only after handlers
+finish instead (closing the gap directly); rejected because it would hold
+this connection's write lock for as long as arbitrary handler code takes,
+and handlers open their own separate connections to write (e.g.
+`_auto_trigger_workflows`'s own `db.commit()`) -- a near-certain SQLite
+self-deadlock, not a narrow risk.
+
+Fixed instead: a `dedup_key` replay against an existing row only
+short-circuits when that row's status is already `'processed'`;
+otherwise it reruns handler delivery against the *same* event id rather
+than returning it untouched. Status is now computed once, after the whole
+handler loop, from the combined outcome (`'failed'` if anything raised,
+else `'processed'`) -- never per-handler -- which also fixes a related gap
+found while designing this: an event type with zero registered handlers
+previously sat at `'pending'` forever, so every future replay of it would
+also have gone on redelivering webhooks indefinitely; it now reaches
+`'processed'` immediately.
+
+This trades a permanent, guaranteed loss of delivery for the ordinary
+at-least-once cost: a handler invoked more than once for the same logical
+event, on a replay that lands after a crash or failure. That handler must
+tolerate it. Checked the one handler actually reachable this way
+(`ARIA_POLICY_PUBLISHED`'s sole handler, `workflow_trigger_on_aria_policy`
+-> `_auto_trigger_workflows`) and found it is NOT idempotent -- it inserts
+a `workflow_instances` row unconditionally, with nothing to key a
+"already ran for this exact event" check on (`workflow_instances` has no
+column correlating it back to a specific event occurrence, and
+`entity_id` alone is wrong to key on: a document published a second time
+after a later revision must legitimately get a new instance, not be
+silently deduplicated against its first publication). Documented this gap
+directly on the handler rather than silently accepting it: a rare
+duplicate workflow instance on an already-rare replay is accepted for now
+as strictly better than the guaranteed total loss it replaces, but a real
+fix needs a schema change (an event-occurrence reference on
+`workflow_instances`) that is out of scope for this pass. New tests: 5 in
+new file `tests/test_events_dedup_and_status.py` (success replay does not
+rerun; failure replay does rerun against the same event id and reaches
+`processed` on the retry; mixed-outcome status is `failed` not
+`processed`; zero-handler status still reaches `processed`; the
+pre-existing genuine-concurrent-`IntegrityError` race still defers to the
+winner without running handlers itself, proving that path is untouched).
+
+**P1 -- conflict recovery in publication could roll back earlier evidence
+writes.** `_copy_to_evidence_vault` and `_copy_to_grid_evidence`
+(`policy_publication.py`) caught a unique-violation on a duplicate insert
+and called `db.rollback()` -- which undoes the WHOLE transaction, not just
+that one statement, silently erasing an earlier write already made in the
+same transaction (the vault copy, or an earlier grid control's successful
+attach in the same loop), after which the job still went on to commit
+whatever was left and report `'complete'`. Worse than it looked on
+SQLite alone: `_PgConnWrapper.execute()` (`database.py`) already rolls
+back the ENTIRE connection the instant PostgreSQL raises ANY statement
+error, before this module's own `except` block even runs -- so a
+savepoint-based partial rollback (the reviewer's alternative suggestion)
+would not actually have worked here without also changing that
+shared wrapper, a much larger and riskier change than this fix needed.
+
+Fixed with `INSERT ... ON CONFLICT DO NOTHING` against each table's real
+existing unique index (`uq_evidence_items_policy_version`,
+`uq_grid_evidence_control_version`) instead: it never raises for the
+duplicate case on either engine, so there is nothing here left for a
+rollback to ever need to undo. This surfaced a real, separate,
+pre-existing bug in the shared `insert_returning_id` helper
+(`database.py`) while building on it: its own docstring already promised
+"returns None when ON CONFLICT DO NOTHING suppresses the insert," but the
+SQLite path just returned `cursor.lastrowid` unconditionally -- confirmed
+directly that sqlite3's `lastrowid` after a suppressed insert is *stale*
+(the previous successful insert's id, not `None` and not this
+statement's), not merely unset. Fixed at the root (`rowcount == 0` now
+guards the SQLite path) rather than worked around at each call site; this
+also fixes a latent, previously unnoticed correctness bug in
+`modules/grid/data_service.py`'s `create_mapping` (its only other
+real-code caller), which would have returned a wrong, unrelated id for a
+duplicate mapping on SQLite. New tests: `test_insert_returning_id_returns_none_not_a_stale_id_on_suppressed_conflict`
+and `test_conflicting_evidence_vault_insert_does_not_lose_an_earlier_write_in_the_same_transaction`
+in `test_aria_policy_publication.py`. Not covered: a genuine concurrent
+race reproducing the exact original interleaving (two connections both
+passing the pre-existing-row check before either writes) was judged not
+worth a flaky timing-dependent test given the fix already directly and
+deterministically eliminates the mechanism (an exception path) the bug
+depended on -- stated here rather than silently skipped.
+
+**P1 -- a stale worker could overwrite the current lease owner.**
+`_mark_failed`'s terminal-failure UPDATE filtered only by job id, unlike
+every sibling write in the same module (`_schedule_retry_or_fail`'s retry
+UPDATE, `process_job`'s completion UPDATE), which already guard with
+`AND lease_token=%s`. A worker whose lease had already expired and been
+reclaimed by a newer worker could still mark the job `'failed'` and clear
+that newer worker's lease and `event_id` out from under it, possibly
+seconds before that worker would have completed it successfully -- and
+would still send the "evidence synchronization needs attention" manager
+notification for a failure that was never real. Fixed with the same
+`lease_token` guard plus a `rowcount` check (skip the notification
+entirely when the guard shows this worker no longer owns the job -- the
+current owner's own outcome is authoritative, not this stale write).
+Added the same `rowcount` check to `_schedule_retry_or_fail` for
+consistency (it already had the guard but silently proceeded either way;
+now it logs a warning on the same condition). New tests:
+`test_mark_failed_does_not_clobber_a_lease_a_newer_worker_already_holds`
+and a sanity-check sibling proving a *valid* lease token still records
+the failure and notifies, in `test_aria_policy_publication.py`.
+
+**P2 -- the retention lock works only inside one process, not fixed in
+this pass, deliberately.** Confirmed real: `scripts/deploy.py` generates
+the production systemd unit with `--workers 2`, `main.py` calls
+`modules.aria.scheduler.start_scheduler()` unconditionally at startup, and
+`_retention_sweep`'s own docstring already documents that `max_instances=1`
+(APScheduler's per-process overlap guard) is its *only* protection -- with
+2 worker processes, each gets its own scheduler instance and neither knows
+about the other, so both can run the sweep concurrently. The publication
+*drain* job is NOT at risk here despite living in the same file: it claims
+work through `claim_next_job`'s real cross-process locking
+(`SELECT ... FOR UPDATE SKIP LOCKED` / `BEGIN IMMEDIATE`), a genuine
+database-level lock, not `max_instances`, so 2 workers already correctly
+distribute publication claims between them today.
+
+Not fixed here because this is a platform-wide pattern, not a PLAN-35 one:
+grepping `main.py` shows the identical `start_scheduler()`-at-startup
+shape registered for nine other modules (grid, sentinel, bcm, evidence,
+erm, advisory, reminder, workflow, governance) alongside ARIA, all relying
+on the same per-process `max_instances=1` guard. Patching only ARIA's
+retention sweep with a database lease would fix one-tenth of an
+architectural gap while leaving the codebase with an inconsistent locking
+strategy across otherwise-identical schedulers -- a real fix is a shared,
+reusable lease helper all ten adopt, which deserves its own scoped change
+outside this ARIA-specific plan. Also weighed the actual blast radius
+before deciding not to rush a narrow fix: `_retention_sweep` already wraps
+each tenant's cleanup in its own `try/except: log.warning(...); continue`,
+so two workers racing on the same org's sweep means wasted duplicate work
+and a logged warning on a since-moved/deleted path, not silent data loss
+or corruption -- a real robustness gap, but a bounded one, unlike P1
+findings 1-4 above. Left open and stated here rather than silently
+dropped from this ledger.
+
+New tests added this pass: 12 in `test_aria_policy_feature_gate.py` (7
+from the earlier progress-notes pass plus 5 new: build/confirm/submit/retry
+refuse when disabled, build passes through when enabled), 38 in
+`test_aria_policy_publication.py` (32 pre-existing plus 6 new: the
+disabled-org claim skip/no-starvation test, the global-disable test, the
+`insert_returning_id` conflict-detection test, the evidence-vault
+same-transaction-survives test, and the two `_mark_failed` lease-token
+tests), and a new file `test_events_dedup_and_status.py` (5 tests).
+`python -m py_compile` on every touched file: clean. Full regression
+suite, run twice (once immediately after the route/scheduler-gate changes
+alone, which surfaced the same "existing test calls the now-gated function
+directly" issue as the earlier gate-placement pass and was fixed the same
+way; once again after every fix and every new test above): both times,
+`EXIT_CODE=0`, zero failures or errors.
+
 ## 17. Primary references for the selected preview/rendering components
 
 These establish component capabilities, not a security endorsement of any

@@ -49,11 +49,6 @@ def _is_postgres() -> bool:
     return settings.is_postgres()
 
 
-def _is_unique_violation(exc: Exception) -> bool:
-    text = str(exc).lower()
-    return "unique" in text or "duplicate key" in text
-
-
 # ─────────────────────────────────────────────────────────────────────────
 # Claim (section 10.3: "Claim with a short DB lease and random token")
 # ─────────────────────────────────────────────────────────────────────────
@@ -68,7 +63,30 @@ def claim_next_job(db, is_postgres: bool, lease_seconds: int = DEFAULT_LEASE_SEC
     commit below -- held only for this short claim, never across the
     actual copy work that follows), SELECT ... FOR UPDATE SKIP LOCKED on
     PostgreSQL (row-level, safe with multiple app workers).
+
+    Section 15's rollback: "stop new... publication claims" for an org
+    whose authoring has been disabled after already queuing jobs (an
+    incident rollback, not just "never enabled"). Filtered at the SQL
+    level -- into the candidate set, not "claim then release if disabled"
+    -- for two reasons: a claim already increments attempts, so
+    claim-then-release would inflate attempts on every lease cycle purely
+    from sitting disabled and could trip MAX_ATTEMPTS the moment the org
+    is re-enabled; and with ORDER BY created_at ASC LIMIT 1, a disabled
+    org's older job would keep winning the claim and getting released,
+    starving a newer job from a still-enabled org behind it in the queue.
+    A fully disabled feature flag (the default, always, until launch)
+    short-circuits before the query at all -- no organization can have a
+    queued job in that state to begin with, since submission itself is
+    gated, so this is a true no-op, not a behavior change.
     """
+    from config import settings
+    if not settings.ARIA_POLICY_AUTHORING_ENABLED:
+        return None
+    enabled_org_ids = list(settings.ARIA_POLICY_AUTHORING_ORG_IDS)
+    if not enabled_org_ids:
+        return None
+    org_placeholders = ",".join(["%s"] * len(enabled_org_ids))
+
     import uuid as _uuid
     now = utcnow()
     now_iso = now.isoformat()
@@ -80,8 +98,9 @@ def claim_next_job(db, is_postgres: bool, lease_seconds: int = DEFAULT_LEASE_SEC
             "SELECT id FROM aria_policy_publication_jobs "
             "WHERE (state='pending' OR (state='running' AND lease_until < %s)) "
             "AND (next_attempt_at IS NULL OR next_attempt_at <= %s) "
+            f"AND org_id IN ({org_placeholders}) "
             "ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED",
-            (now_iso, now_iso),
+            (now_iso, now_iso, *enabled_org_ids),
         ).fetchone()
     else:
         db.execute("BEGIN IMMEDIATE")
@@ -89,8 +108,9 @@ def claim_next_job(db, is_postgres: bool, lease_seconds: int = DEFAULT_LEASE_SEC
             "SELECT id FROM aria_policy_publication_jobs "
             "WHERE (state='pending' OR (state='running' AND lease_until < %s)) "
             "AND (next_attempt_at IS NULL OR next_attempt_at <= %s) "
+            f"AND org_id IN ({org_placeholders}) "
             "ORDER BY created_at ASC LIMIT 1",
-            (now_iso, now_iso),
+            (now_iso, now_iso, *enabled_org_ids),
         ).fetchone()
 
     if not row:
@@ -117,10 +137,19 @@ def claim_next_job(db, is_postgres: bool, lease_seconds: int = DEFAULT_LEASE_SEC
 # ─────────────────────────────────────────────────────────────────────────
 
 def _copy_to_evidence_vault(db, version: dict, doc: dict) -> int:
-    """Idempotent: a unique index on evidence_items(aria_policy_version_id)
-    (WHERE NOT NULL) means a replayed job that already succeeded here
-    raises a unique violation, which is treated as 'already done', not
-    an error."""
+    """Idempotent via ON CONFLICT DO NOTHING against the partial unique
+    index on evidence_items(aria_policy_version_id) (WHERE NOT NULL), not a
+    try/insert/except-unique-violation/rollback dance: on PostgreSQL, any
+    statement error (including a unique violation) poisons the whole
+    connection and _PgConnWrapper.execute() reacts by rolling back the
+    ENTIRE transaction, not just this insert -- so a caught-and-handled
+    "duplicate" here would silently discard whatever this same job already
+    wrote earlier in the same transaction (a prior grid_evidence_files
+    attach, or this very evidence_items row on a second call), while the
+    job still goes on to commit and report 'complete'. ON CONFLICT DO
+    NOTHING never raises for the duplicate case at all, on either engine,
+    so nothing upstream in this transaction is ever at risk of being
+    rolled back by it."""
     existing = db.execute(
         "SELECT id FROM evidence_items WHERE aria_policy_version_id=%s",
         (version["id"],),
@@ -141,44 +170,47 @@ def _copy_to_evidence_vault(db, version: dict, doc: dict) -> int:
 
     title = doc.get("title") or f"Policy #{doc.get('id')}"
     tag = f"aria_doc_id={doc.get('id')}"
-    try:
-        vault_id = insert_returning_id(db,
-            "INSERT INTO evidence_items "
-            "(title, description, file_path, file_name, file_size, file_hash, "
-            " mime_type, category, tags, status, business_unit_id, "
-            " uploaded_by, aria_policy_version_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'current',%s,%s,%s)",
-            (
-                title,
-                f"ARIA policy document (framework: {doc.get('framework', '')}, "
-                f"control: {doc.get('control_ref', '')}, version: {version.get('version')}). "
-                f"Approved {version.get('approved_at') or ''}.",
-                # Version-keyed evidence stores a virtual pointer, like the
-                # legacy handler's aria://documents/{id} scheme, so download
-                # always re-authorizes through ARIA rather than serving a
-                # raw path directly (section 10.3: "authorize both the GRID
-                # record and the ARIA version before serving the file" --
-                # the same principle applies to the vault copy).
-                f"aria://policy-versions/{version['id']}",
-                file_name, file_size,
-                version.get("branded_sha256") or "",
-                mime_type, "policy",
-                f"aria,policy,approved,{doc.get('framework', '')},{doc.get('control_ref', '')},{tag}",
-                doc.get("business_unit_id"),
-                version.get("approved_by"),
-                version["id"],
-            ),
-        )
-    except Exception as exc:
-        if not _is_unique_violation(exc):
-            raise
-        db.rollback()
+    vault_id = insert_returning_id(db,
+        "INSERT INTO evidence_items "
+        "(title, description, file_path, file_name, file_size, file_hash, "
+        " mime_type, category, tags, status, business_unit_id, "
+        " uploaded_by, aria_policy_version_id) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'current',%s,%s,%s) "
+        "ON CONFLICT (aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL DO NOTHING",
+        (
+            title,
+            f"ARIA policy document (framework: {doc.get('framework', '')}, "
+            f"control: {doc.get('control_ref', '')}, version: {version.get('version')}). "
+            f"Approved {version.get('approved_at') or ''}.",
+            # Version-keyed evidence stores a virtual pointer, like the
+            # legacy handler's aria://documents/{id} scheme, so download
+            # always re-authorizes through ARIA rather than serving a
+            # raw path directly (section 10.3: "authorize both the GRID
+            # record and the ARIA version before serving the file" --
+            # the same principle applies to the vault copy).
+            f"aria://policy-versions/{version['id']}",
+            file_name, file_size,
+            version.get("branded_sha256") or "",
+            mime_type, "policy",
+            f"aria,policy,approved,{doc.get('framework', '')},{doc.get('control_ref', '')},{tag}",
+            doc.get("business_unit_id"),
+            version.get("approved_by"),
+            version["id"],
+        ),
+    )
+    if vault_id is None:
+        # Conflict fired: another attempt already created this version's
+        # evidence row (no exception was raised, so nothing here was ever
+        # at risk of a transaction-wide rollback).
         existing = db.execute(
             "SELECT id FROM evidence_items WHERE aria_policy_version_id=%s",
             (version["id"],),
         ).fetchone()
         if not existing:
-            raise
+            raise RuntimeError(
+                f"evidence_items insert for policy version {version['id']} was "
+                "suppressed by ON CONFLICT but no existing row was found."
+            )
         return existing[0]
 
     db.execute(
@@ -213,10 +245,20 @@ def _compatible_business_unit(policy_bu_id, audit_bu_id) -> bool:
 
 
 def _copy_to_grid_evidence(db, version: dict, doc: dict) -> list[int]:
-    """Idempotent per (control_id, aria_policy_version_id) via the unique
-    index added in T01. Returns the ids of grid_evidence_files rows that
-    exist for this version after this call (whether just created or
-    already present from a prior attempt)."""
+    """Idempotent per (control_id, aria_policy_version_id) via ON CONFLICT
+    DO NOTHING against the unique index added in T01, not a
+    try/insert/except/rollback dance -- the same reasoning as
+    _copy_to_evidence_vault applies here with extra force, since this
+    function loops over several controls in the same transaction: catching
+    a unique violation and calling db.rollback() would erase every earlier
+    iteration's freshly-inserted (not yet committed) row in this same
+    loop, and on PostgreSQL specifically, _PgConnWrapper.execute() already
+    rolls back the whole connection the instant the violation is raised,
+    before this function's own except block even runs -- so the earlier
+    rows are gone regardless of whether this code calls rollback() itself.
+    Returns the ids of grid_evidence_files rows that exist for this version
+    after this call (whether just created or already present from a prior
+    attempt)."""
     control_ref = (doc.get("control_ref") or "").strip()
     framework = (doc.get("framework") or "").strip()
     if not control_ref or not framework:
@@ -252,35 +294,40 @@ def _copy_to_grid_evidence(db, version: dict, doc: dict) -> list[int]:
             if existing:
                 attached_ids.append(existing[0])
                 continue
-            try:
-                new_id = insert_returning_id(db,
-                    "INSERT INTO grid_evidence_files "
-                    "(control_id, filename, original_name, file_path, file_size, "
-                    " mime_type, uploaded_by, notes, status, aria_policy_version_id) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'Approved',%s)",
-                    (
-                        ctrl["id"],
-                        f"aria-policy-v{version['id']}.ref",
-                        doc.get("title") or f"Policy #{doc['id']}",
-                        f"aria://policy-versions/{version['id']}",
-                        0, "application/x-aria-policy",
-                        version.get("approved_by"),
-                        f"ARIA policy document (aria_document_id={doc['id']}, "
-                        f"policy_version_id={version['id']}, framework={framework}, "
-                        f"ref={ref}, version={version.get('version')})",
-                        version["id"],
-                    ),
-                )
-            except Exception as exc:
-                if not _is_unique_violation(exc):
-                    raise
-                db.rollback()
+            new_id = insert_returning_id(db,
+                "INSERT INTO grid_evidence_files "
+                "(control_id, filename, original_name, file_path, file_size, "
+                " mime_type, uploaded_by, notes, status, aria_policy_version_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'Approved',%s) "
+                "ON CONFLICT (control_id, aria_policy_version_id) "
+                "WHERE aria_policy_version_id IS NOT NULL DO NOTHING",
+                (
+                    ctrl["id"],
+                    f"aria-policy-v{version['id']}.ref",
+                    doc.get("title") or f"Policy #{doc['id']}",
+                    f"aria://policy-versions/{version['id']}",
+                    0, "application/x-aria-policy",
+                    version.get("approved_by"),
+                    f"ARIA policy document (aria_document_id={doc['id']}, "
+                    f"policy_version_id={version['id']}, framework={framework}, "
+                    f"ref={ref}, version={version.get('version')})",
+                    version["id"],
+                ),
+            )
+            if new_id is None:
+                # Conflict fired: no exception was raised, so nothing else
+                # this loop already inserted in this same transaction was
+                # ever at risk.
                 again = db.execute(
                     "SELECT id FROM grid_evidence_files WHERE control_id=%s AND aria_policy_version_id=%s",
                     (ctrl["id"], version["id"]),
                 ).fetchone()
                 if not again:
-                    raise
+                    raise RuntimeError(
+                        f"grid_evidence_files insert for control {ctrl['id']} / "
+                        f"version {version['id']} was suppressed by ON CONFLICT "
+                        "but no existing row was found."
+                    )
                 new_id = again[0]
             attached_ids.append(new_id)
     return attached_ids
@@ -374,23 +421,41 @@ def _schedule_retry_or_fail(db, job: dict, error: str) -> str:
         return "failed"
     backoff_idx = min(attempts - 1, len(_BACKOFF_MINUTES) - 1)
     next_attempt = (now + timedelta(minutes=_BACKOFF_MINUTES[backoff_idx])).isoformat()
-    db.execute(
+    updated = db.execute(
         "UPDATE aria_policy_publication_jobs SET state='pending', next_attempt_at=%s, "
         "last_error=%s, lease_until=NULL, lease_token=NULL, updated_at=%s "
         "WHERE id=%s AND lease_token=%s",
         (next_attempt, error[:2000], now.isoformat(), job["id"], job["lease_token"]),
     )
     db.commit()
+    if getattr(updated, "rowcount", 1) == 0:
+        log.warning("Publication job %s: retry not scheduled, lease had already been reclaimed.", job["id"])
     return "retry_scheduled"
 
 
 def _mark_failed(db, job: dict, error: str) -> None:
-    db.execute(
+    """Terminal failure. Guarded by lease_token, same as every other write
+    this worker makes to the job row: an expired lease can be reclaimed by
+    a newer worker (claim_next_job) at any time this worker is still
+    running, and without this guard a slow worker's late-arriving failure
+    write would silently clear the CURRENT worker's lease and flip a job
+    that new worker may be about to complete successfully back to
+    'failed' -- a real, previously unguarded race, unlike the sibling
+    completion/retry writes elsewhere in this module which already check
+    lease_token."""
+    updated = db.execute(
         "UPDATE aria_policy_publication_jobs SET state='failed', last_error=%s, "
-        "lease_until=NULL, lease_token=NULL, updated_at=%s WHERE id=%s",
-        (error[:2000], utcnow().isoformat(), job["id"]),
+        "lease_until=NULL, lease_token=NULL, updated_at=%s WHERE id=%s AND lease_token=%s",
+        (error[:2000], utcnow().isoformat(), job["id"], job["lease_token"]),
     )
     db.commit()
+    if getattr(updated, "rowcount", 1) == 0:
+        # Lease was reclaimed by another worker before this write landed --
+        # that worker's own outcome (success or its own failure) is
+        # authoritative now. Notifying managers here would describe a
+        # conclusion this worker no longer has any authority to report.
+        log.warning("Publication job %s: failure not recorded, lease had already been reclaimed.", job["id"])
+        return
     doc = db.execute(
         "SELECT doc_id, title, org_id, business_unit_id, policy_workflow_managed "
         "FROM aria_documents WHERE id=%s", (job["document_id"],)

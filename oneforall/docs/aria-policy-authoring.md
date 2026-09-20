@@ -29,21 +29,39 @@ feature flag below is turned on for it.
 | `ARIA_POLICY_AUTHORING_ORG_IDS` | empty | Comma-separated organization IDs allowed to use the workflow, e.g. `ARIA_POLICY_AUTHORING_ORG_IDS=4,7`. **An empty list means no tenant is enabled, even if the master switch is on** -- this is an explicit per-org allowlist, never a blanket default-on. |
 
 Both are read by `policy_authoring_enabled_for(org_id)` in
-`modules/aria/policy_access.py`, which is called from the two route
-handlers that create new authoring work: `POST /aria/generate-policy`
-(`routes.py:api_generate_policy`) and `POST /aria/api/documents/{doc_id}/revision-drafts`
-(`routes_policy_workflow.py:api_start_revision_draft`). A disabled org gets
-a `403` with a message telling the user to contact their administrator,
-before any AI call or database write happens.
+`modules/aria/policy_access.py`, which gates every route that advances a
+draft/version toward publication: `POST /aria/generate-policy`
+(`routes.py:api_generate_policy`), and in `routes_policy_workflow.py`,
+`api_start_revision_draft`, `api_build_policy_draft`,
+`api_confirm_policy_draft`, `api_submit_for_approval`, and
+`api_retry_publication_job` (the last four share one `_authoring_gate(actor)`
+helper). A disabled org gets a `403` with a message telling the user to
+contact their administrator, before any AI call or database write
+happens. Reading an existing draft/document, saving draft text,
+discarding/recovering a draft, and deciding/withdrawing an already-submitted
+approval are never gated -- disabling authoring stops new work from
+advancing, it does not strand work already in flight.
+
+The background publication scheduler (`modules/aria/scheduler.py`,
+`policy_publication.claim_next_job`) respects the same setting: it will
+not claim a job belonging to a currently-disabled org, filtered at the
+database query level so a disabled org's older job can never block a
+still-enabled org's newer one from being claimed. Re-enabling an org makes
+its queued jobs claimable again automatically, with no separate "resume"
+action needed.
 
 **Operator-relevant history**: these two settings existed since the
 project's earliest work on this feature but were not actually read
 anywhere in the code until 2026-09-20 -- setting `ARIA_POLICY_AUTHORING_ENABLED=false`
-did not, in fact, disable anything before that date. If this application
-has been running with an earlier build of this feature, its authoring
-endpoints were unconditionally reachable regardless of this setting.
-`plans/PLAN-35-aria-policy-authoring-flow.md`'s "T11 progress notes
-(2026-09-20)" section has the full account of that gap and its fix.
+did not, in fact, disable anything before that date. A first fix that same
+day only covered generation and starting a revision; a same-day follow-up
+review found it still let an already-open draft be built, confirmed,
+submitted for approval, and published while "disabled," which is the
+scope now described above. If this application has been running with an
+earlier build of this feature, its authoring and submission endpoints
+were reachable regardless of this setting. `plans/PLAN-35-aria-policy-authoring-flow.md`'s
+"T11 progress notes" and "T11 external review-fix pass" sections have the
+full account.
 
 To pilot with one organization: set both variables, restart the app, and
 confirm with a real login from a user in that organization and a second
@@ -195,6 +213,30 @@ against any real tenant on the strength of automated tests alone:
 - **No manual rapid-double-click race test** was performed against
   Save/Build/Confirm, though each button disables itself for the duration
   of its own in-flight request, which is the intended mechanism.
+- **The `ARIA_POLICY_PUBLISHED` workflow-auto-trigger handler is not
+  idempotent against a replay.** `core/events.py`'s event delivery now
+  correctly retries a handler that failed or never finished (see the "T11
+  external review-fix pass" notes), but the one handler on this path
+  today (`workflow_trigger_on_aria_policy` -> `_auto_trigger_workflows`)
+  unconditionally creates a new `workflow_instances` row with nothing to
+  recognize its own earlier attempt by. In the narrow case where that
+  handler already succeeded once but the event's overall status was never
+  recorded (a crash, or a later step failing), a replay can create a
+  second workflow instance for the same publication. Accepted as strictly
+  better than the alternative it replaced (a guaranteed, silent, permanent
+  loss of that handler's delivery on the same crash) rather than fixed --
+  a real fix needs a schema change so `workflow_instances` can identify
+  which event occurrence created it.
+- **The retention sweep can run concurrently on a multi-worker deployment.**
+  The production systemd unit runs `--workers 2`; each worker's own
+  APScheduler instance only guards against overlapping *itself*, not the
+  other worker. This is a platform-wide pattern (nine other module
+  schedulers share the identical shape), not specific to this feature, and
+  its actual failure mode is bounded -- a caught-and-logged warning on a
+  path the other worker already moved or deleted, not data loss -- but it
+  was not fixed as part of this plan. The publication drain job is
+  unaffected: it claims work through a real database-level lock, not
+  APScheduler's per-process guard.
 
 ## 10. Before enabling in a real deployment
 

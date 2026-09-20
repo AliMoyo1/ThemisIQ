@@ -39,6 +39,26 @@ async def _json_body(request: Request) -> dict:
     return body if isinstance(body, dict) else {}
 
 
+def _authoring_gate(actor: dict) -> JSONResponse | None:
+    """None if this actor's org may proceed; otherwise the 403 to return
+    immediately. Section 15's rollback: "disable new authoring/submission
+    entry points... stop new conversion/publication claims" -- applied at
+    every entry point that advances a draft/version toward publication
+    (build, confirm, submit, a manual publication retry), the same
+    tenant-level feature-availability check already used for generation
+    and starting a revision (routes.py's api_generate_policy). Never
+    applied to save/discard/recover, decide/withdraw, or any read/download
+    endpoint in this file -- those resolve or expose work that already
+    exists rather than advancing anything new, matching section 15's
+    "keep read/history/download and recorded approvals available"."""
+    from modules.aria.policy_access import policy_authoring_enabled_for
+    if policy_authoring_enabled_for(actor.get("org_id")):
+        return None
+    return JSONResponse({"ok": False, "error": {"code": "ACTION_FORBIDDEN",
+        "message": "In-app policy authoring is not yet enabled for your organization. "
+                   "Contact your administrator.", "retryable": False}}, status_code=403)
+
+
 @router.get("/api/policy-drafts")
 @require_module("aria")
 async def api_list_policy_drafts(request: Request):
@@ -147,6 +167,9 @@ async def api_build_policy_draft(request: Request, draft_id: str):
     Blocking; offloaded to a thread so it never stalls the event loop
     while it polls the conversion worker."""
     actor = request.state.user
+    gate = _authoring_gate(actor)
+    if gate:
+        return gate
     payload = await _json_body(request)
     template_id = payload.get("template_id")
     expected_lock_version = payload.get("expected_lock_version")
@@ -223,6 +246,9 @@ async def api_preview_policy_draft(request: Request, draft_id: str):
 @require_module("aria")
 async def api_confirm_policy_draft(request: Request, draft_id: str):
     actor = request.state.user
+    gate = _authoring_gate(actor)
+    if gate:
+        return gate
     payload = await _json_body(request)
     build_id = payload.get("build_id")
     expected_lock_version = payload.get("expected_lock_version")
@@ -327,6 +353,9 @@ async def api_list_eligible_approvers(request: Request, version_id: int):
 @require_module("aria")
 async def api_submit_for_approval(request: Request, version_id: int):
     actor = request.state.user
+    gate = _authoring_gate(actor)
+    if gate:
+        return gate
     payload = await _json_body(request)
     approver_id = payload.get("approver_id")
     request_id = payload.get("request_id")
@@ -420,19 +449,9 @@ async def api_withdraw_policy_approval(request: Request, approval_id: int):
 @require_module("aria")
 async def api_start_revision_draft(request: Request, doc_id: str):
     actor = request.state.user
-    # PLAN-35 T11: same tenant-level feature gate as api_generate_policy
-    # (routes.py) -- see its comment for why this lives at the route layer
-    # rather than inside start_revision_draft itself. Section 15's rollback
-    # guidance is "disable new authoring/submission entry points... keep
-    # read/history/download available" -- starting a new revision is new
-    # authoring, so it is gated even for a document this org already has
-    # under management; everything else this file exposes (read, download,
-    # submit/decide an already-open item) is unaffected.
-    from modules.aria.policy_access import policy_authoring_enabled_for
-    if not policy_authoring_enabled_for(actor.get("org_id")):
-        return JSONResponse({"ok": False, "error": {"code": "ACTION_FORBIDDEN",
-            "message": "In-app policy authoring is not yet enabled for your organization. "
-                       "Contact your administrator.", "retryable": False}}, status_code=403)
+    gate = _authoring_gate(actor)
+    if gate:
+        return gate
     payload = await _json_body(request)
     db = get_db()
     try:
@@ -511,6 +530,9 @@ async def api_document_publication_status(request: Request, doc_id: str):
 async def api_retry_publication_job(request: Request, job_id: int):
     from modules.aria import policy_publication
     actor = request.state.user
+    gate = _authoring_gate(actor)
+    if gate:
+        return gate
     db = get_db()
     try:
         job = policy_publication.retry_now(db, actor, job_id)

@@ -3029,6 +3029,22 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
 @on(ARIA_POLICY_PUBLISHED)
 def workflow_trigger_on_aria_policy(event_type, source_module, entity_type,
                                     entity_id, payload, user_id, **kw):
+    """This is the one handler reachable through events.emit()'s
+    dedup_key replay path (policy_publication.py is currently the only
+    dedup_key caller). _auto_trigger_workflows unconditionally inserts a
+    new workflow_instances row with no check for an existing one, so it is
+    NOT idempotent -- a replay landing after this handler already
+    succeeded once, but before the event's aggregate status could be
+    recorded as 'processed' (a crash, or a later handler/webhook step
+    failing), creates a second workflow instance for the same publication.
+    Accepted for now: the alternative was a guaranteed, permanent loss of
+    this handler's delivery on that same crash, which is worse, and this
+    handler is the only one on this path today. A real fix needs
+    workflow_instances to record which event occurrence created it, so a
+    replay can recognize its own earlier attempt instead of guessing from
+    (definition_id, entity_id) alone -- a legitimate second publication of
+    the same document (a later revision) must still get its own instance,
+    so that lookup cannot use entity_id alone either."""
     db = get_db()
     try:
         _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)

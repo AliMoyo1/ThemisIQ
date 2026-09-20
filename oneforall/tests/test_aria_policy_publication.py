@@ -76,19 +76,31 @@ def _isolated_storage(tmp_path, monkeypatch):
     monkeypatch.setattr(preview, "poll_conversion_result",
                          lambda j, timeout_seconds=None, poll_interval=0.5: b"%PDF-X")
     monkeypatch.setattr(preview, "cleanup_job", lambda j: None)
+    # This file tests publication/claiming mechanics, not the PLAN-35 T11
+    # feature gate that claim_next_job now also enforces (section 15's
+    # rollback: stop new publication claims for a disabled org) -- enable
+    # authoring for every org this file's fixtures use so that gate never
+    # interferes with what these tests actually exercise.
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", True)
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ORG_IDS", [1, 2, 7])
     yield root
 
 
-def _approve_a_policy(db, monkeypatch, *, org_id=1, bu_id=100, control_ref="A.1", framework="ISO 27001"):
+def _approve_a_policy(db, monkeypatch, *, org_id=1, bu_id=100, control_ref="A.1", framework="ISO 27001",
+                       author_id=1, approver_id=2):
     """Full pipeline to a real approved version + real pending publication
     job: draft -> build -> confirm -> submit -> decide. Returns
-    (job_row_dict, version_row_dict, doc_row_dict, author_actor, approver_actor)."""
+    (job_row_dict, version_row_dict, doc_row_dict, author_actor, approver_actor).
+    author_id/approver_id default to 1/2 for every existing call site; pass
+    distinct values to call this more than once against the same db (e.g.
+    two different orgs in one test) without a duplicate-user-id collision."""
     _org(db, org_id)
     _bu(db, bu_id, "Finance")
-    _user(db, 1, org_id=org_id, bu_id=bu_id, username="author")
-    _user(db, 2, org_id=org_id, bu_id=bu_id, username="approver")
-    _role(db, 1, "policy_author")
-    _role(db, 2, "compliance_manager")
+    _user(db, author_id, org_id=org_id, bu_id=bu_id, username=f"author{author_id}")
+    _user(db, approver_id, org_id=org_id, bu_id=bu_id, username=f"approver{approver_id}")
+    _role(db, author_id, "policy_author")
+    _role(db, approver_id, "compliance_manager")
 
     template_dir = storage.ARIA_UPLOAD_DIR.parent / "aria_templates"
     template_dir.mkdir(parents=True, exist_ok=True)
@@ -100,9 +112,11 @@ def _approve_a_policy(db, monkeypatch, *, org_id=1, bu_id=100, control_ref="A.1"
         "VALUES ('T1', 't1.docx', 't1.docx', %s, 1)", (org_id,)
     )
     db.commit()
-    template_id = db.execute("SELECT id FROM aria_doc_templates WHERE file_path='t1.docx'").fetchone()["id"]
+    template_id = db.execute(
+        "SELECT id FROM aria_doc_templates WHERE file_path='t1.docx' AND org_id=%s", (org_id,)
+    ).fetchone()["id"]
 
-    author = _actor(db, 1)
+    author = _actor(db, author_id)
     draft = svc.create_draft_from_generation(
         db, author,
         control={"id": 1, "ref": control_ref, "name": "Test", "framework_id": 1, "fw_name": framework},
@@ -111,9 +125,9 @@ def _approve_a_policy(db, monkeypatch, *, org_id=1, bu_id=100, control_ref="A.1"
     )
     built = svc.build_draft(db, author, draft["id"], template_id, draft["lock_version"])
     confirmed = svc.confirm_draft(db, author, built["id"], built["build_id"], built["lock_version"])
-    approval = svc.submit_for_approval(db, author, confirmed["version_id"], 2, "note", "req-1", 1)
+    approval = svc.submit_for_approval(db, author, confirmed["version_id"], approver_id, "note", "req-1", 1)
 
-    approver = _actor(db, 2)
+    approver = _actor(db, approver_id)
     svc.decide_approval(db, approver, approval["id"], "approve", "ok", approval["lock_version"])
 
     job = dict(db.execute(
@@ -863,3 +877,170 @@ def test_drain_publication_queue_binds_tenant_context_per_org(test_db, monkeypat
     # on a reused scheduler thread.
     assert database._current_org_id.get() is None
     assert database._current_tenant.get() is None
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# PLAN-35 T11 review findings
+# ─────────────────────────────────────────────────────────────────────────
+
+def test_claim_next_job_skips_a_disabled_org_without_starving_an_enabled_one(test_db, monkeypatch):
+    """P1: 'existing drafts can... still be processed by the publication
+    scheduler' when the owning org has since been disabled -- section 15's
+    rollback explicitly requires 'stop new... publication claims'. Filtered
+    into the claim query itself, not claim-then-release, specifically so:
+    (a) a disabled org's older job can never win ORDER BY created_at ASC
+    ahead of a newer enabled org's job and starve it, and (b) a disabled
+    org's job never has attempts incremented just for sitting there."""
+    job_disabled, *_ = _approve_a_policy(test_db, monkeypatch, org_id=1, bu_id=100,
+                                          author_id=11, approver_id=12, control_ref="A.1")
+    job_enabled, *_ = _approve_a_policy(test_db, monkeypatch, org_id=2, bu_id=200,
+                                         author_id=21, approver_id=22, control_ref="A.2")
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ORG_IDS", [2])  # org 1 now disabled
+
+    claimed = pub.claim_next_job(test_db, is_postgres=False)
+    assert claimed is not None
+    assert claimed["id"] == job_enabled["id"]
+
+    untouched = dict(test_db.execute(
+        "SELECT state, attempts, lease_token FROM aria_policy_publication_jobs WHERE id=%s",
+        (job_disabled["id"],),
+    ).fetchone())
+    assert untouched["state"] == "pending"
+    assert untouched["attempts"] == 0
+    assert untouched["lease_token"] is None
+
+    # Nothing else claimable right now: the only remaining due job belongs
+    # to the still-disabled org.
+    assert pub.claim_next_job(test_db, is_postgres=False) is None
+
+    # Re-enabling makes it claimable again, exactly as if it had simply
+    # been waiting -- attempts increments from this claim, not from the
+    # time spent disabled.
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ORG_IDS", [1, 2])
+    reclaimed = pub.claim_next_job(test_db, is_postgres=False)
+    assert reclaimed["id"] == job_disabled["id"]
+    assert reclaimed["attempts"] == 1
+
+
+def test_claim_next_job_returns_none_when_feature_globally_disabled(test_db, monkeypatch):
+    _approve_a_policy(test_db, monkeypatch)
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", False)
+    assert pub.claim_next_job(test_db, is_postgres=False) is None
+
+
+def test_insert_returning_id_returns_none_not_a_stale_id_on_suppressed_conflict(test_db):
+    """Prerequisite fix for the P1 evidence-copy finding: sqlite3's
+    cursor.lastrowid is confirmed stale (the previous successful insert's
+    id, not this one's) when ON CONFLICT DO NOTHING suppresses a row --
+    insert_returning_id must use rowcount to tell the two apart, not
+    lastrowid alone, or a caller reading the 'new' id back would silently
+    get the wrong row."""
+    from database import insert_returning_id
+    test_db.execute("CREATE TABLE t11_conflict_probe (id INTEGER PRIMARY KEY, k INTEGER UNIQUE)")
+    first = insert_returning_id(test_db, "INSERT INTO t11_conflict_probe (k) VALUES (%s)", (1,))
+    assert first is not None
+    suppressed = insert_returning_id(
+        test_db, "INSERT INTO t11_conflict_probe (k) VALUES (%s) ON CONFLICT (k) DO NOTHING", (1,),
+    )
+    assert suppressed is None
+    second = insert_returning_id(test_db, "INSERT INTO t11_conflict_probe (k) VALUES (%s)", (2,))
+    assert second is not None
+    assert second != first
+
+
+def test_conflicting_evidence_vault_insert_does_not_lose_an_earlier_write_in_the_same_transaction(test_db, monkeypatch):
+    """P1: the old pattern (try/insert/except unique-violation/db.rollback())
+    rolled back the WHOLE transaction on a duplicate, not just the
+    conflicting statement -- capable of erasing an earlier real write made
+    earlier in the same transaction. ON CONFLICT DO NOTHING never raises
+    for the duplicate case, on either engine, so there is nothing here for
+    a rollback to ever need to undo. Exercises the exact ON CONFLICT clause
+    _copy_to_evidence_vault uses, against evidence_items' real unique index
+    and a real policy version (the column is FK-constrained)."""
+    _, version, *_ = _approve_a_policy(test_db, monkeypatch)
+    from database import insert_returning_id
+    # An "earlier write in the same transaction": a real, unrelated evidence row.
+    earlier_id = insert_returning_id(
+        test_db, "INSERT INTO evidence_items (title, file_path, status) VALUES (%s,%s,'current')",
+        ("Earlier write", "aria://unrelated"),
+    )
+    test_db.commit()
+    # First copy for this real policy version -- succeeds.
+    first = insert_returning_id(
+        test_db,
+        "INSERT INTO evidence_items (title, file_path, status, aria_policy_version_id) "
+        "VALUES (%s,%s,'current',%s) ON CONFLICT (aria_policy_version_id) "
+        "WHERE aria_policy_version_id IS NOT NULL DO NOTHING",
+        ("Vault copy", "aria://policy-versions/x", version["id"]),
+    )
+    assert first is not None
+    test_db.commit()
+    # A replay of the same copy -- suppressed, not an exception, and the
+    # earlier write survives.
+    replay = insert_returning_id(
+        test_db,
+        "INSERT INTO evidence_items (title, file_path, status, aria_policy_version_id) "
+        "VALUES (%s,%s,'current',%s) ON CONFLICT (aria_policy_version_id) "
+        "WHERE aria_policy_version_id IS NOT NULL DO NOTHING",
+        ("Vault copy replay", "aria://policy-versions/x", version["id"]),
+    )
+    assert replay is None
+    test_db.commit()
+    still_there = test_db.execute(
+        "SELECT id FROM evidence_items WHERE id=%s", (earlier_id,)
+    ).fetchone()
+    assert still_there is not None
+
+
+def test_mark_failed_does_not_clobber_a_lease_a_newer_worker_already_holds(test_db, monkeypatch):
+    """P1: the terminal-failure write filtered only by job id, so a worker
+    whose lease had already expired and been reclaimed by a newer worker
+    could still mark the job 'failed' and clear the NEW worker's lease and
+    event_id out from under it -- even though that newer worker might be
+    seconds from completing it successfully. Guarded by lease_token, the
+    same way the sibling completion/retry writes in this module already
+    are."""
+    job, *_ = _approve_a_policy(test_db, monkeypatch)
+    real_claim = pub.claim_next_job(test_db, is_postgres=False)  # the CURRENT, valid lease
+    stale_job = dict(real_claim)
+    stale_job["lease_token"] = "a-token-from-a-worker-whose-lease-already-expired"
+
+    pub._mark_failed(test_db, stale_job, "stale worker's belated failure")
+
+    current = dict(test_db.execute(
+        "SELECT state, lease_token FROM aria_policy_publication_jobs WHERE id=%s", (job["id"],)
+    ).fetchone())
+    assert current["state"] == "running"  # untouched -- still owned by the real lease
+    assert current["lease_token"] == real_claim["lease_token"]
+
+    # No "evidence synchronization needs attention" notification should
+    # have been sent for a failure that was never actually recorded.
+    notif_count = test_db.execute(
+        "SELECT COUNT(*) AS c FROM notifications WHERE title LIKE '%synchronization needs attention%'"
+    ).fetchone()["c"]
+    assert notif_count == 0
+
+
+def test_mark_failed_with_the_current_lease_token_records_failure_and_notifies(test_db, monkeypatch):
+    """Sanity check alongside the stale-lease test above: a worker that
+    genuinely still holds the current lease can still record a real
+    failure and trigger the manager notification -- the new guard refuses
+    a stale token, not every call."""
+    job, *_ = _approve_a_policy(test_db, monkeypatch)
+    claimed = pub.claim_next_job(test_db, is_postgres=False)
+
+    pub._mark_failed(test_db, claimed, "a genuine failure")
+
+    current = dict(test_db.execute(
+        "SELECT state, last_error, lease_token FROM aria_policy_publication_jobs WHERE id=%s", (job["id"],)
+    ).fetchone())
+    assert current["state"] == "failed"
+    assert current["last_error"] == "a genuine failure"
+    assert current["lease_token"] is None
+
+    notif_count = test_db.execute(
+        "SELECT COUNT(*) AS c FROM notifications WHERE title LIKE '%synchronization needs attention%'"
+    ).fetchone()["c"]
+    assert notif_count == 1

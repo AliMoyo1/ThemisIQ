@@ -492,7 +492,11 @@ def get_db_bypass_rls():
 def insert_returning_id(db, sql: str, params):
     """Engine-portable INSERT that returns the new row's id.
 
-    SQLite: uses cursor.lastrowid.
+    SQLite: uses cursor.lastrowid, guarded by rowcount -- confirmed directly
+    that sqlite3's lastrowid is *stale* (the previous successful insert's
+    id, not None and not this statement's) when ON CONFLICT DO NOTHING
+    suppresses the row, so lastrowid alone cannot tell a suppressed insert
+    from a real one. rowcount is 0 exactly when nothing was inserted.
     PostgreSQL: appends RETURNING id and reads it back.
     Returns None when ON CONFLICT DO NOTHING suppresses the insert.
     """
@@ -500,7 +504,8 @@ def insert_returning_id(db, sql: str, params):
         cur = db.execute(sql.rstrip(" ;") + " RETURNING id", params)
         row = cur.fetchone()
         return row["id"] if row else None
-    return db.execute(sql, params).lastrowid
+    cur = db.execute(sql, params)
+    return cur.lastrowid if cur.rowcount != 0 else None
 
 
 # ── Engine-portable date/time SQL helpers ─────────────────────────────────────

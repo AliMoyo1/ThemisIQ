@@ -111,6 +111,15 @@ def real_file_db(tmp_path, monkeypatch):
     monkeypatch.setattr(database, "_DB_PATH", str(tmp_path / "route_thread_test.db"))
     database.init_db()
 
+    # This test drives the build route itself, one of the entry points
+    # PLAN-35 T11 gated behind ARIA_POLICY_AUTHORING_ENABLED -- it exists to
+    # exercise real threading behavior, not the gate, so enable authoring
+    # for org 1 (this file's default org) rather than have the gate refuse
+    # before the code under test ever runs.
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", True)
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ORG_IDS", [1])
+
     root = tmp_path / "aria_uploads"
     monkeypatch.setattr(storage, "ARIA_UPLOAD_DIR", root)
     monkeypatch.setattr(storage, "WORKFLOW_ROOT", root / "policy_workflow")

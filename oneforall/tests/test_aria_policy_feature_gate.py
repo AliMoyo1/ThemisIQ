@@ -185,3 +185,72 @@ def test_start_revision_draft_refuses_for_an_org_not_on_the_allowlist(test_db, m
     import json
     body = json.loads(result.body.decode())
     assert body["error"]["code"] == "ACTION_FORBIDDEN"
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# T11 review finding: the gate only covered generate/start-revision, not
+# build/confirm/submit/retry -- "existing drafts can still be built,
+# confirmed, submitted for approval, and processed by the publication
+# scheduler" despite the flag being off, contradicting section 15's
+# rollback text ("disable new authoring/submission entry points... stop
+# new conversion/publication claims"). All four route handlers place the
+# gate before any database access at all, so a nonexistent id is enough to
+# prove the refusal -- if the gate did not fire first, these would fail
+# differently (e.g. a NOT_FOUND from the service layer), not with a 403.
+# ─────────────────────────────────────────────────────────────────────────
+
+def _disabled_actor(db, mock_auth):
+    from config import settings
+    _org(db, 1)
+    _user(db, 1, org_id=1, username="author")
+    _role(db, 1, "policy_author")
+    db.commit()
+    return _request_as(mock_auth, _actor(db, 1))
+
+
+def test_build_policy_draft_refuses_when_disabled(test_db, monkeypatch, _mock_auth):
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", False)
+    request = _disabled_actor(test_db, _mock_auth)
+    result = _run(routes_wf.api_build_policy_draft(request, "nonexistent-draft-id"))
+    assert result.status_code == 403
+
+
+def test_confirm_policy_draft_refuses_when_disabled(test_db, monkeypatch, _mock_auth):
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", False)
+    request = _disabled_actor(test_db, _mock_auth)
+    result = _run(routes_wf.api_confirm_policy_draft(request, "nonexistent-draft-id"))
+    assert result.status_code == 403
+
+
+def test_submit_for_approval_refuses_when_disabled(test_db, monkeypatch, _mock_auth):
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", False)
+    request = _disabled_actor(test_db, _mock_auth)
+    result = _run(routes_wf.api_submit_for_approval(request, 999999))
+    assert result.status_code == 403
+
+
+def test_retry_publication_job_refuses_when_disabled(test_db, monkeypatch, _mock_auth):
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", False)
+    request = _disabled_actor(test_db, _mock_auth)
+    result = _run(routes_wf.api_retry_publication_job(request, 999999))
+    assert result.status_code == 403
+
+
+def test_build_policy_draft_passes_the_gate_when_enabled(test_db, monkeypatch, _mock_auth):
+    """The gate must not fire for an enabled org -- proven by reaching some
+    DIFFERENT, later failure (this fake request has no real JSON body or
+    draft to act on, so the route fails downstream of the gate for
+    unrelated reasons) instead of the gate's own ACTION_FORBIDDEN 403."""
+    from config import settings
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ENABLED", True)
+    monkeypatch.setattr(settings, "ARIA_POLICY_AUTHORING_ORG_IDS", [1])
+    request = _disabled_actor(test_db, _mock_auth)
+    result = _run(routes_wf.api_build_policy_draft(request, "nonexistent-draft-id"))
+    assert result.status_code != 403
+    import json
+    body = json.loads(result.body.decode())
+    assert body["error"]["code"] != "ACTION_FORBIDDEN"
