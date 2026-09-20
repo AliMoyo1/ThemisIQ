@@ -4167,14 +4167,29 @@ def _to_pg_schema(sql: str) -> str:
     return sql
 
 
-# Names of the three forward FKs stripped from aria_policy_drafts's PG CREATE
-# and re-added as deferred constraints in _run_pg_alters. Kept as data so the
-# stripper and the re-adder cannot drift apart.
-_ARIA_DRAFTS_DEFERRED_FKS = [
-    ("fk_aria_drafts_base_version",      "base_version_id"),
-    ("fk_aria_drafts_copied_version",    "copied_from_version_id"),
-    ("fk_aria_drafts_committed_version", "committed_version_id"),
-]
+# Required PostgreSQL policy-version FKs. The first three are stripped from
+# aria_policy_drafts's CREATE TABLE to break its cycle with
+# aria_policy_versions, then re-added after both tables exist. The final three
+# normally arrive through _COLUMN_MIGRATIONS, but must also be repaired when a
+# partially-applied upgrade left the columns without their constraints.
+_ARIA_POLICY_REQUIRED_FKS = (
+    ("fk_aria_drafts_base_version", "aria_policy_drafts", "base_version_id",
+     "aria_policy_versions", "id"),
+    ("fk_aria_drafts_copied_version", "aria_policy_drafts", "copied_from_version_id",
+     "aria_policy_versions", "id"),
+    ("fk_aria_drafts_committed_version", "aria_policy_drafts", "committed_version_id",
+     "aria_policy_versions", "id"),
+    ("fk_aria_documents_current_policy_version", "aria_documents", "current_policy_version_id",
+     "aria_policy_versions", "id"),
+    ("fk_evidence_items_aria_policy_version", "evidence_items", "aria_policy_version_id",
+     "aria_policy_versions", "id"),
+    ("fk_grid_evidence_files_aria_policy_version", "grid_evidence_files", "aria_policy_version_id",
+     "aria_policy_versions", "id"),
+)
+_ARIA_DRAFTS_DEFERRED_FKS = tuple(
+    spec for spec in _ARIA_POLICY_REQUIRED_FKS
+    if spec[1] == "aria_policy_drafts"
+)
 
 
 def _break_pg_fk_cycle(sql: str) -> str:
@@ -4197,9 +4212,21 @@ def _break_pg_fk_cycle(sql: str) -> str:
         sql, re.S,
     )
     if not m:
-        return sql
-    block = m.group(0)
-    stripped = block.replace(" REFERENCES aria_policy_versions(id)", "")
+        raise RuntimeError(
+            "PostgreSQL schema rewrite could not find aria_policy_drafts"
+        )
+    stripped = m.group(0)
+    for _, _, column, ref_table, ref_column in _ARIA_DRAFTS_DEFERRED_FKS:
+        pattern = re.compile(
+            rf"(?m)^(\s*{re.escape(column)}\s+INTEGER)\s+REFERENCES\s+"
+            rf"{re.escape(ref_table)}\({re.escape(ref_column)}\)([ \t]*,?[ \t]*)$"
+        )
+        stripped, replacements = pattern.subn(r"\1\2", stripped, count=1)
+        if replacements != 1:
+            raise RuntimeError(
+                "PostgreSQL schema rewrite expected exactly one inline FK for "
+                f"aria_policy_drafts.{column}, found {replacements}"
+            )
     return sql[:m.start()] + stripped + sql[m.end():]
 
 
@@ -5888,35 +5915,23 @@ def _run_pg_alters(conn) -> None:
             pass
     conn.commit()
 
-    # PLAN-35 acceptance fix: re-add aria_policy_drafts' three forward FKs to
-    # aria_policy_versions, which _break_pg_fk_cycle stripped from the PG
-    # CREATE to break a cycle PG rejects at DDL time. Both tables exist by
-    # now. Scoped to current_schema() so this is correct for the public
-    # schema AND every tenant schema, since _apply_tenant_schema_ddl calls
-    # this function with search_path set to the tenant. Idempotent by an
-    # explicit existence check (PG has no ADD CONSTRAINT IF NOT EXISTS for
-    # foreign keys); commit per constraint so a later failure can never roll
-    # back an earlier success, matching _run_pg_fk_cascades' own idiom.
-    for cname, col in _ARIA_DRAFTS_DEFERRED_FKS:
+    # PLAN-35 acceptance fix: restore and validate every policy-version FK.
+    # This includes the three draft FKs deliberately stripped by
+    # _break_pg_fk_cycle and three projection-column FKs that a partial
+    # migration can lose. Never suppress failures here: starting with a
+    # schema that claims to support the workflow but lacks referential
+    # integrity is worse than a loud, actionable startup failure.
+    try:
+        _ensure_pg_policy_fks(conn)
+        conn.commit()
+    except Exception as exc:
         try:
-            exists = conn.execute(
-                "SELECT 1 FROM information_schema.table_constraints "
-                "WHERE constraint_type='FOREIGN KEY' "
-                "AND table_name='aria_policy_drafts' "
-                "AND constraint_name=%s AND table_schema=current_schema()",
-                (cname,),
-            ).fetchone()
-            if not exists:
-                conn.execute(
-                    f"ALTER TABLE aria_policy_drafts ADD CONSTRAINT {cname} "
-                    f"FOREIGN KEY ({col}) REFERENCES aria_policy_versions(id)"
-                )
-                conn.commit()
+            conn.rollback()
         except Exception:
-            try:
-                conn.execute("ROLLBACK")
-            except Exception:
-                pass
+            pass
+        raise RuntimeError(
+            "Required ARIA policy workflow foreign keys could not be ensured"
+        ) from exc
 
 
 def _run_pg_fk_cascades(conn) -> None:
@@ -6027,6 +6042,91 @@ _ARIA_POLICY_WORKFLOW_COLUMNS = (
 )
 
 
+def _pg_policy_fk_rows(conn, table: str, column: str):
+    """Return current-schema foreign keys attached to one source column."""
+    return conn.execute(
+        "SELECT tc.constraint_name, kcu.column_name, "
+        "ccu.table_schema AS referenced_schema, "
+        "ccu.table_name AS referenced_table, "
+        "ccu.column_name AS referenced_column "
+        "FROM information_schema.table_constraints tc "
+        "JOIN information_schema.key_column_usage kcu "
+        "ON tc.constraint_catalog=kcu.constraint_catalog "
+        "AND tc.constraint_schema=kcu.constraint_schema "
+        "AND tc.constraint_name=kcu.constraint_name "
+        "AND tc.table_schema=kcu.table_schema "
+        "AND tc.table_name=kcu.table_name "
+        "JOIN information_schema.constraint_column_usage ccu "
+        "ON tc.constraint_catalog=ccu.constraint_catalog "
+        "AND tc.constraint_schema=ccu.constraint_schema "
+        "AND tc.constraint_name=ccu.constraint_name "
+        "WHERE tc.constraint_type='FOREIGN KEY' "
+        "AND tc.table_schema=current_schema() "
+        "AND tc.table_name=%s AND kcu.column_name=%s",
+        (table, column),
+    ).fetchall()
+
+
+def _pg_policy_fk_is_valid(conn, spec, current_schema: "str | None" = None) -> bool:
+    _, table, column, ref_table, ref_column = spec
+    if current_schema is None:
+        current_schema = conn.execute(
+            "SELECT current_schema() AS schema_name"
+        ).fetchone()["schema_name"]
+    rows = _pg_policy_fk_rows(conn, table, column)
+    return bool(rows) and all(
+        row["referenced_schema"] == current_schema
+        and row["referenced_table"] == ref_table
+        and row["referenced_column"] == ref_column
+        for row in rows
+    )
+
+
+def _ensure_pg_policy_fks(conn) -> None:
+    """Create missing required policy FKs and reject conflicting shapes.
+
+    A correct existing FK may have a PostgreSQL-generated name, so identity is
+    validated by source column and same-schema target rather than name alone.
+    The declared name is used when this repair path creates the constraint.
+    """
+    current_schema = conn.execute(
+        "SELECT current_schema() AS schema_name"
+    ).fetchone()["schema_name"]
+    for cname, table, column, ref_table, ref_column in _ARIA_POLICY_REQUIRED_FKS:
+        rows = _pg_policy_fk_rows(conn, table, column)
+        correct = [
+            row for row in rows
+            if row["referenced_schema"] == current_schema
+            and row["referenced_table"] == ref_table
+            and row["referenced_column"] == ref_column
+        ]
+        conflicting = [
+            row for row in rows
+            if row["referenced_schema"] != current_schema
+            or row["referenced_table"] != ref_table
+            or row["referenced_column"] != ref_column
+        ]
+        if conflicting:
+            raise RuntimeError(
+                f"Conflicting foreign key exists on {table}.{column}"
+            )
+        if correct:
+            continue
+        conn.execute(
+            f"ALTER TABLE {table} ADD CONSTRAINT {cname} "
+            f"FOREIGN KEY ({column}) REFERENCES {ref_table}({ref_column})"
+        )
+
+    missing = [
+        spec[0] for spec in _ARIA_POLICY_REQUIRED_FKS
+        if not _pg_policy_fk_is_valid(conn, spec, current_schema)
+    ]
+    if missing:
+        raise RuntimeError(
+            "Required policy foreign keys are still missing: " + ", ".join(missing)
+        )
+
+
 def aria_policy_workflow_schema_ready(conn) -> tuple[bool, list[str]]:
     """PLAN-35 T01: verify every required relation exists in THIS
     connection's current schema specifically, not merely somewhere on a
@@ -6059,6 +6159,11 @@ def aria_policy_workflow_schema_ready(conn) -> tuple[bool, list[str]]:
             conn.execute(f"SELECT {column} FROM {table} LIMIT 0")
         except Exception:
             missing.append(f"column:{table}.{column}")
+
+    if is_pg:
+        for spec in _ARIA_POLICY_REQUIRED_FKS:
+            if not _pg_policy_fk_is_valid(conn, spec):
+                missing.append(f"constraint:{spec[0]}")
 
     return (len(missing) == 0, missing)
 

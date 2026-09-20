@@ -3556,47 +3556,72 @@ construction. The acceptance review named this too, and it is the deeper
 finding: the gap was not one bad `CREATE TABLE`, it was having no PG test
 at all.
 
-**The fix (`database.py`).** Two coordinated halves, PostgreSQL-only, SQLite
-path untouched:
+**The fix (`database.py`), hardened after review.** PostgreSQL-only; the
+SQLite path remains untouched:
 1. `_break_pg_fk_cycle()` strips the three inline `REFERENCES
    aria_policy_versions(id)` clauses from the `aria_policy_drafts` block of
-   the PG schema string (scoped to that one CREATE, so
+   the PG schema string. The rewrite now iterates the same
+   `_ARIA_POLICY_REQUIRED_FKS` data used for repair and requires exactly one
+   match per declared draft column; a missing or changed schema fragment is
+   a startup error rather than a silent broad replacement. It remains scoped
+   to that one CREATE, so
    `aria_policy_versions`' own valid self-reference and every forward-safe
-   reference in later tables are left exactly as-is). The columns remain
+   reference in later tables are left exactly as-is. The columns remain
    plain `INTEGER`. Applied as `_ARIA_TABLES_PG =
    _break_pg_fk_cycle(_to_pg_schema(_ARIA_TABLES))`.
-2. `_run_pg_alters()` re-adds the three FKs as named constraints
-   (`fk_aria_drafts_base_version` / `_copied_version` / `_committed_version`,
-   kept as the shared `_ARIA_DRAFTS_DEFERRED_FKS` data so the stripper and
-   re-adder cannot drift) once both tables exist, idempotently via an
-   existence check (PG has no `ADD CONSTRAINT IF NOT EXISTS` for FKs),
-   scoped to `current_schema()`, committing per constraint -- the same
-   idiom `_run_pg_fk_cascades` already uses. Because `_apply_tenant_schema_ddl`
-   also calls `_run_pg_alters` with the search_path set to each tenant
-   schema, this fix covers the public schema AND every tenant schema with
-   no extra code.
+2. `_run_pg_alters()` now ensures all six required workflow FKs: the three
+   deferred draft links plus `aria_documents.current_policy_version_id`,
+   `evidence_items.aria_policy_version_id`, and
+   `grid_evidence_files.aria_policy_version_id`. It validates the complete
+   source-column and same-schema target shape, accepts an already-correct
+   PostgreSQL-generated constraint name, repairs a missing constraint, and
+   rejects conflicting relationships. Any creation or validation error is
+   rolled back and re-raised; it is no longer swallowed.
+3. `aria_policy_workflow_schema_ready()` now treats those six constraints as
+   readiness invariants, so a tenant cannot enable authoring with tables and
+   columns present but referential integrity absent. Because
+   `_apply_tenant_schema_ddl` also calls `_run_pg_alters` with the search_path
+   set to each tenant schema, this fix covers the public schema AND every
+   tenant schema with no extra code.
 
 **Verified against real PostgreSQL 18.6, not reasoned about.** A throwaway
 `postgres:18` container (Docker is available in this environment after all,
-which overturns this plan's earlier "no PG testing possible" premise). New
-file `tests/test_postgres_init.py`, four tests, opt-in via a new
-`TEST_DATABASE_URL` env var so the default SQLite suite is completely
-unaffected (they skip -- `ssss` -- when it is unset):
-- fresh `init_db()` builds the whole workflow schema and all three deferred
-  FKs;
+which overturns this plan's earlier "no PG testing possible" premise).
+`tests/test_postgres_init.py` now has nine tests and requires both a
+`themisiq_test_*` database name and
+`THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1` before it will connect or delete
+schemas. It also verifies the connected database name before every reset,
+and resets fixture-created `tenant_*` schemas as well as `public`:
+- fresh `init_db()` builds the whole workflow schema and all six required
+  policy-version FKs;
 - a second `init_db()` (upgrade over an initialized DB) is idempotent and
   does not duplicate the constraints;
-- a faithful `edffc9a -> 041edec` upgrade (init fully, DROP the workflow
-  tables as production -- 15 commits behind -- lacks them, re-init) brings
-  them back cleanly against a DB already holding every other table;
+- a tenant schema's six FKs all target that same tenant schema, never the
+  `public` fallback;
+- a partial-loss recovery leaves the three projection columns in place after
+  `DROP ... CASCADE` removes their FKs, then proves re-init repairs all three;
+- a focused pre-workflow shape simulation removes workflow tables and all
+  five authoring columns, then proves re-init restores them while preserving
+  a legacy document. This is intentionally not described as a faithful full
+  `edffc9a` schema snapshot;
 - the re-added FK is actually ENFORCED (a draft pointing at a nonexistent
-  version id is rejected), not merely present in the catalog.
+  version id is rejected), not merely present in the catalog;
+- an orphan introduced after dropping a required FK makes readiness false
+  and makes `init_db()` fail closed rather than report success;
+- the destructive-target validator accepts only the explicit test target and
+  acknowledgement; and
+- the data-driven cycle rewriter rejects a declared column whose expected DDL
+  shape drifts instead of silently stripping or overlooking another FK.
 Proven to be a real regression guard, not a vacuous pass: `git stash`-ing
 the fix and re-running reproduced the exact `psycopg2.errors.UndefinedTable`
 at `database.py:6107`, then `git stash pop` restored it and the tests
-passed. The full suite was also run with `TEST_DATABASE_URL` set (SQLite
-and real-PG tests together in one process): `EXIT_CODE=0`, proving the
-fixture's teardown restores SQLite mode with no cross-contamination.
+passed. The hardened full suite was also run with `TEST_DATABASE_URL` and
+the destructive acknowledgement set (SQLite and real-PG tests together in
+one process): `462 passed, 33 warnings`, proving the fixture's teardown
+restores SQLite mode with no cross-contamination.
+`.github/workflows/postgres-schema.yml` now runs the guarded PostgreSQL 18
+schema gate on pushes to `master` and pull requests. The workflow is
+configured locally; its first hosted result will exist only after push.
 
 **Environment note, not a code change.** The full suite would not collect
 until local `pypdf` was upgraded to `6.19.0` -- the version `041edec`

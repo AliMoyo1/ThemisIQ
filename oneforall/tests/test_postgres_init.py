@@ -15,29 +15,66 @@ against a real PostgreSQL.
 
 These tests run against a real PostgreSQL only when TEST_DATABASE_URL is
 set (e.g. a throwaway container); they skip otherwise, so the default
-SQLite suite is unaffected and CI without a database still passes. To run
-them:
+SQLite suite is unaffected. They are intentionally destructive and require
+both a database name beginning with "themisiq_test_" and an explicit
+"THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1" acknowledgement. For example:
 
-    docker run -d --name pg -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=t \
-        -p 55432:5432 postgres:18
-    TEST_DATABASE_URL="postgresql://postgres:pg@localhost:55432/t" \
-        python -m pytest tests/test_postgres_init.py -v
+    docker run -d --name themisiq-pg-test -e POSTGRES_PASSWORD=pg \
+        -e POSTGRES_DB=themisiq_test_policy_schema \
+        -p 127.0.0.1:55432:5432 postgres:18
+    THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1 \
+        TEST_DATABASE_URL="postgresql://postgres:pg@localhost:55432/themisiq_test_policy_schema" \
+        python -m pytest oneforall/tests/test_postgres_init.py -v
 
-The DB is wiped (DROP SCHEMA public CASCADE) before each test, so it must
-point at a disposable database, never a real one.
+The target's public and tenant_* schemas are wiped before each test. The
+two-part guard is checked before any connection or DROP is attempted.
 """
 import os
+from urllib.parse import unquote, urlparse
 
 import pytest
 
 _PG_URL = os.getenv("TEST_DATABASE_URL", "")
+_DESTRUCTIVE_ACK = os.getenv("THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS", "")
+_TEST_DB_PREFIX = "themisiq_test_"
+
+
+def _validate_destructive_test_target(url: str, acknowledgement: str) -> str:
+    """Return the parsed database name or reject the target without connecting."""
+    parsed = urlparse(url)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise ValueError("TEST_DATABASE_URL must use postgres:// or postgresql://")
+    database_name = unquote(parsed.path.lstrip("/"))
+    if not database_name or "/" in database_name:
+        raise ValueError("TEST_DATABASE_URL must identify exactly one database")
+    if not database_name.startswith(_TEST_DB_PREFIX):
+        raise ValueError(
+            f"destructive PostgreSQL tests require a database named {_TEST_DB_PREFIX}*"
+        )
+    if acknowledgement != "1":
+        raise ValueError(
+            "set THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1 to acknowledge schema deletion"
+        )
+    return database_name
+
+
+if _PG_URL:
+    try:
+        _EXPECTED_DB_NAME = _validate_destructive_test_target(
+            _PG_URL, _DESTRUCTIVE_ACK
+        )
+    except ValueError as exc:
+        raise pytest.UsageError(str(exc)) from exc
+else:
+    _EXPECTED_DB_NAME = ""
 
 pytestmark = pytest.mark.skipif(
-    not _PG_URL.startswith("postgresql"),
+    not _PG_URL,
     reason="TEST_DATABASE_URL not set to a PostgreSQL DSN; skipping real-PG tests.",
 )
 
 psycopg2 = pytest.importorskip("psycopg2")
+from psycopg2 import sql  # noqa: E402
 import psycopg2.pool  # noqa: E402
 import psycopg2.extras  # noqa: E402
 import psycopg2.extensions  # noqa: E402
@@ -55,6 +92,14 @@ _DEFERRED_FKS = (
     "fk_aria_drafts_copied_version",
     "fk_aria_drafts_committed_version",
 )
+_REQUIRED_POLICY_FKS = (
+    ("aria_policy_drafts", "base_version_id", "aria_policy_versions", "id"),
+    ("aria_policy_drafts", "copied_from_version_id", "aria_policy_versions", "id"),
+    ("aria_policy_drafts", "committed_version_id", "aria_policy_versions", "id"),
+    ("aria_documents", "current_policy_version_id", "aria_policy_versions", "id"),
+    ("evidence_items", "aria_policy_version_id", "aria_policy_versions", "id"),
+    ("grid_evidence_files", "aria_policy_version_id", "aria_policy_versions", "id"),
+)
 
 
 def _raw_conn():
@@ -62,6 +107,17 @@ def _raw_conn():
     used for schema resets and assertions."""
     conn = psycopg2.connect(_PG_URL)
     conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute("SELECT current_database()")
+        actual_database = cur.fetchone()[0]
+    if (
+        actual_database != _EXPECTED_DB_NAME
+        or not actual_database.startswith(_TEST_DB_PREFIX)
+    ):
+        conn.close()
+        raise RuntimeError(
+            "refusing destructive PostgreSQL test against an unexpected database"
+        )
     return conn
 
 
@@ -69,7 +125,18 @@ def _reset_public_schema():
     conn = _raw_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+            cur.execute(
+                "SELECT schema_name FROM information_schema.schemata "
+                "WHERE schema_name ~ '^tenant_'"
+            )
+            for (schema_name,) in cur.fetchall():
+                cur.execute(
+                    sql.SQL("DROP SCHEMA {} CASCADE").format(
+                        sql.Identifier(schema_name)
+                    )
+                )
+            cur.execute("DROP SCHEMA public CASCADE")
+            cur.execute("CREATE SCHEMA public")
     finally:
         conn.close()
 
@@ -133,6 +200,58 @@ def _fk_constraints(database):
         conn.close()
 
 
+def _policy_fk_shapes(database, tenant: str = ""):
+    conn = database.get_db_bypass_rls()
+    try:
+        if tenant:
+            conn.set_tenant(tenant)
+        schema_name = conn.execute(
+            "SELECT current_schema() AS schema_name"
+        ).fetchone()["schema_name"]
+        rows = conn.execute(
+            "SELECT tc.table_name, kcu.column_name, "
+            "ccu.table_schema AS referenced_schema, "
+            "ccu.table_name AS referenced_table, "
+            "ccu.column_name AS referenced_column "
+            "FROM information_schema.table_constraints tc "
+            "JOIN information_schema.key_column_usage kcu "
+            "ON tc.constraint_catalog=kcu.constraint_catalog "
+            "AND tc.constraint_schema=kcu.constraint_schema "
+            "AND tc.constraint_name=kcu.constraint_name "
+            "AND tc.table_schema=kcu.table_schema "
+            "AND tc.table_name=kcu.table_name "
+            "JOIN information_schema.constraint_column_usage ccu "
+            "ON tc.constraint_catalog=ccu.constraint_catalog "
+            "AND tc.constraint_schema=ccu.constraint_schema "
+            "AND tc.constraint_name=ccu.constraint_name "
+            "WHERE tc.constraint_type='FOREIGN KEY' "
+            "AND tc.table_schema=current_schema()"
+        ).fetchall()
+        return schema_name, {
+            (
+                row["table_name"],
+                row["column_name"],
+                row["referenced_schema"],
+                row["referenced_table"],
+                row["referenced_column"],
+            )
+            for row in rows
+        }
+    finally:
+        conn.close()
+
+
+def _assert_required_policy_fks(database, tenant: str = ""):
+    schema_name, shapes = _policy_fk_shapes(database, tenant)
+    for table, column, ref_table, ref_column in _REQUIRED_POLICY_FKS:
+        assert (
+            table, column, schema_name, ref_table, ref_column
+        ) in shapes, (
+            f"missing same-schema FK {table}.{column} -> "
+            f"{ref_table}.{ref_column}"
+        )
+
+
 def _tables_present(database):
     conn = database.get_db_bypass_rls()
     try:
@@ -158,6 +277,7 @@ def test_fresh_init_builds_the_workflow_schema_on_real_postgres(pg):
     assert _fk_constraints(pg) == sorted(_DEFERRED_FKS), (
         "the three deferred drafts->versions FKs must be re-added after both tables exist"
     )
+    _assert_required_policy_fks(pg)
 
 
 def test_reinit_is_idempotent(pg):
@@ -169,25 +289,86 @@ def test_reinit_is_idempotent(pg):
     assert _fk_constraints(pg) == sorted(_DEFERRED_FKS), (
         "re-init must leave exactly the three constraints, not duplicate them"
     )
+    _assert_required_policy_fks(pg)
 
 
-def test_upgrade_from_a_pre_workflow_database(pg):
-    """Faithful edffc9a -> 041edec delta: a fully-initialized DB that then has
-    the workflow tables removed (as production, 15 commits behind, does not
-    have them at all), re-initialized. The workflow tables and their deferred
-    FKs must come back cleanly against a database that already holds every
-    other table and its data."""
+def test_tenant_schema_policy_fks_never_fall_back_to_public(pg):
+    pg.init_db()
+    pg.provision_tenant_schema("reviewtenant")
+
+    schema_name, _ = _policy_fk_shapes(pg, "reviewtenant")
+    assert schema_name == "tenant_reviewtenant"
+    _assert_required_policy_fks(pg, "reviewtenant")
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.set_tenant("reviewtenant")
+        ready, missing = pg.aria_policy_workflow_schema_ready(conn)
+        assert ready, missing
+    finally:
+        conn.close()
+
+
+def test_reinit_repairs_existing_projection_columns_after_workflow_loss(pg):
+    """CASCADE can remove FKs while leaving their source columns in place."""
     pg.init_db()
 
     conn = pg.get_db_bypass_rls()
     try:
-        # Drop exactly the PLAN-35 workflow tables, as if this DB predated them.
         conn.execute(
             "DROP TABLE IF EXISTS "
             "aria_document_approvals, aria_policy_publication_jobs, "
             "aria_policy_versions, aria_policy_drafts, "
             "aria_document_number_sequence, scheduler_locks CASCADE"
         )
+        conn.commit()
+    finally:
+        conn.close()
+
+    _, shapes = _policy_fk_shapes(pg)
+    for table, column, ref_table, ref_column in _REQUIRED_POLICY_FKS[3:]:
+        assert not any(
+            shape[0] == table and shape[1] == column
+            for shape in shapes
+        ), f"sanity: {table}.{column} FK should have been removed by CASCADE"
+
+    pg.init_db()
+    _assert_required_policy_fks(pg)
+
+
+def test_upgrade_from_a_pre_workflow_database(pg):
+    """Focused pre-workflow shape simulation.
+
+    Preserve legacy document data while removing the workflow tables and all
+    five columns introduced for policy authoring. Re-initialization must
+    restore the complete shape and every same-schema policy-version FK.
+    """
+    pg.init_db()
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.execute(
+            "INSERT INTO aria_documents (doc_id, framework, title) "
+            "VALUES ('legacy-pg-doc', 'ISO 27001', 'Legacy policy')"
+        )
+        conn.commit()
+
+        conn.execute(
+            "DROP TABLE IF EXISTS "
+            "aria_document_approvals, aria_policy_publication_jobs, "
+            "aria_policy_versions, aria_policy_drafts, "
+            "aria_document_number_sequence, scheduler_locks CASCADE"
+        )
+        for table, column in (
+            ("aria_documents", "current_policy_version_id"),
+            ("aria_documents", "policy_workflow_managed"),
+            ("aria_doc_templates", "is_active"),
+            ("evidence_items", "aria_policy_version_id"),
+            ("grid_evidence_files", "aria_policy_version_id"),
+        ):
+            conn.execute(
+                f"ALTER TABLE {table} DROP COLUMN IF EXISTS {column} CASCADE"
+            )
         conn.commit()
     finally:
         conn.close()
@@ -201,6 +382,18 @@ def test_upgrade_from_a_pre_workflow_database(pg):
     for t in _WORKFLOW_TABLES:
         assert t in present, f"{t} was not recreated on upgrade"
     assert _fk_constraints(pg) == sorted(_DEFERRED_FKS)
+    _assert_required_policy_fks(pg)
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        preserved = conn.execute(
+            "SELECT title FROM aria_documents WHERE doc_id='legacy-pg-doc'"
+        ).fetchone()
+        assert preserved and preserved["title"] == "Legacy policy"
+        ready, missing = pg.aria_policy_workflow_schema_ready(conn)
+        assert ready, missing
+    finally:
+        conn.close()
 
 
 def test_deferred_fk_is_actually_enforced_not_just_present(pg):
@@ -236,3 +429,74 @@ def test_deferred_fk_is_actually_enforced_not_just_present(pg):
         except Exception:
             pass
         conn.close()
+
+
+def test_init_fails_closed_when_required_fk_cannot_be_restored(pg):
+    """An orphan must make startup fail, and readiness must report the FK."""
+    pg.init_db()
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.execute(
+            "INSERT INTO organizations (name, slug) "
+            "VALUES ('Orphan Test','orphan-pg-init')"
+        )
+        org_id = conn.execute(
+            "SELECT id FROM organizations WHERE slug='orphan-pg-init'"
+        ).fetchone()["id"]
+        conn.execute(
+            "ALTER TABLE aria_policy_drafts "
+            "DROP CONSTRAINT fk_aria_drafts_base_version"
+        )
+        conn.execute(
+            "INSERT INTO aria_policy_drafts (id, org_id, base_version_id) "
+            "VALUES ('draft-orphan-pg', %s, 999999999)",
+            (org_id,),
+        )
+        conn.commit()
+
+        ready, missing = pg.aria_policy_workflow_schema_ready(conn)
+        assert not ready
+        assert "constraint:fk_aria_drafts_base_version" in missing
+    finally:
+        conn.close()
+
+    with pytest.raises(
+        RuntimeError,
+        match="Required ARIA policy workflow foreign keys could not be ensured",
+    ):
+        pg.init_db()
+
+
+def test_destructive_target_validator_rejects_unsafe_targets():
+    assert _validate_destructive_test_target(
+        "postgresql://postgres:pg@localhost/themisiq_test_guard", "1"
+    ) == "themisiq_test_guard"
+
+    with pytest.raises(ValueError, match="database named"):
+        _validate_destructive_test_target(
+            "postgresql://postgres:pg@localhost/themisiq", "1"
+        )
+    with pytest.raises(ValueError, match="acknowledge"):
+        _validate_destructive_test_target(
+            "postgresql://postgres:pg@localhost/themisiq_test_guard", ""
+        )
+
+
+def test_fk_cycle_rewriter_is_exact_and_fails_closed_on_drift():
+    import database
+
+    ddl = """CREATE TABLE IF NOT EXISTS aria_policy_drafts (
+    base_version_id INTEGER REFERENCES aria_policy_versions(id),
+    copied_from_version_id INTEGER REFERENCES aria_policy_versions(id),
+    committed_version_id INTEGER REFERENCES aria_policy_versions(id)
+);"""
+    rewritten = database._break_pg_fk_cycle(ddl)
+    assert "REFERENCES aria_policy_versions(id)" not in rewritten
+
+    drifted = ddl.replace(
+        "copied_from_version_id INTEGER",
+        "copied_from_version_id BIGINT",
+    )
+    with pytest.raises(RuntimeError, match="copied_from_version_id"):
+        database._break_pg_fk_cycle(drifted)

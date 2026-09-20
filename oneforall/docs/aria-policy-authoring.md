@@ -210,29 +210,34 @@ Stated explicitly rather than assumed proven -- do not enable this feature
 against any real tenant on the strength of automated tests alone:
 
 - ~~No PostgreSQL testing was possible in this development environment.~~
-  **Partially resolved 2026-09-20.** A production-acceptance pass caught a
-  PostgreSQL-only DDL bug that all SQLite tests were structurally blind to:
+  **Schema coverage added and hardened 2026-09-20.** A production-acceptance
+  pass caught a PostgreSQL-only DDL bug that all SQLite tests were
+  structurally blind to:
   `aria_policy_drafts` and `aria_policy_versions` have a cyclic foreign key
   that SQLite tolerates and PostgreSQL rejects at `CREATE TABLE`, so
   `init_db()` failed outright on real PG. Fixed (`database.py`'s
-  `_break_pg_fk_cycle` + deferred FK re-add in `_run_pg_alters`) and now
-  covered by real-PostgreSQL tests. Those tests (`tests/test_postgres_init.py`)
-  are opt-in and skip unless a disposable PostgreSQL is provided, so the
-  default suite still runs SQLite-only:
+  `_break_pg_fk_cycle` + fail-closed FK repair/validation in
+  `_run_pg_alters`) and now covered by real-PostgreSQL tests. The tests
+  validate all six workflow FKs, focused pre-workflow recovery with legacy
+  data preserved, idempotency, tenant-schema isolation, enforcement, and
+  failure when orphaned data prevents repair.
+
+  Local execution is opt-in and guarded twice: the database name must begin
+  with `themisiq_test_`, and the destructive acknowledgement must be exactly
+  `THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1`:
 
   ```
-  docker run -d --name pg -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=t -p 55432:5432 postgres:18
-  TEST_DATABASE_URL="postgresql://postgres:pg@localhost:55432/t" python -m pytest tests/test_postgres_init.py -v
+  docker run -d --rm --name themisiq-pg-test -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=themisiq_test_policy_schema -p 127.0.0.1:55432:5432 postgres:18
+  THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1 TEST_DATABASE_URL="postgresql://postgres:pg@localhost:55432/themisiq_test_policy_schema" python -m pytest oneforall/tests/test_postgres_init.py -v
   ```
 
-  This proves fresh init, upgrade, idempotency, and FK enforcement on real
-  PG -- but it is *schema* coverage, not full behavioral coverage. The rest
-  of the workflow's logic is still exercised only on SQLite, so a broader
-  real-PG acceptance run (the whole suite against PostgreSQL, plus the
-  browser scenarios on a PG-backed deployment) remains a prerequisite for
-  production enablement. Run the PG init tests as part of every release
-  acceptance; never point `TEST_DATABASE_URL` at a real database (each test
-  wipes the `public` schema).
+  `.github/workflows/postgres-schema.yml` runs this gate automatically on
+  pushes to `master` and pull requests using PostgreSQL 18. This is still
+  *schema/migration* coverage, not full behavioral coverage: most workflow
+  tests continue to run on SQLite. A broader dedicated PG behavioral suite
+  and browser scenarios on a PG-backed deployment remain prerequisites for
+  production enablement. Never point `TEST_DATABASE_URL` at a real database;
+  each test wipes `public` and every `tenant_*` schema in the guarded target.
 - **Local conversion is verified; visual and VPS acceptance are not.** On
   2026-09-20 the pinned worker image converted the real 13-page
   `ThemisIQ_System_Manual.docx` and the strict output validator accepted the
