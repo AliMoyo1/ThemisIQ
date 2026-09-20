@@ -370,7 +370,10 @@ def test_templates_download_enforces_org_scope(test_db, two_orgs, _mock_auth):
     assert exc_info.value.status_code == 404
 
 
-def test_templates_upload_scopes_to_creator(test_db, two_orgs, _mock_auth):
+def test_templates_upload_scopes_to_creator(
+    test_db, two_orgs, _mock_auth, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(routes, "ARIA_TEMPLATE_DIR", tmp_path / "aria_templates")
     request = _request_as(_mock_auth, two_orgs["author"])
     upload = _fake_upload("brand.docx", b"fake docx bytes")
     result = _run(routes.api_templates_upload(

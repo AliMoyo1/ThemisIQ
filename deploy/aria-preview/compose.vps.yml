@@ -1,0 +1,31 @@
+services:
+  # Companion container for the production systemd-hosted ThemisIQ app.
+  # The image variable is intentionally mandatory and must be a tested
+  # registry reference pinned by digest.
+  aria-preview:
+    image: ${ARIA_PREVIEW_IMAGE:?Set ARIA_PREVIEW_IMAGE to the tested immutable image@sha256 digest}
+    restart: unless-stopped
+    environment:
+      ARIA_POLICY_PREVIEW_SPOOL_DIR: /spool
+      ARIA_POLICY_PREVIEW_EXECUTABLE: soffice
+      ARIA_POLICY_PREVIEW_TIMEOUT_SECONDS: "60"
+      ARIA_POLICY_PREVIEW_HEARTBEAT_MAX_AGE_SECONDS: "90"
+    volumes:
+      - ${ARIA_POLICY_PREVIEW_SPOOL_DIR:-/var/lib/themisiq/preview-spool}:/spool
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m,uid=1001,gid=1001
+      - /home/ariaworker:rw,noexec,nosuid,nodev,size=32m,uid=1001,gid=1001
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    network_mode: none
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 1.5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

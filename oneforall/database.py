@@ -311,13 +311,18 @@ class _PgConnWrapper:
         cur.execute("SET app.is_super_admin = 'false'")
 
     def _clear_rls_context(self):
-        try:
-            cur = self._conn.cursor()
-            cur.execute("SET app.current_org_id = ''")
-            cur.execute("SET app.is_super_admin = 'false'")
-            cur.execute("SET app.bypass_rls = 'false'")
-        except Exception:
-            pass
+        """Restore every session-level tenant/security setting.
+
+        These are deliberately session-level (rather than SET LOCAL), so the
+        reset must be committed before a pooled connection is handed to a new
+        caller.  The caller owns error handling; silently swallowing a failed
+        reset would return a cross-tenant-contaminated connection to the pool.
+        """
+        cur = self._conn.cursor()
+        cur.execute("SET search_path TO public")
+        cur.execute("SET app.current_org_id = ''")
+        cur.execute("SET app.is_super_admin = 'false'")
+        cur.execute("SET app.bypass_rls = 'false'")
 
     def commit(self):
         self._conn.commit()
@@ -328,12 +333,20 @@ class _PgConnWrapper:
     def close(self):
         pool = _get_pg_pool()
         try:
-            # Clear RLS context and roll back any open/aborted transaction before
-            # returning the connection to the pool. This prevents a failed query
-            # or stale org context from poisoning the next caller.
-            self._clear_rls_context()
+            # First discard the caller's open/aborted transaction. Then reset
+            # all session-level tenant state in a fresh transaction and COMMIT
+            # that reset. The previous order issued SETs and immediately rolled
+            # them back, leaking search_path/RLS state to the next pool user.
             self._conn.rollback()
+            self._clear_rls_context()
+            self._conn.commit()
         except Exception:
+            try:
+                self._conn.rollback()
+            except Exception:
+                pass
+            # A connection whose isolation state could not be proven clean is
+            # never safe to reuse for another organization.
             pool.putconn(self._conn, close=True)
             return
         pool.putconn(self._conn)
@@ -521,14 +534,11 @@ def try_acquire_scheduler_lock(db, lock_name: str, lease_seconds: int) -> bool:
     process's lease has not expired yet, in which case the caller must
     skip this run entirely, not wait for it.
 
-    Uses the same claim convention as policy_publication.claim_next_job /
-    policy_access.reserve_document_number: BEGIN IMMEDIATE on SQLite
-    (whole-database write lock, released at the commit below), SELECT ...
-    FOR UPDATE on PostgreSQL (row-level). The lock row is created on first
-    use (INSERT) or extended (UPDATE) within that same locked read, so two
-    processes racing to create the row for the first time cannot both
-    "win" -- one blocks on the other's transaction, exactly the property a
-    lock needs.
+    SQLite uses BEGIN IMMEDIATE (a whole-database write lock). PostgreSQL uses
+    one INSERT .. ON CONFLICT .. DO UPDATE .. WHERE .. RETURNING statement so
+    both first creation and expired-lease replacement are atomic. The table is
+    explicitly public-qualified because scheduler execution has no tenant and
+    pooled connections may previously have served any tenant schema.
     """
     from core.timeutils import utcnow
     now_iso = utcnow().isoformat()
@@ -536,20 +546,26 @@ def try_acquire_scheduler_lock(db, lock_name: str, lease_seconds: int) -> bool:
     is_pg = settings.is_postgres()
 
     if is_pg:
-        row = db.execute(
-            "SELECT locked_until FROM scheduler_locks WHERE lock_name=%s FOR UPDATE",
-            (lock_name,),
+        acquired = db.execute(
+            "INSERT INTO public.scheduler_locks AS held (lock_name, locked_until) "
+            "VALUES (%s,%s) "
+            "ON CONFLICT (lock_name) DO UPDATE "
+            "SET locked_until=EXCLUDED.locked_until "
+            "WHERE held.locked_until < %s "
+            "RETURNING lock_name",
+            (lock_name, lease_until, now_iso),
         ).fetchone()
-    else:
-        db.execute("BEGIN IMMEDIATE")
-        row = db.execute(
-            "SELECT locked_until FROM scheduler_locks WHERE lock_name=%s",
-            (lock_name,),
-        ).fetchone()
+        db.commit()
+        return acquired is not None
+
+    db.execute("BEGIN IMMEDIATE")
+    row = db.execute(
+        "SELECT locked_until FROM scheduler_locks WHERE lock_name=%s",
+        (lock_name,),
+    ).fetchone()
 
     if row and row["locked_until"] and row["locked_until"] >= now_iso:
-        if not is_pg:
-            db.rollback()  # release the BEGIN IMMEDIATE lock; we did not acquire it
+        db.rollback()  # release the BEGIN IMMEDIATE lock; we did not acquire it
         return False
 
     if row:

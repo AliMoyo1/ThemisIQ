@@ -7,10 +7,11 @@
 # database. Build with a pinned base digest for a reproducible, reviewable
 # image; do not float on a mutable tag in the deployed reference.
 #
-# Build:   docker build -t themisiq/aria-preview:<tag> -f deploy/aria-preview/Dockerfile .
-# Run:     see docker-compose.yml's aria-preview service.
+# Build:   use docker-compose.yml for local builds; release builds must supply
+#          ARIA_PREVIEW_WORKER_BUILD_ID and ARIA_PREVIEW_BUILT_AT.
+# Run:     see docker-compose.yml (full stack) or compose.vps.yml (systemd VPS).
 
-FROM debian:bookworm-slim@sha256:PIN_ME_AT_RELEASE_TIME
+FROM debian:bookworm-slim@sha256:f3034a6ec3c1205360777c4aae76234998866ad18806ae62b63a3f84ccad782b
 
 # libreoffice-writer pulls in the ODF/OOXML filters needed for .docx ->
 # .pdf; fonts-liberation2 approximates common MS-metric-compatible fonts
@@ -22,28 +23,49 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libreoffice-writer \
         fonts-liberation2 \
         python3-minimal \
+        python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root, fixed UID matching the app image's convention (see root
 # Dockerfile). No shell access needed beyond what the worker script uses.
-RUN useradd --create-home --uid 1001 ariaworker
+RUN groupadd --gid 1001 ariaworker \
+    && useradd --create-home --uid 1001 --gid 1001 ariaworker
 
 WORKDIR /worker
 
 # Only the worker script and its own pinned requirements -- never the
 # application's requirements.txt, config.py, or database.py.
 COPY --chown=ariaworker:ariaworker oneforall/requirements-preview.txt .
-RUN pip install --no-cache-dir --break-system-packages -r requirements-preview.txt
+RUN python3 -m pip install --no-cache-dir --break-system-packages -r requirements-preview.txt
 
 COPY --chown=ariaworker:ariaworker oneforall/scripts/aria_policy_preview_worker.py .
-COPY --chown=ariaworker:ariaworker deploy/aria-preview/runtime-manifest.json .
+COPY deploy/aria-preview/generate_runtime_manifest.py .
+
+# Generate evidence from the image that was actually built. Missing release
+# metadata fails the build; a template containing placeholder values is never
+# copied into a runnable image. Keep these arguments below the expensive OS
+# package layer so a new build ID/timestamp does not invalidate that cache.
+ARG ARIA_PREVIEW_WORKER_BUILD_ID
+ARG ARIA_PREVIEW_BUILT_AT
+RUN test -n "$ARIA_PREVIEW_WORKER_BUILD_ID" \
+    && test -n "$ARIA_PREVIEW_BUILT_AT" \
+    && python3 generate_runtime_manifest.py \
+       --output runtime-manifest.json \
+       --base-image "debian:bookworm-slim@sha256:f3034a6ec3c1205360777c4aae76234998866ad18806ae62b63a3f84ccad782b" \
+       --worker-build-id "$ARIA_PREVIEW_WORKER_BUILD_ID" \
+       --built-at "$ARIA_PREVIEW_BUILT_AT" \
+    && rm generate_runtime_manifest.py \
+    && chown ariaworker:ariaworker runtime-manifest.json
+
+LABEL org.opencontainers.image.revision=$ARIA_PREVIEW_WORKER_BUILD_ID \
+      org.opencontainers.image.created=$ARIA_PREVIEW_BUILT_AT
 
 USER ariaworker
 
 # No EXPOSE: this container publishes no ports (network_mode: none in
-# compose). Healthcheck runs the worker's own --once mode against an empty
-# spool, which exits cleanly without needing a live job.
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD python3 aria_policy_preview_worker.py --once || exit 1
+# compose). Health checks only verify the build manifest, spool and worker
+# heartbeat; they never compete for the singleton lock or launch LibreOffice.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD python3 aria_policy_preview_worker.py --healthcheck || exit 1
 
 ENTRYPOINT ["python3", "aria_policy_preview_worker.py"]

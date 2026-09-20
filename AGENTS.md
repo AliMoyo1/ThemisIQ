@@ -1,6 +1,6 @@
 ## Imported Claude Cowork project instructions
 
-This is an enterprise tool to be hosted on a windows laptop. Make sure the code has no security flaws.
+This is an enterprise tool deployed on a Hetzner Ubuntu VPS (systemd service `themisiq-app.service`, PostgreSQL). Development happens on a Windows laptop, but that is not where the app runs in production. Make sure the code has no security flaws.
 
 ## Project scope
 

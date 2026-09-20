@@ -159,11 +159,45 @@
     if (confirmBtn) confirmBtn.disabled = true;
   }
 
+  function markdownPreviewAvailable() {
+    return !!(
+      window.AriaMarkdown &&
+      typeof window.AriaMarkdown.isAvailable === 'function' &&
+      window.AriaMarkdown.isAvailable()
+    );
+  }
+
+  function syncMarkdownPreviewAvailability() {
+    var editEl = $('draftEditor'), previewEl = $('policyContent');
+    var editTab = $('editorTabEdit'), previewTab = $('editorTabPreview');
+    var available = markdownPreviewAvailable();
+    if (previewTab) {
+      previewTab.disabled = !available;
+      previewTab.setAttribute('aria-disabled', available ? 'false' : 'true');
+      if (available) previewTab.removeAttribute('title');
+      else previewTab.title = 'Reading preview is unavailable because its renderer did not load.';
+    }
+    if (!available && editEl && previewEl) {
+      editEl.style.display = '';
+      previewEl.style.display = 'none';
+      if (editTab) {
+        editTab.classList.add('active');
+        editTab.setAttribute('aria-selected', 'true');
+      }
+      if (previewTab) {
+        previewTab.classList.remove('active');
+        previewTab.setAttribute('aria-selected', 'false');
+      }
+    }
+    return available;
+  }
+
   function switchEditorView(which) {
     var editEl = $('draftEditor'), previewEl = $('policyContent');
     var editTab = $('editorTabEdit'), previewTab = $('editorTabPreview');
     if (!editEl || !previewEl) return;
     if (which === 'preview') {
+      if (!syncMarkdownPreviewAvailability()) return;
       window.AriaMarkdown.renderInto(previewEl, editEl.value);
       editEl.style.display = 'none';
       previewEl.style.display = '';
@@ -677,4 +711,10 @@
       stateBadge: stateBadge,
     },
   };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', syncMarkdownPreviewAvailability);
+  } else {
+    syncMarkdownPreviewAvailability();
+  }
 })();

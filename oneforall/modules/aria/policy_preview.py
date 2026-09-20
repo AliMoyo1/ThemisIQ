@@ -25,6 +25,8 @@ from pathlib import Path
 
 from config import settings
 
+MAX_PREVIEW_PDF_BYTES = 50 * 1024 * 1024
+
 
 class ConversionTimeoutError(Exception):
     pass
@@ -35,6 +37,27 @@ class ConversionFailedError(Exception):
         self.error_code = error_code
         self.message = message
         super().__init__(message)
+
+
+def _validate_received_pdf(data: bytes) -> bytes:
+    """App-side trust-boundary checks for a worker result.
+
+    The restricted worker performs strict structural parsing. The app does
+    not install the worker-only pypdf dependency, but independently verifies
+    the protocol's byte-size and file signature before storing or hashing the
+    response. This also prevents a compromised/broken spool writer from
+    handing arbitrary bytes to the browser as application/pdf.
+    """
+    if len(data) > MAX_PREVIEW_PDF_BYTES:
+        raise ConversionFailedError(
+            "PREVIEW_UNAVAILABLE",
+            f"Converted PDF exceeds the {MAX_PREVIEW_PDF_BYTES}-byte maximum size.",
+        )
+    if len(data) < 5 or not data.startswith(b"%PDF-"):
+        raise ConversionFailedError(
+            "PREVIEW_UNAVAILABLE", "Worker output has no valid PDF signature."
+        )
+    return data
 
 
 def _spool_dir() -> Path:
@@ -83,7 +106,13 @@ def poll_conversion_result(job_id: str, timeout_seconds: int | None = None, poll
                 time.sleep(poll_interval)
                 continue
             if result.get("ok"):
-                return (result_path.parent / "output.pdf").read_bytes()
+                try:
+                    pdf_bytes = (result_path.parent / "output.pdf").read_bytes()
+                except OSError as exc:
+                    raise ConversionFailedError(
+                        "PREVIEW_UNAVAILABLE", "Worker reported success without a readable PDF."
+                    ) from exc
+                return _validate_received_pdf(pdf_bytes)
             raise ConversionFailedError(
                 result.get("error_code", "PREVIEW_UNAVAILABLE"),
                 result.get("error_message", "Conversion failed."),

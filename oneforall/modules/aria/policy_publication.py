@@ -376,30 +376,43 @@ def process_job(db, job: dict, is_postgres: bool) -> str:
     except Exception as exc:
         log.warning("Publication job %s: search reindex failed (non-fatal): %s", job["id"], exc)
 
-    from core.events import emit, ARIA_POLICY_PUBLISHED
-    event_id = emit(
-        ARIA_POLICY_PUBLISHED,
-        source_module="aria", entity_type="document", entity_id=doc["id"],
-        payload={
-            "doc_id": doc.get("doc_id"), "title": doc.get("title", ""),
-            "framework": doc.get("framework", ""), "control_ref": doc.get("control_ref", ""),
-            "version": version.get("version"),
-            "version_id": version["id"],
-            "publication_key": job["publication_key"],
-        },
-        user_id=version.get("approved_by"),
-        org_id=job.get("org_id"),
-        # Keyed by this job's own unique publication_key so a crash/lease
-        # reclaim between here and the "mark complete" write below reruns
-        # delivery on replay instead of silently skipping it -- the
-        # vault/GRID copies above are separately idempotent on their own
-        # terms, and emit()'s own side effects now carry the same
-        # guarantee for the two that matter here (a duplicate task or
-        # workflow instance), but a handler can still genuinely fail (a
-        # DB error, a bad workflow definition) -- that is exactly what the
-        # status check right below exists to catch.
-        dedup_key=job["publication_key"],
-    )
+    event_id = None
+    try:
+        from core.events import emit, ARIA_POLICY_PUBLISHED
+        event_id = emit(
+            ARIA_POLICY_PUBLISHED,
+            source_module="aria", entity_type="document", entity_id=doc["id"],
+            payload={
+                "doc_id": doc.get("doc_id"), "title": doc.get("title", ""),
+                "framework": doc.get("framework", ""), "control_ref": doc.get("control_ref", ""),
+                "version": version.get("version"),
+                "version_id": version["id"],
+                "publication_key": job["publication_key"],
+            },
+            user_id=version.get("approved_by"),
+            org_id=job.get("org_id"),
+            # Keyed by this job's own unique publication_key so a crash/lease
+            # reclaim between here and the "mark complete" write below reruns
+            # delivery on replay instead of silently skipping it.
+            dedup_key=job["publication_key"],
+        )
+        event_status = db.execute(
+            "SELECT status FROM events WHERE id=%s", (event_id,)
+        ).fetchone()
+    except Exception as exc:
+        # An unexpected dispatcher/query exception is subject to the exact same
+        # bounded backoff and terminal-failure policy as evidence-copy errors.
+        # Otherwise the row remains 'running' until every lease expiry and can
+        # be reclaimed forever without MAX_ATTEMPTS ever taking effect.
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        log.warning(
+            "Publication job %s event delivery failed (attempt %d): %s",
+            job["id"], job["attempts"], exc,
+        )
+        return _schedule_retry_or_fail(db, job, str(exc), event_id=event_id)
 
     # PLAN-35 T11 review fix: emit() can return a real event_id whose
     # delivery did not actually finish successfully (a handler raised, or
@@ -417,12 +430,12 @@ def process_job(db, job: dict, is_postgres: bool) -> str:
     # which point the existing manual retry action actually works, and a
     # transient failure resolves itself on the next automatic attempt --
     # both without inventing a second, parallel retry mechanism.
-    event_status = db.execute("SELECT status FROM events WHERE id=%s", (event_id,)).fetchone()
     if not event_status or event_status["status"] != "processed":
         return _schedule_retry_or_fail(
             db, job,
             f"Event delivery did not complete (status="
             f"{event_status['status'] if event_status else 'missing'}).",
+            event_id=event_id,
         )
 
     now_iso = utcnow().isoformat()
@@ -441,19 +454,20 @@ def process_job(db, job: dict, is_postgres: bool) -> str:
     return "complete"
 
 
-def _schedule_retry_or_fail(db, job: dict, error: str) -> str:
+def _schedule_retry_or_fail(db, job: dict, error: str, event_id: int | None = None) -> str:
     now = utcnow()
     attempts = job["attempts"]
     if attempts >= MAX_ATTEMPTS:
-        _mark_failed(db, job, error)
+        _mark_failed(db, job, error, event_id=event_id)
         return "failed"
     backoff_idx = min(attempts - 1, len(_BACKOFF_MINUTES) - 1)
     next_attempt = (now + timedelta(minutes=_BACKOFF_MINUTES[backoff_idx])).isoformat()
     updated = db.execute(
         "UPDATE aria_policy_publication_jobs SET state='pending', next_attempt_at=%s, "
-        "last_error=%s, lease_until=NULL, lease_token=NULL, updated_at=%s "
+        "last_error=%s, event_id=COALESCE(%s,event_id), "
+        "lease_until=NULL, lease_token=NULL, updated_at=%s "
         "WHERE id=%s AND lease_token=%s",
-        (next_attempt, error[:2000], now.isoformat(), job["id"], job["lease_token"]),
+        (next_attempt, error[:2000], event_id, now.isoformat(), job["id"], job["lease_token"]),
     )
     db.commit()
     if getattr(updated, "rowcount", 1) == 0:
@@ -461,7 +475,7 @@ def _schedule_retry_or_fail(db, job: dict, error: str) -> str:
     return "retry_scheduled"
 
 
-def _mark_failed(db, job: dict, error: str) -> None:
+def _mark_failed(db, job: dict, error: str, event_id: int | None = None) -> None:
     """Terminal failure. Guarded by lease_token, same as every other write
     this worker makes to the job row: an expired lease can be reclaimed by
     a newer worker (claim_next_job) at any time this worker is still
@@ -473,8 +487,9 @@ def _mark_failed(db, job: dict, error: str) -> None:
     lease_token."""
     updated = db.execute(
         "UPDATE aria_policy_publication_jobs SET state='failed', last_error=%s, "
-        "lease_until=NULL, lease_token=NULL, updated_at=%s WHERE id=%s AND lease_token=%s",
-        (error[:2000], utcnow().isoformat(), job["id"], job["lease_token"]),
+        "event_id=COALESCE(%s,event_id), lease_until=NULL, lease_token=NULL, "
+        "updated_at=%s WHERE id=%s AND lease_token=%s",
+        (error[:2000], event_id, utcnow().isoformat(), job["id"], job["lease_token"]),
     )
     db.commit()
     if getattr(updated, "rowcount", 1) == 0:

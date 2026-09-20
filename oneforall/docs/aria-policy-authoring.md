@@ -129,9 +129,9 @@ everyone, so nothing accumulates unbounded before a pilot begins.
   app talks to only through the shared spool directory -- never installed
   into the main app image or invoked directly by app code. Full deployment
   contract (image build, capabilities, resource limits, update procedure)
-  is `plans/PLAN-35-aria-policy-authoring-flow.md` section 7.6. This
-  worker has never been installed or exercised in this development
-  environment -- see "Known limitations" below.
+  is `plans/PLAN-35-aria-policy-authoring-flow.md` section 7.6. The local
+  image and a real DOCX-to-PDF conversion were exercised on 2026-09-20;
+  VPS rollout and visual-fidelity acceptance remain separate gates below.
 
 ## 6. Storage layout and retained files
 
@@ -167,6 +167,23 @@ read (`resolve_stored_path` refuses an absolute path or a `..` segment).
 - **`scripts/aria_policy_preview_worker.py`** -- the conversion worker
   entry point referenced by the section 7.6 deployment contract.
 
+### VPS companion worker
+
+Production runs the web application under `themisiq-app.service`, so use
+`deploy/aria-preview/compose.vps.yml` for the converter rather than starting
+the full root Compose stack. Set `ARIA_PREVIEW_IMAGE` to the tested registry
+reference pinned as `image@sha256:<digest>`. Set
+`ARIA_POLICY_PREVIEW_SPOOL_DIR` to the same host directory in both the app
+service and the companion Compose environment (the default companion path is
+`/var/lib/themisiq/preview-spool`), and make that directory writable by UID/GID
+1001. The companion has no network, drops all capabilities, runs read-only,
+and receives neither application secrets nor database access.
+
+The image generates `runtime-manifest.json` from the packages actually
+installed during its build. Its healthcheck verifies that manifest, spool
+access, and a fresh worker heartbeat without launching LibreOffice or taking
+the worker lock.
+
 ## 8. Repair and retry: publication failures
 
 `GET /aria/api/documents/{doc_id}/publication-status` reports whether a
@@ -200,13 +217,12 @@ against any real tenant on the strength of automated tests alone:
   by itself evidence the workflow behaves identically on PostgreSQL.
   Dedicated PG acceptance testing is a prerequisite for production
   enablement, not an optional extra.
-- **Real LibreOffice conversion has never been observed.** The worker has
-  never been installed in this environment; only the plumbing around a
-  conversion job's success/failure/timeout has been exercised (a
-  build against a non-running converter times out cleanly and returns
-  `PREVIEW_TIMEOUT` without crashing or losing draft content). Actual
-  rendering quality -- fonts, tables, headers/footers, Unicode, page
-  breaks -- is unverified.
+- **Local conversion is verified; visual and VPS acceptance are not.** On
+  2026-09-20 the pinned worker image converted the real 13-page
+  `ThemisIQ_System_Manual.docx` and the strict output validator accepted the
+  resulting 71,764-byte PDF. The pages were not visually inspected for font,
+  table, header/footer, Unicode, or page-break fidelity, and the image has not
+  been published by digest or run beside `themisiq-app.service` on the VPS.
 - ~~The approval-decision UI was verified only against a fully
   mocked-conversion draft, never a second, genuinely separate logged-in
   approver.~~ **Resolved 2026-09-20**: a real second-user reject decision

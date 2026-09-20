@@ -1,19 +1,23 @@
 """
 PLAN-35 T05: spool protocol tests (app side) and worker unit tests.
 
-A real LibreOffice conversion is NOT exercised here -- no converter binary
-is available in this environment. Every test mocks the single convert()
-call site in the worker module rather than the LibreOffice subprocess
-itself, so the protocol (submit, claim, timeout, failure, cleanup) is
-proven correctly independent of having a real converter installed. The
-real-converter acceptance test (T05's actual pass condition: "one real
-branded DOCX renders to PDF using the configured converter") remains an
-explicit open item requiring a real LibreOffice install, tracked in the
-plan's execution ledger, not simulated here.
+The unit suite does not launch LibreOffice. Every test mocks the single
+convert() call site in the worker module rather than the LibreOffice
+subprocess itself, so the protocol (submit, claim, timeout, failure, cleanup)
+is proven independently of the image-level conversion acceptance check.
 """
 import subprocess
 
 import pytest
+from pypdf import PdfWriter
+from pypdf.actions import JavaScript
+from pypdf.generic import (
+    ArrayObject,
+    NameObject,
+    NullObject,
+    NumberObject,
+    RectangleObject,
+)
 
 from modules.aria import policy_preview as pp
 import scripts.aria_policy_preview_worker as worker
@@ -36,7 +40,10 @@ def mock_convert(monkeypatch):
     def fake_convert(input_docx, output_dir, executable=None, timeout_seconds=None):
         if state["behavior"] == "success":
             out = output_dir / (input_docx.stem + ".pdf")
-            out.write_bytes(b"%PDF-FAKE")
+            writer = PdfWriter()
+            writer.add_blank_page(width=72, height=72)
+            with out.open("wb") as stream:
+                writer.write(stream)
             return out
         if state["behavior"] == "timeout":
             raise subprocess.TimeoutExpired(cmd=["soffice"], timeout=1)
@@ -60,7 +67,7 @@ def test_full_round_trip_submit_claim_convert_poll(mock_convert):
     assert processed == 1
 
     pdf_bytes = pp.poll_conversion_result(job_id, timeout_seconds=5, poll_interval=0.05)
-    assert pdf_bytes == b"%PDF-FAKE"
+    assert pdf_bytes.startswith(b"%PDF-")
 
 
 def test_cleanup_removes_both_inbox_and_outbox_traces(mock_convert):
@@ -143,6 +150,146 @@ def test_missing_input_file_reported_not_crashed(tmp_path):
     worker.process_one_job(job_dir)
     result = json.loads((job_dir / "result.json").read_text())
     assert result["ok"] is False
+
+
+def test_worker_rejects_a_converter_output_that_is_not_a_parseable_pdf(tmp_path, monkeypatch):
+    import json, time
+
+    job_dir = tmp_path / "outbox" / "invalid-pdf"
+    job_dir.mkdir(parents=True)
+    (job_dir / "input.docx").write_bytes(b"x")
+    (job_dir / "manifest.json").write_text(
+        json.dumps({"deadline": time.time() + 100}), encoding="utf-8"
+    )
+
+    def fake_convert(input_docx, output_dir, executable=None, timeout_seconds=None):
+        output = output_dir / "input.pdf"
+        output.write_bytes(b"%PDF-this-is-not-a-real-pdf")
+        return output
+
+    monkeypatch.setattr(worker, "convert", fake_convert)
+    worker.process_one_job(job_dir)
+
+    result = json.loads((job_dir / "result.json").read_text(encoding="utf-8"))
+    assert result["ok"] is False
+    assert result["error_code"] == "PREVIEW_UNAVAILABLE"
+    assert not (job_dir / "output.pdf").exists()
+
+
+def test_worker_rejects_encrypted_pdf(tmp_path):
+    path = tmp_path / "encrypted.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.encrypt("secret")
+    with path.open("wb") as stream:
+        writer.write(stream)
+
+    with pytest.raises(worker.PdfValidationError, match="[Ee]ncrypted"):
+        worker._validate_pdf(path)
+
+
+def test_worker_rejects_page_count_over_limit(tmp_path, monkeypatch):
+    path = tmp_path / "two-pages.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.add_blank_page(width=72, height=72)
+    with path.open("wb") as stream:
+        writer.write(stream)
+    monkeypatch.setattr(worker, "MAX_PDF_PAGES", 1)
+
+    with pytest.raises(worker.PdfValidationError, match="page"):
+        worker._validate_pdf(path)
+
+
+def test_worker_rejects_active_pdf_content(tmp_path):
+    path = tmp_path / "javascript.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.add_open_action(JavaScript("app.alert('no')"))
+    with path.open("wb") as stream:
+        writer.write(stream)
+
+    with pytest.raises(worker.PdfValidationError, match="active content"):
+        worker._validate_pdf(path)
+
+
+def test_worker_allows_static_open_page_destination(tmp_path):
+    path = tmp_path / "static-open-destination.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer._root_object[NameObject("/OpenAction")] = ArrayObject([
+        writer.pages[0].indirect_reference,
+        NameObject("/XYZ"),
+        NullObject(),
+        NullObject(),
+        NumberObject(0),
+    ])
+    with path.open("wb") as stream:
+        writer.write(stream)
+
+    worker._validate_pdf(path)
+
+
+def test_worker_rejects_external_uri_action(tmp_path):
+    path = tmp_path / "external-uri.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.add_uri(0, "https://example.invalid", RectangleObject((0, 0, 10, 10)))
+    with path.open("wb") as stream:
+        writer.write(stream)
+
+    with pytest.raises(worker.PdfValidationError, match="active content"):
+        worker._validate_pdf(path)
+
+
+def test_app_rejects_invalid_or_oversized_worker_output(monkeypatch):
+    with pytest.raises(pp.ConversionFailedError, match="valid PDF signature"):
+        pp._validate_received_pdf(b"not-a-pdf")
+
+    monkeypatch.setattr(pp, "MAX_PREVIEW_PDF_BYTES", 8)
+    with pytest.raises(pp.ConversionFailedError, match="maximum size"):
+        pp._validate_received_pdf(b"%PDF-1234")
+
+
+def test_worker_healthcheck_accepts_manifest_spool_and_fresh_heartbeat(
+    tmp_path, monkeypatch
+):
+    import json
+
+    manifest_path = tmp_path / "runtime-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "base_image_digest": "debian@sha256:" + ("a" * 64),
+        "libreoffice_version": "LibreOffice test",
+        "font_package_versions": {"fonts-liberation2": "test"},
+        "package_versions": {"libreoffice-writer": "test", "python3": "test"},
+        "worker_build_id": "test-build",
+        "pypdf_version": "test",
+        "built_at": "2026-09-20T00:00:00Z",
+    }), encoding="utf-8")
+    monkeypatch.setattr(worker, "RUNTIME_MANIFEST_PATH", manifest_path)
+    monkeypatch.setattr(worker, "HEARTBEAT_PATH", tmp_path / ".worker.heartbeat")
+
+    worker._write_heartbeat()
+    worker.healthcheck()
+
+
+def test_worker_healthcheck_rejects_placeholder_manifest(tmp_path, monkeypatch):
+    import json
+
+    manifest_path = tmp_path / "runtime-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "base_image_digest": "debian@sha256:PIN_ME",
+        "libreoffice_version": "LibreOffice test",
+        "font_package_versions": {"fonts-liberation2": "test"},
+        "package_versions": {"libreoffice-writer": "test", "python3": "test"},
+        "worker_build_id": "test-build",
+        "pypdf_version": "test",
+        "built_at": "2026-09-20T00:00:00Z",
+    }), encoding="utf-8")
+    monkeypatch.setattr(worker, "RUNTIME_MANIFEST_PATH", manifest_path)
+
+    with pytest.raises(RuntimeError, match="incomplete"):
+        worker._validate_runtime_manifest()
 
 
 # ─────────────────────────────────────────────────────────────────────────

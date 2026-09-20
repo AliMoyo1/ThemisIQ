@@ -72,13 +72,18 @@ services:
   # aria_preview_spool volume. Uses an explicitly pinned image; do not
   # switch this to `:latest` or add package upgrades inside a running
   # container. Replace the image tag and re-run readiness (see this
-  # service's healthcheck and deploy/aria-preview/runtime-manifest.json)
+  # service's healthcheck and generated runtime-manifest.json)
   # to update the converter; the app does not need to stop to do this.
   aria-preview:
-    image: themisiq/aria-preview:PIN_ME_AT_RELEASE_TIME
+    # Local builds use the explicit :local development tag. Production must
+    # override ARIA_PREVIEW_IMAGE with the tested registry image@sha256 digest.
+    image: ${ARIA_PREVIEW_IMAGE:-themisiq/aria-preview:local}
     build:
       context: .
       dockerfile: deploy/aria-preview/Dockerfile
+      args:
+        ARIA_PREVIEW_WORKER_BUILD_ID: ${ARIA_PREVIEW_WORKER_BUILD_ID:-local-development}
+        ARIA_PREVIEW_BUILT_AT: ${ARIA_PREVIEW_BUILT_AT:-1970-01-01T00:00:00Z}
     restart: unless-stopped
     environment:
       ARIA_POLICY_PREVIEW_SPOOL_DIR: /spool

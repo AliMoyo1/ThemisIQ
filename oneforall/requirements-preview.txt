@@ -7,4 +7,4 @@
 # Version pinned; re-run the project's normal dependency audit
 # (pip-audit / whatever CI already uses for requirements.txt) against this
 # file too before bumping the pin, not just against requirements.txt.
-pypdf==5.1.0
+pypdf==6.19.0

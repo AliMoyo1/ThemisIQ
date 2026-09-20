@@ -68,6 +68,21 @@
     return textEscapeEl.innerHTML;
   }
 
+  function rendererWithoutRawHtml() {
+    var renderer = new window.marked.Renderer();
+    // Marked deliberately passes raw HTML through. Escape the raw token at
+    // parse time so even otherwise-allowed tags such as <h1> cannot be
+    // smuggled in as authored HTML; only HTML generated from Markdown syntax
+    // reaches DOMPurify's allowlist.
+    renderer.html = function (token) {
+      var source = (typeof token === 'string')
+        ? token
+        : ((token && (token.text || token.raw)) || '');
+      return escapeText(source);
+    };
+    return renderer;
+  }
+
   /**
    * Renders markdown to sanitized HTML. Never throws. When marked/DOMPurify
    * are unavailable, or the input fails to parse, returns the input
@@ -82,7 +97,11 @@
     if (!isAvailable()) return escapeText(markdownText);
     var rawHtml;
     try {
-      rawHtml = window.marked.parse(markdownText, { gfm: true, breaks: false });
+      rawHtml = window.marked.parse(markdownText, {
+        gfm: true,
+        breaks: false,
+        renderer: rendererWithoutRawHtml(),
+      });
     } catch (e) {
       console.error('aria_markdown.js: marked.parse failed', e);
       return escapeText(markdownText);

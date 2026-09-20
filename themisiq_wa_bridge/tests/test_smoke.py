@@ -83,6 +83,13 @@ def test_rbac_denies_unauthorised_module():
     assert i.params["needed"] == "sentinel"
 
 
+def test_dpia_question_keeps_sentinel_scope_for_authorised_user():
+    from app import intent as I
+    i = I.parse("wa_user_263783047375", "list open DPIAs", {"sentinel"})
+    assert i.action == "qa"
+    assert i.requires_module == "sentinel"
+
+
 def test_inbound_qa_offline():
     body = _wa_payload("wa_user_263783047375", "What does CDPA require for breach notification?")
     r = client.post("/webhook/whatsapp", json=body)

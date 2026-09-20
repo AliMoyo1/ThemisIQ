@@ -32,21 +32,27 @@ log = logging.getLogger("oneforall.handlers")
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _notify(db, user_id, module, title, message, link=None):
-    """Insert a notification row. Logs failures but never raises — handlers
-    must not crash on notification delivery problems."""
+    """Insert a notification row and report whether it succeeded.
+
+    Callers may still choose best-effort behavior by ignoring the return value,
+    while transactional handlers can fail and retry instead of claiming that a
+    notification-dependent operation completed when the insert was lost.
+    """
     if not user_id:
-        return
+        return True
     try:
         db.execute(
             "INSERT INTO notifications (user_id, module, title, message, link) "
             "VALUES (%s, %s, %s, %s, %s)",
             (user_id, module, title, message, link),
         )
+        return True
     except Exception as exc:
         log.warning(
             "Failed to insert notification (user=%s, module=%s, title=%r): %s",
             user_id, module, title, exc,
         )
+        return False
 
 
 def _notify_admins(db, module, title, message, link=None) -> bool:
@@ -61,9 +67,11 @@ def _notify_admins(db, module, title, message, link=None) -> bool:
             "JOIN user_roles ur ON u.id = ur.user_id "
             "WHERE ur.role_key IN ('super_admin', 'admin') AND u.is_active = 1"
         ).fetchall()
+        completed = True
         for r in rows:
-            _notify(db, r[0], module, title, message, link)
-        return True
+            if not _notify(db, r[0], module, title, message, link):
+                completed = False
+        return completed
     except Exception as exc:
         log.warning(
             "Failed to dispatch admin notification (module=%s, title=%r): %s",
@@ -1111,6 +1119,7 @@ def auto_resolve_grid_policy_requests(event_type, source_module, entity_type,
 
         matches = db.execute(q, params).fetchall()
 
+        notification_failures = []
         for m in matches:
             db.execute(
                 "UPDATE grid_policy_requests "
@@ -1119,13 +1128,21 @@ def auto_resolve_grid_policy_requests(event_type, source_module, entity_type,
                 (entity_id, m["id"]),
             )
             # Notify the requestor
-            _notify(
+            notified = _notify(
                 db, m["requested_by"], "grid",
                 f"Policy Available: {title}",
                 f"The policy '{title}' you requested for audit "
                 f"'{m['audit_name'] or ''}' has been published in ARIA. "
                 f"You can now attach it as evidence.",
                 "/grid/#evidence",
+            )
+            if not notified:
+                notification_failures.append(m["id"])
+
+        if notification_failures:
+            raise RuntimeError(
+                "requestor notification failed for GRID policy request(s): "
+                + ", ".join(str(request_id) for request_id in notification_failures)
             )
 
         if matches:
@@ -1134,6 +1151,11 @@ def auto_resolve_grid_policy_requests(event_type, source_module, entity_type,
                      len(matches), title)
     except Exception as e:
         log.warning("auto_resolve_grid_policy_requests error: %s", e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         db.close()
 
@@ -3109,6 +3131,13 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
     import json as _json
 
     for defn in defns:
+        # Parse before inserting anything. A malformed definition must leave no
+        # committed "active" instance that a retry then mistakes for success.
+        steps = _json.loads(defn["steps_json"]) if defn["steps_json"] else []
+        if not isinstance(steps, list):
+            raise ValueError(f"Workflow definition {defn['id']} steps_json must be a list.")
+
+        existing_instance = False
         if event_id is not None:
             iid = insert_returning_id(
                 db,
@@ -3119,8 +3148,21 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
                 (defn["id"], source_module, entity_type, entity_id, user_id, event_id)
             )
             if iid is None:
-                # Already started by an earlier attempt at this same event.
-                continue
+                # A previous attempt may have committed an instance before it
+                # failed to create step zero. Locate and heal that partial row;
+                # only a complete instance is a safe replay no-op.
+                row = db.execute(
+                    "SELECT id FROM workflow_instances "
+                    "WHERE definition_id=%s AND source_event_id=%s",
+                    (defn["id"], event_id),
+                ).fetchone()
+                if not row:
+                    raise RuntimeError(
+                        f"Workflow instance conflict for definition {defn['id']} "
+                        "but no existing instance was found."
+                    )
+                iid = row["id"]
+                existing_instance = True
         else:
             iid = insert_returning_id(
                 db,
@@ -3129,11 +3171,22 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
                 "VALUES (%s,%s,%s,%s,%s)",
                 (defn["id"], source_module, entity_type, entity_id, user_id)
             )
-        db.commit()
-        steps = _json.loads(defn["steps_json"]) if defn["steps_json"] else []
+
         if steps:
-            from modules.launcher.routes_workflows import _create_step_action
-            _create_step_action(db, iid, 0, steps[0], defn["name"])
+            action = None
+            if existing_instance:
+                action = db.execute(
+                    "SELECT id FROM workflow_actions "
+                    "WHERE instance_id=%s AND step_index=0 LIMIT 1",
+                    (iid,),
+                ).fetchone()
+            if not action:
+                # _create_step_action commits both the uncommitted instance and
+                # its first action together. If it raises, neither survives.
+                from modules.launcher.routes_workflows import _create_step_action
+                _create_step_action(db, iid, 0, steps[0], defn["name"])
+        elif not existing_instance:
+            db.commit()
         log.info(
             "Auto-triggered workflow '%s' (instance=%d) for %s/%s/%d",
             defn["name"], iid, source_module, entity_type, entity_id
