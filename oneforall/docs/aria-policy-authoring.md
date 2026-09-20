@@ -209,14 +209,30 @@ copy-into-evidence step for an already-approved version.
 Stated explicitly rather than assumed proven -- do not enable this feature
 against any real tenant on the strength of automated tests alone:
 
-- **No PostgreSQL testing was possible in this development environment**
-  (no PG instance available). Every automated test in this plan has run
-  against SQLite only. This matters: this exact workflow has already
-  produced one real SQLite-vs-thread bug that ~350 passing direct-call
-  tests could not catch (see T10 notes), so "tests pass on SQLite" is not
-  by itself evidence the workflow behaves identically on PostgreSQL.
-  Dedicated PG acceptance testing is a prerequisite for production
-  enablement, not an optional extra.
+- ~~No PostgreSQL testing was possible in this development environment.~~
+  **Partially resolved 2026-09-20.** A production-acceptance pass caught a
+  PostgreSQL-only DDL bug that all SQLite tests were structurally blind to:
+  `aria_policy_drafts` and `aria_policy_versions` have a cyclic foreign key
+  that SQLite tolerates and PostgreSQL rejects at `CREATE TABLE`, so
+  `init_db()` failed outright on real PG. Fixed (`database.py`'s
+  `_break_pg_fk_cycle` + deferred FK re-add in `_run_pg_alters`) and now
+  covered by real-PostgreSQL tests. Those tests (`tests/test_postgres_init.py`)
+  are opt-in and skip unless a disposable PostgreSQL is provided, so the
+  default suite still runs SQLite-only:
+
+  ```
+  docker run -d --name pg -e POSTGRES_PASSWORD=pg -e POSTGRES_DB=t -p 55432:5432 postgres:18
+  TEST_DATABASE_URL="postgresql://postgres:pg@localhost:55432/t" python -m pytest tests/test_postgres_init.py -v
+  ```
+
+  This proves fresh init, upgrade, idempotency, and FK enforcement on real
+  PG -- but it is *schema* coverage, not full behavioral coverage. The rest
+  of the workflow's logic is still exercised only on SQLite, so a broader
+  real-PG acceptance run (the whole suite against PostgreSQL, plus the
+  browser scenarios on a PG-backed deployment) remains a prerequisite for
+  production enablement. Run the PG init tests as part of every release
+  acceptance; never point `TEST_DATABASE_URL` at a real database (each test
+  wipes the `public` schema).
 - **Local conversion is verified; visual and VPS acceptance are not.** On
   2026-09-20 the pinned worker image converted the real 13-page
   `ThemisIQ_System_Manual.docx` and the strict output validator accepted the

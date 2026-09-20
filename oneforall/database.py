@@ -4167,9 +4167,45 @@ def _to_pg_schema(sql: str) -> str:
     return sql
 
 
+# Names of the three forward FKs stripped from aria_policy_drafts's PG CREATE
+# and re-added as deferred constraints in _run_pg_alters. Kept as data so the
+# stripper and the re-adder cannot drift apart.
+_ARIA_DRAFTS_DEFERRED_FKS = [
+    ("fk_aria_drafts_base_version",      "base_version_id"),
+    ("fk_aria_drafts_copied_version",    "copied_from_version_id"),
+    ("fk_aria_drafts_committed_version", "committed_version_id"),
+]
+
+
+def _break_pg_fk_cycle(sql: str) -> str:
+    """PostgreSQL, unlike SQLite, rejects an inline REFERENCES to a table
+    that does not exist yet. aria_policy_drafts is created before
+    aria_policy_versions but carries three forward FKs to it
+    (base_version_id, copied_from_version_id, committed_version_id), while
+    aria_policy_versions references back (draft_id) -- a genuine cycle
+    SQLite tolerates and PG rejects at DDL time (UndefinedTable). Strip
+    those three inline FKs from the aria_policy_drafts CREATE so the table
+    builds with plain INTEGER columns; they are re-added as named
+    constraints in _run_pg_alters once aria_policy_versions exists (see
+    _ARIA_DRAFTS_DEFERRED_FKS). Scoped to the aria_policy_drafts block so
+    the valid self-reference inside aria_policy_versions (base_version_id
+    -> its own id) and every forward-safe REFERENCES aria_policy_versions
+    in later tables are left exactly as they are. This is the only FK
+    cycle in the entire schema (verified across all 179 tables)."""
+    m = re.search(
+        r'CREATE TABLE IF NOT EXISTS aria_policy_drafts\s*\(.*?\n\);',
+        sql, re.S,
+    )
+    if not m:
+        return sql
+    block = m.group(0)
+    stripped = block.replace(" REFERENCES aria_policy_versions(id)", "")
+    return sql[:m.start()] + stripped + sql[m.end():]
+
+
 _SHARED_TABLES_PG    = _to_pg_schema(_SHARED_TABLES)
 _PLATFORM_TABLES_PG  = _to_pg_schema(_PLATFORM_TABLES)
-_ARIA_TABLES_PG      = _to_pg_schema(_ARIA_TABLES)
+_ARIA_TABLES_PG      = _break_pg_fk_cycle(_to_pg_schema(_ARIA_TABLES))
 _GRID_TABLES_PG      = _to_pg_schema(_GRID_TABLES)
 _BCM_TABLES_PG       = _to_pg_schema(_BCM_TABLES)
 _SENTINEL_TABLES_PG  = _to_pg_schema(_SENTINEL_TABLES)
@@ -5851,6 +5887,36 @@ def _run_pg_alters(conn) -> None:
         except Exception:
             pass
     conn.commit()
+
+    # PLAN-35 acceptance fix: re-add aria_policy_drafts' three forward FKs to
+    # aria_policy_versions, which _break_pg_fk_cycle stripped from the PG
+    # CREATE to break a cycle PG rejects at DDL time. Both tables exist by
+    # now. Scoped to current_schema() so this is correct for the public
+    # schema AND every tenant schema, since _apply_tenant_schema_ddl calls
+    # this function with search_path set to the tenant. Idempotent by an
+    # explicit existence check (PG has no ADD CONSTRAINT IF NOT EXISTS for
+    # foreign keys); commit per constraint so a later failure can never roll
+    # back an earlier success, matching _run_pg_fk_cascades' own idiom.
+    for cname, col in _ARIA_DRAFTS_DEFERRED_FKS:
+        try:
+            exists = conn.execute(
+                "SELECT 1 FROM information_schema.table_constraints "
+                "WHERE constraint_type='FOREIGN KEY' "
+                "AND table_name='aria_policy_drafts' "
+                "AND constraint_name=%s AND table_schema=current_schema()",
+                (cname,),
+            ).fetchone()
+            if not exists:
+                conn.execute(
+                    f"ALTER TABLE aria_policy_drafts ADD CONSTRAINT {cname} "
+                    f"FOREIGN KEY ({col}) REFERENCES aria_policy_versions(id)"
+                )
+                conn.commit()
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
 
 
 def _run_pg_fk_cascades(conn) -> None:

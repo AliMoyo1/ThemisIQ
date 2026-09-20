@@ -3524,6 +3524,97 @@ function-level and mocked-fetch verification actually performed) was not
 run, given the scale of this round; and the other nine schedulers sharing
 `scheduler_locks`' underlying exposure have not been migrated to use it.
 
+### T11 production-acceptance fix (2026-09-20): the PostgreSQL DDL cycle
+
+A production-readiness acceptance pass returned NO-GO on `041edec`. Its
+top blocker was the one thing this entire plan had repeatedly flagged as
+unverified and could never test in-environment: PostgreSQL. `init_db()`
+against a real PostgreSQL fails immediately with `UndefinedTable: relation
+"aria_policy_versions" does not exist`, on both a fresh database and an
+upgrade. Confirmed real, root-caused, fixed, and -- for the first time in
+this plan -- verified against an actual PostgreSQL 18.6 instance (the same
+major version production runs).
+
+**Root cause.** `aria_policy_drafts` is created before `aria_policy_versions`
+but carries three forward foreign keys to it (`base_version_id`,
+`copied_from_version_id`, `committed_version_id`), while
+`aria_policy_versions` references `aria_policy_drafts` back (`draft_id`) --
+a genuine dependency cycle. SQLite does not validate a FK's target table
+at `CREATE TABLE` time, so the forward references are tolerated; PostgreSQL
+validates immediately and rejects the first `CREATE`. `_to_pg_schema` only
+did regex substitutions (SERIAL, TIMESTAMPTZ, DOUBLE PRECISION, PRAGMA
+stripping) and never addressed FK ordering, so `_ARIA_TABLES_PG` still
+emitted the impossible statement. A scan of all 179 tables confirmed this
+is the ONLY such cycle in the schema -- the fix is surgical, not systemic.
+
+**Why 447 passing tests never caught it.** `conftest.py` sets
+`DATABASE_URL=""`, forcing every test onto SQLite so a developer's real DB
+is never touched -- correct for unit tests, but structurally blind to
+SQLite-vs-PostgreSQL DDL differences. Nothing in the suite ever ran
+`init_db()` against PostgreSQL, so a PG-only DDL bug was invisible by
+construction. The acceptance review named this too, and it is the deeper
+finding: the gap was not one bad `CREATE TABLE`, it was having no PG test
+at all.
+
+**The fix (`database.py`).** Two coordinated halves, PostgreSQL-only, SQLite
+path untouched:
+1. `_break_pg_fk_cycle()` strips the three inline `REFERENCES
+   aria_policy_versions(id)` clauses from the `aria_policy_drafts` block of
+   the PG schema string (scoped to that one CREATE, so
+   `aria_policy_versions`' own valid self-reference and every forward-safe
+   reference in later tables are left exactly as-is). The columns remain
+   plain `INTEGER`. Applied as `_ARIA_TABLES_PG =
+   _break_pg_fk_cycle(_to_pg_schema(_ARIA_TABLES))`.
+2. `_run_pg_alters()` re-adds the three FKs as named constraints
+   (`fk_aria_drafts_base_version` / `_copied_version` / `_committed_version`,
+   kept as the shared `_ARIA_DRAFTS_DEFERRED_FKS` data so the stripper and
+   re-adder cannot drift) once both tables exist, idempotently via an
+   existence check (PG has no `ADD CONSTRAINT IF NOT EXISTS` for FKs),
+   scoped to `current_schema()`, committing per constraint -- the same
+   idiom `_run_pg_fk_cascades` already uses. Because `_apply_tenant_schema_ddl`
+   also calls `_run_pg_alters` with the search_path set to each tenant
+   schema, this fix covers the public schema AND every tenant schema with
+   no extra code.
+
+**Verified against real PostgreSQL 18.6, not reasoned about.** A throwaway
+`postgres:18` container (Docker is available in this environment after all,
+which overturns this plan's earlier "no PG testing possible" premise). New
+file `tests/test_postgres_init.py`, four tests, opt-in via a new
+`TEST_DATABASE_URL` env var so the default SQLite suite is completely
+unaffected (they skip -- `ssss` -- when it is unset):
+- fresh `init_db()` builds the whole workflow schema and all three deferred
+  FKs;
+- a second `init_db()` (upgrade over an initialized DB) is idempotent and
+  does not duplicate the constraints;
+- a faithful `edffc9a -> 041edec` upgrade (init fully, DROP the workflow
+  tables as production -- 15 commits behind -- lacks them, re-init) brings
+  them back cleanly against a DB already holding every other table;
+- the re-added FK is actually ENFORCED (a draft pointing at a nonexistent
+  version id is rejected), not merely present in the catalog.
+Proven to be a real regression guard, not a vacuous pass: `git stash`-ing
+the fix and re-running reproduced the exact `psycopg2.errors.UndefinedTable`
+at `database.py:6107`, then `git stash pop` restored it and the tests
+passed. The full suite was also run with `TEST_DATABASE_URL` set (SQLite
+and real-PG tests together in one process): `EXIT_CODE=0`, proving the
+fixture's teardown restores SQLite mode with no cross-contamination.
+
+**Environment note, not a code change.** The full suite would not collect
+until local `pypdf` was upgraded to `6.19.0` -- the version `041edec`
+already pins in `requirements-preview.txt`, which a stale local env simply
+had not installed. No repo change; the pin was already correct.
+
+**Still NO-GO for deployment, and nothing here changes that.** This fix
+clears the single hardest *code* blocker, but every other acceptance
+finding stands and is out of this pass's chosen scope: production still
+runs `edffc9a`; the app service runs as root with no systemd hardening;
+`.env` is world-readable; `project-app-1` is crash-looping; 62 OS updates
+and a reboot are pending; the preview image must be published by registry
+digest; and the deploy-with-authoring-disabled-then-enable-approved-orgs
+sequence has not been run. The `/forgot-password` dead link, `/favicon.ico`
+404, and login-page accessibility gaps are confirmed but likewise out of
+this pass. These remain the operator's to action on the VPS / in a later
+pass; they were not touched here.
+
 ## 17. Primary references for the selected preview/rendering components
 
 These establish component capabilities, not a security endorsement of any
