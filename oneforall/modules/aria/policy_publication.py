@@ -390,12 +390,40 @@ def process_job(db, job: dict, is_postgres: bool) -> str:
         user_id=version.get("approved_by"),
         org_id=job.get("org_id"),
         # Keyed by this job's own unique publication_key so a crash/lease
-        # reclaim between here and the "mark complete" write below can
-        # never re-run handlers or re-dispatch webhooks on replay -- the
-        # vault/GRID copies above are separately idempotent, but emit()'s
-        # side effects (tasks, notifications, workflows, webhooks) are not.
+        # reclaim between here and the "mark complete" write below reruns
+        # delivery on replay instead of silently skipping it -- the
+        # vault/GRID copies above are separately idempotent on their own
+        # terms, and emit()'s own side effects now carry the same
+        # guarantee for the two that matter here (a duplicate task or
+        # workflow instance), but a handler can still genuinely fail (a
+        # DB error, a bad workflow definition) -- that is exactly what the
+        # status check right below exists to catch.
         dedup_key=job["publication_key"],
     )
+
+    # PLAN-35 T11 review fix: emit() can return a real event_id whose
+    # delivery did not actually finish successfully (a handler raised, or
+    # the webhook handoff itself failed) -- emit() swallows those
+    # internally by design (a source operation must never fail because a
+    # downstream handler did), so this job must check for itself rather
+    # than assume "got an id back" means "delivered". Marking this job
+    # 'complete' regardless would have made a real delivery failure
+    # invisible to the only retry mechanism this workflow has: retry_now
+    # only accepts a job already in state='failed', and the scheduler only
+    # claims 'pending'/'running' jobs -- a 'complete' job with a silently
+    # failed event had no path back into either. Routing it through the
+    # existing backoff/max-attempts machinery instead means a genuinely
+    # stuck handler eventually reaches state='failed' the normal way, at
+    # which point the existing manual retry action actually works, and a
+    # transient failure resolves itself on the next automatic attempt --
+    # both without inventing a second, parallel retry mechanism.
+    event_status = db.execute("SELECT status FROM events WHERE id=%s", (event_id,)).fetchone()
+    if not event_status or event_status["status"] != "processed":
+        return _schedule_retry_or_fail(
+            db, job,
+            f"Event delivery did not complete (status="
+            f"{event_status['status'] if event_status else 'missing'}).",
+        )
 
     now_iso = utcnow().isoformat()
     updated = db.execute(

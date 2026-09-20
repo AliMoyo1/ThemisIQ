@@ -510,8 +510,19 @@
 
   /** Submit-for-approval mini-form: wires `formEl` (must contain a
    * <select> and a submit <button>, found by data attributes) for the
-   * given confirmed, not-yet-submitted version. */
-  async function initSubmitForApprovalForm(formEl, selectEl, noteEl, emptyEl, btnEl, version) {
+   * given confirmed, not-yet-submitted version. onSubmitted (optional): a
+   * real JS function called after a successful submit, so the caller can
+   * refresh whatever it displayed the version/publication state in.
+   *
+   * PLAN-35 T11 review fix: this used to read formEl.dataset.onSubmitted
+   * and check `typeof ... === 'function'` before calling it -- a DOM
+   * dataset property is a live HTML data-* attribute, which the DOM spec
+   * defines as always a string (or undefined if absent), so that check
+   * could never be true and the callback could never run no matter what a
+   * caller assigned to it. Nothing in this codebase ever assigned it
+   * either, so the bug was fully invisible in practice: the form always
+   * just hid itself with no follow-up refresh. */
+  async function initSubmitForApprovalForm(formEl, selectEl, noteEl, emptyEl, btnEl, version, onSubmitted) {
     if (!formEl || !selectEl || !btnEl) return;
     var res = await api.listApprovers(version.id);
     var approvers = (res.ok && res.data.approvers) || [];
@@ -537,8 +548,8 @@
         return;
       }
       toast('Submitted for approval.', 'success');
-      if (typeof formEl.dataset.onSubmitted === 'function') formEl.dataset.onSubmitted();
       formEl.style.display = 'none';
+      if (typeof onSubmitted === 'function') onSubmitted();
     };
   }
 

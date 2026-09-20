@@ -49,8 +49,12 @@ def _notify(db, user_id, module, title, message, link=None):
         )
 
 
-def _notify_admins(db, module, title, message, link=None):
-    """Send a notification to every admin/super_admin user. Logs failures."""
+def _notify_admins(db, module, title, message, link=None) -> bool:
+    """Send a notification to every admin/super_admin user. Logs failures
+    and never raises. Returns whether the lookup/dispatch itself completed
+    without error (existing callers that ignore the return value are
+    unaffected -- this was always None/falsy on the same failure path
+    before, just never checked)."""
     try:
         rows = db.execute(
             "SELECT DISTINCT u.id FROM users u "
@@ -59,11 +63,13 @@ def _notify_admins(db, module, title, message, link=None):
         ).fetchall()
         for r in rows:
             _notify(db, r[0], module, title, message, link)
+        return True
     except Exception as exc:
         log.warning(
             "Failed to dispatch admin notification (module=%s, title=%r): %s",
             module, title, exc,
         )
+        return False
 
 
 def _insert_risk(db, title, description, source_module, entity_type,
@@ -86,9 +92,33 @@ def _insert_risk(db, title, description, source_module, entity_type,
 
 
 def _insert_task(db, title, description, module, entity_type, entity_id,
-                 priority, user_id):
-    """Insert into task_board.  Returns lastrowid or None."""
+                 priority, user_id, source_event_id=None):
+    """Insert into task_board. Returns lastrowid, an existing row's id (see
+    source_event_id below), or None on failure.
+
+    source_event_id (PLAN-35 T11 review fix): pass the id of the events row
+    that triggered this task when the caller might be replayed for the
+    exact same event occurrence (core/events.py's emit() now reruns a
+    handler whose delivery never reached 'processed', not just one that
+    never started) -- without it, a replay created a second, duplicate
+    task every time. Omit it (the default, and every pre-existing caller)
+    for a plain, unguarded insert, unchanged from before."""
     try:
+        if source_event_id is not None:
+            cur = insert_returning_id(db,
+                "INSERT INTO task_board (title, description, module, entity_type, "
+                "entity_id, priority, status, created_by, source_event_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "ON CONFLICT (source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING",
+                (title, description, module, entity_type, entity_id,
+                 priority, "todo", user_id, source_event_id),
+            )
+            if cur is None:
+                existing = db.execute(
+                    "SELECT id FROM task_board WHERE source_event_id=%s", (source_event_id,)
+                ).fetchone()
+                return existing[0] if existing else None
+            return cur
         cur = insert_returning_id(db,
             "INSERT INTO task_board (title, description, module, entity_type, "
             "entity_id, priority, status, created_by) "
@@ -351,7 +381,7 @@ def flag_risk_on_control_failure(event_type, source_module, entity_type,
 
 @on("aria.policy.published")
 def policy_published_handler(event_type, source_module, entity_type,
-                             entity_id, payload, user_id, **kw):
+                             entity_id, payload, user_id, event_id=None, **kw):
     """
     When ARIA publishes a policy:
     - Create a task to review evidence alignment
@@ -359,6 +389,28 @@ def policy_published_handler(event_type, source_module, entity_type,
     - Sync the document to the Evidence Vault (legacy documents only --
       see the version_id branch below)
     - Notify admins
+
+    PLAN-35 T11 review fix: every one of the four steps above used to be
+    called without checking its own result, and the whole function body
+    was wrapped in a blanket except that only logged -- so events.emit()
+    always saw this handler as "successful" and marked the event
+    'processed' even when task creation, cross-module linking, or the
+    admin notification silently failed underneath. Now the managed-publication
+    branch (the one PLAN-35 policies actually take) collects each step's
+    real outcome and raises once, after attempting all of them, if any
+    failed -- so a genuine failure reaches emit()'s handler loop and the
+    event is correctly retried later instead of hiding it forever. Nothing
+    commits when that happens (the finally below closes the connection
+    without a prior commit, which rolls back this attempt's partial work),
+    so a retry starts clean rather than layering a second attempt on top
+    of a half-done first one. event_id (new, passed by emit() -- every
+    handler already accepts **kw, so this is safe for the other 49) makes
+    the task-creation retry idempotent via _insert_task's source_event_id;
+    the cross-module link is already idempotent on its own (core/links.py's
+    ON CONFLICT DO NOTHING), and the admin notification is intentionally
+    NOT deduplicated -- redundant admin notifications on a rare replay are
+    an acceptable, minor annoyance next to the alternative of never
+    surfacing the retry at all.
     """
     # PLAN-35 T09 (section 10.3): "For managed-version events, existing
     # policy handlers must read the specified snapshot or delegate to this
@@ -376,9 +428,10 @@ def policy_published_handler(event_type, source_module, entity_type,
         title = payload.get("title", f"Policy #{entity_id}")
         framework = payload.get("framework", "")
         control_ref = payload.get("control_ref", "")
+        failures = []
 
         # Task: review evidence alignment for the new policy
-        _insert_task(
+        task_id = _insert_task(
             db,
             title=f"Review evidence for: {title}",
             description=(
@@ -386,10 +439,12 @@ def policy_published_handler(event_type, source_module, entity_type,
                 f"Verify that supporting evidence is linked and up to date."
             ),
             module="aria", entity_type="document", entity_id=entity_id,
-            priority="high", user_id=user_id,
+            priority="high", user_id=user_id, source_event_id=event_id,
         )
+        if task_id is None:
+            failures.append("review task")
 
-        # Cross-module link: policy → evidence vault (available for linking)
+        # Cross-module link: policy → matching GRID controls
         if control_ref:
             refs = [r.strip() for r in control_ref.split(",") if r.strip()]
             for ref in refs:
@@ -398,20 +453,30 @@ def policy_published_handler(event_type, source_module, entity_type,
                     (ref,)
                 ).fetchone()
                 if ctrl_row:
-                    create_cross_module_link(
+                    link_id = create_cross_module_link(
                         "aria", "document", entity_id,
                         "grid", "control", ctrl_row[0],
                         relationship="implements", user_id=user_id, db=db,
                     )
+                    if link_id is None:
+                        failures.append(f"GRID link for control {ref}")
 
         if is_managed_publication:
-            _notify_admins(
+            notified = _notify_admins(
                 db, "aria",
                 f"Policy Published: {title}",
                 f"ARIA policy '{title}' approved (version {payload.get('version')}) "
                 f"— synced to the Evidence Vault.",
                 "/aria/#documents",
             )
+            if not notified:
+                failures.append("admin notification")
+
+            if failures:
+                raise RuntimeError(
+                    f"policy_published_handler: {', '.join(failures)} did not complete "
+                    f"for document {entity_id}."
+                )
             db.commit()
             log.info("Handled managed policy published for '%s' (id=%d, version_id=%s)",
                       title, entity_id, payload.get("version_id"))
@@ -532,17 +597,33 @@ def policy_published_handler(event_type, source_module, entity_type,
             log.info("Synced ARIA policy '%s' → vault #%d (%s bytes)", title, vault_id, ev_size)
         except Exception as ev_exc:
             log.warning("Failed to sync ARIA policy to vault: %s", ev_exc)
+            # Retry-safe to surface: the existing_vault lookup just above
+            # already makes this block a find-or-update, not a blind
+            # insert, so a replay after this failure cannot duplicate it.
+            failures.append("legacy evidence vault sync")
 
-        _notify_admins(
+        notified = _notify_admins(
             db, "aria",
             f"Policy Published: {title}",
             f"ARIA policy '{title}' approved — added to Evidence Vault.",
             "/aria/#documents",
         )
+        if not notified:
+            failures.append("admin notification")
+
+        if failures:
+            raise RuntimeError(
+                f"policy_published_handler: {', '.join(failures)} did not complete "
+                f"for document {entity_id}."
+            )
         db.commit()
         log.info("Handled policy published for '%s' (id=%d)", title, entity_id)
     except Exception as e:
         log.warning("policy_published_handler error: %s", e)
+        raise  # PLAN-35 T11 review fix: let emit() see a genuine failure
+        # instead of silently absorbing it -- an unresolved failure here
+        # used to make events.emit() mark the event 'processed' regardless
+        # of what actually happened inside this handler.
     finally:
         db.close()
 
@@ -2987,25 +3068,60 @@ _WORKFLOW_TRIGGER_MAP = {
 
 
 def _auto_trigger_workflows(db, event_type: str, source_module: str,
-                            entity_type: str, entity_id: int, user_id: int) -> None:
-    """Start workflow instances for any active definitions that match this event."""
+                            entity_type: str, entity_id: int, user_id: int,
+                            event_id: int | None = None) -> None:
+    """Start workflow instances for any active definitions that match this
+    event.
+
+    PLAN-35 T11 review fix: this used to unconditionally INSERT a new
+    workflow_instances row (no idempotency at all) and swallow every
+    exception itself, so events.emit() could never see this fail -- and if
+    it now DID see a failure and replayed the handler, a plain reinsert
+    would have created a duplicate instance for the exact same event
+    occurrence. event_id (passed by every workflow_trigger_on_* wrapper
+    below, itself passed through from emit()) fixes both at once: ON
+    CONFLICT DO NOTHING keyed on (definition_id, event_id) makes a replay
+    of this exact event a safe no-op per definition, and the outer swallow
+    is gone so a genuine failure (a bad steps_json, a DB error) now
+    propagates to emit()'s handler loop instead of being logged and
+    forgotten. entity_id alone would be the wrong key: a document
+    published again after a later revision must still get its own new
+    instance, not be silently deduplicated against its first publication --
+    only (definition_id, event_id) identifies "this exact attempt already
+    ran", which is the only thing an idempotency check should ever mean
+    here. event_id is optional (default None) so any future direct caller
+    that has no event to correlate against still gets a plain, unguarded
+    insert, unchanged from before.
+    """
     trigger = _WORKFLOW_TRIGGER_MAP.get(event_type)
     if not trigger:
         return
     trigger_module, trigger_action = trigger
-    try:
-        defns = db.execute(
-            "SELECT id, name, steps_json FROM workflow_definitions "
-            "WHERE is_active = 1 AND trigger_module = %s AND trigger_action = %s",
-            (trigger_module, trigger_action)
-        ).fetchall()
-        if not defns:
-            return
+    defns = db.execute(
+        "SELECT id, name, steps_json FROM workflow_definitions "
+        "WHERE is_active = 1 AND trigger_module = %s AND trigger_action = %s",
+        (trigger_module, trigger_action)
+    ).fetchall()
+    if not defns:
+        return
 
-        from database import insert_returning_id
-        import json as _json
+    from database import insert_returning_id
+    import json as _json
 
-        for defn in defns:
+    for defn in defns:
+        if event_id is not None:
+            iid = insert_returning_id(
+                db,
+                "INSERT INTO workflow_instances "
+                "(definition_id, entity_module, entity_type, entity_id, started_by, source_event_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (definition_id, source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING",
+                (defn["id"], source_module, entity_type, entity_id, user_id, event_id)
+            )
+            if iid is None:
+                # Already started by an earlier attempt at this same event.
+                continue
+        else:
             iid = insert_returning_id(
                 db,
                 "INSERT INTO workflow_instances "
@@ -3013,81 +3129,78 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
                 "VALUES (%s,%s,%s,%s,%s)",
                 (defn["id"], source_module, entity_type, entity_id, user_id)
             )
-            db.commit()
-            steps = _json.loads(defn["steps_json"]) if defn["steps_json"] else []
-            if steps:
-                from modules.launcher.routes_workflows import _create_step_action
-                _create_step_action(db, iid, 0, steps[0], defn["name"])
-            log.info(
-                "Auto-triggered workflow '%s' (instance=%d) for %s/%s/%d",
-                defn["name"], iid, source_module, entity_type, entity_id
-            )
-    except Exception as exc:
-        log.warning("_auto_trigger_workflows failed for %s: %s", event_type, exc)
+        db.commit()
+        steps = _json.loads(defn["steps_json"]) if defn["steps_json"] else []
+        if steps:
+            from modules.launcher.routes_workflows import _create_step_action
+            _create_step_action(db, iid, 0, steps[0], defn["name"])
+        log.info(
+            "Auto-triggered workflow '%s' (instance=%d) for %s/%s/%d",
+            defn["name"], iid, source_module, entity_type, entity_id
+        )
 
 
 @on(ARIA_POLICY_PUBLISHED)
 def workflow_trigger_on_aria_policy(event_type, source_module, entity_type,
-                                    entity_id, payload, user_id, **kw):
-    """This is the one handler reachable through events.emit()'s
-    dedup_key replay path (policy_publication.py is currently the only
-    dedup_key caller). _auto_trigger_workflows unconditionally inserts a
-    new workflow_instances row with no check for an existing one, so it is
-    NOT idempotent -- a replay landing after this handler already
-    succeeded once, but before the event's aggregate status could be
-    recorded as 'processed' (a crash, or a later handler/webhook step
-    failing), creates a second workflow instance for the same publication.
-    Accepted for now: the alternative was a guaranteed, permanent loss of
-    this handler's delivery on that same crash, which is worse, and this
-    handler is the only one on this path today. A real fix needs
-    workflow_instances to record which event occurrence created it, so a
-    replay can recognize its own earlier attempt instead of guessing from
-    (definition_id, entity_id) alone -- a legitimate second publication of
-    the same document (a later revision) must still get its own instance,
-    so that lookup cannot use entity_id alone either."""
+                                    entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+    except Exception as exc:
+        log.warning("workflow_trigger_on_aria_policy failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
 
 @on(BCM_INCIDENT_DECLARED)
 def workflow_trigger_on_bcm_incident(event_type, source_module, entity_type,
-                                     entity_id, payload, user_id, **kw):
+                                     entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+    except Exception as exc:
+        log.warning("workflow_trigger_on_bcm_incident failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
 
 @on(SENTINEL_BREACH_CONFIRMED)
 def workflow_trigger_on_sentinel_breach(event_type, source_module, entity_type,
-                                        entity_id, payload, user_id, **kw):
+                                        entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+    except Exception as exc:
+        log.warning("workflow_trigger_on_sentinel_breach failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
 
 @on(ERM_RISK_ESCALATED)
 def workflow_trigger_on_erm_risk(event_type, source_module, entity_type,
-                                 entity_id, payload, user_id, **kw):
+                                 entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+    except Exception as exc:
+        log.warning("workflow_trigger_on_erm_risk failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 
 
 @on(GRID_AUDIT_COMPLETED)
 def workflow_trigger_on_grid_audit(event_type, source_module, entity_type,
-                                   entity_id, payload, user_id, **kw):
+                                   entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+    except Exception as exc:
+        log.warning("workflow_trigger_on_grid_audit failed for %s: %s", event_type, exc)
+        raise
     finally:
         db.close()
 

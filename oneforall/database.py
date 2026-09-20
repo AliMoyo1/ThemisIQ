@@ -508,6 +508,64 @@ def insert_returning_id(db, sql: str, params):
     return cur.lastrowid if cur.rowcount != 0 else None
 
 
+def try_acquire_scheduler_lock(db, lock_name: str, lease_seconds: int) -> bool:
+    """Cross-process lease lock backed by the scheduler_locks table (PLAN-35
+    T11 review fix). APScheduler's own max_instances=1 only guards one
+    process's scheduler against overlapping itself; it does nothing for a
+    second Uvicorn worker process running its own separate scheduler
+    instance against the same database, which is exactly this
+    application's production topology (scripts/deploy.py: --workers 2).
+
+    Returns True and marks the lock held (by this call) until lease_seconds
+    from now if no other holder's lease is still valid; False if another
+    process's lease has not expired yet, in which case the caller must
+    skip this run entirely, not wait for it.
+
+    Uses the same claim convention as policy_publication.claim_next_job /
+    policy_access.reserve_document_number: BEGIN IMMEDIATE on SQLite
+    (whole-database write lock, released at the commit below), SELECT ...
+    FOR UPDATE on PostgreSQL (row-level). The lock row is created on first
+    use (INSERT) or extended (UPDATE) within that same locked read, so two
+    processes racing to create the row for the first time cannot both
+    "win" -- one blocks on the other's transaction, exactly the property a
+    lock needs.
+    """
+    from core.timeutils import utcnow
+    now_iso = utcnow().isoformat()
+    lease_until = (utcnow() + _dt.timedelta(seconds=lease_seconds)).isoformat()
+    is_pg = settings.is_postgres()
+
+    if is_pg:
+        row = db.execute(
+            "SELECT locked_until FROM scheduler_locks WHERE lock_name=%s FOR UPDATE",
+            (lock_name,),
+        ).fetchone()
+    else:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute(
+            "SELECT locked_until FROM scheduler_locks WHERE lock_name=%s",
+            (lock_name,),
+        ).fetchone()
+
+    if row and row["locked_until"] and row["locked_until"] >= now_iso:
+        if not is_pg:
+            db.rollback()  # release the BEGIN IMMEDIATE lock; we did not acquire it
+        return False
+
+    if row:
+        db.execute(
+            "UPDATE scheduler_locks SET locked_until=%s WHERE lock_name=%s",
+            (lease_until, lock_name),
+        )
+    else:
+        db.execute(
+            "INSERT INTO scheduler_locks (lock_name, locked_until) VALUES (%s,%s)",
+            (lock_name, lease_until),
+        )
+    db.commit()
+    return True
+
+
 # ── Engine-portable date/time SQL helpers ─────────────────────────────────────
 
 def sql_now_offset(offset_expr: str) -> str:
@@ -2164,6 +2222,23 @@ CREATE TABLE IF NOT EXISTS aria_policy_publication_jobs (
     updated_at         TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_aria_publication_jobs_due ON aria_policy_publication_jobs(state, next_attempt_at);
+
+-- PLAN-35 T11 review fix: a small, generic, cross-process lease lock.
+-- The production systemd unit runs multiple Uvicorn workers
+-- (scripts/deploy.py), each starting its own APScheduler instance;
+-- max_instances=1 on a job only prevents that ONE process's scheduler
+-- from overlapping a slow run with its own next tick, not from another
+-- worker's separate scheduler running the same job at the same time.
+-- ARIA's retention sweep (modules/aria/scheduler.py) is the first and
+-- only adopter today, but the table and helper (database.py's
+-- try_acquire_scheduler_lock) are deliberately not ARIA-specific, so the
+-- other nine module schedulers sharing this exact multi-worker exposure
+-- can adopt the same lock later without a new table.
+CREATE TABLE IF NOT EXISTS scheduler_locks (
+    lock_name     TEXT PRIMARY KEY,
+    locked_until  TEXT NOT NULL,
+    locked_by     TEXT
+);
 """
 
 _GRID_TABLES = """
@@ -4163,6 +4238,15 @@ _COLUMN_MIGRATIONS = [
         # (e.g. a publication_key) so a crash/lease-reclaim replay of the
         # same logical event never re-runs handlers/webhooks a second time.
         ("events", "dedup_key", "TEXT"),
+        # PLAN-35 T11 review fix: correlates a side effect back to the exact
+        # event occurrence that created it, so a dedup_key replay (which
+        # now reruns a handler that never finished, not just a handler that
+        # never started) can recognize its own earlier attempt instead of
+        # creating a duplicate. Nullable: every pre-existing row and every
+        # handler invocation with no dedup_key at all (the vast majority)
+        # simply never sets it, matching current behavior exactly.
+        ("task_board", "source_event_id", "INTEGER REFERENCES events(id)"),
+        ("workflow_instances", "source_event_id", "INTEGER REFERENCES events(id)"),
         # Sentinel DPIA — columns referenced by data_service but missing from CREATE TABLE
         ("sentinel_dpias", "org_name", "TEXT"),
         ("sentinel_dpias", "controller_name", "TEXT"),
@@ -4440,6 +4524,19 @@ def _run_sqlite_alters(conn):
         # checkpoint), duplicated in _run_pg_alters() below for the same
         # reason as the two indexes directly above.
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
+        # PLAN-35 T11 review fix: also correctness constraints (a dedup_key
+        # replay's idempotency for these two specific, previously
+        # non-idempotent event side effects), duplicated in _run_pg_alters()
+        # below for the same reason as the indexes above. task_board has no
+        # legitimate reason for two rows from the same event occurrence, so
+        # source_event_id alone is the key; workflow_instances legitimately
+        # gets one row per matching definition for the same event, so the
+        # pair is the key -- entity_id alone would be wrong either way (a
+        # document published again after a later revision must still get
+        # its own new task/instance, not be deduplicated against its first
+        # publication).
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",
         # S-9: Performance indexes for high-frequency status/regulation filters
         "CREATE INDEX IF NOT EXISTS idx_bcm_incidents_status    ON bcm_incidents(status)",
         "CREATE INDEX IF NOT EXISTS idx_bcm_risks_status        ON bcm_risks(status)",
@@ -5730,6 +5827,8 @@ def _run_pg_alters(conn) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_evidence_items_policy_version ON evidence_items(aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_grid_evidence_control_version ON grid_evidence_files(control_id, aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",
     ):
         try:
             conn.execute(idx_sql)

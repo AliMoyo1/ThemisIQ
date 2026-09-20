@@ -14,7 +14,14 @@ Jobs:
            ARIA_POLICY_TRASH_RETENTION_DAYS
          Runs per organization with its own referenced-paths snapshot, so
          one organization's live drafts/versions never affect another's
-         cleanup pass.
+         cleanup pass. Guarded by a real cross-process lease
+         (database.try_acquire_scheduler_lock, PLAN-35 T11 review fix) so
+         the production multi-worker deployment's several independent
+         scheduler instances cannot all run this at once -- APScheduler's
+         own max_instances=1 only protects one process against itself.
+         Job 1 needs no equivalent guard: it already claims work through a
+         real database lock (policy_publication.claim_next_job), not
+         APScheduler's.
 
 Both jobs are safe to run even when no organization has policy authoring
 enabled yet: an empty queue/no stale drafts is a fast no-op, matching every
@@ -30,7 +37,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from database import get_db_background as get_db, list_active_tenants, tenant_context
+from database import get_db_background as get_db, list_active_tenants, tenant_context, try_acquire_scheduler_lock
 from modules.aria import policy_publication, policy_storage, policy_workflow_service as svc
 
 log = logging.getLogger("aria.scheduler")
@@ -74,15 +81,41 @@ def _drain_publication_queue() -> None:
 # Job 2 — Retention (section 7.5)
 # ─────────────────────────────────────────────────────────────────────────────
 
+_RETENTION_LOCK_NAME = "aria_retention_sweep"
+_RETENTION_LOCK_LEASE_SECONDS = 3600  # generous vs. a once-daily job; see below
+
+
 def _retention_sweep() -> None:
-    """max_instances=1 on this job (see start_scheduler) is what actually
-    prevents a slow run from overlapping the next scheduled tick; this
-    function does not need its own guard for that.
+    """max_instances=1 on this job (see start_scheduler) only prevents a
+    slow run from overlapping ITS OWN process's next scheduled tick. The
+    production deployment runs multiple Uvicorn workers
+    (scripts/deploy.py: --workers 2), each with its own APScheduler
+    instance, so that guard alone does nothing to stop a second worker's
+    scheduler from starting this exact same sweep at the same 02:00 UTC
+    tick (PLAN-35 T11 review finding). Guarded here with a real
+    cross-process lease (database.try_acquire_scheduler_lock) instead: the
+    losing worker logs and returns immediately rather than duplicating the
+    whole sweep. A 1-hour lease is generous for a job that runs once a day
+    -- long enough to cover a genuinely slow sweep across many tenants,
+    short enough that a worker crashing mid-sweep does not block tomorrow's
+    run, which starts nearly 23 hours later.
 
     Binds each active tenant's context in turn (see _drain_publication_queue's
     docstring) around that org's own slice of the sweep, so drafts/versions
     living in a non-default tenant schema are actually reached, not silently
     skipped."""
+    lock_db = get_db()
+    try:
+        acquired = try_acquire_scheduler_lock(lock_db, _RETENTION_LOCK_NAME, _RETENTION_LOCK_LEASE_SECONDS)
+    except Exception as exc:
+        log.warning("ARIA retention: could not acquire scheduler lock, skipping this run: %s", exc)
+        return
+    finally:
+        lock_db.close()
+    if not acquired:
+        log.info("ARIA retention: another worker already holds the lock, skipping this run.")
+        return
+
     try:
         from config import settings
         grace_hours = settings.ARIA_POLICY_ORPHAN_GRACE_HOURS

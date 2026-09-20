@@ -555,13 +555,13 @@
    never renders a policy body directly). #}
 <script src="/static/vendor/aria-policy/marked.umd.js"></script>
 <script src="/static/vendor/aria-policy/purify.min.js"></script>
-<script src="/static/js/aria_markdown.js?v=1"></script>
+<script src="/static/js/aria_markdown.js?v=2"></script>
 <script type="module">
   import * as pdfjsLib from '/static/vendor/aria-policy/pdfjs/pdf.min.mjs';
   window.pdfjsLib = pdfjsLib;
 </script>
 <script src="/static/js/aria_pdf_viewer.js?v=1"></script>
-<script src="/static/js/aria_policy_workflow.js?v=1"></script>
+<script src="/static/js/aria_policy_workflow.js?v=2"></script>
 
 <script>
 // ── Framework checkbox + control ref logic ──────────────────────────────────
@@ -911,7 +911,18 @@ async function openEditModal(doc) {
         await AriaPolicyWorkflow.ui.initSubmitForApprovalForm(
           submitFormEl, document.getElementById('edit-approver-select'),
           document.getElementById('edit-submit-note'), document.getElementById('edit-submit-empty'),
-          document.getElementById('edit-submit-btn'), version
+          document.getElementById('edit-submit-btn'), version,
+          // PLAN-35 T11 review fix: a real callback (the previous
+          // formEl.dataset.onSubmitted check could never actually run --
+          // a dataset value is always a string, never typeof 'function').
+          // Refreshes both panels with fresh data and hides the
+          // now-stale submit section, rather than leaving the page
+          // showing pre-submission state after a successful submit.
+          function () {
+            submitSection.style.display = 'none';
+            AriaPolicyWorkflow.ui.renderVersionHistory(document.getElementById('edit-version-history'), doc);
+            AriaPolicyWorkflow.ui.renderPublicationStatus(document.getElementById('edit-publication-status'), doc);
+          }
         );
       } else {
         submitSection.style.display = 'none';

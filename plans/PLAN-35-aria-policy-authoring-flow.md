@@ -3331,6 +3331,199 @@ directly" issue as the earlier gate-placement pass and was fixed the same
 way; once again after every fix and every new test above): both times,
 `EXIT_CODE=0`, zero failures or errors.
 
+### T11 second external review-fix pass (2026-09-20): the previous fix wasn't enough
+
+A third review round, on the SAME event-delivery/publication code the
+prior pass just fixed, found that fix's mechanism was structurally sound
+but did not actually help the real handlers: they were built (long before
+PLAN-35) to catch and log their own exceptions rather than raise, so
+`emit()`'s new any_failed tracking had nothing to ever observe. 6 findings
+(4 P1, 2 P2), each verified against the real code first.
+
+**P1 -- the real ARIA handlers hide their own failures.**
+`policy_published_handler` (`core/event_handlers.py`, registered via the
+raw string `"aria.policy.published"` -- MISSED by the previous pass's own
+handler audit, which only grepped for the `ARIA_POLICY_PUBLISHED`
+constant, a real gap in that verification, not just a coincidence) called
+`_insert_task`, `create_cross_module_link`, and `_notify_admins` without
+ever checking their return values, inside a function-wide
+`except Exception: log.warning(...)` that swallowed anything else too.
+`_auto_trigger_workflows` (the second handler on this exact event,
+confirmed by the same audit gap) had the identical shape. Both
+independently caught and logged, by design, predating this plan --
+`emit()`'s per-handler try/except could only ever see a handler that
+raises, and neither one ever did, regardless of what actually happened
+inside.
+
+Fixed by making each handler track its own real sub-step outcomes and
+raise once, after attempting everything, if anything failed --
+`policy_published_handler` now checks `_insert_task`'s and
+`create_cross_module_link`'s return values (both already `None`
+on failure) and `_notify_admins`'s new boolean return (added
+non-breakingly: every other existing caller ignores it), and does not
+commit its own transaction on a raise (the `finally: db.close()` then
+rolls back whatever partially succeeded, so a retry starts clean, not
+layered on half-done work). This is a fix, not a refactor for its own
+sake: it directly closes the exact gap the review named ("task creation,
+notifications, GRID resolution, or workflow creation" failing silently).
+
+**Consequence this pass had to fix too, not leave behind**: making these
+handlers raise makes `emit()`'s dedup_key replay (from the FIRST review
+pass) actually fire for them far more often than before -- and
+`_insert_task` (a blind `INSERT`) and `_auto_trigger_workflows` (also a
+blind `INSERT` into `workflow_instances`) were not idempotent against a
+second attempt, exactly the risk the first pass's own comment on
+`workflow_trigger_on_aria_policy` had already flagged and deferred. Fixed
+properly rather than deferred again: `event_id` is now passed to every
+handler (all 50 registered handlers accept `**kwargs` -- confirmed
+directly via `inspect.signature`, not assumed, before relying on it), and
+two new nullable, indexed columns (`task_board.source_event_id`,
+`workflow_instances.source_event_id`) plus `ON CONFLICT DO NOTHING`
+against them make a replay of the exact same event occurrence a safe
+no-op per (definition, event) pair -- while a genuinely later publication
+of the same document (a real revision) still gets its own new task/instance,
+since the key is the event occurrence, never the entity alone. The admin
+notification is deliberately left non-deduplicated -- a redundant
+notification on a rare replay is a minor, acceptable annoyance, not a
+correctness problem worth a third schema column for.
+
+**P1 -- failed event delivery had no production retry path.** Even where
+a handler DID propagate (after the fix above), `process_job`
+(`policy_publication.py`) still unconditionally marked its job
+`'complete'` right after calling `emit()`, regardless of whether delivery
+actually reached `'processed'`. A job stuck this way had no way back into
+either retry mechanism this workflow has: the scheduler only claims
+`'pending'`/`'running'` jobs, and the manual retry action only accepts a
+job already in `state='failed'`. Fixed by checking the event's real status
+immediately after `emit()` returns and routing through the existing
+`_schedule_retry_or_fail` (the same bounded-backoff-then-permanently-failed
+machinery already used for a vault/GRID copy failure) instead of marking
+`'complete'` when it is not `'processed'` -- a transient failure now
+retries automatically, and a genuinely stuck one reaches `state='failed'`
+the normal way, where the existing manual retry action already works,
+rather than inventing a second, parallel retry path.
+
+**P1 -- event delivery could still be lost or duplicated (three sub-points).**
+- *A losing racer returns the winner's id without confirming delivery
+  happened; if the winner then crashes, nobody ran handlers.* Not
+  separately guarded -- mitigated as a direct consequence of the fix just
+  above instead: `process_job` (the only real caller of `dedup_key` in
+  this codebase) now checks the actual event status before trusting it,
+  so a winner that crashed before running handlers leaves a
+  `'pending'`/`'failed'` status that keeps the JOB retryable, rather than
+  the job silently being marked complete on the loser's say-so. `claim_next_job`'s
+  own lease also means true concurrent double-processing of one job is
+  already rare, not the routine case this fix has to assume.
+- *Status was set to `'processed'` before the webhook dispatch handoff,
+  so a crash in that narrow window permanently lost the webhook.*
+  Confirmed and fixed by moving `_set_status(...)` to run after the
+  webhook handoff attempt, folding a failed handoff into the same
+  `any_failed` aggregate that already drives the status. Stated precisely,
+  not oversold: this narrows the crash window (delivery itself still
+  happens later, genuinely unobserved, on `core.webhooks`' own background
+  pool) -- it does not make webhook delivery durable.
+- *Replaying a pending/failed event reruns every handler, and at least two
+  are not idempotent.* This is the same gap as the "consequence" fixed
+  above (task creation, workflow-instance creation) -- both now guarded
+  by the `source_event_id` correlation key.
+
+**The reviewer's own suggested "durable fix" (a full outbox/per-handler
+delivery table with delivery leases) was not built.** Deliberate, stated
+plainly: the fixes above close every concrete failure mode this round
+actually named, using mechanisms already proven elsewhere in this exact
+codebase (idempotency keys, existing retry/backoff, a status check before
+declaring success) rather than a new, larger piece of infrastructure history
+has not yet asked for. If a specific future gap needs it, that is its own
+scoped decision, not something to build speculatively here.
+
+**P2 -- retention lock unsafe across multiple processes: fixed this time,
+not deferred again.** The first review pass (T11 external review-fix
+pass, above) reasoned this was a platform-wide pattern (nine other
+schedulers share the identical shape) not worth a narrow ARIA-only patch,
+and left it open. Raised a second time, so fixed for real rather than
+re-deferred: a new, deliberately generic `scheduler_locks` table and
+`database.try_acquire_scheduler_lock(db, lock_name, lease_seconds)`
+helper (same claim convention as `claim_next_job`/`reserve_document_number`:
+`BEGIN IMMEDIATE` / `SELECT ... FOR UPDATE`), adopted now by
+`_retention_sweep` with a 1-hour lease (generous for a once-daily job;
+short enough that a crashed worker does not block tomorrow's run). The
+table and helper are intentionally not ARIA-specific, so the other nine
+schedulers sharing this exact multi-worker exposure can adopt the same
+lock later without a new table -- narrowing, not eliminating, the
+"inconsistent locking strategy across schedulers" concern the first pass
+raised: ARIA is fixed, the mechanism now exists for the rest, adopting it
+elsewhere is still separate, un-started work.
+
+**P2 -- markdown rendering still contradicted the plan's own section 7.2.**
+Verified directly against the plan text, not re-derived from XSS-safety
+first principles (which is exactly how this was missed originally):
+section 7.2 requires links rendered as **plain text** in this release and
+raw HTML **disabled**, and specifies the missing-library fallback as
+"render with textContent and disable the HTML preview" -- T10's
+`aria_markdown.js` kept `<a>` clickable (with a target/rel hook) and
+returned an empty string on a missing library, both real, both
+independently XSS-safe, neither what section 7.2 actually says. Fixed:
+`a` removed from `ALLOWED_TAGS`/`ALLOWED_ATTR` entirely (DOMPurify drops a
+non-allowed tag's own markup but keeps its text content by default, which
+*is* "plain text", not "gone" -- verified directly, not assumed: a
+javascript: link, an https: link, and raw disallowed tags like `<div>`/`<span>`
+all reduce to their bare text with no surviving tag or attribute); the
+target/rel hook removed as dead code with nothing left to apply to; the
+missing-library fallback changed from returning `''` to
+`el.textContent = markdownText` in `renderInto` (and an HTML-escaped
+equivalent in `render()`, for callers using its string return with
+innerHTML) instead of a blank result; a new `AriaMarkdown.isAvailable()`
+export lets a caller decide whether to offer a reading-preview toggle at
+all. Verified live in a real browser (not just read): a payload battery
+of `<script>`, `<img onerror>`, `<iframe>`, `<form>`/`<input>`, `<svg onload>`,
+a `javascript:` link and a normal `https:` link all confirmed reduced to
+inert, safe text with zero surviving dangerous tags/attributes and zero
+clickable links; the missing-library fallback confirmed to show real
+escaped text via `textContent`, not a blank preview. Required a cache-bust
+bump (`aria_markdown.js?v=1` -> `?v=2` in both templates that load it) to
+actually observe the fix in the browser -- the same platform-wide
+`Cache-Control: immutable` characteristic T10's own notes already
+recorded, re-encountered rather than re-discovered.
+
+**P3 -- the submit-for-approval success callback could never run.**
+Confirmed exactly as reported: `formEl.dataset.onSubmitted` reads an HTML
+`data-*` attribute, which the DOM spec defines as always a string (or
+`undefined`) -- `typeof ... === 'function'` could never be true, and
+nothing in the codebase ever assigned it regardless. The practical effect:
+after a successful submission the form hid itself but the version
+history/publication status panels kept showing pre-submission state until
+the whole edit modal was closed and reopened. Fixed by adding a real
+`onSubmitted` function parameter to `initSubmitForApprovalForm` and wiring
+`documents.html`'s call site to hide the now-stale submit section and
+re-render both panels with fresh data (`renderVersionHistory` already
+makes its own live API call each time it runs, confirmed by reading it,
+not assumed). Verified live: a detached-DOM fixture with `window.fetch`
+mocked for the approvers-list and submit-approval calls confirmed the
+callback now fires and the form hides, exactly reproducing the function's
+real call contract without needing a full draft/build/confirm pipeline
+for a fix this contained.
+
+New tests: `test_aria_policy_publication.py::test_published_handler_skips_legacy_vault_copy_for_a_managed_publication`
+fixed (it silently relied on `_insert_task` failing without anyone
+checking, via a missing `user_id=1` FK target -- invisible before this
+pass made that failure loud, a small, real illustration of exactly the
+problem this round fixes) plus 4 new scheduler-lock tests (two real
+concurrent-thread races, proving the lease and that different lock names
+never block each other, matching the established concurrency-proof
+pattern already used for `claim_next_job`/`decide_approval`/
+`reserve_document_number`). `python -m py_compile` on every touched
+Python file: clean. `node -c` on every touched JS file: clean. Full
+regression suite: `EXIT_CODE=0`, zero failures or errors.
+
+**Stated plainly, not proven this pass**: the full outbox-pattern
+redesign the reviewer offered as the ideal, durable fix was not built
+(see above); the admin-notification duplication risk on a replay was
+accepted rather than closed; a live end-to-end browser pass driving a
+REAL handler failure through to a REAL job retry (rather than the direct
+function-level and mocked-fetch verification actually performed) was not
+run, given the scale of this round; and the other nine schedulers sharing
+`scheduler_locks`' underlying exposure have not been migrated to use it.
+
 ## 17. Primary references for the selected preview/rendering components
 
 These establish component capabilities, not a security endorsement of any

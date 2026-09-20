@@ -653,6 +653,12 @@ def test_published_handler_skips_legacy_vault_copy_for_a_managed_publication(tes
     monkeypatch.setattr(event_handlers, "get_db", lambda: test_db)
     monkeypatch.setattr(test_db, "close", lambda: None)  # handler closes its db; keep it open for assertions
 
+    # user_id=1 below is a real FK (task_board.created_by -> users.id): this
+    # was always required for _insert_task to actually succeed, just never
+    # surfaced before the T11 review fix made policy_published_handler check
+    # and raise on that failure instead of silently swallowing it.
+    _org(test_db)
+    _user(test_db, 1, username="author")
     doc_pk = database.insert_returning_id(test_db,
         "INSERT INTO aria_documents (doc_id, framework, control_ref, title, version, status, "
         "policy_workflow_managed) VALUES ('DOC-0050','ISO 27001','A.1','Managed Policy','1.0','Approved',1)", ())
@@ -1044,3 +1050,74 @@ def test_mark_failed_with_the_current_lease_token_records_failure_and_notifies(t
         "SELECT COUNT(*) AS c FROM notifications WHERE title LIKE '%synchronization needs attention%'"
     ).fetchone()["c"]
     assert notif_count == 1
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# PLAN-35 T11 second review pass: cross-process retention lock
+# ─────────────────────────────────────────────────────────────────────────
+
+def test_try_acquire_scheduler_lock_only_one_of_two_concurrent_callers_wins(tmp_path, monkeypatch):
+    """P2 review finding: APScheduler's max_instances=1 only protects one
+    process against its own overlap; the production deployment runs
+    multiple workers, each with its own scheduler instance, so the
+    retention sweep needed a real cross-process lock. Real file-based DB
+    and real separate threads/connections -- a genuine race, matching the
+    same proof already used for claim_next_job/decide_approval/
+    reserve_document_number."""
+    monkeypatch.setattr(database, "_DB_PATH", str(tmp_path / "lock_race.db"))
+    database.init_db()
+
+    results = []
+
+    def acquire_worker():
+        db = database.get_db()
+        try:
+            results.append(database.try_acquire_scheduler_lock(db, "test_lock", lease_seconds=60))
+        finally:
+            db.close()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(acquire_worker) for _ in range(2)]
+        for f in futures:
+            f.result()
+
+    assert sorted(results) == [False, True]
+
+
+def test_try_acquire_scheduler_lock_can_be_reacquired_after_lease_expires(test_db):
+    acquired_first = database.try_acquire_scheduler_lock(test_db, "test_lock", lease_seconds=60)
+    assert acquired_first is True
+
+    # A second immediate attempt (lease still valid) must fail.
+    assert database.try_acquire_scheduler_lock(test_db, "test_lock", lease_seconds=60) is False
+
+    # Force the held lease into the past, simulating its expiry.
+    test_db.execute(
+        "UPDATE scheduler_locks SET locked_until='2000-01-01T00:00:00' WHERE lock_name='test_lock'"
+    )
+    test_db.commit()
+    assert database.try_acquire_scheduler_lock(test_db, "test_lock", lease_seconds=60) is True
+
+
+def test_try_acquire_scheduler_lock_different_names_do_not_block_each_other(test_db):
+    assert database.try_acquire_scheduler_lock(test_db, "lock_a", lease_seconds=60) is True
+    assert database.try_acquire_scheduler_lock(test_db, "lock_b", lease_seconds=60) is True
+
+
+def test_retention_sweep_skips_entirely_when_another_worker_holds_the_lock(monkeypatch):
+    """Integration point: _retention_sweep itself must not touch any tenant
+    when it fails to acquire the lock, not just the lock primitive in
+    isolation."""
+    from modules.aria import scheduler as aria_scheduler
+
+    monkeypatch.setattr(aria_scheduler, "try_acquire_scheduler_lock", lambda db, name, lease: False)
+    called = {"listed_tenants": False}
+
+    def fake_list_active_tenants():
+        called["listed_tenants"] = True
+        return []
+
+    monkeypatch.setattr(aria_scheduler, "list_active_tenants", fake_list_active_tenants)
+    aria_scheduler._retention_sweep()
+
+    assert called["listed_tenants"] is False

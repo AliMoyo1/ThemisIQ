@@ -97,7 +97,17 @@ organization has the feature enabled:
    directories to trash past `ARIA_POLICY_ORPHAN_GRACE_HOURS`, and
    permanently deletes trash past `ARIA_POLICY_TRASH_RETENTION_DAYS`. Runs
    per organization with its own referenced-paths snapshot, so one
-   organization's cleanup never touches another's live files.
+   organization's cleanup never touches another's live files. Guarded by a
+   real cross-process lease (`database.try_acquire_scheduler_lock`, table
+   `scheduler_locks`, 1-hour lease): the production deployment runs
+   multiple Uvicorn workers, each with its own independent scheduler
+   instance, and only one may run this sweep at a time. A worker that
+   loses the race logs it and skips that run entirely rather than
+   duplicating the work.
+
+Job 1 needs no equivalent lock: it already claims individual jobs through
+a real database lock (`policy_publication.claim_next_job`), not
+APScheduler's own same-process-only `max_instances` guard.
 
 Both jobs are safe no-ops for an organization with nothing in the
 workflow yet -- registration is not gated behind the feature flag, only
@@ -213,30 +223,44 @@ against any real tenant on the strength of automated tests alone:
 - **No manual rapid-double-click race test** was performed against
   Save/Build/Confirm, though each button disables itself for the duration
   of its own in-flight request, which is the intended mechanism.
-- **The `ARIA_POLICY_PUBLISHED` workflow-auto-trigger handler is not
-  idempotent against a replay.** `core/events.py`'s event delivery now
-  correctly retries a handler that failed or never finished (see the "T11
-  external review-fix pass" notes), but the one handler on this path
-  today (`workflow_trigger_on_aria_policy` -> `_auto_trigger_workflows`)
-  unconditionally creates a new `workflow_instances` row with nothing to
-  recognize its own earlier attempt by. In the narrow case where that
-  handler already succeeded once but the event's overall status was never
-  recorded (a crash, or a later step failing), a replay can create a
-  second workflow instance for the same publication. Accepted as strictly
-  better than the alternative it replaced (a guaranteed, silent, permanent
-  loss of that handler's delivery on the same crash) rather than fixed --
-  a real fix needs a schema change so `workflow_instances` can identify
-  which event occurrence created it.
-- **The retention sweep can run concurrently on a multi-worker deployment.**
-  The production systemd unit runs `--workers 2`; each worker's own
-  APScheduler instance only guards against overlapping *itself*, not the
-  other worker. This is a platform-wide pattern (nine other module
-  schedulers share the identical shape), not specific to this feature, and
-  its actual failure mode is bounded -- a caught-and-logged warning on a
-  path the other worker already moved or deleted, not data loss -- but it
-  was not fixed as part of this plan. The publication drain job is
-  unaffected: it claims work through a real database-level lock, not
-  APScheduler's per-process guard.
+- ~~The `ARIA_POLICY_PUBLISHED` workflow-auto-trigger handler is not
+  idempotent against a replay.~~ **Resolved 2026-09-20** (T11 second
+  review pass): a real handler-failure audit found this handler, and a
+  second one (`policy_published_handler`) missed by the first pass's own
+  check, BOTH swallowed their own failures internally, so event status
+  almost never reflected reality and a replay almost never actually ran.
+  Both now propagate genuine failures, and both are now idempotent per
+  event occurrence (`task_board.source_event_id` /
+  `workflow_instances.source_event_id`, each with a real unique index) --
+  a replay of the same event is a safe no-op, while a later, genuinely
+  new publication of the same document still gets its own task/instance.
+  `policy_publication.py`'s job is also no longer marked `'complete'` when
+  the event it emitted did not actually reach `'processed'` -- it now
+  routes through the existing retry/backoff machinery instead, so a
+  stuck delivery is actually reachable through the existing manual retry
+  action rather than invisible. See `plans/PLAN-35-aria-policy-authoring-flow.md`'s
+  "T11 second external review-fix pass" for the full account, including
+  what this did NOT build: a full outbox/per-handler-delivery-table
+  redesign (offered as the durable, complete fix; judged out of scope for
+  this pass) and closing the admin-notification's own, deliberately
+  accepted, minor duplication risk on a replay.
+- ~~The retention sweep can run concurrently on a multi-worker deployment.~~
+  **Resolved 2026-09-20**: raised a second time after being deliberately
+  deferred once (see the plan's "T11 external review-fix pass"), so fixed
+  for real this time with a generic, reusable cross-process lease
+  (`database.try_acquire_scheduler_lock`, section 4 above) rather than
+  deferred again. The other nine module schedulers sharing this exact
+  multi-worker exposure have not been migrated to use it -- that remains
+  separate, un-started work, now that the mechanism actually exists for
+  them to adopt.
+- **A genuine handler-failure-to-job-retry cycle has not been driven live
+  end to end.** The individual pieces are each verified directly (a
+  handler's own failure-tracking and idempotency guard; the scheduler
+  lock's cross-process behavior; the markdown/callback fixes, live in a
+  real browser) but a real handler actually failing, causing a real
+  publication job to be scheduled for retry, being reprocessed
+  automatically, and reaching `state='complete'` was not walked through
+  as one live scenario in this environment.
 
 ## 10. Before enabling in a real deployment
 

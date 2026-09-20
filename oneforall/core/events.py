@@ -51,21 +51,36 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
     race) and never re-runs handlers/webhooks once the first call's row
     reaches status='processed'. Until then -- status is still 'pending'
     (this call is racing an in-flight first attempt) or 'failed' (a
-    handler raised) -- a replay DOES re-run handlers/webhooks against the
-    existing event id, rather than returning it untouched. This is a
-    deliberate change from treating "a row exists" as "it was delivered":
-    the row is committed before handlers run (committing only after would
-    hold this connection's write lock for as long as arbitrary handler
-    code takes to run, risking a self-deadlock against a handler's own,
-    separate write connection), so a crash in that window used to produce
-    a permanently un-processed event that every future replay would
-    silently treat as already handled. The tradeoff this accepts is the
-    ordinary at-least-once one: a handler invoked for the same logical
-    event more than once, on the rare replay that lands after a crash or
-    failure. Every handler registered for a dedup_key-using event type
-    must tolerate that (see workflow_trigger_on_aria_policy's own note in
-    core/event_handlers.py for the one that is not currently idempotent
-    against it and why that gap is accepted for now).
+    handler or the webhook handoff raised) -- a replay DOES re-run
+    handlers/webhooks against the existing event id, rather than returning
+    it untouched. This is a deliberate change from treating "a row exists"
+    as "it was delivered": the row is committed before handlers run
+    (committing only after would hold this connection's write lock for as
+    long as arbitrary handler code takes to run, risking a self-deadlock
+    against a handler's own, separate write connection), so a crash in
+    that window used to produce a permanently un-processed event that
+    every future replay would silently treat as already handled. The
+    tradeoff this accepts is the ordinary at-least-once one: a handler
+    invoked for the same logical event more than once, on the rare replay
+    that lands after a crash or failure. Every handler registered for a
+    dedup_key-using event type must tolerate that -- event_id (passed to
+    every handler call below) is how a handler makes its own side effect
+    idempotent against it; policy_published_handler and
+    _auto_trigger_workflows (core/event_handlers.py) both do.
+
+    A genuinely concurrent race between two emit() calls for the same
+    dedup_key (not a later, sequential replay -- see claim_next_job's own
+    lease guard, which is what actually prevents this in the one caller
+    that uses dedup_key today) still has one residual gap: the losing call
+    returns the winner's row id without confirming delivery actually
+    happened, so if the winner's process dies before its own handler loop
+    runs, nobody has run handlers for this event yet. Not separately
+    guarded here -- the caller in that position (policy_publication.py's
+    process_job) checks this event's actual status before deciding whether
+    its own job may be marked complete, so a stuck 'pending'/'failed'
+    status correctly keeps that job retryable rather than silently
+    forgotten, even though no NEW handler run was forced at this exact
+    moment.
 
     Returns the event's row id (a publication job persists this id after a
     successful emit; also how a dedup_key caller finds the original
@@ -116,29 +131,44 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
     finally:
         db.close()
 
-    # Run handlers. Status reflects the WHOLE loop's outcome, set once at
-    # the end -- a later handler's success must never overwrite an earlier
+    # Run handlers. Status reflects the WHOLE loop's outcome (this
+    # function's, plus the webhook handoff below), set once at the very
+    # end -- a later handler's success must never overwrite an earlier
     # handler's failure (PLAN-35 T11 review finding), and an event type
     # with zero registered handlers still reaches a terminal 'processed'
     # state rather than sitting at 'pending' forever (which would make
     # every future dedup_key replay treat it as never-delivered and
-    # re-dispatch webhooks indefinitely).
+    # re-dispatch webhooks indefinitely). event_id is passed to every
+    # handler (every one of the 50 registered handlers already accepts
+    # **kwargs, confirmed directly via inspect.signature rather than
+    # assumed) so a handler whose own side effects need replay-safety can
+    # key an idempotency check on the exact event occurrence, not just the
+    # entity -- see policy_published_handler and _auto_trigger_workflows
+    # for the two that actually do.
     handlers = _handlers.get(event_type, [])
     any_failed = False
     for handler in handlers:
         try:
             handler(event_type=event_type, source_module=source_module,
                     entity_type=entity_type, entity_id=entity_id,
-                    payload=payload or {}, user_id=user_id)
+                    payload=payload or {}, user_id=user_id, event_id=event_id)
         except Exception as exc:
             any_failed = True
             log.exception("Event handler %s failed for %s: %s", handler.__name__, event_type, exc)
-    _set_status(event_id, "failed" if any_failed else "processed")
 
     # Fan out to registered outbound webhooks (best-effort; never blocks).
     # Runs on a background thread (see core.webhooks._delivery_pool) so
     # retry backoff sleeps never add latency to the request/job that
-    # triggered the event.
+    # triggered the event. Status is set AFTER this handoff, not before
+    # (PLAN-35 T11 review finding): setting 'processed' first and then
+    # crashing before dispatch_event_background is even called would
+    # permanently lose the webhook, since every future dedup_key replay
+    # short-circuits on seeing 'processed' and never reaches this block
+    # again. This only narrows the crash window (the actual HTTP delivery
+    # still happens later, on the background pool, genuinely
+    # unobserved from here) -- stated as a narrowing, not a claim that
+    # webhook delivery itself is now durable.
+    webhook_dispatch_failed = False
     try:
         from core.webhooks import dispatch_event_background
         from database import get_current_org
@@ -161,9 +191,14 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
             org_id=effective_org_id,
         )
     except Exception as exc:
-        # Webhook delivery must never break the source operation.
+        # Webhook delivery must never break the source operation, but a
+        # failed HANDOFF (not a failed delivery -- that's the background
+        # pool's own problem) is exactly the kind of thing a replay should
+        # retry, so it counts toward the aggregate status like any handler.
+        webhook_dispatch_failed = True
         log.warning("webhook dispatch failed for %s: %s", event_type, exc)
 
+    _set_status(event_id, "failed" if (any_failed or webhook_dispatch_failed) else "processed")
     return event_id
 
 
