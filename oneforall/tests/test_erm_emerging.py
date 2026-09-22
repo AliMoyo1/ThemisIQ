@@ -193,22 +193,32 @@ def test_grounded_scan_falls_back_to_knowledge_only(test_db, monkeypatch):
         [{"title": "Fallback Risk", "summary": "s", "rationale": "r"}]
     ))
 
-    grounded = False
-    created_ids = []
-    try:
-        created_ids = ai_mod.scan_emerging_risks_grounded({"pillars": [], "frameworks": [], "top_categories": []})
-        grounded = bool(created_ids)
-    except Exception:
-        pass
-    if not created_ids:
-        created_ids = ai_mod.scan_emerging_risks({"pillars": [], "frameworks": [], "top_categories": []})
-        grounded = False
+    result = ai_mod.run_emerging_scan()
 
-    assert grounded is False
-    assert len(created_ids) == 1
-    rows = {r["id"]: r for r in list_emerging()}
-    assert rows[created_ids[0]]["title"] == "Fallback Risk"
-    assert rows[created_ids[0]]["origin"] == "ai_scan"
+    assert result == {"created": 1, "grounded": False}
+    rows = list_emerging()
+    assert any(r["title"] == "Fallback Risk" and r["origin"] == "ai_scan" for r in rows)
+
+
+def test_run_emerging_scan_returns_controlled_error_when_fallback_ai_fails(test_db, monkeypatch):
+    """The production content=null path must never escape as a route 500."""
+    import modules.erm.ai_service as ai_mod
+
+    monkeypatch.setattr(
+        ai_mod,
+        "create_message_web_search",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("empty grounded response")),
+    )
+    monkeypatch.setattr(ai_mod, "is_configured", lambda: True)
+    monkeypatch.setattr(
+        ai_mod,
+        "create_message",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("empty fallback response")),
+    )
+
+    result = ai_mod.run_emerging_scan()
+
+    assert result == {"created": 0, "grounded": False, "error": "ai_unavailable"}
 
 
 def test_create_message_web_search_pause_turn_continuation(monkeypatch):

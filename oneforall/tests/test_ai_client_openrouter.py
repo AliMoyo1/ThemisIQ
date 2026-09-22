@@ -123,6 +123,53 @@ def test_openrouter_rejects_response_without_model_identity(monkeypatch):
         ai_client.create_message([{"role": "user", "content": "hello"}])
 
 
+def test_openrouter_rejects_null_or_blank_completion_content(monkeypatch):
+    """A provider-level 200 with content=null is not a successful AI call."""
+    import httpx
+    from core import ai_client
+
+    _configure(monkeypatch, ai_client)
+
+    responses = iter((None, "   "))
+
+    def fake_post(self, url, headers=None, json=None):
+        return _FakeResponse({
+            "model": "z-ai/glm-5.3-flash",
+            "choices": [{"message": {"content": next(responses)}}],
+            "usage": {},
+        })
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="OpenRouter returned an empty response"):
+            ai_client.create_message([{"role": "user", "content": "hello"}])
+
+
+def test_openrouter_rejects_malformed_completion_envelope(monkeypatch):
+    import httpx
+    from core import ai_client
+
+    _configure(monkeypatch, ai_client)
+
+    monkeypatch.setattr(
+        httpx.Client,
+        "post",
+        lambda self, url, headers=None, json=None: _FakeResponse(["not", "an", "object"]),
+    )
+
+    with pytest.raises(RuntimeError, match="OpenRouter returned an invalid response"):
+        ai_client.create_message([{"role": "user", "content": "hello"}])
+
+
+def test_safe_json_parse_treats_non_string_as_invalid_response():
+    from core.ai_client import safe_json_parse
+
+    fallback = []
+    assert safe_json_parse(None, fallback) is fallback
+    assert safe_json_parse({"not": "model text"}, fallback) is fallback
+    assert safe_json_parse("   ", fallback) is fallback
+
+
 def test_openrouter_web_search_normalises_only_response_citations(monkeypatch):
     import httpx
     from core import ai_client

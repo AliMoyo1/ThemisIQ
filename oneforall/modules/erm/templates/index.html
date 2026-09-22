@@ -3639,10 +3639,40 @@ window.extAddToRegister=async function(id){
     window.location.href='/erm/register?open=risk:'+res.risk_id;
   }catch(e){typeof showToast==='function'&&showToast('Failed to add to register: '+e.message,'error');}
 };
+function extScanWait(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+async function extPollScan(jobId){
+  var deadline=Date.now()+(30*60*1000);
+  var transientFailures=0;
+  while(Date.now()<deadline){
+    try{
+      var status=await apiFetch('/erm/api/emerging/scan/'+jobId);
+      transientFailures=0;
+      if(status.state==='completed')return status;
+      if(status.state==='failed'){
+        var failedError=new Error(status.error||'The scan could not be completed.');
+        failedError.scanTerminal=true;
+        throw failedError;
+      }
+      if(status.state!=='pending'&&status.state!=='running'){
+        var stateError=new Error('The scan returned an unknown status.');
+        stateError.scanTerminal=true;
+        throw stateError;
+      }
+    }catch(e){
+      if(e&&e.scanTerminal)throw e;
+      transientFailures+=1;
+      if(transientFailures>=5)throw e;
+    }
+    await extScanWait(2000);
+  }
+  var timeoutError=new Error('The scan is still running in the background. Reopen External Context to check it later.');
+  timeoutError.backgroundScan=true;
+  throw timeoutError;
+}
 window.extRunScan=async function(btn){
   var orig=btn.textContent;
   btn.disabled=true;
-  btn.textContent='Scanning…';
+  btn.textContent='Queueing…';
   var scanMount=document.getElementById('extScanTraceMount');
   scanMount.style.display='block';
   var trace=window.ThinkingTrace.open(scanMount,{
@@ -3655,18 +3685,23 @@ window.extRunScan=async function(btn){
     ]
   });
   try{
-    var res=await apiFetch('/erm/api/emerging/scan',{method:'POST'});
+    var queued=await apiFetch('/erm/api/emerging/scan',{method:'POST'});
+    if(!queued||!queued.job_id)throw new Error('The scan did not return a job identifier.');
+    btn.textContent='Scanning…';
+    var res=await extPollScan(queued.job_id);
     var n=res.created||0;
     var modeLabel=res.grounded?'(live web scan)':'(model knowledge only)';
     var msg=n+' candidate'+(n===1?'':'s')+' added '+modeLabel;
-    trace.destroy();scanMount.style.display='none';
     typeof showToast==='function'&&showToast(msg);
     ermLoadExternal();
   }catch(e){
-    trace.destroy();scanMount.style.display='none';
-    typeof showToast==='function'&&showToast('Scan failed: '+e.message,'error');
+    var prefix=e&&e.backgroundScan?'Scan status: ':'Scan failed: ';
+    typeof showToast==='function'&&showToast(prefix+e.message,'error');
   }
-  finally{btn.disabled=false;btn.textContent=orig;}
+  finally{
+    trace.destroy();scanMount.style.display='none';
+    btn.disabled=false;btn.textContent=orig;
+  }
 };
 window.extOpenAddModal=function(){
   var pillars=ERM_PILLARS||[];

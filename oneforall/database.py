@@ -4011,6 +4011,34 @@ CREATE TABLE IF NOT EXISTS erm_emerging_risks (
 );
 CREATE INDEX IF NOT EXISTS idx_erm_emerging_status ON erm_emerging_risks(status);
 
+-- Long-running horizon scans are queued so browser requests can return before
+-- the Cloudflare proxy timeout.  active_slot=1 is held only while a job is
+-- pending/running; NULL for terminal rows lets the unique index retain history
+-- while enforcing one active scan per organization.
+CREATE TABLE IF NOT EXISTS erm_emerging_scan_jobs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id          INTEGER NOT NULL REFERENCES organizations(id),
+    requested_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    state           TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(state IN ('pending','running','completed','failed')),
+    active_slot     INTEGER CHECK(active_slot IS NULL OR active_slot = 1),
+    lease_token     TEXT,
+    lease_until     TEXT,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    result_created  INTEGER NOT NULL DEFAULT 0,
+    result_grounded INTEGER,
+    error_code      TEXT,
+    error_message   TEXT,
+    started_at      TEXT,
+    completed_at    TEXT,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_erm_scan_jobs_queue
+    ON erm_emerging_scan_jobs(org_id, state, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_erm_scan_jobs_active
+    ON erm_emerging_scan_jobs(org_id, active_slot);
+
 -- ── Risk ↔ Control bridge (Governance Graph edge) ─────────────────────────
 CREATE TABLE IF NOT EXISTS risk_controls (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

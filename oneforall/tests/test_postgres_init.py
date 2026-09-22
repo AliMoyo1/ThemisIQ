@@ -252,9 +252,11 @@ def _assert_required_policy_fks(database, tenant: str = ""):
         )
 
 
-def _tables_present(database):
+def _tables_present(database, tenant: str = ""):
     conn = database.get_db_bypass_rls()
     try:
+        if tenant:
+            conn.set_tenant(tenant)
         rows = conn.execute(
             "SELECT table_name FROM information_schema.tables "
             "WHERE table_schema=current_schema()"
@@ -307,6 +309,14 @@ def test_tenant_schema_policy_fks_never_fall_back_to_public(pg):
         assert ready, missing
     finally:
         conn.close()
+
+
+def test_erm_scan_job_table_exists_in_public_and_tenant_schemas(pg):
+    pg.init_db()
+    assert "erm_emerging_scan_jobs" in _tables_present(pg)
+
+    pg.provision_tenant_schema("scanqueue")
+    assert "erm_emerging_scan_jobs" in _tables_present(pg, "scanqueue")
 
 
 def test_reinit_repairs_existing_projection_columns_after_workflow_loss(pg):

@@ -17,6 +17,7 @@ from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_I
 from core.timeutils import utcnow, to_dt
 from modules.erm import data_service as ds
 from modules.erm import ai_service as ai
+from modules.erm import scan_jobs
 from modules.governance.data_service import bu_scope_ids
 
 log = logging.getLogger(__name__)
@@ -524,13 +525,40 @@ async def api_emerging_add_to_register(request: Request, eid: int):
 async def api_emerging_scan(request: Request):
     if not check_ai_rate_limit(str(_uid(request))):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
-    record_ai_call(str(_uid(request)))
 
-    # run_emerging_scan() also backs the weekly scheduled job
-    # (modules/erm/scheduler.py) -- shared here so both callers get the
-    # same grounded-then-fallback behavior from one code path.
-    result = ai.run_emerging_scan()
-    return JSONResponse(result)
+    user = request.state.user
+    org_id = user.get("org_id")
+    if not org_id:
+        return JSONResponse({"detail": "An organization is required to run this scan."}, status_code=400)
+
+    try:
+        job, created = scan_jobs.enqueue_scan(org_id, requested_by=_uid(request))
+    except Exception as exc:
+        log.warning("Could not enqueue ERM scan (%s)", type(exc).__name__)
+        return JSONResponse(
+            {"detail": "The emerging-risk scan could not be queued. Please retry later."},
+            status_code=503,
+        )
+
+    if created:
+        record_ai_call(str(_uid(request)))
+    return JSONResponse(
+        scan_jobs.public_job(job, reused=not created),
+        status_code=202,
+    )
+
+
+@router.get("/api/emerging/scan/{job_id}")
+@require_capability("erm.ai.use")
+async def api_emerging_scan_status(request: Request, job_id: int):
+    org_id = request.state.user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Scan job not found")
+    job = scan_jobs.get_job(job_id, org_id)
+    if not job:
+        # Do not reveal whether the id exists in another organization/schema.
+        raise HTTPException(404, "Scan job not found")
+    return JSONResponse(scan_jobs.public_job(job))
 
 
 # ── ERM v2 (PLAN-25): Per-CF treatments ───────────────────────────────────────

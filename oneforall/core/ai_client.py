@@ -371,6 +371,9 @@ def _openai_compat(
     )
     r.raise_for_status()
     d = r.json()
+    if not isinstance(d, dict):
+        provider_label = "OpenRouter" if is_openrouter else "AI provider"
+        raise RuntimeError(f"{provider_label} returned an invalid response")
     raw_reported_model = d.get("model")
     if required_model and not raw_reported_model:
         raise RuntimeError(
@@ -382,8 +385,18 @@ def _openai_compat(
             "OpenRouter model drift detected: requested "
             f"{required_model!r}, received {reported_model!r}"
         )
-    usage = d.get("usage", {})
-    return d["choices"][0]["message"]["content"], {
+    choices = d.get("choices") or []
+    first_choice = choices[0] if isinstance(choices, list) and choices else None
+    message = first_choice.get("message") if isinstance(first_choice, dict) else None
+    text = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(text, str) or not text.strip():
+        provider_label = "OpenRouter" if is_openrouter else "AI provider"
+        raise RuntimeError(f"{provider_label} returned an empty response")
+
+    usage = d.get("usage") or {}
+    if not isinstance(usage, dict):
+        usage = {}
+    return text, {
         "model": reported_model,
         "input_tokens": usage.get("prompt_tokens", 0),
         "output_tokens": usage.get("completion_tokens", 0),
@@ -704,6 +717,8 @@ def wrap_user_input(text: str) -> str:
 
 def safe_json_parse(text, fallback=None):
     """Lenient JSON parser for AI responses."""
+    if not isinstance(text, str) or not text.strip():
+        return fallback
     text = re.sub(r"```json|```", "", text).strip()
     try:
         return json.loads(text)

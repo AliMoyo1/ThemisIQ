@@ -408,14 +408,17 @@ def scan_emerging_risks_grounded(org_context: dict) -> list:
     return created
 
 
-def scan_emerging_risks(org_context: dict) -> list:
+def scan_emerging_risks(org_context: dict, *, raise_on_error: bool = False) -> list:
     """Knowledge-only horizon scan: the fallback for non-anthropic
     providers, web search disabled for the org, or a failed grounded call.
     Prompt forbids fabricating citations or URLs; every stored item
     carries the knowledge caveat and a NULL source_url. Returns [] on any
-    failure or when AI isn't configured -- this is the last-resort path,
-    so it must never raise."""
+    failure or when AI isn't configured. ``raise_on_error=True`` is reserved
+    for the durable job orchestrator, which needs to distinguish a valid empty
+    result from a provider failure and persist a terminal failed state."""
     if not is_configured():
+        if raise_on_error:
+            raise RuntimeError("AI provider is not configured")
         return []
     prompt = (
         "Based on your training knowledge (NOT a live search), suggest enterprise "
@@ -434,6 +437,8 @@ def scan_emerging_risks(org_context: dict) -> list:
         text = create_message([{"role": "user", "content": prompt}], max_tokens=1500)
     except Exception as exc:
         log.warning("ERM knowledge-only scan failed: %s", exc)
+        if raise_on_error:
+            raise RuntimeError("ERM knowledge-only AI call failed") from exc
         return []
     items = safe_json_parse(text, []) or []
     if not isinstance(items, list):
@@ -469,13 +474,18 @@ def run_emerging_scan() -> dict:
     path first, fall back to knowledge-only on any failure -- unsupported
     provider, no key, web search disabled, missing citations, or a parse
     error -- or an empty grounded result. Opens and closes its own db
-    connection; never raises."""
+    connection and returns a sanitized error code rather than allowing a
+    provider/parser/database exception to escape into a route or scheduler."""
     from database import get_db as _get_db
-    db = _get_db()
     try:
-        org_context = build_org_context(db)
-    finally:
-        db.close()
+        db = _get_db()
+        try:
+            org_context = build_org_context(db)
+        finally:
+            db.close()
+    except Exception as exc:
+        log.warning("ERM emerging-risk context build failed (%s)", type(exc).__name__)
+        return {"created": 0, "grounded": False, "error": "context_unavailable"}
 
     grounded = False
     created_ids = []
@@ -485,7 +495,11 @@ def run_emerging_scan() -> dict:
     except Exception as exc:
         log.warning("Grounded emerging-risk scan unavailable, falling back to knowledge-only: %s", exc)
     if not created_ids:
-        created_ids = scan_emerging_risks(org_context)
+        try:
+            created_ids = scan_emerging_risks(org_context, raise_on_error=True)
+        except Exception as exc:
+            log.warning("ERM emerging-risk fallback unavailable (%s)", type(exc).__name__)
+            return {"created": 0, "grounded": False, "error": "ai_unavailable"}
         grounded = False
 
     return {"created": len(created_ids), "grounded": grounded}
