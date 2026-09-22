@@ -29,6 +29,7 @@ def test_configured_environment_prefers_live_values_and_forces_safe_rollout():
             "DATABASE_URL": "postgresql://stale@127.0.0.1:5432/themisiq",
             "SECRET_KEY": "stale-secret",
             "DEEPSEEK_API_KEY": "provider-secret",
+            "OPENROUTER_API_KEY": "openrouter-secret",
             "PATH": "/also-untrusted",
         }],
         unit_keys={"DATABASE_URL", "SECRET_KEY"},
@@ -36,6 +37,7 @@ def test_configured_environment_prefers_live_values_and_forces_safe_rollout():
     assert selected["DATABASE_URL"].endswith(":5434/themisiq")
     assert selected["SECRET_KEY"] == "live-secret"
     assert selected["DEEPSEEK_API_KEY"] == "provider-secret"
+    assert selected["OPENROUTER_API_KEY"] == "openrouter-secret"
     assert selected["ARIA_POLICY_AUTHORING_ENABLED"] == "false"
     assert selected["ARIA_POLICY_AUTHORING_ORG_IDS"] == ""
     assert selected["GRID_BACKUP_JOBS_ENABLED"] == "false"
@@ -106,12 +108,15 @@ def test_scrub_legacy_file_removes_secrets_but_preserves_flags(tmp_path):
     legacy.write_text(
         "DEBUG=false\nSECRET_KEY=secret\n"
         "DATABASE_URL=postgresql://user:pass@localhost/db\n"
+        "OPENROUTER_API_KEY=sk-or-v1-test-only\n"
         "SLACK_WEBHOOK_URL=https://hooks.example.invalid/secret\n"
         "ARIA_POLICY_AUTHORING_ENABLED=false\n",
         encoding="utf-8",
     )
     removed = deploy.scrub_legacy_file(legacy)
-    assert set(removed) == {"SECRET_KEY", "DATABASE_URL", "SLACK_WEBHOOK_URL"}
+    assert set(removed) == {
+        "SECRET_KEY", "DATABASE_URL", "OPENROUTER_API_KEY", "SLACK_WEBHOOK_URL"
+    }
     remaining = legacy.read_text(encoding="utf-8")
     assert "DEBUG=false" in remaining
     assert "ARIA_POLICY_AUTHORING_ENABLED=false" in remaining

@@ -225,7 +225,15 @@ def test_create_message_web_search_pause_turn_continuation(monkeypatch):
     responses = [
         {
             "stop_reason": "pause_turn",
-            "content": [{"type": "text", "text": "Part 1. "}],
+            "content": [{
+                "type": "text",
+                "text": "Part 1. ",
+                "citations": [{
+                    "type": "web_search_result_location",
+                    "url": "https://nist.gov/example",
+                    "title": "NIST example",
+                }],
+            }],
             "usage": {"input_tokens": 10, "output_tokens": 20, "server_tool_use": {"web_search_requests": 1}},
         },
         {

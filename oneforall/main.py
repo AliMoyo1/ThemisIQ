@@ -255,11 +255,15 @@ async def startup():
         log.warning("workflow_actions due_at migration skipped: %s", exc)
 
     # ── Startup config validation ─────────────────────────────────────────────
-    _provider = (settings.AI_PROVIDER or "anthropic").lower()
-    if _provider == "anthropic" and not settings.ANTHROPIC_API_KEY:
+    from core.ai_client import (
+        is_configured as _ai_is_configured,
+        provider_name as _ai_provider_name,
+    )
+    if not _ai_is_configured():
         log.warning(
-            "ANTHROPIC_API_KEY is not set. AI features (policy generation, "
-            "risk scoring, chat) will not work until configured in .env"
+            "%s is selected but its credentials are not configured. AI features "
+            "(policy generation, risk scoring, chat) will be unavailable.",
+            _ai_provider_name(),
         )
     if not getattr(settings, "SECRET_KEY", None):
         log.warning("SECRET_KEY not set — using auto-generated key. Sessions will break on restart.")

@@ -2,7 +2,7 @@
 ERM AI Service - AI-powered risk scoring, treatment suggestions, board narrative, chat.
 
 Uses the unified core.ai_client for multi-provider support
-(Anthropic, DeepSeek, Gemini, OpenAI, Ollama).
+(Anthropic, OpenRouter, DeepSeek, Gemini, OpenAI, Ollama).
 """
 import json
 import logging
@@ -335,7 +335,7 @@ def _emerging_context_lines(org_context: dict) -> str:
 
 
 def scan_emerging_risks_grounded(org_context: dict) -> list:
-    """Grounded horizon scan using the Anthropic web search tool. Stores
+    """Grounded horizon scan using the configured provider's web search. Stores
     survivors directly via create_emerging and returns their new ids.
 
     Any item whose source_url does not exactly match one of the citations
@@ -345,9 +345,9 @@ def scan_emerging_risks_grounded(org_context: dict) -> list:
     the citations array proves a page was actually retrieved.
 
     Raises whatever create_message_web_search raises (e.g. RuntimeError
-    when web search is disabled or the provider isn't anthropic) so the
-    caller can fall back to scan_emerging_risks(); does not swallow that
-    exception itself."""
+    when web search is disabled, unsupported, or returns no verifiable
+    citations) so the caller can fall back to scan_emerging_risks(); does
+    not swallow that exception itself."""
     prompt = (
         "Search the allowed sources for enterprise risks that are NEW or RISING "
         "in the last 12 months, relevant to an organisation with this profile:\n"
@@ -364,7 +364,6 @@ def scan_emerging_risks_grounded(org_context: dict) -> list:
     result = create_message_web_search(
         [{"role": "user", "content": prompt}],
         max_tokens=1500,
-        model=getattr(settings, "ERM_SCAN_MODEL", "claude-sonnet-5"),
         max_searches=getattr(settings, "ERM_SCAN_MAX_SEARCHES", 8),
         allowed_domains=getattr(settings, "ERM_SCAN_ALLOWED_DOMAINS", None),
     )
@@ -467,9 +466,10 @@ def scan_emerging_risks(org_context: dict) -> list:
 def run_emerging_scan() -> dict:
     """Shared orchestration for the on-demand scan endpoint and the weekly
     scheduled job: build org context, try the grounded (live web search)
-    path first, fall back to knowledge-only on any failure -- wrong
-    provider, no key, web search disabled, or a parse error -- or an empty
-    grounded result. Opens and closes its own db connection; never raises."""
+    path first, fall back to knowledge-only on any failure -- unsupported
+    provider, no key, web search disabled, missing citations, or a parse
+    error -- or an empty grounded result. Opens and closes its own db
+    connection; never raises."""
     from database import get_db as _get_db
     db = _get_db()
     try:

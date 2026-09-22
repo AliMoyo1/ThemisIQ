@@ -270,15 +270,14 @@ def compose_briefing(db, today: str) -> int:
     # 4. Optional AI narrative (attached only to first/highest-scored signal)
     ai_narrative = None
     try:
-        from config import settings
-        if getattr(settings, "ANTHROPIC_API_KEY", None):
+        from core.ai_client import create_message, is_configured
+        if is_configured():
             lines = "\n".join(
                 f"- [{s['severity'].upper()}] {s['title']}: {s.get('detail', '')}"
                 for s in top
             )
             text_for_ai = f"Today's governance briefing:\n{lines}"
             try:
-                from core.ai_client import create_message
                 ai_narrative = create_message(
                     messages=[{"role": "user", "content": text_for_ai}],
                     system=(

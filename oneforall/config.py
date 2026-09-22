@@ -55,6 +55,40 @@ class Settings:
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
 
+    # OpenRouter (OpenAI-compatible gateway). The default is deliberately an
+    # exact, paid model slug rather than an auto/latest/free alias so a catalog
+    # change cannot silently move production calls to a different model.
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_MODEL: str = os.getenv(
+        "OPENROUTER_MODEL", "z-ai/glm-5.3-flash-20260826"
+    )
+    OPENROUTER_SITE_URL: str = os.getenv("OPENROUTER_SITE_URL", "https://app.themisiq.net")
+    OPENROUTER_APP_NAME: str = os.getenv("OPENROUTER_APP_NAME", "ThemisIQ")
+    OPENROUTER_REQUIRE_EXACT_MODEL: bool = os.getenv(
+        "OPENROUTER_REQUIRE_EXACT_MODEL", "true"
+    ).lower() in ("1", "true", "yes", "on")
+    OPENROUTER_ZDR: bool = os.getenv("OPENROUTER_ZDR", "true").lower() in (
+        "1", "true", "yes", "on"
+    )
+    OPENROUTER_DATA_COLLECTION: str = os.getenv(
+        "OPENROUTER_DATA_COLLECTION", "deny"
+    ).lower()
+    OPENROUTER_MAX_INPUT_PRICE_PER_M: float = float(os.getenv(
+        "OPENROUTER_MAX_INPUT_PRICE_PER_M", "0.25"
+    ))
+    OPENROUTER_MAX_OUTPUT_PRICE_PER_M: float = float(os.getenv(
+        "OPENROUTER_MAX_OUTPUT_PRICE_PER_M", "0.75"
+    ))
+    OPENROUTER_WEB_SEARCH_ENGINE: str = os.getenv(
+        "OPENROUTER_WEB_SEARCH_ENGINE", "exa"
+    ).lower()
+    OPENROUTER_WEB_SEARCH_MAX_RESULTS: int = int(os.getenv(
+        "OPENROUTER_WEB_SEARCH_MAX_RESULTS", "5"
+    ))
+    OPENROUTER_WEB_SEARCH_MAX_TOTAL_RESULTS: int = int(os.getenv(
+        "OPENROUTER_WEB_SEARCH_MAX_TOTAL_RESULTS", "15"
+    ))
+
     # DeepSeek (cloud API — https://platform.deepseek.com)
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
     DEEPSEEK_MODEL:   str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")

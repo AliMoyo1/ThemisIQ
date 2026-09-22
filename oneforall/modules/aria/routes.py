@@ -37,6 +37,7 @@ from core.events import (
     emit, ARIA_POLICY_PUBLISHED, ARIA_POLICY_UPDATED,
     ARIA_RISK_CREATED, ARIA_RISK_ESCALATED, ARIA_CONTROL_UPDATED,
 )
+from core.ai_client import is_configured as ai_is_configured
 from modules.aria.policy_access import document_scope_sql, template_scope_sql
 
 router = APIRouter(prefix="/aria", tags=["aria"])
@@ -2620,20 +2621,19 @@ async def ai_generator_page(request: Request):
     # ── AI provider label ──────────────────────────────────────────────────────
     _provider_key = (settings.AI_PROVIDER or "anthropic").lower()
     _ollama_model = getattr(settings, "OLLAMA_MODEL", "llama3.2")
+    _openrouter_model = getattr(
+        settings, "OPENROUTER_MODEL", "z-ai/glm-5.3-flash-20260826"
+    )
     ai_provider_label = {
         "anthropic":       "Claude (Anthropic)",
+        "openrouter":      f"OpenRouter · {_openrouter_model}",
         "openai":          f"GPT-4o (OpenAI)",
         "deepseek":        "DeepSeek Chat",
         "ollama":          f"Ollama · {_ollama_model}",
         "gemini":          "Gemini (Google)",
     }.get(_provider_key, "Claude (Anthropic)")
 
-    api_configured = bool(
-        settings.ANTHROPIC_API_KEY or
-        getattr(settings, "OPENAI_API_KEY", "") or
-        getattr(settings, "DEEPSEEK_API_KEY", "") or
-        _provider_key == "ollama"
-    )
+    api_configured = ai_is_configured()
 
     return _aria_render(request, "ai_generator.html", {
         "user": user, "module": "aria",
@@ -2956,8 +2956,12 @@ async def ask_page(request: Request):
     from config import settings as _cfg
     _provider_key = (getattr(_cfg, 'AI_PROVIDER', '') or 'anthropic').lower()
     _ollama_m = getattr(_cfg, 'OLLAMA_MODEL', 'llama3.2')
+    _openrouter_m = getattr(
+        _cfg, 'OPENROUTER_MODEL', 'z-ai/glm-5.3-flash-20260826'
+    )
     ai_provider_label = {
         "anthropic": "Claude",
+        "openrouter": f"OpenRouter · {_openrouter_m}",
         "openai":    "GPT-4o",
         "deepseek":  "DeepSeek",
         "ollama":    f"Ollama · {_ollama_m}",
