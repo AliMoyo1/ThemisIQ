@@ -4,6 +4,25 @@ __pycache__/
 .venv/
 venv/
 
+# Environment files and production secrets. Examples remain trackable.
+.env
+/secrets/*
+!/secrets/README.txt
+
+# VPS runtime state must never be staged from a production checkout.
+/app.log*
+/shadow.log*
+/shadow_mode_*.log
+/nohup.out
+/backups/
+/backup_db.sh
+/migrate.sh
+/recon_*.txt
+/themisiq_wa_bridge/tenant_map.json
+oneforall/data/backups/
+*.dump
+*.backup
+
 # Local databases (dev only: prod uses PostgreSQL)
 oneforall/data/*.db
 oneforall/data/*.db-journal

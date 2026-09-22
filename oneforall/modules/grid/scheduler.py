@@ -14,6 +14,7 @@ import math
 import os
 import shutil
 import subprocess
+import sys
 import urllib.parse
 import zipfile
 from datetime import date, datetime
@@ -672,7 +673,7 @@ def backup_verify_check() -> None:
     script = Path(__file__).parent.parent.parent / "scripts" / "verify_latest_backup.py"
     try:
         result = _sub.run(
-            ["python", str(script)],
+            [sys.executable, str(script)],
             capture_output=True, timeout=120,
         )
         if result.returncode == 0:
@@ -708,7 +709,7 @@ def weekly_restore_drill() -> None:
     script = Path(__file__).parent.parent.parent / "scripts" / "weekly_restore_drill.py"
     try:
         result = _sub.run(
-            ["python", str(script)],
+            [sys.executable, str(script)],
             capture_output=True, timeout=1800,
         )
         if result.returncode == 0:
@@ -755,8 +756,6 @@ def start_scheduler() -> BackgroundScheduler:
                        id="grid_weekly_digest", replace_existing=True)
     _scheduler.add_job(snapshot_scores, CronTrigger(hour=0, minute=0, timezone=TZ),
                        id="grid_score_snapshot", replace_existing=True)
-    _scheduler.add_job(perform_backup, CronTrigger(hour=2, minute=0, timezone=TZ),
-                       id="grid_backup", replace_existing=True)
     _scheduler.add_job(process_nc_deadline_reminders, CronTrigger(hour=8, minute=15, timezone=TZ),
                        id="grid_nc_deadlines", replace_existing=True)
     _scheduler.add_job(process_nc_escalations, CronTrigger(hour=9, minute=15, timezone=TZ),
@@ -767,13 +766,26 @@ def start_scheduler() -> BackgroundScheduler:
                        id="vault_integrity_audit", replace_existing=True)
     _scheduler.add_job(enforce_retention_policy, CronTrigger(hour=1, minute=0, timezone=TZ),
                        id="vault_retention_enforcement", replace_existing=True)
-    _scheduler.add_job(backup_verify_check, CronTrigger(hour=3, minute=0, timezone=TZ),
-                       id="backup_verify_check", replace_existing=True)
-    _scheduler.add_job(weekly_restore_drill, CronTrigger(day_of_week="sun", hour=4, minute=0, timezone=TZ),
-                       id="weekly_restore_drill", replace_existing=True)
+    backup_jobs_enabled = os.getenv(
+        "GRID_BACKUP_JOBS_ENABLED", "true"
+    ).lower() in ("1", "true", "yes", "on")
+    if backup_jobs_enabled:
+        _scheduler.add_job(perform_backup, CronTrigger(hour=2, minute=0, timezone=TZ),
+                           id="grid_backup", replace_existing=True)
+        _scheduler.add_job(backup_verify_check, CronTrigger(hour=3, minute=0, timezone=TZ),
+                           id="backup_verify_check", replace_existing=True)
+        _scheduler.add_job(weekly_restore_drill, CronTrigger(day_of_week="sun", hour=4, minute=0, timezone=TZ),
+                           id="weekly_restore_drill", replace_existing=True)
+    else:
+        log.info(
+            "GRID application backup jobs disabled; host backup service is authoritative"
+        )
 
     _scheduler.start()
-    log.info("GRID scheduler started (Africa/Harare timezone) — 13 jobs registered")
+    log.info(
+        "GRID scheduler started (Africa/Harare timezone) — %d jobs registered",
+        len(_scheduler.get_jobs()),
+    )
     return _scheduler
 
 

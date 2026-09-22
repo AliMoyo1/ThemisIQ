@@ -1,0 +1,59 @@
+[Unit]
+Description=ThemisIQ Web Application
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=themisiq
+Group=themisiq
+WorkingDirectory=/project/oneforall
+EnvironmentFile=/etc/themisiq/themisiq.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=HOME=/var/lib/themisiq
+# The application starts in-process schedulers. Keep a single web process so
+# reminders, escalations, retention jobs, and queues cannot run twice.
+ExecStart=/project/oneforall/.venv/bin/python3 -m uvicorn main:app --host 127.0.0.1 --port 8080 --workers 1
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=themisiq-app
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+StateDirectory=themisiq
+StateDirectoryMode=0750
+RuntimeDirectory=themisiq
+RuntimeDirectoryMode=0750
+CacheDirectory=themisiq
+CacheDirectoryMode=0750
+ReadWritePaths=/project/oneforall/data /var/lib/themisiq
+
+TasksMax=256
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
