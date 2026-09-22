@@ -10,6 +10,9 @@ Group=themisiq
 WorkingDirectory=/project/oneforall
 EnvironmentFile=/etc/themisiq/themisiq.env
 Environment=PYTHONDONTWRITEBYTECODE=1
+# Production configuration comes only from the root-owned EnvironmentFile.
+# The unprivileged service must never read the legacy application .env file.
+Environment=PYTHON_DOTENV_DISABLED=1
 Environment=HOME=/var/lib/themisiq
 # The application starts in-process schedulers. Keep a single web process so
 # reminders, escalations, retention jobs, and queues cannot run twice.

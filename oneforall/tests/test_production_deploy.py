@@ -23,6 +23,7 @@ def test_configured_environment_prefers_live_values_and_forces_safe_rollout():
             "ARIA_POLICY_AUTHORING_ENABLED": "true",
             "ARIA_POLICY_AUTHORING_ORG_IDS": "12",
             "PATH": "/untrusted",
+            "PYTHON_DOTENV_DISABLED": "0",
         },
         legacy_sources=[{
             "DATABASE_URL": "postgresql://stale@127.0.0.1:5432/themisiq",
@@ -40,6 +41,7 @@ def test_configured_environment_prefers_live_values_and_forces_safe_rollout():
     assert selected["GRID_BACKUP_JOBS_ENABLED"] == "false"
     assert selected["HOST"] == "127.0.0.1"
     assert "PATH" not in selected
+    assert "PYTHON_DOTENV_DISABLED" not in selected
 
 
 def test_validate_environment_fails_closed_for_authoring_and_non_postgres():
@@ -123,6 +125,7 @@ def test_systemd_unit_is_non_root_loopback_only_and_sandboxed():
     required = (
         "User=themisiq", "Group=themisiq",
         "EnvironmentFile=/etc/themisiq/themisiq.env",
+        "Environment=PYTHON_DOTENV_DISABLED=1",
         "--host 127.0.0.1", "--workers 1", "NoNewPrivileges=true",
         "PrivateTmp=true", "ProtectSystem=strict",
         "ProtectHome=true", "UMask=0077",
@@ -132,6 +135,35 @@ def test_systemd_unit_is_non_root_loopback_only_and_sandboxed():
     assert "Environment=SECRET_KEY=" not in unit
     assert "--host 0.0.0.0" not in unit
     assert "--workers 2" not in unit
+
+
+def test_dependency_probe_matches_the_non_root_production_runtime(tmp_path, monkeypatch):
+    python = tmp_path / "oneforall" / ".venv" / "bin" / "python3"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    captured = {}
+
+    def fake_run(args, **kwargs):
+        captured["args"] = args
+        captured.update(kwargs)
+        return deploy.subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(deploy.subprocess, "run", fake_run)
+
+    deploy.verify_dependencies(
+        tmp_path,
+        {"SECRET_KEY": "present", "DEBUG": "false"},
+        uid=1234,
+        gid=5678,
+    )
+
+    assert captured["user"] == 1234
+    assert captured["group"] == 5678
+    assert captured["extra_groups"] == []
+    assert captured["umask"] == 0o077
+    assert captured["env"]["PYTHON_DOTENV_DISABLED"] == "1"
+    assert captured["env"]["HOME"] == "/var/lib/themisiq"
+    assert "from config import settings" in captured["args"][-1]
 
 
 def test_backup_jobs_use_the_service_virtualenv_interpreter():

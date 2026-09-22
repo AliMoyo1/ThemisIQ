@@ -45,7 +45,7 @@ UNIT_ENV_KEY_RE = re.compile(
 )
 DANGEROUS_ENV_KEYS = {
     "BASH_ENV", "ENV", "LD_LIBRARY_PATH", "LD_PRELOAD", "PATH",
-    "PYTHONHOME", "PYTHONPATH",
+    "PYTHONHOME", "PYTHONPATH", "PYTHON_DOTENV_DISABLED",
 }
 FORCED_SAFE_VALUES = {
     "DEBUG": "false",
@@ -281,24 +281,44 @@ def service_template_path(project_root: Path) -> Path:
     return project_root / "oneforall" / "scripts" / "systemd" / SERVICE_NAME
 
 
-def verify_dependencies(project_root: Path, values: dict[str, str]) -> None:
+def verify_dependencies(
+    project_root: Path,
+    values: dict[str, str],
+    uid: int,
+    gid: int,
+) -> None:
+    """Import production dependencies and configuration as the service user."""
     python = project_root / "oneforall" / ".venv" / "bin" / "python3"
     if not python.is_file():
         raise RuntimeError(f"production virtualenv Python is missing: {python}")
     probe_code = (
         "import fastapi, uvicorn, psycopg2, dotenv, jinja2, multipart, bcrypt, "
-        "docx, apscheduler, alembic, itsdangerous, httpx, aiofiles, openpyxl, reportlab"
+        "docx, apscheduler, alembic, itsdangerous, httpx, aiofiles, openpyxl, reportlab; "
+        "from config import settings"
     )
-    environment = {**os.environ, **values, "PYTHONDONTWRITEBYTECODE": "1"}
+    environment = {
+        **values,
+        "HOME": "/var/lib/themisiq",
+        "LANG": "C.UTF-8",
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHON_DOTENV_DISABLED": "1",
+    }
     result = subprocess.run(
         [str(python), "-c", probe_code],
         cwd=project_root / "oneforall",
         env=environment,
         capture_output=True,
         text=True,
+        user=uid,
+        group=gid,
+        extra_groups=[],
+        umask=0o077,
     )
     if result.returncode != 0:
-        raise RuntimeError("production virtualenv dependency check failed")
+        raise RuntimeError(
+            "production service-user dependency/configuration check failed"
+        )
 
 
 def _lock_down_tree(path: Path) -> None:
@@ -396,9 +416,9 @@ def apply_service(project_root: Path, env_file: Path, unit_file: Path, restart: 
     errors = validate_environment(values)
     if errors:
         raise RuntimeError("deployment refused:\n- " + "\n- ".join(errors))
-    verify_dependencies(project_root, values)
 
     uid, gid = ensure_service_account()
+    verify_dependencies(project_root, values, uid, gid)
     data_dir = project_root / "oneforall" / "data"
     state_dir = Path("/var/lib/themisiq")
     chown_tree(data_dir, uid, gid)

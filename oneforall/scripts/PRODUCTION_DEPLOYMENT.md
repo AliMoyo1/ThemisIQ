@@ -29,6 +29,12 @@ The production service intentionally runs one Uvicorn process. The application
 starts in-process schedulers during startup; multiple workers would execute
 reminders, escalations, retention jobs, and queue drains more than once.
 
+Production configuration comes exclusively from the root-owned
+`/etc/themisiq/themisiq.env`. The unit sets
+`PYTHON_DOTENV_DISABLED=1`, so the unprivileged `themisiq` process never tries
+to read either legacy `/project/.env` file. Keep those legacy files mode 0600;
+do not weaken their permissions to make the service start.
+
 The host cron backup at `/project/backup_db.sh` is authoritative. Therefore
 `GRID_BACKUP_JOBS_ENABLED=false` prevents the web process from running a
 second backup schedule and from attempting the Docker-dependent legacy restore
@@ -145,10 +151,11 @@ sudo python3 oneforall/scripts/deploy.py --apply --restart
 
 The command archives the old unit and drop-ins under
 `/root/themisiq-rollbacks`, installs the non-root loopback-only unit, restarts
-the service, and checks `/health` and `/ready`. If service verification fails,
-it restores the previous unit configuration and attempts one restart. It does
-not roll back the Git checkout; use section 9 if the old unit cannot run the
-new code.
+the service, first imports the dependencies and application configuration as
+the `themisiq` account, and checks `/health` and `/ready`. If service
+verification fails, it restores the previous unit configuration and attempts
+one restart. It does not roll back the Git checkout; use section 9 if the old
+unit cannot run the new code.
 
 ## 6. Verify the live runtime
 
