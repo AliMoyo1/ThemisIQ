@@ -60,7 +60,7 @@ class Settings:
     # change cannot silently move production calls to a different model.
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     OPENROUTER_MODEL: str = os.getenv(
-        "OPENROUTER_MODEL", "z-ai/glm-5.3-flash-20260826"
+        "OPENROUTER_MODEL", "z-ai/glm-5.3-flash"
     )
     OPENROUTER_SITE_URL: str = os.getenv("OPENROUTER_SITE_URL", "https://app.themisiq.net")
     OPENROUTER_APP_NAME: str = os.getenv("OPENROUTER_APP_NAME", "ThemisIQ")

@@ -22,7 +22,7 @@ def _configure(monkeypatch, ai_client):
         lambda name: "test-openrouter-key" if name == "OPENROUTER_API_KEY" else "",
     )
     values = {
-        "OPENROUTER_MODEL": "z-ai/glm-5.3-flash-20260826",
+        "OPENROUTER_MODEL": "z-ai/glm-5.3-flash",
         "OPENROUTER_SITE_URL": "https://app.themisiq.net",
         "OPENROUTER_APP_NAME": "ThemisIQ",
         "OPENROUTER_REQUIRE_EXACT_MODEL": True,
@@ -48,7 +48,7 @@ def test_openrouter_dispatch_applies_privacy_headers_guardrail_and_model_pin(mon
     def fake_post(self, url, headers=None, json=None):
         captured.update(url=url, headers=headers, body=json)
         return _FakeResponse({
-            "model": "z-ai/glm-5.3-flash-20260826",
+            "model": "z-ai/glm-5.3-flash",
             "choices": [{"message": {"content": "Verified-looking but advisory answer"}}],
             "usage": {"prompt_tokens": 17, "completion_tokens": 9},
         })
@@ -64,14 +64,14 @@ def test_openrouter_dispatch_applies_privacy_headers_guardrail_and_model_pin(mon
     assert captured["headers"]["Authorization"] == "Bearer test-openrouter-key"
     assert captured["headers"]["HTTP-Referer"] == "https://app.themisiq.net"
     assert captured["headers"]["X-OpenRouter-Title"] == "ThemisIQ"
-    assert captured["body"]["model"] == "z-ai/glm-5.3-flash-20260826"
+    assert captured["body"]["model"] == "z-ai/glm-5.3-flash"
     assert captured["body"]["provider"] == {
         "zdr": True,
         "data_collection": "deny",
         "max_price": {"prompt": 0.25, "completion": 0.75},
     }
     assert "Never claim that information is current" in captured["body"]["messages"][0]["content"]
-    assert result["model"] == "z-ai/glm-5.3-flash-20260826"
+    assert result["model"] == "z-ai/glm-5.3-flash"
     assert result["input_tokens"] == 17
     assert result["output_tokens"] == 9
 
@@ -133,7 +133,7 @@ def test_openrouter_web_search_normalises_only_response_citations(monkeypatch):
     def fake_post(self, url, headers=None, json=None):
         captured.update(url=url, headers=headers, body=json)
         return _FakeResponse({
-            "model": "z-ai/glm-5.3-flash-20260826",
+            "model": "z-ai/glm-5.3-flash",
             "choices": [{"message": {
                 "content": '[{"title":"Risk","source_url":"https://cisa.gov/risk"}]',
                 "annotations": [
@@ -173,7 +173,7 @@ def test_openrouter_web_search_normalises_only_response_citations(monkeypatch):
         {"url": "https://cisa.gov/risk", "title": "CISA risk bulletin"}
     ]
     assert result["searches_used"] == 2
-    assert result["model"] == "z-ai/glm-5.3-flash-20260826"
+    assert result["model"] == "z-ai/glm-5.3-flash"
 
 
 def test_openrouter_web_search_fails_closed_without_citations(monkeypatch):
@@ -184,7 +184,7 @@ def test_openrouter_web_search_fails_closed_without_citations(monkeypatch):
 
     def fake_post(self, url, headers=None, json=None):
         return _FakeResponse({
-            "model": "z-ai/glm-5.3-flash-20260826",
+            "model": "z-ai/glm-5.3-flash",
             "choices": [{"message": {
                 "content": '[{"title":"Risk","source_url":"https://invented.example/"}]',
                 "annotations": [],
@@ -205,4 +205,74 @@ def test_openrouter_active_provider_configuration(monkeypatch):
     _configure(monkeypatch, ai_client)
     assert ai_client.is_configured() is True
     assert ai_client.provider_name() == "OpenRouter"
-    assert ai_client._model_for_provider() == "z-ai/glm-5.3-flash-20260826"
+    assert ai_client._model_for_provider() == "z-ai/glm-5.3-flash"
+
+
+def test_openrouter_web_search_retries_connect_errors_only(monkeypatch):
+    import httpx
+    from core import ai_client
+
+    _configure(monkeypatch, ai_client)
+    monkeypatch.setattr(ai_client.time, "sleep", lambda _seconds: None)
+    attempts = 0
+
+    def fake_post(self, url, headers=None, json=None):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise httpx.ConnectError(
+                "TLS handshake ended early",
+                request=httpx.Request("POST", url),
+            )
+        return _FakeResponse({
+            "model": "z-ai/glm-5.3-flash",
+            "choices": [{"message": {
+                "content": "Grounded result",
+                "annotations": [{
+                    "type": "url_citation",
+                    "url_citation": {
+                        "url": "https://cisa.gov/risk",
+                        "title": "CISA bulletin",
+                    },
+                }],
+            }}],
+            "usage": {"server_tool_use": {"web_search_requests": 1}},
+        })
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    result = ai_client.create_message_web_search(
+        [{"role": "user", "content": "Search current risks"}],
+        allowed_domains=["cisa.gov"],
+    )
+
+    assert attempts == 3
+    assert result["text"] == "Grounded result"
+    assert result["citations"] == [
+        {"url": "https://cisa.gov/risk", "title": "CISA bulletin"}
+    ]
+
+
+def test_openrouter_connect_retry_is_bounded_and_sanitised(monkeypatch):
+    import httpx
+    from core import ai_client
+
+    _configure(monkeypatch, ai_client)
+    monkeypatch.setattr(ai_client.time, "sleep", lambda _seconds: None)
+    attempts = 0
+
+    def fake_post(self, url, headers=None, json=None):
+        nonlocal attempts
+        attempts += 1
+        raise httpx.ConnectError(
+            "TLS handshake ended early",
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    with pytest.raises(
+        RuntimeError,
+        match="OpenRouter connection failed after 3 attempts",
+    ):
+        ai_client.create_message([{"role": "user", "content": "hello"}])
+
+    assert attempts == 3

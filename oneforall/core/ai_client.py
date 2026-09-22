@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import time
 from urllib.parse import urlsplit
 
 import httpx
@@ -44,6 +45,7 @@ _GRC_GUARDRAIL = (
 )
 
 _OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
+_OPENROUTER_CONNECT_ATTEMPTS = 3
 
 
 def _provider():
@@ -59,7 +61,7 @@ def _model_for_provider(provider=None):
     return {
         "anthropic": getattr(settings, "ANTHROPIC_MODEL", "claude-sonnet-5"),
         "openrouter": getattr(
-            settings, "OPENROUTER_MODEL", "z-ai/glm-5.3-flash-20260826"
+            settings, "OPENROUTER_MODEL", "z-ai/glm-5.3-flash"
         ),
         "openai": getattr(settings, "OPENAI_MODEL", "gpt-4o"),
         "gemini": getattr(settings, "GEMINI_MODEL", "gemini-1.5-pro"),
@@ -108,6 +110,37 @@ def _openrouter_headers() -> dict:
     if app_name:
         headers["X-OpenRouter-Title"] = app_name
     return headers
+
+
+def _post_with_connect_retry(url, *, headers, body, provider_label, attempts=1):
+    """POST once, retrying only failures that occur while establishing a connection.
+
+    ``ConnectError`` and ``ConnectTimeout`` happen before an HTTP response is
+    available, so a short bounded retry is appropriate. Response/status errors,
+    read timeouts, malformed payloads, model drift, and provenance failures are
+    deliberately not retried here.
+    """
+    attempts = max(1, int(attempts))
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with httpx.Client(timeout=120) as client:
+                return client.post(url, headers=headers, json=body)
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            log.warning(
+                "%s connection attempt %d/%d failed (%s); retrying",
+                provider_label,
+                attempt,
+                attempts,
+                type(exc).__name__,
+            )
+            time.sleep(0.5 * attempt)
+    raise RuntimeError(
+        f"{provider_label} connection failed after {attempts} attempts"
+    ) from last_error
 
 
 def _openrouter_provider_policy() -> dict:
@@ -328,27 +361,33 @@ def _openai_compat(
         "messages": msgs,
     }
     body.update(extra_body or {})
-    with httpx.Client(timeout=120) as client:
-        r = client.post(url, headers=headers, json=body)
-        r.raise_for_status()
-        d = r.json()
-        raw_reported_model = d.get("model")
-        if required_model and not raw_reported_model:
-            raise RuntimeError(
-                "OpenRouter response omitted model identity; exact-model verification failed"
-            )
-        reported_model = str(raw_reported_model or model)
-        if required_model and reported_model != required_model:
-            raise RuntimeError(
-                "OpenRouter model drift detected: requested "
-                f"{required_model!r}, received {reported_model!r}"
-            )
-        usage = d.get("usage", {})
-        return d["choices"][0]["message"]["content"], {
-            "model": reported_model,
-            "input_tokens": usage.get("prompt_tokens", 0),
-            "output_tokens": usage.get("completion_tokens", 0),
-        }
+    is_openrouter = key_name == "OPENROUTER_API_KEY"
+    r = _post_with_connect_retry(
+        url,
+        headers=headers,
+        body=body,
+        provider_label="OpenRouter" if is_openrouter else "AI provider",
+        attempts=_OPENROUTER_CONNECT_ATTEMPTS if is_openrouter else 1,
+    )
+    r.raise_for_status()
+    d = r.json()
+    raw_reported_model = d.get("model")
+    if required_model and not raw_reported_model:
+        raise RuntimeError(
+            "OpenRouter response omitted model identity; exact-model verification failed"
+        )
+    reported_model = str(raw_reported_model or model)
+    if required_model and reported_model != required_model:
+        raise RuntimeError(
+            "OpenRouter model drift detected: requested "
+            f"{required_model!r}, received {reported_model!r}"
+        )
+    usage = d.get("usage", {})
+    return d["choices"][0]["message"]["content"], {
+        "model": reported_model,
+        "input_tokens": usage.get("prompt_tokens", 0),
+        "output_tokens": usage.get("completion_tokens", 0),
+    }
 
 
 def _gemini(messages, system, max_tokens, model):
@@ -425,10 +464,15 @@ def _openrouter_web_search(messages, system, max_tokens, model, max_searches, al
         **_openrouter_headers(),
     }
     try:
-        with httpx.Client(timeout=120) as client:
-            response = client.post(_OPENROUTER_CHAT_URL, headers=headers, json=body)
-            response.raise_for_status()
-            data = response.json()
+        response = _post_with_connect_retry(
+            _OPENROUTER_CHAT_URL,
+            headers=headers,
+            body=body,
+            provider_label="OpenRouter web search",
+            attempts=_OPENROUTER_CONNECT_ATTEMPTS,
+        )
+        response.raise_for_status()
+        data = response.json()
     except httpx.HTTPStatusError as exc:
         detail = ""
         try:

@@ -2622,7 +2622,7 @@ async def ai_generator_page(request: Request):
     _provider_key = (settings.AI_PROVIDER or "anthropic").lower()
     _ollama_model = getattr(settings, "OLLAMA_MODEL", "llama3.2")
     _openrouter_model = getattr(
-        settings, "OPENROUTER_MODEL", "z-ai/glm-5.3-flash-20260826"
+        settings, "OPENROUTER_MODEL", "z-ai/glm-5.3-flash"
     )
     ai_provider_label = {
         "anthropic":       "Claude (Anthropic)",
@@ -2957,7 +2957,7 @@ async def ask_page(request: Request):
     _provider_key = (getattr(_cfg, 'AI_PROVIDER', '') or 'anthropic').lower()
     _ollama_m = getattr(_cfg, 'OLLAMA_MODEL', 'llama3.2')
     _openrouter_m = getattr(
-        _cfg, 'OPENROUTER_MODEL', 'z-ai/glm-5.3-flash-20260826'
+        _cfg, 'OPENROUTER_MODEL', 'z-ai/glm-5.3-flash'
     )
     ai_provider_label = {
         "anthropic": "Claude",
