@@ -62,6 +62,12 @@ class Settings:
     OPENROUTER_MODEL: str = os.getenv(
         "OPENROUTER_MODEL", "z-ai/glm-5.3-flash"
     )
+    # GLM 5.3 Flash has mandatory reasoning and defaults to maximum effort.
+    # Keep the production default low so reasoning cannot consume the entire
+    # completion budget before the model emits user-visible content.
+    OPENROUTER_REASONING_EFFORT: str = os.getenv(
+        "OPENROUTER_REASONING_EFFORT", "low"
+    ).lower()
     OPENROUTER_SITE_URL: str = os.getenv("OPENROUTER_SITE_URL", "https://app.themisiq.net")
     OPENROUTER_APP_NAME: str = os.getenv("OPENROUTER_APP_NAME", "ThemisIQ")
     OPENROUTER_REQUIRE_EXACT_MODEL: bool = os.getenv(
@@ -105,6 +111,7 @@ class Settings:
     # code change.
     ERM_SCAN_MODEL: str = os.getenv("ERM_SCAN_MODEL", "claude-sonnet-5")
     ERM_SCAN_MAX_SEARCHES: int = int(os.getenv("ERM_SCAN_MAX_SEARCHES", "8"))
+    ERM_SCAN_MAX_TOKENS: int = int(os.getenv("ERM_SCAN_MAX_TOKENS", "3000"))
     # Tailored to this deployment's actual sector (telecom) and jurisdiction
     # (Zimbabwe/Africa) rather than a generic EU/US list: general GRC +
     # cyber authorities, telecom-sector bodies, and Zimbabwe/regional

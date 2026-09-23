@@ -46,6 +46,9 @@ _GRC_GUARDRAIL = (
 
 _OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 _OPENROUTER_CONNECT_ATTEMPTS = 3
+_OPENROUTER_REASONING_EFFORTS = {
+    "max", "xhigh", "high", "medium", "low", "minimal", "none",
+}
 
 
 def _provider():
@@ -168,6 +171,71 @@ def _openrouter_provider_policy() -> dict:
     }
 
 
+def _openrouter_reasoning_policy() -> dict:
+    """Bound reasoning cost and keep chain-of-thought out of app responses."""
+    effort = str(
+        getattr(settings, "OPENROUTER_REASONING_EFFORT", "low") or "low"
+    ).strip().lower()
+    if effort not in _OPENROUTER_REASONING_EFFORTS:
+        raise RuntimeError(
+            "OPENROUTER_REASONING_EFFORT must be one of: "
+            + ", ".join(sorted(_OPENROUTER_REASONING_EFFORTS))
+        )
+    return {"effort": effort, "exclude": True}
+
+
+def _response_text_or_raise(data: dict, provider_label: str) -> tuple[str, dict]:
+    """Return visible assistant text or a sanitized provider failure.
+
+    Reasoning models can return HTTP 200 with ``finish_reason=length`` and no
+    visible content when thinking consumes the whole completion budget. Keep
+    the diagnostic metadata, but never log prompts, model output, or secrets.
+    """
+    choices = data.get("choices") or []
+    first_choice = choices[0] if isinstance(choices, list) and choices else None
+    message = first_choice.get("message") if isinstance(first_choice, dict) else None
+    text = message.get("content") if isinstance(message, dict) else None
+    if isinstance(text, str) and text.strip():
+        return text, message
+
+    finish_reason = (
+        str(first_choice.get("finish_reason") or "unknown")
+        if isinstance(first_choice, dict)
+        else "unknown"
+    )
+    usage = data.get("usage") or {}
+    if not isinstance(usage, dict):
+        usage = {}
+    token_details = (
+        usage.get("completion_tokens_details")
+        or usage.get("output_tokens_details")
+        or {}
+    )
+    if not isinstance(token_details, dict):
+        token_details = {}
+
+    def _safe_token_count(value) -> int:
+        try:
+            return max(0, int(value or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    completion_tokens = _safe_token_count(
+        usage.get("completion_tokens", usage.get("output_tokens", 0))
+    )
+    reasoning_tokens = _safe_token_count(token_details.get("reasoning_tokens", 0))
+    if finish_reason == "length" or (
+        completion_tokens > 0 and reasoning_tokens >= completion_tokens
+    ):
+        raise RuntimeError(
+            f"{provider_label} exhausted its completion budget before producing "
+            "visible output "
+            f"(finish_reason={finish_reason}, completion_tokens={completion_tokens}, "
+            f"reasoning_tokens={reasoning_tokens})"
+        )
+    raise RuntimeError(f"{provider_label} returned an empty response")
+
+
 def _validate_openrouter_model(model: str) -> None:
     """Reject routing aliases when exact-model anti-drift protection is enabled."""
     if not model or "/" not in model:
@@ -268,7 +336,10 @@ def _dispatch(messages, system, max_tokens, model) -> dict:
             _OPENROUTER_CHAT_URL,
             "OPENROUTER_API_KEY",
             extra_headers=_openrouter_headers(),
-            extra_body={"provider": _openrouter_provider_policy()},
+            extra_body={
+                "provider": _openrouter_provider_policy(),
+                "reasoning": _openrouter_reasoning_policy(),
+            },
             required_model=(
                 model
                 if bool(getattr(settings, "OPENROUTER_REQUIRE_EXACT_MODEL", True))
@@ -385,13 +456,8 @@ def _openai_compat(
             "OpenRouter model drift detected: requested "
             f"{required_model!r}, received {reported_model!r}"
         )
-    choices = d.get("choices") or []
-    first_choice = choices[0] if isinstance(choices, list) and choices else None
-    message = first_choice.get("message") if isinstance(first_choice, dict) else None
-    text = message.get("content") if isinstance(message, dict) else None
-    if not isinstance(text, str) or not text.strip():
-        provider_label = "OpenRouter" if is_openrouter else "AI provider"
-        raise RuntimeError(f"{provider_label} returned an empty response")
+    provider_label = "OpenRouter" if is_openrouter else "AI provider"
+    text, _ = _response_text_or_raise(d, provider_label)
 
     usage = d.get("usage") or {}
     if not isinstance(usage, dict):
@@ -470,6 +536,7 @@ def _openrouter_web_search(messages, system, max_tokens, model, max_searches, al
         }],
         "max_tool_calls": max_uses,
         "provider": _openrouter_provider_policy(),
+        "reasoning": _openrouter_reasoning_policy(),
     }
     headers = {
         "Authorization": f"Bearer {key}",
@@ -512,10 +579,7 @@ def _openrouter_web_search(messages, system, max_tokens, model, max_searches, al
             f"{model!r}, received {reported_model!r}"
         )
 
-    message = ((data.get("choices") or [{}])[0].get("message") or {})
-    text = message.get("content") or ""
-    if not isinstance(text, str) or not text.strip():
-        raise RuntimeError("OpenRouter web search returned an empty response")
+    text, message = _response_text_or_raise(data, "OpenRouter web search")
 
     citations = []
     seen_urls = set()

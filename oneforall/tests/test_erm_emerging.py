@@ -148,11 +148,18 @@ def test_scan_emerging_risks_grounded_citation_cross_check(test_db, monkeypatch)
         {"url": "https://nist.gov/a", "title": "NIST Page A"},
         {"url": "https://cisa.gov/b", "title": "CISA Page B"},
     ]
-    monkeypatch.setattr(ai_mod, "create_message_web_search", lambda *a, **k: {
-        "text": json.dumps(items), "citations": citations, "searches_used": 2,
-    })
+    grounded_call = {}
+
+    def grounded_response(*args, **kwargs):
+        grounded_call.update(kwargs)
+        return {
+            "text": json.dumps(items), "citations": citations, "searches_used": 2,
+        }
+
+    monkeypatch.setattr(ai_mod, "create_message_web_search", grounded_response)
     created = ai_mod.scan_emerging_risks_grounded({"pillars": [], "frameworks": [], "top_categories": []})
     assert len(created) == 3
+    assert grounded_call["max_tokens"] == 3000
 
     rows = {r["title"]: r for r in list_emerging()}
     assert rows["Cited Risk A"]["origin"] == "ai_scan_web"
@@ -189,13 +196,20 @@ def test_grounded_scan_falls_back_to_knowledge_only(test_db, monkeypatch):
         raise RuntimeError("Web search not enabled: org admin disabled the feature")
     monkeypatch.setattr(ai_mod, "create_message_web_search", raise_runtime)
     monkeypatch.setattr(ai_mod, "is_configured", lambda: True)
-    monkeypatch.setattr(ai_mod, "create_message", lambda *a, **k: json.dumps(
-        [{"title": "Fallback Risk", "summary": "s", "rationale": "r"}]
-    ))
+    fallback_call = {}
+
+    def fallback_response(*args, **kwargs):
+        fallback_call.update(kwargs)
+        return json.dumps(
+            [{"title": "Fallback Risk", "summary": "s", "rationale": "r"}]
+        )
+
+    monkeypatch.setattr(ai_mod, "create_message", fallback_response)
 
     result = ai_mod.run_emerging_scan()
 
     assert result == {"created": 1, "grounded": False}
+    assert fallback_call["max_tokens"] == 3000
     rows = list_emerging()
     assert any(r["title"] == "Fallback Risk" and r["origin"] == "ai_scan" for r in rows)
 

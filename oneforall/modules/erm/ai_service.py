@@ -334,6 +334,12 @@ def _emerging_context_lines(org_context: dict) -> str:
     )
 
 
+def _emerging_scan_token_budget() -> int:
+    """Return a bounded budget large enough for reasoning plus visible JSON."""
+    configured = int(getattr(settings, "ERM_SCAN_MAX_TOKENS", 3000))
+    return max(2000, min(configured, 8000))
+
+
 def scan_emerging_risks_grounded(org_context: dict) -> list:
     """Grounded horizon scan using the configured provider's web search. Stores
     survivors directly via create_emerging and returns their new ids.
@@ -363,7 +369,7 @@ def scan_emerging_risks_grounded(org_context: dict) -> list:
     )
     result = create_message_web_search(
         [{"role": "user", "content": prompt}],
-        max_tokens=1500,
+        max_tokens=_emerging_scan_token_budget(),
         max_searches=getattr(settings, "ERM_SCAN_MAX_SEARCHES", 8),
         allowed_domains=getattr(settings, "ERM_SCAN_ALLOWED_DOMAINS", None),
     )
@@ -434,7 +440,10 @@ def scan_emerging_risks(org_context: dict, *, raise_on_error: bool = False) -> l
         'live source for this response.'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=1500)
+        text = create_message(
+            [{"role": "user", "content": prompt}],
+            max_tokens=_emerging_scan_token_budget(),
+        )
     except Exception as exc:
         log.warning("ERM knowledge-only scan failed: %s", exc)
         if raise_on_error:

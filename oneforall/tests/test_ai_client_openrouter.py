@@ -23,6 +23,7 @@ def _configure(monkeypatch, ai_client):
     )
     values = {
         "OPENROUTER_MODEL": "z-ai/glm-5.3-flash",
+        "OPENROUTER_REASONING_EFFORT": "low",
         "OPENROUTER_SITE_URL": "https://app.themisiq.net",
         "OPENROUTER_APP_NAME": "ThemisIQ",
         "OPENROUTER_REQUIRE_EXACT_MODEL": True,
@@ -70,6 +71,7 @@ def test_openrouter_dispatch_applies_privacy_headers_guardrail_and_model_pin(mon
         "data_collection": "deny",
         "max_price": {"prompt": 0.25, "completion": 0.75},
     }
+    assert captured["body"]["reasoning"] == {"effort": "low", "exclude": True}
     assert "Never claim that information is current" in captured["body"]["messages"][0]["content"]
     assert result["model"] == "z-ai/glm-5.3-flash"
     assert result["input_tokens"] == 17
@@ -145,6 +147,51 @@ def test_openrouter_rejects_null_or_blank_completion_content(monkeypatch):
             ai_client.create_message([{"role": "user", "content": "hello"}])
 
 
+def test_openrouter_reports_reasoning_budget_exhaustion_without_response_content(monkeypatch):
+    import httpx
+    from core import ai_client
+
+    _configure(monkeypatch, ai_client)
+
+    def fake_post(self, url, headers=None, json=None):
+        return _FakeResponse({
+            "model": "z-ai/glm-5.3-flash",
+            "choices": [{
+                "finish_reason": "length",
+                "message": {"content": None, "reasoning": "not logged"},
+            }],
+            "usage": {
+                "completion_tokens": 1500,
+                "completion_tokens_details": {"reasoning_tokens": 1500},
+            },
+        })
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "exhausted its completion budget.*finish_reason=length.*"
+            "reasoning_tokens=1500"
+        ),
+    ):
+        ai_client.create_message([{"role": "user", "content": "hello"}])
+
+
+def test_openrouter_rejects_invalid_reasoning_effort(monkeypatch):
+    from core import ai_client
+
+    _configure(monkeypatch, ai_client)
+    monkeypatch.setattr(
+        ai_client.settings,
+        "OPENROUTER_REASONING_EFFORT",
+        "unbounded",
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match="OPENROUTER_REASONING_EFFORT"):
+        ai_client.create_message([{"role": "user", "content": "hello"}])
+
+
 def test_openrouter_rejects_malformed_completion_envelope(monkeypatch):
     import httpx
     from core import ai_client
@@ -216,6 +263,7 @@ def test_openrouter_web_search_normalises_only_response_citations(monkeypatch):
     assert tool["parameters"]["max_uses"] == 3
     assert tool["parameters"]["allowed_domains"] == ["cisa.gov", "nist.gov"]
     assert captured["body"]["max_tool_calls"] == 3
+    assert captured["body"]["reasoning"] == {"effort": "low", "exclude": True}
     assert result["citations"] == [
         {"url": "https://cisa.gov/risk", "title": "CISA risk bulletin"}
     ]
