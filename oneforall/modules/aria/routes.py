@@ -887,8 +887,8 @@ async def documents_page(request: Request,
         ).fetchone()[0]
         ai_gen = db.execute(
             f"SELECT COUNT(*) FROM aria_documents WHERE {scope_sql} "
-            "AND comments LIKE '%AI Generated%'",
-            scope_params,
+            "AND comments LIKE %s",
+            [*scope_params, "%AI Generated%"],
         ).fetchone()[0]
         in_30 = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
         review_due = db.execute(

@@ -143,6 +143,47 @@ def _make_template(db, name="Tpl", org_id=1, is_active=1):
     return tid
 
 
+def test_documents_page_binds_ai_generated_pattern_for_empty_library(
+        test_db, two_orgs, _mock_auth, monkeypatch):
+    """The PostgreSQL driver treats literal percent signs as placeholders
+    whenever parameters are supplied. Keep the Library's AI-generated count
+    pattern bound as data so an empty production library renders instead of
+    raising ``IndexError: list index out of range`` in psycopg2.
+    """
+    test_db.execute("DELETE FROM aria_documents")
+    test_db.commit()
+
+    class RecordingDb:
+        def __init__(self, delegate):
+            self.delegate = delegate
+            self.ai_query = None
+
+        def execute(self, sql, params=None):
+            if "comments LIKE" in sql:
+                self.ai_query = (sql, list(params or []))
+            return self.delegate.execute(sql, params)
+
+        def close(self):
+            pass
+
+    recording_db = RecordingDb(test_db)
+    monkeypatch.setattr(routes, "get_db", lambda: recording_db)
+    monkeypatch.setattr(
+        routes,
+        "_aria_render",
+        lambda request, template, context, active_section=None: context,
+    )
+
+    request = _request_as(_mock_auth, two_orgs["author"])
+    result = _run(routes.documents_page(request))
+
+    assert recording_db.ai_query is not None
+    query, params = recording_db.ai_query
+    assert query.endswith("AND comments LIKE %s")
+    assert params[-1] == "%AI Generated%"
+    assert result["stats"]["ai_gen"] == 0
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # add_document: no more direct-to-Approved creation
 # ─────────────────────────────────────────────────────────────────────────
