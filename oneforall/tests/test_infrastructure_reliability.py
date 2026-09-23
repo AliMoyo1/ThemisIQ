@@ -165,3 +165,28 @@ def test_postgres_pool_return_resets_and_commits_tenant_session_state(monkeypatc
     assert ("commit",) in events
     assert events[-1] == ("putconn", False)
     assert events.index(("commit",)) < events.index(("putconn", False))
+
+
+def test_postgres_script_splitter_discards_comments_before_semicolon_split():
+    script = """
+    PRAGMA foreign_keys=ON;
+    -- active_slot is held for pending/running; NULL releases the slot
+    CREATE TABLE scan_jobs (id SERIAL PRIMARY KEY);
+    -- a second comment; must not become executable SQL
+    CREATE INDEX idx_scan_jobs ON scan_jobs(id);
+    """
+
+    assert database._pg_script_statements(script) == (
+        "CREATE TABLE scan_jobs (id SERIAL PRIMARY KEY)",
+        "CREATE INDEX idx_scan_jobs ON scan_jobs(id)",
+    )
+
+    erm_statements = database._pg_script_statements(database._ERM_ORM_TABLES_PG)
+    assert any(
+        "CREATE TABLE IF NOT EXISTS erm_emerging_scan_jobs" in statement
+        for statement in erm_statements
+    )
+    assert not any(
+        statement.startswith("NULL for terminal rows")
+        for statement in erm_statements
+    )

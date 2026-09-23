@@ -216,6 +216,26 @@ class _NormCursor:
         return getattr(self._cur, name)
 
 
+def _pg_script_statements(sql: str) -> tuple[str, ...]:
+    """Return executable PostgreSQL statements from a schema script.
+
+    Full-line comments and SQLite-only PRAGMAs must be removed *before*
+    splitting on semicolons.  Otherwise punctuation inside a comment can turn
+    the remainder of that comment into an invalid standalone SQL statement.
+    """
+    executable_lines = []
+    for line in sql.splitlines():
+        stripped = line.strip()
+        if stripped.upper().startswith("PRAGMA") or stripped.startswith("--"):
+            continue
+        executable_lines.append(line)
+    return tuple(
+        statement.strip()
+        for statement in "\n".join(executable_lines).split(";")
+        if statement.strip()
+    )
+
+
 class _PgConnWrapper:
     """Mimics the sqlite3.Connection interface over a pooled psycopg2 connection.
 
@@ -261,19 +281,8 @@ class _PgConnWrapper:
     def executescript(self, sql: str):
         """Execute a multi-statement DDL script, silently skipping PRAGMA lines."""
         cur = self._conn.cursor()
-        for stmt in sql.split(";"):
-            stmt = "\n".join(
-                ln for ln in stmt.splitlines()
-                if not ln.strip().upper().startswith("PRAGMA")
-            ).strip()
-            if not stmt:
-                continue
-            has_sql = any(
-                ln.strip() and not ln.strip().startswith("--")
-                for ln in stmt.splitlines()
-            )
-            if has_sql:
-                cur.execute(stmt)
+        for stmt in _pg_script_statements(sql):
+            cur.execute(stmt)
         return cur
 
     def set_tenant(self, slug: str):
