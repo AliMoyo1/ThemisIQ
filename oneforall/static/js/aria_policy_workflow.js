@@ -130,6 +130,28 @@
 
   var editorState = { draft: null, dirty: false, savedBodySnapshot: '' };
   var unsavedWarningInstalled = false;
+  var DEFAULT_CONFIRM_HINT =
+    'Confirming creates the library document (or a candidate revision) and takes you to it, ' +
+    'where you submit it for approval.';
+
+  function setConfirmState(enabled, message, busy) {
+    var btn = $('workflowConfirmBtn');
+    if (btn) {
+      btn.disabled = !enabled;
+      btn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+      btn.textContent = busy ? 'Confirming…' : 'Confirm version';
+    }
+    var hint = $('workflowConfirmHint');
+    if (hint && message) hint.textContent = message;
+  }
+
+  function invalidateBuildPreview(message) {
+    var previewSection = $('workflowPreviewSection');
+    if (previewSection) previewSection.style.display = 'none';
+    var pdfContainer = $('workflowPdfContainer');
+    if (pdfContainer) pdfContainer.innerHTML = '';
+    setConfirmState(false, message || 'Apply the template again to build a current preview before confirming.');
+  }
 
   function installUnsavedWarning() {
     if (unsavedWarningInstalled) return;
@@ -153,10 +175,11 @@
     if (!el) return;
     editorState.dirty = (el.value !== editorState.savedBodySnapshot);
     setUnsavedIndicator(editorState.dirty);
-    // section 11 point 4: any edit invalidates the last build -- disable
-    // confirm immediately rather than waiting for the next save round-trip.
-    var confirmBtn = $('workflowConfirmBtn');
-    if (confirmBtn) confirmBtn.disabled = true;
+    // Section 11 point 4: any edit invalidates the last build. Remove the
+    // stale preview as well as disabling confirm; leaving it visible made a
+    // disabled button look actionable even though the server correctly had
+    // no current build to confirm.
+    invalidateBuildPreview('This draft changed. Save it, then apply the template again before confirming.');
   }
 
   function markdownPreviewAvailable() {
@@ -285,10 +308,7 @@
 
     var panel = $('workflowPanel');
     if (panel) panel.style.display = '';
-    var confirmBtn = $('workflowConfirmBtn');
-    if (confirmBtn) confirmBtn.disabled = true;
-    var previewSection = $('workflowPreviewSection');
-    if (previewSection) previewSection.style.display = 'none';
+    invalidateBuildPreview('Apply a template and review the generated preview before confirming.');
 
     loadTemplatesInto($('workflowTemplateSelect'), draft.template_id);
 
@@ -326,7 +346,11 @@
     editorState.savedBodySnapshot = editEl.value;
     editorState.dirty = false;
     setUnsavedIndicator(false);
-    toast('Draft saved.', 'success');
+    // save_draft deliberately clears build_id and every generated artifact,
+    // even when Save is clicked without a body change. Mirror that server
+    // state so an older preview never remains an apparent confirmation target.
+    invalidateBuildPreview('Draft saved. Apply the template again to build a current preview before confirming.');
+    toast('Draft saved. Apply the template again before confirming.', 'success');
     refreshMyDrafts();
   }
 
@@ -345,10 +369,12 @@
     var progress = $('workflowBuildProgress');
     if (btn) btn.disabled = true;
     if (progress) progress.style.display = '';
+    setConfirmState(false, 'Building the document preview…');
     var res = await api.buildDraft(draft.id, parseInt(select.value, 10), draft.lock_version);
     if (btn) btn.disabled = false;
     if (progress) progress.style.display = 'none';
     if (!res.ok) {
+      setConfirmState(false, 'Build failed. Fix the reported problem, then apply the template again.');
       toast(errMsg(res, 'Build failed.'), 'error');
       return;
     }
@@ -361,12 +387,20 @@
     if (vEl) vEl.textContent = (res.data.draft.version_major != null) ? (res.data.draft.version_major + '.' + res.data.draft.version_minor) : '—';
 
     var pdfContainer = $('workflowPdfContainer');
-    var confirmBtn = $('workflowConfirmBtn');
     if (pdfContainer && res.data.preview_url) {
+      setConfirmState(false, 'Rendering the preview…');
       var result = await window.AriaPdfViewer.render(pdfContainer, res.data.preview_url);
-      if (confirmBtn) confirmBtn.disabled = !!result.error;
-    } else if (confirmBtn) {
-      confirmBtn.disabled = false;
+      if (result.error) {
+        setConfirmState(false, 'The preview could not be displayed. Rebuild it before confirming.');
+        toast('The preview could not be displayed. Rebuild it before confirming.', 'error');
+        return;
+      } else {
+        setConfirmState(true, DEFAULT_CONFIRM_HINT);
+      }
+    } else {
+      setConfirmState(false, 'The server did not return a preview. Rebuild it before confirming.');
+      toast('The server did not return a preview. Rebuild it before confirming.', 'error');
+      return;
     }
     toast('Preview ready.', 'success');
   }
@@ -379,12 +413,30 @@
 
   async function confirmDraft() {
     var draft = editorState.draft;
-    if (!draft || !draft.build_id) return;
-    var btn = $('workflowConfirmBtn');
-    if (btn) btn.disabled = true;
-    var res = await api.confirmDraft(draft.id, draft.build_id, draft.lock_version);
+    if (!draft) {
+      toast('Load a draft before confirming a version.', 'error');
+      return;
+    }
+    if (editorState.dirty) {
+      toast('Save your changes and rebuild the preview before confirming.', 'error');
+      return;
+    }
+    if (!draft.build_id || draft.state !== 'ready') {
+      invalidateBuildPreview('Apply the template and review a current preview before confirming.');
+      toast('Apply the template and build a current preview before confirming.', 'error');
+      return;
+    }
+    setConfirmState(false, 'Confirming this version…', true);
+    var res;
+    try {
+      res = await api.confirmDraft(draft.id, draft.build_id, draft.lock_version);
+    } catch (e) {
+      setConfirmState(true, DEFAULT_CONFIRM_HINT);
+      toast('Confirm failed unexpectedly. Please try again.', 'error');
+      return;
+    }
     if (!res.ok) {
-      if (btn) btn.disabled = false;
+      setConfirmState(true, DEFAULT_CONFIRM_HINT);
       toast(errMsg(res, 'Confirm failed.'), 'error');
       return;
     }

@@ -21,7 +21,7 @@
   window.pdfjsLib = pdfjsLib;
 </script>
 <script src="/static/js/aria_pdf_viewer.js?v=1"></script>
-<script src="/static/js/aria_policy_workflow.js?v=3"></script>
+<script src="/static/js/aria_policy_workflow.js?v=4"></script>
 <style>
 /* ── Stats strip ─────────────────────────────────────────────────────────── */
 .ag-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
@@ -185,6 +185,8 @@
 .aria-pdf-page{max-width:100%;box-shadow:var(--shadow-sm);background:#fff}
 .aria-pdf-state{font-size:12px;color:var(--muted);padding:20px}
 .aria-pdf-error{color:var(--red,#dc2626)}
+.aria-workflow-panel .btn:disabled,
+.aria-workflow-panel .btn:disabled:hover{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
 .aria-version-row{display:flex;align-items:center;justify-content:space-between;
   gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);
   margin-bottom:6px;font-size:12px}
@@ -504,7 +506,7 @@
               <button type="button" class="btn btn-primary" id="workflowConfirmBtn" disabled
                       onclick="AriaPolicyWorkflow.ui.confirmDraft()">Confirm version</button>
             </div>
-            <p id="workflowConfirmHint" class="aria-workflow-hint">
+            <p id="workflowConfirmHint" class="aria-workflow-hint" aria-live="polite">
               Confirming creates the library document (or a candidate revision) and takes you to it,
               where you submit it for approval.
             </p>
