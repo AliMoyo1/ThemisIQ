@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import stat
+import time
 from pathlib import Path
+
+import pytest
 
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "deploy.py"
@@ -46,6 +50,16 @@ def test_configured_environment_prefers_live_values_and_forces_safe_rollout():
     assert "PYTHON_DOTENV_DISABLED" not in selected
 
 
+def _production_values(**overrides):
+    values = dict(deploy.FORCED_SAFE_VALUES)
+    values.update({
+        "DATABASE_URL": "postgresql://user@127.0.0.1:5434/themisiq",
+        "SECRET_KEY": "present",
+    })
+    values.update(overrides)
+    return values
+
+
 def test_validate_environment_fails_closed_for_authoring_and_non_postgres():
     values = dict(deploy.FORCED_SAFE_VALUES)
     values.update({
@@ -56,8 +70,62 @@ def test_validate_environment_fails_closed_for_authoring_and_non_postgres():
     })
     errors = deploy.validate_environment(values)
     assert any("PostgreSQL" in error for error in errors)
-    assert any("AUTHORING_ENABLED" in error for error in errors)
-    assert any("ORG_IDS" in error for error in errors)
+    assert any(deploy.ARIA_AUTHORIZATION_OPTION in error for error in errors)
+    assert any(deploy.ARIA_ACCEPTANCE_OPTION in error for error in errors)
+
+
+def test_validate_environment_accepts_exact_explicit_aria_pilot_authorization():
+    values = _production_values(
+        ARIA_POLICY_AUTHORING_ENABLED="true",
+        ARIA_POLICY_AUTHORING_ORG_IDS="12,7",
+    )
+
+    errors = deploy.validate_environment(
+        values,
+        authorized_aria_org_ids=(7, 12),
+        accept_aria_known_limitations=True,
+    )
+
+    assert errors == []
+
+
+def test_validate_environment_rejects_mismatched_aria_pilot_authorization():
+    values = _production_values(
+        ARIA_POLICY_AUTHORING_ENABLED="true",
+        ARIA_POLICY_AUTHORING_ORG_IDS="7",
+    )
+
+    errors = deploy.validate_environment(
+        values,
+        authorized_aria_org_ids=(8,),
+        accept_aria_known_limitations=True,
+    )
+
+    assert any("exactly match" in error for error in errors)
+
+
+@pytest.mark.parametrize("raw", ["7,abc", "0", "7,7", "7,,8", "*"])
+def test_parse_org_id_allowlist_rejects_malformed_or_ambiguous_values(raw):
+    with pytest.raises(ValueError):
+        deploy.parse_org_id_allowlist(raw, field_name="test allowlist")
+
+
+def test_validate_environment_rejects_stale_allowlist_while_disabled():
+    values = _production_values(
+        ARIA_POLICY_AUTHORING_ENABLED="false",
+        ARIA_POLICY_AUTHORING_ORG_IDS="7",
+    )
+
+    errors = deploy.validate_environment(values)
+
+    assert any("must be empty when authoring is disabled" in error for error in errors)
+
+
+def test_cli_requires_both_aria_pilot_acknowledgements(capsys):
+    rc = deploy.main([deploy.ARIA_AUTHORIZATION_OPTION, "7"])
+
+    assert rc == 2
+    assert "requires both" in capsys.readouterr().err
 
 
 def test_environment_serialization_quotes_values_without_printable_newlines():
@@ -140,6 +208,216 @@ def test_systemd_unit_is_non_root_loopback_only_and_sandboxed():
     assert "Environment=SECRET_KEY=" not in unit
     assert "--host 0.0.0.0" not in unit
     assert "--workers 2" not in unit
+
+
+def test_aria_preview_companion_matches_service_account_and_is_isolated():
+    compose = (
+        Path(__file__).parents[2] / "deploy" / "aria-preview" / "compose.vps.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "ARIA_PREVIEW_UID" in compose
+    assert "ARIA_PREVIEW_GID" in compose
+    assert 'user: "${ARIA_PREVIEW_UID:' in compose
+    assert "uid=1001" not in compose
+    assert "gid=1001" not in compose
+    assert "network_mode: none" in compose
+    assert "read_only: true" in compose
+    assert "no-new-privileges:true" in compose
+    assert "cap_drop:" in compose and "- ALL" in compose
+    assert "memswap_limit: 1g" in compose
+    assert "ports:" not in compose
+
+
+def _healthy_preview_inspection(spool: Path, *, env=None):
+    return [{
+        "Config": {
+            "Image": "ghcr.io/alimoyo1/themisiq-aria-preview@sha256:" + "a" * 64,
+            "User": "1234:5678",
+            "Env": env or ["HOME=/home/ariaworker", "PATH=/usr/bin:/bin"],
+        },
+        "HostConfig": {
+            "NetworkMode": "none",
+            "ReadonlyRootfs": True,
+            "Privileged": False,
+            "CapDrop": ["ALL"],
+            "SecurityOpt": ["no-new-privileges:true"],
+            "PortBindings": {},
+            "RestartPolicy": {"Name": "unless-stopped"},
+            "Memory": 1024 * 1024 * 1024,
+            "MemorySwap": 1024 * 1024 * 1024,
+            "NanoCpus": 1_500_000_000,
+            "PidsLimit": 128,
+            "Tmpfs": {
+                "/tmp": "rw,noexec,nosuid,nodev,size=536870912,uid=1234,gid=5678",
+                "/home/ariaworker": (
+                    "rw,noexec,nosuid,nodev,size=33554432,uid=1234,gid=5678"
+                ),
+            },
+        },
+        "State": {"Running": True, "Health": {"Status": "healthy"}},
+        "NetworkSettings": {"Ports": {}},
+        "Mounts": [
+            {"Type": "bind", "Source": str(spool), "Destination": "/spool"},
+            {"Type": "tmpfs", "Source": "", "Destination": "/tmp"},
+            {"Type": "tmpfs", "Source": "", "Destination": "/home/ariaworker"},
+        ],
+    }]
+
+
+def test_aria_preview_runtime_readiness_accepts_hardened_worker(tmp_path, monkeypatch):
+    spool = tmp_path.resolve()
+    monkeypatch.setattr(
+        deploy,
+        "verify_aria_preview_spool",
+        lambda values, **kwargs: spool,
+    )
+
+    def fake_run(args, **kwargs):
+        output = "container-id\n" if args[1] == "ps" else json.dumps(
+            _healthy_preview_inspection(spool)
+        )
+        return deploy.subprocess.CompletedProcess(args, 0, output, "")
+
+    monkeypatch.setattr(deploy, "_run", fake_run)
+
+    deploy.verify_aria_preview_container({}, 1234, 5678)
+
+
+def test_aria_preview_runtime_readiness_rejects_secret_environment(tmp_path, monkeypatch):
+    spool = tmp_path.resolve()
+    monkeypatch.setattr(
+        deploy,
+        "verify_aria_preview_spool",
+        lambda values, **kwargs: spool,
+    )
+    inspection = _healthy_preview_inspection(
+        spool,
+        env=["HOME=/home/ariaworker", "SECRET_KEY=must-not-be-present"],
+    )
+
+    def fake_run(args, **kwargs):
+        output = "container-id\n" if args[1] == "ps" else json.dumps(inspection)
+        return deploy.subprocess.CompletedProcess(args, 0, output, "")
+
+    monkeypatch.setattr(deploy, "_run", fake_run)
+
+    with pytest.raises(RuntimeError, match="must not receive secret-bearing"):
+        deploy.verify_aria_preview_container({}, 1234, 5678)
+
+
+def test_aria_preview_runtime_readiness_rejects_untrusted_digest(tmp_path, monkeypatch):
+    spool = tmp_path.resolve()
+    monkeypatch.setattr(
+        deploy,
+        "verify_aria_preview_spool",
+        lambda values, **kwargs: spool,
+    )
+    inspection = _healthy_preview_inspection(spool)
+    inspection[0]["Config"]["Image"] = "ghcr.io/other/image@sha256:" + "b" * 64
+
+    def fake_run(args, **kwargs):
+        output = "container-id\n" if args[1] == "ps" else json.dumps(inspection)
+        return deploy.subprocess.CompletedProcess(args, 0, output, "")
+
+    monkeypatch.setattr(deploy, "_run", fake_run)
+
+    with pytest.raises(RuntimeError, match="tested ThemisIQ GHCR image"):
+        deploy.verify_aria_preview_container({}, 1234, 5678)
+
+
+@pytest.mark.parametrize("missing", ["/tmp", "/home/ariaworker"])
+def test_aria_preview_runtime_readiness_requires_both_tmpfs_mounts(
+    tmp_path, monkeypatch, missing
+):
+    spool = tmp_path.resolve()
+    monkeypatch.setattr(
+        deploy,
+        "verify_aria_preview_spool",
+        lambda values, **kwargs: spool,
+    )
+    inspection = _healthy_preview_inspection(spool)
+    inspection[0]["HostConfig"]["Tmpfs"].pop(missing)
+
+    def fake_run(args, **kwargs):
+        output = "container-id\n" if args[1] == "ps" else json.dumps(inspection)
+        return deploy.subprocess.CompletedProcess(args, 0, output, "")
+
+    monkeypatch.setattr(deploy, "_run", fake_run)
+
+    with pytest.raises(RuntimeError, match="required /tmp"):
+        deploy.verify_aria_preview_container({}, 1234, 5678)
+
+
+def test_aria_preview_runtime_readiness_rejects_swap_above_memory(
+    tmp_path, monkeypatch
+):
+    spool = tmp_path.resolve()
+    monkeypatch.setattr(
+        deploy,
+        "verify_aria_preview_spool",
+        lambda values, **kwargs: spool,
+    )
+    inspection = _healthy_preview_inspection(spool)
+    inspection[0]["HostConfig"]["MemorySwap"] = 2 * 1024 * 1024 * 1024
+
+    def fake_run(args, **kwargs):
+        output = "container-id\n" if args[1] == "ps" else json.dumps(inspection)
+        return deploy.subprocess.CompletedProcess(args, 0, output, "")
+
+    monkeypatch.setattr(deploy, "_run", fake_run)
+
+    with pytest.raises(RuntimeError, match="swap limit"):
+        deploy.verify_aria_preview_container({}, 1234, 5678)
+
+
+def test_aria_preview_spool_requires_fresh_heartbeat(tmp_path, monkeypatch):
+    monkeypatch.setitem(
+        deploy.FORCED_SAFE_VALUES,
+        "ARIA_POLICY_PREVIEW_SPOOL_DIR",
+        str(tmp_path),
+    )
+    values = {"ARIA_POLICY_PREVIEW_SPOOL_DIR": str(tmp_path)}
+    (tmp_path / ".worker.heartbeat").write_text(str(time.time()), encoding="ascii")
+
+    assert deploy.verify_aria_preview_spool(values) == tmp_path
+
+    (tmp_path / ".worker.heartbeat").write_text(
+        str(time.time() - deploy.ARIA_PREVIEW_HEARTBEAT_MAX_AGE_SECONDS - 1),
+        encoding="ascii",
+    )
+    with pytest.raises(RuntimeError, match="heartbeat is stale"):
+        deploy.verify_aria_preview_spool(values)
+
+
+def test_aria_preview_spool_rejects_non_file_heartbeat(tmp_path, monkeypatch):
+    monkeypatch.setitem(
+        deploy.FORCED_SAFE_VALUES,
+        "ARIA_POLICY_PREVIEW_SPOOL_DIR",
+        str(tmp_path),
+    )
+    values = {"ARIA_POLICY_PREVIEW_SPOOL_DIR": str(tmp_path)}
+    (tmp_path / ".worker.heartbeat").mkdir()
+
+    with pytest.raises(RuntimeError, match="must be a regular file"):
+        deploy.verify_aria_preview_spool(values)
+
+
+def test_aria_preview_release_workflow_tests_before_publishing_digest():
+    workflow = (
+        Path(__file__).parents[2] / ".github" / "workflows" / "aria-preview-image.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "workflow_dispatch:" in workflow
+    assert "packages: write" in workflow
+    assert "--network none" in workflow
+    assert "--cap-drop ALL" in workflow
+    assert "--read-only" in workflow
+    assert "--once" in workflow and "--healthcheck" in workflow
+    assert "real_conversion=PASS" in workflow
+    assert workflow.index("real_conversion=PASS") < workflow.index("docker push")
+    assert "ARIA_PREVIEW_IMAGE=${image}" in workflow
+    assert "OPENROUTER_API_KEY" not in workflow
+    assert "DATABASE_URL" not in workflow
 
 
 def test_dependency_probe_matches_the_non_root_production_runtime(tmp_path, monkeypatch):

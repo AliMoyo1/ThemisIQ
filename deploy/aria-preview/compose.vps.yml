@@ -4,8 +4,15 @@ services:
   # registry reference pinned by digest.
   aria-preview:
     image: ${ARIA_PREVIEW_IMAGE:?Set ARIA_PREVIEW_IMAGE to the tested immutable image@sha256 digest}
+    labels:
+      com.themisiq.component: aria-policy-preview
+    # Match the systemd app account numerically so both processes can use the
+    # private bind-mounted spool without world-writable permissions. These
+    # values are mandatory; resolve them with `id -u/-g themisiq` on the VPS.
+    user: "${ARIA_PREVIEW_UID:?Set ARIA_PREVIEW_UID to the themisiq UID}:${ARIA_PREVIEW_GID:?Set ARIA_PREVIEW_GID to the themisiq GID}"
     restart: unless-stopped
     environment:
+      HOME: /home/ariaworker
       ARIA_POLICY_PREVIEW_SPOOL_DIR: /spool
       ARIA_POLICY_PREVIEW_EXECUTABLE: soffice
       ARIA_POLICY_PREVIEW_TIMEOUT_SECONDS: "60"
@@ -14,8 +21,8 @@ services:
       - ${ARIA_POLICY_PREVIEW_SPOOL_DIR:-/var/lib/themisiq/preview-spool}:/spool
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=512m,uid=1001,gid=1001
-      - /home/ariaworker:rw,noexec,nosuid,nodev,size=32m,uid=1001,gid=1001
+      - "/tmp:rw,noexec,nosuid,nodev,size=512m,uid=${ARIA_PREVIEW_UID:?Set ARIA_PREVIEW_UID},gid=${ARIA_PREVIEW_GID:?Set ARIA_PREVIEW_GID}"
+      - "/home/ariaworker:rw,noexec,nosuid,nodev,size=32m,uid=${ARIA_PREVIEW_UID:?Set ARIA_PREVIEW_UID},gid=${ARIA_PREVIEW_GID:?Set ARIA_PREVIEW_GID}"
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -23,6 +30,7 @@ services:
     network_mode: none
     pids_limit: 128
     mem_limit: 1g
+    memswap_limit: 1g
     cpus: 1.5
     logging:
       driver: json-file

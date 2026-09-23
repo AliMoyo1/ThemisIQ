@@ -26,8 +26,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Non-root, fixed UID matching the app image's convention (see root
-# Dockerfile). No shell access needed beyond what the worker script uses.
+# Non-root image default. The VPS companion Compose file overrides the numeric
+# UID/GID with the actual systemd `themisiq` account so the two isolated
+# processes can share a private bind mount without making it world-writable.
+# No shell access is needed beyond what the worker script uses.
 RUN groupadd --gid 1001 ariaworker \
     && useradd --create-home --uid 1001 --gid 1001 ariaworker
 

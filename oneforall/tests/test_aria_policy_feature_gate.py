@@ -118,6 +118,20 @@ def test_none_org_id_is_never_enabled(monkeypatch):
     assert policy_authoring_enabled_for(None) is False
 
 
+def test_authoring_org_allowlist_parser_is_strict_and_preserves_order():
+    from config import _parse_positive_int_csv
+
+    assert _parse_positive_int_csv("12, 7", "TEST_IDS") == [12, 7]
+
+
+@pytest.mark.parametrize("raw", ["1,invalid", "0", "1,1", "1,,2", "*"])
+def test_authoring_org_allowlist_parser_rejects_malformed_values(raw):
+    from config import _parse_positive_int_csv
+
+    with pytest.raises(RuntimeError):
+        _parse_positive_int_csv(raw, "TEST_IDS")
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Route-level enforcement
 # ─────────────────────────────────────────────────────────────────────────

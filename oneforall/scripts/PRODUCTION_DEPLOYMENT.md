@@ -141,6 +141,39 @@ sudo python3 oneforall/scripts/deploy.py
 
 Stop on any error.
 
+### Controlled ARIA policy-authoring pilot
+
+The normal capture, preflight and apply commands above deliberately keep ARIA
+policy authoring disabled. Do not enable it until the readiness and explicit
+acceptance steps in `oneforall/docs/aria-policy-authoring.md` sections 9-10 are
+complete for the selected organization.
+
+The enabled preflight additionally requires a fresh preview-worker heartbeat
+and inspects the live container against the isolation contract. Starting an
+unlabeled worker, a mutable image tag, or a worker with extra mounts, ports,
+secrets or network access does not satisfy this gate.
+
+For an authorized pilot, first configure the root-owned environment with a
+non-empty, organization-specific allow-list. Preflight and apply then require
+both of the following options every time:
+
+```bash
+sudo python3 oneforall/scripts/deploy.py \
+  --authorize-aria-policy-authoring-org-ids '<ORG_ID[,ORG_ID...]>' \
+  --accept-aria-policy-authoring-known-limitations
+
+sudo python3 oneforall/scripts/deploy.py --apply --restart \
+  --authorize-aria-policy-authoring-org-ids '<ORG_ID[,ORG_ID...]>' \
+  --accept-aria-policy-authoring-known-limitations
+```
+
+The supplied IDs must exactly match `ARIA_POLICY_AUTHORING_ORG_IDS`. These
+options do not modify the environment, do not bypass tenant authorization,
+and cannot be used with environment capture or secret scrubbing. Omitting
+either option keeps deployment fail-closed. A global administrator with no
+organization context is still denied; use a scoped account in the pilot
+organization for acceptance testing.
+
 ## 5. Apply the hardened service
 
 This is the controlled restart point:

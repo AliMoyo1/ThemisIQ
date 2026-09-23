@@ -12,12 +12,16 @@ The workflow is deliberately staged:
   only after the hardened service is verified.
 
 Without an action the command is read-only. It never installs packages,
-changes PostgreSQL, runs migrations directly, or enables policy authoring.
+changes PostgreSQL, runs migrations directly, or edits the policy-authoring
+flags. An already-configured pilot is accepted only when the operator repeats
+the exact organization allow-list and explicitly accepts the documented pilot
+limitations on both preflight and apply.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shlex
@@ -47,6 +51,13 @@ DANGEROUS_ENV_KEYS = {
     "BASH_ENV", "ENV", "LD_LIBRARY_PATH", "LD_PRELOAD", "PATH",
     "PYTHONHOME", "PYTHONPATH", "PYTHON_DOTENV_DISABLED",
 }
+TRUE_VALUES = {"1", "true", "yes", "on"}
+FALSE_VALUES = {"0", "false", "no", "off"}
+ARIA_AUTHORIZATION_OPTION = "--authorize-aria-policy-authoring-org-ids"
+ARIA_ACCEPTANCE_OPTION = "--accept-aria-policy-authoring-known-limitations"
+ARIA_PREVIEW_COMPONENT_LABEL = "com.themisiq.component=aria-policy-preview"
+ARIA_PREVIEW_IMAGE_PREFIX = "ghcr.io/alimoyo1/themisiq-aria-preview@sha256:"
+ARIA_PREVIEW_HEARTBEAT_MAX_AGE_SECONDS = 90
 FORCED_SAFE_VALUES = {
     "DEBUG": "false",
     "HOST": "127.0.0.1",
@@ -135,6 +146,30 @@ def configured_environment(
     return selected
 
 
+def parse_org_id_allowlist(raw: str, *, field_name: str) -> tuple[int, ...]:
+    """Return a canonical, duplicate-free tuple of positive organization IDs."""
+    if not raw.strip():
+        return ()
+
+    parsed: list[int] = []
+    seen: set[int] = set()
+    for item in raw.split(","):
+        token = item.strip()
+        if not token or not token.isascii() or not token.isdigit():
+            raise ValueError(
+                f"{field_name} must be a comma-separated list of positive "
+                "integer organization IDs"
+            )
+        value = int(token)
+        if value <= 0:
+            raise ValueError(f"{field_name} organization IDs must be greater than zero")
+        if value in seen:
+            raise ValueError(f"{field_name} must not contain duplicate organization IDs")
+        seen.add(value)
+        parsed.append(value)
+    return tuple(sorted(parsed))
+
+
 def quote_environment_value(value: str) -> str:
     if "\n" in value or "\r" in value or "\0" in value:
         raise ValueError("environment values must not contain newlines or NUL bytes")
@@ -146,7 +181,12 @@ def serialize_environment(values: dict[str, str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def validate_environment(values: dict[str, str]) -> list[str]:
+def validate_environment(
+    values: dict[str, str],
+    *,
+    authorized_aria_org_ids: tuple[int, ...] | None = None,
+    accept_aria_known_limitations: bool = False,
+) -> list[str]:
     errors: list[str] = []
     for key in ("DATABASE_URL", "SECRET_KEY"):
         if not values.get(key):
@@ -159,14 +199,56 @@ def validate_environment(values: dict[str, str]) -> list[str]:
             errors.append("DATABASE_URL must use PostgreSQL in production")
         if not parsed.hostname:
             errors.append("DATABASE_URL must include a database host")
-    if values.get("DEBUG", "").lower() not in {"false", "0", "no", "off"}:
+    if values.get("DEBUG", "").lower() not in FALSE_VALUES:
         errors.append("DEBUG must be false in production")
-    if values.get("ARIA_POLICY_AUTHORING_ENABLED", "").lower() not in {
-        "false", "0", "no", "off"
-    }:
-        errors.append("ARIA_POLICY_AUTHORING_ENABLED must be false for deployment")
-    if values.get("ARIA_POLICY_AUTHORING_ORG_IDS", "").strip():
-        errors.append("ARIA_POLICY_AUTHORING_ORG_IDS must be empty for deployment")
+
+    authoring_raw = values.get("ARIA_POLICY_AUTHORING_ENABLED", "").strip().lower()
+    authoring_value_is_valid = authoring_raw in TRUE_VALUES | FALSE_VALUES
+    if not authoring_value_is_valid:
+        errors.append(
+            "ARIA_POLICY_AUTHORING_ENABLED must be an explicit true or false value"
+        )
+    authoring_enabled = authoring_raw in TRUE_VALUES
+    try:
+        configured_aria_org_ids = parse_org_id_allowlist(
+            values.get("ARIA_POLICY_AUTHORING_ORG_IDS", ""),
+            field_name="ARIA_POLICY_AUTHORING_ORG_IDS",
+        )
+    except ValueError as exc:
+        errors.append(str(exc))
+        configured_aria_org_ids = ()
+
+    if authoring_value_is_valid and authoring_enabled:
+        if not configured_aria_org_ids:
+            errors.append(
+                "ARIA_POLICY_AUTHORING_ORG_IDS must contain at least one organization "
+                "when authoring is enabled"
+            )
+        if authorized_aria_org_ids is None:
+            errors.append(
+                "enabled ARIA policy authoring requires explicit "
+                f"{ARIA_AUTHORIZATION_OPTION} authorization"
+            )
+        elif configured_aria_org_ids != authorized_aria_org_ids:
+            errors.append(
+                "ARIA_POLICY_AUTHORING_ORG_IDS must exactly match the IDs supplied to "
+                f"{ARIA_AUTHORIZATION_OPTION}"
+            )
+        if not accept_aria_known_limitations:
+            errors.append(
+                "enabled ARIA policy authoring requires explicit "
+                f"{ARIA_ACCEPTANCE_OPTION} acknowledgement"
+            )
+    elif authoring_value_is_valid:
+        if configured_aria_org_ids:
+            errors.append(
+                "ARIA_POLICY_AUTHORING_ORG_IDS must be empty when authoring is disabled"
+            )
+        if authorized_aria_org_ids is not None or accept_aria_known_limitations:
+            errors.append(
+                "ARIA policy-authoring authorization was supplied but the secure "
+                "environment has authoring disabled"
+            )
     if values.get("HOST") != "127.0.0.1":
         errors.append("HOST must be 127.0.0.1 behind the reverse proxy")
     if values.get("PORT") != "8080":
@@ -243,6 +325,25 @@ def verify_private_file(path: Path) -> None:
         raise RuntimeError(f"{path} must have mode 0600, found {mode:04o}")
 
 
+def _aria_authoring_enabled(values: dict[str, str]) -> bool:
+    return values.get("ARIA_POLICY_AUTHORING_ENABLED", "").strip().lower() in TRUE_VALUES
+
+
+def existing_service_account() -> tuple[int, int]:
+    """Return the existing service UID/GID without mutating a preflight host."""
+    import grp
+    import pwd
+
+    try:
+        account = pwd.getpwnam(SERVICE_USER)
+        group = grp.getgrnam(SERVICE_GROUP)
+    except KeyError as exc:
+        raise RuntimeError(
+            f"{SERVICE_USER} service account must exist before ARIA pilot preflight"
+        ) from exc
+    return account.pw_uid, group.gr_gid
+
+
 def ensure_service_account() -> tuple[int, int]:
     import grp
     import pwd
@@ -258,6 +359,189 @@ def ensure_service_account() -> tuple[int, int]:
         account = pwd.getpwnam(SERVICE_USER)
     group = grp.getgrnam(SERVICE_GROUP)
     return account.pw_uid, group.gr_gid
+
+
+def verify_aria_preview_spool(
+    values: dict[str, str],
+    *,
+    expected_uid: int | None = None,
+    expected_gid: int | None = None,
+) -> Path:
+    """Require the private production spool and a fresh worker heartbeat."""
+    configured = Path(values.get("ARIA_POLICY_PREVIEW_SPOOL_DIR", ""))
+    expected = Path(FORCED_SAFE_VALUES["ARIA_POLICY_PREVIEW_SPOOL_DIR"])
+    if not configured.is_absolute() or configured != expected:
+        raise RuntimeError(
+            "ARIA_POLICY_PREVIEW_SPOOL_DIR must use the hardened production path "
+            f"{expected}"
+        )
+    if configured.is_symlink():
+        raise RuntimeError("ARIA preview spool must not be a symlink")
+    if not configured.is_dir():
+        raise RuntimeError(f"ARIA preview spool does not exist: {configured}")
+    if os.name == "posix":
+        spool_stat = configured.stat()
+        mode = stat.S_IMODE(spool_stat.st_mode)
+        if mode & 0o007:
+            raise RuntimeError(
+                f"ARIA preview spool must not grant access to other users (mode {mode:04o})"
+            )
+        if (
+            expected_uid is not None
+            and expected_gid is not None
+            and (spool_stat.st_uid, spool_stat.st_gid) != (expected_uid, expected_gid)
+        ):
+            raise RuntimeError(
+                "ARIA preview spool ownership does not match the app service UID/GID"
+            )
+
+    heartbeat = configured / ".worker.heartbeat"
+    if heartbeat.is_symlink() or not heartbeat.is_file():
+        raise RuntimeError("ARIA preview worker heartbeat must be a regular file")
+    if os.name == "posix" and expected_uid is not None and expected_gid is not None:
+        heartbeat_stat = heartbeat.stat()
+        if (heartbeat_stat.st_uid, heartbeat_stat.st_gid) != (
+            expected_uid,
+            expected_gid,
+        ):
+            raise RuntimeError(
+                "ARIA preview worker heartbeat ownership does not match the app "
+                "service UID/GID"
+            )
+    try:
+        heartbeat_age = time.time() - float(heartbeat.read_text(encoding="ascii"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("ARIA preview worker heartbeat is missing or invalid") from exc
+    if heartbeat_age < 0 or heartbeat_age > ARIA_PREVIEW_HEARTBEAT_MAX_AGE_SECONDS:
+        raise RuntimeError(
+            f"ARIA preview worker heartbeat is stale ({heartbeat_age:.0f}s old)"
+        )
+    return configured
+
+
+def verify_aria_preview_container(
+    values: dict[str, str],
+    uid: int,
+    gid: int,
+) -> None:
+    """Inspect the one running converter and enforce its isolation contract."""
+    spool = verify_aria_preview_spool(
+        values,
+        expected_uid=uid,
+        expected_gid=gid,
+    ).resolve()
+    result = _run([
+        "docker", "ps",
+        "--filter", f"label={ARIA_PREVIEW_COMPONENT_LABEL}",
+        "--format", "{{.ID}}",
+    ])
+    container_ids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if len(container_ids) != 1:
+        raise RuntimeError(
+            "exactly one running ARIA preview worker is required; "
+            f"found {len(container_ids)}"
+        )
+
+    inspect_result = _run(["docker", "inspect", container_ids[0]])
+    try:
+        documents = json.loads(inspect_result.stdout)
+        inspection = documents[0]
+    except (json.JSONDecodeError, IndexError, TypeError, KeyError) as exc:
+        raise RuntimeError("could not inspect the ARIA preview worker") from exc
+
+    config = inspection.get("Config") or {}
+    host = inspection.get("HostConfig") or {}
+    state = inspection.get("State") or {}
+    network = inspection.get("NetworkSettings") or {}
+
+    image = str(config.get("Image") or "")
+    if not re.fullmatch(
+        re.escape(ARIA_PREVIEW_IMAGE_PREFIX) + r"[0-9a-f]{64}", image
+    ):
+        raise RuntimeError(
+            "ARIA preview worker must use the tested ThemisIQ GHCR image by digest"
+        )
+    if str(config.get("User") or "") != f"{uid}:{gid}":
+        raise RuntimeError("ARIA preview worker UID/GID does not match the app service")
+    if not state.get("Running") or (state.get("Health") or {}).get("Status") != "healthy":
+        raise RuntimeError("ARIA preview worker is not running and healthy")
+    if host.get("NetworkMode") != "none":
+        raise RuntimeError("ARIA preview worker network mode must be none")
+    if not host.get("ReadonlyRootfs"):
+        raise RuntimeError("ARIA preview worker root filesystem must be read-only")
+    if host.get("Privileged"):
+        raise RuntimeError("ARIA preview worker must not be privileged")
+    if host.get("Devices") or host.get("DeviceRequests"):
+        raise RuntimeError("ARIA preview worker must not receive host devices")
+    if "ALL" not in {str(item).upper() for item in (host.get("CapDrop") or [])}:
+        raise RuntimeError("ARIA preview worker must drop all Linux capabilities")
+    if not any(
+        str(item).startswith("no-new-privileges")
+        for item in (host.get("SecurityOpt") or [])
+    ):
+        raise RuntimeError("ARIA preview worker must enforce no-new-privileges")
+    if host.get("PortBindings") or network.get("Ports"):
+        raise RuntimeError("ARIA preview worker must not publish network ports")
+    if (host.get("RestartPolicy") or {}).get("Name") != "unless-stopped":
+        raise RuntimeError("ARIA preview worker restart policy must be unless-stopped")
+
+    limits = (
+        ("memory", int(host.get("Memory") or 0), 1024 * 1024 * 1024),
+        ("CPU", int(host.get("NanoCpus") or 0), 1_500_000_000),
+        ("PID", int(host.get("PidsLimit") or 0), 128),
+    )
+    for label, configured, maximum in limits:
+        if configured <= 0 or configured > maximum:
+            raise RuntimeError(
+                f"ARIA preview worker {label} limit must be set and no greater than {maximum}"
+            )
+    memory_swap = int(host.get("MemorySwap") or 0)
+    memory_limit = int(host.get("Memory") or 0)
+    if memory_swap <= 0 or memory_swap > memory_limit:
+        raise RuntimeError(
+            "ARIA preview worker swap limit must be set and no greater than its "
+            "memory limit"
+        )
+
+    mounts = inspection.get("Mounts") or []
+    allowed_destinations = {"/spool", "/tmp", "/home/ariaworker"}
+    destinations = {str(mount.get("Destination") or "") for mount in mounts}
+    if not destinations or not destinations.issubset(allowed_destinations):
+        raise RuntimeError("ARIA preview worker has an unexpected filesystem mount")
+    spool_mounts = [mount for mount in mounts if mount.get("Destination") == "/spool"]
+    if len(spool_mounts) != 1 or spool_mounts[0].get("Type") != "bind":
+        raise RuntimeError("ARIA preview worker must have one bind-mounted /spool")
+    try:
+        mounted_source = Path(str(spool_mounts[0].get("Source") or "")).resolve()
+    except (OSError, RuntimeError) as exc:
+        raise RuntimeError("ARIA preview worker spool source is invalid") from exc
+    if mounted_source != spool:
+        raise RuntimeError("ARIA preview worker is mounted to the wrong spool directory")
+
+    required_tmpfs = {"/tmp", "/home/ariaworker"}
+    tmpfs = host.get("Tmpfs") or {}
+    if not isinstance(tmpfs, dict) or set(tmpfs) != required_tmpfs:
+        raise RuntimeError(
+            "ARIA preview worker must have only the required /tmp and "
+            "/home/ariaworker tmpfs mounts"
+        )
+    required_tmpfs_options = {
+        "rw", "noexec", "nosuid", "nodev", f"uid={uid}", f"gid={gid}"
+    }
+    for destination, raw_options in tmpfs.items():
+        options = {item.strip() for item in str(raw_options).split(",") if item.strip()}
+        if not required_tmpfs_options.issubset(options):
+            raise RuntimeError(
+                f"ARIA preview worker tmpfs {destination} is missing required "
+                "security or ownership options"
+            )
+
+    for item in config.get("Env") or []:
+        key = str(item).split("=", 1)[0]
+        if is_sensitive_key(key):
+            raise RuntimeError(
+                f"ARIA preview worker must not receive secret-bearing variable {key}"
+            )
 
 
 def chown_tree(path: Path, uid: int, gid: int) -> None:
@@ -409,11 +693,23 @@ def verify_runtime() -> None:
     probe("http://127.0.0.1:8080/ready", b'"status":"ready"')
 
 
-def apply_service(project_root: Path, env_file: Path, unit_file: Path, restart: bool) -> None:
+def apply_service(
+    project_root: Path,
+    env_file: Path,
+    unit_file: Path,
+    restart: bool,
+    *,
+    authorized_aria_org_ids: tuple[int, ...] | None = None,
+    accept_aria_known_limitations: bool = False,
+) -> None:
     require_root()
     verify_private_file(env_file)
     values = parse_env_file(env_file)
-    errors = validate_environment(values)
+    errors = validate_environment(
+        values,
+        authorized_aria_org_ids=authorized_aria_org_ids,
+        accept_aria_known_limitations=accept_aria_known_limitations,
+    )
     if errors:
         raise RuntimeError("deployment refused:\n- " + "\n- ".join(errors))
 
@@ -435,6 +731,9 @@ def apply_service(project_root: Path, env_file: Path, unit_file: Path, restart: 
     ):
         directory.mkdir(mode=0o750, parents=True, exist_ok=True)
         os.chown(directory, uid, gid)
+
+    if _aria_authoring_enabled(values):
+        verify_aria_preview_container(values, uid, gid)
 
     backup, dropin_backup = install_unit(project_root, unit_file)
     _run(["systemctl", "daemon-reload"])
@@ -486,7 +785,14 @@ def scrub_legacy_secrets(project_root: Path, env_file: Path) -> None:
             print(f"No secret-bearing keys found in {path}.")
 
 
-def preflight(project_root: Path, env_file: Path, unit_file: Path) -> None:
+def preflight(
+    project_root: Path,
+    env_file: Path,
+    unit_file: Path,
+    *,
+    authorized_aria_org_ids: tuple[int, ...] | None = None,
+    accept_aria_known_limitations: bool = False,
+) -> None:
     print(f"Project root: {project_root}")
     print(f"Secure environment: {env_file}")
     print(f"Service unit: {unit_file}")
@@ -494,9 +800,17 @@ def preflight(project_root: Path, env_file: Path, unit_file: Path) -> None:
         mode = stat.S_IMODE(env_file.stat().st_mode)
         values = parse_env_file(env_file)
         print(f"Environment mode: {mode:04o}; configured keys: {len(values)}")
-        errors = validate_environment(values)
+        errors = validate_environment(
+            values,
+            authorized_aria_org_ids=authorized_aria_org_ids,
+            accept_aria_known_limitations=accept_aria_known_limitations,
+        )
         if errors:
             raise RuntimeError("preflight failed:\n- " + "\n- ".join(errors))
+        if _aria_authoring_enabled(values):
+            uid, gid = existing_service_account()
+            verify_aria_preview_container(values, uid, gid)
+            print("ARIA preview worker readiness: PASS")
     else:
         print("Secure environment has not been captured yet.")
     template = service_template_path(project_root)
@@ -518,6 +832,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--restart", action="store_true",
         help="with --apply, restart and verify; otherwise install without restart",
     )
+    parser.add_argument(
+        ARIA_AUTHORIZATION_OPTION,
+        metavar="ORG_ID[,ORG_ID...]",
+        help=(
+            "authorize the exact non-empty organization allow-list already present "
+            "in the secure environment; does not edit the environment"
+        ),
+    )
+    parser.add_argument(
+        ARIA_ACCEPTANCE_OPTION,
+        action="store_true",
+        help=(
+            "acknowledge the documented unresolved ARIA pilot limitations; required "
+            "with --authorize-aria-policy-authoring-org-ids"
+        ),
+    )
     return parser
 
 
@@ -529,18 +859,68 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply and not args.restart:
         print("ERROR: --apply requires explicit --restart", file=sys.stderr)
         return 2
+    authorization_raw = args.authorize_aria_policy_authoring_org_ids
+    authorization_is_incomplete = (
+        authorization_raw is None
+        and args.accept_aria_policy_authoring_known_limitations
+    ) or (
+        authorization_raw is not None
+        and not args.accept_aria_policy_authoring_known_limitations
+    )
+    if authorization_is_incomplete:
+        print(
+            "ERROR: ARIA pilot authorization requires both "
+            f"{ARIA_AUTHORIZATION_OPTION} and {ARIA_ACCEPTANCE_OPTION}",
+            file=sys.stderr,
+        )
+        return 2
+    if authorization_raw is not None and (
+        args.capture_running_env or args.scrub_legacy_secrets
+    ):
+        print(
+            "ERROR: ARIA pilot authorization is valid only for preflight or --apply",
+            file=sys.stderr,
+        )
+        return 2
     project_root = args.project_root.resolve()
     env_file = args.env_file.resolve()
     unit_file = args.unit_file.resolve()
     try:
+        authorized_aria_org_ids = None
+        if authorization_raw is not None:
+            authorized_aria_org_ids = parse_org_id_allowlist(
+                authorization_raw,
+                field_name=ARIA_AUTHORIZATION_OPTION,
+            )
+            if not authorized_aria_org_ids:
+                raise ValueError(
+                    f"{ARIA_AUTHORIZATION_OPTION} requires at least one organization ID"
+                )
         if args.capture_running_env:
             capture_running_environment(project_root, env_file, unit_file)
         elif args.apply:
-            apply_service(project_root, env_file, unit_file, args.restart)
+            apply_service(
+                project_root,
+                env_file,
+                unit_file,
+                args.restart,
+                authorized_aria_org_ids=authorized_aria_org_ids,
+                accept_aria_known_limitations=(
+                    args.accept_aria_policy_authoring_known_limitations
+                ),
+            )
         elif args.scrub_legacy_secrets:
             scrub_legacy_secrets(project_root, env_file)
         else:
-            preflight(project_root, env_file, unit_file)
+            preflight(
+                project_root,
+                env_file,
+                unit_file,
+                authorized_aria_org_ids=authorized_aria_org_ids,
+                accept_aria_known_limitations=(
+                    args.accept_aria_policy_authoring_known_limitations
+                ),
+            )
     except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

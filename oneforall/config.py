@@ -13,6 +13,34 @@ load_dotenv(BASE_DIR / ".env")
 _log = logging.getLogger("oneforall.config")
 
 
+def _parse_positive_int_csv(raw: str, setting_name: str) -> list[int]:
+    """Parse a strict, duplicate-free CSV of positive integer IDs.
+
+    Feature allow-lists must fail closed. Silently discarding malformed
+    entries could enable a different tenant set than the operator intended.
+    """
+    if not raw.strip():
+        return []
+
+    parsed: list[int] = []
+    seen: set[int] = set()
+    for item in raw.split(","):
+        token = item.strip()
+        if not token or not token.isascii() or not token.isdigit():
+            raise RuntimeError(
+                f"{setting_name} must be a comma-separated list of positive "
+                "integer IDs."
+            )
+        value = int(token)
+        if value <= 0:
+            raise RuntimeError(f"{setting_name} IDs must be greater than zero.")
+        if value in seen:
+            raise RuntimeError(f"{setting_name} must not contain duplicate IDs.")
+        seen.add(value)
+        parsed.append(value)
+    return parsed
+
+
 def _resolve_secret_key() -> str:
     """Return SECRET_KEY from env, or — only in DEBUG mode — auto-generate one.
 
@@ -185,10 +213,10 @@ class Settings:
     ARIA_POLICY_AUTHORING_ENABLED: bool = os.getenv(
         "ARIA_POLICY_AUTHORING_ENABLED", "false"
     ).lower() in ("1", "true", "yes", "on")
-    ARIA_POLICY_AUTHORING_ORG_IDS: list = [
-        int(x.strip()) for x in os.getenv("ARIA_POLICY_AUTHORING_ORG_IDS", "").split(",")
-        if x.strip().isdigit()
-    ]
+    ARIA_POLICY_AUTHORING_ORG_IDS: list = _parse_positive_int_csv(
+        os.getenv("ARIA_POLICY_AUTHORING_ORG_IDS", ""),
+        "ARIA_POLICY_AUTHORING_ORG_IDS",
+    )
     # App-side settings only: the shared spool directory exchanged with the
     # converter worker container, and how long to wait for a conversion
     # before giving up. The converter executable path is the WORKER

@@ -68,6 +68,29 @@ confirm with a real login from a user in that organization and a second
 user in a different (or no) organization -- the second user should see the
 draft/generate entry points refuse with the "not yet enabled" message.
 
+Production preflight and apply remain fail-closed even after those variables
+are edited. The operator must repeat the exact allow-list and explicitly
+acknowledge this section's unresolved pilot limitations on both commands:
+
+```
+sudo python3 oneforall/scripts/deploy.py \
+  --authorize-aria-policy-authoring-org-ids 7 \
+  --accept-aria-policy-authoring-known-limitations
+
+sudo python3 oneforall/scripts/deploy.py --apply --restart \
+  --authorize-aria-policy-authoring-org-ids 7 \
+  --accept-aria-policy-authoring-known-limitations
+```
+
+Replace `7` with the exact authorized organization ID(s). The command-line
+IDs must exactly equal `ARIA_POLICY_AUTHORING_ORG_IDS`; order is ignored.
+Duplicates, zero, wildcards and malformed values are refused. Environment
+capture always writes authoring back to disabled/empty and cannot be combined
+with these authorization options. This deliberate friction prevents an
+ordinary deployment from silently turning a limited pilot into a blanket
+rollout. Neither option edits the environment or proves the readiness gates
+in sections 9-10; the operator must complete those separately first.
+
 ## 3. Other settings
 
 | Setting | Default | Purpose |
@@ -175,14 +198,43 @@ the full root Compose stack. Set `ARIA_PREVIEW_IMAGE` to the tested registry
 reference pinned as `image@sha256:<digest>`. Set
 `ARIA_POLICY_PREVIEW_SPOOL_DIR` to the same host directory in both the app
 service and the companion Compose environment (the default companion path is
-`/var/lib/themisiq/preview-spool`), and make that directory writable by UID/GID
-1001. The companion has no network, drops all capabilities, runs read-only,
-and receives neither application secrets nor database access.
+`/var/lib/themisiq/preview-spool`). Set `ARIA_PREVIEW_UID` and
+`ARIA_PREVIEW_GID` to `id -u themisiq` and `id -g themisiq` on the VPS. The
+companion uses those exact numeric IDs, matching the directory ownership
+created by the systemd deployment instead of assuming host UID/GID 1001. The
+companion has no network, drops all capabilities, runs read-only, and receives
+neither application secrets nor database access.
 
 The image generates `runtime-manifest.json` from the packages actually
 installed during its build. Its healthcheck verifies that manifest, spool
 access, and a fresh worker heartbeat without launching LibreOffice or taking
 the worker lock.
+
+Publish the production image only through the manual **ARIA preview worker
+image** GitHub Actions workflow (`.github/workflows/aria-preview-image.yml`).
+It builds from the pinned base digest, creates a minimal real DOCX, runs the
+worker with networking disabled and the production isolation controls, checks
+the resulting PDF and worker health, and only then pushes to GHCR. Copy the
+`ARIA_PREVIEW_IMAGE=ghcr.io/...@sha256:...` value from the successful job
+summary; never deploy the mutable commit tag by itself. If the GHCR package is
+private, authenticate Docker on the VPS with a read-packages credential that
+has no repository-write scope.
+
+Before starting the companion on the VPS, resolve its required numeric
+identity from the already-created app account:
+
+```
+export ARIA_PREVIEW_UID="$(id -u themisiq)"
+export ARIA_PREVIEW_GID="$(id -g themisiq)"
+export ARIA_POLICY_PREVIEW_SPOOL_DIR=/var/lib/themisiq/preview-spool
+export ARIA_PREVIEW_IMAGE='ghcr.io/.../themisiq-aria-preview@sha256:...'
+sudo -E docker compose -f deploy/aria-preview/compose.vps.yml up -d
+```
+
+Enabled-authoring preflight inspects the labeled container and refuses rollout
+unless exactly one worker is healthy, digest-pinned, running as the app UID/GID,
+networkless, read-only, capability-free, resource-bounded, mounted only to the
+expected spool/tmpfs paths, and free of secret-bearing environment variables.
 
 ## 8. Repair and retry: publication failures
 
