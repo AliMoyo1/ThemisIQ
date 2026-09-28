@@ -1,5 +1,146 @@
 # PLAN-36 progress ledger
 
+## 2026-09-28 — post-push code-review fixes (7 findings, all confirmed and fixed)
+
+After T00-T07 was committed and pushed (commit `0011473`), an external code
+review of that commit returned 7 findings. Each was independently verified
+against the actual current code (not taken on trust) before fixing -- one
+finding's exact mechanism (the middleware-ordering bug) required working
+through Starlette's actual `add_middleware`/`build_middleware_stack`
+semantics by hand rather than assuming the report's framing was correct,
+since "outermost first" is the kind of claim that's easy to get backwards.
+All 7 were confirmed real. Every fix has a red/green-proved test.
+
+1. **[P1] GRID audits sent to the AI unscoped, and joined the wrong
+   frameworks table** (`modules/evidence/routes.py`, `api_evidence_suggest_links`).
+   The audits query had no business-unit filter at all (the adjacent risks
+   query, two lines below, already had one) and joined the shared `frameworks`
+   table instead of `grid_frameworks` (GRID's own, confirmed as a distinct
+   real table in `database.py`). Fixed: scoped by `bu_scope_ids()` exactly
+   like the risks query; joins `grid_frameworks`. New tests:
+   `test_suggest_links_excludes_another_business_units_audit`,
+   `test_suggest_links_org_wide_audit_is_visible_to_every_bu`,
+   `test_suggest_links_uses_grid_frameworks_not_shared_frameworks_table` in
+   `tests/test_evidence_suggest_links.py`. Red/green-proved by reverting to
+   the original unscoped/wrong-table query -- both the cross-BU leak and the
+   wrong-table join failed exactly as expected.
+2. **[P1] Expired sessions produced false mutation-success toasts**
+   (`static/js/api_client.js`). `fetch()`'s default `redirect:'follow'`
+   means an expired-session mutation that gets redirected to `/login` comes
+   back as a 200 HTML page; `ApiClient.request()` treated any 200 response
+   as success and returned the raw (non-JSON) body when `expect` was
+   `'json'` (the default) -- so a caller's success path ("Saved",
+   "Delivered") fired even though the mutation never ran. Fixed: a 200
+   response that isn't JSON when JSON was expected now throws instead of
+   silently degrading to truncated raw text, with a specific "session
+   expired" message when the response was actually redirected to `/login`
+   (`response.redirected` + `new URL(response.url).pathname`). New tests:
+   `test_login_redirect_throws_session_expired_not_fake_success` (simulates
+   real expiry by clearing cookies after `login_as`, not just redirecting
+   the mocked endpoint -- an *authenticated* browser hitting `/login`
+   bounces onward to `/`, which would miss the exact case this fix targets)
+   and `test_non_json_200_without_redirect_throws_parse_error` in
+   `tests/ui/test_api_client.py`. Both red/green-proved.
+3. **[P1] The SSRF policy let IPv4 Shared Address Space (CGNAT,
+   100.64.0.0/10, RFC 6598) through** (`core/outbound_http.py::_is_blocked`).
+   The function OR'd together `is_private`/`is_loopback`/`is_link_local`/
+   `is_reserved`/`is_multicast`/`is_unspecified` -- confirmed directly in a
+   throwaway interpreter session that `ipaddress.ip_address('100.64.0.1')`
+   has every one of those as `False` while `is_global` is also `False`: this
+   specific range isn't private, loopback, link-local, reserved, multicast,
+   or unspecified by Python's own classification, but is still not globally
+   routable. Fixed: `_is_blocked` is now simply `not ip.is_global`, which is
+   what the function's own docstring already claimed to implement. New
+   parametrized cases (`100.64.0.1`, `100.100.100.1`) added to the existing
+   `test_rejects_non_global_dns_answer` in `tests/test_outbound_http.py`.
+   Red/green-proved by reverting to the old OR-chain.
+4. **[P2] A non-super-admin actor with no org_id could create an ERM
+   library row neither they nor anyone but a real super admin could ever
+   manage again** (`modules/erm/data_service.py::create_library_item` +
+   `seeds/seed.py`). `create_library_item`'s own org_id-selection logic
+   (`None if is_super_admin else actor.get('org_id')`) produces `org_id=NULL`
+   -- indistinguishable from a real global row -- for ANY actor whose
+   `org_id` happens to be `None`, not just a true super admin; `_library_
+   can_manage` then permanently refuses that same actor, since it only
+   trusts `org_id IS NULL` when `is_super_admin` is genuinely true. Confirmed
+   this was reachable by the actual default seeded admin: `seed.py` granted
+   the `SUPER_ADMIN` role via `user_roles` but never set the raw
+   `users.is_super_admin` column, which several code paths (this one
+   included) check directly rather than going through the role-based
+   capability system -- so the fresh-install admin had `is_super_admin=0`
+   (the column's own default) and `org_id=NULL`, exactly the broken
+   combination. Fixed both ends: `seed.py` now sets `is_super_admin=1`
+   explicitly (the root cause), and `create_library_item` now fails closed
+   (returns `None`, route raises 403) for any non-super-admin actor with no
+   org_id, as defense in depth against the same actor shape arising some
+   other way in the future. New tests:
+   `test_create_library_item_refuses_a_non_super_admin_with_no_org` in
+   `tests/test_erm_library_tenancy.py`; new file
+   `tests/test_seed_admin_is_super_admin.py`. Both red/green-proved -- the
+   first caught a real orphan row (id 26) being created before the fix.
+5. **[P2] warm_replay.py's recovery-parity script could exit 0 despite
+   real checks never running** (`scripts/warm_replay.py`). Two independent
+   bugs: (a) four queries referenced columns/tables that don't exist at all
+   (`users.role` -- role lives in a separate `user_roles` table;
+   `grid_ncs` -- real name is `grid_non_conformances`; `grid_evidence` --
+   real name is `grid_evidence_files`; `erm_obligations` -- real name is
+   `erm_regulatory_obligations`; all confirmed directly against
+   `database.py`'s actual schema), so these had never once executed
+   successfully on either database; (b) a query erroring on one or both
+   sides was classified SKIP, which never contributed to `fail_count`/
+   `failures` and therefore never affected the exit code -- so those four
+   permanently-broken queries silently reported SKIP forever while the
+   script still exited 0. Fixed both: corrected all 4 queries to the real
+   schema, and removed the SKIP classification entirely (any error on
+   either side is now FAIL, matching the module's own stated invariant that
+   every query must always be valid on both databases). The classification
+   logic was factored out into a pure `_classify()` function specifically so
+   this could be unit tested without real database connections. New file
+   `tests/test_warm_replay.py`, 5 tests, red/green-proved by temporarily
+   reintroducing the old SKIP-returning branches.
+6. **[P2] Request ID and security headers did not wrap early middleware
+   rejections** (`main.py`). The registration order matched the comment's
+   stated *intent* ("outermost first: request ID, then security headers,
+   ... then CSRF") but not Starlette's actual semantics: both
+   `app.middleware("http")(fn)` and `app.add_middleware()` insert at the
+   *front* of Starlette's internal middleware list, and
+   `build_middleware_stack()` wraps that list in reverse -- so the *last*
+   middleware registered ends up *outermost*, exactly backwards from a
+   naive top-to-bottom reading. Worked through this by hand (simulating the
+   insert-at-0-then-reverse construction step by step for the actual
+   registration order in this file) rather than trusting the finding's
+   framing alone, since this is exactly the kind of claim worth confirming
+   independently. Confirmed the practical consequence directly: with the
+   old order, `request_id_middleware`/`security_headers_middleware` ended up
+   *inside* `cors_block_middleware`, so a cross-origin-rejected request
+   (which `cors_block_middleware` answers directly, without calling
+   `call_next()`) never reached them at all -- a real 403 came back with
+   neither header. Fixed by reversing the registration order (a pure
+   reordering, no logic changes) so the actual runtime order now matches
+   the comment's original intent. New test
+   `test_request_id_and_security_headers_survive_a_cors_rejection` in
+   `tests/ui/test_request_id_middleware.py` -- deliberately not just another
+   404 case (a 404 passes through every middleware's own `call_next()`
+   fully before the router fails to match, so it can't distinguish
+   "outermost" from "innermost" the way an early-return rejection can).
+   Red/green-proved by reverting to the old order.
+7. **[P3] task_plan.md's own top-of-file status line was stale**, still
+   saying "T01-T10 and P01-P09 NOT STARTED" after this same commit reported
+   T00-T07 complete. Fixed directly; no test applicable to a status line.
+
+Verification: `pytest tests/test_evidence_suggest_links.py
+tests/test_outbound_http.py tests/test_erm_library_tenancy.py
+tests/test_seed_admin_is_super_admin.py tests/test_warm_replay.py
+tests/ui/test_api_client.py tests/ui/test_request_id_middleware.py -q` --
+all pass. Full backend suite (`pytest tests --ignore=tests/ui -q`) --
+**clean, 0 failures** -- run as a final check given finding 6 touches
+middleware order for every request in the app. Full browser suite
+(`pytest tests/ui -q`) -- **clean, 0 failures, 1 expected skip** -- run as a
+final check given finding 2 touches the shared `api_client.js` every
+migrated mutation path in the app calls through. `python -m compileall`
+clean. No commit/push yet for these fixes -- pending separate authorization,
+per this plan's own rule 9.
+
 Status: T00-T06 substantially complete (see each section). **T07 is now complete against its own stated completion gate** (see task_plan.md's T07 section for the exact gate language and what "complete" does and doesn't claim), reached across three sessions: session 1 found/fixed a sitewide template bug plus skip link/landmark/several accessible-name gaps; session 2 closed every `select-name`/`label` axe finding across all 21 acceptance routes, converted Evidence's and ERM's keyboard-inaccessible clickable divs/spans to real buttons, fixed several SPA anchors missing `href`, gave the toast system a live region, and fixed every color-contrast finding with the user's explicit sign-off; session 3 (2026-09-28) completed the interactive-chip/badge sweep across every module, fixed the last visible-focus and reduced-motion gaps found repo-wide, gave every high-traffic custom drawer/panel the same Tab-trap/focus-restore behavior ModalManager provides real modals, added tab-order/200%-zoom automated checks, and wrote a manual keyboard test script for what automation can't prove. **The axe acceptance-route suite passes all 21 routes with zero xfail; the full browser and backend suites are clean** (each with one already-documented, independently-reproduced pre-existing flaky test, neither in a file any T07 session touched). Known, explicitly documented remainder (not blocking the gate, tracked as the plan's own "remaining moderate findings"): ~44 smaller ad-hoc modal instances across ERM/ORM/BCM/admin_users/my_dashboard without Tab-trap/focus-restore, Evidence's detail panel with Escape-only, and dark-mode contrast for 3 modules. (T00's full-inventory registry step is intentionally partial; "real Edge" was tested as Chromium, not the msedge channel -- see T00; no PostgreSQL/Docker instance available this session -- affects T01, T03, T04's two operational-script checkboxes, and T05's PostgreSQL-specific save-path parity.) T08-T10 and P01-P09 not started.
 
 ## 2026-09-28 T07 session 3 — interactive-chip sweep, remaining visible-focus fixes, reduced-motion sweep

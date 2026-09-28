@@ -50,14 +50,19 @@ class OutboundResult:
 def _is_blocked(ip: "ipaddress.IPv4Address | ipaddress.IPv6Address") -> bool:
     """True if this address must never be contacted from the app server.
 
-    Each property is checked explicitly (rather than relying on the
-    broader `is_private` alone covering everything) so the policy this
-    function enforces is auditable directly from its source, not from the
-    ipaddress module's own definition of "private"."""
-    return (
-        ip.is_private or ip.is_loopback or ip.is_link_local
-        or ip.is_reserved or ip.is_multicast or ip.is_unspecified
-    )
+    `not ip.is_global` is the actual policy (validate_outbound_url's own
+    docstring says "every A/AAAA record... is a global (publicly
+    routable) address"). An earlier version of this function instead
+    OR'd together is_private/is_loopback/is_link_local/is_reserved/
+    is_multicast/is_unspecified, which misses IPv4 Shared Address Space
+    (100.64.0.0/10, RFC 6598, used for carrier-grade NAT): that range is
+    not globally routable but is also not classified as private,
+    loopback, link-local, reserved, multicast, or unspecified by
+    Python's ipaddress module, so it passed every one of those checks
+    while still being internal infrastructure an attacker should not be
+    able to reach (confirmed directly: ipaddress.ip_address('100.64.0.1')
+    has is_private=False, is_reserved=False, but is_global=False)."""
+    return not ip.is_global
 
 
 def validate_outbound_url(url: str) -> str:

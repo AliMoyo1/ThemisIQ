@@ -970,11 +970,23 @@ async def api_evidence_suggest_links(request: Request, eid: int):
         # the `except Exception: suggestions = []` below regardless of the
         # erm_risks fix elsewhere in this function. Not named in F05, but
         # in the exact function that finding is about and blocks verifying
-        # it at all, so fixed here rather than left broken. Same join shape
-        # as the controls query two lines above.
+        # it at all, so fixed here rather than left broken. Joins
+        # grid_frameworks (GRID's own frameworks table, not the shared
+        # `frameworks` table the controls query above uses for ARIA) and
+        # is scoped by business unit like the risks query below it --
+        # audits were the one unscoped query in this function; without
+        # this, a scoped user's suggest-links call exposed every other
+        # business unit's audit names to the AI prompt.
+        audit_bu_scope = bu_scope_ids(request.state.user)
+        audit_where, audit_params = "a.status != 'closed'", []
+        if audit_bu_scope is not None:
+            ph = ",".join(["%s"] * len(audit_bu_scope))
+            audit_where += f" AND (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
+            audit_params = list(audit_bu_scope)
         audits = [dict(r) for r in db.execute(
-            "SELECT a.id, a.name, f.name AS framework_name FROM grid_audits a "
-            "LEFT JOIN frameworks f ON f.id = a.framework_id WHERE a.status != 'closed' LIMIT 30"
+            f"SELECT a.id, a.name, f.name AS framework_name FROM grid_audits a "
+            f"LEFT JOIN grid_frameworks f ON f.id = a.framework_id WHERE {audit_where} LIMIT 30",
+            audit_params,
         ).fetchall()]
         # PLAN-36 T04 (findings.md F05): erm_risks was renamed to
         # erm_enterprise_risks; this query still targeted the old name and

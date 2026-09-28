@@ -168,6 +168,27 @@ def test_create_library_item_by_org_user_is_scoped_to_their_org(test_db):
 # Title uniqueness is scoped (global vs per-org), not one blanket constraint
 # ─────────────────────────────────────────────────────────────────────────
 
+def test_create_library_item_refuses_a_non_super_admin_with_no_org(test_db):
+    """A non-super-admin actor with no org_id must never be allowed to
+    create a library item: create_library_item's own org_id-selection
+    logic (`None if is_super_admin else actor.get('org_id')`) would
+    otherwise produce org_id=NULL for this actor too -- indistinguishable
+    from a real global row to every other organization -- while
+    _library_can_manage's `org_id is not None and org_id == actor.org_id`
+    check permanently refuses to let this same actor manage it
+    afterward, since it only trusts org_id IS NULL when the actor is an
+    actual super admin. This exact actor shape (a role granted without
+    the matching is_super_admin column, no org_id) is what the default
+    seeded admin looked like before seeds/seed.py set is_super_admin=1
+    explicitly."""
+    actor = _actor(test_db, 10, org_id=None, is_super_admin=False)
+    assert ds.create_library_item({"title": "Orphan Attempt"}, actor) is None
+    row = test_db.execute(
+        "SELECT id FROM erm_risk_library WHERE title=%s", ("Orphan Attempt",)
+    ).fetchone()
+    assert row is None, "no row should have been created at all, not an unmanageable one"
+
+
 def test_two_organizations_can_use_the_same_template_title(test_db):
     ds.create_library_item({"title": "Shared Name"}, _actor(test_db, 10, org_id=1))
     # Must not raise -- org 2 using the same title as org 1 is not a conflict.

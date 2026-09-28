@@ -2020,10 +2020,24 @@ def delete_library_item(item_id, actor: dict) -> bool:
         db.close()
 
 
-def create_library_item(data, actor: dict):
+def create_library_item(data, actor: dict) -> "int | None":
     """A platform super admin creates a global (org_id NULL) row; anyone
     else with erm.library.manage creates one scoped to their own
-    organization -- the caller-supplied org_id, if any, is never trusted."""
+    organization -- the caller-supplied org_id, if any, is never trusted.
+
+    Returns None (caller returns an error, never creates the row) if a
+    non-super-admin actor has no org_id: silently falling back to org_id
+    None for such an actor would create a row that LOOKS global (an
+    org_id IS NULL row is what every other org reads as the shared
+    catalogue) but that _library_can_manage then permanently refuses to
+    let that same actor manage, since it only treats org_id IS NULL as
+    manageable by an actual super admin. An actor state like this should
+    not occur in practice (org_id is required outside the platform-level
+    super admin), but failing closed here costs nothing and this exact
+    combination has happened for real on a fresh install (see seeds/
+    seed.py's own comment on why is_super_admin is set explicitly)."""
+    if not actor.get("is_super_admin") and not actor.get("org_id"):
+        return None
     org_id = None if actor.get("is_super_admin") else actor.get("org_id")
     db = get_db()
     try:

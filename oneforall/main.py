@@ -47,21 +47,34 @@ app = FastAPI(
 # GZip: compresses all text responses >= 1 KB automatically.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Order matters: outermost first. Request ID wraps everything (so it is set
-# before any other middleware/handler runs and never missing from a response,
-# even an early rejection), then security headers, then CSRF origin check
-# runs before the route handler.
-app.middleware("http")(request_id_middleware)
-app.middleware("http")(security_headers_middleware)
-app.middleware("http")(body_size_limit_middleware)
-app.middleware("http")(cors_block_middleware)
-app.middleware("http")(csrf_origin_middleware)
-app.add_middleware(SanitizeJsonMiddleware)
-app.middleware("http")(tenant_context_middleware)
-# Innermost: closest to the route, so request.state.user (set inside
-# @require_auth/@require_capability) and the final response status are both
-# available. See core/middleware.py for why this exists.
+# Order matters: outermost first -- but registered in the OPPOSITE order
+# from that intent, because both app.middleware("http") and
+# app.add_middleware() insert at the front of Starlette's internal
+# middleware list (each new registration becomes the new head), and
+# build_middleware_stack() then wraps that list in reverse, so the LAST
+# middleware registered ends up OUTERMOST, not the first (code-review
+# finding, 2026-09-28; confirmed directly: a cross-origin rejection
+# returned 403 with no X-Request-ID or CSP headers, because with the old
+# registration order request_id/security_headers were wrapped INSIDE
+# cors_block_middleware -- a request cors_block_middleware rejects before
+# calling further inward never reaches them at all). Registering in this
+# reversed order makes the ACTUAL runtime order (outermost to innermost)
+# match the one the comment above describes: request ID wraps everything
+# (so it is set before any other middleware/handler runs and never
+# missing from a response, even an early rejection), then security
+# headers, then CSRF origin check runs before the route handler.
 app.middleware("http")(module_audit_middleware)
+app.middleware("http")(tenant_context_middleware)
+app.add_middleware(SanitizeJsonMiddleware)
+app.middleware("http")(csrf_origin_middleware)
+app.middleware("http")(cors_block_middleware)
+app.middleware("http")(body_size_limit_middleware)
+app.middleware("http")(security_headers_middleware)
+app.middleware("http")(request_id_middleware)
+# (module_audit_middleware is registered first above so it ends up
+# innermost: closest to the route, so request.state.user (set inside
+# @require_auth/@require_capability) and the final response status are
+# both available. See core/middleware.py for why this exists.)
 
 # -- Static files -------------------------------------------------------------
 os.makedirs("static", exist_ok=True)

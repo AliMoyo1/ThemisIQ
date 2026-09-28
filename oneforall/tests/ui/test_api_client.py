@@ -63,6 +63,43 @@ def test_text_response_returned_as_text(login_as, live_app):
     assert result == {"ok": True, "data": "plain body"}
 
 
+def test_login_redirect_throws_session_expired_not_fake_success(login_as, live_app):
+    """Red proof for this test (temporarily restoring the old fallback,
+    `return (await response.text()).slice(0, 2000);`, in place of the
+    throw): `result["ok"]` becomes True with the real /login page's HTML
+    as `data` -- exactly the false-mutation-success bug this closes.
+    Restored, the session-expiry request rejects instead.
+
+    Session expiry is simulated by clearing cookies after logging in,
+    not just redirecting /api/test-endpoint to /login directly -- an
+    *authenticated* browser hitting /login gets bounced onward to /,
+    which would make the redirect chain end at / instead of /login and
+    miss the exact case this fix targets (a truly unauthenticated
+    request landing ON /login and staying there, 200, HTML)."""
+    page = _goto(login_as, live_app)
+    page.context.clear_cookies()
+    page.route("**/api/test-endpoint", lambda r: r.fulfill(
+        status=302, headers={"Location": "/login"}))
+    result = _call(page, "/api/test-endpoint")
+    assert result["ok"] is False
+    assert result["kind"] == "auth"
+    assert result["status"] == 401
+    assert "session has expired" in result["detail"].lower()
+
+
+def test_non_json_200_without_redirect_throws_parse_error(login_as, live_app):
+    """A non-JSON 200 that ISN'T a login redirect (e.g. some other proxy
+    or misconfigured route) must still reject rather than hand the caller
+    a raw HTML/text blob as if it were the requested JSON payload."""
+    page = _goto(login_as, live_app)
+    page.route("**/api/test-endpoint", lambda r: r.fulfill(
+        status=200, content_type="text/html", body="<html>not json</html>"))
+    result = _call(page, "/api/test-endpoint")
+    assert result["ok"] is False
+    assert result["kind"] == "parse"
+    assert result["status"] == 200
+
+
 def test_blob_response_returns_blob_and_filename(login_as, live_app):
     page = _goto(login_as, live_app)
     page.route("**/api/test-endpoint", lambda r: r.fulfill(

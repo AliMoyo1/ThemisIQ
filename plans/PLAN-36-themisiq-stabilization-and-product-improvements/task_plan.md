@@ -1,6 +1,6 @@
 # PLAN-36: ThemisIQ stabilization and product-improvement programme
 
-- Status: **T00 completion gate met** (2026-09-24); T01-T10 and P01-P09 **NOT STARTED**. This is an implementation plan, not a completion report -- see `progress.md` for verification evidence behind every checked box.
+- Status: **T00-T07 complete** (2026-09-24 through 2026-09-28, across multiple sessions); T08-T10 and P01-P09 **NOT STARTED**. This is an implementation plan, not a completion report -- see `progress.md` for verification evidence behind every checked box, and each T-section below for its own specific completion-gate notes and named exceptions.
 - Created: 2026-09-24.
 - Repository baseline inspected: `2b98cc4549e5e74decab32e7bafa79985008b17b`.
 - Scope: ThemisIQ only.

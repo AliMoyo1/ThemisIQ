@@ -79,6 +79,8 @@ def test_rejects_unresolvable_host(monkeypatch):
     ("fc00::1", "IPv6 unique local (private)"),
     ("172.16.0.1", "private 172.16.0.0/12"),
     ("172.31.255.255", "private 172.16.0.0/12 upper bound"),
+    ("100.64.0.1", "carrier-grade NAT / IPv4 Shared Address Space (RFC 6598)"),
+    ("100.100.100.1", "carrier-grade NAT upper range"),
 ])
 def test_rejects_non_global_dns_answer(monkeypatch, ip, label):
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo([ip]))

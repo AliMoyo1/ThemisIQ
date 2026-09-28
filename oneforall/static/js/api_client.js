@@ -169,7 +169,29 @@
           });
         }
       }
-      return (await response.text()).slice(0, 2000);
+      // expect defaults to 'json' and none of the branches above matched,
+      // so the caller asked for (or implicitly expects) JSON but got a
+      // non-JSON 200. This is not a legitimate success case: the most
+      // common real cause is a session that expired mid-request -- the
+      // auth middleware redirects to /login, fetch's default
+      // redirect:'follow' silently follows it, and /login itself answers
+      // 200 with an HTML page. Returning that HTML (or any other non-JSON
+      // body) as if it were the successful payload let every caller's
+      // success path fire -- "Saved"/"Delivered" toasts -- for a mutation
+      // that never actually ran. Detected specifically where possible for
+      // a clear message; any other non-JSON 200 still throws rather than
+      // silently degrading to raw truncated text.
+      var loginRedirect = response.redirected
+        && /\/login(?:[/?#]|$)/.test(new URL(response.url).pathname);
+      var sessionMsg = 'Your session has expired. Please sign in again.';
+      var unexpectedMsg = 'Server returned an unexpected response.';
+      throw new ApiError(loginRedirect ? sessionMsg : unexpectedMsg, {
+        status: loginRedirect ? 401 : response.status,
+        detail: loginRedirect ? sessionMsg : unexpectedMsg,
+        retryable: false,
+        requestId: requestId,
+        kind: loginRedirect ? 'auth' : 'parse',
+      });
     }
 
     reportTelemetry(actionId, response.status, durationMs, requestId);

@@ -826,6 +826,8 @@ async def api_library_list(request: Request):
 async def api_library_create(request: Request):
     body = await _json_body(request)
     lid = ds.create_library_item(body, request.state.user)
+    if lid is None:
+        raise HTTPException(403, "Your account has no organization to create a template for")
     log_audit(request.state.user, "erm", "Created ERM library template",
               "erm_risk_library", lid, body.get("title", ""))
     return JSONResponse({"id": lid}, status_code=201)

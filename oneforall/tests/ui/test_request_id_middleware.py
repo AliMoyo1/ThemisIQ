@@ -52,3 +52,31 @@ def test_request_id_is_present_even_on_an_error_response(live_app):
     resp = httpx.get(f"{live_app}/this-route-does-not-exist-404", timeout=5)
     assert resp.status_code == 404
     assert _REQUEST_ID_RE.match(resp.headers.get("X-Request-ID", ""))
+
+
+def test_request_id_and_security_headers_survive_a_cors_rejection(live_app):
+    """A 404 passes through every middleware layer fully before the
+    router itself fails to match a route -- it can't distinguish
+    "registered outermost" from "registered innermost", since every
+    middleware's own call_next() still runs either way. A CORS rejection
+    is different: cors_block_middleware returns a response directly,
+    WITHOUT calling call_next(), for any disallowed cross-origin request.
+    If request_id_middleware/security_headers_middleware are registered
+    such that they end up INSIDE (more nested than) cors_block_middleware
+    -- which is what main.py's registration order produced before this
+    fix, since Starlette wraps middleware in the reverse of registration
+    order -- their own code never runs for this request at all, because
+    nothing inside cors_block_middleware's early return ever gets
+    called. Code-review finding, 2026-09-28: confirmed directly this way
+    before the fix -- a rejected cross-origin request came back 403 with
+    neither header present."""
+    resp = httpx.get(
+        f"{live_app}/",
+        headers={"Origin": "https://evil.example"},
+        timeout=5,
+    )
+    assert resp.status_code == 403
+    assert _REQUEST_ID_RE.match(resp.headers.get("X-Request-ID", "")), \
+        "X-Request-ID missing on a CORS-rejected response"
+    assert resp.headers.get("Content-Security-Policy"), \
+        "security headers (CSP) missing on a CORS-rejected response"

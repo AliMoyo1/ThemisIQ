@@ -46,11 +46,17 @@ def seed_users(db):
     dpo_pw   = secrets.token_urlsafe(16)
     bcm_pw   = secrets.token_urlsafe(16)
 
-    # Super Admin
+    # Super Admin. is_super_admin=1 is set explicitly here, not left to
+    # default -- several code paths (e.g. modules/erm/data_service.py's
+    # ERM library management) check the raw users.is_super_admin column
+    # directly rather than going through the role-based capability system,
+    # so a user holding the SUPER_ADMIN role_key without this column set
+    # is not treated as a true platform super admin by that code, even
+    # though has_capability()/has_role() correctly see their role.
     admin_id = insert_returning_id(
         db,
-        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials, must_change_password) "
-        "VALUES (%s, %s, %s, %s, %s, %s)",
+        "INSERT INTO users (username, email, full_name, password_hash, avatar_initials, must_change_password, is_super_admin) "
+        "VALUES (%s, %s, %s, %s, %s, %s, 1)",
         ("admin", "admin@oneforall.local", "System Administrator", hash_password(admin_pw), "SA", 1),
     )
     db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (admin_id, SUPER_ADMIN))
