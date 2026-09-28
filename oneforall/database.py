@@ -4798,6 +4798,27 @@ def _run_sqlite_alters(conn):
             pass
 
 
+def _backfill_legacy_seeded_admin(conn) -> None:
+    """Promote only the exact pre-fix seed username/email and role.
+
+    Older releases granted the default admin account the SUPER_ADMIN role
+    but left users.is_super_admin at zero. Merely correcting seed_users()
+    only helps an empty database because that function deliberately skips when
+    any user already exists. This idempotent data migration reaches deployed
+    databases while avoiding the unsafe alternative of promoting every
+    organization-scoped user who happens to hold the same capability role.
+    """
+    conn.execute(
+        "UPDATE users SET is_super_admin=1, updated_at=CURRENT_TIMESTAMP "
+        "WHERE username=%s AND email=%s AND COALESCE(is_super_admin, 0)=0 "
+        "AND EXISTS ("
+        "SELECT 1 FROM user_roles ur "
+        "WHERE ur.user_id=users.id AND ur.role_key=%s"
+        ")",
+        ("admin", "admin@oneforall.local", "super_admin"),
+    )
+
+
 def _seed_baseline_data(conn):
     """Seed reference data — runs on both SQLite and PostgreSQL."""
     # ── Data migration: ensure all expected frameworks exist ──
@@ -6360,6 +6381,7 @@ def init_db():
         else:
             _run_sqlite_alters(conn)
         _seed_baseline_data(conn)
+        _backfill_legacy_seeded_admin(conn)
         conn.commit()
         if settings.is_postgres():
             from core.rls import apply_rls_policies

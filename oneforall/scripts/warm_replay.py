@@ -65,8 +65,9 @@ _QUERIES: list[tuple[str, str, tuple]] = [
     ("aria:document_count",
      "SELECT COUNT(*) FROM aria_documents", ()),
 
-    ("aria:risks_by_severity",
-     "SELECT severity, COUNT(*) AS n FROM aria_risks GROUP BY severity ORDER BY severity",
+    ("aria:risks_by_likelihood_impact",
+     "SELECT likelihood, impact, COUNT(*) AS n FROM aria_risks "
+     "GROUP BY likelihood, impact ORDER BY likelihood, impact",
      ()),
 
     # ── GRID ─────────────────────────────────────────────────────────────────
@@ -125,8 +126,9 @@ _QUERIES: list[tuple[str, str, tuple]] = [
      "SELECT COUNT(*) FROM erm_regulatory_obligations", ()),
 
     # ── ORM ──────────────────────────────────────────────────────────────────
-    ("orm:events_by_category",
-     "SELECT category, COUNT(*) AS n FROM orm_events GROUP BY category ORDER BY category",
+    ("orm:events_by_type",
+     "SELECT event_type, COUNT(*) AS n FROM orm_events "
+     "GROUP BY event_type ORDER BY event_type",
      ()),
 
     ("orm:kri_count",

@@ -15,6 +15,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.rbac import SUPER_ADMIN
 from seeds.seed import seed_users
 
 
@@ -32,3 +33,57 @@ def test_seeded_admin_has_is_super_admin_flag_set(test_db):
         "the raw is_super_admin column set, since some code checks that "
         "column directly rather than the role-based capability system"
     )
+
+
+def _legacy_user(test_db, username, email, full_name):
+    cur = test_db.execute(
+        "INSERT INTO users (username, email, full_name, password_hash) "
+        "VALUES (%s, %s, %s, 'x')",
+        (username, email, full_name),
+    )
+    user_id = cur.lastrowid
+    test_db.execute(
+        "INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+        (user_id, SUPER_ADMIN),
+    )
+    test_db.commit()
+    return user_id
+
+
+def test_init_db_promotes_the_exact_legacy_seeded_admin(test_db):
+    """Existing databases skip seed_users(), so init_db must migrate the old seed."""
+    import database
+
+    user_id = _legacy_user(
+        test_db,
+        "admin",
+        "admin@oneforall.local",
+        "System Administrator",
+    )
+
+    database.init_db()
+    database.init_db()  # A second startup must be a no-op.
+
+    row = test_db.execute(
+        "SELECT is_super_admin FROM users WHERE id=%s", (user_id,)
+    ).fetchone()
+    assert row["is_super_admin"] == 1
+
+
+def test_init_db_does_not_promote_an_org_scoped_super_admin_role(test_db):
+    """The data migration must not turn every SUPER_ADMIN role into platform access."""
+    import database
+
+    user_id = _legacy_user(
+        test_db,
+        "org_admin",
+        "org-admin@example.com",
+        "Organization Administrator",
+    )
+
+    database.init_db()
+
+    row = test_db.execute(
+        "SELECT is_super_admin FROM users WHERE id=%s", (user_id,)
+    ).fetchone()
+    assert row["is_super_admin"] == 0

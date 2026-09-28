@@ -1,5 +1,37 @@
 # PLAN-36 progress ledger
 
+## 2026-09-28 — follow-up fixes after review of 8086c46
+
+A second review of commit 8086c46 found three implementation gaps and one
+stale ledger statement. All confirmed gaps are fixed:
+
+1. The shared API client now detects a followed login redirect before every
+   success response mode. Expired sessions therefore raise the same typed
+   authentication error for JSON, blob, text, and no-content callers; GRID
+   report downloads can no longer save the login page as a PDF/DOCX and show
+   a false success toast. The browser regression test covers all three
+   response modes that previously returned before redirect detection.
+2. Database initialization now performs an idempotent data migration for the
+   exact legacy default seed account (admin / admin@oneforall.local) when that
+   account still holds the super_admin role. This reaches existing databases,
+   while a negative regression test proves that unrelated organization-scoped
+   users holding the same role are not promoted to platform access.
+3. The remaining invalid warm-replay queries now use the real schema:
+   ARIA risks are grouped by likelihood and impact, and ORM events by
+   event_type. A new schema-execution regression test runs all 28 replay
+   queries against a freshly initialized SQLite database, preventing future
+   table or column drift from escaping the unit suite.
+4. The prior section's stale statement that commit 8086c46 had not been
+   committed or pushed is corrected below.
+
+Verification: the focused regression tests were first observed failing for
+the expected reasons, then passed after the fixes. The full backend suite
+passes with its existing skips. The full browser suite passes with one
+expected skip. PostgreSQL warm replay was not run because no shadow
+PostgreSQL instance is available in this workspace; its queries remain
+standard SQL and the production migration uses the shared SQLite/PostgreSQL
+initialization path.
+
 ## 2026-09-28 — post-push code-review fixes (7 findings, all confirmed and fixed)
 
 After T00-T07 was committed and pushed (commit `0011473`), an external code
@@ -138,8 +170,7 @@ middleware order for every request in the app. Full browser suite
 (`pytest tests/ui -q`) -- **clean, 0 failures, 1 expected skip** -- run as a
 final check given finding 2 touches the shared `api_client.js` every
 migrated mutation path in the app calls through. `python -m compileall`
-clean. No commit/push yet for these fixes -- pending separate authorization,
-per this plan's own rule 9.
+clean. These fixes were committed and pushed as 8086c46.
 
 Status: T00-T06 substantially complete (see each section). **T07 is now complete against its own stated completion gate** (see task_plan.md's T07 section for the exact gate language and what "complete" does and doesn't claim), reached across three sessions: session 1 found/fixed a sitewide template bug plus skip link/landmark/several accessible-name gaps; session 2 closed every `select-name`/`label` axe finding across all 21 acceptance routes, converted Evidence's and ERM's keyboard-inaccessible clickable divs/spans to real buttons, fixed several SPA anchors missing `href`, gave the toast system a live region, and fixed every color-contrast finding with the user's explicit sign-off; session 3 (2026-09-28) completed the interactive-chip/badge sweep across every module, fixed the last visible-focus and reduced-motion gaps found repo-wide, gave every high-traffic custom drawer/panel the same Tab-trap/focus-restore behavior ModalManager provides real modals, added tab-order/200%-zoom automated checks, and wrote a manual keyboard test script for what automation can't prove. **The axe acceptance-route suite passes all 21 routes with zero xfail; the full browser and backend suites are clean** (each with one already-documented, independently-reproduced pre-existing flaky test, neither in a file any T07 session touched). Known, explicitly documented remainder (not blocking the gate, tracked as the plan's own "remaining moderate findings"): ~44 smaller ad-hoc modal instances across ERM/ORM/BCM/admin_users/my_dashboard without Tab-trap/focus-restore, Evidence's detail panel with Escape-only, and dark-mode contrast for 3 modules. (T00's full-inventory registry step is intentionally partial; "real Edge" was tested as Chromium, not the msedge channel -- see T00; no PostgreSQL/Docker instance available this session -- affects T01, T03, T04's two operational-script checkboxes, and T05's PostgreSQL-specific save-path parity.) T08-T10 and P01-P09 not started.
 

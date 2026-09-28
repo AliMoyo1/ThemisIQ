@@ -149,6 +149,25 @@
     var contentType = response.headers.get('Content-Type') || '';
     var durationMs = (global.performance || Date).now() - start;
 
+    // Check authentication redirects before handling ANY success response
+    // mode. In particular, report downloads use expect:'blob': if this check
+    // runs after the blob branch, an expired session saves the /login HTML as
+    // report.pdf/report.docx and the caller displays a false success toast.
+    // The same ordering protects text and none callers.
+    var loginRedirect = response.redirected
+      && /\/login(?:[/?#]|$)/.test(new URL(response.url).pathname);
+    if (loginRedirect) {
+      var sessionMsg = 'Your session has expired. Please sign in again.';
+      reportTelemetry(actionId, 401, durationMs, requestId);
+      throw new ApiError(sessionMsg, {
+        status: 401,
+        detail: sessionMsg,
+        retryable: false,
+        requestId: requestId,
+        kind: 'auth',
+      });
+    }
+
     if (response.ok) {
       reportTelemetry(actionId, response.status, durationMs, requestId);
       if (expect === 'none' || response.status === 204) return null;
@@ -178,19 +197,16 @@
       // 200 with an HTML page. Returning that HTML (or any other non-JSON
       // body) as if it were the successful payload let every caller's
       // success path fire -- "Saved"/"Delivered" toasts -- for a mutation
-      // that never actually ran. Detected specifically where possible for
-      // a clear message; any other non-JSON 200 still throws rather than
-      // silently degrading to raw truncated text.
-      var loginRedirect = response.redirected
-        && /\/login(?:[/?#]|$)/.test(new URL(response.url).pathname);
-      var sessionMsg = 'Your session has expired. Please sign in again.';
+      // that never actually ran. The login-redirect case is handled before
+      // all response-mode branches above; any other non-JSON 200 still throws
+      // rather than silently degrading to raw truncated text.
       var unexpectedMsg = 'Server returned an unexpected response.';
-      throw new ApiError(loginRedirect ? sessionMsg : unexpectedMsg, {
-        status: loginRedirect ? 401 : response.status,
-        detail: loginRedirect ? sessionMsg : unexpectedMsg,
+      throw new ApiError(unexpectedMsg, {
+        status: response.status,
+        detail: unexpectedMsg,
         retryable: false,
         requestId: requestId,
-        kind: loginRedirect ? 'auth' : 'parse',
+        kind: 'parse',
       });
     }
 

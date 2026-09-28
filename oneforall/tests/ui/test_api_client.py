@@ -13,6 +13,8 @@ under test; the fetch target itself is always the intercepted fake
 """
 import re
 
+import pytest
+
 _CALL = """
 async ({url, options}) => {
   try {
@@ -81,6 +83,29 @@ def test_login_redirect_throws_session_expired_not_fake_success(login_as, live_a
     page.route("**/api/test-endpoint", lambda r: r.fulfill(
         status=302, headers={"Location": "/login"}))
     result = _call(page, "/api/test-endpoint")
+    assert result["ok"] is False
+    assert result["kind"] == "auth"
+    assert result["status"] == 401
+    assert "session has expired" in result["detail"].lower()
+
+
+@pytest.mark.parametrize("expect", ["blob", "text", "none"])
+def test_login_redirect_throws_before_any_success_response_mode(
+    login_as, live_app, expect
+):
+    """Authentication redirects must be rejected before response-mode handling.
+
+    GRID report downloads use ``expect='blob'``. If the session expires,
+    following the redirect to /login must not return that HTML as a successful
+    report blob (the same ordering rule also protects text/none callers).
+    """
+    page = _goto(login_as, live_app)
+    page.context.clear_cookies()
+    page.route("**/api/test-endpoint", lambda r: r.fulfill(
+        status=302, headers={"Location": "/login"}))
+
+    result = _call(page, "/api/test-endpoint", {"expect": expect})
+
     assert result["ok"] is False
     assert result["kind"] == "auth"
     assert result["status"] == 401
