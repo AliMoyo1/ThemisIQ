@@ -2,12 +2,12 @@
 {% block title %}Governance Timeline - ThemisIQ{% endblock %}
 
 {% block head %}
-<style>
 .tl-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
-.tl-chip{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all .15s}
+.tl-chip{padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all .15s;font-family:inherit}
 .tl-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .tl-chip:hover{border-color:var(--accent)}
-.tl-module-sel{padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;outline:none}
+.tl-module-sel{padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px}
+.tl-module-sel:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-pale)}
 .tl-day-header{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:12px 0 6px;border-bottom:1px solid var(--border);margin-top:16px}
 .tl-event{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-light, rgba(148,163,184,.08));position:relative}
 .tl-dot{width:10px;height:10px;border-radius:50%;margin-top:5px;flex-shrink:0}
@@ -20,7 +20,6 @@
 .tl-load-more{display:block;margin:20px auto;padding:8px 28px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--accent);font-size:13px;font-weight:600;cursor:pointer}
 .tl-load-more:hover{background:var(--surface2)}
 .tl-spinner{text-align:center;padding:30px;color:var(--muted);font-size:13px}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -33,9 +32,9 @@
 
 <div class="tl-controls animate-fade-up anim-1">
   <span style="font-size:12px;font-weight:600;color:var(--muted)">Period:</span>
-  <span class="tl-chip active" data-days="7">7 days</span>
-  <span class="tl-chip" data-days="30">30 days</span>
-  <span class="tl-chip" data-days="90">90 days</span>
+  <button type="button" class="tl-chip active" data-days="7">7 days</button>
+  <button type="button" class="tl-chip" data-days="30">30 days</button>
+  <button type="button" class="tl-chip" data-days="90">90 days</button>
   <select class="tl-module-sel" id="tlModuleFilter">
     <option value="">All modules</option>
   </select>

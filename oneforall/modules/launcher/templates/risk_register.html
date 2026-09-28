@@ -5,6 +5,7 @@
 <div class="topbar">
   <span class="page-title">⚠️ Cross-Module Risk Register</span>
   <div class="topbar-actions">
+    <label class="sr-only" for="filterModule">Filter by module</label>
     <select id="filterModule" onchange="loadRisks()" style="padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:12px;">
       <option value="">All Modules</option>
       <option value="aria">ARIA</option>
@@ -12,6 +13,7 @@
       <option value="grid">GRID</option>
       <option value="bcm">BCM</option>
     </select>
+    <label class="sr-only" for="filterStatus">Filter by status</label>
     <select id="filterStatus" onchange="loadRisks()" style="padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:12px;">
       <option value="">All Status</option>
       <option value="open">Open</option>
@@ -61,12 +63,11 @@
 </div>
 
 <!-- New Risk Modal -->
-<div class="modal" id="newRiskModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:550px;">
+<div class="modal-overlay" id="newRiskModal" role="dialog" aria-modal="true" aria-labelledby="newRiskModal-title">
+  <div class="modal" style="max-width:550px;">
     <div class="modal-header">
-      <h3 style="margin:0; font-size:16px;">Register New Risk</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="newRiskModal-title" style="margin:0; font-size:16px;">Register New Risk</h3>
+      <button class="modal-close" onclick="ModalManager.close('newRiskModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px;">
       <form id="riskForm" onsubmit="createRisk(event)">
@@ -200,7 +201,7 @@ async function loadRisks(page) {
   pager.innerHTML = `<button ${prevDisabled}>Previous</button><span>Page ${data.page} of ${data.pages} &mdash; ${data.total} risks</span><button ${nextDisabled}>Next</button>`;
 }
 
-function openNewRisk() { document.getElementById('newRiskModal').classList.add('open'); }
+function openNewRisk() { ModalManager.open('newRiskModal'); }
 
 async function createRisk(e) {
   e.preventDefault();
@@ -215,7 +216,7 @@ async function createRisk(e) {
   };
   const resp = await fetch('/api/risks', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   if (resp.ok) {
-    document.getElementById('newRiskModal').classList.remove('open');
+    ModalManager.close('newRiskModal');
     document.getElementById('riskForm').reset();
     loadRisks();
     loadStats();

@@ -9,8 +9,10 @@ One For All — security middleware.
 """
 import hashlib
 import hmac
+import re
 import time
 import secrets
+import uuid
 from datetime import datetime
 from collections import defaultdict
 from functools import wraps
@@ -331,6 +333,25 @@ async def csrf_origin_middleware(request: Request, call_next):
                     content={"detail": "Cross-origin request blocked."},
                 )
     return await call_next(request)
+
+
+# ── Request ID ────────────────────────────────────────────────────────────────
+# PLAN-36 T06: every response carries an X-Request-ID, so a client-side error
+# (core/../static/js/api_client.js's ApiError.requestId) can be handed to an
+# operator and matched back to a specific request without guessing from a
+# timestamp. Set on request.state *before* call_next so route handlers and
+# error logging during the request can also include it.
+
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+
+
+async def request_id_middleware(request: Request, call_next):
+    incoming = request.headers.get("X-Request-ID", "")
+    request_id = incoming if _REQUEST_ID_RE.match(incoming) else uuid.uuid4().hex
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 # ── Security Headers ─────────────────────────────────────────────────────────

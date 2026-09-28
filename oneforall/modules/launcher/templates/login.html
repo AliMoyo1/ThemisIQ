@@ -158,6 +158,17 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
 .corner-bl{bottom:0;left:0;width:5px;height:5px;background:rgba(37,99,235,.5);animation:cornerPulse 2.3s ease-in-out infinite alternate;animation-delay:1.5s}
 @keyframes cornerPulse{0%{opacity:.3}100%{opacity:.7}}
 
+/* These are purely ambient background motion (a continuously pulsing/
+   sweeping scene, not information), so they're the clearest case for
+   prefers-reduced-motion: disable entirely rather than just slow down.
+   The mousemove-driven card tilt and spot parallax below have their own
+   JS-side guard for the same preference. */
+@media (prefers-reduced-motion:reduce){
+  .scene-top-pulse,.scene-bottom-glow,.scene-spot,.card-glow,
+  .beam-top,.beam-right,.beam-bottom,.beam-left,
+  .corner-tl,.corner-tr,.corner-br,.corner-bl{animation:none}
+}
+
 /* ── Frosted white glass card ── */
 .card{
   position:relative;
@@ -692,29 +703,36 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
     submitBtn.disabled = false;
   });
 
-  /* ── 3D card tilt ── */
+  /* ── 3D card tilt + parallax glow spots, both mouse-driven and both
+     skipped under prefers-reduced-motion (the same motion-sensitivity
+     concern the CSS media query above addresses for the looping
+     animations) ── */
+  var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   const tilt = document.getElementById('cardTilt');
   const MAX  = 10;
-  tilt.addEventListener('mousemove', function(e){
-    var r  = tilt.getBoundingClientRect();
-    var dx = (e.clientX - r.left - r.width  / 2) / (r.width  / 2);
-    var dy = (e.clientY - r.top  - r.height / 2) / (r.height / 2);
-    tilt.style.transform = 'rotateX(' + (-dy * MAX) + 'deg) rotateY(' + (dx * MAX) + 'deg)';
-  });
-  tilt.addEventListener('mouseleave', function(){
-    tilt.style.transform = 'rotateX(0deg) rotateY(0deg)';
-  });
-
-  /* ── Parallax glow spots on mouse ── */
-  document.addEventListener('mousemove', function(e){
-    var ox = (e.clientX / window.innerWidth  - 0.5) * 20;
-    var oy = (e.clientY / window.innerHeight - 0.5) * 20;
-    var spots = document.querySelectorAll('.scene-spot');
-    spots.forEach(function(s, i){
-      var f = i === 0 ? 1 : -1;
-      s.style.transform = 'translate(' + (ox * f) + 'px,' + (oy * f) + 'px)';
+  if (!prefersReducedMotion) {
+    tilt.addEventListener('mousemove', function(e){
+      var r  = tilt.getBoundingClientRect();
+      var dx = (e.clientX - r.left - r.width  / 2) / (r.width  / 2);
+      var dy = (e.clientY - r.top  - r.height / 2) / (r.height / 2);
+      tilt.style.transform = 'rotateX(' + (-dy * MAX) + 'deg) rotateY(' + (dx * MAX) + 'deg)';
     });
-  });
+    tilt.addEventListener('mouseleave', function(){
+      tilt.style.transform = 'rotateX(0deg) rotateY(0deg)';
+    });
+
+    /* ── Parallax glow spots on mouse ── */
+    document.addEventListener('mousemove', function(e){
+      var ox = (e.clientX / window.innerWidth  - 0.5) * 20;
+      var oy = (e.clientY / window.innerHeight - 0.5) * 20;
+      var spots = document.querySelectorAll('.scene-spot');
+      spots.forEach(function(s, i){
+        var f = i === 0 ? 1 : -1;
+        s.style.transform = 'translate(' + (ox * f) + 'px,' + (oy * f) + 'px)';
+      });
+    });
+  }
 })();
 </script>
 <script src="/static/js/aegis-particles.js"></script>

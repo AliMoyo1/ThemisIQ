@@ -40,6 +40,7 @@ import pytest
 # these modules bind to the real get_db before any test can interfere.
 import modules.erm.data_service  # noqa: F401
 import modules.governance.data_service  # noqa: F401
+import modules.sentinel.data_service  # noqa: F401
 
 
 @pytest.fixture

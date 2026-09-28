@@ -1906,13 +1906,38 @@ def mark_appetite_notified(appetite_id, is_breached: bool):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# RISK LIBRARY
+# RISK LIBRARY (PLAN-36 T03 / findings.md F13: tenant-safe scoping)
+#
+# org_id IS NULL rows are the platform-seeded global catalogue, readable by
+# every organization and mutable only by a platform super admin. A non-null
+# org_id row was created by that organization's own erm.library.manage
+# holder (RISK_OWNER or SUPER_ADMIN per core/rbac.py) and is manageable only
+# within that organization. Every function below takes `actor` (a
+# request.state.user-shaped dict) explicitly rather than trusting a caller
+# to have already scoped the query -- see routes.py for how a None/False
+# return is turned into a 404 there.
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_library(category=None, industry=None, limit=200):
+def _library_in_read_scope(actor: dict, row: dict) -> bool:
+    return row.get("org_id") is None or row.get("org_id") == actor.get("org_id")
+
+
+def _library_can_manage(actor: dict, row: dict) -> bool:
+    """True only for a platform super admin (any row) or the organization
+    that owns a non-global row -- never for another organization's rows and
+    never for the global catalogue from a non-super-admin actor, even one
+    holding erm.library.manage in their own organization."""
+    if actor.get("is_super_admin"):
+        return True
+    org_id = row.get("org_id")
+    return org_id is not None and org_id == actor.get("org_id")
+
+
+def list_library(actor: dict, category=None, industry=None, limit=200):
     db = get_db()
     try:
-        where, params = ["is_active=1"], []
+        where = ["is_active=1", "(org_id IS NULL OR org_id=%s)"]
+        params = [actor.get("org_id")]
         if category:
             where.append("category=%s"); params.append(category)
         if industry:
@@ -1927,15 +1952,39 @@ def list_library(category=None, industry=None, limit=200):
         db.close()
 
 
-def get_library_item(item_id):
+def get_library_item(item_id, actor: dict):
+    """Returns None for a nonexistent item AND for one outside actor's read
+    scope (global or actor's own org) -- callers must treat both as 404, not
+    distinguish them, so scope is never revealed to an unauthorized caller."""
     db = get_db()
     try:
-        return _dict(db.execute("SELECT * FROM erm_risk_library WHERE id=%s", (item_id,)).fetchone())
+        row = _dict(db.execute("SELECT * FROM erm_risk_library WHERE id=%s", (item_id,)).fetchone())
+        if row and _library_in_read_scope(actor, row):
+            return row
+        return None
     finally:
         db.close()
 
 
-def update_library_item(item_id, data):
+def can_manage_library_item(item_id, actor: dict) -> "dict | None":
+    """Like get_library_item, but for a write: returns the row only if
+    actor may create/update/retire it, else None (caller returns 404)."""
+    db = get_db()
+    try:
+        row = _dict(db.execute("SELECT * FROM erm_risk_library WHERE id=%s", (item_id,)).fetchone())
+        if row and _library_can_manage(actor, row):
+            return row
+        return None
+    finally:
+        db.close()
+
+
+def update_library_item(item_id, data, actor: dict) -> bool:
+    """Returns False (caller returns 404) if item_id doesn't exist or is
+    outside actor's manage scope; never applies a partial update to a row
+    the actor isn't authorized to touch."""
+    if not can_manage_library_item(item_id, actor):
+        return False
     db = get_db()
     try:
         fields, vals = [], []
@@ -1945,34 +1994,49 @@ def update_library_item(item_id, data):
             if k in data:
                 fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
+            fields.append("updated_at=%s"); vals.append(utcnow().isoformat())
             vals.append(item_id)
             db.execute(f"UPDATE erm_risk_library SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
+        return True
     finally:
         db.close()
 
 
-def delete_library_item(item_id):
+def delete_library_item(item_id, actor: dict) -> bool:
+    """Soft retirement only -- preserves rows already used to create risks.
+    Returns False (caller returns 404) if outside actor's manage scope."""
+    if not can_manage_library_item(item_id, actor):
+        return False
     db = get_db()
     try:
-        db.execute("UPDATE erm_risk_library SET is_active=0 WHERE id=%s", (item_id,))
+        db.execute(
+            "UPDATE erm_risk_library SET is_active=0, updated_at=%s WHERE id=%s",
+            (utcnow().isoformat(), item_id),
+        )
         db.commit()
+        return True
     finally:
         db.close()
 
 
-def create_library_item(data):
+def create_library_item(data, actor: dict):
+    """A platform super admin creates a global (org_id NULL) row; anyone
+    else with erm.library.manage creates one scoped to their own
+    organization -- the caller-supplied org_id, if any, is never trusted."""
+    org_id = None if actor.get("is_super_admin") else actor.get("org_id")
     db = get_db()
     try:
         cur = insert_returning_id(db,
             "INSERT INTO erm_risk_library (title, description, category, default_likelihood, "
             "default_impact, typical_treatment, suggested_controls, applicable_industries, "
-            "regulatory_references, tags) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "regulatory_references, tags, org_id, created_by, updated_at) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (data.get("title"), data.get("description"), data.get("category"),
              data.get("default_likelihood", 3), data.get("default_impact", 3),
              data.get("typical_treatment", "mitigate"), data.get("suggested_controls"),
              data.get("applicable_industries"), data.get("regulatory_references"),
-             data.get("tags")),
+             data.get("tags"), org_id, actor.get("id"), utcnow().isoformat()),
         )
         db.commit()
         return cur

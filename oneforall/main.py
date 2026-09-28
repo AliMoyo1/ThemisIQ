@@ -19,7 +19,7 @@ from database import init_db, get_db, OperationalError
 from core.middleware import (
     security_headers_middleware, csrf_origin_middleware, tenant_context_middleware,
     cors_block_middleware, body_size_limit_middleware, SanitizeJsonMiddleware,
-    module_audit_middleware,
+    module_audit_middleware, request_id_middleware,
 )
 import core.event_handlers  # noqa: F401 - registers cross-module event handlers
 
@@ -47,8 +47,11 @@ app = FastAPI(
 # GZip: compresses all text responses >= 1 KB automatically.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Order matters: outermost first. Security headers wrap everything,
-# CSRF origin check runs before the route handler.
+# Order matters: outermost first. Request ID wraps everything (so it is set
+# before any other middleware/handler runs and never missing from a response,
+# even an early rejection), then security headers, then CSRF origin check
+# runs before the route handler.
+app.middleware("http")(request_id_middleware)
 app.middleware("http")(security_headers_middleware)
 app.middleware("http")(body_size_limit_middleware)
 app.middleware("http")(cors_block_middleware)

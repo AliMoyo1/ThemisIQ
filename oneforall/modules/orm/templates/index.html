@@ -155,11 +155,11 @@
   </a>
 </div>
 <div class="sidebar-bottom">
-  <div style="background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer" data-spa="/orm/chat">
+  <a href="/orm/chat" data-spa="/orm/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer">
     <div style="font-size:24px;margin-bottom:8px">&#128200;</div>
     <div style="font-size:14px;font-weight:700">Ask ORM AI...</div>
     <div style="font-size:11px;opacity:0.7;margin-top:4px">Root cause &amp; remediation</div>
-  </div>
+  </a>
 </div>
 {% endblock %}
 
@@ -191,7 +191,7 @@
   <div id="ormSlaBanner" style="display:none;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius-lg);padding:12px 18px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px">
     <span style="font-size:18px">⏰</span>
     <span style="flex:1"><strong id="ormSlaCount">0</strong> event(s) have breached SLA response or resolution deadlines.</span>
-    <a data-spa="/orm/events" class="btn btn-sm btn-secondary" style="flex-shrink:0;cursor:pointer">View Events</a>
+    <a href="/orm/events" data-spa="/orm/events" class="btn btn-sm btn-secondary" style="flex-shrink:0;cursor:pointer">View Events</a>
   </div>
 
   <!-- Sentinel breach banner -->
@@ -276,7 +276,7 @@
     <div class="card" style="grid-column:span 2">
       <div class="card-header">
         <span class="card-title">Recent Events</span>
-        <a data-spa="/orm/events" class="btn btn-sm btn-secondary" style="cursor:pointer">View All</a>
+        <a href="/orm/events" data-spa="/orm/events" class="btn btn-sm btn-secondary" style="cursor:pointer">View All</a>
       </div>
       <div style="overflow-x:auto">
         <table class="data-table">
@@ -584,11 +584,10 @@ function typeIcon(t){return typeIcons[t]||'⚠';}
 function spinner(cols){return'<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
 function emptyRow(cols,msg){return'<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records found')+'</td></tr>';}
 async function apiFetch(url,opts){
-  opts=opts||{};opts.headers=opts.headers||{};
-  if(opts.body&&typeof opts.body==='object'){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(opts.body);}
-  var r=await fetch(url,opts);
-  if(!r.ok){var txt='';try{var j=await r.json();txt=j.detail||JSON.stringify(j);}catch(e){txt=r.statusText;}throw new Error(txt||'API '+r.status);}
-  if(r.status===204)return null;return r.json();
+  // PLAN-36 T06 (findings.md F08): delegates to the shared ApiClient --
+  // see modules/erm/templates/index.html's identical migration.
+  opts=opts||{};
+  return ApiClient.request(url, { method: opts.method, body: opts.body, headers: opts.headers, actionId: url });
 }
 function populateStatCards(elId,cards){
   var el=document.getElementById(elId);if(!el)return;
@@ -755,7 +754,7 @@ async function ormLoadDashboard(){
         kBanner.innerHTML='<div style="background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:8px">'+
           '<span style="font-size:16px">&#9888;</span>'+
           '<span><strong>KRI Alerts:</strong> '+d.kri_alerts.map(function(k){return esc(k.name)+' ('+k.value+') is <strong>'+k.level+'</strong>';}).join(', ')+'</span>'+
-          '<a data-spa="/orm/indicators" style="margin-left:auto;cursor:pointer;color:var(--accent);font-weight:700;font-size:12px">View KRIs →</a>'+
+          '<a href="/orm/indicators" data-spa="/orm/indicators" style="margin-left:auto;cursor:pointer;color:var(--accent);font-weight:700;font-size:12px">View KRIs →</a>'+
         '</div>';
       }else{kBanner.style.display='none';}
     }
@@ -1165,9 +1164,14 @@ window.ormOpenEventDrawer=async function(id){
         '<button class="btn btn-primary" onclick="ormOpenEventModal(window._ormDrawerEvt);ormCloseDrawer()" style="margin-left:auto">Edit</button>'+
       '</div>'+
     '</div></div>';
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer.querySelector('.orm-drawer-panel'));
   }catch(ex){drawer.innerHTML='';}
 };
-window.ormCloseDrawer=function(){document.getElementById('ormDrawerRoot').innerHTML='';};
+window.ormCloseDrawer=function(){if(typeof DialogFocus!=='undefined')DialogFocus.release();document.getElementById('ormDrawerRoot').innerHTML='';};
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  if(document.getElementById('ormDrawerRoot').firstElementChild)ormCloseDrawer();
+});
 window.ormAiAnalyzeFromDrawer=async function(id){
   ormCloseDrawer();
   var fakeBtn={textContent:'…',disabled:false};
@@ -2183,6 +2187,7 @@ window.ormOpenRcsaDetail=async function(assessId){
         '<button class="btn btn-primary" onclick="ormCloseDrawer();ormRouter.navigate(\'/orm/assessment\')">View All Assessments</button>'+
       '</div>'+
     '</div></div>';
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer.querySelector('.orm-drawer-panel'));
   }catch(ex){drawer.innerHTML='';}
 };
 
@@ -2575,6 +2580,7 @@ window.ormOpenAimsDetail=async function(assessId){
         '<button class="btn btn-secondary" onclick="ormOpenAimsModal(aimsCache.find(function(x){return x.id==='+assessId+'}));ormCloseDrawer()">&#9998; Edit Assessment</button>'+
       '</div>'+
     '</div></div>';
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer.querySelector('.orm-drawer-panel'));
   }catch(ex){drawer.innerHTML='';}
 };
 
@@ -2746,6 +2752,7 @@ window.ormOpenAimsRiskDetail=async function(riskId,assessId){
         '<button class="btn btn-secondary" onclick="ormDeleteAimsRisk('+riskId+','+backAssessId+');ormCloseDrawer()" style="color:var(--red)">Delete Risk</button>'+
       '</div>'+
     '</div></div>';
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer.querySelector('.orm-drawer-panel'));
   }catch(ex){drawer.innerHTML='';}
 };
 

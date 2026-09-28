@@ -3,7 +3,6 @@
 {% block title %}ARIA: Dashboard{% endblock %}
 
 {% block extra_styles %}
-<style>
 /* ── ARIA Dashboard Styles ── */
 .aria-donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;margin:0 auto}
 .aria-donut-wrap svg{display:block;width:100%;height:100%}
@@ -38,7 +37,6 @@
 @media (max-width:600px){
   .stats-row{grid-template-columns:1fr}
 }
-</style>
 {% endblock %}
 
 {% block module_sidebar %}
@@ -267,6 +265,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{{ super() }}
 <script>
 (function(){
   // ── Animate the Control Status donut ──

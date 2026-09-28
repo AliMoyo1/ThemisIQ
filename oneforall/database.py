@@ -3517,7 +3517,10 @@ CREATE TABLE IF NOT EXISTS erm_risk_library (
     created_at              TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_erm_library_category ON erm_risk_library(category);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_erm_library_title ON erm_risk_library(title);
+-- PLAN-36 T03: the old blanket UNIQUE(title) is replaced by two scoped
+-- partial unique indexes (global vs per-org) once org_id exists -- see
+-- _COLUMN_MIGRATIONS and the post-migration index lists below. Not created
+-- here because org_id doesn't exist yet at this point in a fresh install.
 
 -- ── ERM: Regulatory Obligations ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS erm_regulatory_obligations (
@@ -4607,6 +4610,16 @@ _COLUMN_MIGRATIONS = [
         ("bcm_exercises",         "description",       "TEXT"),
         ("bcm_dependency_nodes",  "owner",             "TEXT"),
         ("bcm_dependency_nodes",  "recovery_priority", "INTEGER"),
+        # ── PLAN-36 T03 (findings.md F13): erm_risk_library tenant scope ──────
+        # org_id IS NULL means the platform-seeded global catalogue (mutable
+        # only by a platform super admin); a non-null org_id means a row an
+        # organization's own erm.library.manage holder created, manageable
+        # only within that organization. Existing rows backfill to NULL
+        # (global) automatically -- ADD COLUMN with no default leaves
+        # pre-existing rows NULL on both SQLite and PostgreSQL.
+        ("erm_risk_library", "org_id",     "INTEGER REFERENCES organizations(id)"),
+        ("erm_risk_library", "created_by", "INTEGER REFERENCES users(id)"),
+        ("erm_risk_library", "updated_at", "TEXT"),
 ]
 
 
@@ -4686,15 +4699,26 @@ def _run_sqlite_alters(conn):
         # Phase C: UNIQUE indexes required by ON CONFLICT DO NOTHING on seed tables
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_bcm_comms_title ON bcm_comm_templates(title)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_bcm_scenario_title ON bcm_scenario_library(title)",
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_erm_library_title ON erm_risk_library(title)",
+        # PLAN-36 T03: replaces the old single-column UNIQUE(title), which
+        # would otherwise block two different organizations (or an org and
+        # the global catalogue) from ever using the same template title.
+        # Scoped instead: unique among globals, and unique per organization.
+        # Duplicated verbatim in _run_pg_alters() below (correctness
+        # constraint, same reason as the evidence/task_board ones above).
+        "DROP INDEX IF EXISTS idx_erm_library_title",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_erm_library_title_global ON erm_risk_library(title) WHERE org_id IS NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_erm_library_title_org ON erm_risk_library(org_id, title) WHERE org_id IS NOT NULL",
         # Security hardening: indexes for high-traffic query patterns
         "CREATE INDEX IF NOT EXISTS idx_bcm_exercises_status ON bcm_exercises(status)",
         "CREATE INDEX IF NOT EXISTS idx_bcm_vendors_status ON bcm_vendors(status)",
         "CREATE INDEX IF NOT EXISTS idx_bcm_training_status ON bcm_training_modules(status)",
         "CREATE INDEX IF NOT EXISTS idx_bcm_chat_user ON bcm_chat_messages(user_id, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_bcm_attest_user ON bcm_training_attestations(user_id)",
-        "CREATE INDEX IF NOT EXISTS idx_erm_risks_status ON erm_risks(status)",
-        "CREATE INDEX IF NOT EXISTS idx_erm_risks_module ON erm_risks(module)",
+        # PLAN-36 T04 (findings.md F05): idx_erm_risks_status/_module used to
+        # target a nonexistent table erm_risks (renamed long ago to
+        # erm_enterprise_risks -- see idx_erm_risks_status/_category/_board
+        # near the top of _ERM_ORM_TABLES, already correct there). These two
+        # never matched anything; they only ever produced a startup warning.
         "CREATE INDEX IF NOT EXISTS idx_orm_events_status ON orm_events(status)",
         "CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)",
         "CREATE INDEX IF NOT EXISTS idx_task_board_status ON task_board(status)",
@@ -5945,6 +5969,11 @@ def _run_pg_alters(conn) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",
+        # PLAN-36 T03: erm_risk_library title uniqueness, scoped instead of
+        # global -- see the matching comment in _run_sqlite_alters above.
+        "DROP INDEX IF EXISTS idx_erm_library_title",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_erm_library_title_global ON erm_risk_library(title) WHERE org_id IS NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_erm_library_title_org ON erm_risk_library(org_id, title) WHERE org_id IS NOT NULL",
     ):
         try:
             conn.execute(idx_sql)

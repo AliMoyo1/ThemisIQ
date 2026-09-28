@@ -1,9 +1,9 @@
 <!-- ═══ THEMIS — AI Help Bubble + Tooltip Mode ═══ -->
 <div id="trainerBubble" class="trainer-bubble">
-  <div class="trainer-icon" onclick="toggleTrainer()" title="Themis">
+  <button class="trainer-icon" onclick="toggleTrainer()" aria-label="Open Themis, your platform guide" aria-haspopup="true" aria-expanded="false" aria-controls="trainerPanel">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-    <span class="trainer-pulse"></span>
-  </div>
+    <span class="trainer-pulse" aria-hidden="true"></span>
+  </button>
 
   <!-- Chat Panel -->
   <div class="trainer-panel" id="trainerPanel">
@@ -13,11 +13,11 @@
         <span style="font-weight:600;font-size:14px;">Themis</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <button class="trainer-mode-btn" id="tooltipToggle" onclick="toggleTooltipMode()" title="Toggle tooltip mode">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <button class="trainer-mode-btn" id="tooltipToggle" onclick="toggleTooltipMode()" aria-label="Toggle tooltip mode" aria-pressed="false" title="Toggle tooltip mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           <span style="font-size:10px;">Tips</span>
         </button>
-        <button class="trainer-close" onclick="toggleTrainer()">&times;</button>
+        <button class="trainer-close" onclick="toggleTrainer()" aria-label="Close">&times;</button>
       </div>
     </div>
     <div class="trainer-messages" id="trainerMessages">
@@ -26,9 +26,10 @@
       </div>
     </div>
     <div class="trainer-input-wrap">
+      <label for="trainerInput" class="sr-only">Ask Themis a question</label>
       <input type="text" id="trainerInput" placeholder="Ask about any feature..." onkeydown="if(event.key==='Enter')sendTrainerMsg()">
-      <button onclick="sendTrainerMsg()" class="trainer-send">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      <button onclick="sendTrainerMsg()" class="trainer-send" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
     </div>
   </div>
@@ -46,7 +47,7 @@
 
 <style>
 .trainer-bubble{position:fixed;bottom:24px;right:24px;z-index:900;}
-.trainer-icon{width:52px;height:52px;border-radius:50%;background:var(--accent,#1e293b);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.25);transition:transform 0.2s,box-shadow 0.2s;position:relative;}
+.trainer-icon{width:52px;height:52px;border-radius:50%;background:var(--accent,#1e293b);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.25);transition:transform 0.2s,box-shadow 0.2s;position:relative;border:none;padding:0;font:inherit;}
 .trainer-icon:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(0,0,0,0.3);}
 .trainer-icon svg{width:24px;height:24px;}
 .trainer-pulse{position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--accent,#1e293b);opacity:0;animation:trainerPulse 2.5s infinite;}
@@ -122,6 +123,9 @@ body.tooltip-mode [data-trainer-tip]:hover{
   0%,100%{outline-color:rgba(var(--accent-rgb,30,58,91),0.15);}
   50%{outline-color:rgba(var(--accent-rgb,30,58,91),0.5);}
 }
+@media (prefers-reduced-motion:reduce){
+  .trainer-pulse,body.tooltip-mode [data-trainer-tip]{animation:none}
+}
 </style>
 
 <script>
@@ -134,12 +138,14 @@ var tooltipMode = false;
 function toggleTrainer() {
   trainerOpen = !trainerOpen;
   document.getElementById('trainerPanel').classList.toggle('open', trainerOpen);
+  document.querySelector('.trainer-icon').setAttribute('aria-expanded', String(trainerOpen));
 }
 
 function toggleTooltipMode() {
   tooltipMode = !tooltipMode;
   document.body.classList.toggle('tooltip-mode', tooltipMode);
   document.getElementById('tooltipToggle').classList.toggle('active', tooltipMode);
+  document.getElementById('tooltipToggle').setAttribute('aria-pressed', String(tooltipMode));
   if (tooltipMode) {
     injectTrainerTips();
   } else {

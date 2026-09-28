@@ -2,7 +2,6 @@
 {% block title %}My Dashboard — ThemisIQ{% endblock %}
 
 {% block head %}
-<style>
 /* ── My Dashboard ───────────────────────────────────────────── */
 .dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 .dash-greeting{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
@@ -62,7 +61,6 @@
 .dash-toggle .slider::before{content:'';position:absolute;width:16px;height:16px;left:2px;bottom:2px;background:white;border-radius:50%;transition:all 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
 .dash-toggle input:checked+.slider{background:var(--accent)}
 .dash-toggle input:checked+.slider::before{transform:translateX(18px)}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -159,35 +157,31 @@ function esc(s){ const d=document.createElement('div'); d.textContent=s||''; ret
 /* ── Load preferences ────────────────────────────────────────── */
 async function loadPrefs() {
   try {
-    const r = await fetch('/api/my-dashboard/preferences');
-    if (r.ok) {
-      const p = await r.json();
-      if (Array.isArray(p.hidden_widgets)) _prefs.hidden_widgets = p.hidden_widgets;
-      if (Array.isArray(p.widget_order))   _prefs.widget_order = p.widget_order;
-    }
+    const p = await ApiClient.request('/api/my-dashboard/preferences', { actionId: 'my_dashboard.prefs.load' });
+    if (Array.isArray(p.hidden_widgets)) _prefs.hidden_widgets = p.hidden_widgets;
+    if (Array.isArray(p.widget_order))   _prefs.widget_order = p.widget_order;
   } catch(e) { /* use defaults */ }
 }
 
 async function savePref(key, value) {
   try {
-    const csrf = document.querySelector('meta[name=csrf-token]');
-    await fetch('/api/my-dashboard/preferences', {
-      method:'PUT',
-      headers:{
-        'Content-Type':'application/json',
-        ...(csrf ? {'X-CSRF-Token': csrf.content} : {})
-      },
-      body: JSON.stringify({key, value})
+    await ApiClient.request('/api/my-dashboard/preferences', {
+      method: 'PUT', body: {key, value}, actionId: 'my_dashboard.prefs.save',
     });
-  } catch(e) { /* silent */ }
+  } catch(e) {
+    if (typeof showToast === 'function') showToast(e.detail || 'Failed to save preference', 'error');
+  }
 }
 
 /* ── Main loader ─────────────────────────────────────────────── */
 async function loadDashboard() {
   await loadPrefs();
-  const resp = await fetch('/api/my-dashboard/data');
-  if (!resp.ok) return;
-  _dashData = await resp.json();
+  try {
+    _dashData = await ApiClient.request('/api/my-dashboard/data', { actionId: 'my_dashboard.data.load' });
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.detail || 'Failed to load dashboard', 'error');
+    return;
+  }
 
   document.getElementById('dashRoleLabel').textContent = _dashData.role_label || _dashData.role;
   renderStats(_dashData);

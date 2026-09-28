@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import core.outbound_http as oh
 from database import get_db, insert_returning_id
 from core.events import emit, ERM_RISK_ESCALATED
 
@@ -57,6 +58,14 @@ def _start_receiver():
 
 
 def main():
+    # PLAN-36 T05 (findings.md F07): real webhook destinations must now be
+    # HTTPS and resolve to a public address (core/outbound_http.py). This
+    # script's own loopback HTTP receiver is deliberately local, so that one
+    # check is bypassed here, the same way the automated tests do it for
+    # their own local fixtures -- the signing/delivery path this script
+    # actually verifies is unchanged.
+    oh.validate_outbound_url = lambda url: url.strip()
+
     srv = _start_receiver()
     time.sleep(0.5)
 

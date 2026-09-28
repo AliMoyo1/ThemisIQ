@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Ask ARIA: Policy Assistant{% endblock %}
 {% block head %}
-<style>
 /* ── Stats strip ─────────────────────────────────────────────────────────── */
 .ask-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
 @media(max-width:760px){.ask-stats{grid-template-columns:repeat(2,1fr)}}
@@ -34,7 +33,8 @@
 .history-item{font-size:12px;color:var(--text-mid);padding:7px 9px;
               border-radius:var(--radius);cursor:pointer;margin-bottom:2px;
               border:1px solid transparent;transition:background .12s,border-color .12s;
-              display:flex;align-items:flex-start;gap:6px}
+              display:flex;align-items:flex-start;gap:6px;width:100%;text-align:left;
+              background:none;font-family:inherit}
 .history-item:hover{background:var(--surface2);border-color:var(--border)}
 .hi-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
 .hi-dot-covered{background:var(--good,#16a34a)}
@@ -91,7 +91,7 @@
 .sug-chips{display:flex;flex-wrap:wrap;gap:7px}
 .sug-chip{background:var(--surface2);border:1px solid var(--border);
           border-radius:999px;padding:7px 13px;font-size:12.5px;
-          color:var(--text-mid);cursor:pointer;transition:all .15s}
+          color:var(--text-mid);cursor:pointer;transition:all .15s;font-family:inherit}
 .sug-chip:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
 /* ── Messages ────────────────────────────────────────────────────────────── */
@@ -170,7 +170,6 @@
 .chat-send:active:not(:disabled){transform:translateY(1px)}
 .chat-send:disabled{opacity:.4;cursor:not-allowed}
 .input-hint{font-size:10px;color:var(--dim);margin-top:5px;text-align:center}
-</style>
 {% endblock %}
 
 {% block breadcrumb %}
@@ -250,13 +249,13 @@
             {% set ns.last_date = d %}
             <div class="side-date-group">{{ d }}</div>
           {% endif %}
-          <div class="history-item" data-q="{{ h.question|e }}">
+          <button type="button" class="history-item" data-q="{{ h.question|e }}">
             <span class="hi-dot {% if h.covered %}hi-dot-covered{% else %}hi-dot-nc{% endif %}"></span>
             <span class="hi-text">
               <span class="hi-q">{{ h.question }}</span>
               <span class="hi-ts">{{ h.created_at[11:16] }}</span>
             </span>
-          </div>
+          </button>
         {% endfor %}
       {% else %}
         <div style="font-size:12px;color:var(--muted);font-style:italic;padding:4px 6px">
@@ -295,24 +294,24 @@
           <div>
             <div class="sug-cat-lbl">Security &amp; Access</div>
             <div class="sug-chips">
-              <div class="sug-chip" data-q="What is our acceptable use policy for IT systems?">Acceptable Use</div>
-              <div class="sug-chip" data-q="How do I report a security incident?">Report an Incident</div>
-              <div class="sug-chip" data-q="What counts as confidential information?">Confidential Data</div>
+              <button type="button" class="sug-chip" data-q="What is our acceptable use policy for IT systems?">Acceptable Use</button>
+              <button type="button" class="sug-chip" data-q="How do I report a security incident?">Report an Incident</button>
+              <button type="button" class="sug-chip" data-q="What counts as confidential information?">Confidential Data</button>
             </div>
           </div>
           <div>
             <div class="sug-cat-lbl">Data &amp; Privacy</div>
             <div class="sug-chips">
-              <div class="sug-chip" data-q="How long do we keep customer data?">Data Retention</div>
-              <div class="sug-chip" data-q="What are our obligations under GDPR?">GDPR Obligations</div>
-              <div class="sug-chip" data-q="How do we handle a subject access request?">Subject Access</div>
+              <button type="button" class="sug-chip" data-q="How long do we keep customer data?">Data Retention</button>
+              <button type="button" class="sug-chip" data-q="What are our obligations under GDPR?">GDPR Obligations</button>
+              <button type="button" class="sug-chip" data-q="How do we handle a subject access request?">Subject Access</button>
             </div>
           </div>
           <div>
             <div class="sug-cat-lbl">From Your Documents</div>
             <div class="sug-chips" id="docSuggestions">
               {% for s in suggestions %}
-              <div class="sug-chip" data-q="{{ s|e }}">{{ s[:55] }}{% if s|length > 55 %}…{% endif %}</div>
+              <button type="button" class="sug-chip" data-q="{{ s|e }}">{{ s[:55] }}{% if s|length > 55 %}…{% endif %}</button>
               {% endfor %}
             </div>
           </div>

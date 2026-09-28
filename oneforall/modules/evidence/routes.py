@@ -17,6 +17,7 @@ from core.middleware import require_auth, require_capability
 from core.rbac import has_capability
 from core.shell_context import shell_ctx
 from database import get_db, insert_returning_id, sql_date_offset, sql_current_date
+from modules.governance.data_service import bu_scope_ids
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 
@@ -963,11 +964,36 @@ async def api_evidence_suggest_links(request: Request, eid: int):
             "SELECT c.id, c.ref AS reference_code, c.name AS title, f.name AS framework_name "
             "FROM controls c JOIN frameworks f ON f.id = c.framework_id LIMIT 100"
         ).fetchall()]
+        # PLAN-36 T04 incidental fix: grid_audits has no framework_name column
+        # (only framework_id) -- this query has never once executed
+        # successfully; every suggest-links call silently fell through to
+        # the `except Exception: suggestions = []` below regardless of the
+        # erm_risks fix elsewhere in this function. Not named in F05, but
+        # in the exact function that finding is about and blocks verifying
+        # it at all, so fixed here rather than left broken. Same join shape
+        # as the controls query two lines above.
         audits = [dict(r) for r in db.execute(
-            "SELECT id, name, framework_name FROM grid_audits WHERE status != 'closed' LIMIT 30"
+            "SELECT a.id, a.name, f.name AS framework_name FROM grid_audits a "
+            "LEFT JOIN frameworks f ON f.id = a.framework_id WHERE a.status != 'closed' LIMIT 30"
         ).fetchall()]
+        # PLAN-36 T04 (findings.md F05): erm_risks was renamed to
+        # erm_enterprise_risks; this query still targeted the old name and
+        # has never once returned a row. `title AS name` keeps the prompt
+        # text below identical to before -- nothing parses this dict by
+        # key, but audits (below) already uses plain `name` and there is no
+        # reason to introduce a second convention. Scoped by BU like every
+        # other ERM listing in this codebase (modules/erm/data_service.py's
+        # list_emerging, etc.) so another business unit's risk titles never
+        # reach the AI prompt.
+        risk_bu_scope = bu_scope_ids(request.state.user)
+        risk_where, risk_params = "", []
+        if risk_bu_scope is not None:
+            ph = ",".join(["%s"] * len(risk_bu_scope))
+            risk_where = f"WHERE (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
+            risk_params = list(risk_bu_scope)
         risks = [dict(r) for r in db.execute(
-            "SELECT id, name, category FROM erm_risks LIMIT 50"
+            f"SELECT id, title AS name, category FROM erm_enterprise_risks {risk_where} LIMIT 50",
+            risk_params,
         ).fetchall()]
     finally:
         db.close()

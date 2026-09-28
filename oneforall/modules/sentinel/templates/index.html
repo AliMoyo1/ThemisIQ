@@ -3,7 +3,6 @@
 {% block title %}Data Protection Sentinel — ThemisIQ{% endblock %}
 
 {% block extra_styles %}
-<style>
 /* ── Sentinel Dashboard Styles ── */
 .sn-donut-wrap{position:relative;width:110px;height:110px;flex-shrink:0}
 .sn-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -37,6 +36,7 @@
 .cd-overdue{display:inline-flex;align-items:center;gap:4px;background:#dc2626;color:white;border-radius:100px;padding:2px 8px;font-size:11px;font-weight:800;white-space:nowrap;animation:pulse 1.5s ease-in-out infinite}
 .cd-crit::before,.cd-overdue::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1.5s ease-in-out infinite;flex-shrink:0}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@media (prefers-reduced-motion:reduce){.cd-overdue,.cd-crit::before,.cd-overdue::before{animation:none}}
 
 /* ── Regulatory Alert Banners ── */
 .reg-alert{background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.25);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:18px;display:none;align-items:center;gap:12px}
@@ -186,7 +186,7 @@
 /* ARIA suggestions strip inside drawer */
 .aria-suggestions{background:rgba(79,142,247,.05);border:1px solid rgba(79,142,247,.18);border-radius:var(--radius);padding:12px;margin-top:6px}
 .aria-suggestions-title{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
-.aria-ctrl-chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600;margin:2px;cursor:pointer;transition:background .15s;vertical-align:middle}
+.aria-ctrl-chip{display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600;margin:2px;cursor:pointer;transition:background .15s;vertical-align:middle;font-family:inherit}
 .aria-ctrl-chip:hover{background:rgba(79,142,247,.1);border-color:var(--accent)}
 
 /* ── Secondary Tab Stats Strips ── */
@@ -211,7 +211,6 @@
 .adeq-ok{color:var(--good,#16a34a);font-size:11px;font-weight:700}
 .adeq-warn{color:var(--amber,#d97706);font-size:11px;font-weight:700}
 .adeq-bad{color:var(--red,#dc2626);font-size:11px;font-weight:700}
-</style>
 {% endblock %}
 
 {% block module_sidebar %}
@@ -316,14 +315,14 @@
 
 <!-- AI Chat Card -->
 <div class="sidebar-bottom">
-  <div style="background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden" data-spa="/sentinel/chat">
+  <a href="/sentinel/chat" data-spa="/sentinel/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden">
     <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
     <div style="font-size:24px;margin-bottom:8px">&#10022;</div>
     <div style="font-size:14px;font-weight:700">Ask Sentinel AI...</div>
     <div style="font-size:11px;opacity:0.7;margin-top:4px">Data protection guidance</div>
-  </div>
+  </a>
 </div>
 {% endblock %}
 
@@ -454,14 +453,14 @@
   <div class="card animate-fade-up anim-3">
     <div class="card-header">
       <div class="card-title">Data Subject Requests</div>
-      <a class="btn btn-sm btn-secondary" data-spa="/sentinel/dsr" style="cursor:pointer">View All</a>
+      <a href="/sentinel/dsr" class="btn btn-sm btn-secondary" data-spa="/sentinel/dsr" style="cursor:pointer">View All</a>
     </div>
     <div class="card-body" style="padding:12px 20px 6px">
       <div class="filter-bar" id="snDsrFilters">
-        <span class="filter-chip active" data-status="all" onclick="snFilterDsr('all',this)">All</span>
-        <span class="filter-chip" data-status="open" onclick="snFilterDsr('open',this)">Open</span>
-        <span class="filter-chip" data-status="in_progress" onclick="snFilterDsr('in_progress',this)">In Progress</span>
-        <span class="filter-chip" data-status="completed" onclick="snFilterDsr('completed',this)">Completed</span>
+        <button type="button" class="filter-chip active" data-status="all" onclick="snFilterDsr('all',this)">All</button>
+        <button type="button" class="filter-chip" data-status="open" onclick="snFilterDsr('open',this)">Open</button>
+        <button type="button" class="filter-chip" data-status="in_progress" onclick="snFilterDsr('in_progress',this)">In Progress</button>
+        <button type="button" class="filter-chip" data-status="completed" onclick="snFilterDsr('completed',this)">Completed</button>
       </div>
     </div>
     <div style="overflow-x:auto">
@@ -505,11 +504,11 @@
           <option value="archived">Archived</option>
         </select>
         <div id="snRopaRiskChips" class="filter-bar" style="gap:4px">
-          <span class="filter-chip active" onclick="snSetRopaRisk('',this)">All Risk</span>
-          <span class="filter-chip" style="border-color:rgba(220,38,38,.4)" onclick="snSetRopaRisk('critical',this)">Critical</span>
-          <span class="filter-chip" style="border-color:rgba(245,158,11,.4)" onclick="snSetRopaRisk('high',this)">High</span>
-          <span class="filter-chip" onclick="snSetRopaRisk('medium',this)">Medium</span>
-          <span class="filter-chip" onclick="snSetRopaRisk('low',this)">Low</span>
+          <button type="button" class="filter-chip active" onclick="snSetRopaRisk('',this)">All Risk</button>
+          <button type="button" class="filter-chip" style="border-color:rgba(220,38,38,.4)" onclick="snSetRopaRisk('critical',this)">Critical</button>
+          <button type="button" class="filter-chip" style="border-color:rgba(245,158,11,.4)" onclick="snSetRopaRisk('high',this)">High</button>
+          <button type="button" class="filter-chip" onclick="snSetRopaRisk('medium',this)">Medium</button>
+          <button type="button" class="filter-chip" onclick="snSetRopaRisk('low',this)">Low</button>
         </div>
       </div>
     </div>
@@ -547,11 +546,11 @@
       <div class="filter-bar" style="flex-wrap:wrap;gap:8px">
         <input type="text" id="snDpiaSearch" placeholder="Search DPIAs..." style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" oninput="snFilterDpiaLocal()">
         <div id="snDpiaStatusChips" class="filter-bar" style="gap:4px">
-          <span class="filter-chip active" onclick="snSetDpiaStatus('',this)">All</span>
-          <span class="filter-chip" onclick="snSetDpiaStatus('draft',this)">Draft</span>
-          <span class="filter-chip" onclick="snSetDpiaStatus('in_progress',this)">In Progress</span>
-          <span class="filter-chip" onclick="snSetDpiaStatus('completed',this)">Completed</span>
-          <span class="filter-chip" onclick="snSetDpiaStatus('approved',this)">Approved</span>
+          <button type="button" class="filter-chip active" onclick="snSetDpiaStatus('',this)">All</button>
+          <button type="button" class="filter-chip" onclick="snSetDpiaStatus('draft',this)">Draft</button>
+          <button type="button" class="filter-chip" onclick="snSetDpiaStatus('in_progress',this)">In Progress</button>
+          <button type="button" class="filter-chip" onclick="snSetDpiaStatus('completed',this)">Completed</button>
+          <button type="button" class="filter-chip" onclick="snSetDpiaStatus('approved',this)">Approved</button>
         </div>
       </div>
     </div>
@@ -613,10 +612,10 @@
   <div class="card">
     <div class="card-body" style="padding:12px 20px 6px">
       <div class="filter-bar">
-        <span class="filter-chip active" onclick="snFilterDsrView('all',this)">All</span>
-        <span class="filter-chip" onclick="snFilterDsrView('open',this)">Open</span>
-        <span class="filter-chip" onclick="snFilterDsrView('in_progress',this)">In Progress</span>
-        <span class="filter-chip" onclick="snFilterDsrView('completed',this)">Completed</span>
+        <button type="button" class="filter-chip active" onclick="snFilterDsrView('all',this)">All</button>
+        <button type="button" class="filter-chip" onclick="snFilterDsrView('open',this)">Open</button>
+        <button type="button" class="filter-chip" onclick="snFilterDsrView('in_progress',this)">In Progress</button>
+        <button type="button" class="filter-chip" onclick="snFilterDsrView('completed',this)">Completed</button>
       </div>
     </div>
     <div style="overflow-x:auto">
@@ -803,11 +802,11 @@
       <div class="filter-bar" style="flex-wrap:wrap;gap:8px">
         <input type="text" id="snAiiaSearch" placeholder="Search AI Impact Assessments..." style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" oninput="snFilterAiiaLocal()">
         <div id="snAiiaStatusChips" class="filter-bar" style="gap:4px">
-          <span class="filter-chip active" onclick="snSetAiiaStatus('',this)">All</span>
-          <span class="filter-chip" onclick="snSetAiiaStatus('draft',this)">Draft</span>
-          <span class="filter-chip" onclick="snSetAiiaStatus('in_progress',this)">In Progress</span>
-          <span class="filter-chip" onclick="snSetAiiaStatus('completed',this)">Completed</span>
-          <span class="filter-chip" onclick="snSetAiiaStatus('approved',this)">Approved</span>
+          <button type="button" class="filter-chip active" onclick="snSetAiiaStatus('',this)">All</button>
+          <button type="button" class="filter-chip" onclick="snSetAiiaStatus('draft',this)">Draft</button>
+          <button type="button" class="filter-chip" onclick="snSetAiiaStatus('in_progress',this)">In Progress</button>
+          <button type="button" class="filter-chip" onclick="snSetAiiaStatus('completed',this)">Completed</button>
+          <button type="button" class="filter-chip" onclick="snSetAiiaStatus('approved',this)">Approved</button>
         </div>
       </div>
     </div>
@@ -941,8 +940,8 @@
     </div>
     <div class="header-actions">
       <div class="filter-bar">
-        <span class="filter-chip active" onclick="snSetFlowView('diagram',this)">Diagram</span>
-        <span class="filter-chip" onclick="snSetFlowView('table',this)">Table</span>
+        <button type="button" class="filter-chip active" onclick="snSetFlowView('diagram',this)">Diagram</button>
+        <button type="button" class="filter-chip" onclick="snSetFlowView('table',this)">Table</button>
       </div>
       <button class="btn btn-primary" onclick="snOpenModal('dataflow',{})">+ Add Flow</button>
     </div>
@@ -1153,16 +1152,11 @@
   }
 
   async function apiFetch(url,opts){
+    // PLAN-36 T06 (findings.md F08, this module named explicitly): was
+    // discarding the server's real error detail entirely (always threw a
+    // constant 'API error <status>'); delegates to the shared ApiClient now.
     opts=opts||{};
-    opts.headers=opts.headers||{};
-    if(opts.body && typeof opts.body==='object'){
-      opts.headers['Content-Type']='application/json';
-      opts.body=JSON.stringify(opts.body);
-    }
-    var r=await fetch(url,opts);
-    if(!r.ok) throw new Error('API error '+r.status);
-    if(r.status===204) return null;
-    return r.json();
+    return ApiClient.request(url, { method: opts.method, body: opts.body, headers: opts.headers, actionId: url });
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -1920,12 +1914,20 @@
     '</div></div>';
 
     document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#snRopaDrawerWrap .ropa-drawer'));
     snRenderChipPicker('snRopaDC',SN_DATA_CATEGORIES,f('data_categories'));
     snRenderChipPicker('snRopaSC',SN_SPECIAL_CATS,f('special_categories'));
     // Load ARIA cross-module suggestions when user opens Systems tab
     if(isEdit) snLoadAriaControlSuggestions(r);
   };
 
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape')return;
+    ['snRopaDrawerWrap','snDpiaDrawerWrap','snAiiaDrawerWrap'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el)el.remove();
+    });
+  });
   window.snRopaDrawerTab=function(tab){
     var name=tab.dataset.tab;
     document.querySelectorAll('#snRopaDrawerWrap .ropa-drawer-section').forEach(function(s){s.classList.remove('active');});
@@ -2032,10 +2034,10 @@
       if(relevant.length>0){
         panel.style.display='block';
         list.innerHTML=relevant.map(function(c){
-          return '<span class="aria-ctrl-chip" title="'+esc((c.description||c.name||'').substring(0,120))+'" onclick="snAddAriaCtrlToSecurity(\''+esc((c.ref||'')+': '+(c.name||''))+'\')" >'+
+          return '<button type="button" class="aria-ctrl-chip" title="'+esc((c.description||c.name||'').substring(0,120))+'" onclick="snAddAriaCtrlToSecurity(\''+esc((c.ref||'')+': '+(c.name||''))+'\')" >'+
             (c.ref?'<span style="font-family:var(--mono);font-size:10px;color:var(--accent)">'+esc(c.ref)+'</span> ':'')+
             esc((c.name||'').substring(0,40))+
-          '</span>';
+          '</button>';
         }).join('');
       }else{
         panel.style.display='none';
@@ -2090,7 +2092,7 @@
     var el=document.getElementById(containerId);if(!el)return;
     el.innerHTML='<div class="chip-picker-wrap">'+opts.map(function(o){
       var active=sel.some(function(s){return s.toLowerCase()===o.toLowerCase();});
-      return '<span class="chip-pick'+(active?' active':'')+'" onclick="snToggleChip(this)" data-val="'+esc(o)+'">'+esc(o)+'</span>';
+      return '<button type="button" class="chip-pick'+(active?' active':'')+'" onclick="snToggleChip(this)" data-val="'+esc(o)+'">'+esc(o)+'</button>';
     }).join('')+'</div>';
   }
   window.snToggleChip=function(el){el.classList.toggle('active');};
@@ -2278,10 +2280,11 @@
       '</div>'+
     '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snDpiaDrawerWrap').firstElementChild);
     snRenderChipPicker('snDpiaDC',SN_DATA_CATEGORIES,f('data_categories'));
     snRenderChipPicker('snDpiaSC',SN_SPECIAL_CATS,f('special_cats'));
     var dsubEl=document.getElementById('snDpiaDSub');
-    if(dsubEl)dsubEl.innerHTML=SN_SUBJECTS.map(function(s){return '<span class="chip-pick" onclick="snAppendSubject(\'dd_data_subjects\',\''+esc(s)+'\')">'+esc(s)+'</span>';}).join('');
+    if(dsubEl)dsubEl.innerHTML=SN_SUBJECTS.map(function(s){return '<button type="button" class="chip-pick" onclick="snAppendSubject(\'dd_data_subjects\',\''+esc(s)+'\')">'+esc(s)+'</button>';}).join('');
     if(reg)snDpiaUpdateJurisHint(reg);
   };
 
@@ -3071,6 +3074,7 @@
         '</div>'+
       '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('liaModal').firstElementChild);
   };
   window.snSaveLia=async function(id){
     var data={title:document.getElementById('lia_title').value.trim(),
@@ -3278,6 +3282,7 @@
     var existingWrap=document.getElementById('snAiiaDrawerWrap');
     if(existingWrap)existingWrap.remove();
     document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snAiiaDrawerWrap').firstElementChild);
     snRenderChipPicker('snAiiaDC',dataCategories,f('data_categories'));
   }
 
@@ -3837,8 +3842,8 @@
         var depts=[];
         items.forEach(function(t){if(t.department&&depts.indexOf(t.department)===-1)depts.push(t.department);});
         if(depts.length>0){
-          deptEl.innerHTML='<span class="filter-chip'+(trainingDeptFilter==='all'?' active':'')+'" onclick="snFilterTraining(\'all\')">All</span>'+
-            depts.map(function(d){return '<span class="filter-chip'+(trainingDeptFilter===d?' active':'')+'" onclick="snFilterTraining(\''+esc(d)+'\')">'+esc(d)+'</span>';}).join('');
+          deptEl.innerHTML='<button type="button" class="filter-chip'+(trainingDeptFilter==='all'?' active':'')+'" onclick="snFilterTraining(\'all\')">All</button>'+
+            depts.map(function(d){return '<button type="button" class="filter-chip'+(trainingDeptFilter===d?' active':'')+'" onclick="snFilterTraining(\''+esc(d)+'\')">'+esc(d)+'</button>';}).join('');
         }else{deptEl.innerHTML='';}
       }
       snRenderTrainingRows(trainingDeptFilter==='all'?items:items.filter(function(t){return t.department===trainingDeptFilter;}));
@@ -3922,6 +3927,7 @@
         '</div>'+
       '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snGenNoticeModal').firstElementChild);
   };
   window.snSubmitGenerateNotice=async function(){
     var reg=document.getElementById('snGenNoticeReg').value;
@@ -3986,6 +3992,7 @@
         '</div>'+
       '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('snDraftPolicyModal').firstElementChild);
   };
   window.snSubmitDraftPolicy=async function(){
     var ptype=document.getElementById('snDraftPolicyType').value;
@@ -4152,6 +4159,7 @@
         '</div>'+
       '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('jurisAddModal').firstElementChild);
   };
 
   window.snToggleJurisdiction=function(key,card){
@@ -4224,6 +4232,7 @@
         '</div>'+
       '</div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.getElementById('jurisEditModal').firstElementChild);
   };
 
   window.snSaveJurisdictionConfig=async function(key){

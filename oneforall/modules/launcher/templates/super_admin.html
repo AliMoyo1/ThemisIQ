@@ -371,9 +371,13 @@ window._currentOrg = null;
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 async function apiFetch(url, opts){
-  var res = await fetch(url, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
-  if (res.status === 204) return {};
-  return res.json();
+  // PLAN-36 T06 (findings.md F08): never checked the response status at all
+  // -- an error body (e.g. a 403's {"detail": "..."}) was parsed and handed
+  // to the caller as if it were successful data. Delegates to the shared
+  // ApiClient, which throws on any non-2xx instead.
+  opts = opts || {};
+  var result = await ApiClient.request(url, { method: opts.method, body: opts.body, headers: opts.headers, actionId: url });
+  return result === null ? {} : result;
 }
 
 async function loadOrgs(){

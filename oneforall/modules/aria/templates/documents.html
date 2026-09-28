@@ -79,12 +79,12 @@
 <form method="get" action="/aria/documents">
 <div class="filter-bar">
   <div style="flex:1;min-width:160px">
-    <label>Search</label>
-    <input type="text" name="search" value="{{ filters.search }}" placeholder="Title, ref, owner...">
+    <label for="doc-filter-search">Search</label>
+    <input type="text" id="doc-filter-search" name="search" value="{{ filters.search }}" placeholder="Title, ref, owner...">
   </div>
   <div style="min-width:150px">
-    <label>Framework</label>
-    <select name="framework">
+    <label for="doc-filter-framework">Framework</label>
+    <select id="doc-filter-framework" name="framework">
       <option value="">All Frameworks</option>
       {% for fw in frameworks %}
       <option value="{{ fw.name }}" {% if filters.framework == fw.name %}selected{% endif %}>{{ fw.name }}</option>
@@ -92,8 +92,8 @@
     </select>
   </div>
   <div style="min-width:130px">
-    <label>Status</label>
-    <select name="status">
+    <label for="doc-filter-status">Status</label>
+    <select id="doc-filter-status" name="status">
       <option value="">All Statuses</option>
       {% for s in ['Draft','Under Review','Approved','Retired'] %}
       <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
@@ -101,8 +101,8 @@
     </select>
   </div>
   <div style="min-width:130px">
-    <label>Type</label>
-    <select name="doc_type">
+    <label for="doc-filter-type">Type</label>
+    <select id="doc-filter-type" name="doc_type">
       <option value="">All Types</option>
       {% for t in ['Policy','Procedure','Standard','Guideline','Template','Record','Plan'] %}
       <option value="{{ t }}" {% if filters.doc_type == t %}selected{% endif %}>{{ t }}</option>
@@ -373,13 +373,25 @@
       <button onclick="closeModal('editModal')" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px">&#10005;</button>
     </div>
     <input type="hidden" id="edit-doc-id">
+    <input type="hidden" id="edit-is-managed" value="">
 
-    {# PLAN-35 T10: a managed document's status/version/owner/approver and
-       file/template only ever change through the draft/confirm/submit/
-       approve flow now (the T08 guards below refuse these routes outright
-       for one) -- this panel replaces the legacy upload/template sections
-       for a managed document, and is hidden for a legacy one. #}
+    {# PLAN-35 T10 / PLAN-36 T01: a managed document's status/version/owner/
+       approver and file/template only ever change through the draft/
+       confirm/submit/approve flow now (the T08 guards below refuse these
+       routes outright for one) -- this panel replaces the legacy upload/
+       template sections for a managed document, and is hidden for a
+       legacy one. The current lifecycle values are shown here as
+       read-only text (never as disabled inputs sitting in the save form)
+       so it's never ambiguous whether Save will persist them. #}
     <div id="edit-managed-panel" style="display:none;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Policy Workflow — Current Lifecycle State</div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div><span style="font-size:11px;color:var(--muted)">Status</span><div id="edit-lifecycle-status" style="font-size:13px;font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--muted)">Version</span><div id="edit-lifecycle-version" style="font-size:13px;font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--muted)">Owner</span><div id="edit-lifecycle-owner" style="font-size:13px;font-weight:600">—</div></div>
+        <div><span style="font-size:11px;color:var(--muted)">Approver</span><div id="edit-lifecycle-approver" style="font-size:13px;font-weight:600">—</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:-8px 0 14px">These change only through Start Revision below, then Submit and Decide -- never through Save.</div>
       <div id="edit-publication-status"></div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:14px;margin:10px 0;border:1px solid var(--border)">
         <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Version History</div>
@@ -446,25 +458,27 @@
         <label class="form-label">Document Title</label>
         <input type="text" id="edit-title">
       </div>
-      <div class="form-group">
-        <label class="form-label">Status</label>
-        <select id="edit-status">
-          {% for s in ['Draft','AI Draft','Under Review','Approved','Retired'] %}
-          <option>{{ s }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Version</label>
-        <input type="text" id="edit-version" placeholder="e.g. 1.0">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Owner</label>
-        <input type="text" id="edit-owner">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Approver</label>
-        <input type="text" id="edit-approver">
+      <div id="edit-legacy-lifecycle-fields" style="display:contents">
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select id="edit-status">
+            {% for s in ['Draft','AI Draft','Under Review','Approved','Retired'] %}
+            <option>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Version</label>
+          <input type="text" id="edit-version" placeholder="e.g. 1.0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Owner</label>
+          <input type="text" id="edit-owner">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Approver</label>
+          <input type="text" id="edit-approver">
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Effective Date</label>
@@ -510,7 +524,7 @@
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-ghost" onclick="closeModal('editModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitEdit()">Save Changes</button>
+      <button class="btn btn-primary" id="edit-save-btn" onclick="submitEdit()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -880,9 +894,13 @@ async function openEditModal(doc) {
   // Swap the whole editing surface rather than let a manager submit a
   // change the server will just 409 back.
   var isManaged = !!doc.policy_workflow_managed;
-  ['edit-status', 'edit-version', 'edit-owner', 'edit-approver'].forEach(function (id) {
-    document.getElementById(id).disabled = isManaged;
-  });
+  document.getElementById('edit-is-managed').value = isManaged ? '1' : '';
+  document.getElementById('edit-legacy-lifecycle-fields').style.display = isManaged ? 'none' : 'contents';
+  document.getElementById('edit-lifecycle-status').textContent   = doc.status   || '—';
+  document.getElementById('edit-lifecycle-version').textContent  = doc.version  || '—';
+  document.getElementById('edit-lifecycle-owner').textContent    = doc.owner    || '—';
+  document.getElementById('edit-lifecycle-approver').textContent = doc.approver || '—';
+  document.getElementById('edit-save-btn').textContent = isManaged ? 'Save metadata' : 'Save changes';
   document.getElementById('edit-legacy-upload-section').style.display = isManaged ? 'none' : '';
   document.getElementById('edit-legacy-template-section').style.display = isManaged ? 'none' : '';
   document.getElementById('edit-managed-panel').style.display = isManaged ? '' : 'none';
@@ -1106,29 +1124,54 @@ async function submitAdd() {
 
 async function submitEdit() {
   var docId = document.getElementById('edit-doc-id').value;
+  var isManaged = document.getElementById('edit-is-managed').value === '1';
+
+  // PLAN-36 T01 (findings.md F01): a managed document's status/version/
+  // owner/approver are workflow-owned -- start a revision, then submit and
+  // decide, instead. Sending them here used to happen unconditionally and
+  // the backend correctly 409s any of them on a managed document; the fix
+  // is that this generic Save must never send them for a managed one, not
+  // that the backend guard should ever be relaxed to let it.
   var form = new FormData();
   form.append('title',          document.getElementById('edit-title').value);
-  form.append('status',         document.getElementById('edit-status').value);
-  form.append('version',        document.getElementById('edit-version').value);
-  form.append('owner',          document.getElementById('edit-owner').value);
-  form.append('approver',       document.getElementById('edit-approver').value);
   form.append('effective_date', document.getElementById('edit-effective-date').value);
   form.append('review_date',    document.getElementById('edit-review-date').value);
   form.append('location',       document.getElementById('edit-location').value);
   form.append('comments',       document.getElementById('edit-comments').value);
-  form.append('control_ref',   document.getElementById('edit-control-ref').value);
-  var res = await fetch('/aria/documents/update/' + docId, { method: 'POST', body: form });
-  var data = await res.json();
-  if (data.ok) { showToast('Document updated'); setTimeout(function(){ location.reload(); }, 900); }
-  else showToast(data.error || 'Failed', 'error');
+  form.append('control_ref',    document.getElementById('edit-control-ref').value);
+  if (!isManaged) {
+    form.append('status',   document.getElementById('edit-status').value);
+    form.append('version',  document.getElementById('edit-version').value);
+    form.append('owner',    document.getElementById('edit-owner').value);
+    form.append('approver', document.getElementById('edit-approver').value);
+  }
+
+  var btn = document.getElementById('edit-save-btn');
+  var originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  try {
+    await ApiClient.request('/aria/documents/update/' + docId, { method: 'POST', body: form, actionId: 'aria.document.update' });
+    showToast('Document updated');
+    setTimeout(function(){ location.reload(); }, 900);
+    return; // page reloads shortly; finally still restores the button in the meantime
+  } catch (e) {
+    showToast(e.detail || 'Failed to update document.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 
 async function deleteDoc(docId) {
   if (!confirm('Delete ' + docId + '? This cannot be undone.')) return;
-  var res = await fetch('/aria/documents/delete/' + docId, { method: 'POST' });
-  var data = await res.json();
-  if (data.ok) { document.getElementById('row-' + docId)?.remove(); showToast('Document deleted'); }
-  else showToast(data.error || 'Failed', 'error');
+  try {
+    await ApiClient.request('/aria/documents/delete/' + docId, { method: 'POST', actionId: 'aria.document.delete' });
+    document.getElementById('row-' + docId)?.remove();
+    showToast('Document deleted');
+  } catch (e) {
+    showToast(e.detail || 'Failed', 'error');
+  }
 }
 
 // ── Review-date status badges ───────────────────────────────────────────────

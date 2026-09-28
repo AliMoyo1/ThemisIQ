@@ -96,7 +96,7 @@
 .ev-act-dot{width:8px;height:8px;border-radius:50%;margin-top:3px;flex-shrink:0}
 /* ── Tab bar in detail ── */
 .ev-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);padding:0 20px}
-.ev-tab{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s}
+.ev-tab{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;font-family:inherit}
 .ev-tab.active{color:var(--accent);border-color:var(--accent)}
 </style>
 
@@ -113,7 +113,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       </button>
     </div>
-    <button class="btn btn-primary" onclick="document.getElementById('uploadModal').classList.add('open')">+ Upload</button>
+    <button class="btn btn-primary" onclick="ModalManager.open('uploadModal')">+ Upload</button>
   </div>
 </div>
 
@@ -166,12 +166,11 @@
 </div>
 
 <!-- Upload Modal -->
-<div class="modal" id="uploadModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:500px">
+<div class="modal-overlay" id="uploadModal" role="dialog" aria-modal="true" aria-labelledby="uploadModal-title">
+  <div class="modal" style="max-width:500px">
     <div class="modal-header">
-      <h3 style="margin:0;font-size:16px">Upload Evidence</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="uploadModal-title" style="margin:0;font-size:16px">Upload Evidence</h3>
+      <button class="modal-close" onclick="ModalManager.close('uploadModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px">
       <form id="uploadForm" onsubmit="handleUpload(event)">
@@ -213,12 +212,11 @@
 </div>
 
 <!-- Link-to Modal -->
-<div class="modal" id="linkToModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:500px">
+<div class="modal-overlay" id="linkToModal" role="dialog" aria-modal="true" aria-labelledby="linkToModal-title">
+  <div class="modal" style="max-width:500px">
     <div class="modal-header">
-      <h3 style="margin:0;font-size:16px">Link Evidence to Entity</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="linkToModal-title" style="margin:0;font-size:16px">Link Evidence to Entity</h3>
+      <button class="modal-close" onclick="ModalManager.close('linkToModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px">
       <input type="hidden" id="linkEvidenceId">
@@ -274,25 +272,25 @@ async function loadStats(){
   var bm=s.by_module||{};
   var exp7=s.expiring_7_days||0;
   document.getElementById('statsBar').innerHTML=
-    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'all\',document.getElementById(\'nav-all\'))">'+
+    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="switchView(\'all\',document.getElementById(\'nav-all\'))">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Total</div>'+
-      '<div style="font-size:24px;font-weight:700;color:var(--text);margin-top:4px">'+s.total+'</div></div>'+
+      '<div style="font-size:24px;font-weight:700;color:var(--text);margin-top:4px">'+s.total+'</div></button>'+
     '<div class="card" style="padding:14px 18px">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Links</div>'+
       '<div style="font-size:24px;font-weight:700;color:var(--info,#4f8ef7);margin-top:4px">'+s.total_links+'</div></div>'+
-    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'expiring\',document.getElementById(\'nav-expiring\'))">'+
+    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="switchView(\'expiring\',document.getElementById(\'nav-expiring\'))">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Expiring 30d</div>'+
       '<div style="font-size:24px;font-weight:700;color:var(--warn,#d97706);margin-top:4px">'+s.expiring_soon+'</div>'+
       (exp7?'<div style="font-size:10px;color:var(--bad,#dc2626);font-weight:600;margin-top:4px">⚠ '+exp7+' within 7 days</div>':'')+
-    '</div>'+
-    '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="switchView(\'unlinked\',document.getElementById(\'nav-unlinked\'))">'+
+    '</button>'+
+    '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="switchView(\'unlinked\',document.getElementById(\'nav-unlinked\'))">'+
       '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Unlinked</div>'+
-      '<div style="font-size:24px;font-weight:700;color:var(--bad,#dc2626);margin-top:4px">'+s.unlinked+'</div></div>'+
+      '<div style="font-size:24px;font-weight:700;color:var(--bad,#dc2626);margin-top:4px">'+s.unlinked+'</div></button>'+
     Object.keys(bm).map(function(m){
       var c=modColors[m]||'#6b7280';
-      return '<div class="card" style="padding:14px 18px;cursor:pointer" onclick="filterModule(\''+m+'\',null)">'+
+      return '<button type="button" class="card" style="padding:14px 18px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="filterModule(\''+m+'\',null)">'+
         '<div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">'+m.toUpperCase()+'</div>'+
-        '<div style="font-size:24px;font-weight:700;color:'+c+';margin-top:4px">'+bm[m]+'</div></div>';
+        '<div style="font-size:24px;font-weight:700;color:'+c+';margin-top:4px">'+bm[m]+'</div></button>';
     }).join('');
   // Update sidebar badges
   var be=document.getElementById('badge-all');if(be)be.textContent=s.total||'';
@@ -312,11 +310,11 @@ async function loadStats(){
     ri.innerHTML=recent.map(function(r){
       var icon=iconMap[r.category]||'📄';
       var ago=timeAgo(r.created_at);
-      return '<div class="ev-recent-card" onclick="openDetail('+r.id+')">'+
+      return '<button type="button" class="ev-recent-card" style="text-align:left;font:inherit" onclick="openDetail('+r.id+')">'+
         '<div style="font-size:18px;margin-bottom:4px">'+icon+'</div>'+
         '<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(r.title)+'</div>'+
         '<div style="font-size:10px;color:var(--muted);margin-top:3px">'+escHtml(r.category)+' · '+ago+'</div>'+
-      '</div>';
+      '</button>';
     }).join('');
   } else {
     rs.style.display='none';
@@ -450,7 +448,7 @@ async function loadEvidence(){
     grid.innerHTML=items.map(function(item){
       var icon=iconMap[item.category]||'📄';
       var linkBadge=item.link_count?'<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--good-soft);color:var(--good)">'+item.link_count+' link'+(item.link_count>1?'s':'')+'</span>':'<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--warn-soft);color:var(--warn)">unlinked</span>';
-      return '<div class="card" style="padding:16px;cursor:pointer" onclick="openDetail('+item.id+')">'+
+      return '<button type="button" class="card" style="padding:16px;cursor:pointer;width:100%;display:block;text-align:left;font:inherit" onclick="openDetail('+item.id+')">'+
         '<div style="display:flex;align-items:flex-start;gap:12px">'+
           '<span style="font-size:28px">'+icon+'</span>'+
           '<div style="flex:1;min-width:0">'+
@@ -461,7 +459,7 @@ async function loadEvidence(){
               linkBadge+expiryBadgeHtml(item.expiry_date)+(item.confidence_score!=null?confBadgeHtml(item.confidence_score):'')+
             '</div>'+
           '</div>'+
-        '</div></div>';
+        '</div></button>';
     }).join('');
   }
 }
@@ -578,14 +576,14 @@ async function openDetail(eid){
   }
 
   /* Tabs: Details / History / Activity */
-  html+='<div class="ev-tabs">'+
-    '<div class="ev-tab active" id="tab-details" onclick="evShowTab(\'details\')">Details</div>'+
-    '<div class="ev-tab" id="tab-history" onclick="evShowTab(\'history\')">Versions</div>'+
-    '<div class="ev-tab" id="tab-activity" onclick="evShowTab(\'activity\')">Activity</div>'+
+  html+='<div class="ev-tabs" role="tablist">'+
+    '<button type="button" class="ev-tab active" role="tab" aria-selected="true" aria-controls="tabpane-details" id="tab-details" onclick="evShowTab(\'details\')">Details</button>'+
+    '<button type="button" class="ev-tab" role="tab" aria-selected="false" aria-controls="tabpane-history" id="tab-history" onclick="evShowTab(\'history\')">Versions</button>'+
+    '<button type="button" class="ev-tab" role="tab" aria-selected="false" aria-controls="tabpane-activity" id="tab-activity" onclick="evShowTab(\'activity\')">Activity</button>'+
   '</div>';
 
   /* Details tab */
-  html+='<div id="tabpane-details">';
+  html+='<div id="tabpane-details" role="tabpanel" aria-labelledby="tab-details">';
 
   /* Inline-editable metadata */
   var statusOpts=['current','superseded','archived','expired','draft'].map(function(s){
@@ -683,12 +681,12 @@ async function openDetail(eid){
   html+='</div></div>';/* end tabpane-details */
 
   /* History tab */
-  html+='<div id="tabpane-history" style="display:none">'+
+  html+='<div id="tabpane-history" role="tabpanel" aria-labelledby="tab-history" style="display:none">'+
     '<div class="ev-section"><div id="evVersions"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px"></div></div></div></div>'+
   '</div>';
 
   /* Activity tab */
-  html+='<div id="tabpane-activity" style="display:none">'+
+  html+='<div id="tabpane-activity" role="tabpanel" aria-labelledby="tab-activity" style="display:none">'+
     '<div class="ev-section"><div id="evActivity"><div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px"></div></div></div></div>'+
   '</div>';
 
@@ -733,7 +731,9 @@ async function openDetail(eid){
 function evShowTab(tab){
   ['details','history','activity'].forEach(function(t){
     document.getElementById('tabpane-'+t).style.display=t===tab?'block':'none';
-    document.getElementById('tab-'+t).className='ev-tab'+(t===tab?' active':'');
+    var btn=document.getElementById('tab-'+t);
+    btn.className='ev-tab'+(t===tab?' active':'');
+    btn.setAttribute('aria-selected',t===tab?'true':'false');
   });
 }
 
@@ -773,8 +773,12 @@ function evEditDesc(eid){
 
 async function evSaveField(field,eid,val){
   var body={};body[field]=val;
-  await fetch('/evidence/api/items/'+eid,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(typeof showToast==='function')showToast('Updated '+field);
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid, { method: 'PUT', body: body, actionId: 'evidence.field.save' });
+    if(typeof showToast==='function')showToast('Updated '+field);
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Update failed','error');
+  }
   openDetail(eid);loadStats();loadEvidence();
 }
 
@@ -783,6 +787,12 @@ function closeDetail(){
   document.getElementById('evDetailPanel').classList.remove('open');
   document.body.style.overflow='';
 }
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&document.getElementById('evDetailPanel').classList.contains('open')){
+    closeDetail();
+  }
+});
 
 async function verifyIntegrity(eid){
   var el=document.getElementById('integrityResult');
@@ -795,43 +805,45 @@ async function verifyIntegrity(eid){
 
 async function unlinkEvidence(linkId,eid){
   if(!confirm('Remove this link?'))return;
-  await fetch('/evidence/api/links/'+linkId,{method:'DELETE'});
+  try {
+    await ApiClient.request('/evidence/api/links/'+linkId, { method: 'DELETE', actionId: 'evidence.link.remove' });
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Remove failed','error');
+    return;
+  }
   openDetail(eid);loadStats();
 }
 
 async function archiveEvidence(eid){
   if(!confirm('Archive this evidence item? It will be removed from the repository, unlinked from all modules, and moved to the archive.'))return;
-  var r=await fetch('/evidence/api/items/'+eid,{method:'DELETE'});
-  if(r.ok){
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid, { method: 'DELETE', actionId: 'evidence.archive' });
     closeDetail();loadEvidence();loadStats();
     if(typeof showToast==='function')showToast('Evidence archived and unlinked from all modules');
-  } else {
-    var d=await r.json().catch(function(){return {};});
-    if(typeof showToast==='function')showToast(d.error||'Archive failed','error');
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Archive failed','error');
   }
 }
 
 async function restoreEvidence(eid){
   if(!confirm('Restore this evidence item back to the repository?'))return;
-  var r=await fetch('/evidence/api/items/'+eid+'/restore',{method:'POST'});
-  if(r.ok){
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid+'/restore', { method: 'POST', actionId: 'evidence.restore' });
     closeDetail();loadEvidence();loadStats();
     if(typeof showToast==='function')showToast('Evidence restored to repository');
-  } else {
-    var d=await r.json().catch(function(){return {};});
-    if(typeof showToast==='function')showToast(d.error||'Restore failed','error');
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Restore failed','error');
   }
 }
 
 async function permanentDeleteEvidence(eid){
   if(!confirm('PERMANENTLY delete this evidence? This cannot be undone. The file and all records will be removed.'))return;
-  var r=await fetch('/evidence/api/items/'+eid+'/permanent',{method:'DELETE'});
-  if(r.ok){
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid+'/permanent', { method: 'DELETE', actionId: 'evidence.permanent_delete' });
     closeDetail();loadEvidence();loadStats();
     if(typeof showToast==='function')showToast('Evidence permanently deleted');
-  } else {
-    var d=await r.json().catch(function(){return {};});
-    if(typeof showToast==='function')showToast(d.error||'Delete failed','error');
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Delete failed','error');
   }
 }
 
@@ -869,15 +881,16 @@ async function aiSuggestLinks(eid){
 async function applyAiLink(eid,module,entityType,entityId,btn){
   btn.disabled=true;btn.textContent='...';
   try{
-    await fetch('/evidence/api/items/'+eid+'/links',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({module:module,entity_type:entityType,entity_id:entityId})
+    await ApiClient.request('/evidence/api/items/'+eid+'/links', {
+      method: 'POST',
+      body: {module:module,entity_type:entityType,entity_id:entityId},
+      actionId: 'evidence.link.ai_apply',
     });
     btn.textContent='Linked';btn.style.background='var(--green-status)';
     openDetail(eid);loadStats();
   }catch(e){
     btn.textContent='Error';btn.disabled=false;
+    if (typeof showToast === 'function' && e.detail) showToast(e.detail, 'error');
   }
 }
 
@@ -888,7 +901,7 @@ function openLinkToModal(eid){
   document.getElementById('linkEntityType').innerHTML='<option value="">Select type</option>';
   document.getElementById('linkSearch').value='';
   document.getElementById('linkEntityList').innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type</div>';
-  document.getElementById('linkToModal').classList.add('open');
+  ModalManager.open('linkToModal');
 }
 function loadEntityTypes(){
   var mod=document.getElementById('linkModule').value;
@@ -911,14 +924,23 @@ async function searchEntities(){
   var eid=document.getElementById('linkEvidenceId').value;
   el.innerHTML=items.map(function(e){
     var safeId=parseInt(e.id,10)||0;
-    return '<div style="padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px" onclick="createLink('+parseInt(eid,10)+',\''+escHtml(mod)+'\',\''+escHtml(etype)+'\','+safeId+')" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+
+    return '<button type="button" style="display:block;width:100%;padding:8px 12px;border:none;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;text-align:left;font-family:inherit;background:none" onclick="createLink('+parseInt(eid,10)+',\''+escHtml(mod)+'\',\''+escHtml(etype)+'\','+safeId+')" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+
       '<span style="font-weight:600;color:var(--text)">'+escHtml(e.name)+'</span>'+
-      '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+safeId+'</span></div>';
+      '<span style="font-size:11px;color:var(--muted);margin-left:8px">#'+safeId+'</span></button>';
   }).join('');
 }
 async function createLink(eid,mod,etype,entityId){
-  await fetch('/evidence/api/items/'+eid+'/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module:mod,entity_type:etype,entity_id:entityId})});
-  document.getElementById('linkToModal').classList.remove('open');
+  try {
+    await ApiClient.request('/evidence/api/items/'+eid+'/links', {
+      method: 'POST',
+      body: {module:mod,entity_type:etype,entity_id:entityId},
+      actionId: 'evidence.link.create',
+    });
+  } catch (e) {
+    if(typeof showToast==='function')showToast(e.detail || 'Link failed','error');
+    return;
+  }
+  ModalManager.close('linkToModal');
   if(typeof showToast==='function')showToast('Evidence linked to '+mod+' '+etype);
   openDetail(eid);loadStats();
 }
@@ -948,25 +970,28 @@ async function handleUpload(e){
   form.append('description',document.getElementById('uploadDesc').value);
   var expiry=document.getElementById('uploadExpiry').value;
   if(expiry)form.append('expiry_date',expiry);
-  var r=await fetch('/evidence/api/items',{method:'POST',body:form});
-  if(r.status===409){
-    var d=await r.json();
-    var warn=document.getElementById('uploadDupeWarning');
-    warn.innerHTML='⚠️ <strong>This file already exists:</strong> '+escHtml(d.existing_title||'#'+d.existing_id)+
-      '<div style="display:flex;gap:8px;margin-top:8px">'+
-        '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" onclick="document.getElementById(\'uploadModal\').classList.remove(\'open\');openDetail('+d.existing_id+')">View Existing</button>'+
-        '<button class="btn btn-primary" style="font-size:12px;padding:5px 10px" onclick="document.getElementById(\'uploadModal\').classList.remove(\'open\');openLinkToModal('+d.existing_id+')">Link Existing</button>'+
-      '</div>';
-    warn.style.display='block';
+  try {
+    await ApiClient.request('/evidence/api/items', { method: 'POST', body: form, actionId: 'evidence.upload' });
+  } catch (e) {
+    if (e.status === 409 && e.body) {
+      var d=e.body;
+      var warn=document.getElementById('uploadDupeWarning');
+      warn.innerHTML='⚠️ <strong>This file already exists:</strong> '+escHtml(d.existing_title||'#'+d.existing_id)+
+        '<div style="display:flex;gap:8px;margin-top:8px">'+
+          '<button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" onclick="ModalManager.close(\'uploadModal\');openDetail('+d.existing_id+')">View Existing</button>'+
+          '<button class="btn btn-primary" style="font-size:12px;padding:5px 10px" onclick="ModalManager.close(\'uploadModal\');openLinkToModal('+d.existing_id+')">Link Existing</button>'+
+        '</div>';
+      warn.style.display='block';
+    } else if (typeof showToast==='function') {
+      showToast(e.detail || 'Upload failed','error');
+    }
     return;
   }
-  if(r.ok){
-    document.getElementById('uploadModal').classList.remove('open');
-    document.getElementById('uploadForm').reset();
-    document.getElementById('uploadExpiry').value='';
-    loadEvidence();loadStats();
-    if(typeof showToast==='function')showToast('Evidence uploaded','success');
-  }
+  ModalManager.close('uploadModal');
+  document.getElementById('uploadForm').reset();
+  document.getElementById('uploadExpiry').value='';
+  loadEvidence();loadStats();
+  if(typeof showToast==='function')showToast('Evidence uploaded','success');
 }
 
 /* ── Drag-drop ── */
@@ -1004,7 +1029,7 @@ async function handleUpload(e){
     var files=e.dataTransfer&&e.dataTransfer.files;
     if(!files||!files.length)return;
     document.getElementById('uploadFile').files=files;
-    document.getElementById('uploadModal').classList.add('open');
+    ModalManager.open('uploadModal');
   });
 })();
 

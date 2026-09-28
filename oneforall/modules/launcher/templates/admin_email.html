@@ -2,7 +2,6 @@
 {% block title %}Email Settings — ThemisIQ{% endblock %}
 
 {% block head %}
-<style>
 /* ── Provider cards ───────────────────────────────────────────────────────── */
 .prov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
 .prov-card{border:2px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;text-align:center;background:var(--surface2)}
@@ -38,7 +37,6 @@
 /* ── Info box ─────────────────────────────────────────────────────────────── */
 .info-box{background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--accent-rgb),.15);border-radius:8px;padding:14px 16px;font-size:12px;color:var(--text);line-height:1.6;margin-bottom:16px}
 .info-box strong{color:var(--accent)}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -206,7 +204,7 @@
 
       <div style="display:flex;gap:10px;margin-top:4px" id="saveRow" style="display:none">
         <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
-        <button class="btn btn-secondary" onclick="loadConfig()">Reset</button>
+        <button class="btn btn-secondary" onclick="resetConfig()">Reset</button>
       </div>
     </div>
 
@@ -322,12 +320,36 @@ window.selectProvider = function(id) {
 };
 
 // ── Load current config ────────────────────────────────────────────────────
-async function loadConfig() {
-  try {
-    const r = await fetch('/api/admin/email-config');
-    if (!r.ok) return;
-    const cfg = await r.json();
+// PLAN-36 T03 (findings.md F04): loadConfig() itself stays IIFE-scoped (it
+// already worked correctly when called internally, e.g. after a successful
+// save) -- resetConfig() below is the window-attached entry point the
+// Reset button actually needs, so it always resolved even before this fix.
+const DIRTY_FIELD_IDS = ['fSmtpUser','fSmtpPass','fSmtpFrom','fSmtpUserMs','fSmtpPassMs','fSmtpFromMs',
+  'fSmtpHostCustom','fSmtpPortCustom','fSmtpUserCustom','fSmtpPassCustom','fSmtpFromCustom',
+  'fTenantId','fClientId','fClientSecret','fGraphFrom'];
+let lastLoadedSnapshot = null;
 
+function snapshotForm() {
+  const s = {};
+  DIRTY_FIELD_IDS.forEach(id => { const el = document.getElementById(id); if (el) s[id] = el.value; });
+  return s;
+}
+function isFormDirty() {
+  if (!lastLoadedSnapshot) return false;
+  const now = snapshotForm();
+  return DIRTY_FIELD_IDS.some(id => (now[id] || '') !== (lastLoadedSnapshot[id] || ''));
+}
+
+async function loadConfig(throwOnError) {
+  let cfg;
+  try {
+    cfg = await ApiClient.request('/api/admin/email-config', { actionId: 'email.config.load' });
+  } catch (e) {
+    console.error('loadConfig failed', e);
+    if (throwOnError) throw new Error(e.detail || 'Failed to load configuration.');
+    return;
+  }
+  try {
     const prov = cfg.provider || cfg.resolved_provider || 'console';
     selectProvider(prov);
 
@@ -370,10 +392,30 @@ async function loadConfig() {
       document.getElementById('lastTestInfo').textContent =
         `Last test: ${cfg.last_test_result}  (${cfg.last_test_at})`;
     }
+
+    lastLoadedSnapshot = snapshotForm();
   } catch(e) {
     console.error('loadConfig failed', e);
+    if (throwOnError) throw (e instanceof Error ? e : new Error('Network error -- please check your connection and try again.'));
   }
 }
+
+// ── Reset: reload the last persisted server configuration ─────────────────
+window.resetConfig = async function() {
+  if (isFormDirty() && !confirm('Discard unsaved changes and reload the saved configuration?')) return;
+  const btn = document.querySelector('#saveRow button.btn-secondary');
+  const original = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Resetting…'; }
+  try {
+    await loadConfig(true);
+    typeof showToast === 'function' && showToast('Configuration reloaded');
+  } catch (e) {
+    const msg = 'Failed to reload configuration: ' + e.message;
+    typeof showToast === 'function' ? showToast(msg, 'error') : alert(msg);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = original; }
+  }
+};
 
 // ── Save config ────────────────────────────────────────────────────────────
 window.saveConfig = async function() {
@@ -409,19 +451,11 @@ window.saveConfig = async function() {
   // console: just saves provider=console
 
   try {
-    const r = await fetch('/api/admin/email-config', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
-    });
-    if (r.ok) {
-      if (typeof showToast === 'function') showToast('Email configuration saved', 'success');
-      loadConfig();
-    } else {
-      if (typeof showToast === 'function') showToast('Save failed', 'error');
-    }
-  } catch(e) {
-    if (typeof showToast === 'function') showToast('Save failed', 'error');
+    await ApiClient.request('/api/admin/email-config', { method: 'POST', body, actionId: 'email.config.save' });
+    if (typeof showToast === 'function') showToast('Email configuration saved', 'success');
+    loadConfig();
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.detail || 'Save failed', 'error');
   }
 };
 
@@ -435,8 +469,7 @@ window.runTest = async function() {
   res.style.display = 'none';
 
   try {
-    const r = await fetch('/api/admin/email-test', { method: 'POST' });
-    const data = await r.json();
+    const data = await ApiClient.request('/api/admin/email-test', { method: 'POST', actionId: 'email.test' });
     res.style.display = 'block';
     if (data.ok) {
       res.className = 'test-result ok';
@@ -449,7 +482,7 @@ window.runTest = async function() {
   } catch(e) {
     res.style.display = 'block';
     res.className = 'test-result fail';
-    res.textContent = '✗ Request failed — check server logs';
+    res.textContent = `✗ ${e.detail || 'Request failed, check server logs'}`;
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Send Test Email`;

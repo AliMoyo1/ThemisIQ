@@ -1,16 +1,15 @@
 {% extends "platform_base.html" %}
 {% block title %}Task Board — ThemisIQ{% endblock %}
 {% block head %}
-<style>
 /* ── Task Board ──────────────────────────────────────────────────────────── */
 .tb-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .tb-search{flex:1;min-width:160px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;outline:none;transition:border-color .15s}
 .tb-search:focus{border-color:var(--accent)}
 .tb-select{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer}
-.tb-mine-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;user-select:none;transition:all .15s;white-space:nowrap}
+.tb-mine-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;user-select:none;transition:all .15s;white-space:nowrap;font-family:inherit}
 .tb-mine-btn.active{border-color:var(--accent);background:rgba(var(--accent-rgb),.08);color:var(--accent)}
 .tb-pri-row{display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-.tb-pri-chip{padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700;border:1.5px solid transparent;cursor:pointer;transition:opacity .15s,border-color .15s}
+.tb-pri-chip{padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700;border:1.5px solid transparent;cursor:pointer;transition:opacity .15s,border-color .15s;font-family:inherit}
 .tb-pri-chip:not(.active){opacity:.6}
 .tb-pri-chip.pc-all{background:var(--surface2);border-color:var(--border);color:var(--muted)}
 .tb-pri-chip.pc-all.active{border-color:var(--accent);color:var(--accent);background:rgba(var(--accent-rgb),.08);opacity:1}
@@ -95,7 +94,6 @@ body.tb-select-mode .task-card{padding-right:34px}
 
 @media(max-width:900px){.kanban-board{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){.kanban-board{grid-template-columns:1fr}.task-drawer{width:100vw;right:-100vw}}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -133,10 +131,11 @@ body.tb-select-mode .task-card{padding-right:34px}
 
   <!-- Filters -->
   <div class="tb-filters">
-    <div class="tb-mine-btn" id="mineBtn" onclick="toggleMine()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <button class="tb-mine-btn" id="mineBtn" onclick="toggleMine()" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       My Tasks
-    </div>
+    </button>
+    <label class="sr-only" for="filterModule">Filter by module</label>
     <select id="filterModule" class="tb-select" onchange="applyFilters()">
       <option value="">All Modules</option>
       <option value="aria">ARIA</option>
@@ -150,11 +149,11 @@ body.tb-select-mode .task-card{padding-right:34px}
   </div>
   <div class="tb-pri-row">
     <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Priority:</span>
-    <span class="tb-pri-chip pc-all active" data-pri="" onclick="setPri('',this)">All</span>
-    <span class="tb-pri-chip pc-critical" data-pri="critical" onclick="setPri('critical',this)">● Critical</span>
-    <span class="tb-pri-chip pc-high" data-pri="high" onclick="setPri('high',this)">● High</span>
-    <span class="tb-pri-chip pc-medium" data-pri="medium" onclick="setPri('medium',this)">● Medium</span>
-    <span class="tb-pri-chip pc-low" data-pri="low" onclick="setPri('low',this)">● Low</span>
+    <button type="button" class="tb-pri-chip pc-all active" data-pri="" onclick="setPri('',this)">All</button>
+    <button type="button" class="tb-pri-chip pc-critical" data-pri="critical" onclick="setPri('critical',this)">● Critical</button>
+    <button type="button" class="tb-pri-chip pc-high" data-pri="high" onclick="setPri('high',this)">● High</button>
+    <button type="button" class="tb-pri-chip pc-medium" data-pri="medium" onclick="setPri('medium',this)">● Medium</button>
+    <button type="button" class="tb-pri-chip pc-low" data-pri="low" onclick="setPri('low',this)">● Low</button>
   </div>
 
   <!-- Kanban board -->
@@ -222,12 +221,11 @@ body.tb-select-mode .task-card{padding-right:34px}
 
 
 <!-- ── New Task Modal ──────────────────────────────────────────────────────── -->
-<div class="modal" id="newTaskModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:520px;">
+<div class="modal-overlay" id="newTaskModal" role="dialog" aria-modal="true" aria-labelledby="newTaskModal-title">
+  <div class="modal" style="max-width:520px;">
     <div class="modal-header">
-      <h3 style="margin:0;font-size:16px;font-weight:700">New Task</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="newTaskModal-title" style="margin:0;font-size:16px;font-weight:700">New Task</h3>
+      <button class="modal-close" onclick="ModalManager.close('newTaskModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px">
       <form id="taskForm" onsubmit="submitNewTask(event)">
@@ -366,9 +364,10 @@ function avatarColor(name){
 // ── Users ─────────────────────────────────────────────────────────────────────
 async function loadUsers(){
   try{
-    const r = await fetch('/api/platform/users');
-    if(r.ok) usersList = await r.json();
-  }catch(e){}
+    usersList = await ApiClient.request('/api/platform/users', { actionId: 'task_board.users.load' });
+  }catch(e){
+    if(typeof showToast==='function')showToast(e.detail || 'Failed to load users','error');
+  }
   populateUserDropdowns();
 }
 
@@ -396,9 +395,10 @@ function usersSelectHtml(selectedId){
 // ── Load & render ─────────────────────────────────────────────────────────────
 async function loadTasks(){
   try{
-    const r = await fetch('/api/tasks');
-    if(r.ok) allTasks = await r.json();
-  }catch(e){}
+    allTasks = await ApiClient.request('/api/tasks', { actionId: 'task_board.tasks.load' });
+  }catch(e){
+    if(typeof showToast==='function')showToast(e.detail || 'Failed to load tasks','error');
+  }
   renderBoard();
   updateStats();
 }
@@ -481,7 +481,9 @@ async function updateStats(){
 // ── Filters ───────────────────────────────────────────────────────────────────
 window.toggleMine = function(){
   filterMine = !filterMine;
-  document.getElementById('mineBtn').classList.toggle('active', filterMine);
+  const btn = document.getElementById('mineBtn');
+  btn.classList.toggle('active', filterMine);
+  btn.setAttribute('aria-pressed', String(filterMine));
   renderBoard();
 };
 
@@ -538,22 +540,17 @@ window.bulkDeselectAll = function(){
 window.bulkSetField = async function(field, value){
   if(!value || selectedTasks.size === 0) return;
   try{
-    var resp = await fetch('/api/tasks/bulk', {
+    var result = await ApiClient.request('/api/tasks/bulk', {
       method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ids: Array.from(selectedTasks), updates: {[field]: value}})
+      body: {ids: Array.from(selectedTasks), updates: {[field]: value}},
+      actionId: 'task_board.bulk_set_field',
     });
-    if(resp.ok){
-      var result = await resp.json();
-      if(typeof showToast === 'function') showToast('Updated ' + result.updated + ' tasks');
-      selectedTasks.clear();
-      updateBulkBar();
-      await loadTasks();
-    } else {
-      if(typeof showToast === 'function') showToast('Bulk update failed', 'error');
-    }
+    if(typeof showToast === 'function') showToast('Updated ' + result.updated + ' tasks');
+    selectedTasks.clear();
+    updateBulkBar();
+    await loadTasks();
   }catch(e){
-    if(typeof showToast === 'function') showToast('Bulk update failed', 'error');
+    if(typeof showToast === 'function') showToast(e.detail || 'Bulk update failed', 'error');
   }
 };
 
@@ -562,14 +559,12 @@ window.aiPrioritize = async function(){
   var btn=document.getElementById('aiPriBtn');
   btn.disabled=true;btn.textContent='Analyzing...';
   try{
-    var r=await fetch('/api/tasks/ai-prioritize',{method:'POST'});
-    if(!r.ok){if(typeof showToast==='function')showToast('AI not available','error');return;}
-    var data=await r.json();
+    var data=await ApiClient.request('/api/tasks/ai-prioritize', {method:'POST', actionId: 'task_board.ai_prioritize'});
     var ranked=data.ranked||[];
     if(!ranked.length){if(typeof showToast==='function')showToast('No prioritization suggestions','info');return;}
     showAiPriPanel(ranked);
   }catch(e){
-    if(typeof showToast==='function')showToast('AI prioritization failed','error');
+    if(typeof showToast==='function')showToast(e.detail || 'AI prioritization failed','error');
   }finally{
     btn.disabled=false;btn.innerHTML='<span style="font-size:14px">&#10038;</span> AI Prioritize';
   }
@@ -612,17 +607,15 @@ window.applyAiPriorities = async function(){
   var updates=ranked.map(function(r){return{id:r.task_id,priority:r.suggested_priority};});
   try{
     for(var i=0;i<updates.length;i++){
-      await fetch('/api/tasks/'+updates[i].id,{
-        method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({priority:updates[i].priority})
+      await ApiClient.request('/api/tasks/'+updates[i].id, {
+        method: 'PUT', body: {priority:updates[i].priority}, actionId: 'task_board.apply_ai_priority',
       });
     }
     if(typeof showToast==='function')showToast('Applied AI priorities to '+updates.length+' tasks');
     document.getElementById('aiPriPanel').remove();
     await loadTasks();
   }catch(e){
-    if(typeof showToast==='function')showToast('Failed to apply priorities','error');
+    if(typeof showToast==='function')showToast(e.detail || 'Failed to apply priorities','error');
   }
 };
 
@@ -739,41 +732,31 @@ window.saveDrawer = async function(){
     assigned_to: document.getElementById('ddAssignTo').value || null,
   };
   try{
-    const r = await fetch('/api/tasks/'+currentTaskId,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body),
+    await ApiClient.request('/api/tasks/'+currentTaskId, {
+      method: 'PUT', body: body, actionId: 'task_board.task.save',
     });
-    if(r.ok){
-      showToast('Task saved','success');
-      closeDrawer();
-      await loadTasks();
-    } else {
-      showToast('Save failed','error');
-    }
-  }catch(e){ showToast('Save failed','error'); }
+    showToast('Task saved','success');
+    closeDrawer();
+    await loadTasks();
+  }catch(e){ showToast(e.detail || 'Save failed','error'); }
 };
 
 window.confirmDeleteTask = async function(){
   if(!currentTaskId) return;
   if(!confirm('Delete this task? This cannot be undone.')) return;
   try{
-    const r = await fetch('/api/tasks/'+currentTaskId,{method:'DELETE'});
-    if(r.ok){
-      showToast('Task deleted','success');
-      allTasks = allTasks.filter(t=>t.id!==currentTaskId);
-      closeDrawer();
-      renderBoard();
-      updateStats();
-    } else {
-      showToast('Delete failed','error');
-    }
-  }catch(e){ showToast('Delete failed','error'); }
+    await ApiClient.request('/api/tasks/'+currentTaskId, { method: 'DELETE', actionId: 'task_board.task.delete' });
+    showToast('Task deleted','success');
+    allTasks = allTasks.filter(t=>t.id!==currentTaskId);
+    closeDrawer();
+    renderBoard();
+    updateStats();
+  }catch(e){ showToast(e.detail || 'Delete failed','error'); }
 };
 
 // ── New Task Modal ────────────────────────────────────────────────────────────
 window.openNewTaskModal = function(){
-  document.getElementById('newTaskModal').classList.add('open');
+  ModalManager.open('newTaskModal');
 };
 
 window.submitNewTask = async function(e){
@@ -787,20 +770,12 @@ window.submitNewTask = async function(e){
     assigned_to: document.getElementById('ntAssignTo').value || null,
   };
   try{
-    const r = await fetch('/api/tasks',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body),
-    });
-    if(r.ok){
-      document.getElementById('newTaskModal').classList.remove('open');
-      document.getElementById('taskForm').reset();
-      showToast('Task created','success');
-      await loadTasks();
-    } else {
-      showToast('Failed to create task','error');
-    }
-  }catch(e){ showToast('Failed to create task','error'); }
+    await ApiClient.request('/api/tasks', { method: 'POST', body: body, actionId: 'task_board.task.create' });
+    ModalManager.close('newTaskModal');
+    document.getElementById('taskForm').reset();
+    showToast('Task created','success');
+    await loadTasks();
+  }catch(e){ showToast(e.detail || 'Failed to create task','error'); }
 };
 
 // ── Drag and Drop ─────────────────────────────────────────────────────────────
@@ -843,13 +818,14 @@ window.onDrop = async function(e, status){
   updateStats();
 
   try{
-    await fetch('/api/tasks/'+id,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({status}),
-    });
+    // PLAN-36 T06 (findings.md F08): raw fetch() doesn't reject on a
+    // non-2xx status, so a rejected status transition (invalid state,
+    // permission denied) previously left the optimistic UI update in place
+    // as if it had succeeded, with nothing to catch and revert it.
+    // ApiClient.request throws for that case too, not just a network error.
+    await ApiClient.request('/api/tasks/'+id, { method: 'PUT', body: {status}, actionId: 'task_board.task.move' });
   }catch(err){
-    showToast('Failed to move task','error');
+    showToast(err.detail || 'Failed to move task','error');
     await loadTasks(); // revert on error
   }
 };

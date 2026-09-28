@@ -1,13 +1,13 @@
 """
 Admin routes — user management, audit logs, API keys, webhooks.
 """
-import ipaddress
-from urllib.parse import urlparse
-
 from fastapi import APIRouter, HTTPException, Request, Form, UploadFile, File
 from core.sanitize import sanitize_str as _s
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from core.outbound_http import validate_outbound_url, OutboundURLError
+from core.webhooks import send_test_ping
+from core.middleware import check_rate_limit, record_failed_login
 from database import insert_returning_id
 from modules.sentinel.data_service import get_setting, set_setting  # org policy
 from modules.launcher._route_helpers import (
@@ -20,8 +20,6 @@ from modules.launcher._route_helpers import (
     _json_body,)
 
 router = APIRouter()
-
-_SSRF_BLOCKED_PREFIXES = ("127.", "0.", "169.254.", "10.", "192.168.", "172.")
 
 
 def _target_user(db, uid: int, admin: dict):
@@ -83,24 +81,19 @@ def _user_reference_counts(db, uid: int) -> dict:
 
 
 def _validate_webhook_url(url: str) -> None:
-    """Raise HTTP 400 if the URL is not HTTPS or resolves to a private/loopback address."""
-    parsed = urlparse(url)
-    if parsed.scheme != "https":
-        raise HTTPException(status_code=400, detail="Webhook URL must use HTTPS")
-    host = parsed.hostname or ""
-    if not host:
-        raise HTTPException(status_code=400, detail="Invalid webhook URL")
-    if host in ("localhost", "::1", "0.0.0.0"):
-        raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
-    for prefix in _SSRF_BLOCKED_PREFIXES:
-        if host.startswith(prefix):
-            raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
+    """Raise HTTP 400 if the URL fails the shared outbound policy
+    (core/outbound_http.py, PLAN-36 T05 / findings.md F07): HTTPS only, no
+    embedded credentials, and every DNS answer for the host must be a
+    public address -- resolved for real, not guessed from a string prefix.
+
+    Kept as a thin HTTPException-raising wrapper so every existing call
+    site (webhook create/update, Slack/Teams/WhatsApp connector save)
+    keeps working unchanged; the actual policy lives in one place.
+    """
     try:
-        ip = ipaddress.ip_address(host)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-            raise HTTPException(status_code=400, detail="Webhook URL targets a blocked address")
-    except ValueError:
-        pass  # domain name, not an IP literal
+        validate_outbound_url(url)
+    except OutboundURLError as exc:
+        raise HTTPException(status_code=400, detail=f"Webhook URL rejected: {exc}") from None
 
 
 # ── Admin User Management ───────────────────────────────────────────────────
@@ -1260,23 +1253,39 @@ async def api_webhook_logs(request: Request, wid: int):
 @router.post("/api/admin/webhooks/{wid}/test")
 @_require_cap("platform.manage_users")
 async def api_webhook_test(request: Request, wid: int):
-    """Send a test ping to a webhook."""
+    """Send a real test ping to a webhook and report the truthful outcome.
+
+    PLAN-36 T05 (findings.md F06): this used to insert a synthetic
+    response_code=200/success=1 row without ever making a network call.
+    It now invokes the same signed-delivery path (core/webhooks.py) that
+    real platform events use, against the saved URL revalidated
+    immediately before connecting (core/outbound_http.py, F07).
+    """
     user = request.state.user
+    rl_key = f"webhook_test:{user['id']}:{wid}"
+    if not check_rate_limit(rl_key):
+        return _JSONResp(
+            {"error": "Too many test sends for this webhook. Please wait a few minutes."},
+            status_code=429,
+        )
+
     db = get_db()
     try:
         wh = _get_webhook_for_admin(db, wid, user)
-        if not wh:
-            return _JSONResp({"error": "Not found"}, status_code=404)
-
-        payload = {"event": "test.ping", "timestamp": "now", "data": {"message": "Webhook test from ThemisIQ"}}
-        db.execute(
-            "INSERT INTO webhook_logs (webhook_id, event, payload_json, response_code, success) VALUES (%s,%s,%s,%s,%s)",
-            (wid, "test.ping", json_lib.dumps(payload), 200, 1)
-        )
-        db.commit()
     finally:
         db.close()
-    return _JSONResp({"success": True, "message": "Test ping logged"})
+    if not wh:
+        return _JSONResp({"error": "Not found"}, status_code=404)
+
+    record_failed_login(rl_key)  # generic per-key attempt counter, not login-specific despite the name
+    result = send_test_ping(wid, wh["url"], wh["secret"] or "")
+    log_audit(user, "platform", "webhook_test",
+              details=f"wid={wid} success={result['success']} status={result['status_code']}")
+    status_code = 200 if result["success"] else 502
+    return _JSONResp(
+        {"success": result["success"], "status_code": result["status_code"], "detail": result["detail"]},
+        status_code=status_code,
+    )
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1535,13 +1544,31 @@ async def api_connectors_delete_teams(request: Request):
     return _JSONResp({"ok": True})
 
 
+def _rate_limited_connector_test(request: Request, connector: str, send_fn, message: str):
+    """Shared body for the three connector test routes below (PLAN-36 T05):
+    per-actor-and-connector rate limit, then a real send through
+    core.notifications (which itself revalidates the URL via
+    core.outbound_http immediately before connecting)."""
+    user = request.state.user
+    rl_key = f"connector_test:{connector}:{user['id']}"
+    if not check_rate_limit(rl_key):
+        return _JSONResp(
+            {"ok": False, "detail": "Too many test sends. Please wait a few minutes."},
+            status_code=429,
+        )
+    record_failed_login(rl_key)
+    ok = send_fn(message)
+    log_audit(user, "platform", "connector_test", details=f"connector={connector} ok={ok}")
+    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+
+
 @router.post("/api/admin/connectors/test-slack")
 @_require_cap("platform.manage_users")
 async def api_connectors_test_slack(request: Request):
     """Send a test message to the configured Slack webhook."""
     from core.notifications import send_slack
-    ok = send_slack("[ThemisIQ] Slack connector test — configuration is working.")
-    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+    return _rate_limited_connector_test(
+        request, "slack", send_slack, "[ThemisIQ] Slack connector test - configuration is working.")
 
 
 @router.post("/api/admin/connectors/test-teams")
@@ -1549,8 +1576,8 @@ async def api_connectors_test_slack(request: Request):
 async def api_connectors_test_teams(request: Request):
     """Send a test message to the configured Teams webhook."""
     from core.notifications import send_teams
-    ok = send_teams("[ThemisIQ] Teams connector test - configuration is working.")
-    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+    return _rate_limited_connector_test(
+        request, "teams", send_teams, "[ThemisIQ] Teams connector test - configuration is working.")
 
 
 @router.delete("/api/admin/connectors/whatsapp")
@@ -1567,8 +1594,8 @@ async def api_connectors_delete_whatsapp(request: Request):
 async def api_connectors_test_whatsapp(request: Request):
     """Send a test message to the configured WhatsApp webhook."""
     from core.notifications import send_whatsapp
-    ok = send_whatsapp("[ThemisIQ] WhatsApp connector test - configuration is working.")
-    return _JSONResp({"ok": ok, "detail": "Message sent" if ok else "Not configured or send failed"})
+    return _rate_limited_connector_test(
+        request, "whatsapp", send_whatsapp, "[ThemisIQ] WhatsApp connector test - configuration is working.")
 
 
 # ── Org security policy (MFA enforcement) ────────────────────────────────────

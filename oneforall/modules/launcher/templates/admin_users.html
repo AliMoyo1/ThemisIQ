@@ -6,7 +6,6 @@
 {# them inside {% block content %} by re-declaring there.                    #}
 
 {% block head %}
-<style>
 /* ── Stats strip ─────────────────────────────────────────────────────────── */
 .au-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
 @media(max-width:680px){ .au-stats{ grid-template-columns:repeat(2,1fr); } }
@@ -209,7 +208,6 @@
 .bu-pill.active { background:var(--good-soft); color:var(--good); }
 .bu-pill.inact  { background:var(--surface); color:var(--muted); border:1px solid var(--border); }
 .bu-pill.pwrst  { background:var(--warn-soft); color:var(--amber); }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -375,6 +373,7 @@
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </svg>
+    <label class="sr-only" for="userSearch">Search users</label>
     <input id="userSearch" type="text" placeholder="Search name, email or username…"
            oninput="filterUsers()" autocomplete="off">
   </div>
@@ -388,6 +387,7 @@
           title="{% if show_deleted %}Hide deleted users{% else %}Show deleted users{% endif %}">
     {% if show_deleted %}Hide{% else %}Show{% endif %} Deleted{% if stat_deleted %} ({{ stat_deleted }}){% endif %}
   </button>
+  <label class="sr-only" for="roleFilter">Filter by role</label>
   <select id="roleFilter" class="au-role-sel" onchange="filterUsers()">
     <option value="">All Roles</option>
     {% for rk in all_roles %}
@@ -395,6 +395,7 @@
     {% endfor %}
   </select>
   {% if business_units %}
+  <label class="sr-only" for="buFilter">Filter by business unit</label>
   <select id="buFilter" class="au-role-sel" onchange="filterUsers()" style="min-width:170px;">
     <option value="">All Business Units</option>
     <option value="0">Org-wide (no unit)</option>
@@ -404,6 +405,7 @@
   </select>
   {% endif %}
   {% if is_super and orgs_grouped|length > 1 %}
+  <label class="sr-only" for="orgFilter">Filter by organization</label>
   <select id="orgFilter" class="au-role-sel" onchange="filterUsers()" style="min-width:160px;">
     <option value="">All Organizations</option>
     {% for og in orgs_grouped %}
@@ -769,19 +771,19 @@
     <input type="hidden" id="drawerUid">
     <div id="drawerError" class="ed-error"></div>
     <div class="form-group">
-      <label class="form-label">Full Name</label>
+      <label class="form-label" for="drawerFullName">Full Name</label>
       <input type="text" id="drawerFullName" class="form-input"
              placeholder="e.g. Tatenda Chikomba" maxlength="120" autocomplete="off"
              style="width:100%; box-sizing:border-box;">
     </div>
     <div class="form-group" style="margin-top:14px;">
-      <label class="form-label">Email Address</label>
+      <label class="form-label" for="drawerEmail">Email Address</label>
       <input type="email" id="drawerEmail" class="form-input"
              placeholder="user@example.com" maxlength="254" autocomplete="off"
              style="width:100%; box-sizing:border-box;">
     </div>
     <div class="form-group" style="margin-top:14px;">
-      <label class="form-label">
+      <label class="form-label" for="drawerUsername">
         Username
         <span style="font-size:11px; font-weight:400; color:var(--muted);">(read-only)</span>
       </label>
@@ -789,7 +791,7 @@
              readonly style="width:100%; box-sizing:border-box;">
     </div>
     <div class="form-group" style="margin-top:14px;">
-      <label class="form-label">
+      <label class="form-label" for="drawerCreated">
         Account Created
         <span style="font-size:11px; font-weight:400; color:var(--muted);">(read-only)</span>
       </label>

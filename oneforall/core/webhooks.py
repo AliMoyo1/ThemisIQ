@@ -38,9 +38,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Optional
 
-import httpx
-
 from database import get_db, get_db_background
+from core.outbound_http import send_outbound, OutboundURLError
 from core.timeutils import utcnow
 
 log = logging.getLogger("oneforall.webhooks")
@@ -53,7 +52,6 @@ _BACKOFF_BASE = 1.0  # seconds; 1, 2, 4, ...
 # that triggered the event. A handful of workers is plenty -- this is fan-out
 # to a small number of registered webhooks per org, not a queue of real work.
 _delivery_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="webhook-delivery")
-_TIMEOUT = 10.0
 
 
 def _sign(secret: str, raw_body: bytes) -> str:
@@ -79,9 +77,17 @@ def _build_payload(event_type: str, source_module: str, entity_type: str,
 
 def _deliver_once(url: str, secret: str, body: bytes,
                   signature: str) -> tuple[int, str]:
-    """POST one webhook. Returns (status_code, response_body_text)."""
+    """POST one webhook. Returns (status_code, response_body_text).
+
+    PLAN-36 T05 (findings.md F07): goes through core.outbound_http.send_outbound
+    rather than a raw client call, so every real delivery -- not just the
+    admin Test button -- revalidates the destination immediately before
+    connecting (DNS answers can change between save time and send time) and
+    gets the same bounded timeouts, non-redirect-following, and response
+    size cap as everything else that leaves this server.
+    """
     try:
-        r = httpx.post(
+        result = send_outbound(
             url,
             content=body,
             headers={
@@ -89,10 +95,11 @@ def _deliver_once(url: str, secret: str, body: bytes,
                 "X-ThemisIQ-Signature": signature,
                 "User-Agent": "ThemisIQ-Webhooks/1.0",
             },
-            timeout=_TIMEOUT,
         )
-        return r.status_code, (r.text or "")[:2000]
-    except Exception as exc:  # network/DNS/TLS errors
+        return result.status_code, result.text[:2000]
+    except OutboundURLError as exc:
+        return 0, f"delivery blocked: {exc}"
+    except Exception as exc:  # network/DNS/TLS/timeout errors
         return 0, f"delivery error: {exc}"
 
 
@@ -144,6 +151,37 @@ def deliver(webhook_id: int, url: str, secret: str, payload: dict) -> bool:
     log.warning("webhook %s delivery failed after %d attempts (last code %s)",
                 webhook_id, _MAX_RETRIES, last_code)
     return False
+
+
+def send_test_ping(webhook_id: int, url: str, secret: str) -> dict:
+    """One real, signed, single-attempt delivery for the admin "Test"
+    button (PLAN-36 T05, findings.md F06: this used to insert a synthetic
+    success row without ever calling this module -- or making a network
+    call -- at all). No retries: an interactive Test click needs a fast,
+    truthful answer, not up to ~7s of retry backoff. Always logs the real
+    attempt via _log_attempt, success or failure.
+
+    Returns {"success", "status_code", "detail"} -- `detail` is a short,
+    sanitized summary safe to show directly in the admin UI. It never
+    contains the raw response body, headers, or resolver/exception
+    internals; those stay server-side in the (already access-controlled,
+    already length-bounded) webhook_logs row this same call writes.
+    """
+    payload = _build_payload("test.ping", "platform", "webhook", webhook_id,
+                             {"message": "Webhook test from ThemisIQ"}, None, None)
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    signature = _sign(secret, body)
+    code, body_text = _deliver_once(url, secret, body, signature)
+    success = 200 <= code < 300
+    _log_attempt(webhook_id, "test.ping", payload, code, body_text, success)
+
+    if success:
+        detail = f"Delivered (HTTP {code})"
+    elif code == 0:
+        detail = "Delivery failed: network error or destination blocked by outbound policy"
+    else:
+        detail = f"Delivery failed (HTTP {code})"
+    return {"success": success, "status_code": code, "detail": detail}
 
 
 def dispatch_event(event_type: str, source_module: str, entity_type: str,

@@ -99,12 +99,11 @@
 </div>
 
 <!-- New Report Modal -->
-<div class="modal" id="newReportModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:500px;">
+<div class="modal-overlay" id="newReportModal" role="dialog" aria-modal="true" aria-labelledby="newReportModal-title">
+  <div class="modal" style="max-width:500px;">
     <div class="modal-header">
-      <h3 style="margin:0; font-size:16px;">Create Report Definition</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="newReportModal-title" style="margin:0; font-size:16px;">Create Report Definition</h3>
+      <button class="modal-close" onclick="ModalManager.close('newReportModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px;">
       <form id="reportForm" onsubmit="createReport(event)">
@@ -203,7 +202,7 @@ async function loadStats() {
   `;
 }
 
-function openNewReport() { document.getElementById('newReportModal').classList.add('open'); }
+function openNewReport() { ModalManager.open('newReportModal'); }
 
 async function createReport(e) {
   e.preventDefault();
@@ -216,7 +215,7 @@ async function createReport(e) {
   };
   const resp = await fetch('/api/reports/definitions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   if (resp.ok) {
-    document.getElementById('newReportModal').classList.remove('open');
+    ModalManager.close('newReportModal');
     document.getElementById('reportForm').reset();
     loadDefinitions(); loadStats();
     showTab('definitions');

@@ -3,7 +3,12 @@
 {% block title %}Command Centre — ThemisIQ{% endblock %}
 
 {% block extra_styles %}
-<style>
+<!-- PLAN-36 T07: this block substitutes directly inside base_shell.html's
+     own already-open style tag -- a nested style tag here is invalid HTML
+     and silently truncates the outer tag's raw-text parsing at this
+     block's closing tag, dropping every rule base_shell.html defines
+     after this block (undetected until T07 added the first content
+     there). No style-tag wrapper here; bare rules only. -->
 /* ── Command Centre Dashboard Styles ── */
 .cc-donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;margin:0 auto}
 .cc-donut-wrap svg{display:block;width:100%;height:100%}
@@ -67,7 +72,6 @@
   .breach-alert-row{flex-wrap:wrap;gap:8px}
   .ba-countdown{min-width:100%;text-align:left}
 }
-</style>
 {% endblock %}
 
 {% block module_sidebar %}
@@ -464,24 +468,24 @@
   </div>
   <div class="card-body" style="padding:12px 20px 6px">
     <div class="filter-bar" id="ccModuleFilters">
-      <span class="filter-chip active" data-mod="all" onclick="filterOverdue('all',this)">All</span>
+      <button type="button" class="filter-chip active" data-mod="all" onclick="filterOverdue('all',this)">All</button>
       {% if 'aria' in user_modules %}
-      <span class="filter-chip" data-mod="aria" onclick="filterOverdue('aria',this)">ARIA</span>
+      <button type="button" class="filter-chip" data-mod="aria" onclick="filterOverdue('aria',this)">ARIA</button>
       {% endif %}
       {% if 'grid' in user_modules %}
-      <span class="filter-chip" data-mod="grid" onclick="filterOverdue('grid',this)">GRID</span>
+      <button type="button" class="filter-chip" data-mod="grid" onclick="filterOverdue('grid',this)">GRID</button>
       {% endif %}
       {% if 'bcm' in user_modules %}
-      <span class="filter-chip" data-mod="bcm" onclick="filterOverdue('bcm',this)">BCM</span>
+      <button type="button" class="filter-chip" data-mod="bcm" onclick="filterOverdue('bcm',this)">BCM</button>
       {% endif %}
       {% if 'sentinel' in user_modules %}
-      <span class="filter-chip" data-mod="sentinel" onclick="filterOverdue('sentinel',this)">Sentinel</span>
+      <button type="button" class="filter-chip" data-mod="sentinel" onclick="filterOverdue('sentinel',this)">Sentinel</button>
       {% endif %}
       {% if 'erm' in user_modules %}
-      <span class="filter-chip" data-mod="erm" onclick="filterOverdue('erm',this)">ERM</span>
+      <button type="button" class="filter-chip" data-mod="erm" onclick="filterOverdue('erm',this)">ERM</button>
       {% endif %}
       {% if 'orm' in user_modules %}
-      <span class="filter-chip" data-mod="orm" onclick="filterOverdue('orm',this)">ORM</span>
+      <button type="button" class="filter-chip" data-mod="orm" onclick="filterOverdue('orm',this)">ORM</button>
       {% endif %}
     </div>
   </div>
@@ -953,10 +957,14 @@
     btn.disabled = true;
     btn.textContent = '...';
     try {
-      const resp = await fetch('/api/advisories/'+aid+'/ack', {method:'POST'});
-      if(resp.ok){ btn.parentElement.parentElement.style.opacity = '0.3'; btn.textContent = '✓'; }
-      else { btn.disabled = false; btn.textContent = '✓'; }
-    } catch(e){ btn.disabled = false; btn.textContent = '✓'; }
+      await ApiClient.request('/api/advisories/'+aid+'/ack', { method: 'POST', actionId: 'command_centre.advisory.ack' });
+      btn.parentElement.parentElement.style.opacity = '0.3';
+      btn.textContent = '✓';
+    } catch(e){
+      btn.disabled = false;
+      btn.textContent = '✓';
+      if(typeof showToast==='function')showToast(e.detail || 'Failed to acknowledge','error');
+    }
   };
 
   // ── Init ──
@@ -1004,9 +1012,7 @@ async function loadPredictiveRisk(force) {
 
   try {
     var url = '/api/predictive-risk' + (force ? '?force=1' : '');
-    var resp = await fetch(url);
-    if(!resp.ok) throw new Error('API ' + resp.status);
-    var d = await resp.json();
+    var d = await ApiClient.request(url, { actionId: 'command_centre.predictive_risk.load' });
     _prData = d;
 
     var col = PR_COLORS[d.risk_level] || PR_COLORS.low;
@@ -1210,39 +1216,36 @@ function _prTimeAgo(ts) {
 
 async function acknowledgePrediction() {
   try {
-    var resp = await fetch('/api/predictive-risk/acknowledge', {method:'POST'});
-    if(resp.ok){
-      var btn = document.getElementById('prAckBtn');
-      if(btn) btn.style.display = 'none';
-      showToast('Risk alert acknowledged');
-    }
-  } catch(e){}
+    await ApiClient.request('/api/predictive-risk/acknowledge', { method: 'POST', actionId: 'command_centre.prediction.ack' });
+    var btn = document.getElementById('prAckBtn');
+    if(btn) btn.style.display = 'none';
+    showToast('Risk alert acknowledged');
+  } catch(e){
+    showToast(e.detail || 'Failed to acknowledge','error');
+  }
 }
 
 // ── Button handlers ──
 async function exportReport(){
   {% if is_admin %}
-  showToast('Generating compliance export…', 'info');
+  showToast('Generating compliance export...', 'info');
   try {
-    const def = await fetch('/api/reports/definitions', {
+    const def = await ApiClient.request('/api/reports/definitions', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
+      body: {
         name: 'Compliance Export ' + new Date().toLocaleDateString('en-GB'),
         description: 'Auto-generated full compliance export',
         report_type: 'compliance_summary',
         modules: 'aria,grid,bcm,sentinel',
         parameters: {}
-      })
+      },
+      actionId: 'command_centre.export_report.create',
     });
-    if(!def.ok) throw new Error('Definition failed');
-    const {id} = await def.json();
-    const run = await fetch('/api/reports/' + id + '/run', {method: 'POST'});
-    if(!run.ok) throw new Error('Run failed');
-    showToast('Export ready — opening Reports', 'success');
+    await ApiClient.request('/api/reports/' + def.id + '/run', { method: 'POST', actionId: 'command_centre.export_report.run' });
+    showToast('Export ready, opening Reports', 'success');
     setTimeout(() => window.location.href = '/reports', 1500);
   } catch(e) {
-    showToast('Export failed — try again', 'error');
+    showToast(e.detail || 'Export failed, try again', 'error');
   }
   {% else %}
   showToast('Export requires admin access', 'info');
@@ -1250,28 +1253,25 @@ async function exportReport(){
 }
 
 async function generateBoardReport(){
-  showToast('Generating executive brief…', 'info');
+  showToast('Generating executive brief...', 'info');
   try {
-    const defResp = await fetch('/api/reports/definitions', {
+    const defData = await ApiClient.request('/api/reports/definitions', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
+      body: {
         name: 'Board Report ' + new Date().toLocaleDateString('en-GB'),
         description: 'Auto-generated executive compliance brief',
         report_type: 'executive_brief',
         modules: 'aria,grid,bcm,sentinel',
         parameters: {}
-      })
+      },
+      actionId: 'command_centre.board_report.create',
     });
-    if(!defResp.ok) throw new Error('Definition failed: ' + defResp.status);
-    const defData = await defResp.json();
-    const runResp = await fetch('/api/reports/' + defData.id + '/run', {method: 'POST'});
-    if(!runResp.ok) throw new Error('Run failed: ' + runResp.status);
-    showToast('Board report ready — opening Reports', 'success');
+    await ApiClient.request('/api/reports/' + defData.id + '/run', { method: 'POST', actionId: 'command_centre.board_report.run' });
+    showToast('Board report ready, opening Reports', 'success');
     setTimeout(() => window.location.href = '/reports', 1500);
   } catch(e) {
     console.error('Board report error:', e);
-    showToast('Failed to generate board report', 'error');
+    showToast(e.detail || 'Failed to generate board report', 'error');
   }
 }
 </script>

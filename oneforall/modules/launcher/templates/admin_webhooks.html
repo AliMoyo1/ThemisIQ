@@ -39,12 +39,11 @@
 </div>
 
 <!-- New Webhook Modal -->
-<div class="modal" id="newWhModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:500px;">
+<div class="modal-overlay" id="newWhModal" role="dialog" aria-modal="true" aria-labelledby="newWhModal-title">
+  <div class="modal" style="max-width:500px;">
     <div class="modal-header">
-      <h3 style="margin:0; font-size:16px;">Create Webhook</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <h3 id="newWhModal-title" style="margin:0; font-size:16px;">Create Webhook</h3>
+      <button class="modal-close" onclick="ModalManager.close('newWhModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px;">
       <form id="whForm" onsubmit="createWebhook(event)">
@@ -86,7 +85,7 @@ async function loadWebhooks() {
       <td style="padding:10px 14px;font-size:11px;color:var(--muted);">${(h.events||'').split(',').map(e=>'<span style="padding:1px 5px;border-radius:3px;background:var(--surface3);margin-right:3px;">'+esc(e)+'</span>').join('')}</td>
       <td style="padding:10px 14px;text-align:center;"><span style="padding:2px 8px;border-radius:4px;font-size:11px;background:${h.is_active?'var(--good-soft)':'var(--bad-soft)'};color:${h.is_active?'var(--good)':'var(--bad)'};">${h.is_active?'Active':'Disabled'}</span></td>
       <td style="padding:10px 14px;text-align:center;display:flex;gap:4px;justify-content:center;">
-        <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;" onclick="testWebhook(${parseInt(h.id,10)})">Test</button>
+        <button id="test-btn-${parseInt(h.id,10)}" class="btn btn-secondary" style="font-size:11px;padding:3px 8px;" onclick="testWebhook(${parseInt(h.id,10)})">Test</button>
         <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;" onclick="viewLogs(${parseInt(h.id,10)})">Logs</button>
         <button class="btn btn-secondary" style="font-size:11px;padding:3px 8px;color:var(--bad);" onclick="deleteWebhook(${parseInt(h.id,10)})">Del</button>
       </td>
@@ -94,7 +93,7 @@ async function loadWebhooks() {
   `).join('');
 }
 
-function openNewWebhook() { document.getElementById('newWhModal').classList.add('open'); }
+function openNewWebhook() { ModalManager.open('newWhModal'); }
 
 async function createWebhook(e) {
   e.preventDefault();
@@ -103,15 +102,34 @@ async function createWebhook(e) {
   const body = { name: document.getElementById('whName').value, url: document.getElementById('whUrl').value, events };
   const resp = await fetch('/api/admin/webhooks', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   if (resp.ok) {
-    document.getElementById('newWhModal').classList.remove('open');
+    ModalManager.close('newWhModal');
     document.getElementById('whForm').reset();
     loadWebhooks();
   }
 }
 
 async function testWebhook(id) {
-  const resp = await fetch(`/api/admin/webhooks/${id}/test`, { method:'POST' });
-  if (resp.ok) alert('Test ping sent and logged.');
+  const btn = document.getElementById(`test-btn-${id}`);
+  if (!btn || btn.disabled) return; // suppress double-click / repeat-click while a test is in flight
+  btn.disabled = true;
+  btn.removeAttribute('title');
+  btn.textContent = 'Sending...';
+  btn.style.color = '';
+  try {
+    await ApiClient.request(`/api/admin/webhooks/${id}/test`, { method: 'POST', actionId: 'webhooks.test' });
+    btn.textContent = 'Delivered';
+    btn.style.color = 'var(--good)';
+  } catch (err) {
+    btn.textContent = 'Failed';
+    btn.style.color = 'var(--bad)';
+    if (err instanceof ApiClient.ApiError && err.detail) btn.title = err.detail;
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = 'Test';
+      btn.style.color = '';
+    }, 2000);
+  }
 }
 
 async function viewLogs(id) {

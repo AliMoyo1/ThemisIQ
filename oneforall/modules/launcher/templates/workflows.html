@@ -2,7 +2,6 @@
 {% block title %}Workflows — ThemisIQ{% endblock %}
 
 {% block head %}
-<style>
 /* ── Workflow Tabs ── */
 .wf-tabs{display:flex;gap:2px;background:var(--surface2);border-radius:var(--radius);padding:3px;margin-bottom:20px;width:fit-content}
 .wf-tab{padding:8px 18px;border-radius:var(--radius);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;transition:all .2s ease;position:relative}
@@ -129,7 +128,6 @@
   .step-item select{display:none}
   .drawer{width:100%}
 }
-</style>
 {% endblock %}
 
 {% block breadcrumb %}
@@ -454,16 +452,10 @@
   }
 
   async function apiFetch(url,opts){
+    // PLAN-36 T06 (findings.md F08): delegates to the shared ApiClient --
+    // see modules/erm/templates/index.html's identical migration.
     opts=opts||{};
-    opts.headers=opts.headers||{};
-    if(opts.body && typeof opts.body==='object'){
-      opts.headers['Content-Type']='application/json';
-      opts.body=JSON.stringify(opts.body);
-    }
-    var r=await fetch(url,opts);
-    if(!r.ok) throw new Error('API error '+r.status);
-    if(r.status===204) return null;
-    return r.json();
+    return ApiClient.request(url, { method: opts.method, body: opts.body, headers: opts.headers, actionId: url });
   }
 
   /* ════════════════════════════════════════════════════════════════════════

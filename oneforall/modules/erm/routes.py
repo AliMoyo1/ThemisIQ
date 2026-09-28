@@ -10,7 +10,7 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
+from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call, log_audit
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
 from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED, ERM_RISK_UPDATED
@@ -86,6 +86,7 @@ async def erm_spa(request: Request):
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
         "can_manage_frameworks": has_capability(user, "erm.framework.manage"),
+        "can_manage_library": has_capability(user, "erm.library.manage"),
         **shell_ctx(request, active_module="erm"),
     })
 
@@ -814,6 +815,7 @@ async def api_appetite_update(request: Request, appetite_id: int):
 async def api_library_list(request: Request):
     p = request.query_params
     return JSONResponse(ds.list_library(
+        request.state.user,
         category=p.get("category"),
         industry=p.get("industry"),
     ))
@@ -823,7 +825,9 @@ async def api_library_list(request: Request):
 @require_capability("erm.library.manage")
 async def api_library_create(request: Request):
     body = await _json_body(request)
-    lid = ds.create_library_item(body)
+    lid = ds.create_library_item(body, request.state.user)
+    log_audit(request.state.user, "erm", "Created ERM library template",
+              "erm_risk_library", lid, body.get("title", ""))
     return JSONResponse({"id": lid}, status_code=201)
 
 
@@ -831,14 +835,20 @@ async def api_library_create(request: Request):
 @require_capability("erm.library.manage")
 async def api_library_update(request: Request, item_id: int):
     body = await _json_body(request)
-    ds.update_library_item(item_id, body)
+    if not ds.update_library_item(item_id, body, request.state.user):
+        raise HTTPException(404, "Library item not found")
+    log_audit(request.state.user, "erm", "Updated ERM library template",
+              "erm_risk_library", item_id, body.get("title", ""))
     return JSONResponse({"ok": True})
 
 
 @router.delete("/api/library/{item_id}")
 @require_capability("erm.library.manage")
 async def api_library_delete(request: Request, item_id: int):
-    ds.delete_library_item(item_id)
+    if not ds.delete_library_item(item_id, request.state.user):
+        raise HTTPException(404, "Library item not found")
+    log_audit(request.state.user, "erm", "Retired ERM library template",
+              "erm_risk_library", item_id)
     return JSONResponse({"ok": True})
 
 
@@ -846,7 +856,7 @@ async def api_library_delete(request: Request, item_id: int):
 @require_capability("erm.risk.manage")
 async def api_library_use(request: Request, item_id: int):
     """Spawn an enterprise risk from a library template."""
-    template = ds.get_library_item(item_id)
+    template = ds.get_library_item(item_id, request.state.user)
     if not template:
         raise HTTPException(404, "Library item not found")
     body = await _json_body(request)

@@ -2,7 +2,6 @@
 {% block title %}Compliance Calendar — ThemisIQ{% endblock %}
 
 {% block head %}
-<style>
 /* ── Calendar layout ─────────────────────────────────────────────────────── */
 .cal-topbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 .cal-nav{display:flex;align-items:center;gap:6px}
@@ -92,7 +91,6 @@
 .ef-input:focus,.ef-select:focus,.ef-textarea:focus{border-color:var(--accent)}
 .ef-textarea{resize:vertical;font-family:inherit;min-height:70px}
 .ef-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-</style>
 {% endblock %}
 
 {% block content %}
@@ -105,6 +103,7 @@
   </span>
 
   <!-- Filters -->
+  <label class="sr-only" for="filterType">Filter by event type</label>
   <select id="filterType" class="cal-filter" onchange="applyFilters()">
     <option value="">All Types</option>
     <option value="audit">Audit</option>
@@ -115,6 +114,7 @@
     <option value="meeting">Meeting</option>
     <option value="other">Other</option>
   </select>
+  <label class="sr-only" for="filterModule">Filter by module</label>
   <select id="filterModule" class="cal-filter" onchange="applyFilters()">
     <option value="">All Modules</option>
     <option value="aria">ARIA</option>
@@ -215,12 +215,11 @@
 </div>
 
 <!-- ── New / Edit Event Modal ────────────────────────────────────────────── -->
-<div class="modal" id="eventModal">
-  <div class="modal-backdrop" onclick="this.parentElement.classList.remove('open')"></div>
-  <div class="modal-content" style="max-width:520px">
+<div class="modal-overlay" id="eventModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal" style="max-width:520px">
     <div class="modal-header">
       <h3 style="margin:0;font-size:16px;font-weight:700" id="modalTitle">New Event</h3>
-      <button class="modal-close" onclick="this.closest('.modal').classList.remove('open')">&times;</button>
+      <button class="modal-close" onclick="ModalManager.close('eventModal')" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body" style="padding:20px">
       <form id="eventForm" onsubmit="submitEventForm(event)">
@@ -694,7 +693,7 @@ window.openEditModal = function(){
   // Assignee
   populateUserSelect();
   document.getElementById('efAssignTo').value = e.assigned_to||'';
-  document.getElementById('eventModal').classList.add('open');
+  ModalManager.open('eventModal');
 };
 
 /* ── New event modal ──────────────────────────────────────────────────────── */
@@ -711,7 +710,7 @@ window.openNewEventModal = function(dateStr){
   document.getElementById('efDesc').value   = '';
   populateUserSelect();
   document.getElementById('efAssignTo').value = '';
-  document.getElementById('eventModal').classList.add('open');
+  ModalManager.open('eventModal');
 };
 
 /* ── Submit (create or edit) ──────────────────────────────────────────────── */
@@ -739,7 +738,7 @@ window.submitEventForm = async function(ev){
       body:JSON.stringify(body),
     });
     if(!r.ok) throw new Error();
-    document.getElementById('eventModal').classList.remove('open');
+    ModalManager.close('eventModal');
     document.getElementById('eventForm').reset();
     if(typeof showToast==='function') showToast(id?'Event updated':'Event created','success');
     loadMonthEvents();
@@ -781,7 +780,7 @@ document.addEventListener('DOMContentLoaded', function(){
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape'){
     closeDrawer();
-    document.getElementById('eventModal').classList.remove('open');
+    ModalManager.close('eventModal');
   }
 });
 

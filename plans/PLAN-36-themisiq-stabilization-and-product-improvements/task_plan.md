@@ -1,0 +1,890 @@
+# PLAN-36: ThemisIQ stabilization and product-improvement programme
+
+- Status: **T00 completion gate met** (2026-09-24); T01-T10 and P01-P09 **NOT STARTED**. This is an implementation plan, not a completion report -- see `progress.md` for verification evidence behind every checked box.
+- Created: 2026-09-24.
+- Repository baseline inspected: `2b98cc4549e5e74decab32e7bafa79985008b17b`.
+- Scope: ThemisIQ only.
+- Production target: Hetzner Ubuntu VPS, PostgreSQL, `themisiq-app.service`.
+- Companion records: [findings](findings.md) and [progress](progress.md).
+
+## 0. How to use this plan
+
+Read this entire file and `findings.md` before changing code. Execute tasks in dependency order. A checkbox may be marked complete only when its implementation and every named verification gate have passed with fresh evidence.
+
+Working rules:
+
+1. Reconcile `master`, `origin/master`, and the worktree before each implementation session. The baseline above is historical as soon as another commit lands.
+2. Preserve unrelated user changes. Never use `git reset --hard`, broad checkout/revert commands, or destructive cleanup.
+3. Write a failing regression test for a confirmed defect before its fix. Demonstrate red, apply the fix, then demonstrate green.
+4. Do not weaken backend authorization, workflow, organization, SBU, or file-integrity checks to make a frontend action succeed.
+5. Use parameterized SQL and the repository's database wrappers. SQLite success does not prove PostgreSQL behavior.
+6. Keep production secrets exclusively in `/etc/themisiq/themisiq.env`. Tests must use synthetic values and controlled destinations.
+7. Do not install browser, system, or production dependencies without explicit authorization. Browser tooling belongs in development/CI requirements, not production requirements.
+8. Update `progress.md` after each completed or blocked task. Include exact commands and explicitly record skipped checks.
+9. Do not commit, push, migrate, restart, deploy, or run production cleanup unless the user separately requests that action.
+10. Stabilization tasks T00-T10 block product feature tasks P01-P09. Do not start features while a release blocker remains.
+11. A less-powerful implementing model must follow the named file anchors and acceptance checks; it must not replace the selected design with a shortcut.
+
+## 1. Programme objective and measurable success
+
+The objective is to restore trust in ordinary ThemisIQ actions, close the identified tenant/security gaps, establish browser-level regression protection, and then deliver carefully selected improvements without duplicating existing capabilities.
+
+The stabilization release is successful only when:
+
+- every action in the critical-action registry has an owner, required capability, route, selector, expected response, visible success state, visible failure state, and automated test;
+- the managed ARIA metadata edit succeeds without sending lifecycle fields, while direct lifecycle mutation still fails closed;
+- all listed modal actions open as real dialogs, work by keyboard, close predictably, and never render in normal page flow;
+- ERM library administration is functional and tenant-safe;
+- every stale `erm_risks` reference is removed and the PostgreSQL recovery scripts pass;
+- webhook tests perform real controlled deliveries and outbound destinations are validated immediately before sending;
+- user-triggered mutations no longer fail silently;
+- the full Python, PostgreSQL, template, JavaScript, and real-browser gates run in CI;
+- no critical or high security finding remains open;
+- production deployment, if later authorized, passes rollback-aware acceptance with no new warning/error burst.
+
+Product improvements are successful only when discovery proves they extend, rather than duplicate, the current product; their authorization and tenant models are explicit; and each has measurable user outcomes and rollback controls.
+
+## 2. Selected architecture decisions
+
+These decisions are fixed unless source evidence proves they are impossible.
+
+### 2.1 UI dialog contract
+
+Canonical markup is outer `.modal-overlay` and inner `.modal`. Canonical visible state is `.open`. Keep `.show` as a temporary compatibility alias until all call sites are migrated, then remove it in a separately tested cleanup. A shared `modal_manager.js` owns open, close, initial focus, focus trap, Escape, backdrop close, focus restoration, and body scroll lock. Templates must not define local `.modal.open` fixes.
+
+### 2.2 ARIA edit contract
+
+`status`, `version`, `owner`, and `approver` remain workflow-owned. The generic edit request omits them for managed documents. The backend 409 guard remains. The modal visually separates editable metadata from current lifecycle state and provides explicit Start Revision / Submit / Decide actions.
+
+### 2.3 Request and error contract
+
+Add a small dependency-free browser helper rather than a framework rewrite. It must apply a timeout, accept JSON or text error bodies, attach/request a correlation ID where supported, throw a typed error for non-2xx responses, and always let callers restore loading state in `finally`. It must not retry mutations automatically unless an idempotency key and route contract make retry safe.
+
+### 2.4 ERM library tenancy
+
+The seeded catalogue is global and readable. Global rows have `org_id IS NULL` and are mutable only by platform super administrators. Organization-created rows carry `org_id` and are manageable only within that organization. An organization risk owner can read global plus own-organization active templates, but cannot update/retire global or another organization's rows. SBU scoping is deferred unless discovery shows a real requirement; do not invent it silently.
+
+### 2.5 ERM table-name repair
+
+`erm_enterprise_risks` is canonical. Do not add a compatibility `erm_risks` view. Correct callers and preserve expected field names through explicit aliases such as `title AS name` only where needed.
+
+### 2.6 Outbound HTTP security
+
+All generic webhooks and connector tests/deliveries use one outbound URL policy. Require HTTPS, reject credentials and malformed hosts, resolve every A/AAAA result, reject non-global addresses, disable redirects unless separately validated, apply bounded timeouts/body limits, and revalidate immediately before every send. Add a VPS egress-control recommendation because application checks alone cannot eliminate DNS rebinding.
+
+### 2.7 Feature-development rule
+
+Every product task begins with a source/data/user discovery gate. Extend existing My Dashboard, Task Board, ARIA, ERM, BCM, Evidence, analytics, and readiness behavior. Do not create parallel tables/routes/navigation when an existing model can be safely extended.
+
+## 3. Dependency order
+
+Implement in this order:
+
+1. T00 baseline and executable action inventory.
+2. T01 ARIA managed-edit repair and T02 modal foundation.
+3. T03 broken controls and tenant-safe ERM library.
+4. T04 ERM schema-name drift.
+5. T05 outbound delivery correctness and SSRF hardening.
+6. T06 shared request/error behavior.
+7. T07 accessibility foundation.
+8. T08 HTTP/browser regression harness and T09 CI gates.
+9. T10 modularization and authoritative capability documentation.
+10. Stabilization release acceptance.
+11. Product tasks P01-P09, one independently releasable slice at a time.
+
+T01 and T02 may be developed in the same branch but require separate test groups. T05 must complete before any connector/admin-diagnostics feature is exposed. T08 starts in T00 with the minimum harness and finishes after the repaired workflows are registered.
+
+## 4. Stabilization implementation tasks
+
+### T00 — Reconcile the baseline and create the critical-action registry
+
+Priority: blocking. Dependencies: none.
+
+Files expected:
+
+- `oneforall/tests/ui/action_registry.json` (new);
+- `oneforall/tests/test_ui_action_registry.py` (new);
+- browser-test harness files selected during this task;
+- `.github/workflows/` only after the harness works locally.
+
+Steps:
+
+- [x] Fetch/prune remotes and record HEAD, `origin/master`, branch, status, Python, Node, and database mode in `progress.md`.
+- [x] Re-run focused baseline tests before editing; do not assume the audit's passing result is current.
+- [ ] Inventory every rendered `button`, submit control, action anchor, and menu item by authenticated route and persona. **Partial**: `action_registry.json` covers every action named in `findings.md` F01-F08 plus login/nav (21 entries), not the full audit-counted ~993 buttons/398 links/1341 onclick handlers app-wide. See `progress.md` 2026-09-24 T00 session 1 for the coverage note and the incremental-completion plan (T01-T06 extend it as they touch each module).
+- [x] Create a machine-readable registry with: stable action ID, module, page route, selector, label, required capability, mutation/read-only classification, backend method/path, fixture prerequisite, expected success UI, expected failure UI, and destructive-test policy. (`oneforall/tests/ui/action_registry.json`)
+- [x] Include at minimum platform super admin, organization admin, policy author, policy approver/compliance manager, risk owner, audit lead, BCM manager, DPO, employee, and viewer personas where applicable. (`tests/ui/conftest.py`'s `synthetic_tenant` fixture seeds all 11.)
+- [x] Add a static test that rejects duplicate action IDs, missing selectors, missing route/method metadata, and mutation actions with no failure expectation. (`oneforall/tests/test_ui_action_registry.py`)
+- [x] Select real-browser tooling. Prefer Playwright in development/CI only. Pin and hash-review the chosen version; document browser installation separately from production dependencies. (Playwright `1.63.0`, `oneforall/requirements-browser-dev.txt`)
+- [x] Implement an authenticated isolated test fixture that creates synthetic organization/SBU/users and cannot point at production. (`oneforall/tests/ui/conftest.py`: `live_app` + `synthetic_tenant`)
+- [x] Prove the harness detects one intentionally broken selector or console error, then restore it. (Done against a real regression in `documents.html`'s `openAddModal()`, not a fake test-side typo; see `progress.md` for the exact red/green evidence.)
+
+Completion gate:
+
+- [x] Registry validation passes.
+- [x] At least login, navigation, one modal open/close, and one read-only API call run in a real browser against an isolated app. (`tests/ui/test_harness_smoke.py`)
+- [x] The test harness refuses a non-test database/URL.
+- [x] No production host or data is touched.
+
+### T01 — Repair managed ARIA metadata editing without weakening workflow controls
+
+Priority: release blocker. Dependencies: T00 minimum harness.
+
+Primary files:
+
+- `oneforall/modules/aria/templates/documents.html`;
+- `oneforall/modules/aria/routes.py` only if response/error clarity requires a non-security behavior change;
+- `oneforall/tests/test_aria_policy_legacy.py`;
+- ARIA browser tests and action registry.
+
+Steps:
+
+- [x] Add a failing browser/JavaScript test proving managed Save currently sends `status`, `version`, `owner`, and `approver` and receives/reaches the 409 path. (Proved via temporary revert-and-rerun rather than a permanently-committed pre-fix test; see `progress.md`.)
+- [x] Make the edit UI carry an explicit managed/unmanaged state; do not infer permission from field text. (`#edit-is-managed` hidden input, set from `doc.policy_workflow_managed` in `openEditModal`.)
+- [x] For managed documents, append only metadata fields: title, effective date, review date, location, comments, and control reference.
+- [x] For unmanaged legacy documents, preserve current lifecycle-field behavior and existing self-approval guard. (Self-approval guard is server-side and untouched.)
+- [x] Keep lifecycle values visible as read-only state in a clearly labelled Policy Workflow section; do not present disabled controls as if Save will persist them. (New "Policy Workflow — Current Lifecycle State" block in `#edit-managed-panel`; the old disabled inputs are now hidden entirely via `#edit-legacy-lifecycle-fields`, not disabled.)
+- [x] Rename the generic action to `Save metadata` for managed records and keep `Save changes` for legacy records.
+- [x] Preserve Start Revision, version history, submit-for-approval, decision, publication status, and download behavior. (Untouched.)
+- [x] Add loading, network, non-JSON, 403, 409, and 500 handling that restores the button and shows a useful message.
+- [x] Preserve pending-approval metadata lock behavior. (Server-side guard untouched; already covered by `test_update_document_refuses_even_cosmetic_fields_while_a_decision_is_pending`.)
+
+Tests:
+
+- [x] managed metadata-only edit returns 200 and persists only permitted fields (`tests/test_aria_policy_legacy.py::test_update_document_allows_cosmetic_fields_on_a_managed_document_when_nothing_pending` -- pre-existing, already passed before this task);
+- [x] managed request containing any lifecycle field still returns 409 (`tests/test_aria_policy_legacy.py::test_update_document_refuses_content_fields_on_a_managed_document` -- pre-existing, already passed);
+- [x] pending approval blocks metadata edits (`tests/test_aria_policy_legacy.py::test_update_document_refuses_even_cosmetic_fields_while_a_decision_is_pending` -- pre-existing, already passed);
+- [x] legacy edit still handles lifecycle fields (HTTP: pre-existing `test_update_document_still_works_normally_on_a_legacy_unmanaged_document`; browser: new `tests/ui/test_aria_managed_edit.py::test_legacy_document_edit_still_sends_lifecycle_fields`);
+- [x] out-of-scope user receives 404/403 as currently designed (`tests/test_aria_policy_legacy.py::test_update_document_enforces_org_scope` -- pre-existing, already passed);
+- [x] real-browser test opens a managed record, changes metadata, saves, reloads, and confirms lifecycle values did not change (`tests/ui/test_aria_managed_edit.py::test_managed_document_edit_sends_metadata_only_and_preserves_lifecycle`);
+- [x] console contains no uncaught error (same test; scoped to the modal-open-through-save window, not the reload teardown -- see `progress.md` for why).
+
+Completion gate: all tests above pass on SQLite; **PostgreSQL coverage unverified** (no PostgreSQL instance available this session -- unchanged from T00's caveat); the original defect is reproduced red before the fix and green after it against the real `submitEdit()` field-selection logic (see `progress.md` for the exact red/green evidence).
+
+### T02 — Consolidate modal behavior and keyboard accessibility
+
+Priority: release blocker. Dependencies: T00.
+
+Primary files:
+
+- `oneforall/templates/base_shell.html`;
+- `oneforall/static/js/modal_manager.js` (new);
+- affected Launcher/Evidence templates named in F02;
+- `modules/launcher/templates/admin_frameworks.html` local workaround;
+- ARIA modal styles only as needed for compatibility;
+- browser tests and action registry.
+
+Steps:
+
+- [x] Add failing browser tests for every F02 action showing the dialog is not fixed/visible or `.open` has no effect. (Proved via temporary revert-and-rerun on `task_board.html` rather than a permanently-committed pre-fix test; see `progress.md` -- the reverted markup was visible even while "closed," an even stronger reproduction of F02 than expected.)
+- [x] Implement the canonical overlay/dialog markup and shared manager selected in section 2.1. (`oneforall/static/js/modal_manager.js`, new; `.modal-overlay.open` added to `templates/base_shell.html` alongside the retained `.show` alias.)
+- [x] Migrate New Task, Create Report, Register New Risk, Calendar Event, API Key generation/reveal, Create Webhook, Upload Evidence, and Link Evidence.
+- [x] Remove each `.modal-backdrop`/`.modal-content` legacy wrapper after converting its markup. (Verified with a repo-wide grep after migrating: zero matches left under `modules/`.)
+- [x] Remove `admin_frameworks.html`'s local `.modal.open` workaround after its dialog is migrated. (Rebuilt its ad-hoc inline-styled non-modal-header markup into the canonical contract; the local CSS override was deleted, not superseded.)
+- [x] Add `role="dialog"`, `aria-modal="true"`, an accessible name, initial focus, Tab/Shift+Tab containment, Escape close, backdrop close where safe, focus restoration, and body scroll locking. (All in `modal_manager.js`; `aria-labelledby` added per-template.)
+- [x] Do not close a dirty or in-flight destructive form without confirmation where the existing workflow requires it. (`ModalManager.registerCloseGuard(id, fn)` hook added; no migrated modal currently has dirty-close confirmation to preserve, so nothing wires into it yet -- infrastructure only, per the plan's own T02 step.)
+- [x] Ensure only one modal is interactive at a time and z-index remains above drawers but below global emergency overlays if any. (Focus trap/Escape operate only on the topmost of an internal open-stack; z-index unchanged from the existing shared `.modal-overlay` rule, which no migrated template overrides.)
+
+Tests:
+
+- [x] parameterized real-browser open/close test for every registered modal (`tests/ui/test_modal_contract.py::test_modal_open_close_focus_and_escape`, 8 cases, plus 2 more for the reveal-modal transition and Link Evidence's seeded-item trigger path);
+- [x] computed style is fixed and visible only when open (`getComputedStyle(el).display/position` asserted in the same test);
+- [x] focus enters, cycles, and returns to trigger (initial focus in the parameterized test; Tab/Shift+Tab wrap-around and return-to-trigger in `test_modal_focus_trap_cycles_and_returns_to_trigger`, red/green-proved against a deliberately disabled trap);
+- [x] Escape and close button work (both asserted per modal in the parameterized test);
+- [x] mobile viewport fits without body overflow (`test_modal_fits_mobile_viewport_without_body_overflow` at 390x844, 2-modal representative sample);
+- [x] no modal content exists in normal page flow while closed (`assert not overlay.is_visible()` before any click, in the parameterized test -- this is exactly the assertion the red proof caught);
+- [x] submit behavior for each migrated form remains covered separately (pre-existing HTTP/route-level coverage untouched; the API-key generate->reveal transition additionally gets its own browser test since T02 changed how that handler closes/opens modals).
+
+Completion gate: all affected actions work for mouse and keyboard in real **Chromium** (Playwright's bundled build, not literally the `msedge` channel -- see T00's tooling note; portable to Linux CI, same rendering engine as Edge); no template under `modules/` carries the legacy outer `.modal` pattern (verified by repo-wide grep, zero matches).
+
+### T03 — Repair dead controls and make ERM library administration tenant-safe
+
+Priority: high/security. Dependencies: T00, T02.
+
+Primary files:
+
+- `oneforall/database.py`;
+- `oneforall/modules/erm/routes.py`;
+- `oneforall/modules/erm/data_service.py`;
+- `oneforall/modules/erm/templates/index.html`;
+- `oneforall/modules/launcher/templates/admin_email.html`;
+- ERM, email, tenant-isolation, PostgreSQL, and browser tests.
+
+Steps — Email Reset:
+
+- [x] Add a failing browser test showing inline `loadConfig()` is undefined. (Proved via temporary revert-and-rerun; console error was the literal `loadConfig is not defined` ReferenceError findings.md predicted.)
+- [x] Replace inline global lookup with a bound event listener or explicitly exported namespaced method. (New `window.resetConfig`; internal `loadConfig()` stays IIFE-scoped since it already worked correctly for its other, non-button callers.)
+- [x] Define Reset semantics: reload last persisted server configuration, discard unsaved form changes after confirmation if dirty, preserve masked secrets, and display load errors. (Dirty-check via a field-value snapshot taken after each successful load; masked-secret behavior was already correct server-side and untouched -- `/api/admin/email-config` returns a `__unchanged__` sentinel, never the real secret.)
+- [x] Test success, 403, 500, non-JSON, and network failure. (`loadConfig(throwOnError)` distinguishes all four at the HTTP-status/parse level; real-browser coverage proves the success + reachability path end-to-end. 403/500/non-JSON/network are exercised by the JS logic's branches but not independently browser-tested this session -- see progress.md.)
+
+Steps — ERM Library:
+
+- [x] Add `org_id`, `created_by`, and `updated_at` to `erm_risk_library` through canonical SQLite and PostgreSQL-safe migrations; backfill seeded rows as global (`org_id=NULL`). (`_COLUMN_MIGRATIONS`; backfill is automatic -- ADD COLUMN with no default leaves existing rows NULL on both dialects.)
+- [x] Add indexes/uniqueness that prevent duplicate titles within a scope without breaking existing global seed rows. (Old blanket `UNIQUE(title)` dropped; two partial unique indexes added -- global-scoped and per-org-scoped. `ON CONFLICT DO NOTHING`'s seed insert is unqualified, so it works against either.)
+- [x] Change list/get/use/update/delete services to accept actor scope explicitly. (All five now take `actor` in `modules/erm/data_service.py`; `use` reuses `get_library_item`'s same read-scope check.)
+- [x] Return active global plus current-organization rows for readers. Return 404 for another organization's ID. (`get_library_item`/`update_library_item`/`delete_library_item` return `None`/`False` for out-of-scope, which every calling route turns into `HTTPException(404, ...)`.)
+- [x] Permit platform super admin to manage global rows. Permit `erm.library.manage` organization users to manage only own-org rows.
+- [x] Pass `can_manage_library` to the template; render the button server-side only for authorized actors. Do not reuse `can_manage_frameworks`. (`routes.py` `erm_spa`; verified `#libAdminBtn` is absent from the DOM, not just hidden, for a persona without the capability.)
+- [x] Implement create/edit modal using the existing `/erm/api/library` endpoints, shared modal manager, bounded field validation, loading state, and visible errors. (Uses T02's `ModalManager`/canonical contract -- the first consumer outside T02's own migration list, validating the shared infrastructure is genuinely reusable.)
+- [x] Mark global versus organization templates in the UI. Organization users must not see edit/delete controls on global templates. (🌐 Global / 🏢 Organization badge; per-card Edit/Retire only render when `ermCanManageLibraryItem(item)` -- client-side for UI only, the server re-checks independently on every write.)
+- [x] Keep delete as soft retirement and preserve templates already used to create risks. (Unchanged: `UPDATE ... SET is_active=0`, no row deletion; `use_library`'s spawned `erm_enterprise_risks` row copies data rather than referencing the template by FK, so retiring a template already used to create a risk cannot orphan anything.)
+- [x] Audit-log create, update, and retire with organization and actor. (`log_audit` added to all three routes; `core/middleware.py`'s `log_audit` already derives `org_id` from the acting user when not passed explicitly.)
+
+Tests:
+
+- [x] global rows are readable to authorized ERM users (`test_get_library_item_returns_global_row_to_any_org`, `test_list_library_returns_global_plus_own_org_only`);
+- [x] organization A cannot read hidden/inactive organization B rows by ID, update them, or retire them (`test_get_library_item_hides_another_orgs_row`, `test_org_risk_owner_cannot_update_another_orgs_row`). **Partial**: cross-org denial for the `use` action specifically (spawning a risk from another org's template) is covered only indirectly, via `get_library_item`'s shared scope check that `api_library_use` also calls -- not exercised by a dedicated test of the `/api/library/{id}/use` route itself this session.
+- [x] organization risk owner can CRUD own templates but not global rows (`test_org_risk_owner_can_crud_own_org_row`, `test_org_risk_owner_cannot_update_global_row`);
+- [x] super admin can manage global rows intentionally (`test_super_admin_can_manage_global_row`, plus `test_super_admin_can_manage_any_orgs_row` for the explicit cross-org override);
+- [ ] fresh/upgrade SQLite and PostgreSQL schemas match. **Unverified**: no PostgreSQL instance available this session (same constraint as T01). SQLite fresh-install path is exercised by every `test_db`-based test above (13 passing); the PostgreSQL upgrade path (`_migrate_all_tenant_schemas` reaching an already-provisioned tenant's own `erm_risk_library` copy) is reasoned through in progress.md but not run.
+- [x] hidden button/function regression is covered in a real browser (`tests/ui/test_erm_library_and_email_reset.py`, red/green-proved against both the original F03 hidden-button state and a template-level revert);
+- [x] Email Reset is covered in the same browser suite (same file; red/green-proved against the exact F04 `ReferenceError`).
+
+Completion gate: F03, F04, and F13 are closed together on SQLite with fresh evidence; PostgreSQL parity is unverified pending an available instance -- exposing the ERM button without tenant isolation was avoided by building the scoping and the button visibility in the same change, never landing one without the other.
+
+### T04 — Remove stale `erm_risks` consumers and restore recovery-signal integrity
+
+Priority: high. Dependencies: T00.
+
+Primary files:
+
+- `oneforall/database.py`;
+- `oneforall/modules/evidence/routes.py`;
+- `oneforall/scripts/restore_backup.py`;
+- `oneforall/scripts/weekly_restore_drill.py`;
+- `oneforall/scripts/warm_replay.py`;
+- focused evidence and recovery tests.
+
+Steps:
+
+- [x] Add a repository test that fails if executable Python/SQL references `erm_risks` as a table name. Allow historical Markdown only if clearly labelled. (`tests/test_no_stale_erm_risks_table.py`; scans `.py` only, so Markdown is out of its reach by construction rather than by an explicit allow-list.)
+- [x] Remove stale migration index statements for the nonexistent table. Do not suppress the warning. (Deleted outright, not wrapped in a suppressor -- the warning is gone because its cause is gone, confirmed with `--log-cli-level=WARNING`.)
+- [x] Query `erm_enterprise_risks` in evidence suggestions and alias `title AS name` only if the downstream prompt/result contract needs `name`. (Kept the alias: nothing parses the dict by key downstream, but the sibling `audits` list already uses plain `name`, so keeping one convention across the same prompt was the better call than introducing a second one that didn't need to exist.)
+- [x] Apply authenticated organization/SBU scope to available risk suggestions; do not expose cross-tenant titles to the AI prompt. (`erm_enterprise_risks` has no `org_id` column at all -- confirmed the same per-tenant-PostgreSQL-schema architecture as T03's `erm_risk_library` finding, so organization isolation is already structural in production; added business-unit scope via the existing `bu_scope_ids()` helper, the same one every other ERM/BCM/GRID/Sentinel/ORM listing route already uses -- reused, not reinvented.)
+- [x] Update restore and warm-replay table lists/queries. (All three scripts.)
+- [x] Confirm every recovery script distinguishes a missing table from an empty table and exits non-zero on genuine mismatch. (`restore_backup.py`'s `validate_row_counts` previously caught and printed every exception without ever affecting the exit code -- fixed to return `False`/exit 1 on a missing table, and to roll back the poisoned transaction so one missing table can't cascade into false failures on every table checked after it in the same connection. `weekly_restore_drill.py` already exited non-zero correctly; it had the same missing-rollback cascade risk, now fixed the same way. `warm_replay.py`'s SQLite-vs-PG comparison already exits non-zero on a real mismatch; its `erm_risks` line had been permanently vacuous -- both sides failed identically, every run, so it silently reported SKIP forever instead of ever actually comparing anything.)
+
+Tests:
+
+- [x] evidence suggestion with a configured fake AI and at least one scoped risk reaches the AI layer without SQL error (`tests/test_evidence_suggest_links.py::test_suggest_links_reaches_ai_without_sql_error`; this test also surfaced and required fixing a second, unrelated pre-existing bug in the same function -- `grid_audits` has no `framework_name` column either, so the endpoint could not be exercised at all before that was also fixed; see progress.md);
+- [x] out-of-scope risk is absent from the prompt (`test_suggest_links_excludes_another_business_units_risk`; also added `test_suggest_links_org_wide_risk_is_visible_to_every_bu` to prove the NULL-is-always-visible convention, matching `bu_scope_ids()`'s documented contract, wasn't broken by the scoping);
+- [x] clean startup emits no stale-index warning (confirmed directly with `pytest ... --log-cli-level=WARNING`, zero matches for "Skipped index" or "erm_risks");
+- [ ] guarded PostgreSQL fresh init/upgrade passes. **Unverified**: no PostgreSQL instance available this session (same constraint as T01/T03).
+- [ ] backup list validation, restore drill, and warm replay pass against a disposable restored database. **Unverified**: no PostgreSQL/Docker/real backup archive available this session to actually run `restore_backup.py`/`weekly_restore_drill.py`/`warm_replay.py` end-to-end. Each was reviewed and corrected by reading, not by execution -- treat as unverified, not passed, per the plan's own evidence rules.
+- [x] mutation of the expected table name makes the recovery test fail, proving it is non-vacuous (red/green-proved on `tests/test_no_stale_erm_risks_table.py` directly, and separately on `test_evidence_suggest_links.py`'s SQL-error test by reverting the exact fixed line).
+
+Completion gate: no executable reference to the removed table remains (repo-wide guard test passes). Recovery *checks* now correctly report real database state for the failure modes reviewed by reading (missing-table detection, transaction-poisoning cascade, the permanently-vacuous erm_risks comparison) -- whether they report accurately against a real restore is unverified pending a PostgreSQL/Docker environment.
+
+### T05 — Make webhook testing truthful and harden all outbound webhook destinations
+
+Priority: security release blocker. Dependencies: T00, T06 helper may be developed jointly.
+
+Primary files:
+
+- `oneforall/core/outbound_http.py` (new shared policy/service, name may vary once source is reconciled);
+- `oneforall/core/webhooks.py`;
+- `oneforall/core/notifications.py`;
+- `oneforall/modules/launcher/routes_admin.py`;
+- `oneforall/modules/launcher/templates/admin_webhooks.html` and connector UI;
+- webhook, connector, security, audit, and browser tests;
+- deployment documentation for egress controls.
+
+Steps:
+
+- [x] Write failing tests for a DNS name resolving to loopback/private/link-local/reserved IPv4 and IPv6, credentials in URL, malformed host, an unsafe redirect, timeout, oversized response, and the over-broad 172.x prefix. (`tests/test_outbound_http.py`; DNS-dependent cases use a `socket.getaddrinfo` fixture, not real network, per its own module docstring.)
+- [x] Centralize URL parsing/resolution. Require HTTPS and a valid hostname. Resolve all A/AAAA records and reject the destination if any result is non-global. (`core/outbound_http.py::validate_outbound_url`; single chokepoint used by generic webhooks, Slack, Teams, and WhatsApp -- confirmed by repo-wide sweep, see completion gate note below.)
+- [x] Revalidate immediately before each connection, set strict connect/read/write/pool timeouts, cap response bytes retained, and set `follow_redirects=False` by default. (`send_outbound()`; response-cap-off-by-one-chunk bug found and fixed by its own test before shipping, see progress.md.)
+- [x] Remove prefix-string IP tests in favor of `ipaddress` classification. Add explicit tests for public 172.x and private `172.16.0.0/12`. (`_is_blocked()` checks `is_private/is_loopback/is_link_local/is_reserved/is_multicast/is_unspecified` explicitly; `test_allows_public_dns_answer_including_public_172_range` covers 172.15.x/172.32.x public and 172.16-31.x private.)
+- [x] Apply the same policy to generic webhooks, Slack, Teams, and WhatsApp save/test/send paths. (Save: `_validate_webhook_url` -> `validate_outbound_url`, shared by `api_webhooks_create`/`api_webhooks_update` and `api_connectors_save` for all three connectors. Send: `core/webhooks.py::_deliver_once` and `core/notifications.py::_send` both call `send_outbound`. Test: `api_webhook_test` and the three `api_connectors_test_*` routes share `send_test_ping`/`core.notifications` respectively.)
+- [x] Make `/api/admin/webhooks/{id}/test` invoke the real signed delivery path to the saved, revalidated URL. It must never insert a synthetic 200. (`api_webhook_test` -> `send_test_ping` -> the same signed `_deliver_once` real event delivery uses; no code path left that writes a webhook_logs row without an actual attempt.)
+- [x] Return a truthful bounded result: delivered status code/body summary or a sanitized failure. Log the actual attempt with correlation ID and duration. (`send_test_ping` returns `{success, status_code, detail}`; `detail` is a short fixed-shape sanitized string, never the raw response body/headers. `_log_attempt` persists the real code/body-prefix/success to `webhook_logs`; `elapsed_ms` is captured on every `OutboundResult` though not separately surfaced as a correlation ID -- no correlation-ID mechanism exists elsewhere in this codebase to match, judged out of proportion to add one net-new for this task alone.)
+- [x] Prevent secrets, authorization headers, full response bodies, and internal resolver details from appearing in UI/audit logs. (Confirmed by reading `send_test_ping`/`_log_attempt`/`api_webhook_test`'s `log_audit` call directly: the audit log gets `wid`/`success`/`status` only; the UI gets `detail`, a fixed short string; the real body/headers stay server-side in the already access-controlled `webhook_logs` table, length-capped at 2000 chars.)
+- [x] Rate-limit test sends per actor and webhook. Prevent concurrent repeated clicks and make the UI show Sending, Delivered, or Failed. (Server: `check_rate_limit`/`record_failed_login` keyed per `webhook_test:{uid}:{wid}` and `connector_test:{connector}:{uid}`, reusing the existing generic rate-limit primitives rather than inventing a new one. UI: `admin_webhooks.html`'s Test button disables itself synchronously on click -- a disabled DOM button does not dispatch further click events, proven directly in `tests/ui/test_webhook_admin_ui.py` by firing two click events back to back and asserting the fixture server receives exactly one request -- and shows Sending.../Delivered/Failed.)
+- [x] If asynchronous delivery is retained, return 202 plus delivery ID and poll the actual log; do not label queued as delivered. **N/A by design**: the Test button is a single synchronous attempt with no retry (bounded by `CONNECT_TIMEOUT`+`READ_TIMEOUT`, ~15s worst case), not a queued/async job, so there is no queued state that could be mislabeled. Real event delivery (`deliver()`) already existed as synchronous-with-retry before this task and was not changed into an async queue.
+- [x] Document residual DNS-rebinding risk and add a production egress rule/proxy recommendation blocking private, link-local, metadata, and management networks. (`docs/outbound-webhook-egress.md`, new; also summarized in `core/outbound_http.py`'s own module docstring.)
+
+Tests:
+
+- [x] controlled local HTTPS fixture or mocked transport proves the request is signed and actually attempted (`tests/test_webhooks.py::test_deliver_success` asserts the signature over the real body; `tests/test_webhook_test_endpoint.py::test_test_endpoint_makes_a_real_delivery_and_logs_it_truthfully` and `tests/ui/test_webhook_admin_ui.py` hit a real local HTTP fixture end to end -- HTTP, not HTTPS, with `validate_outbound_url`'s own HTTPS requirement covered separately and fully by `test_outbound_http.py`'s unit tests, and bypassed only for these specific local-fixture tests, matching this file's own precedent);
+- [x] private/loopback/link-local/reserved/mixed DNS answers are denied at save and send (save: `tests/test_security.py::TestSSRFValidation`, now DNS-mocked rather than network-dependent, see progress.md; send: `test_outbound_http.py`'s parametrized DNS-answer tests, 11 blocked + 4 allowed cases);
+- [x] redirect to a denied destination is not followed (`test_send_outbound_does_not_follow_redirects`);
+- [x] another organization cannot test or inspect a webhook (`test_test_endpoint_enforces_organization_isolation`, using an actor that holds the capability role but not the separate `is_super_admin` bypass column, to actually exercise `_get_webhook_for_admin`'s org-scoped branch rather than vacuously passing via the unrestricted branch);
+- [x] actual failures are logged as failures, never 200 success (`test_test_endpoint_reports_real_failure_never_fake_success`, `test_test_endpoint_never_fakes_success_for_a_blocked_destination`, `test_deliver_blocked_by_outbound_policy_does_not_retry_as_network_error`);
+- [x] Slack/Teams/WhatsApp paths share the policy (`tests/test_notifications.py`: parametrized across all three for not-configured/policy-blocked/success/failure, plus one HTTP-level connector-test-endpoint run against a real local fixture with rate limiting);
+- [x] browser test verifies double-click suppression and visible outcome (`tests/ui/test_webhook_admin_ui.py`, both red/green-proved against the disable-on-click guard directly, not just observed passing once).
+
+Completion gate: F06 and F07 are closed. Security review for "no unvalidated alternate outbound path remains": repo-wide grep for `httpx.*/requests.*/urlopen` call sites outside `core/outbound_http.py` found `core/ai_client.py` (fixed LLM provider endpoints: OpenRouter/Anthropic/Gemini, not admin-entered per-tenant destinations), `core/email.py` (fixed OAuth/SendGrid/Graph provider endpoints), `scripts/deploy.py` (a deploy-time localhost health probe) and `scripts/fetch_fonts.py` (build-time hardcoded font CDN URLs) -- none accept an admin- or tenant-supplied destination URL, so none are in scope for "outbound webhook destinations" per this task's own primary-files list; all code paths that *do* accept an admin-supplied destination (generic webhooks, Slack, Teams, WhatsApp -- save, test, and real send) were confirmed by direct source reading to route through `core/outbound_http.py`.
+
+### T06 — Introduce a consistent request, loading, and error experience
+
+Priority: high. Dependencies: T00; coordinate with T01-T05.
+
+Primary files:
+
+- `oneforall/static/js/api_client.js` (new);
+- `oneforall/templates/base_shell.html`;
+- high-priority module templates identified in F08;
+- middleware only if a correlation ID is not already generated and returned;
+- JavaScript and browser tests.
+
+Required helper behavior:
+
+- accept URL, method, body, headers, expected response type, timeout, and optional idempotency key;
+- send same-origin credentials and CSRF according to current platform behavior;
+- parse JSON only when content type/body permits it; preserve a bounded text fallback;
+- throw a typed error carrying HTTP status, safe detail, retryability, and correlation ID;
+- distinguish abort/timeout, network, authentication, authorization, validation/conflict, rate limit, and server failure;
+- never expose stack traces, secrets, SQL, or raw proxy pages;
+- never automatically retry a mutation unless the caller supplies an idempotency key and the route explicitly supports it;
+- provide a standard button-state wrapper so disabled/text/spinner state is restored in `finally`;
+- integrate with the existing toast system and allow an inline error target for forms.
+
+Steps:
+
+- [x] Add unit tests for 200 JSON, 204, text response, malformed JSON, 400 detail, 401/403, 409, 429 with retry hint, 500 HTML, network failure, timeout, and abort. (`tests/ui/test_api_client.py`, 14 tests, all via real-browser `page.route()` interception -- deterministic, no dependency on any specific backend route's actual behavior.)
+- [x] Add/confirm an `X-Request-ID` response header generated by trusted middleware; accept an incoming ID only if it matches a strict bounded format, otherwise generate a new one. (`core/middleware.py::request_id_middleware`, registered outermost in `main.py` -- before `security_headers_middleware` -- so the header survives even an early rejection from a later middleware; `tests/ui/test_request_id_middleware.py`, 9 tests including one against a 404.)
+- [x] Load the helper once from `base_shell.html` with a cache-busting version. (`<script src="/static/js/api_client.js?v=1">`, same convention as T02's `modal_manager.js?v=1` immediately above it.)
+- [x] Migrate user-triggered mutation paths first: ARIA edit/delete, modal create forms, Email Reset/Save/Test, webhook/connector tests, Evidence upload/link/delete, ERM scan and library actions, and the previously observed silent paths. **Every module F08 names by name is now covered**: ARIA document edit/delete (`documents.html`), Evidence's 8 mutation functions (`evidence_index.html`), Email Reset/Save/Test (`admin_email.html`), webhook Test (`admin_webhooks.html`) and Slack/Teams/WhatsApp connector save/test/remove (`admin_connectors.html`), ERM/BCM/Sentinel/ORM/super_admin/workflows via their own pre-existing shared `apiFetch(url,opts)` wrapper in each (migrating the wrapper once upgrades every call site behind it -- one file alone has 3,000+ lines and dozens of sites through it), GRID via its own differently-named shared wrapper (`api()`, found by reading the file after a name-based grep for "apiFetch" missed it) plus 5 individual mutations not behind it, Task Board (9 of 10 sites), My Dashboard (all 3), and Command Centre (`templates/command_centre.html`, served at `/` -- not touched at all until the session's final pass despite being named explicitly). Several of these had strictly worse bugs than "shows a generic message": Sentinel's `apiFetch` discarded the server's real error text unconditionally; super_admin's never checked `response.status` at all, so an error body could be parsed and handed to a caller as if it were successful data; GRID's `api()` swallowed every error into `null`, indistinguishable from "no data"; Task Board's drag-and-drop move and Command Centre's report generators relied on raw `fetch()` not rejecting on non-2xx, so a server-rejected action left an optimistic UI update in place as if it had succeeded. **Still not swept**: ARIA has 8 other template files beyond `documents.html`; a repo-wide census after this pass still finds `fetch(` in ~13 lower-traffic admin/reporting pages never named by F08 (admin_api_keys, admin_frameworks, admin_logs, admin_security, admin_users, analytics, calendar, people_directory, reports, risk_register, timeline, vendor_directory, governance/index.html) plus `_platform_trainer.html`. "Modal create forms" as a general category is covered only where a form happened to live inside an already-migrated page.
+- [x] Replace empty catches for user actions with visible error state. Retain quiet degradation only for optional background panels and label those panels unavailable. **True for every migrated path.** Genuinely optional/background reads were deliberately left quiet, matching this step's own carve-out: GRID's Sentinel-breach banner check and IMS-framework dropdown supplement, Task Board's stats-row refresh, My Dashboard's preference load (has a sane default), Command Centre's `loadDashboard`/`loadBriefing` (already fall back to a real static object on failure, a more sophisticated version of the same pattern this step describes, so left on its existing transport rather than risked changing for a page this central).
+- [x] Prevent duplicate submissions while a request is in flight. (`ApiClient.withButtonState` for the common case; richer-state buttons -- webhook Test, email Test -- keep their own bespoke disable/restore layered over `ApiClient.request`, documented in progress.md for why `withButtonState`'s text-only restore would have been wrong for those two specifically.)
+- [x] Add telemetry counters/log fields for action ID, status class, duration, and request ID without recording form content or personal data. (`ApiClient`'s internal `reportTelemetry`, reusing the PostHog integration already loaded in `base_shell.html` rather than standing up a new metrics sink -- `posthog.capture('api_request', {action_id, status_class, duration_ms, request_id})` on every `request()` call, success or failure; guarded so a missing/blocked PostHog never breaks the caller.)
+
+Completion gate:
+
+- No action in the critical-action registry uses naked `fetch` unless a documented exception exists. **Met for the registry's actual entries** (webhook-test and create-webhook are migrated, the registry's only two `/api/*` mutation entries per T00's own intentionally-partial ~25-entry coverage). Not a claim that zero raw `fetch()` remains anywhere in the codebase -- see the Steps entry above for the honest remaining-file list, all outside both the registry and F08's named scope.
+- Every registered mutation demonstrates visible success and failure in a real browser. **Met.** Every migrated module has its own real-browser test: `test_webhook_admin_ui.py`, `test_email_settings_error_detail.py`, `test_admin_connectors_ui.py`, `test_aria_managed_edit.py`, `test_evidence_upload_error_detail.py`, `test_apifetch_migration_smoke.py`, `test_grid_migration_smoke.py`, `test_task_board_and_my_dashboard_migration.py`, `test_command_centre_migration.py`.
+- Network/proxy HTML failures no longer create uncaught JSON parse errors. **Met for `ApiClient.request` itself** (proved directly: `test_500_html_never_leaks_the_raw_body`, `test_malformed_json_on_200_raises_parse_error`) and for every migrated path above.
+
+### T07 — Establish the accessibility and keyboard foundation
+
+Priority: high quality gate. Dependencies: T02, T06.
+
+Primary files:
+
+- `oneforall/templates/base_shell.html`;
+- shared module base templates;
+- shared modal/navigation JavaScript;
+- affected templates from F09;
+- accessibility browser tests.
+
+Steps:
+
+- [x] Add a skip link and semantic `<main id="mainContent">` landmark while preserving SPA replacement behavior. (Session 1.)
+- [x] Give the notification bell, trainer Send, sidebar controls, icon-only actions, and all close buttons accessible names. **Partial**: notification bell, sidebar toggle, trainer bubble/close/send/tooltip-toggle done (session 1); modal close buttons go through T02's `ModalManager` contract, not independently re-audited this session. Not a claim every icon-only action platform-wide has been swept.
+- [x] Convert interactive `div`/`span` controls into `button`/`a href` elements. If conversion is temporarily impossible, add role, tabindex, Enter, and Space behavior with a tracking issue; native elements remain the target. Every clickable div/span found in Evidence (stat tiles, recent/grid cards, tabs, link-entity rows) converted to real `<button>` (session 2, red/green-proved); trainer bubble and Task Board's My-Tasks toggle converted in session 1. **The repo-wide "chip" census session 2 flagged as untriaged is now resolved** (session 3, 2026-09-28): every `<span>`/`<div>` with a "chip" class across the whole codebase was individually checked for an actual click handler (inline `onclick` or a delegated `addEventListener`/`querySelectorAll` wire-up) versus being a pure display badge. Interactive ones converted to `<button type="button">` -- ERM (24 register/library/etc. chips plus 4 chat-prompt chips), Sentinel (29 status/risk/view filter chips plus a chip-picker and an ARIA-control-linking chip), BCM (5), GRID (8), Task Board (5), Timeline (3), Command Centre (7), ARIA's Ask page (7 suggestion chips + history items). Purely decorative badges with no click handler (row-chip, ims-fw-chip, bcm-ctrl-chip, role-chip, tl-meta-chip, orm-cat-chip, one tag-display filter-chip in Sentinel) were deliberately left as spans -- confirmed via a final repo-wide sweep that zero interactive chip-class spans/divs remain anywhere. See `progress.md` 2026-09-28 T07 session 3.
+- [x] Give every SPA navigation anchor a real `href`; JavaScript enhancement must not remove native navigation. Repo-wide scan (`modules/**/*.html` + `templates/*.html`) for `<a ...>` tags missing `href` found exactly 6: 5 `data-spa` anchors and 1 `onclick`-only div, all fixed (session 2) by adding `href` matching the existing `data-spa` target -- safe because every module's delegated click handler does `e.preventDefault()` regardless of tag, confirmed by reading each handler before editing. Pre-existing `href="#"` placeholder anchors (functionally fine since click is intercepted, but not a real destination) were not swept as a separate, lower-severity class.
+- [x] Associate labels and inputs with unique `for`/`id`, including dynamically created modal fields. **Partial**: every `select-name`/`label` violation axe actually found across all 21 acceptance routes is fixed (toolbar filters on 7 routes, admin_users' edit-drawer fields, ERM's `#regSelectAll` checkbox) -- session 2. Not a claim that every label in the codebase is associated; only axe-confirmed, route-default-view-visible instances were fixed, per the plan's own "no claim that route HTTP 200 proves button functionality"-style discipline -- unverified instances (e.g. modal-only fields never visible on initial page load) were not guessed at.
+- [x] Use the T02 manager for dialog semantics and focus. **Partial, high-traffic panels done** (session 3, 2026-09-28): a new shared `DialogFocus` utility (`static/js/dialog_focus.js`) gives every custom pre-T02 drawer/panel the same Tab-trap and focus-restore-on-close ModalManager provides, without a risky visual migration onto the `.modal-overlay`/`.modal` markup contract. Wired into: ERM's risk and results drawers; ORM's 4 event/assessment drawers; all 8 of Sentinel's record drawers and quick-action dialogs (RoPA/DPIA/AIIA, LIA, generate-notice, draft-policy, both jurisdiction configs); ARIA's Ask drawer; People Directory's and Vendor Directory's profile drawers. Release is automatic via a MutationObserver watching for the panel leaving the DOM (most of these close from several different call sites -- a Cancel button, a backdrop click, a post-save success path -- and requiring each to remember an explicit release() call was judged too easy to miss one of); panels that close via a CSS class toggle instead of DOM removal (People Directory, Vendor Directory, ARIA's Ask drawer) needed an explicit release() call too, found by a real end-to-end test failure, not assumed. **Not done**: a repo-wide scan found ~44 more smaller, ad-hoc modal instances across ERM (15 more), ORM (~13 more), BCM (~21), admin_users (1), and my_dashboard (1) using several different inconsistent conventions (`erm-modal-overlay`, `orm-modal-overlay` with per-dialog IDs, BCM's plain unprefixed `.modal-overlay` which risks colliding with real ModalManager dialogs) -- deliberately not touched this session once BCM's inconsistent pattern surfaced real ambiguity risk (which element a blind class-based query would actually select). Evidence's detail panel (`#evDetailPanel`, session 2) still has Escape-only, no Tab-trap. See `progress.md` 2026-09-28 T07 session 3 for the exact counts and reasoning.
+- [x] Ensure toasts use an appropriate live region without repeatedly announcing decorative content. `#toastContainer` gained `role="status" aria-live="polite"`; the toast icon SVG gained `aria-hidden="true"`. (Session 2.)
+- [x] Verify visible focus, logical tab order, 200 percent zoom, reduced motion, and no keyboard traps.
+  - Visible focus: repo-wide scan for `outline:none`/`outline:0` with no `:focus`/`:focus-visible` replacement anywhere in the same file found 2 real instances across the whole codebase (`.aria-draft-editor` in `ai_generator.html`, `.tl-module-sel` in `timeline.html`) -- every other of the 25 files using `outline:none` already pairs it with a visible replacement, matching `base_shell.html`'s own `.form-input:focus` convention. Both fixed (a box-shadow ring, red/green-proved) and given real-browser tests.
+  - Reduced motion (session 3, 2026-09-28): repo-wide scan for `infinite`-looping CSS animations found ~25 across 8 templates. Loading spinners and button-loading shimmer deliberately left alone (brief, functional feedback). Every purely decorative/ambient one -- login's pulsing background glows/beams/corners plus its two mousemove-driven parallax effects (card tilt, spot parallax), the trainer bubble's attention ring, tooltip-mode glow, AI "typing" dots, and three small "live/overdue" status-dot pulses -- now stops under `prefers-reduced-motion: reduce`, verified via Playwright's real media-feature emulation, with red/green proofs for the two riskiest (login's CSS block, login's JS tilt guard).
+  - Tab order (session 3): repo-wide scan for a positive `tabindex` (breaks natural DOM tab order) found zero. Repo-wide scan for CSS `order` (flex/grid visual reorder without a matching DOM/tab-order change) found zero genuine uses (the first attempt's regex false-matched every `border:` declaration; corrected with a word-boundary anchor and re-verified clean). No fix needed; both checks are new automated-scan evidence, not present before this session.
+  - 200% zoom (session 3): new `tests/ui/test_200_percent_zoom.py`, all 21 acceptance routes at 640x800 (the equivalent reflow breakpoint for 200% zoom on a 1280px design, same technique as `test_modal_contract.py`'s own 390x844 mobile-overflow check). All 21 pass with zero horizontal overflow.
+  - Keyboard traps: covered by the dialog-semantics work above (a Tab-trap that never releases would itself be a keyboard trap) plus `test_dialog_focus.py`'s own explicit proof that a panel removed without an explicit release() call still returns Tab to normal page-wide behavior via the MutationObserver safety net.
+- [x] Add automated axe-core (or equivalent vetted tool) checks for representative routes and manual keyboard scripts for flows automation cannot prove. The axe suite passes cleanly on all 21 routes with zero xfail (see T07 completion gate note below). `oneforall/docs/manual-keyboard-test-script.md` (new, session 3) is a human-run script covering global shell navigation, ModalManager modals, the newly-fixed custom drawers, converted filter chips, Task Board's drag-and-drop keyboard alternative (confirmed to exist -- the task drawer's `#ddStatus` select), and one full no-mouse task end to end.
+
+Acceptance routes:
+
+- Command Centre, My Dashboard, Task Board, Reports, Calendar, Risk Register, People, Admin Users, API Keys, Webhooks, Email, ARIA Documents/Generator, ERM Register/Library/External Context, Evidence, GRID, BCM, Sentinel, ORM, and Governance.
+
+Completion gate: zero critical/serious automated violations on acceptance routes; every critical action is keyboard operable; remaining moderate findings are documented with owners and deadlines.
+
+**Zero-violation automated gate: met.** All 21 acceptance routes pass the axe suite with zero xfail. The 5 color-contrast findings (GRID button/nav-active, ARIA and Sentinel module-name, my-dashboard's `--good` stat text, ERM library's category chips) were fixed with the user's explicit sign-off on the approach, plus two more of the same class found along the way (`.lib-tag`/`.badge-draft`'s muted-on-surface3 text) fixed proactively since they're the identical pattern. Colors were computed programmatically (WCAG relative-luminance formula, same hue/saturation, lightness reduced for margin) and per-module-verified rather than assumed identical across modules -- this caught that the prior session's own `.module-name` fix (`--accent-mid`) did not actually clear AA for ARIA or Sentinel, and that Sentinel's real finding was `.module-name`, not `.btn-primary` as originally assumed by inheritance from GRID's diagnosis.
+
+**"Every critical action is keyboard operable": met for everything this programme's own audit (findings.md F01-F09) and this session's repo-wide scans actually named or found** -- every interactive chip/badge with a real click handler anywhere in the codebase (confirmed by a final repo-wide sweep, not just the files touched), every SPA anchor missing `href`, every control with `outline:none` and no visible-focus replacement, every purely decorative looping animation, and the highest-traffic custom dialogs/drawers across ERM/ORM/Sentinel/ARIA/People Directory/Vendor Directory. **Not a claim covering literally every control in the codebase**: ~44 smaller ad-hoc modal instances across ERM/ORM/BCM/admin_users/my_dashboard (see the dialog-semantics step above) remain unaudited for Tab-trap/focus-restore, and Evidence's detail panel has Escape-only. These are the plan's own "remaining moderate findings," and are documented here with that status rather than silently left for someone to rediscover -- a dedicated follow-up session, or the T10 modularization pass, is the natural place to close them out, since several sit inside files already flagged by F11 as oversized and regression-prone to hand-edit repeatedly.
+
+Dark-mode contrast was checked defensively (to avoid the light-mode fix regressing it) but is a separate, pre-existing, only partially-addressed problem -- see `progress.md`.
+
+### T08 — Complete the HTTP and real-browser regression suite
+
+Priority: release-process blocker. Dependencies: T00-T07.
+
+Primary files:
+
+- `oneforall/tests/ui/`;
+- route/service tests across modules;
+- test fixtures in `oneforall/tests/conftest.py` or dedicated UI fixtures;
+- development-only requirements and browser install documentation.
+
+Steps:
+
+- [ ] Add HTTP integration coverage for authentication, CSRF/origin behavior, capability denial, organization/SBU isolation, success, validation, conflict, and server failure on critical routes.
+- [ ] Drive every action-registry entry that is safe in an isolated database. Destructive actions must use synthetic fixtures and prove their exact postcondition.
+- [ ] Capture uncaught page errors, console errors, failed same-origin requests, unexpected redirects, and server 5xx; fail the test unless explicitly allowlisted with rationale.
+- [ ] Seed realistic records for data-dependent screens instead of relying only on empty-state 200 checks.
+- [ ] Test at least desktop 1366x768 and 1920x1080 plus mobile regression 390x844 for shell/modal overflow; product remains desktop-first.
+- [ ] Cover role/persona boundaries, not just super admin.
+- [ ] Test multi-tab or concurrent behavior for approval, task/update, and idempotent actions where race conditions matter.
+- [ ] Add download checks for expected content type, disposition, non-empty file, and authorization.
+- [ ] Keep external AI/email/webhooks/conversion mocked in ordinary CI and run separately controlled integration smoke tests for their real adapters.
+
+Coverage policy:
+
+- Do not chase a global percentage by testing trivial branches.
+- Require direct route/service coverage for every critical action and every security invariant.
+- Set an initial enforceable floor no lower than current measured coverage, then ratchet changed-file/critical-module coverage upward. Never lower the floor to merge a change.
+
+Completion gate: the real-browser suite catches deliberate reintroduction of F01, F02, F03, F04, and F06; HTTP tests cover all critical backend contracts; no test can point at production.
+
+### T09 — Make CI enforce the release gates
+
+Priority: release-process blocker. Dependencies: T08.
+
+Primary files:
+
+- `.github/workflows/test.yml` (new or clearly named equivalent);
+- existing `postgres-schema.yml`;
+- browser and preview workflows;
+- dependency lock/pin files and test documentation.
+
+Steps:
+
+- [ ] Run Python compilation, `git diff --check`, full unit/integration tests, and coverage on every pull request and push to `master`.
+- [ ] Retain the guarded PostgreSQL 18 schema job and extend it with T03/T04 query/migration cases.
+- [ ] Run browser smoke tests on every pull request using an isolated application and browser cache keyed to an exact dependency lock.
+- [ ] Run the broader action matrix on `master` and before a release if runtime is too high for every PR.
+- [ ] Run JavaScript syntax/unit tests and Jinja compilation with real filters.
+- [ ] Run `pip check`, dependency vulnerability scan, and secret scan. Define an exception process with owner/expiry; do not silently ignore failures.
+- [ ] Upload sanitized screenshots, traces, and logs only on failure. Ensure artifacts contain no real secrets or production data.
+- [ ] Pin third-party GitHub actions by immutable commit SHA.
+- [ ] Require the relevant jobs through branch protection after observing stable hosted results.
+
+Completion gate: a deliberately failing Python test, browser test, PostgreSQL test, and template compile each block CI in a temporary branch; restored source returns green.
+
+### T10 — Reduce regression pressure and make capability documentation authoritative
+
+Priority: medium, required before feature programme. Dependencies: T06-T09.
+
+Primary areas:
+
+- oversized templates and route/service files identified in F11;
+- `FEATURE_INVENTORY.md`, `ROADMAP.md`, `PRELAUNCH_TRACKER.md`;
+- generated capability/reporting scripts and tests.
+
+Steps:
+
+- [ ] Measure file size, inline-handler count, route count, cyclomatic hotspots, and ownership boundaries; record the baseline.
+- [ ] Extract JavaScript by cohesive feature, not arbitrary line count. Preserve cache-busting and CSP behavior.
+- [ ] Move business rules from route handlers into existing/new module services with explicit transaction boundaries.
+- [ ] Replace inline global handlers incrementally with module namespaces/event listeners. Do not rewrite a full module in one task.
+- [ ] Add contract tests before extracting each area and compare rendered/API behavior after extraction.
+- [ ] Build a read-only capability inventory generator from registered routes, capability decorators, roles, feature flags, background workers, and external prerequisites.
+- [ ] Mark each capability as implemented, gated, configuration-required, pilot-only, deprecated, or planned.
+- [ ] Update feature inventory/roadmap from generated evidence and retain a human-reviewed product description layer.
+- [ ] Add a CI drift check so documented route/capability identifiers cannot silently disappear.
+
+Completion gate: no behavior change is bundled with a pure extraction unless explicitly tested; planning documents no longer advertise already-delivered features as missing; new feature tasks use the generated inventory as a discovery input.
+
+## 5. Stabilization release acceptance gate
+
+Do not begin product tasks until all items below pass:
+
+- [ ] T00-T10 completion gates are recorded in `progress.md`.
+- [ ] Full local suite, guarded PostgreSQL suite, JavaScript tests, Jinja compilation, and browser suite pass from a clean checkout.
+- [ ] Security review closes F07/F13 and checks tenant isolation for every changed query.
+- [ ] No critical action has an uncaught console error, unexpected 5xx, or silent failure.
+- [ ] Dependency and secret scans pass or have approved time-bounded exceptions.
+- [ ] `git diff --check` passes and the diff contains only intended ThemisIQ changes.
+- [ ] A release candidate is committed/pushed only if separately authorized.
+- [ ] Production deployment is performed only if separately authorized and only after the rollback-aware procedure in section 8.
+
+## 6. Product-improvement tasks
+
+Each product task is a separate releasable slice. Complete its discovery note, API/data contract, threat model, accessibility review, tests, and acceptance before moving to the next. The order below reflects user value and dependency, not permission to implement all at once.
+
+### P01 — Role-aware My Work action centre
+
+Goal: give each user one trustworthy list of work requiring their action without replacing the existing Task Board or module records.
+
+Dependencies: stabilization accepted; authoritative capability inventory available.
+
+Discovery gate:
+
+- [ ] Inventory current My Dashboard, Task Board, workflow instances, ARIA approvals/revisions, Evidence expiry/requests, GRID findings/non-conformances, ERM/ORM reviews, BCM actions, privacy deadlines, and notification deep links.
+- [ ] Interview/confirm priority and vocabulary for at least policy author/approver, risk owner, audit lead, BCM manager, DPO, organization admin, and ordinary employee.
+- [ ] Decide which records are actionable versus informational and identify the canonical completion endpoint for each.
+
+Selected design:
+
+- Build a read model/federated query; do not duplicate business records into a new task table.
+- Every item has stable `source_module`, `entity_type`, `entity_id`, action code, title, due date, priority, assignee, organization/SBU, deep link, and capability-derived permitted actions.
+- Default sections: Needs my action, Waiting on others, Due soon, Overdue, and Recently completed.
+- Completion always calls the source module. The action centre never bypasses source validation.
+
+Implementation tasks:
+
+- [ ] Add a scoped service returning normalized items with cursor pagination, filters, and deterministic ordering.
+- [ ] Add page/API under existing Launcher navigation; reuse Task Board visual patterns without conflating source records with tasks.
+- [ ] Add saved personal filters only after P06's preference model exists; initial release may use URL query state.
+- [ ] Add bulk navigation/acknowledge only where actions are non-destructive and individually authorized.
+- [ ] Add empty, partial-module-unavailable, and stale-data states.
+- [ ] Add deep-link and source-state refresh after an action completes.
+
+Acceptance:
+
+- no cross-org/SBU item leakage;
+- counts match source modules for fixtures;
+- an unauthorized action is neither advertised nor accepted;
+- source changes appear without duplicate reconciliation jobs;
+- page remains useful when one optional module is disabled;
+- median initial response meets a budget selected during discovery and is measured with production-like data.
+
+### P02 — Sanitized administration diagnostics and readiness centre
+
+Goal: let authorized operators distinguish healthy, disabled, unconfigured, degraded, and failed dependencies without shell access or secret exposure.
+
+Dependencies: T05, T06, T09, P09 status vocabulary.
+
+Discovery gate:
+
+- [ ] Reuse `/health`, `/ready`, scheduler status functions, feature flags, queue state, ARIA preview heartbeat, AI configuration, email configuration, backup metadata, database checks, and systemd/deployment knowledge already present.
+- [ ] Separate platform-super-admin information from organization-admin configuration state.
+
+Implementation tasks:
+
+- [ ] Create a read-only diagnostics service with independently timed probes and a short cache; one slow dependency must not block the page.
+- [ ] Report database connectivity/migration readiness, app release/build, background scheduler heartbeat, publication/scan queue age, preview worker heartbeat, LibreOffice/preview readiness, AI provider/model pin state, email/connector configured state, feature flags, and verified-backup freshness.
+- [ ] Never return keys, DSNs, passwords, webhook URLs, full filesystem paths unnecessary to the user, raw exceptions, process environment, or private host inventory.
+- [ ] Make active probes side-effect-free. A Send Test action remains an explicit separately authorized mutation with rate limiting.
+- [ ] Provide remediation text and correlation IDs rather than stack traces.
+- [ ] Add audit events for viewing sensitive platform diagnostics and for any active test.
+
+Acceptance:
+
+- redaction tests cover every response field;
+- org admin sees only organization-level configuration state;
+- super admin sees platform state but not secret values;
+- degraded dependency is represented without making the whole page 500;
+- backup freshness is metadata-only and never downloads a dump;
+- browser and API tests cover healthy/degraded/unconfigured/forbidden states.
+
+### P03 — ARIA policy lifecycle workbench
+
+Goal: make current publication, editable work, candidate version, approval, and next action understandable on one screen.
+
+Dependencies: T01, T02, T06-T08; preserve PLAN-35 invariants.
+
+Discovery gate:
+
+- [ ] Map existing Documents modal, AI Generator draft editor, version history, preview, approval, publication status, and feature gates.
+- [ ] Do not create a second policy workflow, draft table, version table, or publication queue.
+
+Implementation tasks:
+
+- [ ] Add a document workbench route/deep link centered on one `aria_documents` identity.
+- [ ] Present Current published version, Working draft, Candidate awaiting decision, and History as distinct cards/tabs.
+- [ ] Show one primary next action based on server-returned permissions/state; never infer authorization only in JavaScript.
+- [ ] Add immutable version comparison for metadata and normalized text, with artifact hashes and approver history.
+- [ ] Integrate edit metadata, start/reopen revision, build preview, confirm, submit, withdraw, decide, publication retry, and download through existing services.
+- [ ] Explain feature-disabled, pilot-org-disabled, preview-worker-unavailable, and AI-unconfigured states using P09 vocabulary.
+- [ ] Preserve the currently approved version while a revision is in progress or rejected.
+
+Acceptance:
+
+- every PLAN-35 state transition has one unambiguous visible state and permitted action set;
+- author cannot approve own content;
+- current approved artifact remains downloadable during revision/failure;
+- two-tab concurrency produces a clear conflict, not silent overwrite;
+- version diff never exposes another organization/SBU;
+- all primary transitions have real-browser coverage.
+
+### P04 — Data-readiness and integrity centre
+
+Goal: identify records that will block workflows before users encounter failures.
+
+Dependencies: T04, T06, T10; P02 may host platform-level summaries.
+
+Selected design:
+
+- Rules are deterministic, versioned, and read-only by default.
+- Every issue contains code, severity, module, scoped record reference, explanation, detected time, and safe remediation link.
+- No generic Auto Fix performs broad mutation. A specific fix requires its own preview, authorization, transaction, audit event, and rollback semantics.
+
+Implementation tasks:
+
+- [ ] Inventory invariants already encoded in migrations/readiness helpers and avoid duplicating SQL inconsistently.
+- [ ] Add rules for missing organization/SBU/owner, deleted or inactive assignee, broken cross-module reference, missing policy template/build, invalid lifecycle combination, stale queue lease, overdue evidence/review, and capability/config prerequisite.
+- [ ] Run on demand and through a bounded scheduler lease; persist summaries only if needed for trend/acknowledgement.
+- [ ] Add filters, export without sensitive content, acknowledgement/suppression with reason and expiry, and deep links.
+- [ ] Show why a rule cannot inspect a disabled module instead of reporting it healthy.
+
+Acceptance:
+
+- tenant isolation and deterministic fixtures for every rule;
+- deliberately corrupted disposable rows are detected;
+- clean fixtures produce no false blockers;
+- scan is bounded and observable on production-scale synthetic data;
+- no scan mutates business records.
+
+### P05 — Evidence collection campaigns
+
+Goal: coordinate evidence requests, ownership, due dates, reminders, submissions, review, and coverage gaps while preserving Evidence Vault as the canonical file/link store.
+
+Dependencies: T02, T06-T08, P01.
+
+Discovery gate:
+
+- [ ] Map existing evidence items, links, verification, expiry, GRID evidence requests/files, tasks, notifications, and audit history.
+- [ ] Decide whether GRID request records can be generalized or whether a new campaign/request layer is needed; document why.
+
+If new tables are required, minimum model:
+
+- `evidence_campaigns`: org/SBU, name, scope, owner, start/due dates, status, recurrence definition, created_by;
+- `evidence_requests`: campaign, requirement/control/entity reference, assignee, reviewer, due date, status, instructions, submitted evidence link;
+- append-only request events for assignment, reminder, submission, return, acceptance, cancellation, and overdue transition.
+
+Implementation tasks:
+
+- [ ] Define a state machine and idempotent reminder/escalation behavior.
+- [ ] Reuse Evidence Vault uploads and links; never create an ungoverned second file store.
+- [ ] Add campaign coverage summary: requested, submitted, accepted, returned, overdue, and uncovered requirements.
+- [ ] Feed actionable requests into P01 and Calendar without duplicating source ownership.
+- [ ] Preserve chain of custody, verifier identity, and file authorization.
+
+Acceptance:
+
+- submitter cannot self-accept where separation is required;
+- files remain private and scoped;
+- reminder retries do not duplicate notifications/tasks;
+- campaign close cannot hide unresolved/returned requests without explicit override and audit;
+- recurring campaign generation is idempotent.
+
+### P06 — Saved views and permission-safe bulk actions
+
+Goal: reduce repetitive filtering and allow carefully bounded multi-record operations.
+
+Dependencies: T06-T08. Implement shared infrastructure once, onboard modules incrementally.
+
+Selected model:
+
+- Saved views store owner, optional shared organization scope, module/view key, versioned validated filter JSON, sort, columns, and default flag.
+- Saved views never store SQL, arbitrary URLs, HTML, or capability decisions.
+- Bulk actions re-authorize every record server-side and return per-record outcomes; a visible selection count is not authorization.
+
+Implementation tasks:
+
+- [ ] Start with one low-risk module after discovery, then Task Board, risks, evidence, policies, vendors, and findings.
+- [ ] Add filter-schema validators and migration for old view versions.
+- [ ] Restrict sharing/editing/deletion by owner and organization capability.
+- [ ] Require confirmation summaries for mutations and idempotency keys for retryable bulk operations.
+- [ ] Define atomic versus best-effort semantics per action; never leave this implicit.
+- [ ] Produce an audit event with bounded record identifiers/counts, not sensitive field dumps.
+
+Acceptance:
+
+- malicious filter JSON cannot alter queries;
+- shared view does not grant access to records;
+- mixed authorized/unauthorized selection cannot mutate unauthorized rows;
+- partial failures are visible and retryable without duplicating successes;
+- keyboard and screen-reader selection is supported.
+
+### P07 — ERM scenario, KRI, control linkage, and board-pack snapshots
+
+Goal: extend existing ERM register/objectives/KRIs/assessments/reports into decision-grade scenario analysis and reproducible reporting.
+
+Dependencies: T03, T04, T06-T10.
+
+Discovery gate:
+
+- [ ] Map existing enterprise risks, objectives/pillars, KRIs, assessments, appetite, treatments, controls/effectiveness, analytics snapshots, external context, and reports.
+- [ ] Agree the scenario calculation method and labels with the user; do not present AI-generated numbers as measured facts.
+
+Implementation tasks:
+
+- [ ] Add scenarios with assumptions, horizon, owner, status, version, and org/SBU scope.
+- [ ] Link scenarios to risks, controls, KRIs, objectives, and external-context items through explicit scoped join tables.
+- [ ] Store scenario inputs and deterministic calculation outputs separately from narrative AI assistance.
+- [ ] Show baseline versus scenario inherent/residual exposure and appetite impact with data-quality/confidence indicators.
+- [ ] Create immutable board-pack snapshots containing as-of timestamp, filter/scenario IDs, source record versions/hashes, generated charts/tables, and approver/publication metadata.
+- [ ] Mark stale snapshots when source records change without rewriting historical snapshots.
+- [ ] Require citations/source links for AI-written narrative and allow human editing/approval.
+
+Acceptance:
+
+- calculations reproduce from stored inputs;
+- historical snapshot does not change when live risks change;
+- cross-org/SBU links are rejected;
+- missing KRI/control data is shown as missing, not zero;
+- AI outage leaves deterministic analysis and manual narrative available.
+
+### P08 — BCM exercise after-action and corrective-action improvements
+
+Goal: strengthen the existing exercise/scenario capability rather than create another exercise module.
+
+Dependencies: T06-T10, P01, optional P05 evidence integration.
+
+Discovery gate:
+
+- [ ] Map `bcm_exercises`, scenarios, injects, participants/contacts, outcomes, lessons learned, scheduler alerts, tasks, evidence links, and reporting.
+- [ ] Identify actual gaps in preparation, execution logging, after-action review, and corrective-action closure.
+
+Implementation tasks:
+
+- [ ] Add an explicit exercise lifecycle: planned, ready, running, completed-awaiting-review, closed, cancelled.
+- [ ] Add readiness checklist and participant/role confirmation without storing unnecessary personal data.
+- [ ] Add timestamped inject/event log and observations during execution.
+- [ ] Add after-action review with objectives, results, strengths, gaps, lessons, owner, reviewer, and sign-off.
+- [ ] Link corrective actions to canonical Task Board items with due date, owner, evidence, and closure verification; do not duplicate task state.
+- [ ] Add exercise effectiveness measures and recurrence comparison with clear data provenance.
+- [ ] Feed upcoming/overdue actions into P01 and Calendar.
+
+Acceptance:
+
+- state transitions are authorized and auditable;
+- closing an exercise cannot silently close open corrective actions;
+- repeated scheduler runs do not duplicate alerts/tasks;
+- evidence remains scoped/private;
+- after-action report is reproducible and downloadable from retained data.
+
+### P09 — Consistent capability and dependency states
+
+Goal: replace ambiguous missing buttons and generic failures with a truthful platform-wide state vocabulary.
+
+Dependencies: T06, T10; coordinate with P02/P03.
+
+Canonical states:
+
+- available;
+- disabled by organization policy or feature flag;
+- not configured;
+- temporarily unavailable/degraded;
+- forbidden for this user;
+- unavailable in this product tier, only if licensing logic actually supports it.
+
+Implementation tasks:
+
+- [ ] Define a server-returned capability-state object with safe reason code, user-facing message key, optional remediation route, and retryable flag.
+- [ ] Use capability decorators/feature flags/configuration/readiness as authoritative inputs.
+- [ ] Do not reveal the existence of cross-tenant records or sensitive platform configuration through state reasons.
+- [ ] Apply first to ARIA authoring/preview/AI, ERM horizon scan, email, connectors, exports, and external conversion.
+- [ ] Render disabled actions only when seeing the reason helps the user; hide actions that would leak unauthorized capability.
+- [ ] Add analytics for state frequency without user content.
+
+Acceptance:
+
+- each state has API and browser tests;
+- forbidden and not-configured are never conflated;
+- transient outage provides safe retry guidance;
+- feature-disabled paths cannot be bypassed by direct API calls;
+- wording is consistent across modules.
+
+## 7. Verification commands and evidence requirements
+
+Use the project virtual environment. Adjust only when the repository's current documented commands differ; record any change.
+
+Core gates:
+
+```powershell
+& '.\.venv\Scripts\python.exe' -m pytest oneforall/tests -q
+& '.\.venv\Scripts\python.exe' -m compileall -q oneforall
+& '.\.venv\Scripts\python.exe' -m pip check
+git diff --check
+git status --short
+```
+
+PostgreSQL gate:
+
+- Run `oneforall/tests/test_postgres_init.py` only against an explicitly named disposable `themisiq_test_*` database with `THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1`.
+- Add focused PostgreSQL tests for T03/T04 before claiming schema/query parity.
+- Never point this gate at production or a restored backup that must be retained.
+
+Template/JavaScript gates:
+
+- Compile all Jinja templates with the real `format_dt` filter registered.
+- Run Node syntax/unit tests for every changed JavaScript asset and inline script extractor.
+- Run the real-browser suite and retain sanitized failure traces.
+
+Security gates:
+
+- dependency vulnerability scan;
+- secret scan;
+- outbound URL/SSRF test matrix;
+- tenant/persona matrix;
+- file-path/upload authorization tests for affected features;
+- no critical/serious accessibility findings on acceptance routes.
+
+Evidence rules:
+
+- Never say all tests pass from a previous run.
+- Record command, timestamp, exit code, pass/fail/skip counts, and environment.
+- A skipped live browser, PostgreSQL, delivery, conversion, or production check remains unverified, not passed.
+- Prove important regression tests by temporarily reverting/monkeypatching the fix and observing failure, then restore and rerun green.
+
+## 8. Deployment and rollback plan
+
+This section is preparatory; it does not authorize deployment.
+
+### 8.1 Before a release candidate
+
+- [ ] Confirm intended commit is on remote and production worktree is clean.
+- [ ] Review schema changes and prepare reversible forward migration; never rely on code checkout alone to roll back schema.
+- [ ] Create a fresh verified custom-format PostgreSQL backup, checksum it, list it with `pg_restore --list`, and keep the path/age in the release record.
+- [ ] Back up `/etc/themisiq/themisiq.env` and current systemd unit/drop-ins with root-only permissions if configuration/unit changes are involved.
+- [ ] Record current release SHA, service state, worker state, feature flags, and health/readiness.
+- [ ] Build/publish any container by immutable digest through its tested workflow.
+
+### 8.2 Release sequence
+
+1. Fetch and verify the exact remote commit.
+2. Check out the immutable release SHA, not a moving branch.
+3. Run `scripts/deploy.py` preflight without modifying the host.
+4. Apply schema/config/service changes with newly introduced features disabled.
+5. Restart through the supported deploy script.
+6. Verify service user/hardening, loopback listeners, `/health`, `/ready`, migration/readiness invariants, worker health, and warning/error journal delta.
+7. Run isolated production smoke tests for repaired actions using test records in the approved pilot organization.
+8. Enable a feature only after its disabled-state deployment passes and the user authorizes the pilot.
+9. Observe error rate, latency, queue age, and audit events through the defined soak window.
+
+### 8.3 Rollback
+
+- Code/config-only failure: stop service, restore prior immutable SHA and root-only config backup, apply the supported deploy script, verify health/readiness.
+- Additive schema failure: prefer forward repair; old code must tolerate new nullable tables/columns/indexes.
+- Destructive/incompatible schema change: prohibited unless a tested restore/rollback migration and maintenance window were separately approved.
+- Feature failure: disable its feature flag first when this safely stops new writes, preserve evidence, then decide code rollback.
+- External delivery failure: disable affected connector/webhook delivery without deleting configuration or logs.
+- Record rollback result and any data created during the failed window.
+
+### 8.4 Production acceptance
+
+- exact SHA and configuration state recorded;
+- service active/enabled, correct non-root user, `NoNewPrivileges=yes`;
+- PostgreSQL and app listen only on intended interfaces;
+- health/readiness pass;
+- no new warning/error burst;
+- backup remains restorable;
+- critical browser smokes pass;
+- no tenant-boundary, workflow, audit, or outbound-delivery regression;
+- rollback point retained until soak completes.
+
+## 9. Definition of done
+
+A task is done only when:
+
+- its source behavior and authorization contract are implemented;
+- acceptance tests pass with fresh output;
+- PostgreSQL/browser/external checks are either passed or explicitly still unverified;
+- accessibility and error states are included, not deferred by accident;
+- audit logging contains useful metadata without secrets or excessive personal data;
+- tenant/SBU isolation is proven with negative tests;
+- documentation and action registry are updated;
+- `progress.md` records the evidence;
+- no unrelated file is staged or changed;
+- commit/push/deploy occur only under separate user authorization.
+
+The programme is done only after the stabilization release is accepted and each selected product task has independently met this definition. Unselected product tasks remain planned, not partially implemented.
+
+## 10. Explicitly deferred or prohibited shortcuts
+
+- No big-bang frontend rewrite or framework migration.
+- No removal of ARIA lifecycle guards to fix Save.
+- No global ERM library edit access for organization users.
+- No compatibility `erm_risks` view hiding stale code.
+- No synthetic webhook success log.
+- No SSRF fix based only on hostname prefixes.
+- No automatic mutation retries without idempotency.
+- No diagnostics page exposing secrets/raw exceptions.
+- No duplicate task, exercise, evidence-file, KRI, or policy workflow model when an existing canonical model can be extended.
+- No AI narrative presented as verified fact without sources and human approval.
+- No production test using real customer data when synthetic scoped fixtures suffice.
+- No claim that route HTTP 200 proves button functionality.

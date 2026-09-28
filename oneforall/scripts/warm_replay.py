@@ -105,7 +105,7 @@ _QUERIES: list[tuple[str, str, tuple]] = [
 
     # ── ERM ──────────────────────────────────────────────────────────────────
     ("erm:risks_by_treatment",
-     "SELECT treatment, COUNT(*) AS n FROM erm_risks GROUP BY treatment ORDER BY treatment",
+     "SELECT treatment, COUNT(*) AS n FROM erm_enterprise_risks GROUP BY treatment ORDER BY treatment",
      ()),
 
     ("erm:obligation_count",

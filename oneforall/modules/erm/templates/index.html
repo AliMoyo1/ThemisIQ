@@ -20,7 +20,7 @@
 
 /* ── Filter chips ── */
 .erm-filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
-.erm-chip{padding:5px 12px;border-radius:100px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.erm-chip{padding:5px 12px;border-radius:100px;font-size:12px;font-weight:600;font-family:inherit;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
 .erm-chip:hover{border-color:var(--accent);color:var(--accent)}
 .erm-chip.active{background:var(--accent);border-color:var(--accent);color:white}
 .erm-search{flex:1;min-width:160px;max-width:280px;padding:6px 12px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;outline:none}
@@ -68,7 +68,7 @@
 .lib-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;transition:all .2s}
 .lib-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-2px)}
 .lib-cat-chip{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px;border-radius:100px;margin-bottom:8px}
-.lib-tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:100px;background:var(--surface3);color:var(--muted);margin:2px 2px 0 0}
+.lib-tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:100px;background:var(--surface3);color:var(--text-mid);margin:2px 2px 0 0}
 .lib-split-btn{position:relative;display:inline-flex}
 .lib-split-btn .lib-split-main{border-radius:var(--radius) 0 0 var(--radius);border-right:1px solid rgba(255,255,255,.25)}
 .lib-split-btn .lib-split-arr{border-radius:0 var(--radius) var(--radius) 0;padding:7px 8px}
@@ -166,7 +166,7 @@
 .erm-ring-item{display:flex;align-items:center;gap:7px}
 .erm-ring-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 /* chat prompts */
-.chat-prompt-chip{padding:7px 14px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--muted);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.chat-prompt-chip{padding:7px 14px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--muted);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit}
 .chat-prompt-chip:hover{border-color:var(--accent);color:var(--accent)}
 @media(max-width:900px){.form-row,.form-row-3{grid-template-columns:1fr}}
 {% endblock %}
@@ -235,11 +235,11 @@
   </a>
 </div>
 <div class="sidebar-bottom">
-  <div style="background:linear-gradient(135deg,var(--accent-dark,#6b1220),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden" data-spa="/erm/chat">
+  <a href="/erm/chat" data-spa="/erm/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark,#6b1220),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden">
     <div style="font-size:24px;margin-bottom:8px">&#9888;</div>
     <div style="font-size:14px;font-weight:700">Ask ERM AI...</div>
     <div style="font-size:11px;opacity:0.7;margin-top:4px">Risk advice &amp; guidance</div>
-  </div>
+  </a>
 </div>
 {% endblock %}
 
@@ -301,18 +301,23 @@
        watchlist, trajectory) responds to these; the legacy stats above
        intentionally stay whole-tenant/unfiltered. -->
   <div class="erm-filter-bar" id="dashFilterBar" style="margin-top:16px">
+    <label class="sr-only" for="dashCatFilter">Filter by category</label>
     <select id="dashCatFilter" onchange="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600">
       <option value="">All Categories</option>
     </select>
+    <label class="sr-only" for="dashPillarFilter">Filter by pillar</label>
     <select id="dashPillarFilter" onchange="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600">
       <option value="">All Pillars</option>
     </select>
+    <label class="sr-only" for="dashBuFilter">Filter by business unit</label>
     <select id="dashBuFilter" onchange="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;display:none">
       <option value="">All Business Units</option>
     </select>
+    <label class="sr-only" for="dashObjectiveFilter">Filter by objective</label>
     <select id="dashObjectiveFilter" onchange="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600">
       <option value="">All Objectives</option>
     </select>
+    <label class="sr-only" for="dashPeriodFilter">Filter by time period</label>
     <select id="dashPeriodFilter" onchange="ermLoadDashboard()" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600">
       <option value="">All time</option>
       <option value="year">Last 12 months</option>
@@ -400,15 +405,17 @@
   </div>
   <!-- Filter chips + search -->
   <div class="erm-filter-bar" id="regFilterBar">
-    <span class="erm-chip active" data-status="">All</span>
-    <span class="erm-chip" data-status="open">Open</span>
-    <span class="erm-chip" data-status="under_review">Under Review</span>
-    <span class="erm-chip" data-status="mitigated">Mitigated</span>
-    <span class="erm-chip" data-status="accepted">Accepted</span>
-    <span class="erm-chip" data-status="closed">Closed</span>
+    <button type="button" class="erm-chip active" data-status="">All</button>
+    <button type="button" class="erm-chip" data-status="open">Open</button>
+    <button type="button" class="erm-chip" data-status="under_review">Under Review</button>
+    <button type="button" class="erm-chip" data-status="mitigated">Mitigated</button>
+    <button type="button" class="erm-chip" data-status="accepted">Accepted</button>
+    <button type="button" class="erm-chip" data-status="closed">Closed</button>
+    <label class="sr-only" for="regCatFilter">Filter by category</label>
     <select id="regCatFilter" style="padding:5px 10px;border:1px solid var(--border);border-radius:100px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600" onchange="ermRenderRegister()">
       <option value="">All Categories</option>
     </select>
+    <label class="sr-only" for="regSearch">Search risks</label>
     <input class="erm-search" id="regSearch" placeholder="🔍 Search risks…" oninput="ermRenderRegister()">
   </div>
   <!-- Import result banner -->
@@ -430,7 +437,7 @@
     <div style="overflow-x:auto">
       <table class="data-table" id="ermRegTable">
         <thead><tr>
-          <th style="width:32px"><input type="checkbox" id="regSelectAll" onchange="ermSelectAll(this)" style="cursor:pointer"></th>
+          <th style="width:32px"><input type="checkbox" id="regSelectAll" onchange="ermSelectAll(this)" aria-label="Select all risks" style="cursor:pointer"></th>
           <th>Ref</th><th>Risk</th><th>Category</th><th>Score</th><th>Level</th>
           <th>Status</th><th>Owner</th><th>Review</th><th>Residual</th><th>RRR</th>
           <th>Source</th><th style="width:60px">Actions</th>
@@ -463,6 +470,7 @@
       <div class="section-sub">25+ pre-built templates — click Use to add to your register</div>
     </div>
     <div class="header-actions">
+      <label class="sr-only" for="libCatFilter">Filter by category</label>
       <select id="libCatFilter" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px" onchange="ermLoadLibrary()">
         <option value="">All Categories</option>
         <option value="technology">Technology</option><option value="operational">Operational</option>
@@ -470,19 +478,100 @@
         <option value="reputational">Reputational</option><option value="strategic">Strategic</option>
         <option value="third_party">Third Party</option>
       </select>
-      <button class="btn btn-secondary" id="libAdminBtn" style="display:none" onclick="ermOpenLibraryModal()">+ Add Template</button>
+      {% if can_manage_library %}
+      <button class="btn btn-secondary" id="libAdminBtn" onclick="ermOpenLibraryModal()">+ Add Template</button>
+      {% endif %}
     </div>
   </div>
   <div class="erm-filter-bar" style="margin-bottom:16px">
+    <label class="sr-only" for="libSearch">Search templates</label>
     <input class="erm-search" id="libSearch" placeholder="🔍 Search templates…" oninput="ermFilterLibrary()" style="max-width:320px">
-    <span class="erm-chip active" data-industry="">All Industries</span>
-    <span class="erm-chip" data-industry="telecom">Telecom</span>
-    <span class="erm-chip" data-industry="banking">Banking</span>
-    <span class="erm-chip" data-industry="healthcare">Healthcare</span>
-    <span class="erm-chip" data-industry="general">General</span>
+    <button type="button" class="erm-chip active" data-industry="">All Industries</button>
+    <button type="button" class="erm-chip" data-industry="telecom">Telecom</button>
+    <button type="button" class="erm-chip" data-industry="banking">Banking</button>
+    <button type="button" class="erm-chip" data-industry="healthcare">Healthcare</button>
+    <button type="button" class="erm-chip" data-industry="general">General</button>
   </div>
   <div id="ermLibGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px">
     <div style="grid-column:1/-1;text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>
+  </div>
+</div>
+
+<!-- PLAN-36 T03: Add/Edit Library Template modal (findings.md F03 -- the
+     trigger button called this modal's open function before it existed).
+     Uses the T02 shared dialog contract/manager, loaded globally by
+     base_shell.html, and the existing /erm/api/library endpoints. -->
+<div class="modal-overlay" id="libItemModal" role="dialog" aria-modal="true" aria-labelledby="libItemModal-title">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3 id="libItemModal-title" style="margin:0;font-size:16px">Add Template</h3>
+      <button class="modal-close" onclick="ModalManager.close('libItemModal')" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <input type="hidden" id="lib-item-id">
+      <div class="form-group">
+        <label class="form-label">Title *</label>
+        <input type="text" id="lib-title" maxlength="200" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea id="lib-description" rows="2" maxlength="1000"></textarea>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select id="lib-category">
+            <option value="Technology Risk">Technology</option>
+            <option value="Operational Risk">Operational</option>
+            <option value="Compliance & Legal Risk">Compliance</option>
+            <option value="Financial Risk">Financial</option>
+            <option value="Reputational Risk">Reputational</option>
+            <option value="Strategic Risk">Strategic</option>
+            <option value="Third Party Risk">Third Party</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Treatment</label>
+          <select id="lib-treatment">
+            <option value="mitigate">Mitigate</option>
+            <option value="avoid">Avoid</option>
+            <option value="transfer">Transfer</option>
+            <option value="accept">Accept</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Default Likelihood (1-5)</label>
+          <input type="number" id="lib-likelihood" min="1" max="5" value="3">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Default Impact (1-5)</label>
+          <input type="number" id="lib-impact" min="1" max="5" value="3">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Suggested Controls</label>
+        <textarea id="lib-controls" rows="2" maxlength="500"></textarea>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Applicable Industries</label>
+          <input type="text" id="lib-industries" placeholder="all, telecom, banking..." maxlength="200">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Regulatory References</label>
+          <input type="text" id="lib-regulations" maxlength="200">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tags (comma-separated)</label>
+        <input type="text" id="lib-tags" maxlength="200">
+      </div>
+      <div id="lib-item-error" class="aria-workflow-hint" style="display:none;color:var(--red,#dc2626)"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-ghost" onclick="ModalManager.close('libItemModal')">Cancel</button>
+        <button class="btn btn-primary" id="lib-item-save-btn" onclick="ermSaveLibraryItem()">Save Template</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -550,10 +639,10 @@
   </div>
   <div id="extScanTraceMount" style="display:none;max-width:420px;margin-bottom:14px"></div>
   <div class="erm-filter-bar" id="extStatusBar" style="margin-bottom:14px">
-    <span class="erm-chip active" data-status="new">New</span>
-    <span class="erm-chip" data-status="dismissed">Dismissed</span>
-    <span class="erm-chip" data-status="added">Added</span>
-    <span class="erm-chip" data-status="">All</span>
+    <button type="button" class="erm-chip active" data-status="new">New</button>
+    <button type="button" class="erm-chip" data-status="dismissed">Dismissed</button>
+    <button type="button" class="erm-chip" data-status="added">Added</button>
+    <button type="button" class="erm-chip" data-status="">All</button>
   </div>
   <div id="extInboxList"><div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div></div>
 </div>
@@ -569,11 +658,11 @@
   </div>
   <div id="oblStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
   <div class="erm-filter-bar" id="oblFilterBar">
-    <span class="erm-chip active" data-status="">All</span>
-    <span class="erm-chip" data-status="pending">Pending</span>
-    <span class="erm-chip" data-status="compliant">Compliant</span>
-    <span class="erm-chip" data-status="non_compliant">Non-Compliant</span>
-    <span class="erm-chip" data-status="under_review">Under Review</span>
+    <button type="button" class="erm-chip active" data-status="">All</button>
+    <button type="button" class="erm-chip" data-status="pending">Pending</button>
+    <button type="button" class="erm-chip" data-status="compliant">Compliant</button>
+    <button type="button" class="erm-chip" data-status="non_compliant">Non-Compliant</button>
+    <button type="button" class="erm-chip" data-status="under_review">Under Review</button>
     <input class="erm-search" id="oblSearch" placeholder="🔍 Search regulator…" oninput="ermRenderObligations()" style="max-width:220px">
   </div>
   <div id="oblAlertBanner" style="display:none;margin-bottom:12px"></div>
@@ -598,10 +687,10 @@
   </div>
   <div id="assessStats" class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
   <div class="erm-filter-bar" id="assessFilterBar">
-    <span class="erm-chip active" data-status="">All</span>
-    <span class="erm-chip" data-status="draft">Draft</span>
-    <span class="erm-chip" data-status="active">Active</span>
-    <span class="erm-chip" data-status="closed">Closed</span>
+    <button type="button" class="erm-chip active" data-status="">All</button>
+    <button type="button" class="erm-chip" data-status="draft">Draft</button>
+    <button type="button" class="erm-chip" data-status="active">Active</button>
+    <button type="button" class="erm-chip" data-status="closed">Closed</button>
   </div>
   <div class="card">
     <div style="overflow-x:auto">
@@ -709,10 +798,10 @@
       </div>
       <!-- Prompt chips -->
       <div id="ermPromptChips" style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;background:var(--surface2)">
-        <span class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Suggest treatment for my top risk</span>
-        <span class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Summarise our appetite breaches</span>
-        <span class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Key GDPR obligations to track</span>
-        <span class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Help me score a technology risk</span>
+        <button type="button" class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Suggest treatment for my top risk</button>
+        <button type="button" class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Summarise our appetite breaches</button>
+        <button type="button" class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Key GDPR obligations to track</button>
+        <button type="button" class="chat-prompt-chip" onclick="ermQuickPrompt(this)">Help me score a technology risk</button>
       </div>
       <div style="display:flex;gap:10px;padding:14px 16px;border-top:1px solid var(--border);background:var(--surface)">
         <input type="text" id="ermChatInput" placeholder="Ask about enterprise risks, appetite, treatment plans…" style="flex:1;padding:11px 16px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);color:var(--text);font-size:14px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ermSendChat()}">
@@ -812,11 +901,15 @@ function trendArrow(n){if(!n&&n!==0)return'';var c=n>0?'var(--red)':n<0?'var(--g
 function statCards(elId,cards){var el=document.getElementById(elId);if(!el)return;el.innerHTML=cards.map(function(c){return'<div class="stat-card" style="padding:14px 16px"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">'+esc(c.label)+'</div><div style="font-size:22px;font-weight:800;color:'+(c.color||'var(--text)')+';line-height:1">'+esc(String(c.value))+'</div>'+(c.sub?'<div style="font-size:11px;color:var(--muted);margin-top:3px">'+esc(c.sub)+'</div>':'')+' </div>';}).join('');el.querySelectorAll('.stat-card').forEach(function(card){card.addEventListener('mousemove',function(e){var r=card.getBoundingClientRect();var x=(e.clientX-r.left)/r.width-.5;var y=(e.clientY-r.top)/r.height-.5;card.style.transform='perspective(600px) rotateX('+(-y*8)+'deg) rotateY('+(x*8)+'deg) translateY(-2px)';});card.addEventListener('mouseleave',function(){card.style.transform='';});});}
 
 async function apiFetch(url,opts){
-  opts=opts||{};opts.headers=opts.headers||{};
-  if(opts.body&&typeof opts.body==='object'){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(opts.body);}
-  var r=await fetch(url,opts);
-  if(!r.ok){var txt='';try{var j=await r.json();txt=j.detail||JSON.stringify(j);}catch(e){txt=r.statusText;}throw new Error(txt||'HTTP '+r.status);}
-  if(r.status===204)return null;return r.json();
+  // PLAN-36 T06 (findings.md F08): was a hand-rolled fetch wrapper used
+  // throughout this file; now delegates to the shared ApiClient so every
+  // ERM call site gets its timeout/abort handling, safe error details (never
+  // a raw HTML/proxy body), and request-ID/telemetry for free. Throws
+  // ApiClient.ApiError, which is still a real Error with the same .message
+  // shape callers already expect (they never used its extra fields, since
+  // this function never had them before).
+  opts=opts||{};
+  return ApiClient.request(url, { method: opts.method, body: opts.body, headers: opts.headers, actionId: url });
 }
 
 /* ────────────────── DOC VIEWER ────────────────── */
@@ -1550,6 +1643,7 @@ window.ermOpenRiskDrawer=async function(id){
         (ERM_IS_ADMIN?'<button class="btn btn-secondary" style="color:var(--red);margin-left:auto" onclick="ermDeleteRisk('+id+',\''+registerSrc+'\')">Delete</button>':'')+
       '</div>'+
       '</div></div>';
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#ermRiskDrawer .erm-drawer-panel'));
     // Assessment: summary strip renders immediately from the already-fetched
     // risk; the CF-grouped control list needs its own fetch.
     ermRenderAssessSummary(r);
@@ -1598,7 +1692,11 @@ window.ermOpenRiskDrawer=async function(id){
     }catch(e){}
   }catch(e){ermCloseRiskDrawer();typeof showToast==='function'&&showToast('Load failed','error');}
 };
-window.ermCloseRiskDrawer=function(){document.getElementById('ermRiskDrawer').innerHTML='';_drawerRisk=null;};
+window.ermCloseRiskDrawer=function(){if(typeof DialogFocus!=='undefined')DialogFocus.release();document.getElementById('ermRiskDrawer').innerHTML='';_drawerRisk=null;};
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  if(document.getElementById('ermRiskDrawer').firstElementChild)ermCloseRiskDrawer();
+});
 function ermFmtUsd(v){return '$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:0});}
 function ermRenderAssessSummary(r){
   var el=document.getElementById('ermAssessSummary');
@@ -2029,7 +2127,22 @@ window.ermSaveAppetite=async function(){
   catch(e){typeof showToast==='function'&&showToast('Save failed','error');}
 };
 
-/* ────────────────── LIBRARY ────────────────── */
+/* ────────────────── LIBRARY (PLAN-36 T03 / findings.md F13) ──────────────────
+   Server already renders #libAdminBtn only for can_manage_library holders
+   (routes.py erm_spa); these three tell the per-card Edit/Retire buttons
+   which specific rows THIS actor may touch -- org_id IS NULL is the global
+   catalogue (super admin only), a set org_id is manageable only by that
+   same organization. Never trust the client for the actual mutation --
+   modules/erm/data_service.py re-checks the same rule server-side. */
+var ERM_CAN_MANAGE_LIBRARY = {{ can_manage_library | tojson }};
+var ERM_USER_ORG_ID = {{ (user.org_id if user and user.org_id is not none else None) | tojson }};
+var ERM_USER_IS_SUPER_ADMIN = {{ (user.is_super_admin if user else False) | tojson }};
+function ermCanManageLibraryItem(item){
+  if(!ERM_CAN_MANAGE_LIBRARY) return false;
+  if(ERM_USER_IS_SUPER_ADMIN) return true;
+  return item.org_id!=null && item.org_id===ERM_USER_ORG_ID;
+}
+
 var libCache=[], libIndustryFilter='';
 window.ermLoadLibrary=async function(){
   var cat=document.getElementById('libCatFilter').value;
@@ -2054,21 +2167,42 @@ window.ermFilterLibrary=function(){
   });
   var grid=document.getElementById('ermLibGrid');
   if(!filtered.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">No templates match</div>';return;}
-  var catColors={'Technology Risk':'#6366f1','Operational Risk':'#f59e0b','Compliance & Legal Risk':'#10b981','Financial Risk':'#3b82f6','Reputational Risk':'#ec4899','Strategic Risk':'var(--accent)','Third Party Risk':'#8b5cf6','Environmental Risk':'#22c55e','Credit Risk':'#0ea5e9','Market Risk':'#a855f7',technology:'#6366f1',operational:'#f59e0b',compliance:'#10b981',financial:'#3b82f6',reputational:'#ec4899',strategic:'var(--accent)',third_party:'#8b5cf6',environmental:'#22c55e'};
+  /* Each hex below is darkened from its original to ~4.75:1 against ITS
+     OWN 13%-opacity tint (.lib-cat-chip: background:col+'22';color:col --
+     both sides come from the same `col`, so this is solved self-
+     consistently: fg vs tint-of-fg, not fg vs tint-of-the-original-
+     brighter-color, which was a mistake an earlier pass here made and
+     which axe caught at 4.23-4.48, still short of 4.5). Comfortably past
+     4.5 rather than exactly at it, since axe's measured ratio for a color
+     targeted at exactly 4.50 still came out under (browser color-
+     compositing rounding). Same hue/saturation throughout, only lightness
+     reduced. 'Strategic Risk' uses ERM's own --accent (#881337), already
+     7.48:1 against its own tint, so it is unchanged. */
+  var catColors={'Technology Risk':'#4b4eef','Operational Risk':'#8e5c06','Compliance & Legal Risk':'#0a7451','Financial Risk':'#0a5ce1','Reputational Risk':'#bf1469','Strategic Risk':'var(--accent)','Third Party Risk':'#7239f4','Environmental Risk':'#147538','Credit Risk':'#096d99','Market Risk':'#8a1af4',technology:'#4b4eef',operational:'#8e5c06',compliance:'#0a7451',financial:'#0a5ce1',reputational:'#bf1469',strategic:'var(--accent)',third_party:'#7239f4',environmental:'#147538'};
   grid.innerHTML=filtered.map(function(item){
     var col=catColors[item.category]||'var(--muted)';
     var score=(item.default_likelihood||3)*(item.default_impact||3);
     var tags=(item.tags||'').split(',').filter(Boolean).map(function(t){return'<span class="lib-tag">'+esc(t.trim())+'</span>';}).join('');
+    var isGlobal=(item.org_id==null);
+    var scopeBadge='<span class="lib-tag" style="background:'+(isGlobal?'var(--surface3)':'var(--accent-soft,var(--surface3))')+'" title="'+(isGlobal?'Platform-wide template':'Your organization\'s own template')+'">'+(isGlobal?'🌐 Global':'🏢 Organization')+'</span>';
+    var manageBtns=ermCanManageLibraryItem(item)?(
+      '<button class="btn btn-sm btn-secondary" onclick="ermEditLibraryItem('+item.id+')">Edit</button>'+
+      '<button class="btn btn-sm btn-secondary" style="color:var(--red,#dc2626)" onclick="ermRetireLibraryItem('+item.id+')">Retire</button>'
+    ):'';
     return'<div class="lib-card">'+
-      '<div class="lib-cat-chip" style="background:'+col+'22;color:'+col+'">'+esc(item.category||'general')+'</div>'+
-      '<div style="font-size:14px;font-weight:700;margin-bottom:6px">'+esc(item.title)+'</div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">'+
+        '<div class="lib-cat-chip" style="background:'+col+'22;color:'+col+'">'+esc(item.category||'general')+'</div>'+
+        scopeBadge+
+      '</div>'+
+      '<div style="font-size:14px;font-weight:700;margin:6px 0">'+esc(item.title)+'</div>'+
       '<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:10px">'+esc((item.description||'').slice(0,100))+((item.description||'').length>100?'…':'')+'</div>'+
       (tags?'<div style="margin-bottom:8px">'+tags+'</div>':'')+
       '<div style="display:flex;gap:10px;font-size:11px;color:var(--muted);margin-bottom:10px"><span>Score: <strong>'+score+'</strong></span><span>'+esc(item.typical_treatment||'mitigate')+'</span></div>'+
       (item.regulatory_references?'<div style="font-size:11px;color:var(--muted);margin-bottom:10px">📋 '+esc(item.regulatory_references)+'</div>':'')+
-      '<div style="display:flex;gap:6px">'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
         '<button class="btn btn-sm btn-primary" onclick="ermQuickAddRisk('+item.id+',this)">+ Quick Add</button>'+
         '<button class="btn btn-sm btn-secondary" onclick="ermCustomizeFromLib('+item.id+')">Customize First</button>'+
+        manageBtns+
       '</div>'+
     '</div>';
   }).join('');
@@ -2077,6 +2211,78 @@ window.ermQuickAddRisk=async function(id,btn){if(btn){btn.disabled=true;btn.text
 window.ermCustomizeFromLib=function(id){var item=libCache.find(function(x){return x.id===id;});if(item)ermCustomizeRisk(item);};
 window.ermCustomizeRisk=function(item){
   ermOpenRiskModal({title:item.title,description:item.description||'',category:item.category||'Operational Risk',treatment:item.typical_treatment||'mitigate',likelihood:item.default_likelihood||3,impact:item.default_impact||3,treatment_plan:item.suggested_controls||'',status:'open',_isNew:true});
+};
+
+/* ── Library admin modal (create/edit/retire) -- PLAN-36 T03 ── */
+function ermFillLibraryForm(item){
+  document.getElementById('lib-item-id').value=item&&item.id||'';
+  document.getElementById('lib-title').value=item&&item.title||'';
+  document.getElementById('lib-description').value=item&&item.description||'';
+  document.getElementById('lib-category').value=item&&item.category||'Operational Risk';
+  document.getElementById('lib-treatment').value=item&&item.typical_treatment||'mitigate';
+  document.getElementById('lib-likelihood').value=item&&item.default_likelihood||3;
+  document.getElementById('lib-impact').value=item&&item.default_impact||3;
+  document.getElementById('lib-controls').value=item&&item.suggested_controls||'';
+  document.getElementById('lib-industries').value=item&&item.applicable_industries||'';
+  document.getElementById('lib-regulations').value=item&&item.regulatory_references||'';
+  document.getElementById('lib-tags').value=item&&item.tags||'';
+  var err=document.getElementById('lib-item-error');err.style.display='none';err.textContent='';
+}
+window.ermOpenLibraryModal=function(){
+  document.getElementById('libItemModal-title').textContent='Add Template';
+  ermFillLibraryForm(null);
+  ModalManager.open('libItemModal');
+};
+window.ermEditLibraryItem=function(id){
+  var item=libCache.find(function(x){return x.id===id;});
+  if(!item)return;
+  document.getElementById('libItemModal-title').textContent='Edit Template';
+  ermFillLibraryForm(item);
+  ModalManager.open('libItemModal');
+};
+window.ermSaveLibraryItem=async function(){
+  var id=document.getElementById('lib-item-id').value;
+  var title=document.getElementById('lib-title').value.trim();
+  var errEl=document.getElementById('lib-item-error');
+  errEl.style.display='none';
+  if(!title){errEl.textContent='Title is required.';errEl.style.display='block';return;}
+  var body={
+    title:title,
+    description:document.getElementById('lib-description').value.trim(),
+    category:document.getElementById('lib-category').value,
+    typical_treatment:document.getElementById('lib-treatment').value,
+    default_likelihood:parseInt(document.getElementById('lib-likelihood').value,10)||3,
+    default_impact:parseInt(document.getElementById('lib-impact').value,10)||3,
+    suggested_controls:document.getElementById('lib-controls').value.trim(),
+    applicable_industries:document.getElementById('lib-industries').value.trim(),
+    regulatory_references:document.getElementById('lib-regulations').value.trim(),
+    tags:document.getElementById('lib-tags').value.trim(),
+  };
+  var btn=document.getElementById('lib-item-save-btn');
+  var originalLabel=btn.textContent;
+  btn.disabled=true;btn.textContent='Saving…';
+  try{
+    if(id)await apiFetch('/erm/api/library/'+id,{method:'PUT',body:body});
+    else await apiFetch('/erm/api/library',{method:'POST',body:body});
+    ModalManager.close('libItemModal');
+    typeof showToast==='function'&&showToast('Template saved');
+    ermLoadLibrary();
+  }catch(e){
+    errEl.textContent=e.message||'Save failed.';
+    errEl.style.display='block';
+  }finally{
+    btn.disabled=false;btn.textContent=originalLabel;
+  }
+};
+window.ermRetireLibraryItem=async function(id){
+  if(!confirm('Retire this template? It will no longer appear in the library, but risks already created from it are unaffected.'))return;
+  try{
+    await apiFetch('/erm/api/library/'+id,{method:'DELETE'});
+    typeof showToast==='function'&&showToast('Template retired');
+    ermLoadLibrary();
+  }catch(e){
+    typeof showToast==='function'&&showToast('Failed: '+e.message,'error');
+  }
 };
 
 /* ────────────────── RISK RATING GUIDE (read-only reference) ────────────────── */
@@ -2728,9 +2934,14 @@ window.ermOpenResultsDrawer=async function(id){
           '<button class="btn btn-secondary" onclick="ermCloseResultsDrawer()" style="margin-left:auto">Close</button>'+
         '</div>'+
       '</div></div>';
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#ermResultsDrawer .erm-drawer-panel'));
   }catch(e){ermCloseResultsDrawer();typeof showToast==='function'&&showToast('Load failed','error');}
 };
-window.ermCloseResultsDrawer=function(){document.getElementById('ermResultsDrawer').innerHTML='';};
+window.ermCloseResultsDrawer=function(){if(typeof DialogFocus!=='undefined')DialogFocus.release();document.getElementById('ermResultsDrawer').innerHTML='';};
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  if(document.getElementById('ermResultsDrawer').firstElementChild)ermCloseResultsDrawer();
+});
 window.ermExportResponses=async function(id){
   try{
     var responses=await apiFetch('/erm/api/assessments/'+id+'/responses');

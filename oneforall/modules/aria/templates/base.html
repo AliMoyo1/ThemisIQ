@@ -6,8 +6,6 @@
    ──────────────────────────────────────────────────────────────────────────── #}
 
 {% block extra_styles %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
 /* ── ARIA shared page styles ───────────────────────────────────────────── */
 
 /* Page header, replaces old .topbar */
@@ -214,6 +212,9 @@ table:not(.data-table) tbody tr:hover{background:var(--accent-bg,var(--surface2)
 .ask-typing span:nth-child(2){animation-delay:0.2s}
 .ask-typing span:nth-child(3){animation-delay:0.4s}
 @keyframes dotBlink{0%,80%,100%{opacity:0.2}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  .ask-fab .pulse,.ask-typing span{animation:none}
+}
 </style>
 {% block head %}{% endblock %}
 {% endblock %}
@@ -223,6 +224,10 @@ table:not(.data-table) tbody tr:hover{background:var(--accent-bg,var(--surface2)
 {% endblock %}
 
 {% block extra_scripts %}
+<!-- PLAN-36 T07: moved here from extra_styles, which substitutes inside
+     base_shell.html's own <style> tag -- a <script> tag positioned there
+     is parsed as inert CSS text, never actually loaded as a script. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="/static/js/ai-guidance-dialog.js"></script>
 <script src="/static/js/thinking-trace.js"></script>
 {% if user and '/ask' not in request.url.path %}
@@ -283,17 +288,28 @@ if (typeof Chart !== 'undefined') {
     drawer.classList.add('open');
     fab.classList.add('hidden');
     try { sessionStorage.setItem('aria.askDrawer.open', '1'); } catch(e) {}
+    // DialogFocus.trap() focuses the first focusable element (the header
+    // close button, which comes before the input in DOM order) -- the
+    // existing 180ms-delayed focus onto the input specifically runs right
+    // after and wins, preserving today's behavior; the trap's actual job
+    // here is the Tab containment and the restore-to-FAB on close, not
+    // the initial-focus choice.
+    if (typeof DialogFocus !== 'undefined') DialogFocus.trap(drawer);
     setTimeout(() => input.focus(), 180);
   }
   function closeDrawer() {
     drawer.classList.remove('open');
     fab.classList.remove('hidden');
     try { sessionStorage.setItem('aria.askDrawer.open', '0'); } catch(e) {}
+    if (typeof DialogFocus !== 'undefined') DialogFocus.release();
   }
 
   try { if (sessionStorage.getItem('aria.askDrawer.open') === '1') openDrawer(); } catch(e) {}
   fab.addEventListener('click', openDrawer);
   closeBtn.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
+  });
 
   input.addEventListener('input', () => {
     input.style.height = 'auto';

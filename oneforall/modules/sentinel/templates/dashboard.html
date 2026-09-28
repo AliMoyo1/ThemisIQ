@@ -52,6 +52,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .status-bar{display:inline-flex;align-items:center;gap:6px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--green);margin-bottom:24px}
 .status-bar .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.status-bar .dot{animation:none}}
 
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:32px}
 .kpi-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:20px;backdrop-filter:blur(8px)}

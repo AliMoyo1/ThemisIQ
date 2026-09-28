@@ -6,6 +6,7 @@ These are unit-level: no running server or database required.
 """
 import html
 import secrets
+import socket
 import sys
 import os
 
@@ -28,7 +29,18 @@ class TestSSRFValidation:
         except HTTPException as e:
             return e.status_code == 400
 
-    def test_valid_https_url_passes(self):
+    def test_valid_https_url_passes(self, monkeypatch):
+        # PLAN-36 T05 (findings.md F07): _validate_webhook_url now resolves
+        # the hostname for real (core/outbound_http.py) rather than just
+        # string-matching known-bad prefixes, so a placeholder hostname like
+        # hooks.example.com (never actually registered) no longer passes on
+        # its own -- an unresolvable host is exactly what F07 says to
+        # reject. Mocked here the same way tests/test_outbound_http.py does,
+        # so this stays a fast, network-independent unit test.
+        monkeypatch.setattr(
+            socket, "getaddrinfo",
+            lambda host, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("93.184.216.34", 0))],
+        )
         assert not self._blocked("https://hooks.example.com/webhook")
 
     def test_http_url_blocked(self):

@@ -9,8 +9,7 @@ connector is not configured. They never raise.
 """
 import logging
 
-import httpx
-
+from core.outbound_http import send_outbound, OutboundURLError
 from config import settings
 
 log = logging.getLogger(__name__)
@@ -43,41 +42,46 @@ def _whatsapp_url() -> str:
     return _get_setting("whatsapp_webhook_url") or getattr(settings, "WHATSAPP_WEBHOOK_URL", "")
 
 
+def _send(label: str, url: str, payload: dict) -> bool:
+    """Shared send path for all three connectors (PLAN-36 T05, findings.md
+    F07): every real send revalidates the destination immediately before
+    connecting via core.outbound_http.send_outbound, which also applies
+    the shared timeout/no-redirect/response-size policy. Callers keep
+    their own payload shape; only the transport is shared."""
+    try:
+        result = send_outbound(url, json=payload)
+    except OutboundURLError as exc:
+        log.warning("[%s] Blocked by outbound policy: %s", label, exc)
+        return False
+    except Exception as exc:
+        log.warning("[%s] Failed: %s", label, exc)
+        return False
+    if not (200 <= result.status_code < 300):
+        log.warning("[%s] Failed: HTTP %s", label, result.status_code)
+        return False
+    log.info("[%s] Sent", label)
+    return True
+
+
 def send_slack(text: str) -> bool:
     url = _slack_url()
     if not url:
         return False
-    try:
-        with httpx.Client(timeout=10) as client:
-            r = client.post(url, json={"text": text})
-            r.raise_for_status()
-        log.info("[slack] Sent: %.60s", text)
-        return True
-    except Exception as exc:
-        log.warning("[slack] Failed: %s", exc)
-        return False
+    return _send("slack", url, {"text": text})
 
 
 def send_teams(text: str) -> bool:
     url = _teams_url()
     if not url:
         return False
-    try:
-        payload = {
-            "@type": "MessageCard",
-            "@context": "https://schema.org/extensions",
-            "summary": text[:100],
-            "themeColor": "1e3a8a",
-            "text": text,
-        }
-        with httpx.Client(timeout=10) as client:
-            r = client.post(url, json=payload)
-            r.raise_for_status()
-        log.info("[teams] Sent: %.60s", text)
-        return True
-    except Exception as exc:
-        log.warning("[teams] Failed: %s", exc)
-        return False
+    payload = {
+        "@type": "MessageCard",
+        "@context": "https://schema.org/extensions",
+        "summary": text[:100],
+        "themeColor": "1e3a8a",
+        "text": text,
+    }
+    return _send("teams", url, payload)
 
 
 def send_whatsapp(text: str) -> bool:
@@ -90,15 +94,7 @@ def send_whatsapp(text: str) -> bool:
     url = _whatsapp_url()
     if not url:
         return False
-    try:
-        with httpx.Client(timeout=10) as client:
-            r = client.post(url, json={"text": text})
-            r.raise_for_status()
-        log.info("[whatsapp] Sent: %.60s", text)
-        return True
-    except Exception as exc:
-        log.warning("[whatsapp] Failed: %s", exc)
-        return False
+    return _send("whatsapp", url, {"text": text})
 
 
 def notify_connectors(text: str) -> None:

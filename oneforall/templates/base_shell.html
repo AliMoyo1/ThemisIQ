@@ -36,7 +36,7 @@
   --border:rgba(0,0,0,0.06);--border2:rgba(0,0,0,0.1);
   --amber:#d97706;--amber-bg:#fffbeb;--red:#dc2626;--red-bg:#fef2f2;
   --blue:#2563eb;--blue-bg:#eff6ff;--green-status:#16a34a;--green-bg:#f0fdf4;
-  --good:#16a34a;--good-soft:rgba(22,163,74,0.1);--bad:#dc2626;--bad-soft:rgba(220,38,38,0.1);
+  --good:#11803a;--good-soft:rgba(22,163,74,0.1);--bad:#dc2626;--bad-soft:rgba(220,38,38,0.1);
   --warn:#d97706;--warn-soft:rgba(217,119,6,0.1);--info:#2563eb;--info-soft:rgba(37,99,235,0.1);
   --purple:#7c3aed;--purple-soft:rgba(124,58,237,0.1);--primary:#2563eb;--primary-dark:#1d4ed8;
   --shadow-sm:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
@@ -340,11 +340,22 @@ input,select,textarea{font-family:var(--font)}
 }
 .module-sidebar.collapsed{width:0;overflow:hidden;opacity:0;border:none}
 .module-sidebar-header{padding:20px 16px 16px;border-bottom:1px solid var(--border)}
-.module-name{font-size:17px;font-weight:800;color:var(--accent);letter-spacing:-0.02em}
+.module-name{font-size:17px;font-weight:800;color:var(--accent-dark);letter-spacing:-0.02em}
+/* --accent-dark reads as near-black in dark mode's own dark sidebar glass
+   panel (dark text on dark background) -- --accent-light restores contrast
+   there, matching the light-mode fix's own logic in reverse. */
+[data-theme="dark"] .module-name{color:var(--accent-light)}
+/* GRID's own --accent (#059669) is 3.76:1 with white text, below the 4.5:1
+   minimum; every other module's --accent already clears it. --accent-mid
+   is GRID-specific darker green that passes; hover moves to --accent-dark
+   so the hover state still visibly darkens further. */
+[data-module="grid"] .btn-primary,
+[data-module="grid"] .nav-item.active{background:var(--accent-mid)}
+[data-module="grid"] .btn-primary:hover{background:var(--accent-dark)}
 .module-desc{font-size:11px;color:var(--muted);margin-top:3px}
 .sidebar-section{padding:16px 12px 4px}
 .sidebar-label{
-  font-size:10px;font-weight:700;letter-spacing:0.12em;color:var(--dim);
+  font-size:10px;font-weight:700;letter-spacing:0.12em;color:var(--muted);
   text-transform:uppercase;padding:0 8px 8px;font-family:var(--mono);
 }
 .nav-item{
@@ -521,18 +532,21 @@ input,select,textarea{font-family:var(--font)}
 .badge-low{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
 .badge-complete{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
 .badge-progress{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
-.badge-draft{background:var(--surface3);color:var(--muted);border:1px solid var(--border)}
+.badge-draft{background:var(--surface3);color:var(--text-mid);border:1px solid var(--border)}
 .badge-overdue{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
 .badge-accent{background:var(--accent-pale);color:var(--accent);border:1px solid rgba(0,0,0,0.06)}
 
 .filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-.filter-chip{font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:all 0.18s}
+.filter-chip{font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;cursor:pointer;border:1.5px solid var(--border);background:white;color:var(--muted);transition:all 0.18s;font-family:inherit}
 .filter-chip.active{background:var(--accent);color:white;border-color:var(--accent);box-shadow:0 2px 8px var(--accent-shadow)}
 .filter-chip:hover:not(.active){border-color:var(--accent);color:var(--accent)}
 
 /* Modal overlay */
+/* PLAN-36 T02: .open is the canonical visible state (matches ARIA's own
+   base.html, which already used it correctly). .show stays as a
+   compatibility alias until every call site is migrated off it. */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:800;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
-.modal-overlay.show{display:flex}
+.modal-overlay.open,.modal-overlay.show{display:flex}
 .modal{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);max-width:600px;width:90%;max-height:85vh;overflow-y:auto;animation:modalIn 0.25s ease}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border)}
 .modal-title{font-size:18px;font-weight:800;color:var(--text)}
@@ -659,11 +673,37 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 .search-result.active{background:var(--accent-pale) !important}
 
 {% block extra_styles %}{% endblock %}
+
+/* PLAN-36 T07: visually hidden until keyboard-focused, so it doesn't
+   disturb sighted-mouse layout but is the very first Tab stop. */
+.skip-link{
+  position:absolute; left:-9999px; top:0; z-index:10000;
+  padding:10px 16px; background:var(--accent); color:#fff;
+  border-radius:0 0 8px 0; font-size:13px; font-weight:600; text-decoration:underline;
+}
+.skip-link:focus{ left:0; }
+
+/* Screen-reader-only: present in the accessibility tree, never visible --
+   for a label whose text would be visually redundant (an icon already
+   conveys it) but that inputs/controls still need a real accessible name. */
+.sr-only{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
 </style>
 <link rel="stylesheet" href="/static/css/responsive.css">
 </head>
 
 <body data-module="{{ active_module | default('platform') }}">
+<!-- Loaded here, not at the end of body: it must exist before any child
+     template's inline script runs, including a bare top-level call that
+     isn't wrapped in DOMContentLoaded (PLAN-36 T06). dialog_focus.js sits
+     alongside it for the same reason -- several modules' drawers call
+     DialogFocus.trap() from a bare top-level onclick/open function. -->
+<script src="/static/js/api_client.js?v=1"></script>
+<script src="/static/js/dialog_focus.js?v=1"></script>
+
+<a href="#mainContent" class="skip-link">Skip to main content</a>
 
 <div class="app">
 
@@ -921,7 +961,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
       <button class="mobile-nav-toggle" onclick="toggleMobileNav()" aria-label="Open navigation">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
-      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <div class="breadcrumb">
@@ -939,7 +979,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         <div id="searchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:360px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4);z-index:999;"></div>
       </div>
       <div style="position:relative">
-        <button class="topbar-icon-btn" onclick="toggleNotif()" id="notifBtn">
+        <button class="topbar-icon-btn" onclick="toggleNotif()" id="notifBtn"
+                aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           <span class="notif-dot" id="notifDot"></span>
         </button>
@@ -969,7 +1010,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
   </div>
 
   <!-- MAIN CONTENT -->
-  <div class="main-content" id="mainContent">
+  <main class="main-content" id="mainContent" tabindex="-1">
     {% if license_status and license_status.days_remaining is defined %}
     {% set ls_days = license_status.days_remaining %}
     {% set ls_critical = license_status.expired or ls_days <= 7 %}
@@ -1007,13 +1048,13 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     </script>
     {% endif %}
     {% block content %}{% endblock %}
-  </div>
+  </main>
 </div>
 
 </div><!-- .app -->
 
 <!-- Toast container -->
-<div class="toast-container" id="toastContainer"></div>
+<div class="toast-container" id="toastContainer" role="status" aria-live="polite" aria-atomic="false"></div>
 
 <script>
 // ── Shell Utilities ──
@@ -1098,8 +1139,9 @@ function esc(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.tex
 
 function toggleNotif(){
   const p = document.getElementById('notifPanel');
-  p.classList.toggle('show');
-  if(p.classList.contains('show')) loadNotifications();
+  const isOpen = p.classList.toggle('show');
+  document.getElementById('notifBtn').setAttribute('aria-expanded', String(isOpen));
+  if(isOpen) loadNotifications();
 }
 
 async function loadNotifications(){
@@ -1263,7 +1305,7 @@ function showToast(message, type='success', duration=4000){
   const c = document.getElementById('toastContainer');
   const t = document.createElement('div');
   t.className = 'toast toast-' + type;
-  t.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + esc(message);
+  t.innerHTML = '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>' + esc(message);
   c.appendChild(t);
   setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),300)}, duration);
 }
@@ -1466,6 +1508,7 @@ async function createReminder(e){
      ═══════════════════════════════════════════════════════════════════ -->
 <script src="/static/js/aegis-particles.js"></script>
 <script src="/static/js/related_items.js"></script>
+<script src="/static/js/modal_manager.js?v=1"></script>
 
 </body>
 </html>

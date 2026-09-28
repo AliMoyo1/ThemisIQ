@@ -6,7 +6,7 @@
   <span class="page-title">Framework Management</span>
   <div class="topbar-actions">
     <button class="btn" onclick="seedControls()" style="font-size:12px; padding:7px 14px;" id="seedBtn">Seed Controls</button>
-    <button class="btn btn-primary" onclick="document.getElementById('newFwModal').classList.add('open')" style="font-size:12px; padding:7px 14px;">+ Custom Framework</button>
+    <button class="btn btn-primary" onclick="ModalManager.open('newFwModal')" style="font-size:12px; padding:7px 14px;">+ Custom Framework</button>
   </div>
 </div>
 
@@ -131,43 +131,46 @@
 </div>
 
 <!-- Custom Framework Modal -->
-<div class="modal" id="newFwModal" style="position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;">
-  <div onclick="document.getElementById('newFwModal').classList.remove('open')" style="position:absolute;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(3px);"></div>
-  <div style="position:relative;background:var(--surface);border-radius:14px;padding:28px 30px;width:500px;max-width:92vw;box-shadow:0 25px 50px rgba(0,0,0,0.25);">
-    <h3 style="margin:0 0 20px;font-size:17px;font-weight:700;color:var(--text);">Create Custom Framework</h3>
-    <form id="newFwForm" onsubmit="createFramework(event)">
-      <div style="margin-bottom:14px;">
-        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Framework Name *</label>
-        <input type="text" name="name" required maxlength="100" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="e.g. NIST CSF 2.0">
-      </div>
-      <div style="margin-bottom:14px;">
-        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Description *</label>
-        <input type="text" name="description" required maxlength="200" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="Cybersecurity Framework for critical infrastructure">
-      </div>
-      <div style="display:flex;gap:14px;margin-bottom:16px;">
-        <div style="flex:0 0 70px;">
-          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Color</label>
-          <input type="color" name="color" value="#1E3A5F" style="width:48px;height:38px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px;">
+<div class="modal-overlay" id="newFwModal" role="dialog" aria-modal="true" aria-labelledby="newFwModal-title">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <h3 id="newFwModal-title" style="margin:0;font-size:17px;font-weight:700;color:var(--text);">Create Custom Framework</h3>
+      <button class="modal-close" onclick="ModalManager.close('newFwModal')" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:20px">
+      <form id="newFwForm" onsubmit="createFramework(event)">
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Framework Name *</label>
+          <input type="text" name="name" required maxlength="100" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="e.g. NIST CSF 2.0">
         </div>
-        <div style="flex:1;">
-          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Relevant Modules</label>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;">
-            <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="aria" checked> ARIA</label>
-            <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="grid"> GRID</label>
-            <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="bcm"> BCM</label>
-            <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="sentinel"> Sentinel</label>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Description *</label>
+          <input type="text" name="description" required maxlength="200" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);box-sizing:border-box;" placeholder="Cybersecurity Framework for critical infrastructure">
+        </div>
+        <div style="display:flex;gap:14px;margin-bottom:16px;">
+          <div style="flex:0 0 70px;">
+            <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Color</label>
+            <input type="color" name="color" value="#1E3A5F" style="width:48px;height:38px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px;">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:5px;">Relevant Modules</label>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;">
+              <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="aria" checked> ARIA</label>
+              <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="grid"> GRID</label>
+              <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="bcm"> BCM</label>
+              <label style="font-size:12.5px;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" name="modules" value="sentinel"> Sentinel</label>
+            </div>
           </div>
         </div>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px;padding-top:16px;border-top:1px solid var(--border-soft);">
-        <button type="button" onclick="document.getElementById('newFwModal').classList.remove('open')" class="btn" style="padding:8px 18px;font-size:13px;">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="createFwBtn" style="padding:8px 18px;font-size:13px;">Create Framework</button>
-      </div>
-    </form>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px;padding-top:16px;border-top:1px solid var(--border-soft);">
+          <button type="button" onclick="ModalManager.close('newFwModal')" class="btn" style="padding:8px 18px;font-size:13px;">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="createFwBtn" style="padding:8px 18px;font-size:13px;">Create Framework</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 <style>
-.modal.open{display:flex !important}
 .fw-ai-btn:hover{background:linear-gradient(135deg, rgba(124,58,237,0.15), rgba(124,58,237,0.25)) !important; transform:translateY(-1px);}
 </style>
 
@@ -196,7 +199,7 @@ async function createFramework(e) {
     });
     if (!resp.ok) { var d = await resp.json(); throw new Error(d.error || 'Failed'); }
     showToast('Framework created successfully', 'success');
-    document.getElementById('newFwModal').classList.remove('open');
+    ModalManager.close('newFwModal');
     setTimeout(function(){ location.reload(); }, 600);
   } catch (err) {
     showToast('Error: ' + err.message, 'error');

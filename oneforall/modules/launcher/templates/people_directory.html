@@ -1,7 +1,6 @@
 {% extends "platform_base.html" %}
 {% block title %}People Directory - ThemisIQ{% endblock %}
 {% block head %}
-<style>
 .pd-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
 .pd-title{font-size:22px;font-weight:700;color:var(--text)}
 .pd-subtitle{font-size:13px;color:var(--muted);margin-top:2px}
@@ -78,7 +77,6 @@
 .pd-toast.show{display:block}
 .pd-toast.success{border-color:#16a34a;color:#16a34a}
 .pd-toast.error{border-color:#ef4444;color:#ef4444}
-</style>
 {% endblock %}
 {% block content %}
 <div class="pd-header">
@@ -101,10 +99,13 @@
 <div class="pd-stats" id="pdStats"></div>
 
 <div class="pd-filters">
+  <label class="sr-only" for="pdSearch">Search people</label>
   <input class="pd-search" id="pdSearch" type="text" placeholder="Search by name, email, title..." oninput="filterPeople()">
+  <label class="sr-only" for="pdDeptFilter">Filter by department</label>
   <select class="pd-select" id="pdDeptFilter" onchange="filterPeople()">
     <option value="">All Departments</option>
   </select>
+  <label class="sr-only" for="pdStatusFilter">Filter by status</label>
   <select class="pd-select" id="pdStatusFilter" onchange="filterPeople()">
     <option value="">All Status</option>
     <option value="active">Active</option>
@@ -287,8 +288,15 @@ async function openDrawer(pid) {
   '</div>';
   document.getElementById('ddBody').innerHTML = html;
   document.getElementById('pdDrawer').classList.add('open');
+  if (typeof DialogFocus !== 'undefined') DialogFocus.trap(document.getElementById('pdDrawerPanel'));
 }
-function closeDrawer() { document.getElementById('pdDrawer').classList.remove('open'); }
+function closeDrawer() {
+  document.getElementById('pdDrawer').classList.remove('open');
+  if (typeof DialogFocus !== 'undefined') DialogFocus.release();
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('pdDrawer').classList.contains('open')) closeDrawer();
+});
 function kv(k, v) { return '<div class="pd-kv"><span class="pd-kv-k">'+k+'</span><span class="pd-kv-v">'+v+'</span></div>'; }
 
 function openAddModal() {

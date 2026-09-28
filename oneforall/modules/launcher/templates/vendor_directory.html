@@ -1,7 +1,6 @@
 {% extends "platform_base.html" %}
 {% block title %}Vendor Directory — ThemisIQ{% endblock %}
 {% block head %}
-<style>
 /* ── Vendor Directory ───────────────────────────────────────────────────── */
 .vd-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
 .vd-title{font-size:22px;font-weight:700;color:var(--text)}
@@ -59,7 +58,6 @@
 .vd-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--muted);text-align:center}
 .vd-empty-icon{font-size:48px;margin-bottom:12px}
 .vd-empty-title{font-size:16px;font-weight:700;margin-bottom:6px;color:var(--text)}
-</style>
 {% endblock %}
 {% block content %}
 <div class="vd-header">
@@ -243,12 +241,19 @@ async function vdOpenDrawer(canonicalId){
     }
     html+='</div>';
     drawer.innerHTML=html;
+    if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer);
   }catch(e){
     drawer.innerHTML='<button class="vd-drawer-close" onclick="vdCloseDrawer()">×</button><div style="padding:40px;text-align:center;color:var(--muted)">Failed to load vendor profile.</div>';
   }
 }
 
-function vdCloseDrawer(){document.getElementById('vdDrawerOverlay').classList.remove('open');}
+function vdCloseDrawer(){
+  document.getElementById('vdDrawerOverlay').classList.remove('open');
+  if (typeof DialogFocus !== 'undefined') DialogFocus.release();
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('vdDrawerOverlay').classList.contains('open')) vdCloseDrawer();
+});
 
 // Holds the last-loaded canonical vendor profile so registration can use it
 var _vdCurrentProfile = null;

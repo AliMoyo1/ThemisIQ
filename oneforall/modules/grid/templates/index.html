@@ -3,7 +3,6 @@
 {% block title %}GRID — Audit Management{% endblock %}
 
 {% block extra_styles %}
-<style>
 /* ── GRID SPA styles ── */
 .grid-donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;margin:0 auto}
 .grid-donut-wrap svg{display:block;width:100%;height:100%}
@@ -175,7 +174,6 @@
 @media (max-width:600px){
   .stats-row{grid-template-columns:1fr}
 }
-</style>
 {% endblock %}
 
 {% block module_sidebar %}
@@ -225,13 +223,13 @@
 
 <!-- AI Chat Card -->
 <div class="sidebar-bottom">
-  <div style="background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden" onclick="gridRouter.navigate('/grid/chat')">
+  <a href="/grid/chat" data-spa="/grid/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden">
     <div style="position:absolute;top:-10px;right:-10px;width:60px;height:60px;opacity:0.15">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
     </div>
     <div style="font-size:24px;margin-bottom:8px">&#10038;</div>
     <div style="font-size:14px;font-weight:700">Ask GRID AI...</div>
-  </div>
+  </a>
 </div>
 {% endblock %}
 
@@ -355,10 +353,10 @@
       </div>
       <div class="card-body" style="padding:12px 20px 6px">
         <div class="filter-bar" id="gridStatusFilters">
-          <span class="filter-chip active" data-status="all" onclick="filterGridAudits('all',this)">All</span>
-          <span class="filter-chip" data-status="planning" onclick="filterGridAudits('planning',this)">Planning</span>
-          <span class="filter-chip" data-status="in_progress" onclick="filterGridAudits('in_progress',this)">In Progress</span>
-          <span class="filter-chip" data-status="complete" onclick="filterGridAudits('complete',this)">Complete</span>
+          <button type="button" class="filter-chip active" data-status="all" onclick="filterGridAudits('all',this)">All</button>
+          <button type="button" class="filter-chip" data-status="planning" onclick="filterGridAudits('planning',this)">Planning</button>
+          <button type="button" class="filter-chip" data-status="in_progress" onclick="filterGridAudits('in_progress',this)">In Progress</button>
+          <button type="button" class="filter-chip" data-status="complete" onclick="filterGridAudits('complete',this)">Complete</button>
         </div>
       </div>
       <div style="overflow-x:auto">
@@ -422,10 +420,10 @@
       </div>
       <div class="header-actions">
         <div class="filter-bar">
-          <span class="filter-chip active" onclick="filterControls('all',this)">All</span>
-          <span class="filter-chip" onclick="filterControls('Not Started',this)">Not Started</span>
-          <span class="filter-chip" onclick="filterControls('In Progress',this)">In Progress</span>
-          <span class="filter-chip" onclick="filterControls('Complete',this)">Complete</span>
+          <button type="button" class="filter-chip active" onclick="filterControls('all',this)">All</button>
+          <button type="button" class="filter-chip" onclick="filterControls('Not Started',this)">Not Started</button>
+          <button type="button" class="filter-chip" onclick="filterControls('In Progress',this)">In Progress</button>
+          <button type="button" class="filter-chip" onclick="filterControls('Complete',this)">Complete</button>
         </div>
       </div>
     </div>
@@ -649,13 +647,25 @@
     return '<span class="ctrl-risk '+(cls[r.toLowerCase()]||'')+'">'+(r||'').toUpperCase()+'</span>';
   }
   async function api(url,methodOrOpts,body){
+    // PLAN-36 T06 (findings.md F08): kept the exact same "return null on any
+    // failure" contract deliberately -- this function has ~90 call sites in
+    // this file, most already showing their own toast on a null/falsy
+    // result, so switching to a thrown error (like every other module's
+    // apiFetch migration this session) would need each one individually
+    // audited to avoid turning a handled failure into an uncaught
+    // exception, which isn't safe to do without testing each site. What
+    // this migration still gets for free at every call site: real
+    // timeout/abort protection (the old code could hang forever), and a
+    // safe, classified error logged to the console instead of a raw
+    // exception.
     var opts;
     if(typeof methodOrOpts==='string'){
       opts={method:methodOrOpts};
       if(body!==undefined){opts.headers={'Content-Type':'application/json'};opts.body=JSON.stringify(body);}
     }else{opts=methodOrOpts||{};}
-    try{const r=await fetch(url,opts);if(!r.ok)throw new Error('HTTP '+r.status);return await r.json();}
-    catch(e){console.warn('API error:',url,e);return null;}
+    try{
+      return await ApiClient.request(url, { method: opts.method, body: opts.body, headers: opts.headers, actionId: url });
+    }catch(e){console.warn('API error:',url,e.detail||e.message);return null;}
   }
   function showModal(html){
     document.getElementById('gridModal').innerHTML='<div class="modal-overlay" onclick="if(event.target===this)closeModal()">'+
@@ -974,13 +984,16 @@
   /* ── Delete audit (admin only) ─────────────────────────────────────────── */
   window.deleteAudit=async function(id,name,fromDetail){
     if(!confirm('Delete audit "'+name+'"?\n\nThis will permanently remove the audit, all its controls, findings, non-conformances and evidence links. This cannot be undone.')) return;
-    const r=await fetch('/grid/api/audits/'+id,{method:'DELETE',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'}});
-    if(r.ok||r.status===200||r.status===204){
+    try {
+      await ApiClient.request('/grid/api/audits/'+id, {
+        method: 'DELETE',
+        headers: {'X-Requested-With':'XMLHttpRequest'},
+        actionId: 'grid.audit.delete',
+      });
       showToast('Audit deleted','success');
       gridRouter.navigate('/grid/audits');
-    } else {
-      const d=await r.json().catch(()=>({}));
-      showToast(d.detail||'Failed to delete audit','error');
+    } catch (e) {
+      showToast(e.detail||'Failed to delete audit','error');
     }
   };
 
@@ -1433,13 +1446,7 @@
     fd.append('framework_name',form.querySelector('input[name="framework_name"]').value||'ISO 27001');
     fd.append('skip_ai',form.querySelector('input[name="skip_ai"]').checked?'true':'false');
     try{
-      var resp=await fetch('/grid/api/ai/parse-checklist',{method:'POST',body:fd});
-      var data=await resp.json();
-      if(!resp.ok){
-        if(typeof showToast==='function')showToast(data.detail||'Parse failed','error');
-        if(parseBtn){parseBtn.disabled=false;parseBtn.textContent='Preview';}
-        return;
-      }
+      var data=await ApiClient.request('/grid/api/ai/parse-checklist', { method: 'POST', body: fd, actionId: 'grid.ai.parse_checklist' });
       _pendingChecklist=data.controls||[];
       var preview=document.getElementById('checklistPreview');
       if(preview){
@@ -1463,7 +1470,7 @@
       var impBtn=document.getElementById('cklImportBtn');
       if(impBtn)impBtn.disabled=false;
     }catch(e){
-      if(typeof showToast==='function')showToast('Parse error','error');
+      if(typeof showToast==='function')showToast(e.detail||'Parse error','error');
     }
     if(parseBtn){parseBtn.disabled=false;parseBtn.textContent='Preview';}
   };
@@ -1519,19 +1526,15 @@
       ]
     });
     try{
-      var resp=await fetch('/grid/api/audits/'+auditId+'/ai-checklist',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      var data=await resp.json();
-      if(!resp.ok){
-        _aiChecklistTrace.destroy();
-        document.getElementById('aiClLoading').innerHTML='<div style="color:var(--danger);font-size:13px">'+(data.detail||'Failed to generate checklist')+'</div>';
-        return;
-      }
+      var data=await ApiClient.request('/grid/api/audits/'+auditId+'/ai-checklist', {
+        method: 'POST', body: '{}', headers: {'Content-Type':'application/json'}, actionId: 'grid.ai.generate_checklist',
+      });
       _aiChecklistItems=data.items||[];
       renderAiChecklistPreview(data);
     }catch(e){
       _aiChecklistTrace.destroy();
       var el=document.getElementById('aiClLoading');
-      if(el) el.innerHTML='<div style="color:var(--danger);font-size:13px">Network error. Please try again.</div>';
+      if(el) el.innerHTML='<div style="color:var(--danger);font-size:13px">'+esc(e.detail||'Failed to generate checklist')+'</div>';
     }
   };
 
@@ -2501,15 +2504,10 @@
       });
     }
     try{
-      const resp=await fetch('/grid/api/reports/'+format+'/'+auditId,{credentials:'same-origin'});
-      if(!resp.ok){
-        const err=await resp.json().catch(()=>({detail:'Report generation failed'}));
-        throw new Error(err.detail||'Failed');
-      }
-      const blob=await resp.blob();
-      const cd=resp.headers.get('content-disposition')||'';
-      const fnMatch=cd.match(/filename="?([^";\n]+)"?/);
-      const fileName=fnMatch?fnMatch[1]:'report.'+format;
+      const {blob,filename}=await ApiClient.request('/grid/api/reports/'+format+'/'+auditId, {
+        expect: 'blob', actionId: 'grid.report.download',
+      });
+      const fileName=filename||'report.'+format;
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');
       a.href=url;a.download=fileName;document.body.appendChild(a);a.click();
@@ -2517,7 +2515,7 @@
       if(typeof showToast==='function')showToast(format.toUpperCase()+' report downloaded','success');
       loadSavedReports(); // Refresh history since report was auto-saved
     }catch(e){
-      if(typeof showToast==='function')showToast(e.message||'Report generation failed','error');
+      if(typeof showToast==='function')showToast(e.detail||'Report generation failed','error');
     }finally{
       btn.disabled=false;btn.innerHTML=origHTML;
       if(trace){trace.destroy();}
@@ -3209,15 +3207,10 @@
       if(expiryVal)fd.append('expires_at',expiryVal);
       if(itemId)fd.append('evidence_item_id',itemId);
       try{
-        var resp=await fetch('/grid/api/evidence/'+cid+'/upload',{method:'POST',body:fd});
-        if(resp.ok){
-          if(typeof showToast==='function')showToast('Uploaded '+f.name,'success');
-        }else{
-          var err=await resp.json().catch(function(){return {};});
-          if(typeof showToast==='function')showToast(err.detail||'Upload failed','error');
-        }
+        await ApiClient.request('/grid/api/evidence/'+cid+'/upload', { method: 'POST', body: fd, actionId: 'grid.evidence.upload' });
+        if(typeof showToast==='function')showToast('Uploaded '+f.name,'success');
       }catch(e){
-        if(typeof showToast==='function')showToast('Upload error','error');
+        if(typeof showToast==='function')showToast(e.detail||'Upload failed','error');
       }
     }
     // Refresh evidence + checklist
@@ -3254,15 +3247,10 @@
     fd.append('file',f);
     if(expiryVal)fd.append('expires_at',expiryVal);
     try{
-      var resp=await fetch('/grid/api/evidence/'+cid+'/replace/'+eid,{method:'POST',body:fd});
-      if(resp.ok){
-        if(typeof showToast==='function')showToast('New version uploaded','success');
-      }else{
-        var err=await resp.json().catch(function(){return {};});
-        if(typeof showToast==='function')showToast(err.detail||'Replace failed','error');
-      }
+      await ApiClient.request('/grid/api/evidence/'+cid+'/replace/'+eid, { method: 'POST', body: fd, actionId: 'grid.evidence.replace' });
+      if(typeof showToast==='function')showToast('New version uploaded','success');
     }catch(e){
-      if(typeof showToast==='function')showToast('Replace error','error');
+      if(typeof showToast==='function')showToast(e.detail||'Replace failed','error');
     }
     var ctrl=await api('/grid/api/controls/'+cid);
     if(ctrl){
