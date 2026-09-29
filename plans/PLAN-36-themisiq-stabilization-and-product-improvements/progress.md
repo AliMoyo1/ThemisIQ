@@ -1,5 +1,29 @@
 # PLAN-36 progress ledger
 
+## 2026-09-29 — webhook test fixture socket-race correction
+
+A follow-up review identified the concrete cause of the intermittent failures in
+`tests/test_webhook_test_endpoint.py` that earlier entries below had attributed
+to generic localhost timing. The local `BaseHTTPRequestHandler` returned its
+response without reading the POST request body. Its default HTTP/1.0 behavior
+then closed the socket with unread inbound data, which can produce a Windows
+connection reset and surface through httpx as `ConnectionAbortedError:
+[WinError 10053]`. This is a defect in the test fixture, not in the production
+webhook delivery path.
+
+The handler now drains exactly the declared `Content-Length` before sending
+either its 200 or 500 response. The earlier T06/T07 ledger entries that recorded
+the symptoms are corrected below to point to this diagnosis instead of treating
+the failures as an unexplained transport hiccup.
+
+Verification: five pre-fix repetitions happened to pass locally, which did not
+disprove the reported intermittent race; the review evidence reproduced the
+failure in two of three isolated runs and captured the exact Windows exception.
+After the fix, the complete five-test endpoint file passed ten consecutive
+process-isolated runs (50 test executions). The full backend suite then passed
+with its ten expected PostgreSQL skips and only the existing openpyxl
+deprecation warnings.
+
 ## 2026-09-28 — follow-up fixes after review of 8086c46
 
 A second review of commit 8086c46 found three implementation gaps and one
@@ -277,7 +301,7 @@ Verification commands and results:
 6. `pytest tests/ui/test_axe_acceptance_routes.py -q` after the structural/keyboard fixes but before any color change -- **0 failures, 5 xfail** (down from the session-1 baseline of 11 routes with at least one finding), confirming `select-name`/`label` were fully resolved independent of the (larger, separately-decided) color-contrast question.
 7. `pytest tests/ui/test_axe_acceptance_routes.py -q` again after every color fix below -- **0 failures, 0 xfail.** All 21 acceptance routes now pass clean.
 8. Full browser suite, `pytest tests/ui -q`, run three times across this session (after the structural/keyboard fixes; again after the color fixes) -- all three clean, 0 failures.
-9. Full backend suite, `pytest tests --ignore=tests/ui -q`, run twice (same checkpoints). First run clean. Second run (after the color fixes): **one failure**, `test_webhook_test_endpoint.py::test_test_endpoint_reports_real_failure_never_fake_success` (`response_code==0` instead of `500`). This session touched zero Python files, so it cannot be a regression from anything in this entry -- re-ran the same test in isolation 5 times immediately after: 5/5 passed, confirming non-deterministic-under-full-suite-load rather than a real break, and matching the exact flake class T06 session 1c already documented for a *different* test in this same file ("send_test_ping's real HTTP call to its local test server has no retry by design... a transient hiccup against 127.0.0.1 under load surfaces as a hard failure"). Not investigated further, for the same reason T06 gave: pre-existing T05-era test infrastructure timing, not a production code path, and not touched by this session.
+9. Full backend suite, `pytest tests --ignore=tests/ui -q`, run twice (same checkpoints). First run clean. Second run (after the color fixes) had one failure in `test_webhook_test_endpoint.py::test_test_endpoint_reports_real_failure_never_fake_success` (`response_code==0` instead of `500`). Five immediate isolated reruns passed, so this entry originally classified it as a generic localhost timing failure. The 2026-09-29 follow-up above established the concrete test-fixture cause: the local HTTP handler did not consume the POST body before closing its HTTP/1.0 connection, allowing an intermittent Windows reset. The fixture now drains the request body before responding.
 10. `python -m compileall -q oneforall` -- exit 0 (this session touched no Python).
 11. `git fetch origin --prune` + `git rev-parse origin/master` -- matches local HEAD (`2b98cc4...`) exactly; no reconciliation needed at session start.
 
@@ -362,7 +386,7 @@ Verification commands and results:
 
 1. `pytest tests/ui/test_grid_migration_smoke.py tests/ui/test_task_board_and_my_dashboard_migration.py tests/ui/test_command_centre_migration.py -v` -- 8 passed.
 2. `pytest tests/ui/test_api_client.py -v` -- 16 passed (15 from earlier sessions + the new blob test).
-3. Full backend suite, `pytest tests --ignore=tests/ui -q` -- **one failure, in pre-existing T05 test infrastructure this session's changes never touch**: `tests/test_webhook_test_endpoint.py::test_test_endpoint_is_rate_limited_per_actor_and_webhook`, a 502 where 200 was expected. Re-ran in isolation 7 times total: 6 passed, 1 failed -- genuinely non-deterministic (not a full-suite-only condition like the other two documented flakes), most likely because `send_test_ping`'s real HTTP call to its local test server has no retry by design (an interactive Test click needs a fast answer, not backoff), so any transient hiccup against `127.0.0.1` under load surfaces as a hard failure with nothing to absorb it. This is test-infrastructure timing, not a production code path -- the actual SSRF/webhook-test logic it's exercising is separately proven correct via deterministic, mocked-DNS tests that don't depend on real network timing. Not investigated further given it's pre-existing T05 test code untouched by any change in this entire T06 session; flagged here as a third flake class for whoever next touches that test file or picks up T08's "no unexplained flakes" gate.
+3. Full backend suite, `pytest tests --ignore=tests/ui -q` -- one failure in `tests/test_webhook_test_endpoint.py::test_test_endpoint_is_rate_limited_per_actor_and_webhook`, a 502 where 200 was expected. Six of seven isolated reruns passed, so this entry originally left it as unexplained local-server timing. The 2026-09-29 follow-up above found and fixed the fixture bug: its HTTP/1.0 handler closed the connection without first consuming the POST body, intermittently causing a Windows connection reset. Production webhook code was not implicated.
 4. Full browser suite, `pytest tests/ui -q` -- clean, 0 failures, exit 0.
 5. Repo-wide raw-`fetch(` census after this pass: 34 files still contain at least one `fetch(` call. Spot-checked the list: files already migrated this session appear only for their deliberate quiet-background-read carve-outs (documented per-file above); ARIA's other 8 templates (`ai_generator`, `ask`, `base`, `dashboard`, `framework`, `mapping`, `risks`, `templates` -- `documents.html` is migrated) and a handful of lower-traffic admin/reporting pages (`admin_api_keys`, `admin_frameworks`, `admin_logs`, `admin_security`, `admin_users`, `analytics`, `calendar`, `people_directory`, `reports`, `risk_register`, `timeline`, `vendor_directory`, `governance/index.html`, `_platform_trainer.html`) were never in F08's named list and are not covered by this pass.
 6. Em-dash sweep on every file this pass touched, checked around each `PLAN-36 T06` marker -- zero matches, except the two Command Centre strings named above that this pass rewrote anyway and fixed as part of that same edit.

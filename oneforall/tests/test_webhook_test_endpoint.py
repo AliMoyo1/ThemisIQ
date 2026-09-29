@@ -82,6 +82,7 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", "0")))
         if self.path == "/fail":
             self.send_response(500)
             self.end_headers()
