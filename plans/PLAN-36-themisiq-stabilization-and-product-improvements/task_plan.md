@@ -754,20 +754,20 @@ Canonical states:
 
 Implementation tasks:
 
-- [ ] Define a server-returned capability-state object with safe reason code, user-facing message key, optional remediation route, and retryable flag.
-- [ ] Use capability decorators/feature flags/configuration/readiness as authoritative inputs.
-- [ ] Do not reveal the existence of cross-tenant records or sensitive platform configuration through state reasons.
-- [ ] Apply first to ARIA authoring/preview/AI, ERM horizon scan, email, connectors, exports, and external conversion.
-- [ ] Render disabled actions only when seeing the reason helps the user; hide actions that would leak unauthorized capability.
-- [ ] Add analytics for state frequency without user content.
+- [x] Define a server-returned capability-state object with safe reason code, user-facing message key, optional remediation route, and retryable flag. New `core/capability_state.py`: `CapabilityState` dataclass + one factory per canonical state (`available`/`disabled_by_policy`/`not_configured`/`degraded`/`forbidden`/`unavailable_in_tier`). `forbidden()` structurally cannot accept a message or remediation route -- no such parameters exist on it at all, not just "nobody happens to pass one" -- specifically so a forbidden response can never hint at why a feature also isn't configured/enabled, per the plan's own "forbidden and not-configured are never conflated" acceptance line below.
+- [ ] Use capability decorators/feature flags/configuration/readiness as authoritative inputs. **Partial**: the one area wired so far (AI) reads `core/ai_client.is_configured()` directly, the same authoritative check every existing ad-hoc caller already used.
+- [x] Do not reveal the existence of cross-tenant records or sensitive platform configuration through state reasons. Enforced structurally for `forbidden()` (see above); the other five factories accept a message but nothing wired so far passes anything sensitive through one.
+- [ ] Apply first to ARIA authoring/preview/AI, ERM horizon scan, email, connectors, exports, and external conversion. **Partial**: only AI is wired (`core/ai_client.get_capability_state()`, exposed at `GET /api/capability-state/ai`). ERM horizon scan, email, connectors, exports, and external conversion (LibreOffice) are not yet wired -- each still has its own ad-hoc `is_configured()`-style check and message string, named here rather than silently left inconsistent.
+- [ ] Render disabled actions only when seeing the reason helps the user; hide actions that would leak unauthorized capability. Not started -- no frontend yet consumes the new endpoint; P02's diagnostics page is the first planned consumer.
+- [ ] Add analytics for state frequency without user content. Not started.
 
 Acceptance:
 
-- each state has API and browser tests;
-- forbidden and not-configured are never conflated;
-- transient outage provides safe retry guidance;
-- feature-disabled paths cannot be bypassed by direct API calls;
-- wording is consistent across modules.
+- [ ] each state has API and browser tests -- **partial**: all 6 states have unit tests (`tests/test_capability_state.py`) and the one wired real endpoint has both an API test (unauthenticated redirect + authenticated shape) and is reachable in a real browser via the harness, but only 2 of the 6 states (`available`, `not_configured`) are exercised through that real endpoint so far -- the others only exist as direct factory-function tests.
+- [x] forbidden and not-configured are never conflated -- enforced structurally (see above), not just by convention; red/green-proved via `test_forbidden_signature_has_no_message_parameter`.
+- [x] transient outage provides safe retry guidance -- `degraded()` is the only factory with `retryable=True`; every other state defaults to `False`, proved by `test_only_degraded_is_retryable`.
+- [ ] feature-disabled paths cannot be bypassed by direct API calls -- N/A yet for the one wired area (AI): the new endpoint is a read-only status report, not a gate in front of a mutation, so there is nothing yet to bypass. This becomes a real check once a capability-gated route (e.g. an AI-suggest endpoint) is refactored to consult this state before acting, which has not happened yet.
+- [ ] wording is consistent across modules -- not yet meaningfully testable with only one area wired.
 
 ## 7. Verification commands and evidence requirements
 

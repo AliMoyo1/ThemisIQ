@@ -437,8 +437,8 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
                 <img src="/static/img/themisiq-logo-clear.png"
                      alt="ThemisIQ"
                      id="tiq-logo-img"
-                     onload="document.getElementById('tiq-text-area').style.display='none'"
-                     onerror="this.style.display='none';document.getElementById('tiq-svg-fallback').style.display='block'">
+                     onload="var ta=document.getElementById('tiq-text-area'); if(ta) ta.style.display='none'"
+                     onerror="this.style.display='none'; var fb=document.getElementById('tiq-svg-fallback'); if(fb) fb.style.display='block'">
               </picture>
               <!-- SVG fallback shown only if PNG not yet saved -->
               <svg id="tiq-svg-fallback" viewBox="0 0 220 190" fill="none" xmlns="http://www.w3.org/2000/svg"

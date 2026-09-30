@@ -91,6 +91,27 @@ def is_configured() -> bool:
     return False
 
 
+def get_capability_state():
+    """P09 (task_plan.md): the AI capability state, in the shared
+    core/capability_state.py vocabulary -- one truthful answer for every
+    caller (ARIA generator, BCM/Sentinel/Evidence AI-suggest, ERM horizon
+    scan, etc.) instead of each one inventing its own "AI not configured"
+    string. Never returns AVAILABLE by pinging the real provider -- that
+    would cost a real API call for a status check; this reports whether the
+    key is present, not whether the provider is currently reachable
+    (a real call failing at use time is DEGRADED territory, handled by
+    each caller's own existing error handling, not this function)."""
+    from core.capability_state import available, not_configured
+
+    if is_configured():
+        return available()
+    return not_configured(
+        reason_code="ai_provider_key_missing",
+        message=f"AI features are not configured (provider: {_provider()}).",
+        remediation_route="/admin",
+    )
+
+
 def provider_name() -> str:
     """Return a human-readable name for the current provider."""
     return {

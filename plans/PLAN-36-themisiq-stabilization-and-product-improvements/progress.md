@@ -1,5 +1,78 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 P09 session 1 — capability-state vocabulary, first area wired (AI)
+
+Outcome: worked P09 before P02 despite the plan's own numeric ordering,
+because P02's own "Dependencies" line names "P09 status vocabulary"
+explicitly -- building P02 first would have meant inventing an ad-hoc state
+shape P02 would likely need reworking once P09 landed. P09 itself has no
+separate "Discovery gate" section in task_plan.md (unlike P01/P02/P03) --
+its "Canonical states" are already fully enumerated in the plan document,
+so this went straight to implementation rather than needing another
+AskUserQuestion round.
+
+**New `core/capability_state.py`**: `CapabilityState` (frozen dataclass:
+`state`, `reason_code`, `message`, `remediation_route`, `retryable`) plus
+one factory per canonical state. The one deliberate asymmetry: `forbidden()`
+takes only `reason_code` -- no `message`/`remediation_route` parameters
+exist on it at all, structurally, so a forbidden response can never hint at
+*why* a feature is also unconfigured/disabled to a caller who isn't
+entitled to know it exists (task_plan.md P09's own "forbidden and
+not-configured are never conflated" acceptance line, and the more general
+"do not reveal ... through state reasons" rule). `degraded()` is the only
+factory defaulting `retryable=True`.
+
+**First wired area: AI** (one of P09's own named first areas -- "ARIA
+authoring/preview/AI"). `core/ai_client.py` gained `get_capability_state()`,
+reading the same `is_configured()`/`_provider()` every existing ad-hoc
+"AI not configured" check across evidence/BCM/Sentinel/ARIA already uses,
+now returning the shared vocabulary instead of a one-off string. New
+read-only `GET /api/capability-state/ai`
+(`modules/launcher/routes_capability_state.py`, a deliberately new, small
+file rather than added to `routes_platform.py`'s already-oversized 2,100+
+lines, matching T10's own file-size concern rather than adding to it while
+implementing a different task). ERM horizon scan, email, connectors,
+exports, and external conversion (LibreOffice) are named in task_plan.md as
+still using their own ad-hoc checks -- not wired this session.
+
+**Tests**: `tests/test_capability_state.py` (8 tests covering all 6
+factories' shapes, the retryable-only-for-degraded invariant, the
+unknown-state rejection, and `get_capability_state()`'s two real branches).
+`tests/ui/test_capability_state_routes.py` (2 tests: unauthenticated
+redirect, authenticated response shape via the real harness).
+
+Red/green proof, two mechanisms: (1) temporarily gave `forbidden()` a
+`message: str = ""` parameter -- `test_forbidden_signature_has_no_message_parameter`
+FAILED as expected (this is a structural test, not a behavioral one, so the
+proof is specifically that the signature-inspection catches the parameter
+existing at all, before anyone even calls it with a real value). (2)
+temporarily short-circuited `get_capability_state()`'s `is_configured()`
+branch to never fire -- `test_ai_capability_state_reports_available_when_key_present`
+FAILED with `not_configured` instead of `available`. Both restored; `grep
+-n "TEMP red-proof"` confirmed nothing left over; all 8 unit tests and both
+route tests green again.
+
+Verification commands (all from `oneforall/`):
+
+1. `..\.venv\Scripts\python.exe -m pytest tests/test_capability_state.py -v` -- 8 passed (2 independently red-proved above).
+2. `..\.venv\Scripts\python.exe -m pytest tests/ui/test_capability_state_routes.py -v` -- 2 passed.
+3. Full backend suite (`pytest tests --ignore=tests/ui -q`) -- `PYTEST_EXIT:0`, zero `FAILED` lines. Full browser suite (`pytest tests/ui -q`) -- one `ERROR` on its first run: `test_200_percent_zoom.py::test_route_has_no_horizontal_overflow_at_200_percent_zoom[/-super_admin]` tripped the T08 session 2 default-fail console-error gate with `Cannot read properties of null (reading 'style') at HTMLImageElement.onload (.../login:441)`. Not caused by this session's P09 changes (nothing wired here touches `login.html` or any image-loading JS) and not reproducible: 5 immediate fresh reruns of that exact test all passed clean. Root-caused anyway rather than dismissed as "just flaky": `modules/launcher/templates/login.html:440-441`'s `onload`/`onerror` handlers called `document.getElementById(...).style...` with no null check -- if the element genuinely isn't present at the moment the image finishes loading (a real, if rare, DOM-timing race, e.g. the image loading faster than the rest of the page in some run), the whole handler throws instead of no-oping. Fixed both handlers to check for the element first. Not red/green-proved with a forced-missing-element test (judged disproportionate effort for a cosmetic, non-security, cannot-reliably-reproduce issue) -- confirmed instead via `tests/test_template_compilation.py` (still compiles) and `tests/ui/test_harness_smoke.py` (still passes, including its own login flow). This fix is bundled into this session's commit since it was found while verifying this session's own work, not filed as a separate finding. Full browser suite re-run once more after the fix -- `PYTEST_EXIT:0`, zero `FAILED`/`ERROR` lines.
+
+Explicitly unverified/skipped in this session:
+
+- 5 of P09's own named "apply first" areas (ERM horizon scan, email, connectors, exports, external conversion) -- not wired.
+- No frontend renders any disabled/degraded/forbidden state using this vocabulary yet -- the new endpoint has no consumer besides its own test.
+- Analytics for state frequency -- not started.
+- "Feature-disabled paths cannot be bypassed by direct API calls" -- not yet meaningfully testable; the one wired endpoint is a status report, not a gate in front of a mutation.
+- No commit or push has been made for this P09 work yet.
+- No production host or data was touched. No commit, push, migration, service restart, or deployment was performed.
+
+## 2026-09-30 — P01 first slice committed and pushed (user-authorized)
+
+Commit `db7b712` on `master`, pushed to `origin/master` (`c6b488a..db7b712`).
+Covers the full P01 first-slice work below. `git diff --check` passed with
+zero whitespace errors before staging.
+
 ## 2026-09-30 P01 session 1 — My Work action centre, first slice
 
 Outcome: P01's discovery gate is fully answered (recorded in task_plan.md
