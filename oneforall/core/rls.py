@@ -74,6 +74,21 @@ _STMTS = [
     "ALTER TABLE public.readiness_findings FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation ON public.readiness_findings",
     f"CREATE POLICY tenant_isolation ON public.readiness_findings USING {_USING}",
+
+    # evidence_campaigns / evidence_requests (PLAN-36 P05) - defense-in-depth
+    # alongside modules/evidence_campaigns/data_service.py's own org_id
+    # filter. evidence_request_events has no org_id of its own (scoped via
+    # its parent request_id) so it is not listed here, matching this
+    # codebase's existing pattern of only policing tables with a direct
+    # org_id column (e.g. evidence_links is not separately policed either).
+    "ALTER TABLE public.evidence_campaigns ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_campaigns FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_campaigns",
+    f"CREATE POLICY tenant_isolation ON public.evidence_campaigns USING {_USING}",
+    "ALTER TABLE public.evidence_requests ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_requests FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_requests",
+    f"CREATE POLICY tenant_isolation ON public.evidence_requests USING {_USING}",
 ]
 
 
@@ -95,7 +110,8 @@ def apply_rls_policies(db) -> None:
         _logger.info(
             "RLS policies applied to public.users, public.audit_log, "
             "public.licenses, public.webhooks, public.evidence_items, "
-            "public.readiness_findings"
+            "public.readiness_findings, public.evidence_campaigns, "
+            "public.evidence_requests"
         )
     except Exception as exc:
         _logger.error("RLS policy application failed (non-fatal): %s", exc)

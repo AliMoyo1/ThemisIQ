@@ -218,6 +218,16 @@ CAPABILITIES: dict[str, set[str]] = {
     # ── Evidence Vault capabilities ─────────────────────────────
     "evidence.delete":            {SUPER_ADMIN, COMPLIANCE_MGR},
 
+    # ── PLAN-36 P05: evidence collection campaigns ───────────────
+    # Submitting/starting-review on one's own assigned/reviewer-of request
+    # is an object-level check (are you this request's assignee/reviewer),
+    # not a role capability -- matching aria.policy's own
+    # _draft_can_edit_document pattern. These two gate the management
+    # actions: creating/closing campaigns and requests, and deciding
+    # (accept/return) a submission.
+    "evidence.campaign.manage":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+    "evidence.request.review":    {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD},
+
     # ── Sentinel capabilities ────────────────────────────────────
     "sentinel.ropa.manage":           {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.dpia.manage":           {SUPER_ADMIN, DPO, PRIVACY_ANALYST},

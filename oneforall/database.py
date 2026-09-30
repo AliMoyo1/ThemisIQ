@@ -4097,6 +4097,82 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_readiness_findings_identity
 CREATE INDEX IF NOT EXISTS idx_readiness_findings_scope
     ON readiness_findings(org_id, status, severity);
 
+-- ── PLAN-36 P05: Evidence collection campaigns ─────────────────────────────
+-- Confirmed by direct research that GRID's grid_evidence_items/files (hard
+-- FK'd to grid_controls, no module/entity_type polymorphism, no org_id, no
+-- request-before-a-file-exists phase) cannot be generalized to this --
+-- these are new tables, not a rename of something existing. evidence_id
+-- below points at the *canonical* Evidence Vault row once submitted; this
+-- table never stores a file itself (never a second file store).
+CREATE TABLE IF NOT EXISTS evidence_campaigns (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                 INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id       INTEGER REFERENCES business_units(id),
+    name                   TEXT NOT NULL,
+    description            TEXT DEFAULT '',
+    owner_user_id          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    start_date             TEXT,
+    due_date               TEXT NOT NULL,
+    status                 TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','active','closed')),
+    recurrence             TEXT NOT NULL DEFAULT 'none' CHECK(recurrence IN ('none','monthly','quarterly','annual')),
+    recurrence_source_id   INTEGER REFERENCES evidence_campaigns(id) ON DELETE SET NULL,
+    closed_at              TEXT,
+    closed_by              INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    close_override_reason  TEXT,
+    created_by             INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at             TEXT NOT NULL,
+    updated_at             TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_campaigns_org ON evidence_campaigns(org_id, status);
+
+-- Polymorphic like evidence_links (module/entity_type/entity_id), not
+-- hard-wired to one module's own record table -- a request can be "submit
+-- evidence for this GRID control" or "this BCM plan" or "this ARIA
+-- control" without a schema change.
+CREATE TABLE IF NOT EXISTS evidence_requests (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id          INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id INTEGER REFERENCES business_units(id),
+    campaign_id     INTEGER REFERENCES evidence_campaigns(id) ON DELETE SET NULL,
+    module          TEXT NOT NULL,
+    entity_type     TEXT NOT NULL,
+    entity_id       TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    instructions    TEXT DEFAULT '',
+    assignee_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewer_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    due_date        TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'requested'
+                    CHECK(status IN ('requested','submitted','in_review','accepted','returned','overdue','cancelled')),
+    evidence_id     INTEGER REFERENCES evidence_items(id) ON DELETE SET NULL,
+    submitted_at    TEXT,
+    reviewed_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at     TEXT,
+    review_notes    TEXT DEFAULT '',
+    lock_version    INTEGER NOT NULL DEFAULT 1,
+    created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_requests_campaign ON evidence_requests(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_requests_org_status ON evidence_requests(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_evidence_requests_assignee ON evidence_requests(assignee_id, status);
+CREATE INDEX IF NOT EXISTS idx_evidence_requests_reviewer ON evidence_requests(reviewer_id, status);
+
+-- Append-only, same shape as erm_risk_workflow_history (the codebase's own
+-- established precedent for a dense per-transition history alongside a
+-- mutable current-state row -- audit_log stays for terminal/coarse events).
+CREATE TABLE IF NOT EXISTS evidence_request_events (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id   INTEGER NOT NULL REFERENCES evidence_requests(id) ON DELETE CASCADE,
+    from_status  TEXT,
+    to_status    TEXT NOT NULL,
+    changed_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    notes        TEXT,
+    changed_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_request_events_request ON evidence_request_events(request_id);
+
 -- ── Sentinel: AI Impact Assessments (AIIA) ────────────────────────────────
 CREATE TABLE IF NOT EXISTS sentinel_aiia (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,

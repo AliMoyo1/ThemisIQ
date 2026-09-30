@@ -1,5 +1,131 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 P05 session 1 — evidence collection campaigns
+
+User's explicit scope decision: "Full feature, all parts" (campaigns +
+requests + full 7-state machine + reminders + coverage summary +
+task_board/calendar feed + idempotent recurrence in one slice, not a
+smaller requests-only slice first).
+
+Discovery delegated to a research agent given the breadth (evidence
+items/links, GRID's evidence/approval/reminder mechanisms, notifications,
+task_board, calendar_events, audit_log, and existing idempotent-reminder
+patterns). Verdict, confirmed by reading the code directly: **GRID's
+evidence mechanism cannot be generalized** -- `grid_evidence_items`/
+`grid_evidence_files` are hard FK'd to `grid_controls` (no
+module/entity_type polymorphism, unlike `evidence_links`), carry no
+`org_id` at all, and have no request-before-a-file-exists phase (`grid_approvals`
+only starts once a file already exists). Building on GRID would also run
+backwards against GRID's own `sync_grid_evidence_to_vault()`, which
+already copies GRID's files *into* Evidence Vault, and would recreate
+exactly the "second file store" this task explicitly warns against. New
+tables, matching task_plan.md's own fallback design, were the right call.
+
+Reuse identified and applied rather than reinventing:
+
+- `core/reminder_scheduler.py`'s existing 5-minute `email_reminders` drain
+  job is the delivery mechanism for the T-3-day reminder -- no new
+  per-module cron loop for sending mail. Critical, easy-to-get-wrong
+  detail confirmed by reading `_process_due_reminders` directly:
+  `remind_at` is compared as a plain string against
+  `strftime('%Y-%m-%d %H:%M:%S')`, not full ISO8601 -- an ISO 'T'-separated
+  timestamp would not reliably compare correctly against it, so
+  `_remind_at_str()` formats to match the real comparator exactly.
+- `notifications` (raw INSERT, same convention every module already uses),
+  `task_board`/`calendar_events` (polymorphic module/entity_type/entity_id
+  tagging, same convention `modules/evidence/scheduler.py` already uses).
+- `erm_risk_workflow_history`'s shape is the direct precedent for
+  `evidence_request_events` (append-only per-transition history alongside
+  a mutable current-state row; `audit_log` stays for coarse/terminal
+  events only, matching ERM's own division of labor).
+- `_scoped_evidence_item` (modules/evidence/routes.py) is reused directly
+  for resolving a submitted `evidence_id` -- never a second copy of that
+  check.
+
+Files created:
+
+- `oneforall/modules/evidence_campaigns/__init__.py`, `data_service.py`
+  (state machine, campaign coverage/close, scheduler-facing overdue/
+  reminder/recurrence functions), `scheduler.py` (daily 04:00 UTC sweep,
+  same `try_acquire_scheduler_lock` cross-process lease pattern as ARIA's
+  retention sweep and readiness's scan sweep), `routes.py` (page + 12 API
+  routes), `templates/index.html` (campaigns list with coverage, My
+  Requests / For My Review tabs, submit/start-review/decide actions).
+- `oneforall/tests/test_evidence_campaigns.py` -- 20 tests: object-level
+  authorization (only the real assignee can submit, only the real
+  reviewer can decide), self-accept prevention (with a red/green proof),
+  cross-org isolation, resubmission after return, campaign close
+  refusal/force-with-audit, coverage counts, and idempotency of overdue
+  marking / reminders / recurring generation.
+- `oneforall/tests/ui/test_evidence_campaigns_routes.py` -- 4 HTTP-level
+  tests: auth redirect, capability-gate denial, page render, and a full
+  create -> submit -> attempted-self-decide (403) -> start-review ->
+  accept lifecycle using two distinct real personas (compliance_manager,
+  employee) through the real HTTP layer.
+
+Files modified:
+
+- `oneforall/database.py` -- three new tables: `evidence_campaigns`,
+  `evidence_requests` (polymorphic module/entity_type/entity_id, like
+  `evidence_links`), `evidence_request_events` (append-only).
+- `oneforall/core/rls.py` -- RLS policies for `evidence_campaigns`/
+  `evidence_requests` (both carry a real `org_id`); `evidence_request_events`
+  deliberately not separately policed (no `org_id` of its own, scoped via
+  its parent `request_id`), matching how `evidence_links` is not
+  separately policed either.
+- `oneforall/core/rbac.py` -- two new capabilities: `evidence.campaign.manage`
+  (create/close campaigns, create/cancel requests) and
+  `evidence.request.review` (decide accept/return). Submitting evidence
+  and starting a review require neither -- object-level checks only,
+  matching `aria.policy`'s own `_draft_can_edit_document` pattern, since
+  fulfilling your own assignment is not a management action.
+- `oneforall/main.py` -- registered the router and scheduler start/stop hooks.
+
+Red/green proof performed (temporarily broke the fix, confirmed the test
+failed for the expected reason, restored, confirmed `grep -n "TEMP
+red-proof"` found nothing and the suite was green again):
+
+- `test_assignee_cannot_self_accept_even_if_somehow_also_the_named_reviewer`:
+  temporarily short-circuited the self-accept check with `if False and ...`
+  -- test failed (an assignee-who-is-also-the-named-reviewer successfully
+  accepted their own submission). Restored; test passed.
+
+Verification commands and results (from `oneforall/`, `../.venv/Scripts/python.exe`):
+
+1. `pytest tests/test_evidence_campaigns.py tests/ui/test_evidence_campaigns_routes.py -v`
+   -- 24 passed.
+2. Route-registration check: 12 new `/evidence-campaigns*` routes present;
+   total 882 routes (up from 870 after P04).
+3. Full backend suite (`pytest tests/ -x --ignore=tests/ui -q`) -- clean:
+   progress bar reached 100% with zero failure/error markers, exit 0. Only
+   non-pass markers were the previously-documented PostgreSQL-gate skips.
+4. Full UI (Playwright) suite (`pytest tests/ui -q`) -- clean: 269 total,
+   267 passed, 2 skipped, 0 failed/errored, exit 0.
+
+Explicitly unverified/skipped this session:
+
+- P01's `my_work_service.py` not yet updated to surface evidence-campaign
+  requests directly (they are visible today via the generic Task Board
+  feed, which `create_request` already populates) -- a natural,
+  low-risk follow-up given P01's own registry-style source list.
+- No dedicated browser (Playwright) test for this module's own page --
+  covered at the HTTP level (a full lifecycle through the real routes)
+  and the service level (with a red/green proof), but not a real-browser
+  click-through of templates/index.html specifically.
+- The template's evidence picker is a plain prompt()-based search/select
+  flow rather than a polished modal -- functional, not refined; a
+  reasonable UI-polish follow-up, not a correctness gap.
+- Not committed; pending user authorization per this session's established
+  per-batch pattern.
+
+## 2026-09-30 — P04 committed and pushed (user-authorized)
+
+Commit `c819bb2` on `master`, pushed to `origin/master` (`2017650..c819bb2`).
+16 files changed, 1773 insertions(+), 11 deletions(-). Covers the full P04
+session below, verified under the corrected `.venv` interpreter (full
+backend suite 100% clean; full UI/Playwright suite 263/265 passed, 2
+legitimate skips, 0 failed).
+
 ## 2026-09-30 P04 session 1 — data-readiness and integrity centre
 
 User's explicit scope decisions: "All 8 rule types, full features" (not a

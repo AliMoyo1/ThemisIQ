@@ -629,8 +629,8 @@ Dependencies: T02, T06-T08, P01.
 
 Discovery gate:
 
-- [ ] Map existing evidence items, links, verification, expiry, GRID evidence requests/files, tasks, notifications, and audit history.
-- [ ] Decide whether GRID request records can be generalized or whether a new campaign/request layer is needed; document why.
+- [x] Map existing evidence items, links, verification, expiry, GRID evidence requests/files, tasks, notifications, and audit history. Delegated to a research agent given the breadth; full citations in progress.md's P05 session entry.
+- [x] Decide whether GRID request records can be generalized or whether a new campaign/request layer is needed; document why. **New layer needed, confirmed by reading the code.** `grid_evidence_items`/`grid_evidence_files` are hard FK'd to `grid_controls` (no module/entity_type polymorphism like `evidence_links` has -- cannot represent "ask the BCM plan owner" or "ask the ARIA control owner"), carry no `org_id` at all (BU-scoped only), and have no request-before-a-file-exists phase (`grid_approvals` only starts after a file already exists) or due-date/reminder concept beyond a single mutable `grid_controls.assignee_id`/`due_date` pair that would be overwritten by a second concurrent or recurring request. Building on GRID would also run backwards against GRID's own existing `sync_grid_evidence_to_vault()`, which already copies GRID's files *into* Evidence Vault -- and would recreate exactly the "second file store" this task explicitly warns against.
 
 If new tables are required, minimum model:
 
@@ -640,19 +640,19 @@ If new tables are required, minimum model:
 
 Implementation tasks:
 
-- [ ] Define a state machine and idempotent reminder/escalation behavior.
-- [ ] Reuse Evidence Vault uploads and links; never create an ungoverned second file store.
-- [ ] Add campaign coverage summary: requested, submitted, accepted, returned, overdue, and uncovered requirements.
-- [ ] Feed actionable requests into P01 and Calendar without duplicating source ownership.
-- [ ] Preserve chain of custody, verifier identity, and file authorization.
+- [x] Define a state machine and idempotent reminder/escalation behavior. `requested -> submitted -> in_review -> accepted` (terminal) / `in_review -> returned -> submitted` (resubmit) / any non-terminal `-> overdue` (scheduler, due date passed) `-> submitted` (late submission still allowed) / any non-terminal `-> cancelled` (terminal, explicit reason, audited). T-3-day reminder is idempotent by construction (checks for an existing un-sent `email_reminders` row with the exact deterministic title before inserting another); overdue notification fires exactly once per lateness episode as a natural side effect of the one-time state transition itself, no separate dedup table needed for that one. Both tested directly (repeated scheduler calls produce zero duplicate rows on the second pass).
+- [x] Reuse Evidence Vault uploads and links; never create an ungoverned second file store. `evidence_requests.evidence_id` points at the canonical `evidence_items` row; `submit_request` resolves it through the exact same `_scoped_evidence_item` fail-closed helper `modules/evidence/routes.py` itself uses (not a second copy of that check) -- tested directly that an evidence id belonging to another org is rejected even though the id exists.
+- [x] Add campaign coverage summary: requested, submitted, accepted, returned, overdue, and uncovered requirements. `campaign_coverage()` returns all named counts plus `uncovered` (everything not yet accepted or cancelled) and `total`.
+- [x] Feed actionable requests into P01 and Calendar without duplicating source ownership. `create_request` inserts one `task_board` row (`module='evidence_campaigns'`, same polymorphic tagging convention `modules/evidence/scheduler.py` already uses) and one `calendar_events` row per request -- `evidence_requests` stays the single source of truth for status; these are read-projections, not a second copy of ownership. P01's own `my_work_service.py` is not yet updated to surface these (see "not yet started" list); the task_board feed means they are at least visible through the platform's existing generic Task Board today.
+- [x] Preserve chain of custody, verifier identity, and file authorization. `reviewed_by`/`reviewed_at`/`review_notes` on the request row plus a full `evidence_request_events` append-only history (matching `erm_risk_workflow_history`'s established shape) record who did what and when; file authorization is unchanged and untouched -- Evidence Vault's own access control on `evidence_items` still applies in full, since this module never bypasses `_scoped_evidence_item`.
 
 Acceptance:
 
-- submitter cannot self-accept where separation is required;
-- files remain private and scoped;
-- reminder retries do not duplicate notifications/tasks;
-- campaign close cannot hide unresolved/returned requests without explicit override and audit;
-- recurring campaign generation is idempotent.
+- [x] submitter cannot self-accept where separation is required -- `decide_request` refuses when `assignee_id == actor.id`, checked directly (not inferred from role), with a red/green proof and an HTTP-level end-to-end test using two distinct real personas.
+- [x] files remain private and scoped -- no new file storage exists in this module at all; `_scoped_evidence_item` reuse means Evidence Vault's own privacy/scoping is the only access control that ever applies.
+- [x] reminder retries do not duplicate notifications/tasks -- `schedule_reminders` tested directly for idempotency across repeated calls (first call schedules one, second schedules zero); `task_board`/`calendar_events`/`notifications` rows are created exactly once, at request-creation time, never re-created by the scheduler.
+- [x] campaign close cannot hide unresolved/returned requests without explicit override and audit -- `close_campaign` refuses without `force`; with `force`, requires a reason and writes an `audit_log` row naming the unresolved count -- both branches tested directly.
+- [x] recurring campaign generation is idempotent -- `generate_recurring_campaigns` tested directly for idempotency across repeated calls, via `recurrence_source_id` (a campaign is only ever generated from a given source once).
 
 ### P06 — Saved views and permission-safe bulk actions
 
