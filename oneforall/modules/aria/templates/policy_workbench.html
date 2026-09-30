@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}ARIA: Policy Workbench{% endblock %}
+
+{% block breadcrumb %}
+<a href="/aria/documents" style="color:var(--accent);font-weight:700;text-decoration:none">ARIA</a>
+<span class="breadcrumb-sep">&#8250;</span>
+<span class="breadcrumb-current">Policy Workbench</span>
+{% endblock %}
+
+{% block head %}
+.wb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.wb-title{font-size:20px;font-weight:800;color:var(--text)}
+.wb-title span{font-weight:400;color:var(--muted);font-size:13px;display:block;margin-top:2px}
+.wb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:16px}
+.wb-card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);padding:16px 18px}
+.wb-card-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:10px}
+.wb-empty{font-size:13px;color:var(--muted)}
+.wb-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.wb-submit-section{background:var(--surface2);border-radius:var(--radius);padding:14px;border:1px solid var(--border);margin-bottom:16px}
+{% endblock %}
+
+{% block content %}
+<div class="wb-header">
+  <div class="wb-title">
+    Policy Workbench
+    <span id="wbDocLabel">Loading {{ doc_id }}…</span>
+  </div>
+  <a href="/aria/documents?open={{ doc_id }}" class="btn btn-ghost" style="font-size:12px;padding:6px 14px">Open in Document Register</a>
+</div>
+
+<div id="wbPublicationStatus"></div>
+<div id="wbSubmitSection" class="wb-submit-section" style="display:none">
+  <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Submit for Approval</div>
+  <div id="wbSubmitEmpty" class="aria-workflow-hint" style="display:none">No eligible approver is currently available.</div>
+  <div id="wbSubmitForm" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+    <div class="form-group" style="flex:1;min-width:160px;margin:0">
+      <label class="form-label">Approver</label>
+      <select id="wbApproverSelect"></select>
+    </div>
+    <div class="form-group" style="flex:1;min-width:160px;margin:0">
+      <label class="form-label">Note (optional)</label>
+      <input type="text" id="wbSubmitNote" maxlength="500">
+    </div>
+    <button class="btn btn-primary" style="font-size:12px;padding:7px 14px;white-space:nowrap" id="wbSubmitBtn">Submit for Approval</button>
+  </div>
+</div>
+<div id="wbApprovalSection" class="wb-submit-section" style="display:none">
+  <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Approval</div>
+  <div id="wbApprovalMeta" class="aria-version-meta" style="margin-bottom:8px"></div>
+  <div id="wbApprovalBody"></div>
+</div>
+
+<div class="wb-grid">
+  <div class="wb-card">
+    <div class="wb-card-title">Current (Published)</div>
+    <div id="wbCurrentCard"><div class="wb-empty">Loading…</div></div>
+  </div>
+  <div class="wb-card">
+    <div class="wb-card-title">Working Draft</div>
+    <div id="wbDraftCard"><div class="wb-empty">Loading…</div></div>
+  </div>
+  <div class="wb-card">
+    <div class="wb-card-title">Candidate</div>
+    <div id="wbCandidateCard"><div class="wb-empty">Loading…</div></div>
+  </div>
+  <div class="wb-card">
+    <div class="wb-card-title">History</div>
+    <div id="wbHistoryCard"></div>
+  </div>
+</div>
+
+{# Same pinned/self-hosted libraries and load order documents.html uses --
+   aria_pdf_viewer.js requires window.pdfjsLib to already exist, and
+   aria_markdown.js requires marked/DOMPurify to already be loaded. #}
+<script src="/static/vendor/aria-policy/marked.umd.js"></script>
+<script src="/static/vendor/aria-policy/purify.min.js"></script>
+<script src="/static/js/aria_markdown.js?v=3"></script>
+<script type="module">
+  import * as pdfjsLib from '/static/vendor/aria-policy/pdfjs/pdf.min.mjs';
+  window.pdfjsLib = pdfjsLib;
+</script>
+<script src="/static/js/aria_pdf_viewer.js?v=1"></script>
+<script src="/static/js/aria_policy_workflow.js?v=4"></script>
+<script>
+(function () {
+  'use strict';
+  var DOC_ID = {{ doc_id | tojson }};
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function versionLabel(v) {
+    return 'v' + esc(v.version) + ' ' + window.AriaPolicyWorkflow.ui.stateBadge(v.state);
+  }
+
+  function renderCurrentCard(state) {
+    var el = document.getElementById('wbCurrentCard');
+    var v = state.current_version;
+    if (!v) {
+      el.innerHTML = '<div class="wb-empty">Not yet published.</div>';
+      return;
+    }
+    var approvedLine = v.approved_at
+      ? ('<div class="aria-version-meta">Approved ' + esc(v.approved_at.slice(0, 10)) + '</div>') : '';
+    el.innerHTML =
+      '<div class="wb-row"><strong>' + versionLabel(v) + '</strong></div>' +
+      approvedLine +
+      '<div class="wb-row"><a href="/aria/api/policy-versions/' + v.id + '/download">Download</a></div>';
+  }
+
+  function renderDraftCard(state, doc) {
+    var el = document.getElementById('wbDraftCard');
+    var d = state.draft;
+    if (!d) {
+      if (state.can_start_revision) {
+        el.innerHTML = '<button type="button" class="btn btn-primary" style="font-size:12px;padding:7px 14px" id="wbStartRevisionBtn">Start a revision</button>';
+        document.getElementById('wbStartRevisionBtn').onclick = function () {
+          window.AriaPolicyWorkflow.ui.startRevision(doc);
+        };
+      } else {
+        el.innerHTML = '<div class="wb-empty">No open draft. You do not have permission to start a revision of this document.</div>';
+      }
+      return;
+    }
+    var when = (d.updated_at || '').slice(0, 10);
+    el.innerHTML =
+      '<div class="wb-row">' + window.AriaPolicyWorkflow.ui.stateBadge(d.state) +
+      '<span class="aria-version-meta">updated ' + esc(when) + '</span></div>' +
+      (d.can_edit
+        ? '<div class="wb-row"><a href="/aria/ai-generator?draft=' + encodeURIComponent(d.id) + '">Continue editing &rarr;</a></div>'
+        : '<div class="wb-empty">Owned by another author.</div>');
+  }
+
+  function renderCandidateCard(state) {
+    var el = document.getElementById('wbCandidateCard');
+    var c = state.candidate;
+    if (!c) {
+      el.innerHTML = '<div class="wb-empty">No candidate version in progress.</div>';
+      return;
+    }
+    el.innerHTML = '<div class="wb-row"><strong>' + versionLabel(c) + '</strong></div>';
+  }
+
+  async function renderSubmitSection(state) {
+    var section = document.getElementById('wbSubmitSection');
+    var sv = state.submittable_version;
+    if (!sv || !sv.can_submit) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = '';
+    await window.AriaPolicyWorkflow.ui.initSubmitForApprovalForm(
+      document.getElementById('wbSubmitForm'), document.getElementById('wbApproverSelect'),
+      document.getElementById('wbSubmitNote'), document.getElementById('wbSubmitEmpty'),
+      document.getElementById('wbSubmitBtn'), sv,
+      function () { section.style.display = 'none'; loadWorkbench(); }
+    );
+  }
+
+  /** active_approval targets whichever version currently needs a decision
+   * -- current_version, for a brand-new document's first approval cycle
+   * (there is no separate candidate row yet in that case), or candidate,
+   * for a revision. Rendered in its own section rather than nested inside
+   * either card so it is never missed regardless of which slot it's on. */
+  function renderApprovalSection(state) {
+    var section = document.getElementById('wbApprovalSection');
+    var a = state.active_approval;
+    if (!a) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = '';
+    var onVersion = (state.candidate && state.candidate.id === a.policy_version_id)
+      ? state.candidate : state.current_version;
+    document.getElementById('wbApprovalMeta').textContent =
+      'v' + (onVersion ? onVersion.version : '?') + ' · ' + a.status +
+      (a.requested_at ? (', requested ' + a.requested_at.slice(0, 10)) : '');
+
+    var bodyEl = document.getElementById('wbApprovalBody');
+    bodyEl.innerHTML = '';
+    if (a.can_withdraw) {
+      var withdrawBtn = document.createElement('button');
+      withdrawBtn.type = 'button';
+      withdrawBtn.className = 'btn btn-ghost';
+      withdrawBtn.style.cssText = 'font-size:12px;padding:6px 14px';
+      withdrawBtn.textContent = 'Withdraw';
+      withdrawBtn.onclick = async function () {
+        var reason = window.prompt('Reason for withdrawing this submission:');
+        if (!reason || !reason.trim()) return;
+        var res = await window.AriaPolicyWorkflow.api.withdrawApproval(a.id, reason.trim(), a.lock_version);
+        if (res.ok) { loadWorkbench(); }
+        else if (window.showToast) { window.showToast((res.data.error && res.data.error.message) || 'Withdraw failed.', 'error'); }
+      };
+      bodyEl.appendChild(withdrawBtn);
+    }
+    if (a.can_decide) {
+      var decisionEl = document.createElement('div');
+      decisionEl.style.marginTop = '10px';
+      bodyEl.appendChild(decisionEl);
+      window.AriaPolicyWorkflow.ui.renderApprovalDecision(decisionEl, a, function () { loadWorkbench(); });
+    }
+  }
+
+  async function loadWorkbench() {
+    var res = await window.AriaPolicyWorkflow.api.getWorkbench(DOC_ID);
+    if (!res.ok) {
+      document.getElementById('wbDocLabel').textContent =
+        (res.data.error && res.data.error.message) || 'Could not load this document.';
+      return;
+    }
+    var doc = res.data.document;
+    document.getElementById('wbDocLabel').textContent = (doc.title || doc.doc_id) + ' · ' + doc.doc_id;
+
+    renderCurrentCard(res.data);
+    renderDraftCard(res.data, doc);
+    renderCandidateCard(res.data);
+    renderSubmitSection(res.data);
+    renderApprovalSection(res.data);
+    window.AriaPolicyWorkflow.ui.renderVersionHistory(document.getElementById('wbHistoryCard'), doc);
+    window.AriaPolicyWorkflow.ui.renderPublicationStatus(document.getElementById('wbPublicationStatus'), doc);
+  }
+
+  window.loadWorkbench = loadWorkbench;
+  loadWorkbench();
+})();
+</script>
+{% endblock %}

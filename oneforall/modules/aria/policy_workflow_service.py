@@ -899,6 +899,140 @@ def list_document_versions(db, actor: dict, doc_id: str) -> list[dict]:
     return [_version_to_public_dict(_row_to_dict(r)) for r in rows]
 
 
+def get_document_workbench_state(db, actor: dict, doc_id: str) -> dict:
+    """PLAN-36 P03: one federated read view of a document's whole lifecycle
+    (current published version, open working draft, candidate awaiting/mid
+    decision plus its approval, and history) for the policy workbench
+    screen. Pure aggregation over the existing tables/functions above --
+    no new table, no new workflow state, no new lifecycle rule (task_plan.md
+    P03 discovery gate: "do not create a second policy workflow, draft
+    table, version table, or publication queue"). Every `can_*` flag here
+    is a UI hint only, computed with the exact same helper the real mutating
+    endpoint itself uses (_draft_can_edit_document, can_decide) -- if a hint
+    is ever stale, the mutating call still enforces the real rule server-side."""
+    from modules.aria.policy_access import can_decide
+    from core.rbac import has_capability
+
+    doc_row = db.execute("SELECT * FROM aria_documents WHERE doc_id=%s", (doc_id,)).fetchone()
+    if not doc_row:
+        raise NotFoundError("Document not found.")
+    doc = dict(doc_row)
+    if not document_read_ok(actor, doc):
+        raise NotFoundError("Document not found.")
+
+    current_version = None
+    if doc.get("current_policy_version_id"):
+        row = db.execute(
+            "SELECT * FROM aria_policy_versions WHERE id=%s", (doc["current_policy_version_id"],)
+        ).fetchone()
+        if row:
+            current_version = _version_to_public_dict(_row_to_dict(row))
+
+    # At most one open draft per document (I09) -- may belong to someone
+    # else; only surfaced (and only ever editable) if this actor can.
+    draft = None
+    draft_row = db.execute(
+        "SELECT * FROM aria_policy_drafts WHERE source_document_id=%s "
+        "AND state IN ('editing','ready') ORDER BY updated_at DESC LIMIT 1",
+        (doc["id"],),
+    ).fetchone()
+    if draft_row:
+        draft_dict = _row_to_dict(draft_row)
+        if _draft_can_read(actor, draft_dict):
+            draft = draft_dict
+            draft["can_edit"] = _draft_can_edit(actor, draft_dict)
+
+    # At most one open candidate per document (I09): confirmed but not yet
+    # submitted ('draft'/'withdrawn'), or submitted and awaiting decision
+    # ('pending'). Excludes current_policy_version_id: a brand-new
+    # document's first-ever version is promoted to "current" immediately at
+    # confirm time, *before* it has been submitted for approval (see
+    # confirm_draft's promote_to_current), so it is never also its own
+    # separate "candidate" row -- that first version's own submittable
+    # state is surfaced below via `submittable_version` instead.
+    candidate = None
+    candidate_row = db.execute(
+        "SELECT * FROM aria_policy_versions WHERE document_id=%s AND state IN ('draft','pending','withdrawn') "
+        "AND id != COALESCE(%s, -1) ORDER BY created_at DESC LIMIT 1",
+        (doc["id"], doc.get("current_policy_version_id")),
+    ).fetchone()
+    if candidate_row:
+        candidate = _version_to_public_dict(_row_to_dict(candidate_row))
+
+    # The document's one open approval, if any (I09: at most one pending
+    # approval at a time). Looked up by document_id, independent of which
+    # version slot it targets -- a brand-new document's first approval
+    # cycle is attached to current_version (there is no separate candidate
+    # row yet in that case; see the comment above), while a revision's
+    # approval is attached to candidate. openEditModal's own check only
+    # ever looked at current_policy_version_id's state, so it never had a
+    # decide/withdraw UI for a revision's candidate approval at all.
+    # Visibility matches get_approval's own rule exactly (approver,
+    # requester, or edit_any) rather than the broader document-read check,
+    # so this endpoint never shows more than the dedicated one does.
+    active_approval = None
+    approval_row = db.execute(
+        "SELECT * FROM aria_document_approvals WHERE document_id=%s AND status='pending' "
+        "ORDER BY requested_at DESC LIMIT 1",
+        (doc["id"],),
+    ).fetchone()
+    if approval_row:
+        approval = dict(approval_row)
+        is_requester = approval["requested_by"] == actor["id"]
+        if (approval["approver_id"] == actor["id"] or is_requester
+                or has_capability(actor, "aria.policy.edit_any")):
+            active_approval = _approval_to_public_dict(approval)
+            active_approval["can_decide"] = can_decide(actor, approval)
+            active_approval["can_withdraw"] = is_requester
+
+    history = [
+        _version_to_public_dict(_row_to_dict(r))
+        for r in db.execute(
+            "SELECT * FROM aria_policy_versions WHERE document_id=%s ORDER BY created_at DESC",
+            (doc["id"],),
+        ).fetchall()
+    ]
+
+    # Whichever of current_version/candidate is actually awaiting
+    # submission (there is at most one, by I09): the same
+    # 'draft'/'withdrawn' check openEditModal already uses for a brand-new
+    # document's current version, extended to also catch a revision's
+    # separate candidate row -- documents.html's modal only ever checked
+    # current_policy_version_id, so a revision candidate had no submit
+    # trigger anywhere in the UI before this.
+    submittable_version = None
+    for v in (current_version, candidate):
+        if v and v["state"] in ("draft", "withdrawn"):
+            submittable_version = dict(v)
+            submittable_version["can_submit"] = _draft_can_edit_document(actor, doc)
+            break
+
+    return {
+        "document": {
+            "id": doc["id"], "doc_id": doc["doc_id"], "title": doc.get("title"),
+            "doc_type": doc.get("doc_type"), "framework": doc.get("framework"),
+            "control_ref": doc.get("control_ref"), "status": doc.get("status"),
+            "owner_user_id": doc.get("owner_user_id"),
+            # renderVersionHistory (aria_policy_workflow.js) needs this exact
+            # field on the `doc` object it's handed to mark the current row.
+            "current_policy_version_id": doc.get("current_policy_version_id"),
+        },
+        "current_version": current_version,
+        "draft": draft,
+        "candidate": candidate,
+        "active_approval": active_approval,
+        "submittable_version": submittable_version,
+        "history": history,
+        # Matches start_revision_draft's *actual* precondition exactly: the
+        # DB-level partial unique index blocks a second open row in
+        # aria_policy_drafts, not a pending candidate version (confirm_draft
+        # is what blocks on an existing candidate, at confirm time) -- a
+        # stricter hint here would wrongly hide an action the real endpoint
+        # would still allow.
+        "can_start_revision": draft is None and _draft_can_edit_document(actor, doc),
+    }
+
+
 def get_version_file_path(db, actor: dict, version_id: int, kind: str):
     """kind is 'preview' or 'branded'. Returns a resolved, contained
     filesystem Path -- never a raw stored string -- or raises NotFoundError/

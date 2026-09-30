@@ -118,6 +118,7 @@
     },
     publicationStatus: function (docId) { return apiFetch('/aria/api/documents/' + encodeURIComponent(docId) + '/publication-status'); },
     retryPublication: function (jobId) { return apiFetch('/aria/api/publication-jobs/' + jobId + '/retry', jsonPost({})); },
+    getWorkbench: function (docId) { return apiFetch('/aria/api/documents/' + encodeURIComponent(docId) + '/workbench'); },
   };
 
   function errMsg(res, fallback) {

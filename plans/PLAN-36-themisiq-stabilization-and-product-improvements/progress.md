@@ -1,5 +1,165 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 P03 session 1 — ARIA policy lifecycle workbench
+
+User's explicit discovery-gate scope decisions: "Full workbench in one
+slice" (all four cards + every action wired, not a read-only v1) and "Add
+alongside, don't replace yet" (a new deep-linked page; the existing
+Documents modal keeps working unchanged).
+
+Key discovery-gate finding, made by actually reading the code rather than
+assuming: PLAN-35's entire backend AND frontend for this workflow already
+exist and already work -- `modules/aria/routes_policy_workflow.py` (~19
+endpoints: drafts, build, confirm, submit, decide, withdraw, publication
+retry) and `static/js/aria_policy_workflow.js` (772 lines, deliberately
+container-agnostic renderers), already wired into `ai_generator.html` (the
+draft editor) and `documents.html`'s edit modal (version history,
+publication status, submit form, pending-approvals queue, approve/reject).
+This changed the task from "build the workflow's UI" to "unify what's
+split across two pages onto one screen, reusing what already renders
+correctly instead of rebuilding it" -- avoided a large amount of
+duplicate, untested UI code as a direct result of not assuming the initial
+scope framing was accurate.
+
+Real gap found and fixed as a natural consequence of doing this correctly
+(not scope creep): the existing modal only ever checked
+`current_policy_version_id`'s state to decide whether to show the
+submit-for-approval form. That covers a brand-new document's first
+version (which is promoted to "current" immediately at confirm time,
+before submission) but silently misses a **revision's** candidate version
+entirely, since a revision's new version stays a separate row, out of
+`current_policy_version_id`, until approved. There was no UI path
+anywhere to submit a revision candidate for approval before this change --
+only a raw API call could do it. Fixed by computing `submittable_version`/
+`active_approval` independent of which slot (current or candidate) the
+version occupies.
+
+Files created:
+
+- `oneforall/modules/aria/routes_workbench.py` -- `GET
+  /aria/documents/{doc_id}/workbench` (page) and `GET
+  /aria/api/documents/{doc_id}/workbench` (data). Own file for the same
+  T10 file-size reason `routes_diagnostics.py`/`routes_my_work.py` are,
+  rather than growing the already-3000+-line `routes.py`.
+- `oneforall/modules/aria/templates/policy_workbench.html` -- four-card
+  grid (Current/Working Draft/Candidate/History) plus a Submit-for-Approval
+  section and an Approval (decide/withdraw) section. Reuses
+  `AriaPolicyWorkflow.ui.renderVersionHistory`/`renderPublicationStatus`/
+  `initSubmitForApprovalForm`/`renderApprovalDecision`/`startRevision`
+  unchanged -- these were already written container-agnostic specifically
+  so a second page could embed them. Loads the exact same pinned
+  marked/DOMPurify/pdf.js script sequence `documents.html` does, in the
+  same order (missed this on the first pass; a real browser test caught
+  the resulting `aria_markdown.js: marked/DOMPurify not loaded` console
+  error via the T08 default-fail gate before it could ship).
+- `oneforall/tests/test_aria_policy_workbench.py` -- 8 service-level
+  tests covering `get_document_workbench_state`'s branches (new-document
+  submittable current version, permission-denied hint accuracy, 404 for
+  unknown/cross-org document, pending-state visibility/can_decide/
+  can_withdraw per actor, draft visibility per actor) with a red/green
+  proof on the approval-visibility gate.
+- `oneforall/tests/ui/test_aria_policy_workbench_routes.py` -- 4 HTTP-level
+  tests (auth redirect x2, page renders, API 404-not-500 for a
+  nonexistent document).
+- `oneforall/tests/ui/test_aria_policy_workbench_browser.py` -- 2 real
+  Playwright tests proving the task_plan.md P03 acceptance line "author
+  cannot approve own content" end to end: an assigned approver sees real
+  Approve/Reject buttons; the requester, viewing the identical seeded
+  page, does not. Deliberately does not reconstruct the full draft/build/
+  convert pipeline a second time (that heavy fixture already exists in
+  tests/test_aria_policy_approvals.py and is not this page's own logic to
+  re-prove) -- seeds the pending-approval state directly via SQL instead.
+
+Files modified:
+
+- `oneforall/modules/aria/policy_workflow_service.py` -- added
+  `get_document_workbench_state(db, actor, doc_id)`, a pure read
+  aggregator (no new table, no new workflow state). Every `can_*` field
+  is computed with the exact helper the real mutating endpoint enforces
+  (`_draft_can_edit_document`, `can_decide`) so a wrong/stale hint can
+  only ever hide an action the server would still refuse, never grant one
+  it wouldn't allow.
+- `oneforall/static/js/aria_policy_workflow.js` -- added
+  `api.getWorkbench(docId)`, a one-line fetch wrapper matching its
+  siblings' exact style.
+- `oneforall/modules/aria/templates/documents.html` -- added one "Open
+  Policy Workbench" link inside the existing managed-lifecycle panel,
+  wired to the real doc_id in `openEditModal`. No other line in this
+  file changed; the modal's own behavior is identical to before.
+- `oneforall/main.py` -- registered `aria_workbench_router`.
+- `oneforall/tests/test_aria_policy_browser_workflow.py` -- added
+  `policy_workbench.html` to the existing script-version regression test's
+  file list, so a future `aria_policy_workflow.js` version bump is
+  verified against this new consumer too, not just the original two.
+
+Two real bugs found and fixed while testing (both self-introduced this
+slice, caught before anything shipped):
+
+1. `get_document_workbench_state`'s first draft only attached approval
+   info when a *separate* candidate row existed, so a brand-new
+   document's own first-ever approval (attached to `current_version`, not
+   a candidate) was invisible to `can_decide`/`can_withdraw` entirely --
+   the exact same class of gap as the one found in the pre-existing
+   modal, just reintroduced fresh. Caught by my own service-level test
+   for the pending-scenario case before it reached the browser tests.
+   Fixed by computing `active_approval` by `document_id`, independent of
+   version slot.
+2. `can_start_revision`'s hint was stricter than the real endpoint: it
+   also required no candidate version to exist, but `start_revision_draft`'s
+   actual DB-level constraint (a partial unique index) only blocks a
+   second *draft* row, not a pending candidate *version* -- confirm_draft
+   is what blocks on an existing candidate, at confirm time. Fixed to
+   match the real gate exactly rather than being needlessly conservative.
+
+Red/green proof performed (temporarily broke the fix, confirmed the test
+failed for the expected reason, restored, confirmed `grep -n "TEMP
+red-proof"` found nothing and the suite was green again):
+
+- `test_assigned_approver_can_decide_but_bystander_cannot`: temporarily
+  forced `active_approval` to populate for every viewer regardless of
+  relationship to the approval (`if True or (...)`) -- test failed (a
+  bystander received full approval detail, including who requested it and
+  the decision comment field). Restored; test passed.
+
+Verification commands and results (from `oneforall/`, `../.venv/Scripts/python.exe`):
+
+1. `pytest tests/test_aria_policy_workbench.py tests/ui/test_aria_policy_workbench_routes.py tests/ui/test_aria_policy_workbench_browser.py -v`
+   -- 14 passed (8 service + 4 HTTP + 2 browser).
+2. Route-registration check: `/aria/documents/{doc_id}/workbench {'GET'}`,
+   `/aria/api/documents/{doc_id}/workbench {'GET'}` both present; total
+   864 routes (up from 862 after P02).
+3. Full backend suite (`pytest tests/ -x --ignore=tests/ui -q`) -- clean:
+   progress bar reached 100% with zero failure/error markers, exit 0. Only
+   non-pass markers were the previously-documented PostgreSQL-gate skips.
+4. Full UI (Playwright) suite (`pytest tests/ui -q`) -- clean: 258 total,
+   256 passed, 2 skipped, 0 failed/errored, exit 0.
+
+Explicitly unverified/skipped this session:
+
+- No dedicated two-tab/concurrency browser test against this specific new
+  page (the underlying endpoints' own concurrency handling is already
+  tested at the service level in tests/test_aria_policy_approvals.py).
+- No version-diff view was built (task_plan.md's "immutable version
+  comparison" implementation line) -- explicitly deferred, not dropped.
+- No P09 capability-state vocabulary wiring on this page yet (e.g. for
+  `ACTION_FORBIDDEN` when authoring is disabled for the org) -- the
+  existing toast-based error handling still applies, just not yet in the
+  shared vocabulary.
+- Edit/build/confirm remain on `ai_generator.html` via a deep link rather
+  than being inlined onto this screen -- a deliberate reuse decision (see
+  above), but it means "one screen" is not yet literally true for every
+  transition.
+- Not committed; pending user authorization per this session's established
+  per-batch pattern.
+
+## 2026-09-30 — P02 committed and pushed (user-authorized)
+
+Commit `e6306d7` on `master`, pushed to `origin/master` (`03d6fbb..e6306d7`).
+11 files changed, 698 insertions(+), 14 deletions(-). Covers the full P02
+session below, verified under the corrected `.venv` interpreter (full
+backend suite 100% clean; full UI/Playwright suite 250/252 passed, 2
+legitimate skips, 0 failed).
+
 ## 2026-09-30 P02 session 1 — diagnostics/readiness centre, missing infrastructure built
 
 Scope decision from the user (discovery-gate question): backup-freshness

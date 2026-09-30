@@ -384,7 +384,10 @@
        read-only text (never as disabled inputs sitting in the save form)
        so it's never ambiguous whether Save will persist them. #}
     <div id="edit-managed-panel" style="display:none;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Policy Workflow — Current Lifecycle State</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted)">Policy Workflow — Current Lifecycle State</div>
+        <a id="edit-workbench-link" href="#" class="btn btn-ghost" style="font-size:11px;padding:4px 10px">Open Policy Workbench</a>
+      </div>
       <div class="grid-2" style="margin-bottom:14px">
         <div><span style="font-size:11px;color:var(--muted)">Status</span><div id="edit-lifecycle-status" style="font-size:13px;font-weight:600">—</div></div>
         <div><span style="font-size:11px;color:var(--muted)">Version</span><div id="edit-lifecycle-version" style="font-size:13px;font-weight:600">—</div></div>
@@ -905,6 +908,7 @@ async function openEditModal(doc) {
   document.getElementById('edit-legacy-template-section').style.display = isManaged ? 'none' : '';
   document.getElementById('edit-managed-panel').style.display = isManaged ? '' : 'none';
   if (isManaged) {
+    document.getElementById('edit-workbench-link').href = '/aria/documents/' + encodeURIComponent(doc.doc_id) + '/workbench';
     await AriaPolicyWorkflow.ui.renderPublicationStatus(document.getElementById('edit-publication-status'), doc);
     await AriaPolicyWorkflow.ui.renderVersionHistory(document.getElementById('edit-version-history'), doc);
 

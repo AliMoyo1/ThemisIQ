@@ -567,27 +567,31 @@ Dependencies: T01, T02, T06-T08; preserve PLAN-35 invariants.
 
 Discovery gate:
 
-- [ ] Map existing Documents modal, AI Generator draft editor, version history, preview, approval, publication status, and feature gates.
-- [ ] Do not create a second policy workflow, draft table, version table, or publication queue.
+- [x] Map existing Documents modal, AI Generator draft editor, version history, preview, approval, publication status, and feature gates. Found the entire PLAN-35 backend (drafts, build, confirm, submit, approve/reject, withdraw, publication retry) already has a COMPLETE, working, tested API (`modules/aria/routes_policy_workflow.py`, ~19 endpoints) *and* a complete, reusable frontend (`static/js/aria_policy_workflow.js`, 772 lines, deliberately container-agnostic -- "each renderer takes an explicit container rather than assuming a fixed id, since documents.html mounts these inside its own edit modal") already wired into `ai_generator.html` (draft editor, My Drafts) and `documents.html`'s edit modal (version history, publication status, start-revision, submit-for-approval, pending-approvals queue, approve/reject). P03's real job was narrower than first scoped: unify what's split across those two pages/contexts onto one screen per document, reusing the existing renderers rather than rebuilding them.
+- [x] Do not create a second policy workflow, draft table, version table, or publication queue. No new table. One new pure-read aggregator function (`get_document_workbench_state` in the existing `policy_workflow_service.py`) that queries the same tables through the same helpers (`_draft_can_read`, `_draft_can_edit_document`, `can_decide`, `_version_to_public_dict`, `_approval_to_public_dict`); every mutation on the new page calls the exact same PLAN-35 endpoints the other two pages already call.
+
+Real gap found and fixed along the way (not scope creep -- squarely inside this task's own goal): `documents.html`'s modal only ever checked `current_policy_version_id`'s state to decide whether to show the submit-for-approval form, which covers a brand-new document's first version but **not** a revision's candidate version (which stays a separate row, out of `current_policy_version_id`, until approved). There was no UI path anywhere to submit a revision candidate for approval before this change -- only a direct API call could do it. Fixed by modeling `submittable_version`/`active_approval` independent of which slot (current or candidate) the version is in.
 
 Implementation tasks:
 
-- [ ] Add a document workbench route/deep link centered on one `aria_documents` identity.
-- [ ] Present Current published version, Working draft, Candidate awaiting decision, and History as distinct cards/tabs.
-- [ ] Show one primary next action based on server-returned permissions/state; never infer authorization only in JavaScript.
-- [ ] Add immutable version comparison for metadata and normalized text, with artifact hashes and approver history.
-- [ ] Integrate edit metadata, start/reopen revision, build preview, confirm, submit, withdraw, decide, publication retry, and download through existing services.
-- [ ] Explain feature-disabled, pilot-org-disabled, preview-worker-unavailable, and AI-unconfigured states using P09 vocabulary.
-- [ ] Preserve the currently approved version while a revision is in progress or rejected.
+- [x] Add a document workbench route/deep link centered on one `aria_documents` identity. `GET /aria/documents/{doc_id}/workbench` (page) + `GET /aria/api/documents/{doc_id}/workbench` (data), own file (`routes_workbench.py`, T10 file-size discipline) registered in `main.py`. Deep-linked from a new "Open Policy Workbench" button inside the existing Documents modal's managed-lifecycle panel -- additive only, per explicit user decision; the modal itself is unchanged otherwise.
+- [x] Present Current published version, Working draft, Candidate awaiting decision, and History as distinct cards/tabs. Four-card grid in `policy_workbench.html`; History reuses `renderVersionHistory` unchanged.
+- [x] Show one primary next action based on server-returned permissions/state; never infer authorization only in JavaScript. Every `can_*` flag (`can_submit`, `can_edit`, `can_decide`, `can_withdraw`, `can_start_revision`) is computed server-side in `get_document_workbench_state` using the exact same helper the real mutating endpoint enforces -- a stale/wrong hint can only ever hide an action the server would still refuse, never grant one the server wouldn't allow, and this is proved by a red/green test (temporarily inverted the approval-visibility gate; confirmed a bystander test caught the leak; restored).
+- [ ] Add immutable version comparison for metadata and normalized text, with artifact hashes and approver history. Not built this slice -- History card lists versions with hashes already present in `_version_to_public_dict`'s output, but no side-by-side diff view. Scope explicitly deferred, not silently dropped.
+- [x] Integrate edit metadata, start/reopen revision, build preview, confirm, submit, withdraw, decide, publication retry, and download through existing services. All wired via the pre-existing `AriaPolicyWorkflow.api`/`.ui` functions (added only `api.getWorkbench`, a one-line fetch wrapper) -- edit/build/confirm still happen on `ai_generator.html` itself (see below), deep-linked from the Working Draft card's "Continue editing" link rather than duplicated onto a second page.
+- [ ] Explain feature-disabled, pilot-org-disabled, preview-worker-unavailable, and AI-unconfigured states using P09 vocabulary. Not built this slice -- the workbench surfaces `ACTION_FORBIDDEN` from `_authoring_gate` the same way the existing pages do (a toast), but doesn't yet render it in the shared `core/capability_state.py` vocabulary P09 established. Candidate for a follow-up slice alongside P09's own remaining areas.
+- [x] Preserve the currently approved version while a revision is in progress or rejected. No new code path touches this -- it was already PLAN-35's own guarantee (I11); the workbench only reads and displays it (Current card always shows `current_policy_version_id`, independent of draft/candidate state).
+
+Deliberately not duplicated onto the new page (reused as-is instead): the full draft body editor (textarea, markdown preview toggle, build/preview/confirm flow) stays on `ai_generator.html` -- the Working Draft card shows status and a "Continue editing" deep link, matching the exact UX `refreshMyDrafts()`'s own "Resume" link already established, rather than building a second, parallel editor UI that would need its own concurrency/lock-version test coverage a second time.
 
 Acceptance:
 
-- every PLAN-35 state transition has one unambiguous visible state and permitted action set;
-- author cannot approve own content;
-- current approved artifact remains downloadable during revision/failure;
-- two-tab concurrency produces a clear conflict, not silent overwrite;
-- version diff never exposes another organization/SBU;
-- all primary transitions have real-browser coverage.
+- [ ] every PLAN-35 state transition has one unambiguous visible state and permitted action set -- most are (submit/decide/withdraw/start-revision/download all visible with correct permission gating); edit/build/confirm remain a deep link to the existing editor rather than an inline state on this screen, so this is partial, not full, unification.
+- [x] author cannot approve own content -- real-browser-proved (`tests/ui/test_aria_policy_workbench_browser.py`: the assigned approver sees Approve/Reject controls; the requester, viewing the same page, does not) and service-level-proved with a red/green proof (`tests/test_aria_policy_workbench.py`).
+- [x] current approved artifact remains downloadable during revision/failure -- Current card always renders independent of draft/candidate state (see I11 note above); download link points at the existing, unchanged `/aria/api/policy-versions/{id}/download` endpoint.
+- [ ] two-tab concurrency produces a clear conflict, not silent overwrite -- inherited for free for every action this page delegates to the existing endpoints (each already takes `expected_lock_version` and returns `STALE_DRAFT`/409 on a stale token, already tested in tests/test_aria_policy_approvals.py's concurrent-deciders test), but not re-proved with a dedicated two-tab test against this specific new page this slice.
+- [x] version diff never exposes another organization/SBU -- no diff view was built this slice (see above), so there is nothing yet that could leak one; the read aggregator itself is covered by a cross-org 404 test.
+- [~] all primary transitions have real-browser coverage -- the one transition this task_plan.md line names explicitly (self-approval prevention) has real-browser coverage; submit/withdraw/start-revision do not yet have a dedicated browser test for this specific page (they are exercised at the service level and, for the underlying endpoints, at the HTTP level already).
 
 ### P04 — Data-readiness and integrity centre
 

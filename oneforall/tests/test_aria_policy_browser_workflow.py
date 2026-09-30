@@ -29,6 +29,7 @@ def test_workflow_asset_version_is_bumped_on_every_page_that_loads_it():
     for relative_path in (
         "modules/aria/templates/ai_generator.html",
         "modules/aria/templates/documents.html",
+        "modules/aria/templates/policy_workbench.html",
     ):
         template = (ROOT / relative_path).read_text(encoding="utf-8")
         assert expected in template
