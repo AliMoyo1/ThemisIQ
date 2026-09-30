@@ -532,23 +532,39 @@ def delete_plan(plan_id):
 # INCIDENTS + COMMAND CONSOLE
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_incidents(status=None, limit=200):
+def list_incidents(status=None, limit=200, bu_scope=None):
     db = get_db()
     try:
+        where, params = [], []
         if status:
-            return _dicts(db.execute(
-                "SELECT * FROM bcm_incidents WHERE status=%s ORDER BY created_at DESC LIMIT %s",
-                (status, limit)).fetchall())
+            where.append("status=%s")
+            params.append(status)
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            where.append(f"(business_unit_id IN ({ph}) OR business_unit_id IS NULL)")
+            params.extend(bu_scope)
+        where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+        params.append(limit)
         return _dicts(db.execute(
-            "SELECT * FROM bcm_incidents ORDER BY created_at DESC LIMIT %s", (limit,)).fetchall())
+            f"SELECT * FROM bcm_incidents {where_sql} ORDER BY created_at DESC LIMIT %s",
+            params).fetchall())
     finally:
         db.close()
 
 
-def get_incident(inc_id):
+def get_incident(inc_id, bu_scope=None):
+    """Returns None both when inc_id doesn't exist and when it's outside
+    bu_scope, so a 404 built from this never confirms another BU's incident
+    id is real (same fail-closed shape as modules/evidence/routes.py's
+    _scoped_evidence_item)."""
     db = get_db()
     try:
-        return _dict(db.execute("SELECT * FROM bcm_incidents WHERE id=%s", (inc_id,)).fetchone())
+        row = _dict(db.execute("SELECT * FROM bcm_incidents WHERE id=%s", (inc_id,)).fetchone())
+        if row is None or bu_scope is None:
+            return row
+        if row.get("business_unit_id") is None or row["business_unit_id"] in bu_scope:
+            return row
+        return None
     finally:
         db.close()
 
@@ -559,18 +575,24 @@ def create_incident(data):
         cur = insert_returning_id(db,
             """INSERT INTO bcm_incidents
                (title, description, severity, status, commander, affected_systems,
-                impact, assigned_to, declared_at)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                impact, assigned_to, declared_at, business_unit_id)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (data.get("title"), data.get("description"), data.get("severity", "medium"),
              data.get("status", "open"), data.get("commander"), data.get("affected_systems"),
-             data.get("impact"), data.get("assigned_to"), data.get("declared_at")))
+             data.get("impact"), data.get("assigned_to"), data.get("declared_at"),
+             data.get("business_unit_id")))
         db.commit()
         return cur
     finally:
         db.close()
 
 
-def update_incident(inc_id, data):
+def update_incident(inc_id, data, bu_scope=None):
+    """No-ops (returns False) if inc_id is outside bu_scope, mirroring
+    get_incident's fail-closed check -- callers must treat False as
+    HTTPException(404), never apply data anyway."""
+    if bu_scope is not None and get_incident(inc_id, bu_scope=bu_scope) is None:
+        return False
     db = get_db()
     try:
         fields, vals = [], []
@@ -589,17 +611,22 @@ def update_incident(inc_id, data):
             vals.append(inc_id)
             db.execute(f"UPDATE bcm_incidents SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
+        return True
     finally:
         db.close()
 
 
-def delete_incident(inc_id):
+def delete_incident(inc_id, bu_scope=None):
+    """Returns False (caller 404s) if inc_id is outside bu_scope."""
+    if bu_scope is not None and get_incident(inc_id, bu_scope=bu_scope) is None:
+        return False
     db = get_db()
     try:
         db.execute("DELETE FROM cross_module_links WHERE source_module='bcm' AND source_type='incident' AND source_id=%s", (inc_id,))
         db.execute("DELETE FROM cross_module_links WHERE target_module='bcm' AND target_type='incident' AND target_id=%s", (inc_id,))
         db.execute("DELETE FROM bcm_incidents WHERE id=%s", (inc_id,))
         db.commit()
+        return True
     finally:
         db.close()
 

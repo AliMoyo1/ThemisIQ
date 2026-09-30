@@ -910,7 +910,13 @@ _NC_STATUSES   = {"open", "closed"}
 _NC_SEVERITIES = {"minor", "major", "critical"}
 
 
-def list_ncs(audit_id=None, status=None, cap_status=None):
+def list_ncs(audit_id=None, status=None, cap_status=None, bu_scope=None):
+    """bu_scope is applied via the NC's own (NOT NULL) parent audit's
+    business_unit_id -- grid_non_conformances has no BU column of its own
+    and needs none: audit_id is a required FK, so this join is always valid
+    for every row, present or future, with no backfill risk (unlike
+    bcm_incidents/sentinel_dsr in this same finding, F16, which had no
+    reliable column to scope through at all)."""
     db = get_db()
     try:
         q = (
@@ -937,12 +943,20 @@ def list_ncs(audit_id=None, status=None, cap_status=None):
         if cap_status:
             q += " AND nc.cap_status=%s"
             params.append(cap_status)
+        if bu_scope is not None:
+            ph = ",".join(["%s"] * len(bu_scope))
+            q += f" AND (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
+            params.extend(bu_scope)
         q += " ORDER BY nc.created_at DESC"
         return _dicts(db.execute(q, params).fetchall())
     finally:
         db.close()
 
-def get_nc(ncid):
+def get_nc(ncid, bu_scope=None):
+    """Returns None both when ncid doesn't exist and when its parent audit
+    is outside bu_scope, so a 404 built from this never confirms another
+    BU's NC id is real (same fail-closed shape as
+    modules/evidence/routes.py's _scoped_evidence_item)."""
     db = get_db()
     try:
         nc = _dict(db.execute(
@@ -950,7 +964,7 @@ def get_nc(ncid):
             "v.full_name AS verified_by_name, "
             "m.full_name AS mgmt_response_by_name, "
             "c.control_id AS ctrl_ref, c.name AS control_name, "
-            "a.name AS audit_name "
+            "a.name AS audit_name, a.business_unit_id AS audit_business_unit_id "
             "FROM grid_non_conformances nc "
             "LEFT JOIN users u ON nc.assigned_to=u.id "
             "LEFT JOIN users v ON nc.verified_by=v.id "
@@ -958,7 +972,11 @@ def get_nc(ncid):
             "LEFT JOIN grid_controls c ON nc.control_id=c.id "
             "LEFT JOIN grid_audits a ON nc.audit_id=a.id "
             "WHERE nc.id=%s", (ncid,)).fetchone())
-        return nc
+        if nc is None or bu_scope is None:
+            return nc
+        if nc.get("audit_business_unit_id") is None or nc["audit_business_unit_id"] in bu_scope:
+            return nc
+        return None
     finally:
         db.close()
 
@@ -981,7 +999,12 @@ def create_nc(data):
     finally:
         db.close()
 
-def update_nc(ncid, data):
+def update_nc(ncid, data, bu_scope=None):
+    """No-ops (returns False) if ncid's parent audit is outside bu_scope,
+    mirroring get_nc's fail-closed check -- callers must treat False as
+    HTTPException(404), never apply data anyway."""
+    if bu_scope is not None and get_nc(ncid, bu_scope=bu_scope) is None:
+        return False
     db = get_db()
     try:
         # Check if parent audit is locked
@@ -1021,6 +1044,7 @@ def update_nc(ncid, data):
                 vals,
             )
             db.commit()
+        return True
     finally:
         db.close()
 
@@ -1135,12 +1159,16 @@ def submit_mgmt_response(ncid, user_id, status, response_text=None, response_dea
         db.close()
 
 
-def delete_nc(ncid):
+def delete_nc(ncid, bu_scope=None):
+    """Returns False (caller 404s) if ncid's parent audit is outside bu_scope."""
+    if bu_scope is not None and get_nc(ncid, bu_scope=bu_scope) is None:
+        return False
     db = get_db()
     try:
         db.execute("DELETE FROM grid_nc_evidence WHERE nc_id=%s", (ncid,))
         db.execute("DELETE FROM grid_non_conformances WHERE id=%s", (ncid,))
         db.commit()
+        return True
     finally:
         db.close()
 

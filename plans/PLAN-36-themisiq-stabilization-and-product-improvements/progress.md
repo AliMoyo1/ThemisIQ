@@ -1,5 +1,124 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 T08 sessions 7-9 — F16: bcm_incidents, sentinel_dsr, grid_non_conformances had no BU scoping
+
+Outcome: three more confirmed, F14-class tenant-isolation gaps found and
+fixed, discovered while checking (before starting P01 implementation)
+whether the existing `/api/my-dashboard/data` and `/api/command-centre/stats`
+widget queries were safe to build a new feature on top of. They were not --
+several of the tables those widgets touch turned out to have no scoping at
+all. Investigated each module's own primary routes directly (not assumed)
+before concluding anything; found the picture was mixed, not a uniform
+app-wide failure: `erm_enterprise_risks` and `orm_events` were already
+correctly scoped via `bu_scope_ids()` on checking, and most of Sentinel's
+other record types (DPIAs, breaches, AI impact assessments) were too.
+Three tables were not. See `findings.md` F16 for the full writeup; this
+entry is the implementation/verification evidence for each.
+
+**Session 7 -- `bcm_incidents`**: no `business_unit_id` (or any scoping
+column) existed at all; `list_incidents`/`get_incident`/`update_incident`/
+`delete_incident`/the CSV export/the AI-suggest endpoint all queried by
+plain id or no filter. `module.bcm.access` (gating list/get) is held by
+`EMPLOYEE`. Fixed: `business_unit_id` added via the existing
+`_COLUMN_MIGRATIONS` mechanism; every touchpoint now takes an optional
+`bu_scope` parameter and applies the same `(business_unit_id IN (scope) OR
+business_unit_id IS NULL)` convention `bcm_plans`/`bcm_bia_records` already
+use; `get_incident` returns `None`/`update_incident` and `delete_incident`
+return `False` outside scope (routes turn `False` into 404). No backfill:
+`commander`/`assigned_to` are free-text names, not user FKs -- no reliable
+column exists to derive an existing row's business unit from, and a fuzzy
+name-match was rejected as riskier than leaving pre-existing rows NULL for
+a human to assign later.
+
+New file `tests/test_bcm_incident_bu_isolation.py` (6 tests: get denies/
+allows/unscoped-super-admin, list excludes, update refuses, delete
+refuses). Red/green proof: temporarily short-circuited `get_incident` to
+`return row` unconditionally (this alone also defeats `update_incident`/
+`delete_incident`, which call `get_incident` internally for their own
+check) -- 3 of 6 tests FAILED for the expected reasons. Separately
+short-circuited `list_incidents`' own WHERE-clause condition
+(`if False and bu_scope is not None`) -- its own test FAILED too (all 4
+independent mechanisms proved red). Restored both; `git diff --stat`
+showed only the intended cumulative diff; all 6 green again.
+
+**Session 8 -- `sentinel_dsr`**: GDPR data-subject-request records (real
+requester names/emails/request details), gated by `sentinel.dsr.manage`
+(DPO, PRIVACY_ANALYST). Same shape as `bcm_incidents` -- no scoping column,
+no user-id column to backfill from either. Also found and fixed in the same
+pass: the AI-draft endpoint (`POST /api/ai/dsr-draft/{dsr_id}`, gated by the
+separate, broader `sentinel.ai.assess`) had its own unscoped `get_dsr` call,
+and the audit evidence-pack ZIP export (`GET /api/audit-export`, gated by
+the broad `module.sentinel.access`) was found to *also* unscope
+`list_ropa()`/`list_dpias()`/`list_breaches()` inside the same function --
+fixed all three alongside the DSR log, even though RoPA/DPIA/breach listing
+elsewhere in the module already scope correctly; this one export function
+had simply never had `bu_scope` threaded through despite the underlying
+`list_*` functions already supporting it. `_DSR_FIELDS` (the generic
+create/update field whitelist) extended with `business_unit_id`; `get_dsr`/
+`update_dsr`/`delete_dsr` wrap the generic `_generic_get`/`_generic_update`/
+`_generic_delete` helpers with the same fail-closed check as `bcm_incidents`
+-- the generic helpers themselves were deliberately left untouched, since
+other sentinel record types share them and don't all have a
+`business_unit_id` column.
+
+New file `tests/test_sentinel_dsr_bu_isolation.py` (5 tests, same shape as
+the BCM file). Red/green proof: same two-part short-circuit pattern
+(`get_dsr` forced to `return row`, `list_dsrs`' own filter condition forced
+false) -- 3 then 1 more test failed for the expected reasons across the two
+rounds. Restored both; diff clean; all 5 green again.
+
+**Session 9 -- `grid_non_conformances`**: gated by `grid.nc.manage`,
+unscoped whenever `GET /grid/api/ncs` was called without a specific
+`audit_id` (an optional query parameter -- omitting it returns every NC
+platform-wide). Fixed differently from the other two, after checking the
+schema rather than assuming the same shape applied: `audit_id` is a
+required, `NOT NULL` foreign key to `grid_audits`, which already has its
+own `business_unit_id` column (from earlier T-work) and its own correctly
+`bu_scope_ids()`-scoped listing -- so this table needed no new column and
+no backfill at all. Scoped by joining through the audit relationship the
+query already had (it already joined `grid_audits a` for `audit_name`
+display) and filtering on `a.business_unit_id`. `list_ncs`/`get_nc`/
+`update_nc`/`delete_nc` all updated; `update_nc`/`delete_nc` previously had
+no return value at all (implicit `None`) and now return `True`/`False` so
+the route can 404 correctly.
+
+New file `tests/test_grid_nc_bu_isolation.py` (5 tests, same shape). Red/
+green proof: same two-part short-circuit pattern. Restored both; diff
+clean; all 5 green again.
+
+**Named, not-yet-fixed gap found while fixing this**: `create_nc` does not
+verify the caller's `bu_scope` actually includes the `audit_id` supplied in
+the request body -- a user could still create a non-conformance record
+under another business unit's audit. This is a write-side gap distinct from
+the read/update/delete-by-id gap this session fixed, and was not fixed
+alongside it (see `findings.md` F16 for why it's named rather than silently
+left out).
+
+Verification commands (all from `oneforall/`):
+
+1. `..\.venv\Scripts\python.exe -m pytest tests/test_bcm_incident_bu_isolation.py tests/test_sentinel_dsr_bu_isolation.py tests/test_grid_nc_bu_isolation.py -v` -- 16 passed, exit 0 (after all three red/green proofs were completed and reverted).
+2. Full backend suite (`pytest tests --ignore=tests/ui -q`) run twice: once after `bcm_incidents` alone (clean), once again after all three fixes combined -- both `PYTEST_EXIT:0`, zero `FAILED` lines.
+3. Full browser suite (`pytest tests/ui -q`) run once after all three fixes combined, to catch any BCM/Sentinel/GRID UI test relying on the old unscoped behavior -- `PYTEST_EXIT:0`, zero `FAILED` lines.
+
+Explicitly unverified/skipped in this session:
+
+- The broader, not-yet-resolved "does `(business_unit_id IN (scope) OR business_unit_id IS NULL)` leak a NULL-BU row across organizations, not just business units" question named in `findings.md` F16 -- affects every table using this established convention, not just the three fixed here, and needs its own dedicated investigation.
+- `create_nc`'s write-side `audit_id` ownership gap (named above).
+- PostgreSQL acceptance for these three migrations -- SQLite-verified only, no local Postgres instance available this session (same standing gap as F14/T03/T04).
+- No commit or push has been made for this work yet -- the user's earlier "commit and push" authorization covered the T08-T10 work already pushed as `5bc237d`; this is new work discovered and fixed afterward, in the same session, and awaits its own commit.
+- No production host or data was touched. No commit, push, migration, service restart, or deployment was performed.
+
+## 2026-09-30 — T08-T10 work committed and pushed (user-authorized)
+
+Commit `5bc237d` on `master`, pushed to `origin/master`
+(`1ccb005..5bc237d`). Covers every T08/T09/T10 session recorded below in
+this same date's entries: the F14 evidence tenant-isolation fix, the F15
+ORM capability/query fix, the new registry-driven/CSRF/org-isolation/
+download/concurrency test files, `.github/workflows/test.yml`, the
+`postgres-schema.yml` extension, and `scripts/capability_inventory.py`.
+`git diff --check` passed with zero whitespace errors before staging.
+Explicitly user-authorized this turn, not assumed.
+
 ## 2026-09-30 T10 session 1 — capability inventory generator (+ F15, a real bug it found)
 
 Outcome: T10's two boundED, low-risk deliverables are done (baseline

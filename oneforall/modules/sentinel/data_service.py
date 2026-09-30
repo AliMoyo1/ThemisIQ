@@ -740,6 +740,7 @@ def list_breaches(search=None, status=None, severity=None, limit=500, bu_scope=N
 _DSR_FIELDS = [
     "requester_name", "requester_email", "request_type", "regulation",
     "description", "received_date", "deadline_date", "status", "response_notes", "ai_draft",
+    "business_unit_id",
 ]
 
 
@@ -757,7 +758,12 @@ def create_dsr(data):
     return _generic_create("sentinel_dsr", _DSR_FIELDS, data, ref_prefix="DSR")
 
 
-def update_dsr(dsr_id, data):
+def update_dsr(dsr_id, data, bu_scope=None):
+    """No-ops (returns False) if dsr_id is outside bu_scope, mirroring
+    get_dsr's fail-closed check -- callers must treat False as
+    HTTPException(404), never apply data anyway."""
+    if bu_scope is not None and get_dsr(dsr_id, bu_scope=bu_scope) is None:
+        return False
     if data.get("received_date") and not data.get("deadline_date"):
         try:
             from modules.sentinel.jurisdictions import get_dsr_deadline_days
@@ -769,17 +775,31 @@ def update_dsr(dsr_id, data):
         except Exception:
             pass
     _generic_update("sentinel_dsr", set(_DSR_FIELDS), data, dsr_id)
+    return True
 
 
-def get_dsr(dsr_id):
-    return _generic_get("sentinel_dsr", dsr_id)
+def get_dsr(dsr_id, bu_scope=None):
+    """Returns None both when dsr_id doesn't exist and when it's outside
+    bu_scope, so a 404 built from this never confirms another BU's DSR id
+    is real (same fail-closed shape as modules/evidence/routes.py's
+    _scoped_evidence_item)."""
+    row = _generic_get("sentinel_dsr", dsr_id)
+    if row is None or bu_scope is None:
+        return row
+    if row.get("business_unit_id") is None or row["business_unit_id"] in bu_scope:
+        return row
+    return None
 
 
-def delete_dsr(dsr_id):
+def delete_dsr(dsr_id, bu_scope=None):
+    """Returns False (caller 404s) if dsr_id is outside bu_scope."""
+    if bu_scope is not None and get_dsr(dsr_id, bu_scope=bu_scope) is None:
+        return False
     _generic_delete("sentinel_dsr", dsr_id)
+    return True
 
 
-def list_dsrs(search=None, status=None, request_type=None, limit=500):
+def list_dsrs(search=None, status=None, request_type=None, limit=500, bu_scope=None):
     sql = "SELECT * FROM sentinel_dsr WHERE 1=1"
     params = []
     if search:
@@ -792,6 +812,10 @@ def list_dsrs(search=None, status=None, request_type=None, limit=500):
     if request_type:
         sql += " AND request_type=%s"
         params.append(request_type)
+    if bu_scope is not None:
+        ph = ",".join(["%s"] * len(bu_scope))
+        sql += f" AND (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
+        params.extend(bu_scope)
     sql += " ORDER BY deadline_date ASC LIMIT %s"
     params.append(limit)
     db = get_db()

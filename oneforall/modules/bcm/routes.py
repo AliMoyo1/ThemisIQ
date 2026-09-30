@@ -594,13 +594,13 @@ async def api_plan_review_create(request: Request, plan_id: int):
 @require_capability("module.bcm.access")
 async def api_incidents_list(request: Request):
     status = request.query_params.get("status")
-    return JSONResponse(ds.list_incidents(status=status))
+    return JSONResponse(ds.list_incidents(status=status, bu_scope=bu_scope_ids(request.state.user)))
 
 
 @router.get("/api/incidents/{inc_id}")
 @require_capability("module.bcm.access")
 async def api_incident_detail(request: Request, inc_id: int):
-    inc = ds.get_incident(inc_id)
+    inc = ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user))
     if not inc:
         raise HTTPException(404)
     inc["updates"] = ds.list_incident_updates(inc_id)
@@ -630,6 +630,7 @@ async def api_incident_detail(request: Request, inc_id: int):
 @require_capability("bcm.incident.manage")
 async def api_incident_create(request: Request):
     body = await _json_body(request)
+    body["business_unit_id"] = request.state.user.get("business_unit_id")
     iid = ds.create_incident(body)
 
     # Emit incident declared event
@@ -653,7 +654,8 @@ async def api_incident_create(request: Request):
 @require_capability("bcm.incident.manage")
 async def api_incident_update(request: Request, inc_id: int):
     body = await _json_body(request)
-    ds.update_incident(inc_id, body)
+    if not ds.update_incident(inc_id, body, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404)
 
     # Emit incident resolved event when status changes to resolved
     new_status = (body.get("status") or "").lower()
@@ -677,7 +679,8 @@ async def api_incident_update(request: Request, inc_id: int):
 @router.delete("/api/incidents/{inc_id}")
 @require_capability("bcm.incident.manage")
 async def api_incident_delete(request: Request, inc_id: int):
-    ds.delete_incident(inc_id)
+    if not ds.delete_incident(inc_id, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404)
     return JSONResponse({"ok": True})
 
 
@@ -828,7 +831,7 @@ async def api_incident_ai_suggest(request: Request, inc_id: int):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
     from modules.bcm import ai_service as ai
-    inc = ds.get_incident(inc_id)
+    inc = ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user))
     if not inc:
         raise HTTPException(404)
     inc["updates"] = ds.list_incident_updates(inc_id)
@@ -1326,12 +1329,19 @@ async def api_export_csv(request: Request):
     import csv
     import io
     from starlette.responses import StreamingResponse
+    bu_scope = bu_scope_ids(request.state.user)
+    where, params = "", []
+    if bu_scope is not None:
+        ph = ",".join(["%s"] * len(bu_scope))
+        where = f"WHERE (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
+        params = list(bu_scope)
     db = get_db()
     try:
         rows = db.execute(
             "SELECT title, description, severity, status, commander, "
             "affected_systems, impact, assigned_to, declared_at, resolved_at, created_at "
-            "FROM bcm_incidents ORDER BY created_at DESC"
+            f"FROM bcm_incidents {where} ORDER BY created_at DESC",
+            params,
         ).fetchall()
     finally:
         db.close()

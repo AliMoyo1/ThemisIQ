@@ -850,13 +850,14 @@ async def api_ncs_list(request: Request):
         audit_id=int(audit_id) if audit_id else None,
         status=status,
         cap_status=cap_status,
+        bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
 @router.get("/api/ncs/{ncid}")
 @require_capability("grid.nc.manage")
 async def api_ncs_detail(request: Request, ncid: int):
-    nc = ds.get_nc(ncid)
+    nc = ds.get_nc(ncid, bu_scope=bu_scope_ids(request.state.user))
     if not nc:
         raise HTTPException(404, "Non-conformance not found")
     return JSONResponse(nc)
@@ -909,10 +910,12 @@ async def api_ncs_create(request: Request):
 @require_capability("grid.nc.manage")
 async def api_ncs_update(request: Request, ncid: int):
     body = await _json_body(request)
+    bu_scope = bu_scope_ids(request.state.user)
     # Check if assignment is changing — fetch old NC first
     new_assignee = body.get("assigned_to")
-    old_nc = ds.get_nc(ncid) if new_assignee is not None else None
-    _check_locked(ds.update_nc, ncid, body)
+    old_nc = ds.get_nc(ncid, bu_scope=bu_scope) if new_assignee is not None else None
+    if not _check_locked(ds.update_nc, ncid, body, bu_scope=bu_scope):
+        raise HTTPException(404, "Non-conformance not found")
     ds.log_activity(_uid(request), "update_nc", "grid_non_conformances", ncid)
     # Send assignment email if assigned_to changed to a new user
     if (new_assignee is not None and old_nc
@@ -924,7 +927,8 @@ async def api_ncs_update(request: Request, ncid: int):
 @router.delete("/api/ncs/{ncid}")
 @require_capability("grid.nc.manage")
 async def api_ncs_delete(request: Request, ncid: int):
-    ds.delete_nc(ncid)
+    if not ds.delete_nc(ncid, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404, "Non-conformance not found")
     ds.log_activity(_uid(request), "delete_nc", "grid_non_conformances", ncid)
     return JSONResponse({"ok": True})
 

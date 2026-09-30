@@ -4631,6 +4631,23 @@ _COLUMN_MIGRATIONS = [
         # unlike erm_risk_library's NULL, this is never a "global catalogue"
         # visible to every org, since evidence has no such shared concept.
         ("evidence_items", "org_id", "INTEGER REFERENCES organizations(id)"),
+        # ── PLAN-36 T08 follow-up (F16): bcm_incidents had no business_unit_id
+        # at all -- list/get/update/delete/the CSV export all queried by
+        # plain id with no BU filter, reachable by module.bcm.access, which
+        # EMPLOYEE holds. Matches the bu_scope_ids() convention every sibling
+        # BCM table (bcm_plans, bcm_bia_records) already uses. No backfill:
+        # unlike evidence_items' uploaded_by or webhooks' created_by, this
+        # table has no user-id column to backfill a BU from (commander/
+        # assigned_to are free-text names, not user FKs) -- a fuzzy
+        # name-match backfill risks assigning the wrong BU, which is worse
+        # than leaving it for a human to assign. Existing rows stay NULL.
+        ("bcm_incidents", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # ── PLAN-36 T08 follow-up (F16): sentinel_dsr (GDPR data-subject
+        # requests -- real names/emails/request details) had no scoping
+        # column at all, reachable by sentinel.dsr.manage (DPO,
+        # PRIVACY_ANALYST). No backfill available (no user-id column on this
+        # table either). Existing rows stay NULL.
+        ("sentinel_dsr", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
 ]
 
 
