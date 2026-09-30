@@ -1,5 +1,105 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 P01 session 1 — My Work action centre, first slice
+
+Outcome: P01's discovery gate is fully answered (recorded in task_plan.md
+directly, via a live AskUserQuestion round: all 9 sources in scope for v1,
+compliance_manager is the first persona to be complete, deep-link-only for
+items with no trivial in-place action). This session wired 4 of the 9
+sources end to end with real tests; the other 5 are named, not silently
+dropped, matching "one independently releasable slice at a time" (this
+plan's own section 6 preamble).
+
+**New `modules/launcher/my_work_service.py`**: `get_my_work(user)`, a
+read-only federated query (no new task table, per the plan's own "Selected
+design") over `aria_document_approvals` (pending, scoped by
+`d.org_id`, the same WHERE shape as `policy_workflow_service.py`'s already-
+tested `list_pending_approvals_for`), `evidence_items` expiry (mirrors
+`modules/evidence/routes.py`'s own "expiring" +30-day view and F14's org
+check exactly, including the same NULL-is-super-admin-only fail-closed
+choice), `task_board` (rows where the caller is `assigned_to` or
+`created_by` -- safe without an org/BU column of its own, since this is
+already a by-user restriction, not a broad listing, the class of gap F14/F16
+fixed), and `notifications` (`user_id` + unread). Items land in one of 5
+sections (needs_my_action / waiting_on_others / due_soon / overdue /
+recently_completed) via a small `_section_for()` helper.
+
+**New `modules/launcher/routes_my_work.py`** (`GET /my-work` page, `GET
+/api/my-work` JSON), registered in `modules/launcher/routes.py` the same
+way every other launcher sub-router already is -- confirmed registered by
+querying the real route table after import (859 routes, up from 857, the
+two new ones present with the right methods; a first check missed them
+because it didn't flatten FastAPI's `_IncludedRouter` wrapper the way
+`scripts/capability_inventory.py` already had to -- same lesson as that
+script's own build, re-learned rather than remembered).
+
+**New `modules/launcher/templates/my_work.html`**: extends
+`platform_base.html`/`base_shell.html` (so `ApiClient.request` is already
+available with no extra script tag needed -- confirmed by grepping for
+where `api_client.js` loads before writing this, not assumed); a plain
+sectioned list for this first pass, not yet visually matched to Task
+Board's card styling -- functional correctness over polish for v1.
+
+**Tests**: `tests/test_my_work_service.py` (4 tests: overall shape has all
+5 sections and lists the 5 pending sources; evidence-expiry, task-board,
+and notification isolation each with a same-user/org positive control).
+ARIA approvals got no dedicated isolation test here -- building a real
+`aria_document_approvals` row hits a real, non-trivial FK/CHECK-constraint
+chain (`aria_documents.framework` NOT NULL, `aria_document_approvals.org_id`/
+`policy_version_id`/`round_number`/`request_id` all NOT NULL, the last
+needing a real `aria_policy_versions` row with its own `state`/`origin`
+CHECK constraints) that only the full workflow pipeline
+(`create_draft_from_generation` → `build_draft` → `confirm_draft` →
+`submit_for_approval`) already satisfies correctly -- the same heavy
+`tmp_path`/monkeypatch fixture `tests/test_aria_policy_approvals.py`'s own
+concurrency test uses. Building a second copy of that fixture just to
+re-prove a query shape that is deliberately byte-identical to that file's
+own already-tested `list_pending_approvals_for` was judged not worth it;
+recorded as a named gap in the test file's own docstring rather than
+silently skipped.
+
+New `tests/ui/test_my_work_page.py`: one real-browser smoke test (logs in
+as `compliance_manager`, the agreed first persona, loads `/my-work`,
+confirms all 5 sections render and the pending-sources note is visible) --
+passed on the first real run, including the T08 session 2 default-fail
+console/page-error gate, meaning the new template's inline JS has no
+console errors talking to the real live API.
+
+Red/green proof, three independent mechanisms in one round: temporarily
+removed the org filter from `_evidence_expiring` (`if False and not
+user.get("is_super_admin")`), replaced `_my_tasks`' `WHERE (assigned_to =
+%s OR created_by = %s)` with `WHERE 1=1`, and dropped `user_id = %s AND`
+from `_unread_notifications`'s WHERE clause -- each change run and reverted
+one at a time; each corresponding test FAILED for the expected reason
+(another org's/user's item leaking through) before being restored. Final
+state confirmed clean (`grep -n "TEMP red-proof"` found nothing left over).
+
+Verification commands (all from `oneforall/`):
+
+1. `..\.venv\Scripts\python.exe -m pytest tests/test_my_work_service.py -v` -- 4 passed (and each of the 3 isolation tests independently failed during its own red-proof step, confirmed above).
+2. `..\.venv\Scripts\python.exe -m pytest tests/ui/test_my_work_page.py -v` -- 1 passed.
+3. Full backend suite (`pytest tests --ignore=tests/ui -q`) run after adding the service/routes -- `PYTEST_EXIT:0`, zero `FAILED` lines.
+
+Explicitly unverified/skipped in this session:
+
+- The 5 pending sources named in `_PENDING_SOURCES` (generic workflow engine, GRID non-conformances, ERM/ORM reviews, BCM incidents, Sentinel/privacy deadlines) -- not wired yet.
+- Full browser suite (`pytest tests/ui -q`) re-run after adding this page -- `PYTEST_EXIT:0`, zero `FAILED` lines.
+- ARIA approvals' own isolation (named above as a deliberately-skipped test, not an unverified-and-forgotten one).
+- "Counts match source modules for fixtures", "an unauthorized action is neither advertised nor accepted" (N/A, no in-page actions), "page remains useful when one optional module is disabled" (confirmed NOT met -- a failing source currently fails the whole page fetch), and the response-time budget acceptance criteria -- none evaluated this session; see task_plan.md P01's Acceptance list for the per-line status.
+- No commit or push has been made for this P01 work yet.
+- No production host or data was touched. No commit, push, migration, service restart, or deployment was performed.
+
+## 2026-09-30 — F16 fix committed and pushed (user-authorized)
+
+Commit `c6b488a` on `master`, pushed to `origin/master` (`5bc237d..c6b488a`).
+Covers the full F16 fix below: `bcm_incidents`/`sentinel_dsr`/
+`grid_non_conformances` BU-scoping, the three new isolation test files, and
+the findings.md/task_plan.md updates. `git diff --check` passed with zero
+whitespace errors before staging. User authorization: "fix them now, one at
+a time, same rigor as F14" (which included commit+push) -- treated as
+covering this specific, already-scoped batch, not as a standing blanket
+authorization for future commits.
+
 ## 2026-09-30 T08 sessions 7-9 — F16: bcm_incidents, sentinel_dsr, grid_non_conformances had no BU scoping
 
 Outcome: three more confirmed, F14-class tenant-isolation gaps found and

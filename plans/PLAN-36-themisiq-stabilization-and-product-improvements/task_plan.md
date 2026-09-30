@@ -514,21 +514,21 @@ Selected design:
 
 Implementation tasks:
 
-- [ ] Add a scoped service returning normalized items with cursor pagination, filters, and deterministic ordering.
-- [ ] Add page/API under existing Launcher navigation; reuse Task Board visual patterns without conflating source records with tasks.
-- [ ] Add saved personal filters only after P06's preference model exists; initial release may use URL query state.
-- [ ] Add bulk navigation/acknowledge only where actions are non-destructive and individually authorized.
-- [ ] Add empty, partial-module-unavailable, and stale-data states.
-- [ ] Add deep-link and source-state refresh after an action completes.
+- [x] Add a scoped service returning normalized items with cursor pagination, filters, and deterministic ordering. **Partial (first slice)**: `modules/launcher/my_work_service.py`'s `get_my_work(user)` wires 4 of the 9 discovery-gate sources (ARIA policy approvals, evidence expiry, task_board, notifications) into the 5 standard sections; the other 5 (generic workflow engine, GRID non-conformances, ERM/ORM reviews, BCM incidents, Sentinel/privacy deadlines) are named in the module's own `_PENDING_SOURCES` list and surfaced to the page, not silently missing. No cursor pagination yet (each source is `LIMIT`-capped instead) -- deferred until real data volume shows it's needed, per this plan's own YAGNI discipline.
+- [x] Add page/API under existing Launcher navigation; reuse Task Board visual patterns without conflating source records with tasks. `GET /my-work` (page) and `GET /api/my-work` (JSON) in `modules/launcher/routes_my_work.py`, registered in `modules/launcher/routes.py` the same way every other launcher sub-router is. `modules/launcher/templates/my_work.html` is a plain sectioned list for this first pass, not yet visually matched to Task Board's card styling -- functional correctness was prioritized over visual polish for v1; named here rather than silently claimed as done.
+- [ ] Add saved personal filters only after P06's preference model exists; initial release may use URL query state. Not started -- no filters exist yet at all in this first slice.
+- [ ] Add bulk navigation/acknowledge only where actions are non-destructive and individually authorized. Not started -- v1 is deep-link-only per the discovery-gate answer, no in-page actions of any kind yet.
+- [ ] Add empty, partial-module-unavailable, and stale-data states. **Partial**: an empty section renders "Nothing here." (`my_work.html`); a fetch failure shows a generic error. No per-source "this module is disabled for your org" state yet -- if a wired source's table doesn't exist or its query fails, the whole page fetch fails, not a graceful partial render. Named as a real gap, not fixed silently.
+- [ ] Add deep-link and source-state refresh after an action completes. N/A yet -- v1 has no in-page actions to refresh after (deep-link-only, per the discovery gate).
 
-Acceptance:
+Acceptance (status for the 4 sources wired in this first slice; not yet claimed for the whole feature):
 
-- no cross-org/SBU item leakage;
-- counts match source modules for fixtures;
-- an unauthorized action is neither advertised nor accepted;
-- source changes appear without duplicate reconciliation jobs;
-- page remains useful when one optional module is disabled;
-- median initial response meets a budget selected during discovery and is measured with production-like data.
+- [x] no cross-org/SBU item leakage -- `tests/test_my_work_service.py`, 3 red/green-proved isolation tests (evidence expiry by org, task_board by assigned_to/created_by, notifications by user_id). ARIA approvals' own isolation is not independently tested here (see that file's docstring for why) but reuses an already-tested query shape.
+- [ ] counts match source modules for fixtures -- not separately verified; the isolation tests check presence/absence, not exact count parity against each source's own listing endpoint.
+- [ ] an unauthorized action is neither advertised nor accepted -- N/A yet (no in-page actions exist in this deep-link-only slice to advertise or accept).
+- [ ] source changes appear without duplicate reconciliation jobs -- true by construction (no caching/reconciliation layer exists; every request re-queries live), not separately tested.
+- [ ] page remains useful when one optional module is disabled -- **not met**, named above as a real gap (a failing source currently fails the whole page).
+- [ ] median initial response meets a budget selected during discovery -- no response-time budget was discussed or measured this session.
 
 ### P02 — Sanitized administration diagnostics and readiness centre
 

@@ -1,0 +1,103 @@
+{% extends "platform_base.html" %}
+{% block title %}My Work — ThemisIQ{% endblock %}
+
+{% block head %}
+.mywork-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.mywork-title{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
+.mywork-title span{font-weight:400;color:var(--muted);font-size:14px;display:block;margin-top:2px}
+.mywork-section{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);margin-bottom:18px;overflow:hidden}
+.mywork-section-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
+.mywork-section-title{font-size:13px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.04em}
+.mywork-section-count{font-size:12px;color:var(--muted);background:var(--surface2,var(--surface3));border-radius:100px;padding:2px 10px}
+.mywork-item{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit}
+.mywork-item:last-child{border-bottom:none}
+.mywork-item:hover{background:var(--surface2,var(--surface3))}
+.mywork-item-title{font-size:14px;font-weight:600;color:var(--text)}
+.mywork-item-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.mywork-empty{padding:24px 20px;text-align:center;color:var(--muted);font-size:13px}
+.mywork-pending-note{font-size:12px;color:var(--muted);margin-top:24px;padding:12px 16px;border:1px dashed var(--border);border-radius:var(--radius);background:var(--surface2,var(--surface3))}
+{% endblock %}
+
+{% block content %}
+<div class="mywork-header">
+  <div class="mywork-title">
+    My Work
+    <span>Everything across ThemisIQ that needs your attention, in one place.</span>
+  </div>
+</div>
+
+<div id="myWorkSections"></div>
+<div id="myWorkPendingNote" class="mywork-pending-note" style="display:none"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var SECTION_LABELS = {
+    needs_my_action:  'Needs My Action',
+    waiting_on_others: 'Waiting On Others',
+    due_soon:         'Due Soon',
+    overdue:          'Overdue',
+    recently_completed: 'Recently Completed',
+  };
+  var SECTION_ORDER = ['overdue', 'needs_my_action', 'due_soon', 'waiting_on_others', 'recently_completed'];
+
+  function esc(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  function fmtDate(ts) {
+    if (!ts) return '';
+    var d = new Date(ts.length === 10 ? ts + 'T00:00:00' : ts);
+    if (isNaN(d.getTime())) return ts;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function renderSection(name, items) {
+    var wrap = document.createElement('div');
+    wrap.className = 'mywork-section';
+    var head = '<div class="mywork-section-head">' +
+      '<div class="mywork-section-title">' + esc(SECTION_LABELS[name] || name) + '</div>' +
+      '<div class="mywork-section-count">' + items.length + '</div></div>';
+    var body;
+    if (!items.length) {
+      body = '<div class="mywork-empty">Nothing here.</div>';
+    } else {
+      body = items.map(function (it) {
+        var meta = esc(it.source_module) + (it.due_date ? ' · Due ' + esc(fmtDate(it.due_date)) : '');
+        return '<a class="mywork-item" href="' + esc(it.link) + '">' +
+          '<div><div class="mywork-item-title">' + esc(it.title) + '</div>' +
+          '<div class="mywork-item-meta">' + meta + '</div></div>' +
+          '</a>';
+      }).join('');
+    }
+    wrap.innerHTML = head + body;
+    return wrap;
+  }
+
+  async function load() {
+    var container = document.getElementById('myWorkSections');
+    try {
+      var data = await ApiClient.request('/api/my-work');
+      container.innerHTML = '';
+      SECTION_ORDER.forEach(function (name) {
+        container.appendChild(renderSection(name, data.sections[name] || []));
+      });
+      var noteEl = document.getElementById('myWorkPendingNote');
+      if (data.pending_sources && data.pending_sources.length) {
+        noteEl.style.display = '';
+        noteEl.textContent = 'Not yet included here (coming in a later release): ' + data.pending_sources.join('; ') + '.';
+      }
+    } catch (err) {
+      container.innerHTML = '<div class="mywork-empty">Could not load My Work' +
+        (err && err.detail ? ': ' + esc(err.detail) : '.') + '</div>';
+    }
+  }
+
+  load();
+})();
+</script>
+{% endblock %}
