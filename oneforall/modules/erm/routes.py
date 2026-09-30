@@ -189,9 +189,26 @@ async def api_risk_create(request: Request):
     return JSONResponse({"id": rid}, status_code=201)
 
 
+def _risk_in_scope_or_404(request: Request, risk_id: int) -> dict:
+    """Same check api_risk_detail already applies on read -- PLAN-36 P06
+    discovery found update/delete never applied it at all, so a holder of
+    the broad erm.risk.manage capability could mutate/delete a risk
+    entirely outside their own business-unit scope, bypassing the same
+    boundary the read path enforces. 404, not 403: never confirm an
+    out-of-scope id exists."""
+    risk = ds.get_enterprise_risk(risk_id)
+    if not risk:
+        raise HTTPException(404, "Risk not found")
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and risk.get("business_unit_id") is not None and risk["business_unit_id"] not in scope:
+        raise HTTPException(404, "Risk not found")
+    return risk
+
+
 @router.put("/api/risks/{risk_id}")
 @require_capability("erm.risk.manage")
 async def api_risk_update(request: Request, risk_id: int):
+    _risk_in_scope_or_404(request, risk_id)
     body = await _json_body(request)
     _validate_score_fields(body)
     ds.update_enterprise_risk(risk_id, body)
@@ -236,6 +253,7 @@ async def api_risk_update(request: Request, risk_id: int):
 @router.delete("/api/risks/{risk_id}")
 @require_capability("erm.risk.manage")
 async def api_risk_delete(request: Request, risk_id: int):
+    _risk_in_scope_or_404(request, risk_id)
     ds.delete_enterprise_risk(risk_id)
     return JSONResponse({"ok": True})
 

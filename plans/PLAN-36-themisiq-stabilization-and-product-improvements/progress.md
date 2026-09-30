@@ -1,5 +1,91 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 P06 discovery session — F17: write-path BU-scope gaps found and fixed
+
+While researching P06 (saved views and permission-safe bulk actions) via a
+research agent, comparing every module's read vs. write route pairs
+surfaced four real, pre-existing authorization gaps -- not P06 features,
+found by reading the code. Documented in full as `findings.md` F17. Fixed
+immediately with the same rigor as F14/F16 (real tests, red/green proofs),
+before continuing to P06's own actual feature work, matching this
+session's established "fix tenant-isolation gaps the moment they're found"
+precedent.
+
+Files modified:
+
+- `oneforall/modules/erm/routes.py` -- added `_risk_in_scope_or_404()`,
+  called from `PUT`/`DELETE /api/risks/{risk_id}` before mutating. Same
+  check `GET .../{risk_id}` already had; the write paths never had it.
+- `oneforall/modules/orm/routes.py` -- identical fix, `_event_in_scope_or_404()`,
+  for `PUT`/`DELETE /api/events/{event_id}`.
+- `oneforall/modules/grid/data_service.py` -- `bulk_approve_evidence()` now
+  takes `bu_scope` and excludes (not applies to) any posted id outside it,
+  scoped via `grid_evidence_files -> grid_controls -> grid_audits.business_unit_id`
+  (no new column; both FKs already required). Returns the true applied
+  count, so an excluded id is visible to the caller as a smaller count.
+- `oneforall/modules/grid/routes.py` -- passes `bu_scope_ids(request.state.user)`
+  into the now-scope-aware `bulk_approve_evidence`.
+- `oneforall/modules/launcher/routes_platform.py` -- `GET /api/tasks` had
+  `where = ["1=1"]`, no scoping of any kind despite `task_board.business_unit_id`
+  existing. Added the same `(business_unit_id IS NULL OR ... IN (scope))`
+  clause used throughout the codebase.
+
+Severity calibration (worth being precise about, not just "found 4 bugs"):
+`task_board`, like `grid_controls`/`erm_enterprise_risks`, has no `org_id`
+column and is confirmed (via `database.py`'s `_apply_tenant_schema_ddl`/
+`_PLATFORM_TABLES_PG`) to be provisioned as a genuinely separate table per
+tenant schema on PostgreSQL -- so its gap was never a cross-**organization**
+leak in production, only a cross-**business-unit** one within a single
+org. Real and worth fixing, but a smaller blast radius than F14. The
+ERM/ORM/GRID write-path gaps are full authorization bypasses regardless of
+that distinction -- a user could actively mutate/delete/approve a specific
+record they could not even see via any read path.
+
+Files created:
+
+- `oneforall/tests/ui/test_p06_discovery_scope_fixes.py` -- 4 HTTP-level
+  tests, one per fix: seed a row in a second business unit the acting
+  persona is not part of, confirm the fixed endpoint refuses/excludes it,
+  confirm the row itself is untouched.
+
+Red/green proofs performed (temporarily broke the fix, confirmed the test
+failed for the expected reason, restored, confirmed `grep -rn "TEMP
+red-proof"` found nothing and the suite was green again):
+
+- ERM: short-circuited `_risk_in_scope_or_404`'s scope check with `if False
+  and ...` -- test failed (a cross-BU update succeeded). Restored; passed.
+- GRID: short-circuited `bulk_approve_evidence`'s per-id scope check the
+  same way -- test failed (a cross-BU evidence file was approved).
+  Restored; passed.
+
+Verification commands and results (from `oneforall/`, `../.venv/Scripts/python.exe`):
+
+1. `pytest tests/ui/test_p06_discovery_scope_fixes.py -v` -- 4 passed.
+2. Full backend suite (`pytest tests/ -x --ignore=tests/ui -q`) -- clean:
+   progress bar reached 100% with zero failure/error markers, exit 0. Only
+   non-pass markers were the previously-documented PostgreSQL-gate skips.
+3. Full UI (Playwright) suite (`pytest tests/ui -q`) -- clean: 273 total,
+   271 passed, 2 skipped, 0 failed/errored, exit 0.
+
+Explicitly unverified/skipped this session:
+
+- ORM's fix was not independently red/green-proved (identical code shape
+  to ERM's already-proved fix; covered by its own positive-exclusion test,
+  which passed on the first real run).
+- Not committed; pending user authorization per this session's established
+  per-batch pattern. This batch is scoped as its own commit, separate from
+  P06's actual feature work (saved views / bulk actions), which has not
+  started yet -- these were pre-existing bugs found during P06's
+  discovery phase, not part of the feature itself.
+
+## 2026-09-30 — P05 committed and pushed (user-authorized)
+
+Commit `14cb1d7` on `master`, pushed to `origin/master` (`c819bb2..14cb1d7`).
+13 files changed, 1830 insertions(+), 13 deletions(-). Covers the full P05
+session below, verified under the corrected `.venv` interpreter (full
+backend suite 100% clean; full UI/Playwright suite 267/269 passed, 2
+legitimate skips, 0 failed).
+
 ## 2026-09-30 P05 session 1 — evidence collection campaigns
 
 User's explicit scope decision: "Full feature, all parts" (campaigns +

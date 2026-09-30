@@ -137,9 +137,25 @@ async def api_event_create(request: Request):
     return JSONResponse({"id": eid}, status_code=201)
 
 
+def _event_in_scope_or_404(request: Request, event_id: int) -> dict:
+    """Same check api_event_detail already applies on read -- PLAN-36 P06
+    discovery found update/delete never applied it at all, so a holder of
+    the broad orm.event.manage capability could mutate/delete an event
+    entirely outside their own business-unit scope. 404, not 403: never
+    confirm an out-of-scope id exists."""
+    ev = ds.get_event(event_id)
+    if not ev:
+        raise HTTPException(404)
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and ev.get("business_unit_id") is not None and ev["business_unit_id"] not in scope:
+        raise HTTPException(404)
+    return ev
+
+
 @router.put("/api/events/{event_id}")
 @require_capability("orm.event.manage")
 async def api_event_update(request: Request, event_id: int):
+    _event_in_scope_or_404(request, event_id)
     body = await _json_body(request)
     ds.update_event(event_id, body)
     new_status = (body.get("status") or "").lower()
@@ -164,6 +180,7 @@ async def api_event_update(request: Request, event_id: int):
 @router.delete("/api/events/{event_id}")
 @require_capability("orm.event.manage")
 async def api_event_delete(request: Request, event_id: int):
+    _event_in_scope_or_404(request, event_id)
     ds.delete_event(event_id)
     return JSONResponse({"ok": True})
 

@@ -17,6 +17,7 @@ from modules.launcher._route_helpers import (
     shell_ctx, shell_templates, settings, get_db,
     _json_body,)
 from modules.aria.policy_access import document_scope_sql
+from modules.governance.data_service import bu_scope_ids
 
 router = APIRouter()
 
@@ -663,7 +664,13 @@ async def task_board_page(request: Request):
 @router.get("/api/tasks")
 @require_auth
 async def api_tasks_list(request: Request):
-    """List tasks with filters."""
+    """List tasks with filters.
+
+    PLAN-36 P06 discovery found this had no business-unit scoping at all
+    despite task_board.business_unit_id existing -- any authenticated user
+    saw every BU's tasks within their org. NULL business_unit_id is
+    treated as org-wide-visible, the same convention used throughout this
+    codebase (e.g. modules/aria/policy_access.py's document_read_ok)."""
     db = get_db()
     try:
         status = request.query_params.get("status", "")
@@ -673,6 +680,11 @@ async def api_tasks_list(request: Request):
 
         where = ["1=1"]
         params = []
+        scope = bu_scope_ids(request.state.user)
+        if scope is not None:
+            placeholders = ",".join(["%s"] * len(scope)) if scope else "NULL"
+            where.append(f"(t.business_unit_id IS NULL OR t.business_unit_id IN ({placeholders}))")
+            params.extend(scope)
         if status:
             where.append("t.status = %s"); params.append(status)
         if module:

@@ -1340,23 +1340,46 @@ def create_vendor_assessment(vid, data):
         db.close()
 
 
-def bulk_approve_evidence(eids, status, approved_by):
-    """Approve or reject multiple evidence files at once."""
+def bulk_approve_evidence(eids, status, approved_by, bu_scope=None):
+    """Approve or reject multiple evidence files at once.
+
+    PLAN-36 P06 discovery found this took the posted id list on trust with
+    no ownership/BU check at all -- any holder of grid.evidence.approve
+    could approve/reject any evidence file company-wide by id, regardless
+    of which audit/business unit it actually belongs to. Scoped the same
+    way grid_non_conformances' fix (F16, this session) scopes NCs: through
+    the evidence file's control's parent audit's business_unit_id (no new
+    column, control_id/audit_id are both required FKs so the join is
+    always valid). Silently skips (never applies) an out-of-scope id
+    rather than raising, since this is a bulk operation over a
+    caller-controlled list -- the caller only learns the true count
+    applied."""
     db = get_db()
     try:
         control_ids = set()
+        applied = 0
         for eid in eids:
+            if bu_scope is not None:
+                row = db.execute(
+                    "SELECT a.business_unit_id FROM grid_evidence_files ef "
+                    "JOIN grid_controls c ON ef.control_id = c.id "
+                    "JOIN grid_audits a ON c.audit_id = a.id WHERE ef.id=%s",
+                    (eid,),
+                ).fetchone()
+                if not row or (row["business_unit_id"] is not None and row["business_unit_id"] not in bu_scope):
+                    continue
             db.execute(
                 "UPDATE grid_evidence_files SET status=%s, approved_by=%s, approved_at=CURRENT_TIMESTAMP WHERE id=%s",
                 (status, approved_by, eid),
             )
+            applied += 1
             ef = db.execute("SELECT control_id FROM grid_evidence_files WHERE id=%s", (eid,)).fetchone()
             if ef:
                 control_ids.add(ef[0])
         db.commit()
         for cid in control_ids:
             _auto_status_control(db, cid)
-        return len(eids)
+        return applied
     finally:
         db.close()
 

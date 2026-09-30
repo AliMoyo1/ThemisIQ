@@ -636,7 +636,7 @@ async def api_evidence_bulk_approve(request: Request):
         raise HTTPException(400, "ids (list of evidence file IDs) required")
     if status not in ("Approved", "Rejected"):
         raise HTTPException(400, "status must be Approved or Rejected")
-    count = ds.bulk_approve_evidence(eids, status, _uid(request))
+    count = ds.bulk_approve_evidence(eids, status, _uid(request), bu_scope=bu_scope_ids(request.state.user))
     ds.log_activity(_uid(request), "bulk_approve_evidence", "grid_evidence_files", 0,
                     f"{count} files → {status}")
     return JSONResponse({"ok": True, "count": count})
