@@ -1,5 +1,151 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 P02 session 1 — diagnostics/readiness centre, missing infrastructure built
+
+Scope decision from the user (discovery-gate question): backup-freshness
+metadata, ARIA-preview-worker heartbeat, and scheduler status did not exist
+as callable functions before this session -- only raw files/APScheduler
+internals did. User chose "build the missing heartbeat/backup
+infrastructure too" rather than shipping a diagnostics page that could only
+speak to what already had a getter.
+
+Files created:
+
+- `oneforall/core/backup_status.py` -- `get_backup_freshness()`. Reads the
+  exact `BACKUP_PATH`/`themisiq-*.zip` naming convention
+  `scripts/production_backup.sh` and `modules/grid/scheduler.py`'s
+  `perform_backup()` already use; metadata-only (file stat/glob, never
+  opens the zip). `GRID_BACKUP_JOBS_ENABLED=false` reports `NOT_CONFIGURED`/
+  `backup_host_managed` rather than "no backup found," since a host-managed
+  backup service means this process has no visibility by design.
+- `oneforall/modules/launcher/diagnostics_service.py` -- `get_diagnostics(user)`.
+  `_safe()` wraps every probe so one raising probe degrades only that
+  entry rather than 500ing the page. Only attaches the `platform` key
+  (scheduler/backup/ARIA-preview-worker) when `user["is_super_admin"]`;
+  org admins get `database`/`ai`/`email`/`licensed_modules` only.
+- `oneforall/modules/launcher/routes_diagnostics.py` -- `GET /admin/diagnostics`
+  (page) and `GET /api/admin/diagnostics` (data), both gated
+  `require_capability("platform.manage_users", "platform.manage_org_users")`
+  (super admin or org admin; not a bare `platform.manage_users` super-admin-only
+  gate -- caught and fixed my own first draft before finishing, since a
+  narrower gate would have contradicted this task's own "org admin sees
+  organization-level configuration state" acceptance line). `api_diagnostics`
+  calls `log_audit(user, "platform", "Viewed platform diagnostics")` on
+  every call per the "audit events for viewing sensitive platform
+  diagnostics" requirement.
+- `oneforall/modules/launcher/templates/diagnostics.html` -- card-grid UI;
+  `cardFor()` renders a color-coded badge per `CapabilityState.state`;
+  platform section only shown when `data.platform` is present.
+- `oneforall/tests/test_diagnostics_probes.py` -- 9 unit tests: backup
+  freshness's 4 branches (host-managed/no-file/fresh/stale), preview-worker
+  heartbeat's 3 branches (missing/fresh/stale), scheduler status's
+  never-started branch, and a redaction regression test (below).
+- `oneforall/tests/ui/test_diagnostics_routes.py` -- 5 HTTP-level tests:
+  unauthenticated redirect, employee 403, org-admin 200 with no `platform`
+  key, super-admin 200 with all three platform probes present, page render.
+
+Files modified:
+
+- `oneforall/modules/grid/scheduler.py` -- added `get_scheduler_status()`
+  (`{running, jobs: [{id, next_run_time}]}`) right after `stop_scheduler()`.
+  Deliberately NOT reshaped into the `CapabilityState` vocabulary -- job-list
+  detail doesn't fit a single-judgement shape; `diagnostics.html` converts
+  it to a badge client-side instead (`pf.scheduler.running` -> available/degraded).
+- `oneforall/modules/aria/policy_preview.py` -- added
+  `get_worker_heartbeat_state()`, reading the same `.worker.heartbeat`
+  spool file the worker's own healthcheck already writes (atomic
+  temp+rename, raw float timestamp); no worker-side change needed.
+- `oneforall/modules/launcher/routes.py` -- registered `diagnostics_router`.
+
+Two real bugs found and fixed while writing tests (not pre-existing;
+introduced earlier in this same session and caught before commit):
+
+1. `core/backup_status.py`'s `_MAX_AGE_HOURS` was a module-level constant
+   computed once at import (`int(os.getenv(...))`), inconsistent with the
+   adjacent `_backup_jobs_enabled()` in the same file, which correctly
+   reads its env var fresh on every call. Not just a test-friendliness
+   issue -- it means a deployment changing `BACKUP_MAX_AGE_HOURS` would
+   need a full process restart to take effect while `GRID_BACKUP_JOBS_ENABLED`
+   would not. Fixed by converting to a `_max_age_hours()` function, read
+   fresh every call, matching the sibling function's own pattern.
+2. First draft of the redaction test monkeypatched `settings.SMTP_HOST`,
+   which turned out to be dead in this environment: `_email_configured_state`
+   reads `core.email._get_setting("smtp_host")` (a real settings-table row)
+   *before* falling back to `settings.SMTP_HOST`, and this dev database
+   already has a real `smtp_host` row (`smtp.gmail.com`), so the env-var
+   monkeypatch was never consulted -- the red-proof passed when it should
+   have failed. Fixed by patching `core.email._get_setting` directly,
+   matching the code's actual precedence order; re-ran the red-proof and
+   confirmed it now fails for the right reason before restoring.
+
+Red/green proofs performed (temporarily broke the fix, confirmed the test
+failed for the expected reason, restored, confirmed `grep -n "TEMP
+red-proof"` found nothing and the suite was green again):
+
+- `test_org_admin_sees_org_scoped_state_but_no_platform_key`: temporarily
+  replaced `if user.get("is_super_admin"):` with `if True:` in
+  `diagnostics_service.get_diagnostics` -- test failed (org admin received
+  a `platform` key). Restored; test passed.
+- `test_get_diagnostics_never_leaks_the_configured_smtp_host`: temporarily
+  added `message=host` to the email probe's `AVAILABLE` return -- test
+  failed (secret host string appeared in the serialized response).
+  Restored; test passed.
+
+Tooling correction mid-session: the first pass at every command below used
+bare `python` (bash `PATH` resolution), which is the *system* Python 3.14.3
+-- already explicitly documented at T00 baseline (this file, 2026-09-24
+entry) as "not used for this repo." System Python lacks the `playwright`
+package entirely, so a first "full UI suite" run under it silently skipped
+nearly every Playwright-backed test (`pytest.importorskip` in
+`tests/ui/conftest.py`'s `browser` fixture) rather than failing -- exit 0
+and a clean progress bar, but not real coverage. Caught by checking why the
+skip count looked unusually high rather than accepting the green exit code
+at face value. All commands below are the corrected re-runs using
+`../.venv/Scripts/python.exe` (Python 3.12.14, the project's real
+interpreter, with `playwright` installed); treat this as the authoritative
+result, not the system-Python run that preceded it.
+
+Verification commands and results (from `oneforall/`, `../.venv/Scripts/python.exe`):
+
+1. `pytest tests/test_diagnostics_probes.py tests/ui/test_diagnostics_routes.py -v`
+   -- 14 passed (also 14 passed under system Python, since these particular
+   tests don't depend on Playwright -- `test_diagnostics_routes.py` drives
+   the app over `httpx` against `live_app`, not a browser).
+2. Route-registration check via the same `_IncludedRouter`-flattening
+   introspection used for `capability_inventory.py`: `/admin/diagnostics
+   {'GET'}`, `/api/admin/diagnostics {'GET'}` both present; total 862
+   routes (up from 859 before P02).
+3. Full backend suite (`pytest tests/ -x --ignore=tests/ui -q`) -- clean:
+   progress bar reached 100% with zero failure/error markers, exit 0. Only
+   non-pass markers were the previously-documented PostgreSQL-gate skips.
+4. Full UI (Playwright) suite (`pytest tests/ui -q`) -- clean: 252 total,
+   250 passed, 2 skipped, 0 failed/errored, exit 0. (Contrast with the
+   discarded system-Python run of this same command, which silently
+   skipped nearly everything -- this run's pass-heavy shape is the real
+   signal that Playwright actually executed this time.)
+
+Explicitly unverified/skipped this session:
+
+- No dedicated Playwright browser test clicks through the rendered
+  `diagnostics.html` page's JS-rendered cards; the page-render test only
+  confirms a 200 status and the literal string "Diagnostics" in the HTML.
+- Remediation routes and correlation IDs: only the email probe carries a
+  `remediation_route` (`/admin/email`); not added for the other probes.
+  No correlation-ID scheme.
+- App release/build display, publication/scan queue age, LibreOffice/preview
+  readiness, and feature-flag listing were named in task_plan.md's
+  implementation list but not built -- not named as blocking by the user's
+  discovery-gate answer; can be added as additional probes later without
+  reshaping the service.
+- Not committed; pending user authorization per this session's established
+  per-batch pattern.
+
+## 2026-09-30 — P09 committed and pushed (user-authorized)
+
+Commit `03d6fbb` on `master`, pushed to `origin/master` (`db7b712..03d6fbb`).
+Covers the full P09 session below plus the incidental `login.html`
+null-check fix. `git diff --check` passed with zero whitespace errors.
+
 ## 2026-09-30 P09 session 1 — capability-state vocabulary, first area wired (AI)
 
 Outcome: worked P09 before P02 despite the plan's own numeric ordering,

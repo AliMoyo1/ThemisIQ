@@ -1,0 +1,88 @@
+{% extends "platform_base.html" %}
+{% block title %}Diagnostics — ThemisIQ{% endblock %}
+
+{% block head %}
+.diag-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.diag-title{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
+.diag-title span{font-weight:400;color:var(--muted);font-size:14px;display:block;margin-top:2px}
+.diag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.diag-card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);padding:16px 18px}
+.diag-card-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px}
+.diag-badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:100px;text-transform:uppercase;letter-spacing:0.03em}
+.diag-badge-available{background:var(--good-bg,#dcfce7);color:var(--good-dark,#166534)}
+.diag-badge-degraded{background:var(--amber-bg,#fef3c7);color:var(--amber-dark,#92400e)}
+.diag-badge-not_configured{background:var(--surface3);color:var(--muted)}
+.diag-badge-forbidden,.diag-badge-unavailable_in_tier,.diag-badge-disabled_by_policy{background:var(--red-bg,#fee2e2);color:var(--red-dark,#991b1b)}
+.diag-message{font-size:12px;color:var(--muted);margin-top:6px}
+.diag-section-title{font-size:14px;font-weight:800;color:var(--text);margin:24px 0 12px}
+{% endblock %}
+
+{% block content %}
+<div class="diag-header">
+  <div class="diag-title">
+    Diagnostics
+    <span>Read-only platform and configuration health. No secrets or raw errors are ever shown here.</span>
+  </div>
+</div>
+
+<div id="diagOrgGrid" class="diag-grid"></div>
+<div id="diagPlatformSection" style="display:none">
+  <div class="diag-section-title">Platform (super admin)</div>
+  <div id="diagPlatformGrid" class="diag-grid"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function esc(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  function cardFor(title, state) {
+    state = state || { state: 'not_configured', message: 'No data.' };
+    var badgeClass = 'diag-badge-' + (state.state || 'not_configured');
+    var label = (state.state || 'unknown').replace(/_/g, ' ');
+    return '<div class="diag-card">' +
+      '<div class="diag-card-title">' + esc(title) + '</div>' +
+      '<span class="diag-badge ' + badgeClass + '">' + esc(label) + '</span>' +
+      (state.message ? '<div class="diag-message">' + esc(state.message) + '</div>' : '') +
+      '</div>';
+  }
+
+  async function load() {
+    var orgGrid = document.getElementById('diagOrgGrid');
+    try {
+      var data = await ApiClient.request('/api/admin/diagnostics');
+      var cards = '';
+      cards += cardFor('Database', data.database);
+      cards += cardFor('AI Features', data.ai);
+      cards += cardFor('Email', data.email);
+      cards += '<div class="diag-card"><div class="diag-card-title">Licensed Modules</div>' +
+        '<div class="diag-message">' + esc((data.licensed_modules || []).join(', ') || 'None') + '</div></div>';
+      orgGrid.innerHTML = cards;
+
+      if (data.platform) {
+        document.getElementById('diagPlatformSection').style.display = '';
+        var pf = data.platform;
+        var pcards = '';
+        pcards += cardFor('Backup Freshness', pf.backup);
+        pcards += cardFor('ARIA Preview Worker', pf.aria_preview_worker);
+        var schedulerState = { state: pf.scheduler && pf.scheduler.running ? 'available' : 'degraded',
+                                message: pf.scheduler ? (pf.scheduler.jobs || []).length + ' job(s) registered' : '' };
+        pcards += cardFor('Scheduler', schedulerState);
+        document.getElementById('diagPlatformGrid').innerHTML = pcards;
+      }
+    } catch (err) {
+      orgGrid.innerHTML = '<div class="diag-card">Could not load diagnostics' +
+        (err && err.detail ? ': ' + esc(err.detail) : '.') + '</div>';
+    }
+  }
+
+  load();
+})();
+</script>
+{% endblock %}

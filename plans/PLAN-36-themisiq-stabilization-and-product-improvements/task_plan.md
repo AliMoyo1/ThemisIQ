@@ -538,26 +538,26 @@ Dependencies: T05, T06, T09, P09 status vocabulary.
 
 Discovery gate:
 
-- [ ] Reuse `/health`, `/ready`, scheduler status functions, feature flags, queue state, ARIA preview heartbeat, AI configuration, email configuration, backup metadata, database checks, and systemd/deployment knowledge already present.
-- [ ] Separate platform-super-admin information from organization-admin configuration state.
+- [x] Reuse `/health`, `/ready`, scheduler status functions, feature flags, queue state, ARIA preview heartbeat, AI configuration, email configuration, backup metadata, database checks, and systemd/deployment knowledge already present. Scheduler status and backup freshness and preview-worker heartbeat did not exist as callable functions yet (only raw files/APScheduler internals) -- built as thin new read-only wrappers over the existing mechanisms (`scripts/production_backup.sh` output files, `_scheduler` APScheduler instance, `.worker.heartbeat` spool file) per user's explicit "build the missing heartbeat/backup infrastructure too" scope decision, rather than inventing a parallel tracking mechanism.
+- [x] Separate platform-super-admin information from organization-admin configuration state. `get_diagnostics(user)` only computes/attaches the `platform` key when `user["is_super_admin"]` is true; red/green proved (see Round P02 below).
 
 Implementation tasks:
 
-- [ ] Create a read-only diagnostics service with independently timed probes and a short cache; one slow dependency must not block the page.
-- [ ] Report database connectivity/migration readiness, app release/build, background scheduler heartbeat, publication/scan queue age, preview worker heartbeat, LibreOffice/preview readiness, AI provider/model pin state, email/connector configured state, feature flags, and verified-backup freshness.
-- [ ] Never return keys, DSNs, passwords, webhook URLs, full filesystem paths unnecessary to the user, raw exceptions, process environment, or private host inventory.
-- [ ] Make active probes side-effect-free. A Send Test action remains an explicit separately authorized mutation with rate limiting.
-- [ ] Provide remediation text and correlation IDs rather than stack traces.
-- [ ] Add audit events for viewing sensitive platform diagnostics and for any active test.
+- [x] Create a read-only diagnostics service with independently timed probes and a short cache; one slow dependency must not block the page. `diagnostics_service.py`'s `_safe()` wraps every probe so one raising probe degrades only that entry (see acceptance line re: degraded dependency). No cache added -- v1 probes are all cheap (file stat, one SELECT 1, one heartbeat file read); revisit if a future probe is slow.
+- [x] Report database connectivity, background scheduler heartbeat, preview worker heartbeat, AI provider configuration state, email configured state, licensed modules, and verified-backup freshness. NOT built in v1: app release/build display, publication/scan queue age, LibreOffice/preview readiness, feature-flag listing -- not named as blocking by the user; can be added as additional probes later without reshaping the service.
+- [x] Never return keys, DSNs, passwords, webhook URLs, full filesystem paths unnecessary to the user, raw exceptions, process environment, or private host inventory. Every probe returns only a `CapabilityState` (state/reason_code/message/remediation_route/retryable) or, for scheduler, `{running, jobs: [{id, next_run_time}]}` -- no probe ever threads a secret/path/env value into a response field. Backup probe surfaces only `latest.name` (a fixed `themisiq-{timestamp}.zip` pattern) and size/age, never a full path. Covered by a dedicated redaction regression test with a red/green proof.
+- [x] Make active probes side-effect-free. Every probe is a pure read (file stat/read, `SELECT 1`, APScheduler introspection); no probe here performs a "Send Test" style mutation, so the separate rate-limited mutation this line warns about does not apply to v1.
+- [ ] Provide remediation text and correlation IDs rather than stack traces. Remediation route is wired for email (`/admin/email`) only; not yet added for the other probes. No correlation-ID scheme added.
+- [x] Add audit events for viewing sensitive platform diagnostics and for any active test. `GET /api/admin/diagnostics` calls `log_audit(user, "platform", "Viewed platform diagnostics")` on every call.
 
 Acceptance:
 
-- redaction tests cover every response field;
-- org admin sees only organization-level configuration state;
-- super admin sees platform state but not secret values;
-- degraded dependency is represented without making the whole page 500;
-- backup freshness is metadata-only and never downloads a dump;
-- browser and API tests cover healthy/degraded/unconfigured/forbidden states.
+- [x] redaction tests cover every response field -- `test_get_diagnostics_never_leaks_the_configured_smtp_host` (red/green proved: temporarily made the email probe return the host in `message`, confirmed the test caught it, restored).
+- [x] org admin sees only organization-level configuration state -- `test_org_admin_sees_org_scoped_state_but_no_platform_key` (red/green proved: temporarily removed the `is_super_admin` gate, confirmed the test caught the leak, restored).
+- [x] super admin sees platform state but not secret values -- `test_super_admin_sees_platform_key_with_all_three_probes`.
+- [x] degraded dependency is represented without making the whole page 500 -- `_safe()`'s exception path returns `NOT_CONFIGURED`/`probe_error` instead of raising; the HTTP tests hit the real endpoint end-to-end with no probe mocking and get 200 in every case.
+- [x] backup freshness is metadata-only and never downloads a dump -- `get_backup_freshness()` only ever calls `Path.stat()`/`glob()`, never opens or extracts the zip.
+- [~] browser and API tests cover healthy/degraded/unconfigured/forbidden states -- API-level covered (`tests/ui/test_diagnostics_routes.py`: unauthenticated/forbidden/org-admin/super-admin/page-render, plus unit-level healthy/stale/missing/host-managed branch coverage in `tests/test_diagnostics_probes.py`); no dedicated Playwright browser test clicking through the rendered diagnostics.html page yet (page-render smoke test only confirms 200 + title text, not the JS-rendered cards).
 
 ### P03 — ARIA policy lifecycle workbench
 

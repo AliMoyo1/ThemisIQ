@@ -17,6 +17,7 @@ from modules.launcher.routes_platform import router as platform_router
 from modules.launcher.routes_vendors import router as vendors_router
 from modules.launcher.routes_my_work import router as my_work_router
 from modules.launcher.routes_capability_state import router as capability_state_router
+from modules.launcher.routes_diagnostics import router as diagnostics_router
 
 router = APIRouter()
 
@@ -53,3 +54,6 @@ router.include_router(my_work_router)
 
 # P09: capability-state endpoints
 router.include_router(capability_state_router)
+
+# P02: diagnostics/readiness centre
+router.include_router(diagnostics_router)

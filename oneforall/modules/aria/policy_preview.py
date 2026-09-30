@@ -73,6 +73,34 @@ def _atomic_write_bytes(path: Path, data: bytes) -> None:
     os.rename(str(tmp), str(path))
 
 
+def get_worker_heartbeat_state():
+    """P02: read-only worker liveness, from the SAME heartbeat file
+    scripts/aria_policy_preview_worker.py's own `healthcheck()` (used by its
+    Docker --healthcheck) already reads -- the app and worker share one
+    spool volume, so this needs no new worker-side code, only a reader.
+    Never launches LibreOffice, never touches inbox/outbox job files."""
+    from core.capability_state import CapabilityState, AVAILABLE, DEGRADED, NOT_CONFIGURED
+
+    max_age = int(os.environ.get("ARIA_POLICY_PREVIEW_HEARTBEAT_MAX_AGE_SECONDS", "90"))
+    heartbeat_path = _spool_dir() / ".worker.heartbeat"
+    try:
+        age = time.time() - float(heartbeat_path.read_text(encoding="ascii"))
+    except (OSError, ValueError):
+        return CapabilityState(
+            state=NOT_CONFIGURED,
+            reason_code="preview_worker_heartbeat_missing",
+            message="The policy preview worker has never reported in, or its spool is not reachable from this process.",
+        )
+    if age < 0 or age > max_age:
+        return CapabilityState(
+            state=DEGRADED,
+            reason_code="preview_worker_heartbeat_stale",
+            message=f"The policy preview worker's last heartbeat is {age:.0f}s old (expected within {max_age}s).",
+            retryable=True,
+        )
+    return CapabilityState(state=AVAILABLE, reason_code="preview_worker_alive", message=f"Last heartbeat {age:.0f}s ago.")
+
+
 def submit_conversion_job(branded_docx_bytes: bytes, timeout_seconds: int | None = None) -> str:
     """Write a conversion job to the spool inbox. Returns the job id.
     Accepts only already-validated bytes -- no path, no filter, no

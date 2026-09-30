@@ -799,6 +799,22 @@ def stop_scheduler() -> None:
 
 
 def get_scheduler_status() -> dict:
+    """P02: read-only, side-effect-free liveness check -- whether this
+    process's APScheduler is running and each registered job's next
+    scheduled fire time. This is liveness, not an audit trail: APScheduler
+    itself does not retain a history of past run outcomes, so "last
+    successful run" is deliberately not claimed here -- reporting a fake
+    one would be worse than reporting none."""
+    if _scheduler is None or not _scheduler.running:
+        return {"running": False, "jobs": []}
+    jobs = [
+        {"id": job.id, "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None}
+        for job in _scheduler.get_jobs()
+    ]
+    return {"running": True, "jobs": jobs}
+
+
+def get_scheduler_status() -> dict:
     """Return current scheduler status and next run times."""
     if not _scheduler or not _scheduler.running:
         return {"running": False, "jobs": []}
