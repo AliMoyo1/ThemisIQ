@@ -283,6 +283,55 @@ def record_ai_call(user_id: str):
         _login_attempts[key].append(time.time())
 
 
+_READINESS_SCAN_WINDOW_SECONDS = 300  # 5 minutes
+_READINESS_SCAN_MAX_PER_WINDOW = 1    # per org -- an on-demand scan is not a poll
+
+
+def check_readiness_scan_rate_limit(org_id) -> bool:
+    """Return True if this org may trigger an on-demand readiness scan
+    (task_plan.md P04: 'a Send Test action remains an explicit separately
+    authorized mutation with rate limiting' -- same principle applied to
+    the on-demand scan trigger). Same DB-backed/in-memory dual path as
+    check_ai_rate_limit, its own key prefix and threshold."""
+    key = f"readiness_scan:{org_id}"
+    if not _use_db_rate_limit():
+        now = time.time()
+        _login_attempts[key] = [t for t in _login_attempts[key] if now - t < _READINESS_SCAN_WINDOW_SECONDS]
+        return len(_login_attempts[key]) < _READINESS_SCAN_MAX_PER_WINDOW
+    try:
+        db = get_db()
+        try:
+            row = db.execute(
+                "SELECT COUNT(*) FROM rate_limit_attempts"
+                " WHERE key=%s AND attempted_at > NOW() - INTERVAL %s",
+                (key, f"{_READINESS_SCAN_WINDOW_SECONDS} seconds"),
+            ).fetchone()
+            return (row[0] if row else 0) < _READINESS_SCAN_MAX_PER_WINDOW
+        finally:
+            db.close()
+    except Exception:
+        _rl_log.warning("[readiness-scan-rate-limit] DB check failed, failing open")
+        return True
+
+
+def record_readiness_scan(org_id):
+    """Record that an on-demand readiness scan was triggered for this org."""
+    key = f"readiness_scan:{org_id}"
+    if not _use_db_rate_limit():
+        _login_attempts[key].append(time.time())
+        return
+    try:
+        db = get_db()
+        try:
+            db.execute("INSERT INTO rate_limit_attempts (key) VALUES (%s)", (key,))
+            db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        _rl_log.warning("[readiness-scan-rate-limit] DB record failed: %s", exc)
+        _login_attempts[key].append(time.time())
+
+
 # ── CSRF Origin Check ────────────────────────────────────────────────────────
 
 def _is_same_origin(request: Request) -> bool:

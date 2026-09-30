@@ -64,6 +64,16 @@ _STMTS = [
     "ALTER TABLE public.evidence_items FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_items",
     f"CREATE POLICY tenant_isolation ON public.evidence_items USING {_USING}",
+
+    # readiness_findings (PLAN-36 P04) - defense-in-depth alongside
+    # modules/readiness/data_service.py's own org_id filter. The rule
+    # scanner writes findings for every tenant in one background process
+    # (database.list_active_tenants()), so an RLS gap here would be a
+    # cross-org data-integrity leak, not just a display bug.
+    "ALTER TABLE public.readiness_findings ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.readiness_findings FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.readiness_findings",
+    f"CREATE POLICY tenant_isolation ON public.readiness_findings USING {_USING}",
 ]
 
 
@@ -84,7 +94,8 @@ def apply_rls_policies(db) -> None:
         db.commit()
         _logger.info(
             "RLS policies applied to public.users, public.audit_log, "
-            "public.licenses, public.webhooks, public.evidence_items"
+            "public.licenses, public.webhooks, public.evidence_items, "
+            "public.readiness_findings"
         )
     except Exception as exc:
         _logger.error("RLS policy application failed (non-fatal): %s", exc)

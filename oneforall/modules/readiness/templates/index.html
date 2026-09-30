@@ -1,0 +1,192 @@
+{% extends "base_shell.html" %}
+{% block title %}Data Readiness{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-current">Data Readiness</span>
+{% endblock %}
+
+{% block extra_styles %}
+.rd-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.rd-title{font-size:20px;font-weight:800;color:var(--text)}
+.rd-title span{font-weight:400;color:var(--muted);font-size:13px;display:block;margin-top:2px}
+.rd-actions{display:flex;gap:8px}
+.rd-filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.rd-filters select{padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px}
+.rd-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm)}
+.rd-table th{text-align:left;font-size:11px;text-transform:uppercase;color:var(--muted);padding:10px 12px;border-bottom:1px solid var(--border)}
+.rd-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:top}
+.rd-sev{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;text-transform:uppercase}
+.rd-sev-critical{background:var(--red-bg,#fee2e2);color:var(--red-dark,#991b1b)}
+.rd-sev-high{background:var(--amber-bg,#fef3c7);color:var(--amber-dark,#92400e)}
+.rd-sev-medium{background:var(--surface3);color:var(--muted)}
+.rd-sev-low{background:var(--surface2);color:var(--muted)}
+.rd-empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+{% endblock %}
+
+{% block content %}
+<div class="rd-header">
+  <div class="rd-title">
+    Data Readiness
+    <span>Deterministic checks for records that will block a workflow before a user hits it. Read-only detection; nothing here mutates a business record.</span>
+  </div>
+  <div class="rd-actions">
+    <button type="button" class="btn btn-ghost" id="rdExportBtn">Export CSV</button>
+    <button type="button" class="btn btn-primary" id="rdScanBtn">Scan now</button>
+  </div>
+</div>
+
+<div class="rd-filters">
+  <select id="rdFilterModule"><option value="">All modules</option></select>
+  <select id="rdFilterSeverity">
+    <option value="">All severities</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
+  <select id="rdFilterStatus">
+    <option value="">Open + acknowledged + suppressed</option>
+    <option value="open">Open only</option>
+    <option value="acknowledged">Acknowledged</option>
+    <option value="suppressed">Suppressed</option>
+  </select>
+</div>
+
+<table class="rd-table">
+  <thead>
+    <tr><th>Severity</th><th>Module</th><th>Issue</th><th>Detected</th><th>Status</th><th></th></tr>
+  </thead>
+  <tbody id="rdTableBody"><tr><td colspan="6" class="rd-empty">Loading…</td></tr></tbody>
+</table>
+
+<script>
+(function () {
+  'use strict';
+
+  function esc(s) {
+    if (s == null) return '';
+    var d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  function qs() {
+    var params = [];
+    var m = document.getElementById('rdFilterModule').value;
+    var s = document.getElementById('rdFilterSeverity').value;
+    var st = document.getElementById('rdFilterStatus').value;
+    if (m) params.push('module=' + encodeURIComponent(m));
+    if (s) params.push('severity=' + encodeURIComponent(s));
+    if (st) params.push('status=' + encodeURIComponent(st));
+    return params.length ? '?' + params.join('&') : '';
+  }
+
+  async function loadFindings() {
+    var tbody = document.getElementById('rdTableBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="rd-empty">Loading…</td></tr>';
+    try {
+      var data = await ApiClient.request('/readiness/api/findings' + qs());
+      var findings = data.findings || [];
+      if (!findings.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="rd-empty">No issues found for this filter.</td></tr>';
+        return;
+      }
+      var modules = {};
+      findings.forEach(function (f) { modules[f.module] = true; });
+      var moduleSel = document.getElementById('rdFilterModule');
+      var current = moduleSel.value;
+      moduleSel.innerHTML = '<option value="">All modules</option>' +
+        Object.keys(modules).sort().map(function (m) {
+          return '<option value="' + esc(m) + '"' + (m === current ? ' selected' : '') + '>' + esc(m) + '</option>';
+        }).join('');
+
+      tbody.innerHTML = findings.map(function (f) {
+        var actions = '';
+        if (f.status === 'open') {
+          actions = '<button type="button" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" data-ack="' + f.id + '">Acknowledge</button>';
+        } else {
+          actions = '<button type="button" class="btn btn-ghost" style="font-size:11px;padding:4px 10px" data-reopen="' + f.id + '">Reopen</button>';
+        }
+        var link = f.remediation_route
+          ? '<a href="' + esc(f.remediation_route) + '" style="display:block;margin-top:2px;font-size:11px">Open record &rarr;</a>' : '';
+        return '<tr>' +
+          '<td><span class="rd-sev rd-sev-' + esc(f.severity) + '">' + esc(f.severity) + '</span></td>' +
+          '<td>' + esc(f.module) + '</td>' +
+          '<td>' + esc(f.message) + link + '</td>' +
+          '<td>' + esc((f.detected_at || '').slice(0, 10)) + '</td>' +
+          '<td>' + esc(f.status) + '</td>' +
+          '<td>' + actions + '</td>' +
+          '</tr>';
+      }).join('');
+
+      Array.prototype.forEach.call(tbody.querySelectorAll('[data-ack]'), function (btn) {
+        btn.addEventListener('click', function () { acknowledge(parseInt(btn.getAttribute('data-ack'), 10)); });
+      });
+      Array.prototype.forEach.call(tbody.querySelectorAll('[data-reopen]'), function (btn) {
+        btn.addEventListener('click', async function () {
+          btn.disabled = true;
+          try {
+            await ApiClient.request('/readiness/api/findings/' + btn.getAttribute('data-reopen') + '/reopen', { method: 'POST' });
+            loadFindings();
+          } catch (e) {
+            if (window.showToast) showToast((e && e.detail) || 'Reopen failed.', 'error');
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="6" class="rd-empty">Could not load findings' +
+        (err && err.detail ? ': ' + esc(err.detail) : '.') + '</td></tr>';
+    }
+  }
+
+  async function acknowledge(id) {
+    var reason = window.prompt('Reason (required):');
+    if (!reason || !reason.trim()) return;
+    var suppressDays = window.prompt('Suppress for how many days? Leave blank to just acknowledge (no re-surfacing timer).');
+    var body = { reason: reason.trim() };
+    if (suppressDays && suppressDays.trim()) {
+      var days = parseInt(suppressDays.trim(), 10);
+      if (!isNaN(days) && days > 0) {
+        var until = new Date(Date.now() + days * 86400000);
+        body.expires_at = until.toISOString();
+      }
+    }
+    try {
+      await ApiClient.request('/readiness/api/findings/' + id + '/acknowledge', {
+        method: 'POST', body: body,
+      });
+      loadFindings();
+    } catch (e) {
+      if (window.showToast) showToast((e && e.detail) || 'Acknowledge failed.', 'error');
+    }
+  }
+
+  document.getElementById('rdFilterModule').addEventListener('change', loadFindings);
+  document.getElementById('rdFilterSeverity').addEventListener('change', loadFindings);
+  document.getElementById('rdFilterStatus').addEventListener('change', loadFindings);
+
+  document.getElementById('rdExportBtn').addEventListener('click', function () {
+    window.location.href = '/readiness/api/findings/export' + qs();
+  });
+
+  document.getElementById('rdScanBtn').addEventListener('click', async function () {
+    var btn = document.getElementById('rdScanBtn');
+    btn.disabled = true;
+    btn.textContent = 'Scanning…';
+    try {
+      await ApiClient.request('/readiness/api/scan', { method: 'POST' });
+      if (window.showToast) showToast('Scan complete.', 'success');
+      loadFindings();
+    } catch (e) {
+      if (window.showToast) showToast((e && e.detail) || 'Scan failed.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Scan now';
+    }
+  });
+
+  loadFindings();
+})();
+</script>
+{% endblock %}

@@ -1,5 +1,138 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 P04 session 1 — data-readiness and integrity centre
+
+User's explicit scope decisions: "All 8 rule types, full features" (not a
+smaller 2-3-rule slice) and acknowledge/suppress ships in the same slice
+as detection, not as a fast-follow.
+
+Discovery delegated to a research agent given the size (8 categories x 7
+named modules: BCM/ERM/ORM/Sentinel/GRID/ARIA/Evidence). Key findings that
+shaped the design:
+
+- Categories 1-5 (missing org/SBU/owner, inactive assignee, broken
+  cross-reference, missing template/build, invalid lifecycle combination)
+  had **no existing detection anywhere** in the codebase -- genuinely new
+  ground, not a risk of duplicating something already there.
+- Categories 6-8 (stale lease, overdue review, capability prerequisite)
+  have strong prior art to reuse rather than reinvent:
+  `aria_policy_publication_jobs`/`erm_emerging_scan_jobs` already implement
+  claim+reclaim; per-module schedulers already do date-based overdue
+  checks (though inconsistently -- several named review_date/due_date
+  columns across Sentinel/ERM have no job checking them at all);
+  `core/capability_state.py` (P09) already has the exact vocabulary for
+  "feature enabled but prerequisite missing," just not yet checked
+  per-tenant/persisted anywhere.
+- **A load-bearing schema fact, confirmed by reading database.py directly
+  rather than assumed**: tables with a real `org_id` column (aria_*,
+  evidence_items) are RLS-protected *shared* tables (core/rls.py) and need
+  an explicit `WHERE org_id=%s` in every rule query. Tables that are only
+  ever `business_unit_id`-scoped (grid_controls, erm_enterprise_risks,
+  business_units itself) have **no org_id column at all** -- on Postgres
+  they live in a genuinely separate per-tenant schema (the caller's
+  `tenant_context` binding IS the isolation boundary); on SQLite (dev/test
+  only) these tables have no tenant boundary whatsoever, a pre-existing
+  limitation this rule set works with rather than routes around
+  incorrectly. Getting this distinction right (or wrong) changes whether a
+  rule's `org_id` filter is protective or actively wrong.
+
+Files created:
+
+- `oneforall/modules/readiness/__init__.py`, `data_service.py` (the
+  `RawFinding` dataclass, rule registry via `@register_rule`,
+  `run_rules_for_org()`'s reconciliation logic, `list_findings`,
+  `acknowledge_finding`/`reopen_finding`, `export_findings_csv`),
+  `rules.py` (8 concrete rules, one per category -- see below),
+  `scheduler.py` (daily 03:30 UTC sweep via the same
+  `try_acquire_scheduler_lock` cross-process lease `modules/aria/scheduler.py`'s
+  retention sweep uses, plus `run_scan_now(org_id)` for the on-demand
+  trigger), `routes.py` (page + 5 API routes), `templates/index.html`
+  (filterable findings table, acknowledge/suppress prompt, CSV export,
+  scan-now button).
+- `oneforall/tests/test_readiness_rules.py` -- 17 tests, one positive +
+  one negative case per rule, plus a read-only-by-construction assertion.
+- `oneforall/tests/test_readiness_data_service.py` -- 11 tests covering
+  reconciliation (new/updated/auto-resolved/reopened-after-reproducing),
+  cross-org isolation (with a red/green proof), acknowledge/suppress/reopen,
+  and CSV export content.
+- `oneforall/tests/ui/test_readiness_routes.py` -- 7 HTTP-level tests
+  (auth redirect, capability-gate denial, list, page render, a full
+  scan-then-list-then-rate-limited-repeat sequence, export).
+
+Files modified:
+
+- `oneforall/database.py` -- new `readiness_findings` table (reconciled
+  by `(org_id, rule_code, entity_type, entity_id)`, never duplicated).
+- `oneforall/core/rls.py` -- added `readiness_findings` to the RLS policy
+  list, same pattern as the F14 `evidence_items` fix (the scanner writes
+  findings for every tenant in one background process, so an RLS gap here
+  would be a cross-org data leak, not just a display bug).
+- `oneforall/core/rbac.py` -- two new capabilities: `platform.view_readiness`
+  (broader oversight roles) and `platform.manage_readiness` (narrower --
+  acknowledging/suppressing a real finding is more consequential than
+  seeing it).
+- `oneforall/core/middleware.py` -- added `check_readiness_scan_rate_limit`/
+  `record_readiness_scan`, mirroring `check_ai_rate_limit`/`record_ai_call`'s
+  exact existing dual DB-backed/in-memory pattern with a new key prefix
+  (1 scan per 5 minutes per org).
+- `oneforall/main.py` -- registered the readiness router and scheduler
+  start/stop hooks, same pattern as every other module.
+
+The 8 concrete rules (one per task_plan.md-named category; see rules.py's
+own module docstring for how to add more without touching the engine):
+
+1. MISSING_RISK_OWNER -- `erm_enterprise_risks.owner_id IS NULL` on an open risk.
+2. INACTIVE_CONTROL_ASSIGNEE -- `grid_controls.assignee_id` pointing at a deactivated user.
+3. BROKEN_FRAMEWORK_REFERENCE -- `grid_controls.framework_id` (a bare INTEGER, no real FK) pointing at a nonexistent framework.
+4. ARIA_DRAFT_MISSING_BUILD -- a draft 'ready'/'committed' with no build_id/template_id.
+5. ARIA_VERSION_STATE_MISMATCH -- a version's `state`/`approved_at`/`approved_by` fields disagree.
+6. STALE_PUBLICATION_LEASE -- a publication job 'running' with an expired, unreclaimed lease.
+7. EVIDENCE_EXPIRED_UNFLAGGED -- evidence past its own `expiry_date` still marked `status='current'`.
+8. ARIA_AUTHORING_NO_TEMPLATE -- authoring enabled for an org with zero active document templates (reuses `policy_authoring_enabled_for`, the exact same flag check the real endpoints gate on).
+
+Red/green proofs performed (temporarily broke the fix, confirmed the test
+failed for the expected reason, restored, confirmed `grep -n "TEMP
+red-proof"` found nothing and the suite was green again):
+
+- `test_acknowledge_cannot_reach_another_orgs_finding`: temporarily
+  dropped the `AND org_id=%s` clause from `_get_org_scoped_finding` --
+  test failed (a cross-org actor successfully acknowledged another org's
+  finding, with their own reason text attached to it). Restored; test
+  passed.
+
+Verification commands and results (from `oneforall/`, `../.venv/Scripts/python.exe`):
+
+1. `pytest tests/test_readiness_rules.py tests/test_readiness_data_service.py tests/ui/test_readiness_routes.py -v`
+   -- 35 passed.
+2. Route-registration check: 6 new `/readiness*` routes present; total
+   870 routes (up from 864 after P03).
+3. Full backend suite (`pytest tests/ -x --ignore=tests/ui -q`) -- clean:
+   progress bar reached 100% with zero failure/error markers, exit 0. Only
+   non-pass markers were the previously-documented PostgreSQL-gate skips.
+4. Full UI (Playwright) suite (`pytest tests/ui -q`) -- clean: 265 total,
+   263 passed, 2 skipped, 0 failed/errored, exit 0.
+
+Explicitly unverified/skipped this session:
+
+- Only one concrete rule instance per category, not exhaustive coverage
+  of every column the discovery agent found (e.g. Sentinel's several
+  unchecked `review_date` columns, ERM/ORM due-date fields) -- explicitly
+  scoped as a fast, low-risk follow-up given the registry-based
+  architecture, not silently dropped.
+- No "module disabled" distinct state for a rule that can't inspect a
+  disabled module (task_plan.md's own unchecked implementation line).
+- No production-scale synthetic-data load test of the scan sweep.
+- Not committed; pending user authorization per this session's established
+  per-batch pattern.
+
+## 2026-09-30 — P03 committed and pushed (user-authorized)
+
+Commit `2017650` on `master`, pushed to `origin/master` (`e6306d7..2017650`).
+12 files changed, 1016 insertions(+), 16 deletions(-). Covers the full P03
+session below, verified under the corrected `.venv` interpreter (full
+backend suite 100% clean; full UI/Playwright suite 256/258 passed, 2
+legitimate skips, 0 failed).
+
 ## 2026-09-30 P03 session 1 — ARIA policy lifecycle workbench
 
 User's explicit discovery-gate scope decisions: "Full workbench in one

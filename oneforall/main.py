@@ -257,6 +257,13 @@ async def startup():
     except Exception as exc:
         log.warning("ARIA policy scheduler failed to start: %s", exc)
 
+    # Start Readiness scheduler (data-integrity scan sweep daily at 03:30 UTC)
+    try:
+        from modules.readiness.scheduler import start_scheduler as readiness_start
+        readiness_start()
+    except Exception as exc:
+        log.warning("Readiness scheduler failed to start: %s", exc)
+
     # Migrate: add due_at column to workflow_actions (idempotent via IF NOT EXISTS)
     try:
         _db_wf = get_db()
@@ -337,6 +344,11 @@ async def shutdown():
     try:
         from modules.aria.scheduler import stop_scheduler as aria_policy_stop
         aria_policy_stop()
+    except Exception:
+        pass
+    try:
+        from modules.readiness.scheduler import stop_scheduler as readiness_stop
+        readiness_stop()
     except Exception:
         pass
     log.info("ThemisIQ shutting down")
@@ -448,6 +460,7 @@ from modules.evidence.routes import router as evidence_router
 from modules.erm.routes import router as erm_router
 from modules.orm.routes import router as orm_router
 from modules.governance.routes import router as governance_router
+from modules.readiness.routes import router as readiness_router
 
 app.include_router(super_admin_router)
 app.include_router(api_v1_router)
@@ -463,6 +476,7 @@ app.include_router(evidence_router)
 app.include_router(erm_router)
 app.include_router(orm_router)
 app.include_router(governance_router)
+app.include_router(readiness_router)
 
 
 # -- Launcher alias (themisiq.net redirects to /launcher/) -------------------

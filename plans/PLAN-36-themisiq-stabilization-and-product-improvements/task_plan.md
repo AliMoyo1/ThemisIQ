@@ -607,19 +607,19 @@ Selected design:
 
 Implementation tasks:
 
-- [ ] Inventory invariants already encoded in migrations/readiness helpers and avoid duplicating SQL inconsistently.
-- [ ] Add rules for missing organization/SBU/owner, deleted or inactive assignee, broken cross-module reference, missing policy template/build, invalid lifecycle combination, stale queue lease, overdue evidence/review, and capability/config prerequisite.
-- [ ] Run on demand and through a bounded scheduler lease; persist summaries only if needed for trend/acknowledgement.
-- [ ] Add filters, export without sensitive content, acknowledgement/suppression with reason and expiry, and deep links.
-- [ ] Show why a rule cannot inspect a disabled module instead of reporting it healthy.
+- [x] Inventory invariants already encoded in migrations/readiness helpers and avoid duplicating SQL inconsistently. Delegated to a research agent given the size (7 named modules x 8 categories); findings: strong prior art for stale-lease reclaim (aria_policy_publication_jobs/erm_emerging_scan_jobs already implement claim+reclaim) and per-module overdue-date jobs (evidence/GRID/BCM/Sentinel schedulers), but categories 1-5 (missing org/SBU/owner, inactive assignee, broken cross-reference, missing template/build, invalid lifecycle combination) had **no existing detection anywhere** -- genuinely new ground, not a duplicate of something already there. Also surfaced a real, load-bearing schema fact used throughout this rule set: tables with a real `org_id` column (aria_*, evidence_items) are RLS-protected shared tables and must be filtered by org_id explicitly; BU-scoped-only tables (grid_controls, erm_enterprise_risks, business_units itself) have **no org_id column at all** -- their isolation is Postgres schema-per-tenant only (the caller's tenant_context binding), a pre-existing architecture this rule set works with, not around.
+- [x] Add rules for missing organization/SBU/owner, deleted or inactive assignee, broken cross-module reference, missing policy template/build, invalid lifecycle combination, stale queue lease, overdue evidence/review, and capability/config prerequisite. One concrete, real, tested rule per category (8 total: MISSING_RISK_OWNER, INACTIVE_CONTROL_ASSIGNEE, BROKEN_FRAMEWORK_REFERENCE, ARIA_DRAFT_MISSING_BUILD, ARIA_VERSION_STATE_MISMATCH, STALE_PUBLICATION_LEASE, EVIDENCE_EXPIRED_UNFLAGGED, ARIA_AUTHORING_NO_TEMPLATE) -- see progress.md's P04 session entry for exactly which table/column each covers. Adding another rule instance is additive: write a function, decorate with `@register_rule("CODE")`, done (modules/readiness/rules.py's own module docstring documents this).
+- [x] Run on demand and through a bounded scheduler lease; persist summaries only if needed for trend/acknowledgement. Daily sweep (03:30 UTC) via `database.try_acquire_scheduler_lock` (same cross-process lease pattern as ARIA's own retention sweep); on-demand trigger (`POST /readiness/api/scan`) is a separate entry point, gated by `platform.manage_readiness` and its own rate limit (1 per 5 min per org), not sharing or blocking on the scheduler's lease. Findings persist in `readiness_findings` with reconciliation (new/updated/auto-resolved), not just a per-run summary.
+- [x] Add filters, export without sensitive content, acknowledgement/suppression with reason and expiry, and deep links. Filters by module/severity/status; CSV export (rule-generated message text only, never a raw record dump -- tested); acknowledge (reason required) / suppress (reason + expiry) / reopen, each audit-logged; `remediation_route` deep-links where a real route exists (ARIA documents), `None` elsewhere rather than a guessed URL.
+- [ ] Show why a rule cannot inspect a disabled module instead of reporting it healthy. Not built this slice -- every rule here runs unconditionally (a rule against an unused module's empty tables is a fast no-op, matching every other per-module scheduler's own documented convention), but no rule surfaces "this module is disabled, so I couldn't check it" as a distinct state from "checked, found nothing." Candidate follow-up once a first module actually needs a disabled-state carve-out.
 
 Acceptance:
 
-- tenant isolation and deterministic fixtures for every rule;
-- deliberately corrupted disposable rows are detected;
-- clean fixtures produce no false blockers;
-- scan is bounded and observable on production-scale synthetic data;
-- no scan mutates business records.
+- [x] tenant isolation and deterministic fixtures for every rule -- every rule has a positive+negative test (tests/test_readiness_rules.py); org-scoping itself (run_rules_for_org, acknowledge_finding) has a dedicated cross-org isolation test with a red/green proof (tests/test_readiness_data_service.py).
+- [x] deliberately corrupted disposable rows are detected -- every positive-case test above IS a deliberately corrupted disposable row (e.g. a draft forced to 'committed' with a NULL build_id, a version forced to 'approved' with a NULL approved_at).
+- [x] clean fixtures produce no false blockers -- every rule also has a negative-case test asserting zero findings against a clean/legitimate row shaped like the real thing (e.g. an owned risk, an active assignee, a valid framework reference).
+- [~] scan is bounded and observable on production-scale synthetic data -- bounded via the scheduler lease and the on-demand rate limit; NOT load-tested against production-scale synthetic data this slice (no such fixture exists in this codebase yet).
+- [x] no scan mutates business records -- every rule function only ever executes SELECT statements; asserted directly in tests/test_readiness_rules.py's `test_rules_are_read_only` (byte-identical row before/after a rule runs against it).
 
 ### P05 — Evidence collection campaigns
 

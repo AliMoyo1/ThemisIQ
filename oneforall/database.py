@@ -4065,6 +4065,38 @@ CREATE TABLE IF NOT EXISTS risk_controls (
 CREATE INDEX IF NOT EXISTS idx_risk_controls_risk ON risk_controls(risk_id);
 CREATE INDEX IF NOT EXISTS idx_risk_controls_control ON risk_controls(control_id);
 
+-- ── PLAN-36 P04: Data-readiness and integrity centre ──────────────────────
+-- One row per detected issue, keyed so a rule re-running against the same
+-- record updates (never duplicates) it. Never stores the record's own
+-- content -- entity_type/entity_id is a scoped reference the UI deep-links
+-- through, same as every other module's own tenant-scoped fetch, not a
+-- second, drifting copy of the record's data.
+CREATE TABLE IF NOT EXISTS readiness_findings (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id              INTEGER NOT NULL REFERENCES organizations(id),
+    business_unit_id    INTEGER REFERENCES business_units(id),
+    rule_code           TEXT NOT NULL,
+    severity            TEXT NOT NULL CHECK(severity IN ('critical','high','medium','low')),
+    module              TEXT NOT NULL,
+    entity_type         TEXT NOT NULL,
+    entity_id           TEXT NOT NULL,
+    message             TEXT NOT NULL,
+    remediation_route   TEXT,
+    status              TEXT NOT NULL DEFAULT 'open'
+                        CHECK(status IN ('open','acknowledged','suppressed','resolved')),
+    acknowledged_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    acknowledged_reason TEXT,
+    acknowledged_at     TEXT,
+    suppressed_until    TEXT,
+    detected_at         TEXT NOT NULL,
+    last_seen_at        TEXT NOT NULL,
+    resolved_at         TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_readiness_findings_identity
+    ON readiness_findings(org_id, rule_code, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_readiness_findings_scope
+    ON readiness_findings(org_id, status, severity);
+
 -- ── Sentinel: AI Impact Assessments (AIIA) ────────────────────────────────
 CREATE TABLE IF NOT EXISTS sentinel_aiia (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -130,6 +130,13 @@ CAPABILITIES: dict[str, set[str]] = {
     "platform.view_audit_log":    {SUPER_ADMIN, COMPLIANCE_MGR, DPO, EXTERNAL_AUDITOR, GRC_OFFICER},
     "manage_frameworks":          {SUPER_ADMIN, COMPLIANCE_MGR, AUDIT_LEAD, GRC_OFFICER},
 
+    # ── PLAN-36 P04: data-readiness and integrity centre ────────
+    # view is broader (oversight roles); acknowledging/suppressing a real
+    # finding is a more consequential action than seeing it, so it's
+    # restricted to roles actually accountable for compliance outcomes.
+    "platform.view_readiness":    {SUPER_ADMIN, ORG_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD},
+    "platform.manage_readiness":  {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+
     # ── Governance Graph (Tier 1 T1.1): shared org structure ────
     # `view` is broad — most roles need to see BUs/departments/processes to
     # scope their own work. `manage` is restricted to admin roles. `bu.assign`
