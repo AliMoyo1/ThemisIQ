@@ -46,20 +46,34 @@ def _bu(db, name):
     return db.execute("SELECT id FROM business_units WHERE name=%s", (name,)).fetchone()["id"]
 
 
-def _actor(db, uid, bu_id):
+def _org(db, name="Suggest Links Test Org"):
+    """PLAN-36 T08 F14: evidence_items now has its own org_id scope on top
+    of this file's existing business_unit_id scope -- every actor/evidence
+    pair in this file shares the one org a test creates, since this file is
+    about BU-vs-BU isolation within an org, not org-vs-org."""
     db.execute(
-        "INSERT INTO users (id, username, email, full_name, password_hash, business_unit_id) "
-        "VALUES (%s,%s,%s,%s,'x',%s)",
-        (uid, f"user{uid}", f"user{uid}@example.com", f"User {uid}", bu_id),
+        "INSERT INTO organizations (name, slug, plan, status) VALUES (%s,%s,'enterprise','active')",
+        (name, name.lower().replace(" ", "-")),
     )
     db.commit()
-    return {"id": uid, "username": f"user{uid}", "business_unit_id": bu_id, "is_super_admin": 0}
+    return db.execute("SELECT id FROM organizations WHERE name=%s", (name,)).fetchone()["id"]
 
 
-def _evidence_item(db, title="Evidence A"):
+def _actor(db, uid, bu_id, org_id):
     db.execute(
-        "INSERT INTO evidence_items (title, category, description, tags) "
-        "VALUES (%s,'general','desc','tags')", (title,),
+        "INSERT INTO users (id, username, email, full_name, password_hash, business_unit_id, org_id) "
+        "VALUES (%s,%s,%s,%s,'x',%s,%s)",
+        (uid, f"user{uid}", f"user{uid}@example.com", f"User {uid}", bu_id, org_id),
+    )
+    db.commit()
+    return {"id": uid, "username": f"user{uid}", "business_unit_id": bu_id,
+            "org_id": org_id, "is_super_admin": 0}
+
+
+def _evidence_item(db, org_id, title="Evidence A"):
+    db.execute(
+        "INSERT INTO evidence_items (title, category, description, tags, org_id) "
+        "VALUES (%s,'general','desc','tags',%s)", (title, org_id),
     )
     db.commit()
     return db.execute("SELECT id FROM evidence_items WHERE title=%s", (title,)).fetchone()["id"]
@@ -90,8 +104,9 @@ def _grid_framework(db, name):
 
 def test_suggest_links_reaches_ai_without_sql_error(test_db, _mock_auth, monkeypatch):
     finance = _bu(test_db, "Finance")
-    actor = _actor(test_db, 10, bu_id=finance)
-    eid = _evidence_item(test_db)
+    org_id = _org(test_db)
+    actor = _actor(test_db, 10, bu_id=finance, org_id=org_id)
+    eid = _evidence_item(test_db, org_id=org_id)
     _risk(test_db, "In-Scope Risk", bu_id=finance)
 
     captured = {}
@@ -115,8 +130,9 @@ def test_suggest_links_reaches_ai_without_sql_error(test_db, _mock_auth, monkeyp
 def test_suggest_links_excludes_another_business_units_risk(test_db, _mock_auth, monkeypatch):
     finance = _bu(test_db, "Finance")
     legal = _bu(test_db, "Legal")
-    actor = _actor(test_db, 10, bu_id=finance)
-    eid = _evidence_item(test_db)
+    org_id = _org(test_db)
+    actor = _actor(test_db, 10, bu_id=finance, org_id=org_id)
+    eid = _evidence_item(test_db, org_id=org_id)
     _risk(test_db, "In-Scope Risk", bu_id=finance)
     _risk(test_db, "Other BU Secret Risk", bu_id=legal)
 
@@ -143,8 +159,9 @@ def test_suggest_links_org_wide_risk_is_visible_to_every_bu(test_db, _mock_auth,
     matching the same NULL-is-always-visible convention used everywhere
     else bu_scope_ids() is consumed (modules/erm/data_service.py etc.)."""
     finance = _bu(test_db, "Finance")
-    actor = _actor(test_db, 10, bu_id=finance)
-    eid = _evidence_item(test_db)
+    org_id = _org(test_db)
+    actor = _actor(test_db, 10, bu_id=finance, org_id=org_id)
+    eid = _evidence_item(test_db, org_id=org_id)
     _risk(test_db, "Org Wide Risk", bu_id=None)
 
     captured = {}
@@ -170,8 +187,9 @@ def test_suggest_links_excludes_another_business_units_audit(test_db, _mock_auth
     audit names to the AI prompt either."""
     finance = _bu(test_db, "Finance")
     legal = _bu(test_db, "Legal")
-    actor = _actor(test_db, 10, bu_id=finance)
-    eid = _evidence_item(test_db)
+    org_id = _org(test_db)
+    actor = _actor(test_db, 10, bu_id=finance, org_id=org_id)
+    eid = _evidence_item(test_db, org_id=org_id)
     _audit(test_db, "In-Scope Audit", bu_id=finance)
     _audit(test_db, "Other BU Secret Audit", bu_id=legal)
 
@@ -195,8 +213,9 @@ def test_suggest_links_excludes_another_business_units_audit(test_db, _mock_auth
 
 def test_suggest_links_org_wide_audit_is_visible_to_every_bu(test_db, _mock_auth, monkeypatch):
     finance = _bu(test_db, "Finance")
-    actor = _actor(test_db, 10, bu_id=finance)
-    eid = _evidence_item(test_db)
+    org_id = _org(test_db)
+    actor = _actor(test_db, 10, bu_id=finance, org_id=org_id)
+    eid = _evidence_item(test_db, org_id=org_id)
     _audit(test_db, "Org Wide Audit", bu_id=None)
 
     captured = {}
@@ -222,8 +241,9 @@ def test_suggest_links_uses_grid_frameworks_not_shared_frameworks_table(test_db,
     join silently produced NULL/incorrect framework names. Confirms the
     real GRID framework name reaches the prompt."""
     finance = _bu(test_db, "Finance")
-    actor = _actor(test_db, 10, bu_id=finance)
-    eid = _evidence_item(test_db)
+    org_id = _org(test_db)
+    actor = _actor(test_db, 10, bu_id=finance, org_id=org_id)
+    eid = _evidence_item(test_db, org_id=org_id)
     fw_id = _grid_framework(test_db, "ISO 27001 GRID Copy")
     _audit(test_db, "Framework-Linked Audit", bu_id=finance, framework_id=fw_id)
 

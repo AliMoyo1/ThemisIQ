@@ -478,6 +478,131 @@ def test_init_fails_closed_when_required_fk_cannot_be_restored(pg):
         pg.init_db()
 
 
+def _column_exists(database, table: str, column: str) -> bool:
+    conn = database.get_db_bypass_rls()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema=current_schema() AND table_name=%s AND column_name=%s",
+            (table, column),
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+# ── PLAN-36 T09: extend this file with the T03/T04/F14 migrations that only
+# ever ran against SQLite locally this whole plan -- init_db()'s ADD COLUMN
+# IF NOT EXISTS / RLS-policy paths are PostgreSQL-only code that SQLite
+# testing structurally cannot exercise at all (see this file's own opening
+# docstring for the precedent: a cyclic-FK bug shipped invisibly the same
+# way). ──────────────────────────────────────────────────────────────────
+
+def test_erm_risk_library_gets_org_id_column_on_real_postgres(pg):
+    """T03 (findings.md F13): erm_risk_library.org_id must exist so
+    modules/erm/data_service.py's _library_can_manage tenant check has a
+    real column to read on Postgres, not just SQLite."""
+    pg.init_db()
+    assert _column_exists(pg, "erm_risk_library", "org_id")
+    assert _column_exists(pg, "erm_risk_library", "created_by")
+
+
+def test_evidence_items_gets_org_id_column_and_rls_policy_on_real_postgres(pg):
+    """F14 (findings.md addendum, 2026-09-30): evidence_items had no tenant
+    scoping at all. Proves both halves of the fix actually apply on real
+    Postgres, not just SQLite: the org_id column (app-level check in
+    modules/evidence/routes.py's _scoped_evidence_item) and the RLS policy
+    (core/rls.py, defense-in-depth)."""
+    pg.init_db()
+    assert _column_exists(pg, "evidence_items", "org_id")
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        policy = conn.execute(
+            "SELECT polname FROM pg_policy p "
+            "JOIN pg_class c ON c.oid = p.polrelid "
+            "WHERE c.relname = 'evidence_items' AND p.polname = 'tenant_isolation'"
+        ).fetchone()
+        assert policy is not None, "evidence_items has no tenant_isolation RLS policy"
+
+        forced = conn.execute(
+            "SELECT relforcerowsecurity FROM pg_class WHERE relname='evidence_items'"
+        ).fetchone()
+        assert forced[0] is True, "evidence_items must FORCE row level security"
+    finally:
+        conn.close()
+
+    # Functional proof, not just "the policy exists": a real cross-org read
+    # through the app's normal RLS-context connection must come back empty,
+    # and the owning org's own context must see it -- the same guarantee
+    # tests/ui/test_org_isolation.py already proves at the app layer on
+    # SQLite (where RLS does not exist at all), now proven at the database
+    # layer on the engine RLS actually runs on.
+    setup = pg.get_db_bypass_rls()
+    try:
+        setup.execute(
+            "INSERT INTO organizations (name, slug, plan, status) VALUES "
+            "('PG RLS Org A', 'pg-rls-org-a', 'enterprise', 'active'), "
+            "('PG RLS Org B', 'pg-rls-org-b', 'enterprise', 'active')"
+        )
+        setup.commit()
+        org_a = setup.execute(
+            "SELECT id FROM organizations WHERE slug='pg-rls-org-a'"
+        ).fetchone()[0]
+        org_b = setup.execute(
+            "SELECT id FROM organizations WHERE slug='pg-rls-org-b'"
+        ).fetchone()[0]
+        setup.execute(
+            "INSERT INTO evidence_items (title, org_id) VALUES (%s, %s)",
+            ("Org A RLS Probe", org_a),
+        )
+        setup.commit()
+    finally:
+        setup.close()
+
+    org_b_conn = pg.get_db()
+    try:
+        org_b_conn.set_rls_context(org_b)
+        visible = org_b_conn.execute(
+            "SELECT title FROM evidence_items WHERE title='Org A RLS Probe'"
+        ).fetchall()
+        assert visible == [], "org B's RLS-scoped connection could read org A's evidence row"
+    finally:
+        org_b_conn.close()
+
+    org_a_conn = pg.get_db()
+    try:
+        org_a_conn.set_rls_context(org_a)
+        visible = org_a_conn.execute(
+            "SELECT title FROM evidence_items WHERE title='Org A RLS Probe'"
+        ).fetchall()
+        assert len(visible) == 1, "positive control failed: org A's own RLS-scoped connection could not read its own row"
+    finally:
+        org_a_conn.close()
+
+
+def test_warm_replay_queries_execute_on_real_postgres(pg):
+    """T04 (findings.md F05): scripts/warm_replay.py's queries were fixed
+    for stale table/column names found on SQLite; this is the same
+    every-query-executes proof tests/test_warm_replay.py already does, run
+    against a real Postgres schema instead, since %s-placeholder SQL that
+    is valid SQLite is not guaranteed valid Postgres."""
+    pg.init_db()
+    from scripts.warm_replay import _QUERIES
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        failures = []
+        for label, query, params in _QUERIES:
+            try:
+                conn.execute(query, params).fetchall()
+            except Exception as exc:
+                failures.append(f"{label}: {exc}")
+        assert not failures, "Invalid warm-replay queries on real Postgres:\n" + "\n".join(failures)
+    finally:
+        conn.close()
+
+
 def test_destructive_target_validator_rejects_unsafe_targets():
     assert _validate_destructive_test_target(
         "postgresql://postgres:pg@localhost/themisiq_test_guard", "1"

@@ -60,6 +60,22 @@ async def _json_body(request: Request) -> dict:
     return sanitize_dict(body)
 
 
+def _scoped_evidence_item(db, eid: int, user: dict):
+    """Fetch an evidence row only if it belongs to the caller's organization
+    (or the caller is a platform super admin) -- returns None both when the
+    id doesn't exist and when it belongs to another org, so a 404 built from
+    this never confirms another org's id is real. Same fail-closed shape as
+    _get_webhook_for_admin (modules/launcher/routes_admin.py)."""
+    row = db.execute("SELECT * FROM evidence_items WHERE id = %s", (eid,)).fetchone()
+    if not row:
+        return None
+    if user.get("is_super_admin"):
+        return row
+    if row["org_id"] is not None and row["org_id"] == user.get("org_id"):
+        return row
+    return None
+
+
 # ── SPA Page ────────────────────────────────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
@@ -83,8 +99,12 @@ async def api_evidence_list(request: Request):
         search = request.query_params.get("q", "")
         module = request.query_params.get("module", "")
 
+        user = request.state.user
         where = ["1=1"]
         params = []
+        if not user.get("is_super_admin"):
+            where.append("e.org_id = %s")
+            params.append(user.get("org_id"))
         if category:
             where.append("e.category = %s")
             params.append(category)
@@ -141,6 +161,11 @@ async def api_evidence_upload(
     expiry_date: str = Form(""),
 ):
     """Upload a new evidence file."""
+    user = request.state.user
+    if not user.get("is_super_admin") and not user.get("org_id"):
+        raise HTTPException(403, "Your account has no organization to upload evidence for")
+    org_id = None if user.get("is_super_admin") else user.get("org_id")
+
     from core.sanitize import sanitize_str as _s
     title, description, category, tags = _s(title), _s(description), _s(category), _s(tags)
     expiry_date = _s(expiry_date)
@@ -163,13 +188,21 @@ async def api_evidence_upload(
 
     file_hash = hashlib.sha256(content).hexdigest()
 
-    # ── Duplicate detection ────────────────────────────────────────────────
+    # ── Duplicate detection (scoped to the caller's own org -- a hash match
+    # in another org must never confirm that org's document exists) ────────
     db = get_db()
     try:
-        existing = db.execute(
-            "SELECT id, title, status FROM evidence_items WHERE file_hash = %s AND status != 'archived'",
-            (file_hash,),
-        ).fetchone()
+        if user.get("is_super_admin"):
+            existing = db.execute(
+                "SELECT id, title, status FROM evidence_items WHERE file_hash = %s AND status != 'archived'",
+                (file_hash,),
+            ).fetchone()
+        else:
+            existing = db.execute(
+                "SELECT id, title, status FROM evidence_items "
+                "WHERE file_hash = %s AND status != 'archived' AND org_id = %s",
+                (file_hash, org_id),
+            ).fetchone()
         if existing:
             return JSONResponse({
                 "duplicate": True,
@@ -234,10 +267,9 @@ async def api_evidence_upload(
             except (ValueError, TypeError):
                 rid = None
             if rid:
-                parent_row = db.execute(
-                    "SELECT id, version FROM evidence_items WHERE id = %s AND status != 'archived'",
-                    (rid,),
-                ).fetchone()
+                parent_row = _scoped_evidence_item(db, rid, user)
+                if parent_row and parent_row["status"] == "archived":
+                    parent_row = None
                 if parent_row:
                     parent_id = parent_row["id"]
                     version_num = parent_row["version"] + 1
@@ -252,12 +284,12 @@ async def api_evidence_upload(
         eid = insert_returning_id(
             db,
             "INSERT INTO evidence_items (title, description, file_path, file_name, file_size, "
-            "file_hash, mime_type, category, tags, version, parent_id, uploaded_by, expiry_date) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "file_hash, mime_type, category, tags, version, parent_id, uploaded_by, expiry_date, org_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 display_title, description, str(stored_name), original_name,
                 len(content), file_hash, declared_mime,
-                category, tags, version_num, parent_id, _uid(request), exp,
+                category, tags, version_num, parent_id, _uid(request), exp, org_id,
             )
         )
         db.commit()
@@ -276,6 +308,8 @@ async def api_evidence_get(request: Request, eid: int):
     """Get evidence item details with linked entities."""
     db = get_db()
     try:
+        if not _scoped_evidence_item(db, eid, request.state.user):
+            raise HTTPException(404, "Evidence not found")
         item = db.execute(
             "SELECT e.*, u.full_name as uploaded_by_name FROM evidence_items e "
             "LEFT JOIN users u ON e.uploaded_by = u.id WHERE e.id = %s", (eid,)
@@ -303,6 +337,8 @@ async def api_evidence_update(request: Request, eid: int):
     data = await _json_body(request)
     db = get_db()
     try:
+        if not _scoped_evidence_item(db, eid, request.state.user):
+            raise HTTPException(404, "Evidence not found")
         allowed = ["title", "description", "category", "tags", "status", "expiry_date"]
         sets = []
         vals = []
@@ -331,6 +367,8 @@ async def api_evidence_delete(request: Request, eid: int):
     user = request.state.user
     db = get_db()
     try:
+        if not _scoped_evidence_item(db, eid, user):
+            raise HTTPException(404, "Evidence not found")
         db.execute(
             "UPDATE evidence_items SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
             (eid,),
@@ -356,6 +394,8 @@ async def api_evidence_restore(request: Request, eid: int):
         return JSONResponse({"error": "Permission denied"}, 403)
     db = get_db()
     try:
+        if not _scoped_evidence_item(db, eid, request.state.user):
+            raise HTTPException(404, "Evidence not found")
         db.execute(
             "UPDATE evidence_items SET status = 'current', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
             (eid,),
@@ -376,9 +416,7 @@ async def api_evidence_permanent_delete(request: Request, eid: int):
         return JSONResponse({"error": "Permission denied"}, 403)
     db = get_db()
     try:
-        item = db.execute(
-            "SELECT file_path, status FROM evidence_items WHERE id = %s", (eid,)
-        ).fetchone()
+        item = _scoped_evidence_item(db, eid, request.state.user)
         if not item:
             return JSONResponse({"error": "Not found"}, 404)
         if item["status"] != "archived":
@@ -412,10 +450,7 @@ async def api_evidence_download(request: Request, eid: int):
     """
     db = get_db()
     try:
-        item = db.execute(
-            "SELECT file_path, file_name, mime_type, tags FROM evidence_items WHERE id = %s",
-            (eid,),
-        ).fetchone()
+        item = _scoped_evidence_item(db, eid, request.state.user)
         if not item:
             raise HTTPException(404, "Evidence not found")
 
@@ -485,10 +520,7 @@ async def api_evidence_download_pdf(request: Request, eid: int):
 
     db = get_db()
     try:
-        item = db.execute(
-            "SELECT file_path, file_name, mime_type FROM evidence_items WHERE id = %s",
-            (eid,),
-        ).fetchone()
+        item = _scoped_evidence_item(db, eid, request.state.user)
         if not item:
             raise HTTPException(404, "Evidence not found")
 
@@ -614,6 +646,8 @@ async def api_evidence_versions(request: Request, eid: int):
     """Get the full version chain for an evidence item (newest first)."""
     db = get_db()
     try:
+        if not _scoped_evidence_item(db, eid, request.state.user):
+            raise HTTPException(404, "Evidence not found")
         # Walk up to find the root
         root_id = eid
         seen = {root_id}
@@ -665,10 +699,7 @@ async def api_evidence_verify(request: Request, eid: int):
     """Re-hash the file on disk and compare to stored hash. Proves evidence integrity."""
     db = get_db()
     try:
-        item = db.execute(
-            "SELECT file_path, file_hash, file_name, title FROM evidence_items WHERE id = %s",
-            (eid,),
-        ).fetchone()
+        item = _scoped_evidence_item(db, eid, request.state.user)
         if not item:
             raise HTTPException(404, "Evidence not found")
     finally:
@@ -803,8 +834,7 @@ async def api_evidence_set_verification(request: Request, eid: int):
     uid = _uid(request)
     db = get_db()
     try:
-        item = db.execute("SELECT id FROM evidence_items WHERE id = %s", (eid,)).fetchone()
-        if not item:
+        if not _scoped_evidence_item(db, eid, request.state.user):
             raise HTTPException(404, "Evidence not found")
         db.execute(
             "UPDATE evidence_items SET verification_method = %s, verified_by = %s, "
@@ -824,8 +854,7 @@ async def api_evidence_remove_verification(request: Request, eid: int):
     """Remove verification from an evidence item, recompute confidence."""
     db = get_db()
     try:
-        item = db.execute("SELECT id FROM evidence_items WHERE id = %s", (eid,)).fetchone()
-        if not item:
+        if not _scoped_evidence_item(db, eid, request.state.user):
             raise HTTPException(404, "Evidence not found")
         db.execute(
             "UPDATE evidence_items SET verification_method = NULL, verified_by = NULL, "
@@ -858,6 +887,8 @@ async def api_evidence_link_create(request: Request, eid: int):
 
     db = get_db()
     try:
+        if not _scoped_evidence_item(db, eid, request.state.user):
+            raise HTTPException(404, "Evidence not found")
         lid = insert_returning_id(
             db,
             "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by) VALUES (%s,%s,%s,%s,%s)",
@@ -930,14 +961,15 @@ async def api_evidence_link_delete(request: Request, lid: int):
     db = get_db()
     try:
         link_row = db.execute("SELECT evidence_id FROM evidence_links WHERE id = %s", (lid,)).fetchone()
+        if not link_row or not _scoped_evidence_item(db, link_row["evidence_id"], request.state.user):
+            raise HTTPException(404, "Link not found")
         db.execute(
             "UPDATE evidence_links SET deleted_at = CURRENT_TIMESTAMP, deleted_by = %s WHERE id = %s",
             (_uid(request), lid),
         )
         db.commit()
-        if link_row:
-            recompute_confidence(db, link_row["evidence_id"])
-            db.commit()
+        recompute_confidence(db, link_row["evidence_id"])
+        db.commit()
     finally:
         db.close()
     return JSONResponse({"success": True})
@@ -952,9 +984,7 @@ async def api_evidence_suggest_links(request: Request, eid: int):
         return JSONResponse({"error": "AI not configured"}, status_code=503)
     db = get_db()
     try:
-        item = db.execute(
-            "SELECT id, title, description, category, tags FROM evidence_items WHERE id = %s", (eid,)
-        ).fetchone()
+        item = _scoped_evidence_item(db, eid, request.state.user)
         if not item:
             raise HTTPException(404, "Evidence not found")
         existing = [dict(r) for r in db.execute(
@@ -1045,6 +1075,8 @@ async def api_evidence_audit(request: Request, eid: int):
     """Full link history for an evidence item — active and soft-deleted."""
     db = get_db()
     try:
+        if not _scoped_evidence_item(db, eid, request.state.user):
+            raise HTTPException(404, "Evidence not found")
         rows = db.execute(
             "SELECT el.id, el.module, el.entity_type, el.entity_id, "
             "       el.created_at, el.deleted_at, "
@@ -1071,14 +1103,20 @@ async def api_evidence_for_entity(request: Request):
     entity_id = request.query_params.get("entity_id", "")
     if not all([module, entity_type, entity_id]):
         return JSONResponse({"error": "module, entity_type, entity_id required"}, status_code=400)
+    user = request.state.user
     db = get_db()
     try:
+        where = "el.module = %s AND el.entity_type = %s AND el.entity_id = %s AND e.status != 'archived'"
+        params = [module, entity_type, int(entity_id)]
+        if not user.get("is_super_admin"):
+            where += " AND e.org_id = %s"
+            params.append(user.get("org_id"))
         rows = db.execute(
             "SELECT e.*, el.id as link_id FROM evidence_items e "
             "JOIN evidence_links el ON e.id = el.evidence_id "
-            "WHERE el.module = %s AND el.entity_type = %s AND el.entity_id = %s AND e.status != 'archived' "
+            f"WHERE {where} "
             "ORDER BY e.updated_at DESC",
-            (module, entity_type, int(entity_id))
+            params
         ).fetchall()
     finally:
         db.close()
@@ -1100,17 +1138,25 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
     if mod not in valid_modules:
         return JSONResponse({"error": "Invalid module"}, status_code=400)
 
+    user = request.state.user
     db = get_db()
     try:
+        where = (
+            "el.module = %s AND el.entity_type = %s AND el.entity_id = %s "
+            "AND e.tags LIKE '%%auto%%' AND e.status != 'archived'"
+        )
+        params = [mod, etype, entity_id]
+        if not user.get("is_super_admin"):
+            where += " AND e.org_id = %s"
+            params.append(user.get("org_id"))
         rows = db.execute(
             "SELECT e.id, e.title, e.description, e.category, e.tags, "
             "e.status, e.created_at, e.updated_at, el.id as link_id "
             "FROM evidence_items e "
             "JOIN evidence_links el ON e.id = el.evidence_id "
-            "WHERE el.module = %s AND el.entity_type = %s AND el.entity_id = %s "
-            "AND e.tags LIKE '%%auto%%' AND e.status != 'archived' "
+            f"WHERE {where} "
             "ORDER BY e.created_at DESC",
-            (mod, etype, entity_id),
+            params,
         ).fetchall()
     finally:
         db.close()
@@ -1316,44 +1362,73 @@ async def api_evidence_coverage(request: Request):
 @require_auth
 async def api_evidence_stats(request: Request):
     """Evidence repository statistics with per-module breakdown."""
+    user = request.state.user
+    # "recently_added" below returns real title/category/file_name, not just
+    # a count -- this whole endpoint needs the same org scope as `list`, not
+    # just its aggregate-looking fields.
+    org_filter = ""
+    org_params: list = []
+    if not user.get("is_super_admin"):
+        org_filter = " AND org_id = %s"
+        org_params = [user.get("org_id")]
+
     db = get_db()
     try:
-        total = db.execute("SELECT COUNT(*) FROM evidence_items WHERE status != 'archived'").fetchone()[0]
+        total = db.execute(
+            f"SELECT COUNT(*) FROM evidence_items WHERE status != 'archived'{org_filter}",
+            org_params,
+        ).fetchone()[0]
         by_category = db.execute(
-            "SELECT category, COUNT(*) as c FROM evidence_items WHERE status != 'archived' GROUP BY category"
+            f"SELECT category, COUNT(*) as c FROM evidence_items WHERE status != 'archived'{org_filter} "
+            "GROUP BY category",
+            org_params,
         ).fetchall()
         expiring_soon = db.execute(
             "SELECT COUNT(*) FROM evidence_items WHERE status = 'current' "
             f"AND expiry_date IS NOT NULL AND expiry_date <= {sql_date_offset('+30 days')} "
-            f"AND expiry_date > {sql_current_date()}"
+            f"AND expiry_date > {sql_current_date()}{org_filter}",
+            org_params,
         ).fetchone()[0]
-        total_links = db.execute("SELECT COUNT(*) FROM evidence_links").fetchone()[0]
+        if user.get("is_super_admin"):
+            total_links = db.execute("SELECT COUNT(*) FROM evidence_links").fetchone()[0]
+        else:
+            total_links = db.execute(
+                "SELECT COUNT(*) FROM evidence_links el "
+                "JOIN evidence_items e ON el.evidence_id = e.id WHERE e.org_id = %s",
+                (user.get("org_id"),),
+            ).fetchone()[0]
         unlinked = db.execute(
             "SELECT COUNT(*) FROM evidence_items e WHERE e.status != 'archived' "
-            "AND NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id)"
+            f"{org_filter.replace('org_id', 'e.org_id')} "
+            "AND NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id)",
+            org_params,
         ).fetchone()[0]
         # Per-module breakdown
         by_module = db.execute(
             "SELECT el.module, COUNT(DISTINCT el.evidence_id) as c "
             "FROM evidence_links el "
             "JOIN evidence_items e ON el.evidence_id = e.id "
-            "WHERE e.status != 'archived' AND el.deleted_at IS NULL "
-            "GROUP BY el.module"
+            f"WHERE e.status != 'archived' AND el.deleted_at IS NULL{org_filter.replace('org_id', 'e.org_id')} "
+            "GROUP BY el.module",
+            org_params,
         ).fetchall()
         # Expiring within 7 days
         expiring_7 = db.execute(
             "SELECT COUNT(*) FROM evidence_items WHERE status = 'current' "
             f"AND expiry_date IS NOT NULL AND expiry_date <= {sql_date_offset('+7 days')} "
-            f"AND expiry_date > {sql_current_date()}"
+            f"AND expiry_date > {sql_current_date()}{org_filter}",
+            org_params,
         ).fetchone()[0]
         # Recently added (last 5 non-archived)
         recent_rows = db.execute(
             "SELECT id, title, category, file_name, created_at "
-            "FROM evidence_items WHERE status != 'archived' "
-            "ORDER BY created_at DESC LIMIT 5"
+            f"FROM evidence_items WHERE status != 'archived'{org_filter} "
+            "ORDER BY created_at DESC LIMIT 5",
+            org_params,
         ).fetchall()
         archived_count = db.execute(
-            "SELECT COUNT(*) FROM evidence_items WHERE status = 'archived'"
+            f"SELECT COUNT(*) FROM evidence_items WHERE status = 'archived'{org_filter}",
+            org_params,
         ).fetchone()[0]
     finally:
         db.close()

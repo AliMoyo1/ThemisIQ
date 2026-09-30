@@ -1,5 +1,640 @@
 # PLAN-36 progress ledger
 
+## 2026-09-30 T10 session 1 — capability inventory generator (+ F15, a real bug it found)
+
+Outcome: T10's two boundED, low-risk deliverables are done (baseline
+measurement, capability inventory generator); its large, open-ended
+deliverables (extracting the 5 oversized templates, moving business logic
+into services, rewriting 3 planning documents, a CI drift check) are
+explicitly **not started** this session -- each is its own substantial,
+multi-step project that T10's own instructions say must not be rushed
+("incremental... a big-bang rewrite is prohibited"), and attempting them
+now, at the end of an already long session, would trade away the care this
+whole plan has otherwise been built with.
+
+**Baseline measurement** (`wc -l` across every module's routes/service/
+template file): confirms findings.md F11's claim still holds today. Five
+module `index.html` templates exceed 3,000 lines (sentinel 4322, erm 4040,
+grid 3879, bcm 3566, orm 3074); four route/service files exceed 1,500
+(aria/routes.py 3055, grid/routes.py 2293, launcher/routes_platform.py
+2134, sentinel/routes.py 1730). Inline-handler count and cyclomatic
+complexity were not separately measured -- no such tool already exists in
+this repo's dev dependencies, and adding one is its own decision this
+session left to whoever picks up the actual extraction work.
+
+**New `oneforall/scripts/capability_inventory.py`**: a read-only generator
+(never touches app state; forces `DATABASE_URL=""` the same way the test
+harness does) that introspects the REAL running route table rather than
+source text. How: `require_auth`/`require_capability`/`require_module` all
+decorate with `@functools.wraps(func)`, which preserves the wrapper's own
+`__closure__`; a route gated by `require_capability("x","y")` has a wrapper
+whose closure contains a `capabilities` cell holding exactly `("x","y")`,
+readable directly and exactly -- immune to decorator aliasing (e.g.
+`modules/launcher/routes_admin.py` imports the same decorator as
+`_require_cap`, which a source-text/regex scan would have to special-case
+but runtime introspection does not need to know about at all). Recursing
+through FastAPI's internal `_IncludedRouter.original_router.routes`
+wrapper (not a standard/documented type -- found by printing `type(r
+).__name__` for every top-level route object, since the naive top-level
+`app.routes` list only shows 12 entries directly) was needed to reach the
+real 857 routes; a first attempt without that recursion undercounted at 12,
+caught immediately by sanity-checking the count against how many modules
+this app actually has rather than assuming 12 was plausible. Output:
+`docs/generated/capability_inventory.{json,md}`, grouped by module, cross-
+referencing `core/rbac.py`'s `CAPABILITIES` table for role membership and
+flagging license-gated (`module.*.access`) capabilities. The generator
+deliberately does not attempt implemented/gated/configuration-required/
+pilot-only/deprecated/planned classification -- its own docstring and the
+Markdown output's own header explain why (a product judgment a static scan
+cannot make honestly), leaving a blank column for a human to fill in once
+next to the facts the generator gets right for free.
+
+**F15 (findings.md addendum)**: the generator's first real run flagged
+exactly one capability string granted to no role anywhere:
+`orm.event.view`. `core/rbac.py`'s `has_capability()` returns `False`
+immediately for an unrecognized string (`if allowed is None: return
+False`), before ever checking the caller's roles, with no super-admin
+carve-out at that layer -- so `GET /orm/api/export/csv`
+(`modules/orm/routes.py:576`) has been unreachable by literally every
+account on the platform, including a super admin, since it shipped. Fixed
+the capability string to `module.orm.access` (matching every other
+read-only GET route in the same file, checked directly rather than
+guessed). That fix immediately surfaced a **second**, previously-masked
+bug in the same handler: its query selected `reporter_name`, a column that
+does not exist on `orm_events` at all (the table has `reported_by`, a
+user-id foreign key) -- a 500 the capability bug had made completely
+unreachable and therefore untested until the auth layer was fixed. Fixed
+by joining `users` and aliasing `u.full_name AS reporter_name`, the same
+pattern this codebase's other CSV exports already use.
+
+Red/green proof: added `orm_events_csv` to `tests/ui/test_download_contracts.py`'s
+existing `_DOWNLOADS` table (reusing that file's already-established
+unauthenticated-redirect / authenticated-200-with-correct-headers /
+persona-without-capability-403 pattern from T08 session 4). Before either
+fix: `test_download_contract[orm_events_csv]` FAILED with 403 (red --
+confirmed even the intended persona, `risk_owner`, was denied). After the
+capability fix alone: still FAILED, now with 500 "A database error
+occurred" (the sanitized F08-style message; the real column-name error was
+found by reading the schema directly, not by relaxing the sanitization).
+After both fixes: full file green, 9 passed (3 downloads x 3 checks each).
+
+Re-ran the capability inventory generator after both fixes: 857 routes,
+zero unknown-capability warnings.
+
+Verification commands (all from `oneforall/`):
+
+1. `..\.venv\Scripts\python.exe scripts\capability_inventory.py` -- before the fix: 857 routes, 1 unknown-capability warning (`orm.event.view`). After: 857 routes, zero warnings.
+2. `..\.venv\Scripts\python.exe -m pytest tests/ui/test_download_contracts.py -v` -- red (403) after adding the case with no fix, red again (500) after the capability-only fix, green (9 passed) after both fixes.
+3. Full backend suite (`pytest tests --ignore=tests/ui -q`) and full browser suite (`pytest tests/ui -q`) both re-launched after the fix -- both `PYTEST_EXIT:0`, zero `FAILED` lines, confirming no regression anywhere else touching `modules/orm/routes.py` or the capability table.
+
+Explicitly unverified/skipped in this session:
+
+- The remaining T10 steps named in the outcome line above -- not started.
+- Whether any OTHER already-shipped route has a similarly masked bug that only a capability fix would surface was not exhaustively checked beyond what the generator's own unknown-capability scan already caught (which, by construction, only catches a capability string that's wrong in a way that makes it match nothing at all -- a capability string that's merely wrong-but-happens-to-collide with a real, different, less-restrictive one would not be flagged this way).
+- No commit or push has been made for any file across any session of this entire plan yet (T00 through T10). No production host or data was touched. No commit, push, migration, service restart, or deployment was performed.
+
+## 2026-09-30 T09 session 1 — CI enforcement wired up
+
+Outcome: T09's file/code-level work is done; its own completion gate
+("a deliberately failing ... test ... blocks CI in a temporary branch") is
+explicitly **not yet demonstrated**, since that requires pushing to a real
+branch and watching actual hosted GitHub Actions runs, which this session
+was not authorized to do. Everything below was instead verified as far as
+possible without that: YAML parse-validated, every shell fragment run
+locally exactly as written, and the two new test files red/green-proved
+(template compilation) or reasoned through against re-read exact method
+signatures (Postgres, since no local Postgres instance existed all session).
+
+**New `.github/workflows/test.yml`**, six jobs:
+
+1. `compile-and-static-checks` -- `python -m compileall`, `git diff --check`
+   (with a base-ref fallback chain: PR base SHA -> push's `before` SHA ->
+   `HEAD~1`, since a bare `git diff --check` with no ref would just compare
+   the already-committed tree against itself and always pass trivially --
+   tested all three branches of this logic locally), `pip check`, and
+   `pip-audit` against all three requirements files (confirmed zero known
+   vulnerabilities as of today).
+2. `secret-scan` -- `gitleaks/gitleaks-action`. Checked the repo's own
+   remote (`AliMoyo1/ThemisIQ`) before assuming no license secret is needed:
+   confirmed personal-account repo, so `GITLEAKS_LICENSE` (org-only) is not
+   required.
+3. `backend-tests` -- full `tests --ignore=tests/ui` suite with
+   `--cov-fail-under`. Measured today's real coverage first rather than
+   guessing a floor: `python -m coverage report --precision=2` gives
+   43.65% (the terminal's own rounded 44% would have set an
+   immediately-failing floor). Floor set to 43, overridable via the
+   `COVERAGE_FLOOR` repo variable so it can ratchet up without a workflow
+   edit, matching the coverage policy's "never lower it to merge a change."
+4. `js-checks` -- `node --check` over every `static/js/*.js` file (all 10
+   pass locally) plus `node --test` over `tests/js/*.test.js` using
+   Node's own built-in test runner (no npm/package.json exists in this
+   repo and none was added -- `aria_policy_workflow.test.js` already used
+   `node:test`/`node:assert` directly; its 4 tests pass).
+5. `browser-smoke` (pull_request only) -- 5 representative UI files
+   (harness smoke, modal contract, action-registry contracts, CSRF, org
+   isolation), Playwright Chromium cached by a key hashing
+   `requirements-browser-dev.txt`.
+6. `browser-full` (master push only) -- the complete `tests/ui` suite.
+
+Every `uses:` is pinned to a commit SHA, looked up live via `gh api
+repos/<owner>/<repo>/tags` (not guessed), matching the convention
+`aria-preview-image.yml` already established:
+`actions/checkout@3d3c42e...` (v7.0.1), `actions/setup-python@5fda3b9...`
+(v7.0.0), `actions/cache@55cc834...` (v6.1.0), `actions/upload-artifact@043fb46...`
+(v7.0.1), `gitleaks/gitleaks-action@e0c47f4...` (v3.0.0).
+
+**One fabricated-SHA mistake caught before it could ship**: a first draft
+pinned `actions/cache` to `0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0`
+-- a SHA that does not exist anywhere in that repo's real tag list (current
+was already v6.1.0). Caught immediately by actually running `gh api
+repos/actions/cache/tags` instead of trusting a plausible-looking string,
+and fixed before this was ever presented as done. Recorded here as a
+concrete example of why every SHA in this file was looked up live, not
+recalled from training data.
+
+**`postgres-schema.yml`** (existing file): the job and its
+`TEST_DATABASE_URL`/destructive-test-target guard are untouched (per T09's
+own "retain" instruction); its two previously-floating `@v4`/`@v5` action
+tags are now pinned the same way as above. Extended with T03/T04/F14 cases
+by adding 3 new tests directly to `tests/test_postgres_init.py` (the one
+file this job already runs, using its existing `pg` fixture):
+   - `test_erm_risk_library_gets_org_id_column_on_real_postgres` (T03).
+   - `test_evidence_items_gets_org_id_column_and_rls_policy_on_real_postgres`
+     (F14) -- checks the column, the `pg_policy`/`pg_class.relforcerowsecurity`
+     catalog rows, and then a **functional** proof: two real connections with
+     `set_rls_context()` called for two different orgs, confirming org B's
+     connection cannot read org A's row and org A's own connection can (the
+     same positive-control discipline as every other isolation test this
+     plan has built, now proven at the database layer Postgres RLS actually
+     runs on, not just the app layer SQLite is limited to).
+   - `test_warm_replay_queries_execute_on_real_postgres` (T04) -- the same
+     every-query-executes proof `tests/test_warm_replay.py` already does
+     against SQLite, run against a real Postgres schema instead.
+
+   These 3 tests could only be verified by careful reading (exact
+   `set_rls_context(org_id, is_super=False)` signature re-confirmed against
+   `database.py:303`; `get_db()`'s own automatic RLS-context-from-contextvar
+   behavior at `database.py:465-474` was initially a concern -- it only
+   fires `set_rls_context` automatically when a contextvar was already set,
+   which my tests never do -- resolved by calling `set_rls_context`
+   directly on the wrapper myself instead of relying on that automatic
+   path) and by local collection (`pytest tests/test_postgres_init.py
+   --collect-only -q` -- 13 items, up from 10, confirms every import
+   resolves) -- **not run against a real instance**, since none was
+   available this session. This is the same class of gap this ledger has
+   named every session: "PostgreSQL gate remains unverified... no
+   PostgreSQL instance available."
+
+**New `tests/test_template_compilation.py`** (T09's "Jinja compilation
+with real filters" step, runs as part of the ordinary backend suite, not a
+separate CI step): imports `main` (which registers every module's custom
+Jinja filters as an import side effect) and walks every
+`starlette.templating.Jinja2Templates` instance left in `sys.modules`,
+compiling every reachable `.html` file against the **union** of every
+instance's search path and every instance's registered filters.
+
+A per-instance-only version was tried first and produced a false positive:
+`modules/launcher/templates/profile.html` uses the `format_dt` filter
+(registered on `modules/launcher/_route_helpers.py`'s `shell_templates`,
+which `routes_auth.py` imports and actually renders `profile.html`
+through), but is also syntactically reachable through a *different*,
+separately-constructed `Jinja2Templates(directory=["templates", ...])`
+instance some other module owns (the same per-module-instance pattern
+`modules/evidence/routes.py` uses), which never got `format_dt` registered
+on it specifically. Compiling strictly instance-by-instance flagged this as
+a failure even though the template is never actually rendered through that
+other instance. Switched to the union approach, which still catches the
+real defect class this exists for (a filter referenced that no instance
+anywhere has registered) without asserting a specific module/template
+pairing this file has no way to verify is the real one.
+
+Red/green proof: created a temporary throwaway file
+`templates/_plan36_t09_red_proof_temp.html` with a deliberately unclosed
+`{% if %}` block -- FAILED as expected. Deleted it (never a real repo file,
+confirmed via `git status --short` showing nothing). Reran -- 1 passed.
+Also fixed the test's own initial `assert len(files) >= 60` (copying the
+original audit's stale count) after it failed on a real run: 47 templates
+were found today, and 60 vs. 47 reflects legitimate template churn since
+the 2026-09-24 audit plus a different discovery method (walking registered
+`Jinja2Templates` instances vs. a live crawl), not a real problem --
+loosened to a `>= 30` sanity floor that only catches discovery finding
+nothing at all, with the reasoning spelled out in the test's own docstring
+so a future reader doesn't wonder why it isn't 60.
+
+Verification commands (all from `oneforall/`):
+
+1. `..\.venv\Scripts\python.exe -m pytest tests/test_template_compilation.py -v` -- 1 passed (both before and after the red/green proof).
+2. `..\.venv\Scripts\python.exe -m pytest tests/test_postgres_init.py --collect-only -q` -- 13 items collected (10 pre-existing + 3 new), confirming imports resolve; all skip without `TEST_DATABASE_URL`.
+3. `python -m yaml.safe_load` (via a one-off `pip install pyyaml`) on all three workflow files -- valid YAML, both before and after every edit.
+4. Every shell fragment in `test.yml` (`git diff --check` fallback logic, the `node --check` loop, the `node --test` glob-or-skip logic) run locally exactly as written -- all behave as intended.
+5. `python -m pip_audit` against `requirements.txt`, `requirements-dev.txt` (now including the added `pip-audit==2.10.1`), and `requirements-browser-dev.txt` -- zero known vulnerabilities in all three.
+6. Full backend coverage run, `pytest tests --ignore=tests/ui -q --cov=. --cov-report=term-missing` -- 43.65% (used to calibrate the CI floor above).
+
+Explicitly unverified/skipped in this session:
+
+- T09's own completion gate (a deliberately failing test/browser test/PG test/template compile actually blocking a real GitHub Actions run) -- requires a real push, not done.
+- The 3 new Postgres tests have not executed against a real Postgres instance.
+- Branch protection requiring these jobs -- explicitly deferred until stable hosted results exist to observe (this step's own wording), which in turn needs a push.
+- No secret-scan exception process (owner/expiry for an accepted finding) was built -- nothing to except yet; this is a process definition for the user's own repo settings, not code this session can create unilaterally.
+- No commit or push has been made for any file across any session of this entire plan yet (T00 through T09). Everything above, including this CI wiring, is sitting locally uncommitted pending the user's explicit go-ahead.
+- No production host or data was touched. No commit, push, migration, service restart, or deployment was performed.
+
+## 2026-09-30 T08 session 6 — multi-tab/concurrency coverage
+
+Outcome: T08's "Test multi-tab or concurrent behavior for approval,
+task/update, and idempotent actions where race conditions matter" step is
+now checked off. Two of the three named categories turned out to already
+have real coverage from earlier sessions/plans, found by searching rather
+than assumed absent:
+
+- **Approval**: `tests/test_aria_policy_approvals.py::test_two_concurrent_deciders_exactly_one_wins` already exists -- a genuine two-thread race (real file-based DB, real separate `database.get_db()` connections per thread, not the shared test fixture) against `modules/aria/policy_workflow_service.py`'s `decide_approval`, which locks in this order: document, version, approval (`SELECT ... FOR UPDATE` on Postgres) plus an optimistic `lock_version` check in the final `UPDATE ... WHERE status='pending' AND lock_version=%s`, checking `rowcount` and raising `AlreadyDecidedError` (409) for the loser. Confirmed exactly one winner, one `AlreadyDecidedError`.
+- **Idempotent actions**: `tests/test_aria_policy_approvals.py::test_resubmitting_same_request_id_is_idempotent` already covers ARIA's submit-for-approval `request_id` idempotency.
+- **Task/update**: no existing coverage of a genuine concurrent race (only `tests/test_concurrency_guards.py::test_task_update_non_owner_hits_predicate`/`test_task_update_owner_succeeds`, which test the ownership predicate via direct SQL, not a race). Grepped `lock_version` across `modules/` first to check whether any module besides ARIA already had optimistic-locking infrastructure worth reusing -- none did.
+
+New file `tests/ui/test_task_update_concurrency.py`: two real threads, two real `httpx` clients, two genuinely concurrent `PUT /api/tasks/{tid}` requests against the live app (not a simulated single-threaded race) setting different `status` values on the same task. Finding: `api_task_update` (`modules/launcher/routes_platform.py`) has **no** optimistic guard at all -- its `UPDATE`'s `WHERE` clause only re-checks existence and ownership (`WHERE id=%s AND (created_by=%s OR assigned_to=%s)`), never a prior field value, so `cur.rowcount` can only be 0 if the row vanished or ownership changed, never because a concurrent write already changed the row first. Both concurrent requests get 200; the later commit silently wins with no conflict signal to either caller. The test asserts this as the current, factual behavior (with an explicit docstring instruction not to just loosen the assertion if this ever changes) rather than asserting it is wrong -- whether task-board drag/drop needs approval-grade conflict detection is a product decision this testing task should surface, not silently make.
+
+Verification: `..\.venv\Scripts\python.exe -m pytest tests/ui/test_task_update_concurrency.py -v` -- 1 passed, `PYTEST_EXIT:0`. No red/green proof recorded: this test characterizes existing behavior rather than proving a fix, so there is no "fix" to prove catches a regression -- the equivalent assurance is the test's own explicit instruction to update its assertions (not loosen them) if `api_task_update` ever gains a guard.
+
+Explicitly unverified/skipped in this session:
+
+- Whether task_board (or any other un-audited module) *should* gain optimistic locking is a product decision, not made here.
+- No commit or push has been made for any file across any T08 session yet.
+- No production host or data was touched. No commit, push, migration, service restart, or deployment was performed.
+
+## 2026-09-30 T08 session 5 — F14: evidence repository had no tenant scoping at all
+
+Outcome: a new critical, previously-uncatalogued finding was discovered
+while building T08 session 4's download-contract tests, investigated fully,
+fixed, and tested the same session. Recorded as `findings.md` F14 (its own
+addendum section, since the original register is a dated 2026-09-24 audit
+snapshot and this was found 2026-09-30). This took priority over continuing
+straight down the T08 checklist because it is a live cross-tenant data
+exposure, not a coverage gap -- closing exactly this class of issue is
+PLAN-36's own stated objective.
+
+**What was found**: `evidence_items` (`database.py`) had no `org_id`,
+`business_unit_id`, or creator-scope column at all -- confirmed by reading
+its `CREATE TABLE`, not assumed. None of `modules/evidence/routes.py`'s
+list, get, download, download-pdf, update, delete/archive, restore, or
+permanent-delete routes filtered by organization; every one reached the row
+by plain `id`. `evidence.delete` is `COMPLIANCE_MGR`-gated (org-scoped), and
+list/get/download needed only `@require_auth` (any authenticated user, any
+org, no extra capability). PostgreSQL's RLS layer (`core/rls.py`) covers
+exactly 4 tables (`users`, `audit_log`, `licenses`, `webhooks`) --
+`evidence_items` was never one of them. Net effect: any logged-in user in
+any tenant could list, read, download, rename, archive, restore, or
+permanently delete any other tenant's evidence by knowing or guessing an id,
+on both SQLite (always) and PostgreSQL (for any org not on a dedicated
+tenant schema). Two smaller, adjacent leaks in the same upload function were
+found and fixed alongside it: cross-org duplicate-detection-by-hash (a hash
+match in another org confirmed that org's document title/id existed) and the
+`replace_id` version-chain lookup (an arbitrary id from another org could be
+marked superseded).
+
+**The fix**:
+
+- `database.py`: `("evidence_items", "org_id", "INTEGER REFERENCES organizations(id)")` added to the existing `_COLUMN_MIGRATIONS` list (the same schema-evolution mechanism `erm_risk_library.org_id` and `webhooks.org_id` already use -- covers SQLite and PostgreSQL from one list).
+- `database.py`: new `_backfill_evidence_org_id(conn)`, called from `init_db()` right after `_backfill_legacy_seeded_admin`. Backfills `org_id` from the row's own `uploaded_by -> users.org_id`, idempotent (`WHERE org_id IS NULL`). This matters because, unlike `erm_risk_library`'s NULL-means-global-catalogue semantics, evidence has no shared/global concept -- leaving deployed evidence at NULL post-upgrade would silently hide every organization's own existing evidence from itself. An orphaned uploader (no org, or deleted) leaves the row NULL, which is treated as super-admin-only -- failing closed, not guessing.
+- `modules/evidence/routes.py`: new `_scoped_evidence_item(db, eid, user)` helper (same fail-closed shape as `modules/launcher/routes_admin.py`'s `_get_webhook_for_admin`: super admin sees any row, everyone else only `org_id == their org_id`, NULL org_id belongs to nobody but super admin). Applied to get, update, delete/archive, restore, permanent-delete, download, and download-pdf. `list` got an inline `WHERE e.org_id = %s` addition (matches its existing dynamic-WHERE-building style). Upload now: rejects a non-super-admin with no org outright (same fail-closed guard `create_library_item` already established this plan); sets `org_id` on the INSERT; scopes the duplicate-hash check and the `replace_id` lookup through the same helper.
+- `core/rls.py`: added `evidence_items` to the 4-table RLS policy list, for Postgres defense-in-depth alongside the app-level check (matching webhooks' own belt-and-braces treatment).
+
+**Tests** (new): `tests/test_evidence_org_isolation.py` (7 backend/migration-level tests: backfill sets org_id from uploader, backfill never overwrites an already-set org_id, backfill leaves an orphaned upload NULL, `_scoped_evidence_item` denies another org/allows the owning org/allows super admin across any org/denies a NULL-org row to an ordinary user) and three new tests appended to `tests/ui/test_org_isolation.py` (HTTP-level, real upload by org A's risk_owner, real denied list/get/download/update attempt by org B's risk_owner, each with a same-org positive control). Evidence's `delete`/`restore` need `COMPLIANCE_MGR`, not `RISK_OWNER` -- cross-org HTTP proof for those two specifically was not added (a third persona/fixture pair just for that was judged not worth it given `_scoped_evidence_item` already gates them identically and is proven directly); noted here rather than silently skipped.
+
+One test-authoring bug caught by the tests themselves, not a product bug:
+`_upload_evidence`'s test helper originally sent identical file bytes for
+every call, so the second and third calls in the same test file legitimately
+409'd against the first as duplicates -- inside the SAME org, which is
+correct behavior, just not what the test intended. Fixed by including the
+title in the uploaded content so each probe gets a distinct hash.
+
+Red/green proof, two rounds: (1) commented out the `_backfill_evidence_org_id(conn)` call in `init_db()` and short-circuited `_scoped_evidence_item` to `return row` unconditionally -- 3 of the 7 backend tests FAILED for the expected reasons (backfill test saw `org_id is None`; both denial tests got a real row back instead of `None`). Restored; `git diff --stat` showed only the intended cumulative diff; green again. (2) Repeated at the HTTP level: re-applied the same `_scoped_evidence_item` short-circuit plus disabled the `list` route's org filter (`if False and not user.get(...)`) -- all 3 new `test_org_isolation.py` evidence tests FAILED. Restored; diff clean; green again.
+
+Verification commands (all from `oneforall/`):
+
+1. `..\.venv\Scripts\python.exe -m pytest tests/test_evidence_org_isolation.py -v` -- 7 passed, exit 0 (and 3 of 7 FAILED during the round-1 red proof, restored to 7 passed).
+2. `..\.venv\Scripts\python.exe -m pytest tests/ui/test_org_isolation.py -q` -- 5 passed, exit 0 (and 3 of 5 FAILED during the round-2 red proof, restored to 5 passed).
+3. Full backend suite, `pytest tests --ignore=tests/ui -q` from `oneforall/` -- exit 0, clean (only the pre-existing, unrelated openpyxl `utcnow()` deprecation warnings from `test_user_import.py`), run after every evidence.py edit in this session including the follow-up round below. Full browser suite (`pytest tests/ui -q`) launched in parallel; result confirmed in the next session entry.
+
+**Follow-up in the same session**: while documenting the "not yet fixed" list below, seven more `evidence_items`-by-id touchpoints were found to have the identical unscoped-lookup shape and were fixed the same way (routed through `_scoped_evidence_item`, or in `api_evidence_link_delete`'s case, through the evidence row the link points at) rather than left for later, since they were cheap, in the same file, and of the same class: `GET /api/items/{eid}/versions` (also closes the entry point to its whole parent/child walk, not just the top-level row), `GET /api/items/{eid}/verify` (was re-hashing and confirming file-on-disk existence for any id), `POST`/`DELETE /api/items/{eid}/confidence-verify`, `POST /api/items/{eid}/links` (the evidence side only -- the target entity's own org is not cross-checked, a separate and more module-spanning gap), `DELETE /api/links/{lid}` (previously had **zero** ownership check of any kind, not even the plain `@require_auth`-only pattern -- looked up the link's `evidence_id` and soft-deleted it unconditionally), and `POST /api/items/{eid}/suggest-links` (was leaking another org's evidence title/description/tags into an AI prompt and would have billed the caller's org for a suggestion against a resource it doesn't own). Re-ran `tests/test_evidence_org_isolation.py` + `tests/ui/test_org_isolation.py` after this follow-up round -- still 12 passed, 0 failed -- and then the full backend suite again (item 3 above already reflects this final state, not the pre-follow-up one).
+
+**Second follow-up, same session**: `GET /api/linked` and `GET /api/auto/{module}/{entity_type}/{entity_id}` were re-examined and found to be the same severity class as `list`/`get` (both `SELECT e.*`/full-column reads of `evidence_items`, joined through `evidence_links` to an entity, with zero org filter) -- not the lower-severity aggregate class initially assumed. Fixed both with the same inline `WHERE ... AND e.org_id = %s` (non-super-admin only) pattern `list` already uses. Re-ran `tests/test_evidence_org_isolation.py` + `tests/ui/test_org_isolation.py` -- still 12 passed, 0 failed.
+
+`GET /api/resolve-links`, `GET /api/coverage`, and `GET /api/search-entities` were each read directly and confirmed genuinely out of F14's scope, not just deprioritized: none queries `evidence_items` for content. `resolve-links` batch-resolves OTHER modules' entity ids (aria_documents, grid_controls, bcm_bia_records, sentinel_* tables, etc.) to a display name/url via a hardcoded `_ENTITY_RESOLVERS` map. `coverage` counts entities in those same other-module tables and whether each has any evidence link at all. `search-entities` searches those other-module tables by name for entities to link evidence to. Whether those target tables are themselves org-scoped is each of those modules' own tenant-isolation question, not evidence's.
+
+**Third follow-up, same session**: re-reading `GET /api/stats` before writing it off as "aggregate-only, lower priority" (the initial characterization above) found that its `recently_added` field returns real `title`/`category`/`file_name` for the platform's 5 most-recently-uploaded non-archived items -- not a count. That is exactly the same content-disclosure class as `list`, not a product-policy question, and the initial characterization was wrong. Fixed: every one of the endpoint's 8 queries (`total`, `by_category`, `expiring_soon`, `total_links`, `unlinked`, `by_module`, `expiring_7`, `recently_added`, `archived_count`) now takes an `org_filter`/`org_params` pair built once at the top of the function (empty for a super admin). New test `test_evidence_stats_does_not_leak_another_orgs_recent_titles` in `tests/ui/test_org_isolation.py` (org A uploads, asserts its title is absent from org B's `recently_added` and present in its own, both through the real endpoint).
+
+One test-authoring mistake caught while adding that test, fixed immediately: the Edit that inserted the new test function was built from a truncated re-read of the file and didn't include the five lines that already followed the insertion point (`test_evidence_from_another_org_cannot_be_updated`'s own positive-control check, `same_org_resp = org_a_client.put(...)`) -- those lines got mechanically pushed to the end of the newly-inserted function instead of staying in the original one, producing a `NameError: name 'eid' is not defined` (the new function never defined `eid`). Caught immediately by running the file (not by inspection), fixed by moving the five lines back to their original function.
+
+A second, separate real regression was caught the same way, in a file this session had not touched directly: the full browser suite (`pytest tests/ui -q`) launched after the first evidence follow-up round came back with exactly one failure, `test_modal_contract.py::test_link_evidence_modal_from_an_existing_item` (`Page.evaluate: SyntaxError: Unexpected token '<'... is not valid JSON`). Root cause: that test seeds its own `evidence_items` row directly via `INSERT INTO evidence_items (title, category, uploaded_by) VALUES (...)` with no `org_id`, logs in as a non-super-admin (`compliance_manager`), and opens that item's detail view -- which now correctly 404s under the new fail-closed default (NULL `org_id` is super-admin-only), and the frontend's `openDetail()` doesn't handle a 404 gracefully in this path. This is the test fixture being stale against the new, correct security model, not a flaw in the fix: a real `compliance_manager` would only ever encounter evidence rows that already carry their own org's `org_id`, since upload now always sets one. Fixed by adding `org_id` (from `synthetic_tenant["org_id"]`) to the test's INSERT, matching what every real upload does post-fix.
+
+Verification commands (all from `oneforall/`):
+
+4. `..\.venv\Scripts\python.exe -m pytest tests/ui/test_org_isolation.py -q` -- 6 passed, exit 0 (after both the stats fix and both test-bug fixes above).
+5. `..\.venv\Scripts\python.exe -m pytest tests/ui/test_modal_contract.py::test_link_evidence_modal_from_an_existing_item -v` -- 1 passed, exit 0 (was the sole failure in the full browser suite before this fixture fix).
+6. Full backend suite and full browser suite both re-launched from a clean state after every fix above landed. The backend rerun's *first* pass (before this final one) surfaced a **fourth**, separate real regression this same fix caused: `tests/test_evidence_suggest_links.py`'s 6 tests all failed with `HTTPException 404: Evidence not found` inside `api_evidence_suggest_links` -- that file's `_actor`/`_evidence_item` fixtures had no `org_id` concept at all (only `business_unit_id`, since it predates the org_id column entirely), so every seeded evidence row and every actor had `org_id=NULL`, which never matches under the new check. Same root cause and same category as the `test_modal_contract.py` fixture staleness above, just in a backend test that calls the route function directly rather than through the browser. Fixed by adding a shared `_org()` helper and threading one real `org_id` through both `_actor` and `_evidence_item` in every one of the file's 6 tests (this file is entirely about BU-vs-BU isolation within one org, never org-vs-org, so one shared org per test is correct, not a simplification that loses coverage). Verified: `pytest tests/test_evidence_suggest_links.py -v` -- 6 passed. Final reruns after this fourth fix: backend suite -- `PYTEST_EXIT:0` (explicitly appended as the log's last line specifically to avoid an exit-code ambiguity below), zero `FAILED` lines. Browser suite -- 100% completion, zero `FAILED`/`ERROR` lines (all dots/skips).
+
+**Tooling note for future sessions**: this session's own verification commands twice produced a misleading exit-code signal by chaining `; echo "EXIT:$?"; grep -c "FAILED" logfile` -- the outer shell/task-notification reports the *last* command's exit code, which is `grep -c`'s, not pytest's. `grep -c` itself exits 1 when it finds zero matches (a clean run) and 0 whenever it finds at least one match (a run with real failures) -- backwards from what a glance at "exit code" suggests. Concretely: task `bobgzljph` reported "exit code 0" while the log it produced actually had 6 real `FAILED` lines (grep found matches -> exit 0), and task `bzjfzoqct` reported "failed, exit code 1" while its log was 100% clean (grep found zero matches -> exit 1). Both were caught by reading the log's actual content rather than trusting the summary. Going forward: read the log directly, or append the real exit code as the log's own last line (as done for `full_backend_truly_final.log` above) rather than trusting a trailing `grep`'s exit code.
+
+Explicitly unverified/skipped in this session:
+
+- PostgreSQL acceptance for this specific migration (the RLS policy addition and the `ADD COLUMN`/backfill) has not been run against a real PostgreSQL instance this session -- SQLite-verified only so far.
+- Cross-org HTTP proof for evidence delete/restore specifically (named above).
+- No commit or push has been made for any file across any T08 session yet -- this fix, despite its severity, is sitting uncommitted locally pending the user's explicit go-ahead, consistent with this plan's own working rule 9 and this session's established pattern.
+- No production host or data was touched. No commit, push, migration, service restart, or deployment was performed.
+
+## 2026-09-30 T08 session 4 — download contract checks
+
+Outcome: T08's "Add download checks for expected content type, disposition,
+non-empty file, and authorization" step now has coverage for two
+representative CSV export routes: ERM risk register
+(`/erm/api/export/csv`, `erm.risk.view`) and BCM incidents
+(`/bcm/api/export/csv`, `module.bcm.access`). Both were chosen specifically
+because they stream straight from a DB query with no filesystem/upload
+dependency, unlike evidence's file-backed download
+(`modules/evidence/routes.py`'s `api_evidence_download`), which needs a real
+uploaded-file fixture this suite doesn't have yet and is left as a named gap.
+
+New file `tests/ui/test_download_contracts.py`, three checks per download:
+unauthenticated request redirects to `/login` (these are GET/`read_only`
+actions, so they were never covered by `test_action_registry_http_contracts.py`,
+which only drives `classification == "mutation"` entries); an authenticated
+holder of the right capability gets 200 with the exact expected
+`Content-Type` prefix, an `attachment` `Content-Disposition` carrying the
+right filename, and a non-empty body; and a persona lacking the capability
+gets 403.
+
+One wrong assumption caught by the test itself, not a false pass: the denied
+persona started as `"employee"` for both downloads, copying the pattern from
+`test_action_registry_http_contracts.py`. `bcm_incidents_csv`'s denial check
+failed with a real 200 instead of 403 -- reading `core/rbac.py`'s
+`CAPABILITIES` table showed `EMPLOYEE` is deliberately included in
+`module.bcm.access` (business-continuity duties reach every staff member),
+so it was never a valid "denied" persona for that specific download. Switched
+to `"viewer"` (`EXTERNAL_AUDITOR`), which core/rbac.py confirms holds neither
+`module.bcm.access` nor `erm.risk.view`.
+
+No separate red/green proof was recorded for this file: the capability-denial
+mechanism it exercises (`core/middleware.py`'s `require_capability`) is the
+exact same decorator already red/green-proven in T08 session 1's webhook
+example, and the content-type/disposition assertions are direct reads of
+each route's own explicit `media_type`/`Content-Disposition` header
+construction (`modules/erm/routes.py:1405-1408`,
+`modules/bcm/routes.py:1346-1349`), not new logic.
+
+Verification: `..\.venv\Scripts\python.exe -m pytest tests/ui/test_download_contracts.py -q` -- 6 passed, exit 0.
+
+Explicitly unverified/skipped in this session:
+
+- Evidence's file-backed download (`api_evidence_download`) and any other
+  non-CSV download (GRID zip export, ARIA document export, etc.) are not
+  covered.
+- Whether `api_evidence_download`'s `@require_auth`-only gate (no capability
+  or ownership/org check beyond being logged in -- read directly, not
+  assumed) is intentional-by-design or a real gap was NOT determined this
+  session. Flagging it here rather than silently asserting either way: any
+  authenticated user can currently download any evidence item by id if that
+  reading is correct. Needs a deliberate look before more download tests are
+  built on top of it.
+- No commit or push has been made for any file across any T08 session yet.
+- No production host or data was touched. No commit, push, migration, service
+  restart, or deployment was performed.
+
+## 2026-09-30 T08 session 3 — HTTP-level cross-org isolation proof
+
+Outcome: the "organization/SBU isolation ... on critical routes" slice of
+T08's first step now has one concrete HTTP-level proof (previously this
+invariant was only tested at the service/data layer, e.g.
+`tests/test_erm_library_tenancy.py`, `tests/test_audit_org_isolation.py` --
+valuable but none of them go through the real ASGI app with two real
+sessions).
+
+Chose ERM's risk library as the target after checking, not assuming, that it
+was a real example: `erm.library.manage` (`core/rbac.py`'s `CAPABILITIES`
+table) is held by `RISK_OWNER`, an org-scoped role, not a platform-wide one
+-- unlike `platform.manage_users` (webhooks' own capability, super-admin-only,
+first considered and rejected as the example for this reason: the org-scoped
+branch in webhooks' `_get_webhook_for_admin` is currently unreachable by any
+role that actually holds that capability). `modules/erm/data_service.py`'s
+`_library_can_manage` is explicit that a non-super-admin actor may only
+manage a row belonging to their own `org_id`.
+
+`synthetic_tenant` (`tests/ui/conftest.py`) only builds one organization, so
+new file `tests/ui/test_org_isolation.py` adds its own second, disposable org
++ risk_owner user directly via `database.get_db()` (same pattern
+`test_link_evidence_modal_from_an_existing_item` already uses), then two
+tests: org B's risk_owner cannot PUT or DELETE an item org A's risk_owner
+created (expect 404, and for delete, a DB-level check that `is_active` stayed
+1), each with a positive control in the same test proving org A's own
+risk_owner CAN act on its own item (so the 404 is proven to mean isolation,
+not just "writes are broken").
+
+One real bug caught while building this before it could become a false
+"regression": both test bodies originally POSTed to `/api/library`, which
+doesn't exist -- `modules/erm/routes.py`'s router is mounted at prefix
+`/erm`, so the real path is `/erm/api/library`. Found immediately (both
+tests failed with a 404 body of `{"detail":"Not found."}` instead of the
+expected 201) rather than a false pass, but recorded here since it's exactly
+the kind of assumed-path mistake this session's own methodology (verify,
+don't assume) exists to catch.
+
+Red/green proof: temporarily changed `_library_can_manage` to
+`if actor.get("is_super_admin"): return True` followed by an unconditional
+`return True` (short-circuiting the real org-ownership line). Both new tests
+FAILED (red). Restored; `git diff --stat` showed zero diff; reran green.
+
+Verification: `..\.venv\Scripts\python.exe -m pytest tests/ui/test_org_isolation.py -q` -- 2 passed, exit 0 (before and after the red/green proof).
+
+Explicitly unverified/skipped in this session:
+
+- Only one module (ERM library) got an HTTP-level cross-org proof. Other
+  org-scoped critical routes (evidence, ARIA documents, GRID, BCM, sentinel)
+  still rely on service-layer isolation tests only, not an HTTP-level one.
+- SBU (business-unit-level, as opposed to org-level) isolation at the HTTP
+  layer is not covered by this file.
+- No commit or push has been made for any file across any T08 session yet.
+- No production host or data was touched. No commit, push, migration, service
+  restart, or deployment was performed.
+
+## 2026-09-30 T08 session 2 — default-fail page-error gate, desktop viewports, CSRF coverage
+
+Outcome: three more T08 steps advanced.
+
+**1. Console/page-error capture becomes default-fail, not opt-in** (step:
+"Capture uncaught page errors, console errors, failed same-origin requests,
+... and server 5xx; fail the test unless explicitly allowlisted with
+rationale"). Before this, `tests/ui/conftest.py`'s `page` fixture collected
+errors onto `page.console_errors` but only 12 of 24 UI test files actually
+asserted on it -- the other 12 silently passed even if a real console/page
+error fired, unless a test's own explicit UI assertion happened to catch the
+downstream symptom.
+
+`tests/ui/conftest.py`'s `page` fixture now asserts `not
+gated_errors` at teardown for every UI test, unless marked
+`@pytest.mark.expected_page_errors("reason")` (registered in `pytest.ini`).
+"Failed to load resource" is excluded from the gate specifically, not from
+the raw list: two existing tests
+(`test_webhook_admin_ui.py`/`test_email_settings_error_detail.py`) already
+documented that Chromium logs that exact line for *any* non-2xx fetch/XHR
+response or network-level failure regardless of whether the page's own JS
+handled it correctly -- confirmed empirically, not assumed, by running the
+full existing UI suite against the new gate before deciding whether any
+existing deliberate-failure test (test_api_client.py's 400/401/403/409/429/500/
+abort/timeout cases, test_admin_connectors_ui.py's 429/400/500 cases,
+test_email_settings_error_detail.py's 502/500 cases,
+test_task_board_and_my_dashboard_migration.py's 400/409/500 cases) would need
+the new marker. Result: **zero existing tests needed it** -- full suite ran
+green with no changes to any of those files. `requestfailed`/`response`
+listeners were considered and deliberately not added as a separate channel:
+the existing console listener already surfaces the same signal (with the
+status/reason in the message text), so a second listener would just be
+duplicate machinery for the same underlying browser events.
+
+Verification: `..\.venv\Scripts\python.exe -m pytest tests/ui -q` from
+`oneforall/`, full suite, exit 0, run after the fixture change and before any
+other change in this session.
+
+**2. Desktop viewport coverage** (step 5: "Test at least desktop 1366x768 and
+1920x1080 ... plus mobile regression 390x844"). 390x844 (modal overflow,
+2 representative modals) and 640x800/200%-zoom-equivalent (shell overflow,
+21 T07 acceptance routes) already existed; the two named desktop sizes did
+not. New file `tests/ui/test_desktop_viewports.py`: the same 21-route list
+at both 1366x768 and 1920x1080 for shell overflow, plus the same two
+representative modals (newTaskModal, uploadModal) at both sizes for modal
+overflow -- 46 parametrized cases total.
+
+Verification: `..\.venv\Scripts\python.exe -m pytest tests/ui/test_desktop_viewports.py -q` -- 46 passed, exit 0.
+
+**3. CSRF/origin coverage** (step: "... CSRF/origin behavior ... on critical
+routes"). Grepped every `validate_csrf` call site first rather than assuming
+blanket CSRF middleware exists -- it doesn't. `core/middleware.py`'s
+`validate_csrf()` is called explicitly, as the first statement, inside 9
+`/admin/users/*` form routes (`modules/launcher/routes_admin.py`) sharing one
+identical rejection pattern, plus `/login`, `/mfa/verify`, and
+`/mfa/setup/confirm` (`modules/launcher/routes_auth.py`). The much larger set
+of JSON `/api/*` mutation routes already covered by
+`test_action_registry_http_contracts.py` do not call `validate_csrf` at all
+-- session cookie plus JSON content-type/body shape is the actual mitigation
+there (not forgeable by a plain cross-site HTML form), which is a real
+architecture split, not a gap invented here.
+
+New file `tests/ui/test_csrf_protection.py`: all 9 `/admin/users/*` actions
+checked for both a missing csrf_token (the `if not form_token` branch) and a
+present-but-wrong one (the `secrets.compare_digest` branch) -- 18 cases,
+proxied by the exact known rejection message (source-verified to `return`
+before any `db = get_db()` call in every one of the 9, so the message is a
+sound proxy, not a guess) -- plus one direct DB postcondition check (the
+`create` action, bad CSRF -> no user row inserted) for concrete proof beyond
+message-matching, plus `/login` checked the same way (missing and wrong
+token), proven by checking the session cookie is never set even with
+correct credentials.
+
+`/mfa/verify` and `/mfa/setup/confirm` are NOT covered -- would need a
+mfa_pending session fixture this suite doesn't build yet. Also not done:
+the 9 `/admin/users/*` actions are not yet in `action_registry.json` (T00's
+own registry is honestly partial and each T-task is supposed to extend it
+for the module it touches -- this is debt this session found but did not
+pay down, to stay focused; noted here rather than silently dropped).
+
+Red/green proof: temporarily changed `if not validate_csrf(...)` to `if
+False and not validate_csrf(...)` in `admin_deactivate_user`
+(routes_admin.py) and in `login_submit` (routes_auth.py). Both
+`test_admin_users_action_rejects_missing_csrf_token[deactivate]` and
+`test_login_rejects_missing_csrf_token_and_does_not_authenticate` FAILED
+(red). Restored both lines; `git diff --stat` on both files showed zero
+diff; full file reran green.
+
+Verification: `..\.venv\Scripts\python.exe -m pytest tests/ui/test_csrf_protection.py -q` -- 21 passed, exit 0 (both before and after the red/green proof).
+
+Explicitly unverified/skipped in this session:
+
+- `/mfa/verify` and `/mfa/setup/confirm` CSRF coverage (named above).
+- Adding the 9 `/admin/users/*` actions to `action_registry.json` (named above).
+- Organization/SBU isolation, success/validation/conflict/server-failure
+  coverage, realistic data seeding, multi-tab/concurrency, and download
+  validation -- none of T08's remaining steps -- not started this session.
+- No commit or push has been made for any file in this or the prior T08
+  session yet.
+- No production host or data was touched. No commit, push, migration, service
+  restart, or deployment was performed.
+
+## 2026-09-30 T08 session 1 — registry-driven HTTP contract tests (auth + capability denial)
+
+Outcome: two of T08's steps ("Add HTTP integration coverage for authentication
+... capability denial ... on critical routes" and part of "Drive every
+action-registry entry that is safe in an isolated database") now have generic,
+registry-driven coverage. Not a completion-gate claim for T08 as a whole --
+CSRF/origin behavior, org/SBU isolation, success/validation/conflict/server-failure
+coverage, multi-viewport (1366x768/1920x1080), multi-tab/concurrency, download
+validation, and console/5xx/redirect capture are still open (see task_plan.md T08
+steps, all still unchecked).
+
+Before touching code this session, first confirmed the state left by the prior
+session's work (the `_backfill_legacy_seeded_admin` migration, the
+`api_client.js` redirect-ordering fix, and the `warm_replay.py` schema
+corrections/`_classify` refactor) by reading the diffs and this ledger's most
+recent entries above, then ran the full suite twice as a fresh baseline:
+
+1. `..\.venv\Scripts\python.exe -m pytest tests --ignore=tests/ui -q` (backend) -- exit 0.
+2. `..\.venv\Scripts\python.exe -m pytest tests/ui -q` (browser) -- exit 0.
+
+Both ran from `oneforall/` as background jobs and both finished clean, confirming
+the other session's changes did not regress anything before new work started.
+
+New file: `oneforall/tests/ui/test_action_registry_http_contracts.py`. Plain
+`httpx` against the real ASGI app (`live_app`), not Playwright -- these checks
+are about the HTTP contract (status/redirect), not rendered DOM, matching the
+precedent already documented in `test_request_id_middleware.py`. Two generic
+tests parametrized over `action_registry.json`:
+
+- `test_unauthenticated_mutation_is_redirected_not_executed` -- every
+  `classification == "mutation"` action (12 total; 11 exercised, 1 --
+  `auth.login.submit` -- intentionally skipped since it's reachable while
+  logged out by design) is called with no session and a placeholder path
+  parameter (`999999999`, safe because `require_auth`/`require_capability`
+  both run before any resource lookup -- confirmed by reading
+  `core/middleware.py` directly, not assumed). Asserts a redirect to `/login`
+  or a 401, never a 2xx.
+- `test_persona_without_capability_is_forbidden` -- the subset of mutation
+  actions gated by one simple capability string (not ARIA's `"X OR (Y AND
+  is_own)"` ownership expressions, which need a real owned/not-owned document
+  fixture and are left to `test_aria_managed_edit.py`) is called by a real
+  logged-in persona confirmed to lack that capability. Asserts 403.
+
+A `persona_client` fixture logs in through the real `/login` form (GET for the
+CSRF cookie, POST credentials + token back, exactly what a browser does) and
+caches one `httpx.Client` per persona per module.
+
+One fixture-shape bug found and fixed while building this: sending `json={}`
+to `evidence.upload_evidence.submit` (`multipart/form-data`-only) got a 422
+from FastAPI's own request-shape validation before `@require_auth` ever ran,
+which would have falsely read as "no auth check". Added a
+`_MULTIPART_ACTIONS` override so that one action gets a real file upload body
+instead.
+
+Red/green proof (the review-list item this directly answers -- proving the
+new capability-denial test actually catches a real regression, not just a
+passing tautology): temporarily commented out
+`@_require_cap("platform.manage_users")` on `api_webhook_create`
+(`modules/launcher/routes_admin.py:1150`, backing
+`launcher.admin_webhooks.create_webhook.submit`). Reran just that
+parametrization --
+`test_persona_without_capability_is_forbidden[launcher.admin_webhooks.create_webhook.submit]`
+-- FAILED (red, for the expected reason: a denied persona got 201 instead of
+403). Restored the decorator; reran the full file -- 15 passed, 1 skipped
+(green).
+
+Verification commands (all from `oneforall/`):
+
+1. `..\.venv\Scripts\python.exe -m pytest tests/ui/test_action_registry_http_contracts.py -q` -- 15 passed, 1 skipped.
+2. Red/green proof above.
+3. Full backend + browser baselines (both green, see above) re-confirmed unaffected after restoring the decorator.
+
+Explicitly unverified/skipped in this session:
+
+- The remaining T08 steps listed in the outcome line above -- not started yet.
+- No commit or push has been made for this file yet.
+- No production host or data was touched. No commit, push, migration, service restart, or deployment was performed.
+
 ## 2026-09-29 — webhook test fixture socket-race correction
 
 A follow-up review identified the concrete cause of the intermittent failures in

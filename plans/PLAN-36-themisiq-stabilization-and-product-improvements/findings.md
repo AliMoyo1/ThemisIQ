@@ -193,3 +193,31 @@ Each feature phase in `task_plan.md` begins with a source-and-user discovery gat
 - Real browser evidence is required for browser claims.
 - External delivery tests require controlled destinations owned by the user; do not send to arbitrary third parties.
 - Production acceptance requires a fresh verified backup and rollback point, but repeated checks may be reused within their explicitly documented freshness window.
+
+## 6. Addendum: findings discovered after the 2026-09-24 audit
+
+Findings below were not part of the original audit and are dated separately.
+They are recorded here, in this register, so this file stays the single
+place every confirmed defect is tracked -- but each is explicitly marked
+with its own discovery date rather than folded into section 2's original,
+dated audit scope.
+
+### F14 — Evidence repository has no tenant/organization scoping (discovered 2026-09-30)
+
+Severity: security and tenant-isolation blocker, same class as F13, more severe in practice.
+
+Discovered while building T08 download-contract tests, not by a targeted security review. `evidence_items` (`database.py`) had no `org_id`, `business_unit_id`, or creator-scope column at all, and none of `modules/evidence/routes.py`'s list, get, download, download-pdf, update, delete/archive, restore, or permanent-delete routes filtered by organization -- every one of them reached the row by a plain, unscoped `id`. `evidence.delete` is granted to `COMPLIANCE_MGR`, an org-scoped role, and list/get/download only required `@require_auth` (any authenticated user, any organization, no extra capability). In effect, any logged-in user in any tenant could list, read, download, rename, archive, restore, or permanently delete any other tenant's evidence -- compliance documents, audit evidence, and policy attachments -- simply by knowing or guessing an id, with no cross-tenant defense anywhere in the stack. PostgreSQL's RLS layer (`core/rls.py`) did not cover this table either, so the gap was live on both SQLite (always) and PostgreSQL (for any organization not otherwise isolated by a dedicated tenant schema).
+
+Fixed the same session it was found (see `progress.md` 2026-09-30 T08 session 5 for full verification evidence): `org_id` added via the existing `_COLUMN_MIGRATIONS` schema-evolution mechanism plus an idempotent `_backfill_evidence_org_id` data migration (backfills from the uploader's own `org_id`, so existing deployed evidence is not silently hidden from its own organization on upgrade); every route above now goes through a shared `_scoped_evidence_item` fail-closed lookup (same shape as `_get_webhook_for_admin`); RLS extended to cover `evidence_items` for Postgres defense-in-depth; upload's cross-org duplicate-detection-by-hash and `replace_id` version-chain lookup (two smaller, adjacent information/write leaks in the same function) fixed alongside it. Each mechanism has a red/green proof.
+
+All `evidence_items` read/write touchpoints that expose row content are now fixed, across four same-session follow-up rounds (versions, verify, confidence-verify x2, links-create, links-delete, suggest-links, linked, auto-evidence, stats). `links-delete` had no ownership check of any kind before the fix, not even the plain-`@require_auth` pattern the others had; `suggest-links` had leaked another org's evidence metadata into an AI prompt; `stats`' `recently_added` field returned real title/category/file_name for the platform's 5 most-recently-uploaded items, not just a count as first assumed -- re-checked and fixed once that was noticed. `/api/resolve-links`, `/api/coverage`, and `/api/search-entities` were read directly and confirmed to never query `evidence_items` for content (they resolve/count/search OTHER modules' entities), so are genuinely out of this finding's scope -- every touchpoint that does query evidence_items is now fixed. See `progress.md` for the complete list, including two pre-existing tests this fix's correct new behavior broke (both fixed the same session: a stale test fixture in `test_modal_contract.py` that seeded evidence with no org_id, and a test-authoring bug introduced while adding this fix's own test coverage).
+
+### F15 — ORM event CSV export used a capability string granted to no role, and a column that does not exist (discovered 2026-09-30)
+
+Severity: functional, not security -- the effect was fail-closed (nobody could use the feature), not fail-open.
+
+Discovered by T10's new `scripts/capability_inventory.py` (a read-only generator that introspects the real, running route table rather than source text -- see the script's own docstring). Its output flagged exactly one capability string, `orm.event.view`, granted to no role anywhere in `core/rbac.py`'s `CAPABILITIES` table. `core/rbac.py`'s own `has_capability()` returns `False` immediately for an unrecognized capability string, before ever checking the caller's roles (`if allowed is None: return False`), with no super-admin bypass at that layer -- so `GET /orm/api/export/csv` (`modules/orm/routes.py:576`) was unreachable by every single account on the platform, including a platform super admin, since the day it shipped.
+
+Fixing the capability string alone (to `module.orm.access`, matching every other read-only GET route in the same file) surfaced a second, previously-masked bug in the same handler: its query selected a `reporter_name` column that does not exist on `orm_events` at all (the table has `reported_by`, a user-id foreign key, not a name string) -- a 500 that the capability bug had made completely unreachable, and therefore untested and unnoticed, until the auth layer was fixed. Fixed by joining `users` and aliasing `u.full_name AS reporter_name`, the same pattern the codebase's other CSV exports already use.
+
+Both fixes are red/green-proved in `tests/ui/test_download_contracts.py` (see `progress.md` T10 session 1). This is recorded as its own finding, separate from T10's other work, because it is a genuine, previously-shipped, user-facing defect that a documentation-generation task incidentally uncovered -- not something T10 set out to fix.

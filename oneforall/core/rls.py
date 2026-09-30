@@ -1,8 +1,8 @@
 """PostgreSQL Row Level Security policies for the public schema.
 
-Protects shared tables (users, audit_log, licenses, webhooks) from
-cross-tenant reads when the application's connection pool serves multiple
-organisations.
+Protects shared tables (users, audit_log, licenses, webhooks,
+evidence_items) from cross-tenant reads when the application's connection
+pool serves multiple organisations.
 
 Context variables (PostgreSQL session settings):
   app.current_org_id  - integer org id as text, set per request
@@ -55,6 +55,15 @@ _STMTS = [
     "ALTER TABLE public.webhooks FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation ON public.webhooks",
     f"CREATE POLICY tenant_isolation ON public.webhooks USING {_USING}",
+
+    # evidence_items - defense-in-depth alongside modules/evidence/routes.py's
+    # own _scoped_evidence_item org_id check (PLAN-36 T08: this table had no
+    # tenant scoping at all -- every list/get/download/update/delete/restore
+    # route queried it by plain id with no org filter).
+    "ALTER TABLE public.evidence_items ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_items FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_items",
+    f"CREATE POLICY tenant_isolation ON public.evidence_items USING {_USING}",
 ]
 
 
@@ -73,7 +82,10 @@ def apply_rls_policies(db) -> None:
         for stmt in _STMTS:
             db.execute(stmt)
         db.commit()
-        _logger.info("RLS policies applied to public.users, public.audit_log, public.licenses, public.webhooks")
+        _logger.info(
+            "RLS policies applied to public.users, public.audit_log, "
+            "public.licenses, public.webhooks, public.evidence_items"
+        )
     except Exception as exc:
         _logger.error("RLS policy application failed (non-fatal): %s", exc)
         try:

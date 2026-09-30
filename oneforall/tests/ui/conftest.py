@@ -200,10 +200,23 @@ def browser():
 
 
 @pytest.fixture
-def page(browser):
+def page(browser, request):
     """A fresh browser context/page per test, with console/page errors
     collected onto `page.console_errors` so any test can assert
-    `assert not page.console_errors` instead of re-wiring listeners."""
+    `assert not page.console_errors` instead of re-wiring listeners.
+
+    PLAN-36 T08: unless the test is marked `@pytest.mark.expected_page_errors`,
+    this is also an autouse gate -- any uncaught console/page error fails the
+    test by default instead of silently passing when nothing happened to
+    check `page.console_errors` directly. "Failed to load resource" is
+    excluded from the gate (not from the raw list): Chromium logs that for
+    *any* non-2xx fetch/XHR response or network-level failure regardless of
+    whether the page's own JS handled it correctly, which is exactly what
+    several deliberate-failure tests already relied on before this gate
+    existed (see test_webhook_admin_ui.py / test_email_settings_error_detail.py) --
+    the real signal for those is their own explicit UI assertion, not the
+    browser's own resource-load log line.
+    """
     context = browser.new_context()
     pg = context.new_page()
     pg.console_errors = []
@@ -223,6 +236,14 @@ def page(browser):
     pg.on("pageerror", _on_pageerror)
     yield pg
     context.close()
+    if not request.node.get_closest_marker("expected_page_errors"):
+        gated_errors = [e for e in pg.console_errors if "Failed to load resource" not in e]
+        assert not gated_errors, (
+            "Uncaught console/page errors during test (PLAN-36 T08 default-fail "
+            "policy): " + "; ".join(gated_errors) + ". If this test deliberately "
+            "exercises a failure path, mark it "
+            "@pytest.mark.expected_page_errors('reason') instead."
+        )
 
 
 _AXE_CORE_JS = None  # lazily read once; large (~550KB), no need to re-read per test

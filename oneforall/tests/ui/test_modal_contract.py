@@ -167,9 +167,10 @@ def test_link_evidence_modal_from_an_existing_item(login_as, live_app, synthetic
     db = database.get_db()
     try:
         db.execute(
-            "INSERT INTO evidence_items (title, category, uploaded_by) "
-            "VALUES ('UI Harness Evidence', 'general', %s)",
-            (synthetic_tenant["users"]["compliance_manager"]["user_id"],),
+            "INSERT INTO evidence_items (title, category, uploaded_by, org_id) "
+            "VALUES ('UI Harness Evidence', 'general', %s, %s)",
+            (synthetic_tenant["users"]["compliance_manager"]["user_id"],
+             synthetic_tenant["org_id"]),
         )
         db.commit()
         evidence_id = db.execute(

@@ -573,7 +573,7 @@ async def api_rcsa_action_delete(request: Request, action_id: int):
 
 
 @router.get("/api/export/csv")
-@require_capability("orm.event.view")
+@require_capability("module.orm.access")
 async def api_export_csv(request: Request):
     import csv
     import io
@@ -582,9 +582,11 @@ async def api_export_csv(request: Request):
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT title, event_type, severity, status, department, financial_impact, "
-            "root_cause, reporter_name, created_at, resolved_at "
-            "FROM orm_events ORDER BY created_at DESC"
+            "SELECT e.title, e.event_type, e.severity, e.status, e.department, "
+            "e.financial_impact, e.root_cause, u.full_name AS reporter_name, "
+            "e.created_at, e.resolved_at "
+            "FROM orm_events e LEFT JOIN users u ON u.id = e.reported_by "
+            "ORDER BY e.created_at DESC"
         ).fetchall()
     finally:
         db.close()

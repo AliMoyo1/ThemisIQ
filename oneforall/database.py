@@ -4620,6 +4620,17 @@ _COLUMN_MIGRATIONS = [
         ("erm_risk_library", "org_id",     "INTEGER REFERENCES organizations(id)"),
         ("erm_risk_library", "created_by", "INTEGER REFERENCES users(id)"),
         ("erm_risk_library", "updated_at", "TEXT"),
+        # ── PLAN-36 T08: evidence_items had NO tenant scoping column at all --
+        # every list/get/download/update/delete/restore route queried it by
+        # plain id with no org filter, so any authenticated user in any
+        # organization could read or destroy any other organization's
+        # evidence. NULL here (a pre-migration row whose uploader also has no
+        # org, or one _backfill_evidence_org_id can't otherwise resolve) is
+        # treated as super-admin-only by modules/evidence/routes.py's
+        # _scoped_evidence_item, the safe direction to fail closed in --
+        # unlike erm_risk_library's NULL, this is never a "global catalogue"
+        # visible to every org, since evidence has no such shared concept.
+        ("evidence_items", "org_id", "INTEGER REFERENCES organizations(id)"),
 ]
 
 
@@ -4816,6 +4827,27 @@ def _backfill_legacy_seeded_admin(conn) -> None:
         "WHERE ur.user_id=users.id AND ur.role_key=%s"
         ")",
         ("admin", "admin@oneforall.local", "super_admin"),
+    )
+
+
+def _backfill_evidence_org_id(conn) -> None:
+    """Give every pre-existing evidence_items row the org_id its own
+    uploader belongs to.
+
+    The column is brand new (see _COLUMN_MIGRATIONS) and ADD COLUMN leaves
+    every existing row NULL. Unlike erm_risk_library, evidence has no
+    "global catalogue" reading of NULL -- modules/evidence/routes.py's
+    _scoped_evidence_item treats a NULL org_id as visible to a platform
+    super admin only. Leaving deployed evidence at NULL post-upgrade would
+    silently hide every organization's own existing evidence from itself,
+    which is a worse outcome than a brief window where this backfill hasn't
+    run yet. Idempotent: only touches rows still NULL, safe to call on
+    every startup.
+    """
+    conn.execute(
+        "UPDATE evidence_items SET org_id = ("
+        "SELECT u.org_id FROM users u WHERE u.id = evidence_items.uploaded_by"
+        ") WHERE org_id IS NULL AND uploaded_by IS NOT NULL"
     )
 
 
@@ -6382,6 +6414,7 @@ def init_db():
             _run_sqlite_alters(conn)
         _seed_baseline_data(conn)
         _backfill_legacy_seeded_admin(conn)
+        _backfill_evidence_org_id(conn)
         conn.commit()
         if settings.is_postgres():
             from core.rls import apply_rls_policies

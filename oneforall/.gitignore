@@ -35,3 +35,9 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Coverage (PLAN-36 T09: generated locally and in CI, never committed)
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

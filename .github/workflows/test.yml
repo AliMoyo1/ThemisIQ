@@ -1,0 +1,259 @@
+name: Test suite
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  compile-and-static-checks:
+    name: Python compile, git diff --check, pip check, dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: oneforall/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: oneforall
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Python compilation
+        working-directory: oneforall
+        run: python -m compileall -q .
+
+      - name: git diff --check (whitespace errors in this change)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          BASE="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE" ]; then BASE="${{ github.event.before }}"; fi
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            echo "No usable base ref (first push to a new branch, or shallow history); checking last commit only."
+            BASE="HEAD~1"
+          fi
+          git diff --check "$BASE" HEAD
+
+      - name: pip check (dependency consistency)
+        working-directory: oneforall
+        run: python -m pip check
+
+      - name: pip-audit (known vulnerability scan)
+        working-directory: oneforall
+        run: |
+          python -m pip_audit -r requirements.txt
+          python -m pip_audit -r requirements-dev.txt
+          python -m pip_audit -r requirements-browser-dev.txt
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  backend-tests:
+    name: Backend test suite (SQLite) + coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: oneforall/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: oneforall
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run backend suite with coverage
+        working-directory: oneforall
+        run: |
+          python -m pytest tests --ignore=tests/ui -q \
+            --cov=. --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=${{ vars.COVERAGE_FLOOR || 43 }}
+        # 43 = floor just under the 43.65% measured on 2026-09-30 (PLAN-36
+        # T09) with this exact command (`python -m coverage report
+        # --precision=2`, not the rounded 44% the plain terminal summary
+        # shows -- a floor of 44 would fail this step immediately on an
+        # unchanged tree). `--cov=.` over the whole oneforall/ tree with
+        # tests/ui excluded from execution but not from the denominator (so
+        # unexecuted UI test files count as 0%-covered "source" and pull the
+        # number down below what backend code alone would show -- kept
+        # anyway so the floor is calibrated against the same measurement
+        # this step itself produces, not a cleaner number from a different
+        # method). Ratchet
+        # upward via the repo variable COVERAGE_FLOOR as coverage improves;
+        # never lower it to merge a change (task_plan.md T08 coverage policy).
+
+      - name: Upload coverage report (always, for visibility)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backend-coverage
+          path: oneforall/coverage.xml
+          retention-days: 14
+
+  js-checks:
+    name: JavaScript syntax + unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Syntax-check every static JS file (no external framework needed)
+        working-directory: oneforall
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          for f in static/js/*.js; do
+            echo "Checking $f"
+            node --check "$f"
+          done
+
+      - name: Run JS unit tests (Node's built-in test runner)
+        working-directory: oneforall
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          files=(tests/js/*.test.js)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No *.test.js files found; nothing to run."
+            exit 0
+          fi
+          node --test "${files[@]}"
+
+  browser-smoke:
+    name: Browser smoke tests (pull request)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            oneforall/requirements-dev.txt
+            oneforall/requirements-browser-dev.txt
+
+      - name: Install Python dependencies
+        working-directory: oneforall
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -r requirements-browser-dev.txt
+
+      - name: Cache Playwright browser binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('oneforall/requirements-browser-dev.txt') }}
+
+      - name: Install Playwright Chromium (with system deps)
+        working-directory: oneforall
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run smoke subset (fast, representative)
+        working-directory: oneforall
+        run: |
+          python -m pytest tests/ui/test_harness_smoke.py \
+            tests/ui/test_modal_contract.py \
+            tests/ui/test_action_registry_http_contracts.py \
+            tests/ui/test_csrf_protection.py \
+            tests/ui/test_org_isolation.py \
+            -q
+
+      - name: Upload failure artifacts (screenshots/traces, sanitized)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-smoke-failure-artifacts
+          path: |
+            oneforall/test-results/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+  browser-full:
+    name: Full browser suite (master)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            oneforall/requirements-dev.txt
+            oneforall/requirements-browser-dev.txt
+
+      - name: Install Python dependencies
+        working-directory: oneforall
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -r requirements-browser-dev.txt
+
+      - name: Cache Playwright browser binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('oneforall/requirements-browser-dev.txt') }}
+
+      - name: Install Playwright Chromium (with system deps)
+        working-directory: oneforall
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run full browser suite
+        working-directory: oneforall
+        run: python -m pytest tests/ui -q
+
+      - name: Upload failure artifacts (screenshots/traces, sanitized)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-full-failure-artifacts
+          path: |
+            oneforall/test-results/**
+          retention-days: 7
+          if-no-files-found: ignore
