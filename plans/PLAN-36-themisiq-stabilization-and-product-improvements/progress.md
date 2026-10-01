@@ -1,3 +1,51 @@
+## 2026-10-01 F16 cross-org NULL-business_unit_id question closed
+
+Outcome: the open architecture question from F16 ("could a NULL-business_unit_id
+row leak across organizations, not just business units, under the
+`bu_scope_ids()` convention") is resolved and closed as not exploitable on
+production PostgreSQL. No code change -- this was an investigation, not a fix.
+
+Method: traced the actual request path end to end rather than reasoning about
+the SQL convention alone.
+
+1. Confirmed `bcm_incidents`/`sentinel_dsr`/`grid_non_conformances`/`grid_audits`
+   (and every other table using this convention) have no `org_id` column --
+   read each `CREATE TABLE` directly. They live inside `database.py`'s
+   `_PLATFORM_TABLES` DDL block, which `_apply_tenant_schema_ddl`/
+   `_migrate_all_tenant_schemas` provision as a **separate table per
+   PostgreSQL schema**, one schema per tenant. Org A's and Org B's
+   `grid_audits` are physically different tables; a `business_unit_id IS NULL`
+   clause against one has no way to reach the other.
+2. Traced that every authenticated request reliably binds to its own tenant
+   schema before any such query runs: `core/middleware.py`'s
+   `tenant_context_middleware` -> `core/auth.py`'s `get_session_user()`
+   (resolves `org_slug` to the user's real active org, or the literal string
+   `"public"` only for an org-less/super-admin account by design -- an
+   org-bound user whose org is missing/suspended gets their session revoked
+   outright, not silently downgraded) -> `database.py`'s `get_db()`, which
+   calls `_PgConnWrapper.set_tenant(slug)` (`SET search_path TO
+   tenant_<slug>, public`) unconditionally on every call, including a
+   connection reused from the pool -- closing the "stale pooled connection
+   from a different tenant" variant too.
+3. Spot-checked the one place this convention is used on a genuinely shared,
+   `org_id`-bearing, RLS-protected table (`modules/aria/policy_access.py`):
+   already correctly written as `(org_id=%s AND (business_unit_id IS NULL OR
+   business_unit_id IN (...)))` -- the NULL-BU fallback nested inside an
+   explicit `org_id=` match, not a sibling condition. No gap there.
+4. Confirmed this protection is specific to PostgreSQL's schema-per-tenant
+   provisioning and does not exist on SQLite (one shared file) -- not a
+   concern since SQLite is documented as dev/test only, never production.
+
+Minor unrelated hardening note recorded (not actioned, not the thing being
+investigated): `tenant_context_middleware` wraps its session/tenant
+resolution in a bare `except Exception: pass`; a transient failure there
+would silently leave that one request on Postgres's default `public` schema
+rather than failing the request outright. Requires an actual exception
+mid-lookup to trigger.
+
+Updated `findings.md` (F16's resolution note) and `task_plan.md`'s release-gate
+line accordingly.
+
 ## 2026-10-01 T08 GRID SBU scope and regression-fixture closure
 
 Outcome: closed F16's named NC-create write gap and the selected adjacent GRID
