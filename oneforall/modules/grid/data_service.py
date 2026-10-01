@@ -334,12 +334,12 @@ def create_audit(data):
 
         aid = insert_returning_id(db,
             "INSERT INTO grid_audits (name, framework_id, audit_type, auditor, lead_id, start_date, end_date, audit_date,"
-            " scope, objective, criteria, methodology, is_integrated, framework_ids) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            " scope, objective, criteria, methodology, is_integrated, framework_ids, business_unit_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (data.get("name", "Untitled Audit"), data.get("framework_id"), data.get("audit_type", "External"),
              data.get("auditor"), data.get("lead_id"), data.get("start_date"), data.get("end_date"),
              data.get("audit_date"), data.get("scope", ""), data.get("objective", ""),
              data.get("criteria", ""), data.get("methodology", ""),
-             is_integrated, framework_ids_json))
+             is_integrated, framework_ids_json, data.get("business_unit_id")))
         grid_fw_id = data.get("framework_id")
 
         # ── Auto-populate controls ───────────────────────────────────────────
@@ -504,14 +504,18 @@ def delete_audit(aid):
         db.close()
 
 
-def list_controls(audit_id=None, status=None, risk_level=None):
+def list_controls(audit_id=None, status=None, risk_level=None, bu_scope=None):
     db = get_db()
     try:
         q = """SELECT c.*, u.full_name AS assignee_name,
                (SELECT COUNT(*) FROM grid_evidence_items WHERE control_id=c.id) AS evidence_total,
                (SELECT COUNT(*) FROM grid_evidence_files WHERE control_id=c.id) AS evidence_uploaded
-               FROM grid_controls c LEFT JOIN users u ON c.assignee_id=u.id WHERE 1=1"""
+               FROM grid_controls c JOIN grid_audits a ON a.id=c.audit_id LEFT JOIN users u ON c.assignee_id=u.id WHERE 1=1"""
         params = []
+        if bu_scope is not None:
+            placeholders = ",".join("%s" for _ in bu_scope)
+            q += f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+            params.extend(bu_scope)
         if audit_id:
             q += " AND c.audit_id=%s"; params.append(audit_id)
         if status:
@@ -1384,7 +1388,7 @@ def bulk_approve_evidence(eids, status, approved_by, bu_scope=None):
         db.close()
 
 
-def get_all_evidence(audit_id=None, status=None, mime_type=None):
+def get_all_evidence(audit_id=None, status=None, mime_type=None, bu_scope=None):
     """Return all evidence files across audits, with control/audit context."""
     db = get_db()
     try:
@@ -1394,11 +1398,15 @@ def get_all_evidence(audit_id=None, status=None, mime_type=None):
             "a.name AS audit_name, a.status AS audit_status "
             "FROM grid_evidence_files ef "
             "LEFT JOIN users u ON ef.uploaded_by=u.id "
-            "LEFT JOIN grid_controls c ON ef.control_id=c.id "
-            "LEFT JOIN grid_audits a ON c.audit_id=a.id "
+            "JOIN grid_controls c ON ef.control_id=c.id "
+            "JOIN grid_audits a ON c.audit_id=a.id "
             "WHERE 1=1"
         )
         params = []
+        if bu_scope is not None:
+            placeholders = ",".join("%s" for _ in bu_scope)
+            q += f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+            params.extend(bu_scope)
         if audit_id:
             q += " AND c.audit_id=%s"
             params.append(audit_id)
@@ -1847,8 +1855,8 @@ def create_followup_audit(parent_audit_id, data):
             "INSERT INTO grid_audits "
             "(name, framework_id, audit_type, auditor, lead_id, start_date, "
             " end_date, audit_date, scope, objective, criteria, methodology, "
-            " parent_audit_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            " parent_audit_id, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 name, fw_id, audit_type,
                 data.get("auditor") or parent.get("auditor"),
@@ -1860,6 +1868,7 @@ def create_followup_audit(parent_audit_id, data):
                 data.get("criteria", parent.get("criteria", "")),
                 data.get("methodology", parent.get("methodology", "")),
                 parent_audit_id,
+                parent.get("business_unit_id"),
             ),
         )
 

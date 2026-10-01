@@ -56,6 +56,85 @@ def _uid(request: Request) -> int:
     return request.state.user["id"]
 
 
+def _parse_audit_id(raw_audit_id) -> int:
+    if type(raw_audit_id) is int:
+        audit_id = raw_audit_id
+    elif (isinstance(raw_audit_id, str) and raw_audit_id.isascii()
+          and raw_audit_id.isdigit() and len(raw_audit_id) <= 19):
+        audit_id = int(raw_audit_id)
+    else:
+        raise HTTPException(422, "Valid audit_id is required")
+    if audit_id <= 0 or audit_id > 2**63 - 1:
+        raise HTTPException(422, "Valid audit_id is required")
+    return audit_id
+
+def _audit_in_scope_or_404(request: Request, audit_id: int) -> None:
+    """Hide missing and out-of-scope audits behind the same response."""
+    db = get_db()
+    try:
+        audit = db.execute(
+            "SELECT business_unit_id FROM grid_audits WHERE id=%s", (audit_id,)
+        ).fetchone()
+    finally:
+        db.close()
+    scope = bu_scope_ids(request.state.user)
+    if audit is None or (
+        scope is not None
+        and audit["business_unit_id"] is not None
+        and audit["business_unit_id"] not in scope
+    ):
+        raise HTTPException(404, "Audit not found")
+
+
+def _nc_in_scope_or_404(request: Request, nc_id: int) -> None:
+    if ds.get_nc(nc_id, bu_scope=bu_scope_ids(request.state.user)) is None:
+        raise HTTPException(404, "Non-conformance not found")
+
+
+def _control_in_scope_or_404(request: Request, control_id: int) -> None:
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT a.business_unit_id FROM grid_controls c "
+            "JOIN grid_audits a ON a.id=c.audit_id WHERE c.id=%s",
+            (control_id,),
+        ).fetchone()
+    finally:
+        db.close()
+    scope = bu_scope_ids(request.state.user)
+    if row is None or (
+        scope is not None and row["business_unit_id"] is not None
+        and row["business_unit_id"] not in scope
+    ):
+        raise HTTPException(404, "Control not found")
+
+def _evidence_file_control_in_scope_or_404(request: Request, evidence_id: int) -> int:
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT control_id FROM grid_evidence_files WHERE id=%s", (evidence_id,)
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise HTTPException(404, "Evidence file not found")
+    control_id = row["control_id"]
+    _control_in_scope_or_404(request, control_id)
+    return control_id
+
+
+def _evidence_item_in_scope_or_404(request: Request, item_id: int) -> None:
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT control_id FROM grid_evidence_items WHERE id=%s", (item_id,)
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise HTTPException(404, "Evidence item not found")
+    _control_in_scope_or_404(request, row["control_id"])
+
 def _check_locked(fn, *args, **kwargs):
     """Call fn; if audit is locked, raise 423."""
     try:
@@ -149,6 +228,11 @@ async def api_audits_detail(request: Request, aid: int):
 async def api_audits_create(request: Request):
     body = await _json_body(request)
     body.setdefault("lead_id", _uid(request))
+    scope = bu_scope_ids(request.state.user)
+    business_unit_id = request.state.user.get("business_unit_id")
+    if scope is not None and business_unit_id not in scope:
+        raise HTTPException(403, "Business unit assignment required")
+    body["business_unit_id"] = business_unit_id
     aid = ds.create_audit(body)
     ds.log_activity(_uid(request), "create_audit", "grid_audits", aid, body.get("name"))
     return JSONResponse({"id": aid}, status_code=201)
@@ -157,6 +241,7 @@ async def api_audits_create(request: Request):
 @router.put("/api/audits/{aid}")
 @require_capability("grid.audit.edit")
 async def api_audits_update(request: Request, aid: int):
+    _audit_in_scope_or_404(request, aid)
     body = await _json_body(request)
     _check_locked(ds.update_audit, aid, body)
     ds.log_activity(_uid(request), "update_audit", "grid_audits", aid)
@@ -184,6 +269,7 @@ async def api_audits_update(request: Request, aid: int):
 @router.delete("/api/audits/{aid}")
 @require_capability("grid.audit.delete")
 async def api_audits_delete(request: Request, aid: int):
+    _audit_in_scope_or_404(request, aid)
     ds.delete_audit(aid)
     ds.log_activity(_uid(request), "delete_audit", "grid_audits", aid)
     return JSONResponse({"ok": True})
@@ -192,6 +278,7 @@ async def api_audits_delete(request: Request, aid: int):
 @router.get("/api/audits/{aid}/stats")
 @require_capability("module.grid.access")
 async def api_audits_stats(request: Request, aid: int):
+    _audit_in_scope_or_404(request, aid)
     return JSONResponse(ds.get_audit_stats(aid))
 
 
@@ -199,6 +286,7 @@ async def api_audits_stats(request: Request, aid: int):
 @require_capability("grid.audit.create")
 async def api_populate_audit_controls(request: Request, aid: int):
     """Populate grid_controls from the unified controls table for an audit."""
+    _audit_in_scope_or_404(request, aid)
     db = get_db()
     try:
         audit = db.execute(
@@ -262,13 +350,17 @@ async def api_populate_audit_controls(request: Request, aid: int):
 @require_capability("module.grid.access")
 async def api_controls_list(request: Request):
     import json as _json
-    audit_id = request.query_params.get("audit_id")
+    raw_audit_id = request.query_params.get("audit_id")
+    audit_id = _parse_audit_id(raw_audit_id) if raw_audit_id else None
+    if audit_id is not None:
+        _audit_in_scope_or_404(request, audit_id)
     status = request.query_params.get("status")
     risk = request.query_params.get("risk_level")
     controls = ds.list_controls(
-        audit_id=int(audit_id) if audit_id else None,
+        audit_id=audit_id,
         status=status,
         risk_level=risk,
+        bu_scope=bu_scope_ids(request.state.user),
     )
 
     # When no audit-specific controls exist (no audits created yet),
@@ -349,6 +441,7 @@ async def api_controls_list(request: Request):
 @router.get("/api/controls/{cid}")
 @require_capability("module.grid.access")
 async def api_controls_detail(request: Request, cid: int):
+    _control_in_scope_or_404(request, cid)
     ctrl = ds.get_control(cid)
     if not ctrl:
         raise HTTPException(404, "Control not found")
@@ -359,6 +452,9 @@ async def api_controls_detail(request: Request, cid: int):
 @require_capability("grid.control.assign")
 async def api_controls_create(request: Request):
     body = await _json_body(request)
+    audit_id = _parse_audit_id(body.get("audit_id"))
+    _audit_in_scope_or_404(request, audit_id)
+    body["audit_id"] = audit_id
     cid = ds.create_control(body)
     ds.log_activity(_uid(request), "create_control", "grid_controls", cid)
     return JSONResponse({"id": cid}, status_code=201)
@@ -373,6 +469,8 @@ async def api_controls_bulk_create(request: Request):
     controls = body.get("controls", [])
     if not audit_id or not controls:
         raise HTTPException(400, "audit_id and controls required")
+    audit_id = _parse_audit_id(audit_id)
+    _audit_in_scope_or_404(request, audit_id)
     ids = ds.create_controls_bulk(audit_id, framework_id, controls)
     ds.log_activity(_uid(request), "bulk_create_controls", "grid_controls", audit_id,
                     f"{len(ids)} controls")
@@ -383,6 +481,7 @@ async def api_controls_bulk_create(request: Request):
 @require_capability("grid.control.update_own")
 async def api_controls_update(request: Request, cid: int):
     body = await _json_body(request)
+    _control_in_scope_or_404(request, cid)
     _check_locked(ds.update_control, cid, body)
     ds.log_activity(_uid(request), "update_control", "grid_controls", cid)
     return JSONResponse({"ok": True})
@@ -391,6 +490,7 @@ async def api_controls_update(request: Request, cid: int):
 @router.delete("/api/controls/{cid}")
 @require_capability("grid.audit.delete")
 async def api_controls_delete(request: Request, cid: int):
+    _control_in_scope_or_404(request, cid)
     ds.delete_control(cid)
     ds.log_activity(_uid(request), "delete_control", "grid_controls", cid)
     return JSONResponse({"ok": True})
@@ -403,6 +503,7 @@ async def api_controls_delete(request: Request, cid: int):
 @router.get("/api/evidence/{control_id}")
 @require_capability("module.grid.access")
 async def api_evidence_list(request: Request, control_id: int):
+    _control_in_scope_or_404(request, control_id)
     return JSONResponse(ds.get_evidence(control_id))
 
 
@@ -412,6 +513,7 @@ async def api_evidence_upload(request: Request, control_id: int,
                               file: UploadFile = File(...),
                               evidence_item_id: int = Form(None),
                               notes: str = Form(None)):
+    _control_in_scope_or_404(request, control_id)
     notes = _s(notes)
     # Validate size
     content = await file.read()
@@ -442,6 +544,7 @@ async def api_evidence_upload(request: Request, control_id: int,
 @router.get("/api/evidence/file/{eid}")
 @require_capability("module.grid.access")
 async def api_evidence_file_detail(request: Request, eid: int):
+    _evidence_file_control_in_scope_or_404(request, eid)
     ef = ds.get_evidence_file(eid)
     if not ef:
         raise HTTPException(404, "Evidence file not found")
@@ -453,6 +556,7 @@ async def api_evidence_file_detail(request: Request, eid: int):
 async def api_evidence_approve(request: Request, eid: int):
     body = await _json_body(request)
     status = body.get("status", "approved")
+    _evidence_file_control_in_scope_or_404(request, eid)
     ds.approve_evidence(eid, status, _uid(request))
     ds.log_activity(_uid(request), "approve_evidence", "grid_evidence_files", eid, status)
     return JSONResponse({"ok": True})
@@ -462,6 +566,7 @@ async def api_evidence_approve(request: Request, eid: int):
 @require_capability("module.grid.access")
 async def api_evidence_versions(request: Request, eid: int):
     """Return version history for an evidence file."""
+    _evidence_file_control_in_scope_or_404(request, eid)
     return JSONResponse(ds.get_evidence_versions(eid))
 
 
@@ -472,6 +577,8 @@ async def api_evidence_replace(request: Request, control_id: int, eid: int,
                                 notes: str = Form(None),
                                 expires_at: str = Form(None)):
     """Upload a new version of an existing evidence file."""
+    if _evidence_file_control_in_scope_or_404(request, eid) != control_id:
+        raise HTTPException(404, "Evidence file not found for this control")
     notes, expires_at = _s(notes), _s(expires_at)
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
@@ -503,6 +610,7 @@ async def api_evidence_replace(request: Request, control_id: int, eid: int,
 @require_capability("grid.evidence.delete")
 async def api_evidence_delete(request: Request, eid: int):
     # Remove physical file
+    _evidence_file_control_in_scope_or_404(request, eid)
     ef = ds.get_evidence_file(eid)
     if ef and ef.get("file_path"):
         p = Path(ef["file_path"])
@@ -528,6 +636,7 @@ async def api_evidence_download(request: Request, eid: int):
     ARIA document download endpoint instead of serving a local file.
     """
     from fastapi.responses import RedirectResponse
+    _evidence_file_control_in_scope_or_404(request, eid)
     ef = ds.get_evidence_file(eid)
     if not ef:
         raise HTTPException(404, "Evidence file not found")
@@ -572,6 +681,7 @@ async def api_evidence_download(request: Request, eid: int):
 @require_capability("module.grid.access")
 async def api_evidence_download_all(request: Request, control_id: int):
     """Download all evidence files for a control as a ZIP archive."""
+    _control_in_scope_or_404(request, control_id)
     ev = ds.get_evidence(control_id)
     files = ev.get("files", []) if ev else []
     if not files:
@@ -646,13 +756,17 @@ async def api_evidence_bulk_approve(request: Request):
 @require_capability("module.grid.access")
 async def api_evidence_all(request: Request):
     """List all evidence files across audits with optional filters."""
-    audit_id = request.query_params.get("audit_id")
+    raw_audit_id = request.query_params.get("audit_id")
+    audit_id = _parse_audit_id(raw_audit_id) if raw_audit_id else None
+    if audit_id is not None:
+        _audit_in_scope_or_404(request, audit_id)
     status = request.query_params.get("status")
     mime_type = request.query_params.get("mime_type")
     return JSONResponse(ds.get_all_evidence(
-        audit_id=int(audit_id) if audit_id else None,
+        audit_id=audit_id,
         status=status or None,
         mime_type=mime_type or None,
+        bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
@@ -660,6 +774,7 @@ async def api_evidence_all(request: Request):
 @require_capability("module.grid.access")
 async def api_evidence_completeness(request: Request, audit_id: int):
     """Return evidence completeness stats for an audit."""
+    _audit_in_scope_or_404(request, audit_id)
     return JSONResponse(ds.get_evidence_completeness(audit_id))
 
 
@@ -667,6 +782,7 @@ async def api_evidence_completeness(request: Request, audit_id: int):
 @require_capability("module.grid.access")
 async def api_evidence_audit_download_all(request: Request, audit_id: int):
     """Download all evidence files for an entire audit as a ZIP."""
+    _audit_in_scope_or_404(request, audit_id)
     audit = ds.get_audit(audit_id)
     if not audit:
         raise HTTPException(404, "Audit not found")
@@ -713,6 +829,7 @@ async def api_evidence_audit_download_all(request: Request, audit_id: int):
 @require_capability("module.grid.access")
 async def api_evidence_items_list(request: Request, control_id: int):
     """List evidence checklist items for a control, including approved-file counts."""
+    _control_in_scope_or_404(request, control_id)
     return JSONResponse(ds.get_evidence_items(control_id))
 
 
@@ -725,6 +842,7 @@ async def api_evidence_items_create(request: Request, control_id: int):
         raise HTTPException(400, "Item name is required")
     desc = (body.get("description") or "").strip()
     required = body.get("required", 1)
+    _control_in_scope_or_404(request, control_id)
     iid = ds.create_evidence_item(control_id, name, desc, required)
     ds.log_activity(_uid(request), "create_evidence_item", "grid_evidence_items", iid, name)
     return JSONResponse({"id": iid}, status_code=201)
@@ -733,6 +851,7 @@ async def api_evidence_items_create(request: Request, control_id: int):
 @router.delete("/api/evidence-items/{item_id}")
 @require_capability("grid.evidence.upload")
 async def api_evidence_items_delete(request: Request, item_id: int):
+    _evidence_item_in_scope_or_404(request, item_id)
     ds.delete_evidence_item(item_id)
     ds.log_activity(_uid(request), "delete_evidence_item", "grid_evidence_items", item_id)
     return JSONResponse({"ok": True})
@@ -749,6 +868,7 @@ async def api_comments_add(request: Request, cid: int):
     content = body.get("content", "").strip()
     if not content:
         raise HTTPException(400, "Comment content required")
+    _control_in_scope_or_404(request, cid)
     cmid = ds.add_comment(cid, _uid(request), content)
     ds.log_activity(_uid(request), "add_comment", "grid_control_comments", cmid, f"control {cid}")
     return JSONResponse({"id": cmid}, status_code=201)
@@ -843,11 +963,14 @@ def _send_nc_assignment_email(ncid: int, assigner_id: int | None = None) -> None
 @router.get("/api/ncs")
 @require_capability("grid.nc.manage")
 async def api_ncs_list(request: Request):
-    audit_id = request.query_params.get("audit_id")
+    raw_audit_id = request.query_params.get("audit_id")
+    audit_id = _parse_audit_id(raw_audit_id) if raw_audit_id else None
+    if audit_id is not None:
+        _audit_in_scope_or_404(request, audit_id)
     status = request.query_params.get("status")
     cap_status = request.query_params.get("cap_status")
     return JSONResponse(ds.list_ncs(
-        audit_id=int(audit_id) if audit_id else None,
+        audit_id=audit_id,
         status=status,
         cap_status=cap_status,
         bu_scope=bu_scope_ids(request.state.user),
@@ -867,6 +990,32 @@ async def api_ncs_detail(request: Request, ncid: int):
 @require_capability("grid.nc.manage")
 async def api_ncs_create(request: Request):
     body = await _json_body(request)
+    audit_id = _parse_audit_id(body.get("audit_id"))
+    _audit_in_scope_or_404(request, audit_id)
+    body["audit_id"] = audit_id
+    raw_control_id = body.get("control_id")
+    if raw_control_id not in (None, ""):
+        if type(raw_control_id) is int:
+            control_id = raw_control_id
+        elif (isinstance(raw_control_id, str) and raw_control_id.isascii()
+              and raw_control_id.isdigit() and len(raw_control_id) <= 19):
+            control_id = int(raw_control_id)
+        else:
+            raise HTTPException(422, "Valid control_id is required")
+        if control_id <= 0 or control_id > 2**63 - 1:
+            raise HTTPException(422, "Valid control_id is required")
+        db = get_db()
+        try:
+            control = db.execute(
+                "SELECT audit_id FROM grid_controls WHERE id=%s", (control_id,)
+            ).fetchone()
+        finally:
+            db.close()
+        if control is None or control["audit_id"] != audit_id:
+            raise HTTPException(404, "Control not found for this audit")
+        body["control_id"] = control_id
+    else:
+        body["control_id"] = None
     ncid = _check_locked(ds.create_nc, body)
     ds.log_activity(_uid(request), "create_nc", "grid_non_conformances", ncid)
 
@@ -937,6 +1086,7 @@ async def api_ncs_delete(request: Request, ncid: int):
 @require_capability("grid.nc.manage")
 async def api_ncs_advance(request: Request, ncid: int):
     """Advance NC to next CAP lifecycle step."""
+    _nc_in_scope_or_404(request, ncid)
     new_status = ds.advance_cap_status(ncid, _uid(request))
     if new_status is None:
         raise HTTPException(404, "Non-conformance not found")
@@ -948,6 +1098,7 @@ async def api_ncs_advance(request: Request, ncid: int):
 @require_capability("grid.nc.manage")
 async def api_ncs_revert(request: Request, ncid: int):
     """Revert NC to previous CAP lifecycle step."""
+    _nc_in_scope_or_404(request, ncid)
     new_status = ds.revert_cap_status(ncid)
     if new_status is None:
         raise HTTPException(404, "Non-conformance not found")
@@ -965,6 +1116,7 @@ async def api_ncs_mgmt_response(request: Request, ncid: int):
         raise HTTPException(400, "status must be 'Approved' or 'Rejected'")
     response_text = body.get("response") or None
     response_deadline = body.get("response_deadline") or None
+    _nc_in_scope_or_404(request, ncid)
     new_cap = ds.submit_mgmt_response(
         ncid, _uid(request), status,
         response_text=response_text,
@@ -983,6 +1135,7 @@ async def api_ncs_mgmt_response(request: Request, ncid: int):
 @require_capability("grid.nc.manage")
 async def api_nc_evidence_list(request: Request, ncid: int):
     """List all evidence files linked to a non-conformance."""
+    _nc_in_scope_or_404(request, ncid)
     return JSONResponse(ds.list_nc_evidence(ncid))
 
 
@@ -990,6 +1143,7 @@ async def api_nc_evidence_list(request: Request, ncid: int):
 @require_capability("grid.nc.manage")
 async def api_nc_evidence_available(request: Request, ncid: int):
     """List evidence files from the same audit that are not yet linked."""
+    _nc_in_scope_or_404(request, ncid)
     return JSONResponse(ds.get_available_evidence_for_nc(ncid))
 
 
@@ -997,10 +1151,28 @@ async def api_nc_evidence_available(request: Request, ncid: int):
 @require_capability("grid.nc.manage")
 async def api_nc_evidence_link(request: Request, ncid: int):
     """Link an evidence file to an NC."""
+    _nc_in_scope_or_404(request, ncid)
     body = await _json_body(request)
     eid = body.get("evidence_file_id")
     if not eid:
         raise HTTPException(400, "evidence_file_id required")
+    if type(eid) is not int and not (isinstance(eid, str) and eid.isascii() and eid.isdigit() and len(eid) <= 19):
+        raise HTTPException(422, "Valid evidence_file_id is required")
+    eid = int(eid)
+    if eid <= 0 or eid > 2**63 - 1:
+        raise HTTPException(422, "Valid evidence_file_id is required")
+    db = get_db()
+    try:
+        same_audit = db.execute(
+            "SELECT 1 FROM grid_evidence_files ef "
+            "JOIN grid_controls c ON c.id=ef.control_id "
+            "JOIN grid_non_conformances nc ON nc.audit_id=c.audit_id "
+            "WHERE nc.id=%s AND ef.id=%s", (ncid, eid),
+        ).fetchone()
+    finally:
+        db.close()
+    if same_audit is None:
+        raise HTTPException(404, "Evidence file not found for this audit")
     link_id = ds.link_evidence_to_nc(
         ncid, int(eid),
         linked_by=_uid(request),
@@ -1016,6 +1188,14 @@ async def api_nc_evidence_link(request: Request, ncid: int):
 @require_capability("grid.nc.manage")
 async def api_nc_evidence_unlink(request: Request, ncid: int, link_id: int):
     """Remove an NC-evidence link."""
+    _nc_in_scope_or_404(request, ncid)
+    db = get_db()
+    try:
+        link = db.execute("SELECT nc_id FROM grid_nc_evidence WHERE id=%s", (link_id,)).fetchone()
+    finally:
+        db.close()
+    if link is None or link["nc_id"] != ncid:
+        raise HTTPException(404, "NC evidence link not found")
     ds.unlink_evidence_from_nc(link_id)
     ds.log_activity(_uid(request), "unlink_nc_evidence", "grid_nc_evidence", link_id)
     return JSONResponse({"ok": True})
@@ -1345,6 +1525,7 @@ async def api_ai_parse_checklist(request: Request,
 @require_capability("grid.ai.gap_analysis")
 async def api_ai_gap_analysis(request: Request, audit_id: int):
     """Run AI gap analysis for an audit."""
+    _audit_in_scope_or_404(request, audit_id)
     audit = ds.get_audit(audit_id)
     if not audit:
         raise HTTPException(404, "Audit not found")
@@ -1384,6 +1565,7 @@ async def api_ai_suggest_control(request: Request):
 @require_capability("grid.control.assign")
 async def api_ai_checklist(request: Request, audit_id: int):
     """Generate AI post-incident checklist for an audit linked to a breach/incident."""
+    _audit_in_scope_or_404(request, audit_id)
     audit = ds.get_audit(audit_id)
     if not audit:
         raise HTTPException(404, "Audit not found")
@@ -1439,6 +1621,7 @@ async def api_ai_checklist(request: Request, audit_id: int):
 @require_capability("grid.ai.report")
 async def api_ai_generate_report(request: Request, audit_id: int):
     """Generate AI narrative for an audit report."""
+    _audit_in_scope_or_404(request, audit_id)
     audit = ds.get_audit(audit_id)
     if not audit:
         raise HTTPException(404, "Audit not found")
@@ -1800,6 +1983,7 @@ async def api_report_pdf(request: Request, audit_id: int):
     """Generate and download a branded PDF audit report."""
     from modules.grid import report_service as rpt
 
+    _audit_in_scope_or_404(request, audit_id)
     audit = ds.get_audit(audit_id)
     if not audit:
         raise HTTPException(404, "Audit not found")
@@ -1874,6 +2058,7 @@ async def api_report_docx(request: Request, audit_id: int):
     """Generate and download a branded DOCX audit report."""
     from modules.grid import report_service as rpt
 
+    _audit_in_scope_or_404(request, audit_id)
     audit = ds.get_audit(audit_id)
     if not audit:
         raise HTTPException(404, "Audit not found")
@@ -2048,6 +2233,7 @@ async def api_saved_report_delete(request: Request, rid: int):
 @require_capability("grid.audit.create")
 async def api_audit_create_followup(request: Request, aid: int):
     """Create a follow-up audit linked to the parent. Optionally carries forward open NCs."""
+    _audit_in_scope_or_404(request, aid)
     body = await _json_body(request)
     body.setdefault("lead_id", _uid(request))
     new_aid = ds.create_followup_audit(aid, body)
@@ -2076,6 +2262,7 @@ async def api_audit_create_followup(request: Request, aid: int):
 @require_capability("module.grid.access")
 async def api_audit_lineage(request: Request, aid: int):
     """Return the audit chain: ancestors → current → children."""
+    _audit_in_scope_or_404(request, aid)
     lineage = ds.get_audit_lineage(aid)
     return JSONResponse(lineage)
 
@@ -2084,6 +2271,7 @@ async def api_audit_lineage(request: Request, aid: int):
 @require_capability("grid.nc.manage")
 async def api_audit_cross_cycle(request: Request, aid: int):
     """Compare NC status between this audit and its parent."""
+    _audit_in_scope_or_404(request, aid)
     return JSONResponse(ds.get_cross_cycle_comparison(aid))
 
 
@@ -2095,6 +2283,7 @@ async def api_audit_cross_cycle(request: Request, aid: int):
 @require_capability("module.grid.access")
 async def api_audit_signoffs(request: Request, aid: int):
     """List sign-offs for an audit."""
+    _audit_in_scope_or_404(request, aid)
     return JSONResponse(ds.get_signoffs(aid))
 
 
@@ -2106,6 +2295,7 @@ async def api_audit_signoff(request: Request, aid: int):
     role = body.get("role")
     if role not in ("lead", "reviewer"):
         raise HTTPException(400, "role must be 'lead' or 'reviewer'")
+    _audit_in_scope_or_404(request, aid)
     sid = ds.sign_off_audit(aid, _uid(request), role, body.get("comment"))
     if sid is None:
         raise HTTPException(
@@ -2124,6 +2314,7 @@ async def api_audit_revoke_signoff(request: Request, aid: int, role: str):
     """Revoke a sign-off (also unlocks the audit)."""
     if role not in ("lead", "reviewer"):
         raise HTTPException(400, "role must be 'lead' or 'reviewer'")
+    _audit_in_scope_or_404(request, aid)
     ds.revoke_signoff(aid, role)
     ds.log_activity(_uid(request), f"revoke_signoff_{role}", "grid_audit_signoffs", aid)
     return JSONResponse({"ok": True})
@@ -2133,6 +2324,7 @@ async def api_audit_revoke_signoff(request: Request, aid: int, role: str):
 @require_capability("grid.audit.edit")
 async def api_audit_lock(request: Request, aid: int):
     """Lock the audit (requires both lead + reviewer sign-offs)."""
+    _audit_in_scope_or_404(request, aid)
     result = ds.lock_audit(aid, _uid(request))
     if result is None:
         raise HTTPException(409, "Both lead and reviewer must sign off before locking")
@@ -2144,6 +2336,7 @@ async def api_audit_lock(request: Request, aid: int):
 @require_capability("grid.audit.delete")
 async def api_audit_unlock(request: Request, aid: int):
     """Unlock an audit (admin action — clears all sign-offs)."""
+    _audit_in_scope_or_404(request, aid)
     ds.unlock_audit(aid)
     ds.log_activity(_uid(request), "unlock_audit", "grid_audits", aid)
     return JSONResponse({"ok": True})
@@ -2188,6 +2381,7 @@ async def api_attach_vault_item(request: Request, cid: int):
     vault_id = body.get("vault_evidence_id")
     if not vault_id:
         raise HTTPException(400, "vault_evidence_id required")
+    _control_in_scope_or_404(request, cid)
     eid = ds.attach_vault_item_to_grid_control(cid, int(vault_id), _uid(request))
     if eid is None:
         raise HTTPException(404, "Vault evidence item not found or archived")
@@ -2217,6 +2411,7 @@ async def api_attach_aria_policy(request: Request, cid: int):
     aria_doc_id = body.get("aria_document_id")
     if not aria_doc_id:
         raise HTTPException(400, "aria_document_id required")
+    _control_in_scope_or_404(request, cid)
     eid = ds.attach_aria_policy_as_evidence(cid, int(aria_doc_id), _uid(request), actor=request.state.user)
     if eid is None:
         raise HTTPException(404, "ARIA document not found")
@@ -2229,6 +2424,7 @@ async def api_attach_aria_policy(request: Request, cid: int):
 @require_capability("grid.evidence.upload")
 async def api_auto_attach_policies(request: Request, aid: int):
     """Scan every control in an audit and auto-attach matching ARIA policies."""
+    _audit_in_scope_or_404(request, aid)
     result = ds.auto_attach_aria_policies_to_audit(aid, system_user_id=_uid(request))
     if result.get("attached", 0) > 0:
         ds.log_activity(_uid(request), "auto_attach_policies", "grid_audits", aid,
@@ -2240,6 +2436,7 @@ async def api_auto_attach_policies(request: Request, aid: int):
 @require_capability("module.grid.access")
 async def api_suggested_policies(request: Request, cid: int):
     """Return ARIA policies matching this control that are not yet attached."""
+    _control_in_scope_or_404(request, cid)
     return JSONResponse(ds.get_suggested_aria_policies(cid))
 
 

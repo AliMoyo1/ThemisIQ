@@ -1,3 +1,63 @@
+## 2026-10-01 T08 GRID SBU scope and regression-fixture closure
+
+Outcome: closed F16's named NC-create write gap and the selected adjacent GRID
+child-route gaps recorded as F19. T08 and the programme release gate remain
+open for the other critical routes and the final tenant-security review.
+
+- HTTP red proofs: another SBU's Audit Lead could create an NC under a foreign
+  audit (201), advance an existing foreign NC by id (200), and create an NC
+  under an owned audit while linking a control from another audit (201).
+- GRID audit creation now stores the caller's BU; follow-up creation inherits
+  the parent's BU. Audit edit and selected child reads/mutations check the
+  audit scope. NC creation validates its audit and optional control; NC
+  lifecycle/evidence routes check the parent audit. Control and evidence-file
+  list/detail/download/mutation paths in this slice resolve and check their
+  parent audit. NC evidence linking requires the same audit, and unlinking
+  requires the link to belong to the NC in the URL.
+- New `tests/ui/test_grid_nc_write_scope.py` checks same-SBU success and
+  cross-SBU denial for audits, NCs, controls, evidence files, NC lifecycle,
+  and cross-audit references, including no inserted row or lifecycle change
+  after denial. Malformed and oversized NC audit IDs return 422.
+- The full backend run initially exposed both previously documented ARIA
+  trash-purge timing flakes. Their tests now backdate the staging directories
+  before `grace_hours=0` moves, so the purge assertions do not depend on a
+  filesystem mtime/time.time boundary. Production trash behavior is unchanged.
+
+Fresh verification from `oneforall/`: focused GRID HTTP/service checks passed
+8/8; the two ARIA trash tests passed 2/2; the final full backend suite
+(`pytest tests --ignore=tests/ui -q`) and full browser/HTTP suite
+(`pytest tests/ui -q`) both reached 100% with exit code 0. The browser suite
+had two conditional skips; guarded PostgreSQL cases were skipped because no
+test PostgreSQL URL was configured. `git diff --check` passed for tracked
+changes. No PostgreSQL integration run, commit, push, deployment, restart, or
+production access occurred.
+
+Remaining: F19 still requires an endpoint-by-endpoint review of other GRID
+paths (including mappings, reminders, saved reports, and policy requests);
+F16's NULL-BU cross-organization question and the larger T08/T09/T10 release
+gates remain open.
+
+## 2026-10-01 P07 acceptance verification closure
+
+Outcome: P07's five local acceptance checks are restored after fresh focused,
+backend, and real-browser verification of the review remediation.
+
+The first focused run exposed a test-harness environment defect rather than a
+P07 product failure: `tests/conftest.py` used `setdefault` for `DEBUG` and
+`SECRET_KEY`, so a host `DEBUG=false` value made the isolated HTTP test server
+issue Secure CSRF/session cookies that standards-compliant clients would not
+return over `http://127.0.0.1`. The harness now forces its documented test-only
+DEBUG and secret values before application imports. Production configuration
+and cookie security behavior are unchanged.
+
+Fresh verification from the `oneforall/` application directory:
+
+1. `..\.venv\Scripts\python.exe -m pytest tests\test_erm_scenarios.py tests\ui\test_erm_scenarios_routes.py tests\ui\test_erm_scenario_studio_browser.py -v` -- 40 passed, 4 deprecation warnings.
+2. `..\.venv\Scripts\python.exe -m pytest tests --ignore=tests\ui -q` -- exit 0 at 100%; guarded PostgreSQL cases skipped because no test PostgreSQL URL was configured.
+3. `..\.venv\Scripts\python.exe -m pytest tests\ui -q` -- exit 0 at 100%; two existing conditional skips and no failures.
+
+No PostgreSQL integration run, hosted-CI change, deployment, restart, or
+production access occurred in this session.
 ## 2026-10-01 P07 review remediation
 
 Outcome: the code-review findings against the initial P07 implementation have

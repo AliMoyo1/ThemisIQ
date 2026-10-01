@@ -13,8 +13,8 @@ import sys
 # Clear DATABASE_URL so tests always run in SQLite mode regardless of the
 # host environment (on the VPS DATABASE_URL is set, which would otherwise
 # bypass the _DB_PATH monkeypatch and hit the live PostgreSQL database).
-os.environ.setdefault("DEBUG", "true")
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-only")
+os.environ["DEBUG"] = "true"
+os.environ["SECRET_KEY"] = "test-secret-key-for-pytest-only"
 os.environ["DATABASE_URL"] = ""
 
 # Make `oneforall/` importable when pytest is run from the repo root.

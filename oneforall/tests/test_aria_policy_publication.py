@@ -13,6 +13,8 @@ managed-version publication that policy_publication.py already copied.
 """
 import concurrent.futures
 import io
+import os
+import time
 
 import pytest
 from docx import Document as DocxDocument
@@ -621,6 +623,9 @@ def test_move_orphans_to_trash_moves_only_old_enough_unreferenced_dirs():
 def test_purge_expired_trash_deletes_only_old_enough_entries():
     build_id, staging = storage.new_staging_dir(org_id=1)
     (staging / "f.txt").write_bytes(b"x")
+    # Keep this test about trash retention, not a zero-hour mtime boundary.
+    old_ts = time.time() - 3600
+    os.utime(staging, (old_ts, old_ts))
     trashed = storage.move_orphans_to_trash(org_id=1, referenced_relative_paths=set(), grace_hours=0)
     assert len(trashed) == 1
     trash_path = storage.resolve_stored_path(trashed[0])
@@ -638,6 +643,9 @@ def test_purge_expired_trash_deletes_only_old_enough_entries():
 def test_purge_expired_trash_leaves_recent_entries():
     build_id, staging = storage.new_staging_dir(org_id=1)
     (staging / "f.txt").write_bytes(b"x")
+    # Keep this test about trash retention, not a zero-hour mtime boundary.
+    old_ts = time.time() - 3600
+    os.utime(staging, (old_ts, old_ts))
     trashed = storage.move_orphans_to_trash(org_id=1, referenced_relative_paths=set(), grace_hours=0)
     purged = storage.purge_expired_trash(org_id=1, retention_days=7)
     assert purged == []
