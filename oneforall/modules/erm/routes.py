@@ -87,6 +87,7 @@ async def erm_spa(request: Request):
         "user": user,
         "can_manage_frameworks": has_capability(user, "erm.framework.manage"),
         "can_manage_library": has_capability(user, "erm.library.manage"),
+        "can_view_scenarios": has_capability(user, "erm.scenario.view"),
         **shell_ctx(request, active_module="erm"),
     })
 

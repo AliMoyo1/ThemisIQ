@@ -470,6 +470,7 @@ from modules.bcm.routes import router as bcm_router
 from modules.sentinel.routes import router as sentinel_router
 from modules.evidence.routes import router as evidence_router
 from modules.erm.routes import router as erm_router
+from modules.erm.routes_scenarios import router as erm_scenarios_router
 from modules.orm.routes import router as orm_router
 from modules.governance.routes import router as governance_router
 from modules.readiness.routes import router as readiness_router
@@ -487,6 +488,13 @@ app.include_router(grid_router)
 app.include_router(bcm_router)
 app.include_router(sentinel_router)
 app.include_router(evidence_router)
+# erm_scenarios_router MUST be included before erm_router: routes.py's own
+# generic GET /erm/{page} SPA-page catch-all (gated by _SPA_PAGES) matches
+# any single-segment path under /erm, including /erm/scenario-studio, and
+# Starlette resolves to whichever matching route was registered first.
+# Confirmed the hard way -- the literal route 404'd via the catch-all's own
+# "page not in _SPA_PAGES" check until this ordering was fixed.
+app.include_router(erm_scenarios_router)
 app.include_router(erm_router)
 app.include_router(orm_router)
 app.include_router(governance_router)

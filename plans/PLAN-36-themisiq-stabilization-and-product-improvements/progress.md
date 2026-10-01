@@ -1,4 +1,234 @@
+## 2026-10-01 P07 review remediation
+
+Outcome: the code-review findings against the initial P07 implementation have
+been corrected in source. Verification was not run in this request, so P07's
+acceptance checkboxes are pending a fresh backend and browser regression run.
+
+Changes:
+
+- Scenario creates now default a scoped caller to their own business unit;
+  creates, moves, updates, deletes, and link mutations fail closed outside the
+  caller's write scope. Organization-wide scenarios remain readable under the
+  established ERM convention but cannot be mutated by a BU-scoped caller.
+- Scenario deltas must be JSON objects with link-type-specific fields and
+  validated score, ICE, and numeric ranges before persistence.
+- Board packs now freeze business_unit_id, backfill it from existing scenario
+  references, and enforce BU scope on list, detail, narrative, AI, and publish
+  routes. Baseline-only packs require organization-wide authority.
+- Snapshot staleness now includes an aggregate hash of the full deterministic
+  scenario output or baseline snapshot, while retaining per-source hashes for
+  citations.
+- Hash-chain append is serialized with a PostgreSQL table lock or SQLite
+  BEGIN IMMEDIATE, preventing concurrent packs from selecting the same head.
+- Human and AI narrative writes and publication use conditional draft-state
+  updates, so a concurrent publication cannot be overwritten.
+- Scenario Studio now uses ApiClient, the shared ModalManager contract,
+  keyboard-native scenario buttons, labelled fields, and server-rendered
+  capability flags for create, manage, generate, and publish controls.
+- Existing P07 fixtures were corrected so unrestricted service tests use an
+  explicit super-admin actor and scoped users cannot mutate organization-wide
+  scenarios.
+
+Verification performed: git diff --check only (exit 0). No automated tests,
+PostgreSQL integration run, or browser run was performed in this request.
+No commit, push, migration, restart, deployment, or production access occurred.
+
 # PLAN-36 progress ledger
+
+## 2026-10-01 P07 build session — scenarios, linkage, board-pack snapshots
+
+Full P07 feature build (not yet committed), following directly on the F18
+discovery-gate session below. User's scope decision from that session:
+"Full feature, all parts" (not a minimal slice).
+
+Methodology (see task_plan.md P07's updated discovery-gate notes for the
+full decision record): scenarios reuse the real ERM calculation engine
+verbatim rather than inventing a parallel one. This required one refactor
+of existing code first: `modules/erm/data_service.py`'s
+`recompute_residual_for_risk` had its 4-tier residual arithmetic inlined;
+extracted it into a new pure function `_compute_residual_tiers(*, irr,
+emv_i, ice=None, residual_likelihood=None, residual_impact=None,
+weighted_effectiveness=None, default_factor=None)` with identical
+semantics (the caller picks the tier by which kwarg it passes, matching
+the original if/elif precedence exactly). Verified behavior-preserving by
+running the full targeted ERM+governance suite before writing any new P07
+code: `pytest tests/test_erm_default_residual_factor.py
+tests/test_erm_ice_engine.py tests/test_erm_treatments.py
+tests/test_erm_dashboard_v2.py tests/test_erm_objectives.py
+tests/test_erm_scan_jobs.py tests/test_erm_emerging.py
+tests/test_erm_library_tenancy.py tests/test_governance_controls.py -q` --
+78 passed, 0 failed, identical to pre-refactor.
+
+New tables (`database.py`, inside the `_PLATFORM_TABLES` tenant-schema DDL
+block -- same per-tenant-schema isolation as `erm_enterprise_risks`, no
+org_id; confirmed the self-healing `_migrate_all_tenant_schemas()` replays
+this DDL against every existing tenant schema on startup, so no separate
+migration script was needed):
+
+- `erm_scenarios` -- title/description/assumptions/horizon/owner_id/status
+  (draft/active/archived)/version (auto-increments on update)/business_unit_id.
+- `erm_scenario_links` -- `link_type` CHECK-constrained to
+  risk/control/kri/objective/external_context, `link_id` (polymorphic,
+  existence/scope checked in code since it can't carry one FK),
+  `delta_json` (scenario-specific input overrides), `UNIQUE(scenario_id,
+  link_type, link_id)` with an upsert on re-add.
+- `erm_board_packs` -- immutable snapshot: `scenario_id`, `filters_json`,
+  `as_of`, `source_snapshot_json` (the full computed comparison),
+  `source_hashes_json` (one sha256 per linked source record's relevant
+  fields), `content_hash`/`prev_hash` (a per-tenant-schema hash chain),
+  `is_stale`/`stale_reason`, `narrative`/`narrative_citations_json`/
+  `narrative_source` (none/ai/human/ai_edited), `status`
+  (draft/published)/`approved_by`/`approved_at`/`published_at`.
+
+New module `modules/erm/scenarios.py` (full docstring explains the
+methodology-reuse decision at the top):
+
+- Scenario CRUD (`create_scenario`/`update_scenario`/`delete_scenario` --
+  delete refused if any board pack still references the scenario, same
+  "refused when linked" pattern as `delete_canonical_control`), scoped
+  listing (`list_scenarios(bu_scope=...)`).
+- Link management (`add_scenario_link`/`remove_scenario_link`/
+  `list_scenario_links`) with two independent scope checks on every add: a
+  structural one (a BU-scoped scenario cannot link a different BU's item,
+  regardless of who's asking) and an authorization one (the acting user's
+  own `bu_scope_ids()`). `_link_target()` resolves each of the 5 link
+  types to its real table; KRIs have no `business_unit_id` of their own,
+  resolved through `linked_risk_id` where set (a freestanding KRI has no
+  scope and can't be checked -- a documented, accepted v1 gap, not a fix
+  pretending to exist).
+- `compute_scenario_impact()` -- the pure comparison engine. For each
+  linked risk: applies `likelihood_override`/`impact_override`/
+  `emv_inherent_override`/`residual_likelihood_override`/
+  `residual_impact_override` deltas, substitutes any linked control's
+  `ice_score_override` into a scenario-local ICE rollup
+  (`_scenario_ice_rollup`, which can flip a risk from the real tier-4
+  default into the tier-1 ICE path within the scenario even when the real
+  control has never been scored -- a legitimate "what if we actually
+  assessed this" question), then calls the SAME
+  `_compute_residual_tiers()` real risks use. Returns baseline vs scenario
+  totals, per-risk comparison, KRI/objective/external-context context
+  (each explicitly flagging missing data, never defaulting to zero),
+  `appetite_impact` (per-category max exposure among the scenario's own
+  linked risks vs `erm_risk_appetite.max_score` -- scoped to the
+  scenario, not a whole-register rescan the existing dashboard already
+  does), and `data_quality_issues`. Never writes to any live table.
+- Board packs: `generate_board_pack()` (freezes `compute_scenario_impact()`'s
+  output plus per-source hashes, chains `content_hash`/`prev_hash` to the
+  prior pack), `sweep_stale_board_packs()` (checks every non-stale pack's
+  captured hashes against current data, flags `is_stale` without ever
+  touching `source_snapshot_json`), `update_board_pack_narrative()`/
+  `generate_board_pack_narrative()` (AI narrative with citations validated
+  against the pack's own frozen source references -- an invented citation
+  is rejected, not saved; AI-unconfigured or AI-failure returns
+  `{"ok": False, ...}` without touching the pack), `publish_board_pack()`
+  (requires a narrative, locks it after), `verify_board_pack_chain()`
+  (recomputes every pack's hash and prev_hash linkage, flags tampering or
+  a broken chain).
+
+Scheduler: `modules/erm/scheduler.py` gained Job 3, a 15-minute
+`_sweep_board_pack_staleness` sweep across every active tenant. Staleness
+marking is deliberately periodic, not triggered synchronously from inside
+a risk/control/KRI mutation's own transaction -- `get_db()` opens a brand
+new SQLite connection per call, and a second writer attempting to UPDATE
+`erm_board_packs` mid-transaction on the triggering request's own
+connection risks a real, previously-encountered "database is locked"
+failure mode (hit once earlier this session on an unrelated test fixture
+race). The periodic sweep sidesteps that entirely.
+
+RBAC (`core/rbac.py`): added `erm.scenario.manage`/`erm.scenario.view`
+(view mirrors `erm.risk.view`'s role set; manage mirrors `erm.risk.manage`'s)
+and `erm.boardpack.generate`/`erm.boardpack.view` (mirror
+`erm.report.generate`'s role set) / `erm.boardpack.publish` (mirrors
+`erm.risk.manage`'s -- a more privileged, separate action from generating
+a draft pack).
+
+Routes: new `modules/erm/routes_scenarios.py` (own file for the same T10
+file-size reason `routes_diagnostics.py`/`routes_workbench.py` already
+are, rather than growing the already-3000+-line `routes.py` further),
+registered in `main.py` alongside the existing `erm_router`. Real bug
+caught before it shipped (same class as a P06 finding, now written up as
+a standing route-ordering note in the file's own docstring): `GET
+/api/board-packs/verify-chain` was initially placed AFTER `GET
+/api/board-packs/{pack_id}`; moved the literal route first so Starlette's
+int() conversion on `{pack_id}` never gets a chance to 422 on the literal
+segment first.
+
+UI: new page `modules/erm/templates/scenario_studio.html` at `GET
+/erm/scenario-studio` (own dedicated page, not woven into the existing
+3904-line `index.html` SPA's client router -- T10's own stated direction
+is to extract FROM that file, not add to it; one plain `<a href>` nav link
+added to `index.html`'s sidebar, matching exactly how P03 added its one
+link into `documents.html`). Scenario list/detail, link management (raw
+type+ID+delta-JSON inputs -- a search-by-name picker is a deferred UI
+enhancement, not a correctness requirement), baseline-vs-scenario impact
+table including the appetite-impact table, and a board-pack list with
+narrative edit/AI-generate/publish actions.
+
+Files created: `oneforall/modules/erm/scenarios.py`,
+`oneforall/modules/erm/routes_scenarios.py`,
+`oneforall/modules/erm/templates/scenario_studio.html`,
+`oneforall/tests/test_erm_scenarios.py` (26 tests),
+`oneforall/tests/ui/test_erm_scenarios_routes.py` (5 tests),
+`oneforall/tests/ui/test_erm_scenario_studio_browser.py` (1 test).
+
+Files modified: `oneforall/database.py` (3 new tables),
+`oneforall/modules/erm/data_service.py` (the `_compute_residual_tiers`
+extraction), `oneforall/core/rbac.py` (5 new capabilities),
+`oneforall/main.py` (new router registration),
+`oneforall/modules/erm/scheduler.py` (Job 3),
+`oneforall/modules/erm/templates/index.html` (one nav link).
+
+Real bug found and fixed while testing (caught by the browser test before
+anything shipped, not by inspection): `GET /erm/scenario-studio` 404'd.
+Root cause was a cross-router instance of the exact route-ordering class
+P06 already found once this session, just one level up -- not a literal
+route shadowed by a parameterized one in the SAME router, but
+`routes_scenarios.py`'s literal `/scenario-studio` route shadowed by
+`routes.py`'s own generic `GET /erm/{page}` SPA-page catch-all (gated by
+`_SPA_PAGES`), because `main.py` registered `erm_router` before
+`erm_scenarios_router` and Starlette resolves to whichever matching route
+was added first. Fixed by swapping the include order (confirmed via a
+disposable diagnostic script hitting the route directly over HTTP that it
+404'd through the catch-all's own "page not in _SPA_PAGES" branch, not a
+template or auth problem), with a comment at the include site explaining
+why the order matters so it doesn't regress.
+
+Red/green proofs performed (temporarily broke the fix, confirmed the test
+failed for the expected reason, restored, confirmed the suite was green
+again):
+
+- `test_add_link_rejects_when_actor_outside_target_bu`: monkeypatched
+  `scenarios._bu_allowed` to always return `True` -- the same call that had
+  just raised `ForbiddenScopeError` then succeeded, confirming the test
+  exercises the real authorization gate and not an unrelated error.
+- `test_verify_chain_detects_tampering`: directly UPDATEd a board pack's
+  `source_snapshot_json` after generation, confirmed
+  `verify_board_pack_chain()` reports it as altered.
+
+Explicitly unverified/deferred this session:
+
+- Richer link-picking UI (search by name/title instead of raw numeric IDs)
+  and chart rendering (tables only) -- UI polish, not a correctness or
+  security requirement; every acceptance line is satisfied by what's built.
+- A freestanding KRI (no `linked_risk_id`) cannot be business-unit scope
+  checked, since `erm_kris` has no `business_unit_id` column of its own --
+  documented in task_plan.md and `scenarios.py`'s own `_link_target`
+  docstring as an accepted v1 limitation, not silently left unmentioned.
+- Not committed; pending the full backend + UI suite results below and
+  user authorization, per this session's established per-batch pattern.
+
+Verification commands and results (from `oneforall/`,
+`../.venv/Scripts/python.exe`):
+
+1. `pytest tests/test_erm_scenarios.py -v` -- 26 passed.
+2. Full backend suite (`pytest tests/ --ignore=tests/ui -q`) -- 100%
+   progress bar, zero `F`/`E` markers, 13 legitimate pre-existing skips,
+   only pre-existing `on_event`/`utcnow` deprecation warnings,
+   `PYTEST_EXIT:0`.
+3. Full UI (Playwright) suite (`pytest tests/ui -q`), including the 2 new
+   P07 HTTP/browser test files above -- 100% progress bar, zero `F`/`E`
+   markers, 2 legitimate pre-existing skips, only pre-existing `on_event`
+   deprecation warnings, `PYTEST_EXIT:0`.
 
 ## 2026-10-01 — F18 committed and pushed (user-authorized)
 

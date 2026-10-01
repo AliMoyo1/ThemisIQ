@@ -233,6 +233,12 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     Reports
   </a>
+  {% if can_view_scenarios %}
+  <a href="/erm/scenario-studio" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
+    Scenario Studio
+  </a>
+  {% endif %}
 </div>
 <div class="sidebar-bottom">
   <a href="/erm/chat" data-spa="/erm/chat" style="display:block;text-decoration:none;background:linear-gradient(135deg,var(--accent-dark,#6b1220),var(--accent));border-radius:var(--radius-lg);padding:16px;color:white;cursor:pointer;position:relative;overflow:hidden">

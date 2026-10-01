@@ -254,6 +254,12 @@ CAPABILITIES: dict[str, set[str]] = {
     "erm.kri.manage":            {SUPER_ADMIN, RISK_OWNER},
     "erm.statements.manage":     {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
     "erm.framework.manage":      {SUPER_ADMIN, RISK_OWNER},
+    # PLAN-36 P07: scenario analysis and board-pack snapshots
+    "erm.scenario.manage":       {SUPER_ADMIN, RISK_OWNER},
+    "erm.scenario.view":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
+    "erm.boardpack.generate":    {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
+    "erm.boardpack.publish":     {SUPER_ADMIN, RISK_OWNER},
+    "erm.boardpack.view":        {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
 
     # ── ORM capabilities ──────────────────────────────────────────────
     "module.orm.access":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, BCM_MANAGER, AUDIT_LEAD},

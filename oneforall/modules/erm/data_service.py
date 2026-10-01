@@ -780,17 +780,68 @@ def _snapshot_history(db, risk_id, irr, rrr, loa_pct, emv_i, emv_r):
     )
 
 
+def _compute_residual_tiers(*, irr, emv_i, ice=None, residual_likelihood=None,
+                             residual_impact=None, weighted_effectiveness=None,
+                             default_factor=None):
+    """Pure 4-tier residual calculation core (no DB access, no writes).
+
+    Shared by recompute_residual_for_risk (real risks, writes the result
+    back) and modules/erm/scenarios.py's compute_scenario_impact
+    (hypothetical what-if inputs, read-only) so a scenario's numbers are
+    produced by the exact same deterministic methodology as a real risk's
+    saved rrr -- never a separate, ad hoc formula.
+
+    Precedence ladder (highest wins) -- the caller has already decided
+    which tier applies and passes only that tier's inputs:
+    1. ice={'scored': True, 'loa_pct':.., 'lor':..}     -- ICE path.
+    2. residual_likelihood and residual_impact both set -- manual override.
+    3. weighted_effectiveness (0-100)                    -- T1.3 auto path.
+    4. default_factor (0.0-1.0)                          -- no controls, no override.
+    """
+    if ice is not None and ice.get("scored"):
+        loa_pct = ice["loa_pct"]
+        rrr = round(ice["lor"] * irr, 1)
+        residual_score = int(round(rrr))
+        emv_residual = round(ice["lor"] * emv_i, 2) if emv_i is not None else None
+        ctrl_eff = None
+    elif residual_likelihood is not None and residual_impact is not None:
+        residual_score = int(residual_likelihood) * int(residual_impact)
+        rrr = float(residual_score)
+        loa_pct = None
+        emv_residual = None
+        ctrl_eff = None
+    elif weighted_effectiveness is not None:
+        rrr = round(irr * (1.0 - weighted_effectiveness / 100.0), 1)
+        residual_score = int(round(rrr))
+        loa_pct = round(weighted_effectiveness)
+        emv_residual = (round((1.0 - weighted_effectiveness / 100.0) * emv_i, 2)
+                         if emv_i is not None else None)
+        ctrl_eff = round(weighted_effectiveness)
+    elif default_factor is not None:
+        # PLAN-36 F18: this used to mean "0% reduction" (rrr=irr,
+        # loa_pct=0) -- confirmed against the organization's real,
+        # currently-maintained risk register that residual is actually
+        # a flat fraction of inherent in this no-controls-scored case,
+        # not an unreduced copy of it.
+        loa_pct = round((1.0 - default_factor) * 100)
+        rrr = round(irr * default_factor, 1)
+        residual_score = int(round(rrr))
+        emv_residual = round(emv_i * default_factor, 2) if emv_i is not None else None
+        ctrl_eff = None
+    else:
+        raise ValueError("_compute_residual_tiers: no tier inputs provided")
+
+    return {
+        "rrr": rrr, "residual_score": residual_score, "loa_pct": loa_pct,
+        "emv_residual": emv_residual, "control_effectiveness": ctrl_eff,
+    }
+
+
 def recompute_residual_for_risk(db, risk_id):
     """Recompute residual_score, rrr, loa_pct, emv_residual, and
     control_effectiveness for one risk; caller commits.
 
-    4-tier precedence ladder (highest wins):
-    1. ICE path: any linked control has a non-null ice_score.
-    2. Manual override: residual_likelihood AND residual_impact both set,
-       and no control has an ICE score.
-    3. T1.3 auto path: linked controls scored via control_effectiveness_scores,
-       none has an ICE score, no override.
-    4. Default: no controls, no override — rrr starts at IRR.
+    4-tier precedence ladder -- see _compute_residual_tiers' own docstring.
 
     Snapshots erm_risk_score_history only when rrr changed by more than 0.05
     (or was previously NULL), so unrelated recomputes stay quiet.
@@ -813,38 +864,20 @@ def recompute_residual_for_risk(db, risk_id):
 
     ice = _ice_rollup(db, risk_id)
     if ice["scored"]:
-        loa_pct = ice["loa_pct"]
-        rrr = round(ice["lor"] * irr, 1)
-        residual_score = int(round(rrr))
-        emv_residual = round(ice["lor"] * emv_i, 2) if emv_i is not None else None
-        ctrl_eff = None
+        result = _compute_residual_tiers(irr=irr, emv_i=emv_i, ice=ice)
     elif RL is not None and RI is not None:
-        residual_score = int(RL) * int(RI)
-        rrr = float(residual_score)
-        loa_pct = None
-        emv_residual = None
-        ctrl_eff = None
+        result = _compute_residual_tiers(irr=irr, emv_i=emv_i, residual_likelihood=RL, residual_impact=RI)
     else:
         weighted_eff = _formula_residual(db, risk_id)
         if weighted_eff is not None:
-            rrr = round(irr * (1.0 - weighted_eff / 100.0), 1)
-            residual_score = int(round(rrr))
-            loa_pct = round(weighted_eff)
-            emv_residual = (round((1.0 - weighted_eff / 100.0) * emv_i, 2)
-                             if emv_i is not None else None)
-            ctrl_eff = round(weighted_eff)
+            result = _compute_residual_tiers(irr=irr, emv_i=emv_i, weighted_effectiveness=weighted_eff)
         else:
-            # PLAN-36 F18: this used to mean "0% reduction" (rrr=irr,
-            # loa_pct=0) -- confirmed against the organization's real,
-            # currently-maintained risk register that residual is actually
-            # a flat fraction of inherent in this no-controls-scored case,
-            # not an unreduced copy of it.
-            factor = _default_residual_factor(db)
-            loa_pct = round((1.0 - factor) * 100)
-            rrr = round(irr * factor, 1)
-            residual_score = int(round(rrr))
-            emv_residual = round(emv_i * factor, 2) if emv_i is not None else None
-            ctrl_eff = None
+            result = _compute_residual_tiers(irr=irr, emv_i=emv_i, default_factor=_default_residual_factor(db))
+
+    rrr, residual_score, loa_pct, emv_residual, ctrl_eff = (
+        result["rrr"], result["residual_score"], result["loa_pct"],
+        result["emv_residual"], result["control_effectiveness"],
+    )
 
     db.execute(
         "UPDATE erm_enterprise_risks SET residual_score=%s, rrr=%s, loa_pct=%s, "

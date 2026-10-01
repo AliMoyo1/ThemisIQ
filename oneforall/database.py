@@ -4,6 +4,7 @@ One For All — unified SQLite database.
 Single DB file with module-prefixed tables.  WAL mode for concurrency.
 All queries use parameterised statements — never interpolate user input.
 """
+import json
 import sqlite3
 import os
 import re
@@ -4065,6 +4066,84 @@ CREATE TABLE IF NOT EXISTS risk_controls (
 CREATE INDEX IF NOT EXISTS idx_risk_controls_risk ON risk_controls(risk_id);
 CREATE INDEX IF NOT EXISTS idx_risk_controls_control ON risk_controls(control_id);
 
+-- ── PLAN-36 P07: ERM scenario analysis ─────────────────────────────────────
+-- A scenario's own numbers always come from modules/erm/scenarios.py calling
+-- the exact same tiered residual engine real risks use
+-- (data_service._compute_residual_tiers), never a separate ad hoc formula or
+-- an LLM -- deterministic calculation outputs are stored/returned
+-- separately from narrative AI assistance (erm_board_packs.narrative, below).
+-- No org_id -- same per-tenant-schema isolation as erm_enterprise_risks
+-- itself; business_unit_id is the only sub-scope.
+CREATE TABLE IF NOT EXISTS erm_scenarios (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    title             TEXT NOT NULL,
+    description       TEXT,
+    assumptions       TEXT,
+    horizon           TEXT,
+    owner_id          INTEGER REFERENCES users(id),
+    status            TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','active','archived')),
+    version           INTEGER NOT NULL DEFAULT 1,
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    created_by        INTEGER REFERENCES users(id),
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_erm_scenarios_status ON erm_scenarios(status);
+CREATE INDEX IF NOT EXISTS idx_erm_scenarios_bu ON erm_scenarios(business_unit_id);
+
+-- link_type is one of 'risk'|'control'|'kri'|'objective'|'external_context';
+-- link_id's referent depends on link_type, so it cannot carry a single FK --
+-- existence and business-unit scope are enforced in
+-- modules/erm/scenarios.py's add_scenario_link before every insert.
+CREATE TABLE IF NOT EXISTS erm_scenario_links (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    scenario_id   INTEGER NOT NULL REFERENCES erm_scenarios(id) ON DELETE CASCADE,
+    link_type     TEXT NOT NULL CHECK(link_type IN ('risk','control','kri','objective','external_context')),
+    link_id       INTEGER NOT NULL,
+    delta_json    TEXT,
+    created_by    INTEGER REFERENCES users(id),
+    created_at    TEXT DEFAULT (datetime('now')),
+    UNIQUE(scenario_id, link_type, link_id)
+);
+CREATE INDEX IF NOT EXISTS idx_erm_scenario_links_scenario ON erm_scenario_links(scenario_id);
+
+-- Immutable board-pack snapshots. Only narrative/status/approval/staleness
+-- columns are ever updated after insert (enforced in
+-- modules/erm/scenarios.py's update_board_pack_narrative/sweep_stale_board_packs/
+-- publish_board_pack -- never a bare UPDATE on the source_* columns anywhere
+-- else) -- source_snapshot_json, source_hashes_json, as_of, filters_json,
+-- scenario_id, content_hash, and prev_hash are write-once. content_hash and
+-- prev_hash form a per-tenant-schema hash chain (see
+-- modules/erm/scenarios.py's _chain_content_hash/verify_board_pack_chain) so
+-- a tampered or deleted row becomes detectable even though nothing at the DB
+-- layer blocks a direct edit -- an application + detectability guarantee,
+-- not a DB-engine-enforced one.
+CREATE TABLE IF NOT EXISTS erm_board_packs (
+    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+    scenario_id               INTEGER REFERENCES erm_scenarios(id),
+    business_unit_id          INTEGER REFERENCES business_units(id),
+    filters_json              TEXT NOT NULL,
+    as_of                     TEXT NOT NULL,
+    source_snapshot_json      TEXT NOT NULL,
+    source_hashes_json        TEXT NOT NULL,
+    content_hash              TEXT NOT NULL,
+    prev_hash                 TEXT,
+    is_stale                  INTEGER NOT NULL DEFAULT 0,
+    stale_reason              TEXT,
+    narrative                 TEXT,
+    narrative_citations_json  TEXT,
+    narrative_source          TEXT NOT NULL DEFAULT 'none' CHECK(narrative_source IN ('none','ai','human','ai_edited')),
+    status                    TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','published')),
+    approved_by               INTEGER REFERENCES users(id),
+    approved_at               TEXT,
+    published_at              TEXT,
+    created_by                INTEGER REFERENCES users(id),
+    created_at                TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_erm_board_packs_scenario ON erm_board_packs(scenario_id);
+CREATE INDEX IF NOT EXISTS idx_erm_board_packs_status ON erm_board_packs(status);
+CREATE INDEX IF NOT EXISTS idx_erm_board_packs_bu ON erm_board_packs(business_unit_id);
+
 -- ── PLAN-36 P04: Data-readiness and integrity centre ──────────────────────
 -- One row per detected issue, keyed so a rule re-running against the same
 -- record updates (never duplicates) it. Never stores the record's own
@@ -4812,7 +4891,37 @@ _COLUMN_MIGRATIONS = [
         # PRIVACY_ANALYST). No backfill available (no user-id column on this
         # table either). Existing rows stay NULL.
         ("sentinel_dsr", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # PLAN-36 P07: freeze scope on immutable board-pack snapshots.
+        ("erm_board_packs", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
 ]
+
+
+def _backfill_board_pack_business_units(conn) -> None:
+    """Freeze scope for packs created before the P07 review column existed.
+
+    The frozen snapshot is authoritative; using the scenario's current row
+    would be wrong if an unrestricted user moved the scenario after the pack
+    was generated.
+    """
+    rows = conn.execute(
+        "SELECT id, source_snapshot_json FROM erm_board_packs "
+        "WHERE scenario_id IS NOT NULL AND business_unit_id IS NULL"
+    ).fetchall()
+    for row in rows:
+        try:
+            snapshot = json.loads(row["source_snapshot_json"] or "{}")
+            scenario = snapshot.get("scenario") if isinstance(snapshot, dict) else None
+            business_unit_id = (
+                scenario.get("business_unit_id")
+                if isinstance(scenario, dict) else None
+            )
+        except (TypeError, ValueError):
+            business_unit_id = None
+        if business_unit_id is not None:
+            conn.execute(
+                "UPDATE erm_board_packs SET business_unit_id=%s WHERE id=%s",
+                (business_unit_id, row["id"]),
+            )
 
 
 def _run_sqlite_alters(conn):
@@ -4823,6 +4932,8 @@ def _run_sqlite_alters(conn):
         except OperationalError:
             # Column doesn't exist — add it
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    # Baseline-only packs remain organization-wide (NULL).
+    _backfill_board_pack_business_units(conn)
     conn.commit()
 
     # ── Create indexes that depend on migrated columns ──
@@ -4834,6 +4945,7 @@ def _run_sqlite_alters(conn):
         # matching every other index in this list).
         "CREATE INDEX IF NOT EXISTS idx_aria_documents_org    ON aria_documents(org_id)",
         "CREATE INDEX IF NOT EXISTS idx_aria_documents_owner  ON aria_documents(owner_user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_erm_board_packs_bu ON erm_board_packs(business_unit_id)",
         # PLAN-35: these two ARE correctness constraints (dedup rule for
         # version-keyed evidence, section 10.3), not just performance — they
         # are duplicated verbatim in _run_pg_alters() below because
@@ -6192,6 +6304,10 @@ def _run_pg_alters(conn) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
         except Exception:
             pass
+    try:
+        _backfill_board_pack_business_units(conn)
+    except Exception:
+        pass
     conn.commit()
     # PLAN-35: correctness constraints on version-keyed evidence columns that
     # were just added above. _run_sqlite_alters' _POST_MIGRATION_INDEXES has
@@ -6203,6 +6319,7 @@ def _run_pg_alters(conn) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_erm_board_packs_bu ON erm_board_packs(business_unit_id)",
         # PLAN-36 T03: erm_risk_library title uniqueness, scoped instead of
         # global -- see the matching comment in _run_sqlite_alters above.
         "DROP INDEX IF EXISTS idx_erm_library_title",

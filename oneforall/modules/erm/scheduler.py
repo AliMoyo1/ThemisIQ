@@ -9,6 +9,12 @@ Jobs:
          - Enqueues one job per active organization.  The same queue is used
            by the External Context button, so scheduled and interactive scans
            share deduplication, crash recovery, and status semantics.
+  Job 3  Board-pack staleness sweep  (every 15 minutes)
+         - PLAN-36 P07: flags a board pack is_stale when a source record it
+           captured has since changed. Runs periodically rather than
+           synchronously on every risk/control/KRI edit, to avoid nested
+           write-transaction contention with whatever request made the
+           change -- see modules/erm/scenarios.sweep_stale_board_packs.
 """
 from __future__ import annotations
 
@@ -96,6 +102,27 @@ def _enqueue_weekly_scans() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Job 3 — Board-pack staleness sweep (PLAN-36 P07)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _sweep_board_pack_staleness() -> None:
+    try:
+        tenants = list_active_tenants()
+    except Exception as exc:
+        log.warning("ERM board-pack staleness sweep: could not list tenants (%s)", type(exc).__name__)
+        return
+    from modules.erm.scenarios import sweep_stale_board_packs
+    for org_id, slug in tenants:
+        try:
+            with tenant_context(org_id, slug):
+                newly_stale = sweep_stale_board_packs()
+            if newly_stale:
+                log.info("ERM board-pack staleness sweep: org %s flagged %d pack(s) stale", org_id, len(newly_stale))
+        except Exception as exc:
+            log.warning("ERM board-pack staleness sweep failed for org %s (%s)", org_id, type(exc).__name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Scheduler start / stop
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -126,8 +153,21 @@ def start_scheduler() -> None:
         misfire_grace_time=300,
     )
 
+    _scheduler.add_job(
+        _sweep_board_pack_staleness,
+        IntervalTrigger(minutes=15),
+        id="erm_boardpack_staleness_sweep",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=60,
+    )
+
     _scheduler.start()
-    log.info("ERM scheduler started — queue drain every 2s; weekly enqueue Mon 06:00 CAT")
+    log.info(
+        "ERM scheduler started — queue drain every 2s; weekly enqueue Mon 06:00 CAT; "
+        "board-pack staleness sweep every 15m"
+    )
 
 
 def stop_scheduler() -> None:
