@@ -56,17 +56,21 @@ def _uid(request: Request) -> int:
     return request.state.user["id"]
 
 
-def _parse_audit_id(raw_audit_id) -> int:
-    if type(raw_audit_id) is int:
-        audit_id = raw_audit_id
-    elif (isinstance(raw_audit_id, str) and raw_audit_id.isascii()
-          and raw_audit_id.isdigit() and len(raw_audit_id) <= 19):
-        audit_id = int(raw_audit_id)
+def _parse_positive_id(raw_id, field_name: str) -> int:
+    if type(raw_id) is int:
+        value = raw_id
+    elif (isinstance(raw_id, str) and raw_id.isascii()
+          and raw_id.isdigit() and len(raw_id) <= 19):
+        value = int(raw_id)
     else:
-        raise HTTPException(422, "Valid audit_id is required")
-    if audit_id <= 0 or audit_id > 2**63 - 1:
-        raise HTTPException(422, "Valid audit_id is required")
-    return audit_id
+        raise HTTPException(422, f"Valid {field_name} is required")
+    if value <= 0 or value > 2**63 - 1:
+        raise HTTPException(422, f"Valid {field_name} is required")
+    return value
+
+
+def _parse_audit_id(raw_audit_id) -> int:
+    return _parse_positive_id(raw_audit_id, "audit_id")
 
 def _audit_in_scope_or_404(request: Request, audit_id: int) -> None:
     """Hide missing and out-of-scope audits behind the same response."""
@@ -134,6 +138,58 @@ def _evidence_item_in_scope_or_404(request: Request, item_id: int) -> None:
     if row is None:
         raise HTTPException(404, "Evidence item not found")
     _control_in_scope_or_404(request, row["control_id"])
+
+
+def _approval_in_scope_or_404(request: Request, approval_id: int) -> None:
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT evidence_id FROM grid_approvals WHERE id=%s", (approval_id,)
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise HTTPException(404, "Approval not found")
+    _evidence_file_control_in_scope_or_404(request, row["evidence_id"])
+
+
+def _mapping_in_scope_or_404(request: Request, mapping_id: int) -> None:
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT source_control_id, target_control_id FROM grid_control_mappings WHERE id=%s",
+            (mapping_id,),
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise HTTPException(404, "Mapping not found")
+    _control_in_scope_or_404(request, row["source_control_id"])
+    _control_in_scope_or_404(request, row["target_control_id"])
+
+
+def _report_in_scope_or_404(request: Request, rid: int) -> dict:
+    rpt = ds.get_report(rid)
+    if not rpt:
+        raise HTTPException(404, "Report not found")
+    if rpt.get("audit_id") is not None:
+        _audit_in_scope_or_404(request, rpt["audit_id"])
+    return rpt
+
+
+def _share_link_in_scope_or_404(request: Request, sid: int) -> dict:
+    db = get_db()
+    try:
+        link = db.execute(
+            "SELECT * FROM grid_share_links WHERE id=%s", (sid,)
+        ).fetchone()
+    finally:
+        db.close()
+    if link is None:
+        raise HTTPException(404, "Share link not found")
+    _audit_in_scope_or_404(request, link["audit_id"])
+    return dict(link)
+
 
 def _check_locked(fn, *args, **kwargs):
     """Call fn; if audit is locked, raise 423."""
@@ -909,6 +965,16 @@ async def api_users_list(request: Request):
 async def api_reminders_create(request: Request):
     body = await _json_body(request)
     body["user_id"] = _uid(request)
+    raw_audit_id = body.get("audit_id")
+    if raw_audit_id not in (None, ""):
+        audit_id = _parse_positive_id(raw_audit_id, "audit_id")
+        _audit_in_scope_or_404(request, audit_id)
+        body["audit_id"] = audit_id
+    raw_control_id = body.get("control_id")
+    if raw_control_id not in (None, ""):
+        control_id = _parse_positive_id(raw_control_id, "control_id")
+        _control_in_scope_or_404(request, control_id)
+        body["control_id"] = control_id
     rid = ds.create_reminder(body)
     ds.log_activity(_uid(request), "create_reminder", "grid_reminders", rid)
     return JSONResponse({"id": rid}, status_code=201)
@@ -917,6 +983,7 @@ async def api_reminders_create(request: Request):
 @router.get("/api/reminders/{audit_id}/pending")
 @require_capability("grid.reminder.manage")
 async def api_reminders_pending(request: Request, audit_id: int):
+    _audit_in_scope_or_404(request, audit_id)
     return JSONResponse(ds.get_pending_reminders(audit_id))
 
 
@@ -1284,12 +1351,14 @@ async def api_vendor_assessments_create(request: Request, vid: int):
 @router.get("/api/approvals/{evidence_id}")
 @require_capability("module.grid.access")
 async def api_approvals_list(request: Request, evidence_id: int):
+    _evidence_file_control_in_scope_or_404(request, evidence_id)
     return JSONResponse(ds.get_approvals(evidence_id))
 
 
 @router.post("/api/approvals/{evidence_id}")
 @require_capability("grid.evidence.approve")
 async def api_approvals_request(request: Request, evidence_id: int):
+    _evidence_file_control_in_scope_or_404(request, evidence_id)
     body = await _json_body(request)
     approver_id = body.get("approver_id", _uid(request))
     apid = ds.request_approval(evidence_id, approver_id)
@@ -1300,6 +1369,7 @@ async def api_approvals_request(request: Request, evidence_id: int):
 @router.put("/api/approvals/{approval_id}/decide")
 @require_capability("grid.evidence.approve")
 async def api_approvals_decide(request: Request, approval_id: int):
+    _approval_in_scope_or_404(request, approval_id)
     body = await _json_body(request)
     status = body.get("status", "approved")
     comments = body.get("comments")
@@ -1315,15 +1385,20 @@ async def api_approvals_decide(request: Request, approval_id: int):
 @router.get("/api/mappings/{audit_id}")
 @require_capability("grid.cross_mapping.manage")
 async def api_mappings_list(request: Request, audit_id: int):
-    return JSONResponse(ds.list_mappings(audit_id))
+    _audit_in_scope_or_404(request, audit_id)
+    return JSONResponse(ds.list_mappings(audit_id, bu_scope=bu_scope_ids(request.state.user)))
 
 
 @router.post("/api/mappings")
 @require_capability("grid.cross_mapping.manage")
 async def api_mappings_create(request: Request):
     body = await _json_body(request)
+    source_id = _parse_positive_id(body.get("source_control_id"), "source_control_id")
+    target_id = _parse_positive_id(body.get("target_control_id"), "target_control_id")
+    _control_in_scope_or_404(request, source_id)
+    _control_in_scope_or_404(request, target_id)
     mid = ds.create_mapping(
-        body["source_control_id"], body["target_control_id"],
+        source_id, target_id,
         body.get("mapping_type", "equivalent"), body.get("confidence"),
     )
     ds.log_activity(_uid(request), "create_mapping", "grid_control_mappings", mid)
@@ -1335,15 +1410,23 @@ async def api_mappings_create(request: Request):
 async def api_mappings_bulk(request: Request):
     body = await _json_body(request)
     mappings = body.get("mappings", [])
-    ds.save_mappings_bulk(mappings)
+    validated = []
+    for m in mappings:
+        source_id = _parse_positive_id(m.get("source_control_id"), "source_control_id")
+        target_id = _parse_positive_id(m.get("target_control_id"), "target_control_id")
+        _control_in_scope_or_404(request, source_id)
+        _control_in_scope_or_404(request, target_id)
+        validated.append({**m, "source_control_id": source_id, "target_control_id": target_id})
+    ds.save_mappings_bulk(validated)
     ds.log_activity(_uid(request), "bulk_save_mappings", "grid_control_mappings", 0,
-                    f"{len(mappings)} mappings")
-    return JSONResponse({"ok": True, "count": len(mappings)})
+                    f"{len(validated)} mappings")
+    return JSONResponse({"ok": True, "count": len(validated)})
 
 
 @router.delete("/api/mappings/{mid}")
 @require_capability("grid.cross_mapping.manage")
 async def api_mappings_delete(request: Request, mid: int):
+    _mapping_in_scope_or_404(request, mid)
     ds.delete_mapping(mid)
     ds.log_activity(_uid(request), "delete_mapping", "grid_control_mappings", mid)
     return JSONResponse({"ok": True})
@@ -1357,8 +1440,11 @@ async def api_mappings_delete(request: Request, mid: int):
 @require_capability("grid.share.manage")
 async def api_share_create(request: Request):
     body = await _json_body(request)
+    audit_id = _parse_audit_id(body.get("audit_id"))
+    _audit_in_scope_or_404(request, audit_id)
+    body["audit_id"] = audit_id
     result = ds.create_share_link(
-        body["audit_id"], _uid(request),
+        audit_id, _uid(request),
         body.get("auditor_email"), body.get("expires_days", 30),
     )
     ds.log_activity(_uid(request), "create_share_link", "grid_share_links", result["id"])
@@ -1368,7 +1454,7 @@ async def api_share_create(request: Request):
     if auditor_email:
         from modules.grid.email_service import send_email, audit_share_html
 
-        audit = ds.get_audit(body["audit_id"])
+        audit = ds.get_audit(audit_id)
         audit_name = audit.get("name", "Audit") if audit else "Audit"
 
         # Build the share URL from request origin
@@ -1395,12 +1481,17 @@ async def api_share_create(request: Request):
 @router.get("/api/share-links/{audit_id}")
 @require_capability("grid.share.manage")
 async def api_share_list(request: Request, audit_id: int):
+    _audit_in_scope_or_404(request, audit_id)
     return JSONResponse(ds.list_share_links(audit_id))
 
 
 @router.get("/api/share-links/validate/{token}")
 @require_capability("module.grid.access")
 async def api_share_validate(request: Request, token: str):
+    # Deliberately NOT audit/BU-scoped: the token itself (a 32-byte random
+    # secret) is the credential for this one endpoint, meant to be reachable
+    # by whoever holds the link (e.g. an external auditor), the same model
+    # every other share-link system uses.
     link = ds.validate_share_link(token)
     if not link:
         raise HTTPException(404, "Invalid or expired share link")
@@ -1410,6 +1501,7 @@ async def api_share_validate(request: Request, token: str):
 @router.put("/api/share-links/{sid}/revoke")
 @require_capability("grid.share.manage")
 async def api_share_revoke(request: Request, sid: int):
+    _share_link_in_scope_or_404(request, sid)
     ds.revoke_share_link(sid)
     ds.log_activity(_uid(request), "revoke_share_link", "grid_share_links", sid)
     return JSONResponse({"ok": True})
@@ -2158,18 +2250,19 @@ async def api_reports_list(request: Request):
 @require_capability("grid.ai.report")
 async def api_saved_reports_list(request: Request):
     """List all saved report records, optionally filtered by audit_id."""
-    audit_id = request.query_params.get("audit_id")
+    raw_audit_id = request.query_params.get("audit_id")
+    audit_id = _parse_positive_id(raw_audit_id, "audit_id") if raw_audit_id else None
+    if audit_id is not None:
+        _audit_in_scope_or_404(request, audit_id)
     return JSONResponse(ds.list_reports(
-        audit_id=int(audit_id) if audit_id else None,
+        audit_id=audit_id, bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
 @router.get("/api/reports/saved/{rid}")
 @require_capability("grid.ai.report")
 async def api_saved_report_detail(request: Request, rid: int):
-    rpt = ds.get_report(rid)
-    if not rpt:
-        raise HTTPException(404, "Report not found")
+    rpt = _report_in_scope_or_404(request, rid)
     return JSONResponse(rpt)
 
 
@@ -2177,9 +2270,7 @@ async def api_saved_report_detail(request: Request, rid: int):
 @require_capability("grid.ai.report")
 async def api_saved_report_download(request: Request, rid: int):
     """Download a previously saved report file."""
-    rpt = ds.get_report(rid)
-    if not rpt:
-        raise HTTPException(404, "Report not found")
+    rpt = _report_in_scope_or_404(request, rid)
     fp = Path(rpt["file_path"])
     if not fp.exists():
         raise HTTPException(404, "Report file missing from disk")
@@ -2199,9 +2290,12 @@ async def api_saved_report_download(request: Request, rid: int):
 async def api_saved_report_create(request: Request):
     """Save a report record (called after PDF/DOCX generation)."""
     body = await _json_body(request)
-    audit_id = body.get("audit_id")
-    if not audit_id:
+    raw_audit_id = body.get("audit_id")
+    if not raw_audit_id:
         raise HTTPException(400, "audit_id required")
+    audit_id = _parse_positive_id(raw_audit_id, "audit_id")
+    _audit_in_scope_or_404(request, audit_id)
+    body["audit_id"] = audit_id
     body["generated_by"] = _uid(request)
     rid = ds.create_report(body)
     ds.log_activity(_uid(request), "save_report", "grid_reports", rid)
@@ -2212,7 +2306,7 @@ async def api_saved_report_create(request: Request):
 @require_capability("grid.ai.report")
 async def api_saved_report_delete(request: Request, rid: int):
     """Delete a saved report record and its file."""
-    rpt = ds.get_report(rid)
+    rpt = _report_in_scope_or_404(request, rid)
     if rpt and rpt.get("file_path"):
         fp = Path(rpt["file_path"])
         try:
@@ -2444,11 +2538,13 @@ async def api_suggested_policies(request: Request, cid: int):
 @require_capability("grid.nc.manage")
 async def api_policy_requests_list(request: Request):
     """List policy requests, optionally filtered by audit_id."""
-    audit_id = request.query_params.get("audit_id")
+    raw_audit_id = request.query_params.get("audit_id")
+    audit_id = _parse_positive_id(raw_audit_id, "audit_id") if raw_audit_id else None
+    if audit_id is not None:
+        _audit_in_scope_or_404(request, audit_id)
     status = request.query_params.get("status")
     return JSONResponse(ds.list_policy_requests(
-        audit_id=int(audit_id) if audit_id else None,
-        status=status,
+        audit_id=audit_id, status=status, bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
@@ -2457,15 +2553,23 @@ async def api_policy_requests_list(request: Request):
 async def api_policy_request_create(request: Request):
     """Request a policy from ARIA when none is available."""
     body = await _json_body(request)
-    audit_id = body.get("audit_id")
-    if not audit_id:
+    raw_audit_id = body.get("audit_id")
+    if not raw_audit_id:
         raise HTTPException(400, "audit_id required")
+    audit_id = _parse_positive_id(raw_audit_id, "audit_id")
+    _audit_in_scope_or_404(request, audit_id)
+    body["audit_id"] = audit_id
+    raw_control_id = body.get("control_id")
+    if raw_control_id not in (None, ""):
+        control_id = _parse_positive_id(raw_control_id, "control_id")
+        _control_in_scope_or_404(request, control_id)
+        body["control_id"] = control_id
     body["requested_by"] = _uid(request)
     rid = ds.create_policy_request(body)
     ds.log_activity(_uid(request), "request_policy", "grid_policy_requests", rid)
 
     # Get audit name for the event payload
-    audit = ds.get_audit(int(audit_id))
+    audit = ds.get_audit(audit_id)
     audit_name = audit.get("name", "") if audit else ""
 
     # Emit cross-module event → creates ARIA task + notification

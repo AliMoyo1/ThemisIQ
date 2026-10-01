@@ -1,3 +1,68 @@
+## 2026-10-01 F19 continuation — mappings, reminders, saved reports, policy requests, approvals, share links
+
+Outcome: closed F19's own named remainder (mappings, reminders, saved
+reports, policy requests) plus two adjacent gaps of the identical class
+found while reading the same file (evidence approvals, audit share links).
+User asked to continue F19 directly after the F16 closure above.
+
+Method: endpoint-by-endpoint review of `modules/grid/routes.py` continuing
+from where 6fb4c66 left off, cross-referencing each route's id parameter
+against whether a scope guard existed, the same way 6fb4c66 itself was
+reviewed in this session.
+
+Real gaps found and fixed (see `findings.md` F19's continuation note for
+the full per-route breakdown):
+
+- Cross-mappings: list/create/bulk-create/delete all unscoped;
+  `list_mappings()` now also checks the OTHER side of a cross-audit mapping,
+  not just the one audit_id the route itself validates.
+- Reminders: create/pending-list unscoped.
+- Saved reports: list/detail/**download**/create/delete all unscoped -- the
+  download and delete routes could retrieve or destroy another business
+  unit's audit report file.
+- Policy requests: list/create unscoped, including an unchecked optional
+  `control_id` on create (same class as F19's original NC-create fix).
+- Evidence approvals (found adjacent, not named in F19's text): list/
+  request/decide all unscoped.
+- Audit share links (found adjacent, most severe of this batch, not named
+  in F19's text): create/list/revoke unscoped -- create issues a token
+  granting an *external* auditor access to an audit (optionally emailed to
+  them directly) for any audit_id with zero BU check.
+
+New file `tests/ui/test_grid_additional_write_scope.py` (11 tests): cross-BU
+denial with no row created/changed for every create/mutate path, cross-BU
+denial for every list/detail/download path, same-BU positive controls.
+Red/green proved the share-link create check (temporarily removed the
+guard, confirmed the test failed with 201 instead of 404 for the expected
+reason, restored, confirmed green again).
+
+Confirmed NOT a gap (checked, not assumed): `grid_vendors`/
+`grid_vendor_assessments` and `grid_frameworks` have no audit_id/
+business_unit_id at all -- genuinely org-wide shared registries.
+
+Explicitly named, not yet fixed (same class, next slice of this same
+review): `GET /api/reports/list` (unscoped `list_audits()`), `grid_timeline`,
+`grid_compliance_scores`, and the whole `grid_remote_sessions`/
+`grid_remote_findings`/notes/participants family.
+
+Updated `findings.md` (F19 continuation note) and `task_plan.md`'s
+release-gate line accordingly.
+
+Verification commands and results (from `oneforall/`,
+`../.venv/Scripts/python.exe`):
+
+1. `pytest tests/ -k grid -q` (pre-existing GRID tests, before writing new
+   ones, to confirm the data_service.py signature changes are
+   backward-compatible) -- 23 passed.
+2. `pytest tests/ui/test_grid_additional_write_scope.py -v` -- 11 passed.
+3. Full backend suite (`pytest tests/ --ignore=tests/ui -q`) -- 100%
+   progress bar, zero `F`/`E` markers, 13 legitimate pre-existing skips,
+   only pre-existing `on_event`/`utcnow` deprecation warnings,
+   `PYTEST_EXIT:0`.
+4. Full UI (Playwright) suite (`pytest tests/ui -q`) -- 100% progress bar,
+   zero `F`/`E` markers, 2 legitimate pre-existing skips, only pre-existing
+   `on_event` deprecation warnings, `PYTEST_EXIT:0`.
+
 ## 2026-10-01 F16 cross-org NULL-business_unit_id question closed
 
 Outcome: the open architecture question from F16 ("could a NULL-business_unit_id

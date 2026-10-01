@@ -1577,17 +1577,31 @@ def decide_approval(approval_id, status, comments=None):
         db.close()
 
 
-def list_mappings(audit_id):
+def list_mappings(audit_id, bu_scope=None):
+    """List cross-mappings touching this audit. When bu_scope is given, a
+    mapping is only returned if BOTH sides' audits are in scope -- the
+    caller's own audit_id being in scope (checked by the route) does not by
+    itself clear the OTHER side of the mapping, which may belong to a
+    different, out-of-scope business unit's audit."""
     db = get_db()
     try:
-        return _dicts(db.execute("""
+        q = """
             SELECT m.*, s.name AS source_name, s.control_id AS source_ctrl_id,
                    t.name AS target_name, t.control_id AS target_ctrl_id
             FROM grid_control_mappings m
             JOIN grid_controls s ON m.source_control_id=s.id
+            JOIN grid_audits sa ON sa.id=s.audit_id
             JOIN grid_controls t ON m.target_control_id=t.id
-            WHERE s.audit_id=%s OR t.audit_id=%s
-        """, (audit_id, audit_id)).fetchall())
+            JOIN grid_audits ta ON ta.id=t.audit_id
+            WHERE (s.audit_id=%s OR t.audit_id=%s)
+        """
+        params = [audit_id, audit_id]
+        if bu_scope is not None:
+            placeholders = ",".join(["%s"] * len(bu_scope))
+            q += f" AND (sa.business_unit_id IS NULL OR sa.business_unit_id IN ({placeholders}))"
+            q += f" AND (ta.business_unit_id IS NULL OR ta.business_unit_id IN ({placeholders}))"
+            params += list(bu_scope) + list(bu_scope)
+        return _dicts(db.execute(q, params).fetchall())
     finally:
         db.close()
 
@@ -1779,8 +1793,8 @@ def create_report(data):
         db.close()
 
 
-def list_reports(audit_id=None, limit=50):
-    """List saved reports, optionally filtered by audit."""
+def list_reports(audit_id=None, limit=50, bu_scope=None):
+    """List saved reports, optionally filtered by audit and/or BU scope."""
     db = get_db()
     try:
         q = (
@@ -1792,6 +1806,10 @@ def list_reports(audit_id=None, limit=50):
             "WHERE 1=1"
         )
         params = []
+        if bu_scope is not None:
+            placeholders = ",".join(["%s"] * len(bu_scope))
+            q += f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+            params.extend(bu_scope)
         if audit_id is not None:
             q += " AND r.audit_id=%s"
             params.append(audit_id)
@@ -2610,8 +2628,8 @@ def create_policy_request(data):
         db.close()
 
 
-def list_policy_requests(audit_id=None, status=None):
-    """List policy requests, optionally by audit and status."""
+def list_policy_requests(audit_id=None, status=None, bu_scope=None):
+    """List policy requests, optionally by audit, status, and/or BU scope."""
     db = get_db()
     try:
         q = (
@@ -2624,6 +2642,10 @@ def list_policy_requests(audit_id=None, status=None):
             "WHERE 1=1"
         )
         params = []
+        if bu_scope is not None:
+            placeholders = ",".join(["%s"] * len(bu_scope))
+            q += f" AND (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+            params.extend(bu_scope)
         if audit_id is not None:
             q += " AND pr.audit_id=%s"
             params.append(audit_id)
