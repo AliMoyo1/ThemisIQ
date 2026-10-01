@@ -30,7 +30,12 @@ def _create_control(db, title="Test Control"):
 def test_high_rrr_watchlist_and_averages(test_db):
     """3 risks: one at RRR >= 15 (L5xI5 with a single ICE-30 control gives
     RRR 17.5), two unassessed and below threshold. posture.high_rrr contains
-    exactly the first; averages match hand-computed values."""
+    exactly the first; averages match hand-computed values.
+
+    PLAN-36 F18: the two unassessed risks (B, C) fall through to the tier-4
+    default, which is now a flat 20% of inherent (default_residual_factor)
+    rather than an unreduced copy of it -- confirmed against the
+    organization's real risk register."""
     from modules.erm.data_service import (
         create_enterprise_risk, link_risk_control, set_control_assessment,
         get_dashboard_stats,
@@ -53,11 +58,11 @@ def test_high_rrr_watchlist_and_averages(test_db):
     assert posture["high_rrr"][0]["rrr"] == 17.5
 
     assert posture["avg_irr"] == round((25 + 4 + 9) / 3, 1)
-    assert posture["avg_rrr"] == round((17.5 + 4 + 9) / 3, 1)
-    assert posture["avg_loa"] == round((30 + 0 + 0) / 3, 1)
+    assert posture["avg_rrr"] == round((17.5 + 0.8 + 1.8) / 3, 1)
+    assert posture["avg_loa"] == round((30 + 80 + 80) / 3, 1)
     assert posture["avg_lor"] == round(100 - posture["avg_loa"], 1)
     assert posture["emv_i_total"] == 180000
-    assert posture["emv_r_total"] == 150000
+    assert posture["emv_r_total"] == 86000  # 70000 + 50000*0.2 + 30000*0.2
     assert posture["control_effectiveness"] == 30.0
 
 
@@ -145,10 +150,20 @@ def test_existing_payload_keys_unchanged(test_db):
 
 def test_appetite_residual_exposure_semantics(test_db):
     """Appetite compares residual exposure (COALESCE(rrr, likelihood*impact)),
-    not raw inherent. An unassessed risk breaches identically to the old
-    inherent-only math; scoring its controls can clear the breach; another
-    unassessed risk in the same category can still breach on its own. The
-    event-handler's own query is exercised directly, not just re-derived."""
+    not raw inherent. An unassessed risk breaches via its tier-4 default
+    residual; scoring a genuinely strong control can clear the breach;
+    another unassessed risk in the same category can still breach on its
+    own. The event-handler's own query is exercised directly, not just
+    re-derived.
+
+    PLAN-36 F18: numbers below are chosen against the new tier-4 default
+    (residual = inherent * default_residual_factor, 0.2 by default -- an
+    80% reduction) rather than the old default (residual = inherent, 0%
+    reduction). A consequence worth knowing, not a test bug: a control
+    scored below ICE 80 now looks *worse* than an unassessed risk's own
+    optimistic 80%-reduction default, so "a strong control clears a
+    breach" needs an ICE score genuinely above 80 to still make sense
+    (90 is used here) -- ICE 70 no longer demonstrates that story."""
     from modules.erm.data_service import (
         create_enterprise_risk, link_risk_control, set_control_assessment,
         upsert_appetite, get_dashboard_stats, get_appetite_status,
@@ -156,35 +171,36 @@ def test_appetite_residual_exposure_semantics(test_db):
     from core.event_handlers import _check_and_emit_appetite_breach
     from database import get_db
 
-    upsert_appetite({"category": "Strategic Risk", "max_score": 12, "appetite_level": "low"})
+    upsert_appetite({"category": "Strategic Risk", "max_score": 3, "appetite_level": "low"})
 
     rid_a = create_enterprise_risk({
         "title": "Risk A", "likelihood": 5, "impact": 5, "category": "Strategic Risk",
     })
-    # Unassessed: rrr defaults to irr_score (25) -> breaches exactly like the
-    # old inherent-only math (25 > 12).
+    # Unassessed: rrr defaults to irr_score * default_residual_factor
+    # (25 * 0.2 = 5.0) -- breaches the max_score=3 appetite.
     stats = get_dashboard_stats()
     assert stats["appetite_breaches"] >= 1
     status = get_appetite_status()
     strategic = next(a for a in status if a["category"] == "Strategic Risk")
     assert strategic["breached"] is True
-    assert strategic["current_max_score"] == 25
+    assert strategic["current_max_score"] == 5.0
 
-    # Score risk A's control at ICE 70 -> rrr 7.5 -> breach clears.
+    # Score risk A's control at ICE 90 (LOA 90%) -> rrr 2.5 -> breach clears.
     ctrl = _create_control(test_db, "Strong Control")
     link_risk_control(rid_a, ctrl, 1)
-    set_control_assessment(rid_a, ctrl, 70, None)
+    set_control_assessment(rid_a, ctrl, 90, None)
     status = get_appetite_status()
     strategic = next(a for a in status if a["category"] == "Strategic Risk")
     assert strategic["breached"] is False
-    assert strategic["current_max_score"] == 7.5
+    assert strategic["current_max_score"] == 2.5
 
-    # Risk B, unassessed, L4xI4 -> rrr defaults to 16 -> still breaches.
-    create_enterprise_risk({"title": "Risk B", "likelihood": 4, "impact": 4, "category": "Strategic Risk"})
+    # Risk B, unassessed, L5xI5 -> rrr defaults to 5.0 -> still breaches,
+    # independent of A's now-cleared state.
+    create_enterprise_risk({"title": "Risk B", "likelihood": 5, "impact": 5, "category": "Strategic Risk"})
     status = get_appetite_status()
     strategic = next(a for a in status if a["category"] == "Strategic Risk")
     assert strategic["breached"] is True
-    assert strategic["current_max_score"] == 16
+    assert strategic["current_max_score"] == 5.0
 
     # Event-handler path: call the real function (must run cleanly against
     # the new COALESCE SQL) and confirm the same residual-exposure value.
@@ -196,6 +212,6 @@ def test_appetite_residual_exposure_semantics(test_db):
             "WHERE category=%s AND status NOT IN ('closed','accepted')",
             ("Strategic Risk",),
         ).fetchone()
-        assert row["max_score"] == 16
+        assert row["max_score"] == 5.0
     finally:
         db.close()

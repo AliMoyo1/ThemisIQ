@@ -1,5 +1,158 @@
 # PLAN-36 progress ledger
 
+## 2026-10-01 P07 discovery session — F18: ERM residual default did not match real methodology
+
+P07 (ERM scenario, KRI, control linkage, board-pack snapshots) requires
+agreeing a scenario calculation method with the user before building
+anything (task_plan.md's own discovery-gate line: "do not present
+AI-generated numbers as measured facts"). Asked the user directly rather
+than guessing; they pointed to two real documents -- `Risk Rating.xlsx`
+(the organization's rating guideline) and `risk register.xlsx` (the real,
+currently-maintained register) -- and asked that these be used to
+understand the actual methodology, noting the calculation template itself
+must stay editable in the app.
+
+Read both workbooks directly (openpyxl, `data_only=True` to get computed
+values not formulas) and compared every relevant number against the app's
+code -- not assumed. Findings, each confirmed with hard evidence before
+presenting to the user:
+
+- The qualitative Likelihood×Impact matrix is a genuinely asymmetric 5x5
+  lookup (e.g. L=5/I=1 -> "Low" but L=1/I=5 -> "Moderate" -- Likelihood is
+  weighted more heavily than Impact, not a naive symmetric product-band
+  mapping). Dumped the app's seeded `erm_framework_matrix_bands` and
+  compared cell-by-cell against the guideline's own matrix: **exact match,
+  all 25 cells**. Also confirmed the multi-dimension impact model
+  (Financial Exposure/Brand/Regulatory/Customer/Operations/Environment/
+  People/Media, each with 5 described levels) and the editable-framework
+  system (`erm_risk_frameworks` + dimensions/levels/scales/bands/matrix/
+  taxonomy child tables, with clone/edit/import/export already built)
+  already exist and already satisfy what the user asked about. Nothing to
+  build for either.
+- `Inherent = Likelihood x Impact` verified exactly against all 111
+  scoreable rows of the real register (zero mismatches) -- already
+  correctly implemented in `_compute_scores`.
+- The real discrepancy: `recompute_residual_for_risk`'s existing 4-tier
+  precedence ladder (ICE path > manual override > weighted-effectiveness
+  rollup > tier-4 default) had its tier-4 default set `rrr = irr` (0%
+  reduction) when a risk has no scored linked controls and no manual
+  override -- the common case for most risks today. The real register
+  showed `Residual = Inherent x 0.2`, with **zero exceptions across all
+  111 rows**, completely independent of the recorded Control Effectiveness
+  value (verified by testing two hypotheses against every row: "residual
+  tracks each row's own CE" failed on 57/111 rows; "residual is always a
+  flat 20% of inherent, full stop" matched all 111 with zero mismatches).
+
+Presented this evidence to the user directly (with specific row examples)
+rather than silently picking one interpretation, and asked two follow-up
+questions once the core finding was confirmed: should the fixed baseline
+be hardcoded or framework-configurable (confirmed: configurable, matching
+every other part of this already-editable framework system), and should
+the existing ICE/control-linkage calculation be retired or kept as a more
+specific override (confirmed: kept -- a risk with real scored controls
+still uses that path; only the no-data fallback changes).
+
+Files modified:
+
+- `oneforall/database.py` -- `erm_risk_frameworks.default_residual_factor`
+  (additive migration, default 0.2).
+- `oneforall/modules/erm/data_service.py` -- `_default_residual_factor()`
+  reads the active framework's configured value; `recompute_residual_for_risk`'s
+  tier-4 branch now applies it instead of the old 0%-reduction default;
+  `get_framework_detail`/`_apply_framework_payload` expose/accept the field
+  (same editable path as the matrix/bands/dimensions; the built-in
+  framework itself stays immutable -- clone it to change the factor, the
+  same existing convention every other framework field already follows);
+  `validate_framework_payload` rejects a non-numeric or out-of-[0,1] value.
+- `oneforall/tests/test_erm_ice_engine.py`, `test_erm_dashboard_v2.py` --
+  three pre-existing tests asserted the old 0%-reduction tier-4 default
+  and were updated to the new, confirmed-correct values. One
+  (`test_appetite_residual_exposure_semantics`) needed its risk/appetite
+  numbers redesigned entirely -- its whole premise ("an unassessed risk
+  breaches exactly like raw inherent math") was a direct restatement of
+  the bug being fixed, not something a number tweak alone could repair.
+  Also surfaced and documented a real, interesting consequence of the
+  confirmed 80%-reduction baseline: a control scored below ICE 80 now
+  looks *worse* than an unassessed risk's own optimistic default (visible
+  directly in the rewritten test -- an ICE-70 "strong control" no longer
+  clears a breach the untouched default would have cleared on its own).
+  Not a defect; the correct mathematical consequence of the methodology
+  the user confirmed, flagged for their awareness rather than silently
+  left for them to discover later.
+
+Files created:
+
+- `oneforall/tests/test_erm_default_residual_factor.py` -- 7 new tests:
+  seeded default value, changing the factor on a cloned framework affects
+  new calculations, the built-in framework refuses direct edits, a clone
+  inherits the source's factor, payload validation (range + type), and
+  that tiers 1-3 (ICE path, manual override) remain completely unaffected
+  by the factor regardless of its value.
+
+Red/green proof performed (temporarily broke the fix, confirmed the test
+failed for the expected reason, restored, confirmed `grep -rn "TEMP
+red-proof"` found nothing and the suite was green again):
+
+- Hardcoded the tier-4 `factor` to `1.0` (old behavior) -- both
+  `test_seeded_default_is_point_two` and (more directly)
+  `test_create_risk_default_path` failed (`20.0 == 4.0` assertion
+  mismatch, confirming the fix's own expected value). Restored; both passed.
+
+Verification commands and results (from `oneforall/`, `../.venv/Scripts/python.exe`):
+
+1. `pytest tests/test_erm_default_residual_factor.py tests/test_erm_ice_engine.py tests/test_erm_treatments.py tests/test_erm_dashboard_v2.py tests/test_erm_objectives.py tests/test_erm_scan_jobs.py tests/test_erm_emerging.py tests/test_erm_library_tenancy.py -v`
+   -- 69 passed (7 new + 62 pre-existing, 3 of which were updated for the
+   confirmed-correct new behavior).
+2. Searched the whole test suite for any other file referencing `rrr`/
+   `residual_score`/`loa_pct` to rule out further hidden regressions --
+   only the already-handled ERM files plus one unrelated schema-only
+   definition in `test_governance_controls.py` (no computed-value
+   assertions, unaffected). This search missed a real gap: see item 3.
+3. Full backend suite (`pytest tests/ -x --ignore=tests/ui -q`) -- first
+   run failed at `test_governance_controls.py::test_link_and_list_risk_control`
+   with `sqlite3.OperationalError: no such table: erm_risk_frameworks`.
+   Root cause: that file hand-rolls its own minimal in-memory sqlite schema
+   in a local `_init_test_db()` helper rather than using the real
+   `database.py` schema, and that hand-rolled schema predates the
+   `erm_risk_frameworks` table -- which the new `_default_residual_factor()`
+   now queries on every `recompute_residual_for_risk()` call, including
+   the ones `link_risk_control()` triggers. Fixed by adding a matching
+   `erm_risk_frameworks` table (with the `default_residual_factor` column)
+   plus one seeded active row to that test's `_init_test_db()`, mirroring
+   what every real tenant schema already has. Confirmed the file's own 9
+   tests pass in isolation, then re-ran the full suite without `-x` (to
+   surface any further hidden gaps in one pass rather than one-at-a-time):
+   `pytest tests/ --ignore=tests/ui -q` -- 100% progress bar, zero `F`/`E`
+   markers, 13 legitimate pre-existing skips, only pre-existing
+   `on_event`/`utcnow` deprecation warnings, `PYTEST_EXIT:0`. Also checked
+   the only other two files that hand-roll a sqlite schema
+   (`test_security_hardening.py`, `test_advisor.py`) for any reference to
+   the ERM residual code path -- neither touches it, so neither has the
+   same gap.
+4. Full UI (Playwright) suite (`pytest tests/ui -q`) -- 100% progress bar,
+   zero `F`/`E` markers, 2 legitimate pre-existing skips, only pre-existing
+   `on_event` deprecation warnings, `PYTEST_EXIT:0`.
+
+Explicitly unverified/skipped this session:
+
+- The actual P07 scenario/KRI/board-pack FEATURE has not been built yet --
+  this session was entirely the discovery-gate work the plan itself
+  requires before P07 can start, which surfaced and fixed a real,
+  consequential pre-existing calculation bug along the way. P07 proper
+  (scenarios table, linkage join tables, baseline-vs-scenario comparison,
+  immutable hash-chained board-pack snapshots, AI-narrative-with-citations)
+  is still fully ahead.
+- Not committed; pending user authorization per this session's established
+  per-batch pattern.
+
+## 2026-10-01 — P06 committed and pushed (user-authorized)
+
+Commit `48ba49e` on `master`, pushed to `origin/master` (`fb9c1fe..48ba49e`).
+11 files changed, 1111 insertions(+), 12 deletions(-). Covers the full P06
+session below, verified under the corrected `.venv` interpreter (full
+backend suite 100% clean; full UI/Playwright suite 277/279 passed, 2
+legitimate skips, 0 failed).
+
 ## 2026-10-01 P06 session 1 — saved views and permission-safe bulk actions
 
 User's explicit scope decisions: Evidence Vault as the first onboarded

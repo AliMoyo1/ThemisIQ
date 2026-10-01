@@ -86,6 +86,20 @@ def resolve_band(fw_matrix, likelihood, impact):
     return fw_matrix["matrix"].get(key, "moderate")
 
 
+def _default_residual_factor(db) -> float:
+    """PLAN-36 F18: the active framework's configured flat residual-reduction
+    assumption (e.g. 0.2 = residual is 20% of inherent), used by
+    recompute_residual_for_risk's tier-4 fallback when a risk has no scored
+    linked controls and no manual residual override. Editable via the
+    framework PUT endpoint, same as the matrix/bands/dimensions."""
+    row = db.execute(
+        "SELECT default_residual_factor FROM erm_risk_frameworks WHERE is_active=1 LIMIT 1"
+    ).fetchone()
+    if row and row["default_residual_factor"] is not None:
+        return float(row["default_residual_factor"])
+    return 0.2
+
+
 # Reusable JOIN fragment for SQL-side aggregate counts against the active
 # framework's matrix — alias the target table as "e". Cheaper than pulling
 # every row into Python just to call resolve_band() when only a COUNT is needed.
@@ -160,6 +174,10 @@ def get_framework_detail(framework_id):
             "id": fw["id"], "name": fw["name"], "description": fw["description"],
             "is_active": bool(fw["is_active"]), "is_default": bool(fw["is_default"]),
             "source": fw["source"], "updated_at": fw.get("updated_at"),
+            # PLAN-36 F18: the flat residual-reduction fraction applied when
+            # a risk has no scored linked controls and no manual residual
+            # override (recompute_residual_for_risk's tier-4 fallback).
+            "default_residual_factor": fw.get("default_residual_factor", 0.2),
             "dimensions": dims,
             "likelihood": scales.get("likelihood", []),
             "impact_scale": scales.get("impact", []),
@@ -253,6 +271,14 @@ def validate_framework_payload(payload):
 
     if not str(payload.get("name") or "").strip():
         errors.append("name is required")
+
+    if "default_residual_factor" in payload and payload["default_residual_factor"] is not None:
+        try:
+            factor = float(payload["default_residual_factor"])
+            if not (0.0 <= factor <= 1.0):
+                errors.append("default_residual_factor must be between 0 and 1")
+        except (TypeError, ValueError):
+            errors.append("default_residual_factor must be a number")
 
     dims = payload.get("dimensions")
     if not isinstance(dims, list) or not dims:
@@ -380,8 +406,10 @@ def _apply_framework_payload(db, framework_id, payload):
     the caller's finally.
     """
     db.execute(
-        "UPDATE erm_risk_frameworks SET name=%s, description=%s, updated_at=%s WHERE id=%s",
-        (payload.get("name"), payload.get("description"), _now(), framework_id),
+        "UPDATE erm_risk_frameworks SET name=%s, description=%s, default_residual_factor=%s, "
+        "updated_at=%s WHERE id=%s",
+        (payload.get("name"), payload.get("description"),
+         payload.get("default_residual_factor", 0.2), _now(), framework_id),
     )
 
     db.execute("DELETE FROM erm_framework_impact_dimensions WHERE framework_id=%s", (framework_id,))
@@ -806,10 +834,16 @@ def recompute_residual_for_risk(db, risk_id):
                              if emv_i is not None else None)
             ctrl_eff = round(weighted_eff)
         else:
-            loa_pct = 0
-            rrr = float(irr)
-            residual_score = irr
-            emv_residual = emv_i
+            # PLAN-36 F18: this used to mean "0% reduction" (rrr=irr,
+            # loa_pct=0) -- confirmed against the organization's real,
+            # currently-maintained risk register that residual is actually
+            # a flat fraction of inherent in this no-controls-scored case,
+            # not an unreduced copy of it.
+            factor = _default_residual_factor(db)
+            loa_pct = round((1.0 - factor) * 100)
+            rrr = round(irr * factor, 1)
+            residual_score = int(round(rrr))
+            emv_residual = round(emv_i * factor, 2) if emv_i is not None else None
             ctrl_eff = None
 
     db.execute(

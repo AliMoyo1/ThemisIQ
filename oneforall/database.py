@@ -4698,6 +4698,15 @@ _COLUMN_MIGRATIONS = [
         # ── ERM v2 (PLAN-27): objective linkage + assessment context ─────────
         ("erm_enterprise_risks", "objective_id",    "INTEGER DEFAULT NULL"),
         ("erm_enterprise_risks", "risk_context",    "TEXT DEFAULT NULL"),
+        # PLAN-36 F18: the tier-4 fallback in recompute_residual_for_risk
+        # (no linked controls scored, no manual residual override) used to
+        # mean "0% reduction" (residual = inherent), which does not match
+        # how risk is actually calculated in practice (the organization's
+        # live risk register applies a flat reduction regardless of
+        # per-control effectiveness, confirmed directly against real data --
+        # see progress.md's P07 session entry). Editable the same way the
+        # matrix/bands/dimensions already are, not hardcoded.
+        ("erm_risk_frameworks", "default_residual_factor", "REAL DEFAULT 0.2"),
         # ── ORM: Event workflow + SLA + Basel III ──────────────────────────────
         ("orm_events", "workflow_step",       "TEXT DEFAULT 'identified'"),
         ("orm_events", "response_due_at",     "TEXT DEFAULT NULL"),

@@ -30,7 +30,12 @@ def _create_control(db, title="Test Control"):
 
 def test_create_risk_default_path(test_db):
     """A freshly created risk with no controls gets the default-path
-    values: rrr and residual_score equal IRR, and exactly one history row."""
+    values: rrr/residual_score are IRR scaled by the active framework's
+    default_residual_factor (PLAN-36 F18 -- this used to mean 0% reduction,
+    i.e. rrr==irr, until confirmed against the organization's real risk
+    register that the no-controls-scored case is actually a flat 20%
+    reduction, not an unreduced copy of inherent), and exactly one history
+    row."""
     from modules.erm.data_service import create_enterprise_risk, get_enterprise_risk
 
     rid = create_enterprise_risk({"title": "Vendor Outage", "likelihood": 4, "impact": 5})
@@ -38,8 +43,9 @@ def test_create_risk_default_path(test_db):
 
     assert risk["irr_score"] == 20
     assert re.match(r"^RSK-\d{4}$", risk["risk_ref"])
-    assert risk["rrr"] == 20.0
-    assert risk["residual_score"] == 20
+    assert risk["rrr"] == 4.0  # 20 * 0.2 (default_residual_factor)
+    assert risk["residual_score"] == 4
+    assert risk["loa_pct"] == 80
 
     hist = test_db.execute(
         "SELECT COUNT(*) AS c FROM erm_risk_score_history WHERE risk_id=%s", (rid,)
@@ -112,8 +118,11 @@ def test_ice_score_validation(test_db):
     assert risk["loa_pct"] == 90
 
     risk = set_control_assessment(rid, c1, None, None)
-    assert risk["loa_pct"] == 0
-    assert risk["rrr"] == float(risk["irr_score"])
+    # Clearing ICE with no other scored control and no manual override
+    # falls through to the tier-4 default (PLAN-36 F18: a flat
+    # default_residual_factor, not an unreduced copy of IRR).
+    assert risk["loa_pct"] == 80
+    assert risk["rrr"] == round(risk["irr_score"] * 0.2, 1)
 
 
 def test_irr_frozen_on_update(test_db):
