@@ -1,5 +1,133 @@
 # PLAN-36 progress ledger
 
+## 2026-10-01 P06 session 1 — saved views and permission-safe bulk actions
+
+User's explicit scope decisions: Evidence Vault as the first onboarded
+module (the research found the plan's own named first target, Task Board,
+was actually the most encumbered candidate, not the lowest-risk one -- see
+F17's own session entry, discovered via this same research); full shared
+infrastructure built for real now, not sized to only what Evidence Vault
+needs.
+
+Key design simplification, made before writing any code: rather than
+building a generic "apply arbitrary filter JSON to SQL" engine (the
+obvious-but-risky approach, and hard to get exactly right across every
+module/database combination), `filter_json` only ever stores
+query-PARAMETER names already accepted by the owning module's own
+existing list route (for Evidence Vault: `category`/`status`/`q`/`module`/`view`,
+`modules/evidence/routes.py`'s real `GET /api/items`). There is no
+SQL-generation step anywhere in this module at all -- applying a saved
+view is purely a client-side replay of its stored params onto that same,
+already-safely-parameterized endpoint. This makes "malicious filter JSON
+cannot alter queries" true by construction rather than something a
+validator has to get right in every case.
+
+Files created:
+
+- `oneforall/modules/saved_views/__init__.py`, `data_service.py`
+  (`register_view_schema` self-registration matching `modules/readiness/rules.py`'s
+  own `@register_rule` pattern; saved-view CRUD with allowlist validation;
+  the generic `execute_bulk_action` engine -- per-record authorize/execute
+  separation, atomic vs. best-effort semantics, idempotency-key replay,
+  one bounded audit_log row per call), `routes.py` (generic CRUD routes
+  usable by any module, no capability gate beyond auth since a saved view
+  grants no access of its own).
+- `oneforall/tests/test_saved_views.py` -- 14 tests: filter-JSON allowlist
+  rejection (including an injection-shaped value, stored only as a
+  rejected key name, never interpreted), owner-only edit/delete on a
+  shared view, cross-org isolation, default-flag uniqueness, and the bulk
+  engine's re-authorization/atomic/best-effort/idempotency/audit behavior,
+  with a red/green proof on the core re-authorization property.
+- `oneforall/tests/ui/test_p06_routes.py` -- 6 HTTP-level tests: auth
+  redirect, saved-view CRUD round-trip, a malicious filter param rejected
+  over real HTTP, capability denial on bulk-archive, a genuine cross-organization
+  bulk-archive exclusion (with a red/green proof), and idempotency-key
+  replay over real HTTP.
+
+Files modified:
+
+- `oneforall/database.py` -- two new tables: `saved_views` (one partial
+  unique index enforcing at most one default per owner/module/view_key)
+  and `bulk_action_runs` (idempotency-key ledger).
+- `oneforall/core/rls.py` -- RLS policies for both new tables (same
+  defense-in-depth pattern as every other PLAN-36 P0x table this session);
+  a shared `saved_views` row crossing organizations would leak another
+  org's filter/sort/column preferences, not just leak across users within one.
+- `oneforall/modules/evidence/routes.py` -- registers Evidence Vault's view
+  schema at import time; adds `PUT /api/items/bulk-archive`, built on the
+  generic engine, reusing the exact `_scoped_evidence_item` check and
+  `evidence.delete` capability the single-item `DELETE /api/items/{eid}`
+  already enforces.
+- `oneforall/main.py` -- registered the saved-views router.
+
+Real bug found and fixed while testing (self-introduced this slice, caught
+before anything shipped): `PUT /api/items/bulk-archive` was first
+registered *after* the existing `PUT /api/items/{eid}` route. Starlette
+matches routes in registration order and only converts a path parameter
+to its declared type (`eid: int`) *after* a pattern match succeeds -- so
+the parameterized route matched the literal URL first and failed int
+conversion on the string `"bulk-archive"` with its own 422, before the
+new route ever got a chance. Every HTTP test against it failed with 422
+instead of its real expected status. Fixed by moving the literal route to
+be registered before the parameterized one (confirmed this is the
+necessary and sufficient fix, not registration-order superstition, by
+reading Starlette's own matching behavior and verifying all three
+previously-422ing tests then exercised the real logic correctly).
+
+Red/green proofs performed (temporarily broke the fix, confirmed the test
+failed for the expected reason, restored, confirmed `grep -rn "TEMP
+red-proof"` found nothing and the suite was green again):
+
+- `test_bulk_action_reauthorizes_every_record_not_just_the_selection`:
+  temporarily forced `ok = True` after calling `authorize_fn` regardless of
+  its real answer -- test failed (the deliberately-unauthorized id was
+  applied anyway). Restored; test passed.
+- `test_bulk_archive_excludes_an_item_from_another_org`: temporarily
+  replaced the `_scoped_evidence_item` org-scope check with a bare,
+  unscoped `SELECT` -- test failed (the other organization's evidence item
+  was archived). Restored; test passed.
+
+Verification commands and results (from `oneforall/`, `../.venv/Scripts/python.exe`):
+
+1. `pytest tests/test_saved_views.py tests/ui/test_p06_routes.py -v` -- 20 passed.
+2. Route-registration check: 5 new routes present (`/api/saved-views` x4,
+   `/evidence/api/items/bulk-archive`); total 887 routes (up from 882
+   after P05/F17).
+3. Full backend suite (`pytest tests/ -x --ignore=tests/ui -q`) -- clean:
+   progress bar reached 100% with zero failure/error markers, exit 0. Only
+   non-pass markers were the previously-documented PostgreSQL-gate skips.
+   (A stray duplicate background job briefly wrote to the same log path as
+   this run before being stopped within seconds; the resulting log was
+   checked for internal corruption/duplication before being trusted --
+   none found, single clean progress-bar sequence, single exit line.)
+4. Full UI (Playwright) suite (`pytest tests/ui -q`) -- clean: 279 total,
+   277 passed, 2 skipped, 0 failed/errored, exit 0.
+
+Explicitly unverified/skipped this session:
+
+- Task Board, ERM/ORM risk-register, policies, vendors, and findings are
+  not yet onboarded onto the shared infrastructure -- explicitly deferred,
+  matching task_plan.md's own incremental rollout list, and now pure
+  plumbing (register a schema, add a bulk action using the existing
+  engine) rather than new design.
+- Evidence Vault's own list page (`modules/evidence/templates/evidence_index.html`)
+  does not yet have a checkbox-selection UI wired to the new bulk-archive
+  endpoint, or a saved-views picker wired to the new CRUD routes -- the
+  API/backend layer is complete and tested end-to-end over real HTTP, but
+  the actual accessible multi-select frontend is not built yet. This is
+  why task_plan.md's "keyboard and screen-reader selection is supported"
+  acceptance line is left unchecked rather than claimed.
+- Not committed; pending user authorization per this session's established
+  per-batch pattern.
+
+## 2026-09-30 — F17 committed and pushed (user-authorized)
+
+Commit `fb9c1fe` on `master`, pushed to `origin/master` (`14cb1d7..fb9c1fe`).
+8 files changed, 336 insertions(+), 5 deletions(-). Covers the F17 session
+below, verified under the corrected `.venv` interpreter (full backend
+suite 100% clean; full UI/Playwright suite 271/273 passed, 2 legitimate
+skips, 0 failed).
+
 ## 2026-09-30 P06 discovery session — F17: write-path BU-scope gaps found and fixed
 
 While researching P06 (saved views and permission-safe bulk actions) via a

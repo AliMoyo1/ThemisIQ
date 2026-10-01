@@ -666,22 +666,53 @@ Selected model:
 - Saved views never store SQL, arbitrary URLs, HTML, or capability decisions.
 - Bulk actions re-authorize every record server-side and return per-record outcomes; a visible selection count is not authorization.
 
+Discovery (no separate "Discovery gate" header in the original plan text,
+but real discovery was done and changed the plan before any code was
+written): delegated to a research agent given the breadth (every module's
+read/detail/update/delete route quartet, plus any existing bulk-action or
+saved-filter mechanism anywhere in the codebase). Findings:
+
+- **No existing bulk-action or saved-view mechanism was worth extending.**
+  Three partial, inconsistent patterns existed (Task Board's real-but-
+  count-only batch endpoint; GRID evidence bulk-approve with zero
+  ownership/BU check at all; ERM/ORM's checkbox UX sitting on client-side
+  loops over single-record endpoints with the weakest authorization of the
+  three). Saved views were fully greenfield -- the only "saved view" hit
+  anywhere in the codebase was a `localStorage` display-mode toggle.
+- **The plan's own named first target (Task Board) was found to be the
+  *most* encumbered candidate, not the lowest-risk one**: it already has a
+  bulk endpoint to reconcile, logs nothing to audit_log, and (discovered in
+  the same pass) its list route had zero business-unit scoping at all --
+  fixed separately as F17, since it was a real pre-existing bug, not a P06
+  design question. Evidence Vault was identified as genuinely lowest-risk
+  (zero existing bulk/checkbox UI to reconcile, already-mandatory org
+  scoping on its list route, a small clean existing query-param set) and
+  confirmed with the user as the actual first module.
+- **This same read-vs-write-route comparison surfaced three more real
+  authorization gaps** (ERM/ORM write-path BU-scope gaps, GRID bulk-approve's
+  missing check) -- documented and fixed immediately as `findings.md` F17,
+  not part of P06 itself.
+
+User's explicit scope decisions: Evidence Vault as the first onboarded
+module (not Task Board as literally named); full shared infrastructure
+built for real now, not sized to only what Evidence Vault needs.
+
 Implementation tasks:
 
-- [ ] Start with one low-risk module after discovery, then Task Board, risks, evidence, policies, vendors, and findings.
-- [ ] Add filter-schema validators and migration for old view versions.
-- [ ] Restrict sharing/editing/deletion by owner and organization capability.
-- [ ] Require confirmation summaries for mutations and idempotency keys for retryable bulk operations.
-- [ ] Define atomic versus best-effort semantics per action; never leave this implicit.
-- [ ] Produce an audit event with bounded record identifiers/counts, not sensitive field dumps.
+- [x] Start with one low-risk module after discovery, then Task Board, risks, evidence, policies, vendors, and findings. Evidence Vault done this slice (registered schema: `category`/`status`/`q`/`module`/`view` -- its real `GET /api/items` query params -- plus a `bulk-archive` action). Task Board, risks, policies, vendors, findings remain **explicitly deferred, not dropped**: onboarding each is now pure plumbing (register_view_schema + a bulk action using the generic engine), not new design, since the shared infrastructure is already built in full.
+- [x] Add filter-schema validators and migration for old view versions. `register_view_schema`'s allowlist is the validator; `saved_views.schema_version` column exists for a future migration path (no migration needed yet -- there is only one schema version so far).
+- [x] Restrict sharing/editing/deletion by owner and organization capability. `update_saved_view`/`delete_saved_view` are owner-only (`_owned_view_or_raise`); a `shared=1` view is read-only to everyone else, tested directly (an attempted edit by a non-owner raises `NOT_FOUND`, never silently succeeds or 403s in a way that would confirm the view exists to someone who shouldn't see it as editable).
+- [x] Require confirmation summaries for mutations and idempotency keys for retryable bulk operations. `execute_bulk_action` accepts `idempotency_key` (wired to the client's own `Idempotency-Key` header, which `static/js/api_client.js` already sends but no route previously consumed); a retried call with the same key returns the original `{applied, skipped}` outcome instead of re-executing, tested directly at both the service and HTTP level.
+- [x] Define atomic versus best-effort semantics per action; never leave this implicit. `execute_bulk_action(..., atomic: bool)`: best-effort (default) applies to every independently-authorized id and reports failures per id; atomic refuses the *entire* batch if even one id fails authorization. Evidence's bulk-archive uses best-effort (an archive is independently safe per item); both modes are tested directly.
+- [x] Produce an audit event with bounded record identifiers/counts, not sensitive field dumps. One `audit_log` row per bulk-action call, `details` is a bounded string ("N of M record(s) applied, K skipped"), never a per-record dump.
 
 Acceptance:
 
-- malicious filter JSON cannot alter queries;
-- shared view does not grant access to records;
-- mixed authorized/unauthorized selection cannot mutate unauthorized rows;
-- partial failures are visible and retryable without duplicating successes;
-- keyboard and screen-reader selection is supported.
+- [x] malicious filter JSON cannot alter queries -- true by construction, not by a validator having to get every case right: filter_json only ever stores query-PARAMETER names already accepted by the owning module's existing, already-safely-parameterized list route; there is no SQL-generation step anywhere in this module at all. An unknown key is rejected outright at write time (tested, including a literal injection-shaped string value, which is stored only as an opaque rejected key name, never interpreted).
+- [x] shared view does not grant access to records -- applying a saved view is purely a client-side replay of its stored params onto the owning module's own, separately-capability-gated list route; saved_views itself grants no access of any kind. Tested: a shared view is visible to another user in the same org, never to a user in a different org.
+- [x] mixed authorized/unauthorized selection cannot mutate unauthorized rows -- the core property of `execute_bulk_action`, proved with a red/green test at the service level and an HTTP-level test using a genuinely different organization's record as the unauthorized id.
+- [x] partial failures are visible and retryable without duplicating successes -- `{applied, skipped}` makes a partial failure visible per id; retryability without duplication is the idempotency-key mechanism, tested directly (a second call with the same key does not re-run `execute_fn`).
+- [ ] keyboard and screen-reader selection is supported -- not yet verified; Evidence Vault's own list page does not yet have a checkbox-selection UI wired to the new bulk-archive endpoint (the backend/API layer is complete and tested; the accessible multi-select UI itself is next, part of actually onboarding Evidence Vault's list page rather than just its API).
 
 ### P07 — ERM scenario, KRI, control linkage, and board-pack snapshots
 

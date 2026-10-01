@@ -21,6 +21,19 @@ from modules.governance.data_service import bu_scope_ids
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 
+# PLAN-36 P06: registers this list's exact query-param names (matching
+# GET /api/items below) as the allowlist a saved view may store for this
+# module -- the only things saved_views.create_saved_view will ever accept
+# into filter_json, which closes off "malicious filter JSON" by never
+# letting it hold anything else.
+from modules.saved_views.data_service import register_view_schema as _register_view_schema
+_register_view_schema(
+    "evidence", "items_list",
+    allowed_params={"category", "status", "q", "module", "view"},
+    sortable_fields={"updated_at", "title", "expiry_date", "status"},
+    available_columns={"title", "category", "status", "expiry_date", "uploaded_by_name", "link_count"},
+)
+
 EVIDENCE_DIR = Path(os.getenv("EVIDENCE_DIR", "data/evidence"))
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
@@ -328,6 +341,66 @@ async def api_evidence_get(request: Request, eid: int):
         db.close()
     result["can_delete"] = has_capability(request.state.user, "evidence.delete")
     return JSONResponse(result)
+
+
+@router.put("/api/items/bulk-archive")
+@require_auth
+async def api_evidence_bulk_archive(request: Request):
+    """PLAN-36 P06: the evidence module's own first bulk action, built on
+    the generic modules.saved_views.execute_bulk_action engine. Every id is
+    independently re-authorized through the exact same _scoped_evidence_item
+    org-scope check and evidence.delete capability the single-item
+    DELETE /api/items/{eid} already enforces -- the posted id list is never
+    itself treated as authorization.
+
+    Registered before PUT /api/items/{eid} below: Starlette matches routes
+    in registration order and only converts a path param to its declared
+    type (eid: int) *after* a pattern match, so if the parameterized route
+    were registered first it would "steal" this exact URL and fail int
+    conversion on the literal string 'bulk-archive' with its own 422,
+    before this route ever got a chance -- confirmed directly (first draft
+    of this endpoint sat after {eid} and every request to it 422'd)."""
+    from modules.saved_views.data_service import execute_bulk_action
+    user = request.state.user
+    if not has_capability(user, "evidence.delete"):
+        return JSONResponse({"error": "Permission denied"}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    ids = body.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        raise HTTPException(400, "ids (list of evidence item IDs) required")
+
+    def _authorize(db, actor, eid):
+        item = _scoped_evidence_item(db, eid, actor)
+        if not item:
+            return False, "Not found or outside your organization."
+        if item["status"] == "archived":
+            return False, "Already archived."
+        return True, None
+
+    def _execute(db, actor, eid):
+        db.execute(
+            "UPDATE evidence_items SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (eid,),
+        )
+        db.execute(
+            "UPDATE evidence_links SET deleted_at = CURRENT_TIMESTAMP, deleted_by = %s "
+            "WHERE evidence_id = %s AND deleted_at IS NULL",
+            (actor["id"], eid),
+        )
+
+    db = get_db()
+    try:
+        result = execute_bulk_action(
+            db, user, module="evidence", action_name="bulk_archive", record_ids=ids,
+            authorize_fn=_authorize, execute_fn=_execute,
+            idempotency_key=request.headers.get("Idempotency-Key"),
+        )
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, **result})
 
 
 @router.put("/api/items/{eid}")

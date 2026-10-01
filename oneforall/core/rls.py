@@ -89,6 +89,21 @@ _STMTS = [
     "ALTER TABLE public.evidence_requests FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_requests",
     f"CREATE POLICY tenant_isolation ON public.evidence_requests USING {_USING}",
+
+    # saved_views / bulk_action_runs (PLAN-36 P06) - defense-in-depth
+    # alongside modules/saved_views/data_service.py's own org_id filter.
+    # saved_views in particular can be marked `shared`, which is only ever
+    # meant to share within one organization -- an RLS gap here would let a
+    # shared view (and the filter/sort/column preferences inside it) leak
+    # across organizations, not just across users within one.
+    "ALTER TABLE public.saved_views ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.saved_views FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.saved_views",
+    f"CREATE POLICY tenant_isolation ON public.saved_views USING {_USING}",
+    "ALTER TABLE public.bulk_action_runs ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.bulk_action_runs FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.bulk_action_runs",
+    f"CREATE POLICY tenant_isolation ON public.bulk_action_runs USING {_USING}",
 ]
 
 
@@ -111,7 +126,8 @@ def apply_rls_policies(db) -> None:
             "RLS policies applied to public.users, public.audit_log, "
             "public.licenses, public.webhooks, public.evidence_items, "
             "public.readiness_findings, public.evidence_campaigns, "
-            "public.evidence_requests"
+            "public.evidence_requests, public.saved_views, "
+            "public.bulk_action_runs"
         )
     except Exception as exc:
         _logger.error("RLS policy application failed (non-fatal): %s", exc)

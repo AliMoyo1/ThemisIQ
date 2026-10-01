@@ -4173,6 +4173,53 @@ CREATE TABLE IF NOT EXISTS evidence_request_events (
 );
 CREATE INDEX IF NOT EXISTS idx_evidence_request_events_request ON evidence_request_events(request_id);
 
+-- ── PLAN-36 P06: Saved views and permission-safe bulk actions ─────────────
+-- filter_json only ever stores query-PARAMETER names/values already
+-- accepted by the owning module's own existing, already-safely-parameterized
+-- list route -- validated against that module's registered allowlist at
+-- write time (modules/saved_views/data_service.py's register_view_schema).
+-- This table never stores SQL, a URL, HTML, or a capability decision, and
+-- there is no SQL-generation step anywhere in this module: applying a
+-- saved view is just replaying its stored params onto the same endpoint a
+-- user would otherwise fill in by hand.
+CREATE TABLE IF NOT EXISTS saved_views (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    org_id          INTEGER NOT NULL REFERENCES organizations(id),
+    module          TEXT NOT NULL,
+    view_key        TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    shared          INTEGER NOT NULL DEFAULT 0,
+    filter_json     TEXT NOT NULL DEFAULT '{}',
+    sort_field      TEXT,
+    sort_dir        TEXT NOT NULL DEFAULT 'asc' CHECK(sort_dir IN ('asc','desc')),
+    columns_json    TEXT,
+    is_default      INTEGER NOT NULL DEFAULT 0,
+    schema_version  INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_saved_views_owner ON saved_views(owner_user_id, module, view_key);
+CREATE INDEX IF NOT EXISTS idx_saved_views_shared ON saved_views(org_id, module, view_key, shared);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_saved_views_default
+    ON saved_views(owner_user_id, module, view_key) WHERE is_default = 1;
+
+-- One row per completed bulk-action run, keyed so a retried request with
+-- the same idempotency key returns the original outcome instead of
+-- re-applying the action a second time.
+CREATE TABLE IF NOT EXISTS bulk_action_runs (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    idempotency_key  TEXT NOT NULL,
+    org_id           INTEGER NOT NULL REFERENCES organizations(id),
+    module           TEXT NOT NULL,
+    action_name      TEXT NOT NULL,
+    actor_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    result_json      TEXT NOT NULL,
+    created_at       TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_bulk_action_runs_key
+    ON bulk_action_runs(org_id, module, action_name, idempotency_key);
+
 -- ── Sentinel: AI Impact Assessments (AIIA) ────────────────────────────────
 CREATE TABLE IF NOT EXISTS sentinel_aiia (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,

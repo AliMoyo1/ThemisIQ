@@ -474,6 +474,7 @@ from modules.orm.routes import router as orm_router
 from modules.governance.routes import router as governance_router
 from modules.readiness.routes import router as readiness_router
 from modules.evidence_campaigns.routes import router as evidence_campaigns_router
+from modules.saved_views.routes import router as saved_views_router
 
 app.include_router(super_admin_router)
 app.include_router(api_v1_router)
@@ -491,6 +492,7 @@ app.include_router(orm_router)
 app.include_router(governance_router)
 app.include_router(readiness_router)
 app.include_router(evidence_campaigns_router)
+app.include_router(saved_views_router)
 
 
 # -- Launcher alias (themisiq.net redirects to /launcher/) -------------------
