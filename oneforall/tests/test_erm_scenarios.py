@@ -84,12 +84,20 @@ def test_delete_refused_when_board_packs_exist(test_db, actor1):
 
 # ── Business-unit scope ──────────────────────────────────────────────────────
 
-def test_list_scenarios_bu_scope_filters(test_db, actor1):
+def test_list_scenarios_bu_scope_filters(test_db):
+    # Creation across multiple business units requires an unrestricted
+    # actor -- _resolve_write_business_unit refuses to let a scoped (or
+    # no-BU) actor assign an arbitrary business_unit_id to a new record.
+    # That permission boundary is covered separately
+    # (test_scoped_actor_cannot_mutate_org_wide_scenario); this test is only
+    # about list_scenarios()'s own bu_scope filtering.
+    _user(test_db, 9)
+    super_actor = _actor(9, is_super_admin=True)
     bu_a = _bu(test_db, "BU A")
     bu_b = _bu(test_db, "BU B")
-    sv.create_scenario({"title": "Org-wide"}, actor1)
-    sv.create_scenario({"title": "BU A scenario", "business_unit_id": bu_a}, actor1)
-    sv.create_scenario({"title": "BU B scenario", "business_unit_id": bu_b}, actor1)
+    sv.create_scenario({"title": "Org-wide"}, super_actor)
+    sv.create_scenario({"title": "BU A scenario", "business_unit_id": bu_a}, super_actor)
+    sv.create_scenario({"title": "BU B scenario", "business_unit_id": bu_b}, super_actor)
 
     scoped = sv.list_scenarios(bu_scope=[bu_a])
     titles = {s["title"] for s in scoped}
@@ -99,14 +107,21 @@ def test_list_scenarios_bu_scope_filters(test_db, actor1):
     assert len(unrestricted) == 3
 
 
-def test_add_link_rejects_cross_bu_target_structurally(test_db, actor1):
+def test_add_link_rejects_cross_bu_target_structurally(test_db):
+    # Same unrestricted-actor rationale as test_list_scenarios_bu_scope_filters
+    # above: creation needs an actor allowed to assign bu_a; using the same
+    # actor for the link attempt isolates the failure to the structural
+    # scenario-vs-target BU mismatch this test targets, not an unrelated
+    # actor-scope rejection (covered by test_scoped_actor_cannot_mutate_org_wide_scenario).
+    _user(test_db, 9)
+    super_actor = _actor(9, is_super_admin=True)
     bu_a = _bu(test_db, "BU A")
     bu_b = _bu(test_db, "BU B")
-    sid = sv.create_scenario({"title": "BU A scenario", "business_unit_id": bu_a}, actor1)
+    sid = sv.create_scenario({"title": "BU A scenario", "business_unit_id": bu_a}, super_actor)
     risk_id = ds.create_enterprise_risk({"title": "BU B risk", "likelihood": 3, "impact": 3, "business_unit_id": bu_b})
 
     with pytest.raises(sv.ForbiddenScopeError):
-        sv.add_scenario_link(sid, "risk", risk_id, actor=actor1)
+        sv.add_scenario_link(sid, "risk", risk_id, actor=super_actor)
     assert sv.list_scenario_links(sid) == []
 
 
@@ -135,6 +150,7 @@ def test_scoped_actor_cannot_mutate_org_wide_scenario(test_db):
     with pytest.raises(sv.ForbiddenScopeError):
         sv.add_scenario_link(sid, "risk", risk_id, actor=scoped_actor)
 
+
 def test_link_invalid_type_rejected(test_db, actor1):
     sid = sv.create_scenario({"title": "S"}, actor1)
     with pytest.raises(sv.ScenarioError):
@@ -145,6 +161,50 @@ def test_link_nonexistent_target_rejected(test_db, actor1):
     sid = sv.create_scenario({"title": "S"}, actor1)
     with pytest.raises(sv.ScenarioError):
         sv.add_scenario_link(sid, "risk", 999999, actor=actor1)
+
+
+# ── Delta validation ─────────────────────────────────────────────────────────
+
+def test_delta_must_be_an_object(test_db, actor1):
+    sid = sv.create_scenario({"title": "S"}, actor1)
+    risk_id = ds.create_enterprise_risk({"title": "R", "likelihood": 3, "impact": 3})
+    with pytest.raises(sv.ScenarioError):
+        sv.add_scenario_link(sid, "risk", risk_id, delta=[1, 2, 3], actor=actor1)
+
+
+def test_delta_rejects_unsupported_field_for_link_type(test_db, actor1):
+    sid = sv.create_scenario({"title": "S"}, actor1)
+    control_id = _control(test_db, "C")
+    with pytest.raises(sv.ScenarioError):
+        # likelihood_override is a 'risk' field, not a 'control' one.
+        sv.add_scenario_link(sid, "control", control_id, delta={"likelihood_override": 5}, actor=actor1)
+
+
+def test_delta_rejects_out_of_range_likelihood(test_db, actor1):
+    sid = sv.create_scenario({"title": "S"}, actor1)
+    risk_id = ds.create_enterprise_risk({"title": "R", "likelihood": 3, "impact": 3})
+    with pytest.raises(sv.ScenarioError):
+        sv.add_scenario_link(sid, "risk", risk_id, delta={"likelihood_override": 6}, actor=actor1)
+    with pytest.raises(sv.ScenarioError):
+        sv.add_scenario_link(sid, "risk", risk_id, delta={"likelihood_override": 0}, actor=actor1)
+    with pytest.raises(sv.ScenarioError):
+        sv.add_scenario_link(sid, "risk", risk_id, delta={"likelihood_override": "five"}, actor=actor1)
+    assert sv.list_scenario_links(sid) == []
+
+
+def test_delta_rejects_ice_score_outside_allowed_set(test_db, actor1):
+    sid = sv.create_scenario({"title": "S"}, actor1)
+    control_id = _control(test_db, "C")
+    with pytest.raises(sv.ScenarioError):
+        sv.add_scenario_link(sid, "control", control_id, delta={"ice_score_override": 55}, actor=actor1)
+    assert sv.list_scenario_links(sid) == []
+
+
+def test_delta_rejects_negative_emv_override(test_db, actor1):
+    sid = sv.create_scenario({"title": "S"}, actor1)
+    risk_id = ds.create_enterprise_risk({"title": "R", "likelihood": 3, "impact": 3})
+    with pytest.raises(sv.ScenarioError):
+        sv.add_scenario_link(sid, "risk", risk_id, delta={"emv_inherent_override": -100}, actor=actor1)
 
 
 def test_relink_upserts_delta(test_db, actor1):
@@ -275,6 +335,46 @@ def test_generate_board_pack_chains_hashes(test_db, actor1):
     assert sv.verify_board_pack_chain() == []
 
 
+def test_board_pack_inherits_scenario_bu_and_is_isolated_from_other_bus(test_db):
+    _user(test_db, 4)
+    _user(test_db, 5)
+    bu_a = _bu(test_db, "BU A")
+    bu_b = _bu(test_db, "BU B")
+    bu_a_actor = _actor(4, business_unit_id=bu_a)
+    bu_b_actor = _actor(5, business_unit_id=bu_b)
+
+    sid = sv.create_scenario({"title": "BU A scenario"}, bu_a_actor)
+    pack_id = sv.generate_board_pack(scenario_id=sid, actor=bu_a_actor)
+
+    pack = sv.get_board_pack(pack_id)
+    assert pack["business_unit_id"] == bu_a
+
+    with pytest.raises(sv.ForbiddenScopeError):
+        sv.get_board_pack(pack_id, bu_scope=sv.bu_scope_ids(bu_b_actor))
+    assert sv.list_board_packs(bu_scope=sv.bu_scope_ids(bu_b_actor)) == []
+
+    same_bu = sv.get_board_pack(pack_id, bu_scope=sv.bu_scope_ids(bu_a_actor))
+    assert same_bu["id"] == pack_id
+    assert any(p["id"] == pack_id for p in sv.list_board_packs(bu_scope=sv.bu_scope_ids(bu_a_actor)))
+    assert sv.verify_board_pack_chain(bu_scope=sv.bu_scope_ids(bu_a_actor)) == []
+
+
+def test_baseline_only_pack_requires_unrestricted_actor(test_db, actor1):
+    # actor1 has no assigned business_unit_id (bu_scope_ids -> [-1], not
+    # None), so it is not unrestricted either -- only a true super-admin
+    # (or actor=None, the scheduler/system path) may create a baseline-only
+    # (no scenario) pack, since it has no single business unit to freeze.
+    with pytest.raises(sv.ForbiddenScopeError):
+        sv.generate_board_pack(scenario_id=None, actor=actor1)
+
+    _user(test_db, 6)
+    super_actor = _actor(6, is_super_admin=True)
+    pack_id = sv.generate_board_pack(scenario_id=None, actor=super_actor)
+    pack = sv.get_board_pack(pack_id)
+    assert pack["business_unit_id"] is None
+    assert pack["source_hashes"] == {"baseline_snapshot": pack["source_hashes"]["baseline_snapshot"]}
+
+
 def test_verify_chain_detects_tampering(test_db, actor1):
     sid = sv.create_scenario({"title": "S"}, actor1)
     pack_id = sv.generate_board_pack(scenario_id=sid, actor=actor1)
@@ -394,3 +494,37 @@ def test_generate_narrative_invalid_citation_rejected(test_db, actor1, monkeypat
     assert result["ok"] is False
     assert "unknown source" in result["reason"]
     assert sv.get_board_pack(pack_id)["narrative"] is None
+
+
+def test_narrative_write_fails_closed_if_pack_published_mid_request(test_db, actor1, monkeypatch):
+    """Simulates the race the atomic UPDATE ... WHERE status='draft' guards
+    against: the pack already has a human narrative (so it's publishable),
+    and get published by a second request WHILE the (slow) AI call for a
+    regenerate is still in flight. The final conditional UPDATE must then
+    affect 0 rows and the call must fail rather than silently overwriting
+    the now-published narrative."""
+    sid = sv.create_scenario({"title": "S"}, actor1)
+    risk_id = ds.create_enterprise_risk({"title": "R", "likelihood": 3, "impact": 3})
+    sv.add_scenario_link(sid, "risk", risk_id, actor=actor1)
+    pack_id = sv.generate_board_pack(scenario_id=sid, actor=actor1)
+    sv.update_board_pack_narrative(pack_id, "Original human narrative.", [], "human", actor1)
+    allowed_ref = f"risk:{risk_id}"
+
+    def _concurrent_publish_then_respond(*a, **k):
+        # Stands in for another request's publish_board_pack() completing
+        # while this (mocked, slow) AI call is still "in flight".
+        sv.publish_board_pack(pack_id, actor1)
+        return json.dumps({
+            "narrative": "AI tried to overwrite the published narrative.",
+            "citations": [{"ref": allowed_ref, "claim": "x"}],
+        })
+
+    monkeypatch.setattr(sv, "is_configured", lambda: True)
+    monkeypatch.setattr(sv, "create_message", _concurrent_publish_then_respond)
+
+    with pytest.raises(sv.ScenarioError):
+        sv.generate_board_pack_narrative(pack_id)
+
+    pack = sv.get_board_pack(pack_id)
+    assert pack["status"] == "published"
+    assert pack["narrative"] == "Original human narrative."  # untouched by the race
