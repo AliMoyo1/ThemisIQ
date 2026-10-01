@@ -1,5 +1,15 @@
 # PLAN-36 progress ledger
 
+## 2026-10-01 — F18 committed and pushed (user-authorized)
+
+Commit `15c81d7` on `master`, pushed to `origin/master` (`48ba49e..15c81d7`).
+8 files changed, 389 insertions(+), 30 deletions(-). Covers the full F18
+session below, verified under the corrected `.venv` interpreter (full
+backend suite 100% clean, 13 legitimate skips; full UI/Playwright suite
+100% clean, 2 legitimate skips) -- including a real test-fixture gap found
+and fixed in `test_governance_controls.py` during verification (see item 3
+under "Verification commands and results" below).
+
 ## 2026-10-01 P07 discovery session — F18: ERM residual default did not match real methodology
 
 P07 (ERM scenario, KRI, control linkage, board-pack snapshots) requires
@@ -142,8 +152,8 @@ Explicitly unverified/skipped this session:
   (scenarios table, linkage join tables, baseline-vs-scenario comparison,
   immutable hash-chained board-pack snapshots, AI-narrative-with-citations)
   is still fully ahead.
-- Not committed; pending user authorization per this session's established
-  per-batch pattern.
+- Committed and pushed (`15c81d7`) -- see the entry at the top of this
+  ledger.
 
 ## 2026-10-01 — P06 committed and pushed (user-authorized)
 
