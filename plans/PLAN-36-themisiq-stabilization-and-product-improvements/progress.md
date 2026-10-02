@@ -1,3 +1,64 @@
+## 2026-10-01 F19 final sweep — reports/list, timeline, compliance scores, remote sessions
+
+Outcome: closed every explicitly-named remaining gap from the prior F19
+continuation session's "still not fixed" list. User asked to "finish all
+the gaps" directly after that slice was committed.
+
+Fixed:
+
+- `GET /api/reports/list`: one-line fix -- `list_audits()` already accepted
+  `bu_scope`, the route just never passed it.
+- `grid_timeline` (`PUT /api/timeline/{tid}`): new `_timeline_in_scope_or_404`.
+- `grid_compliance_scores` (`POST`/`GET /api/scores/{audit_id}`): existing
+  `_audit_in_scope_or_404` guard added to both routes.
+- The full `grid_remote_sessions`/`grid_remote_findings`/notes/participants
+  family (video/remote-audit session management) -- the largest remaining
+  surface, 10 routes: list (both branches), create, detail (the widest
+  read-side leak, since it also returns that session's participants/
+  findings/notes inline), update, start, end, finding-create (also gained
+  an optional-`control_id` check, same class as earlier NC/policy-request
+  fixes), finding-update, note-create, participant-add. Two new helpers:
+  `_remote_session_in_scope_or_404` (tolerant of a NULL `audit_id`, which
+  stays org-wide by the same convention used everywhere else) and
+  `_remote_finding_in_scope_or_404`.
+
+New file `tests/ui/test_grid_remote_sessions_and_misc_scope.py` (9 tests).
+Red/green proved the remote-session detail route (temporarily removed the
+guard, confirmed the test failed with 200 instead of 404 for the expected
+reason, restored, confirmed green again). All 23 GRID scope tests across
+the three test files added this session (`test_grid_nc_write_scope.py`,
+`test_grid_additional_write_scope.py`,
+`test_grid_remote_sessions_and_misc_scope.py`) pass together.
+
+With this, every GRID route reachable from the route table that touches an
+audit-scoped table enforces business-unit scope. Only `grid_vendors`/
+`grid_vendor_assessments`/`grid_frameworks` remain unscoped, confirmed
+deliberate (genuinely org-wide shared registries, not audit/BU-scoped
+concepts).
+
+Updated `findings.md` (F19's closing note) and `task_plan.md`'s release-gate
+line accordingly.
+
+Verification commands and results (from `oneforall/`,
+`../.venv/Scripts/python.exe`):
+
+1. `pytest tests/ -k grid -q` (pre-existing + prior-session GRID tests,
+   before writing new ones, to confirm no regressions from the route
+   changes) -- 34 passed.
+2. `pytest tests/ui/test_grid_remote_sessions_and_misc_scope.py -v` -- 9
+   passed.
+3. `pytest tests/ui/test_grid_remote_sessions_and_misc_scope.py
+   tests/ui/test_grid_additional_write_scope.py
+   tests/ui/test_grid_nc_write_scope.py -q` (all three GRID scope test
+   files together) -- 23 passed.
+4. Full backend suite (`pytest tests/ --ignore=tests/ui -q`) -- 100%
+   progress bar, zero `F`/`E` markers, 13 legitimate pre-existing skips,
+   only pre-existing `on_event`/`utcnow` deprecation warnings,
+   `PYTEST_EXIT:0`.
+5. Full UI (Playwright) suite (`pytest tests/ui -q`) -- 100% progress bar,
+   zero `F`/`E` markers, 2 legitimate pre-existing skips, only pre-existing
+   `on_event` deprecation warnings, `PYTEST_EXIT:0`.
+
 ## 2026-10-01 F19 continuation — mappings, reminders, saved reports, policy requests, approvals, share links
 
 Outcome: closed F19's own named remainder (mappings, reminders, saved

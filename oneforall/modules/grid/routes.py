@@ -140,6 +140,48 @@ def _evidence_item_in_scope_or_404(request: Request, item_id: int) -> None:
     _control_in_scope_or_404(request, row["control_id"])
 
 
+def _remote_session_in_scope_or_404(request: Request, sid: int) -> "int | None":
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT audit_id FROM grid_remote_sessions WHERE id=%s", (sid,)
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise HTTPException(404, "Remote session not found")
+    audit_id = row["audit_id"]
+    if audit_id is not None:
+        _audit_in_scope_or_404(request, audit_id)
+    return audit_id
+
+
+def _remote_finding_in_scope_or_404(request: Request, fid: int) -> None:
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT session_id FROM grid_remote_findings WHERE id=%s", (fid,)
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise HTTPException(404, "Finding not found")
+    _remote_session_in_scope_or_404(request, row["session_id"])
+
+
+def _timeline_in_scope_or_404(request: Request, tid: int) -> None:
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT audit_id FROM grid_timeline WHERE id=%s", (tid,)
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise HTTPException(404, "Timeline entry not found")
+    _audit_in_scope_or_404(request, row["audit_id"])
+
+
 def _approval_in_scope_or_404(request: Request, approval_id: int) -> None:
     db = get_db()
     try:
@@ -1514,6 +1556,7 @@ async def api_share_revoke(request: Request, sid: int):
 @router.put("/api/timeline/{tid}")
 @require_capability("grid.audit.edit")
 async def api_timeline_update(request: Request, tid: int):
+    _timeline_in_scope_or_404(request, tid)
     body = await _json_body(request)
     ds.update_timeline(tid, body)
     ds.log_activity(_uid(request), "update_timeline", "grid_timeline", tid)
@@ -1527,6 +1570,7 @@ async def api_timeline_update(request: Request, tid: int):
 @router.post("/api/scores/{audit_id}")
 @require_capability("grid.audit.edit")
 async def api_scores_record(request: Request, audit_id: int):
+    _audit_in_scope_or_404(request, audit_id)
     body = await _json_body(request)
     sid = ds.record_score(audit_id, body.get("score", 0), body.get("details"))
     ds.log_activity(_uid(request), "record_score", "grid_compliance_scores", sid,
@@ -1537,6 +1581,7 @@ async def api_scores_record(request: Request, audit_id: int):
 @router.get("/api/scores/{audit_id}")
 @require_capability("module.grid.access")
 async def api_scores_list(request: Request, audit_id: int):
+    _audit_in_scope_or_404(request, audit_id)
     limit = int(request.query_params.get("limit", "60"))
     return JSONResponse(ds.list_scores(audit_id, limit))
 
@@ -1788,22 +1833,32 @@ async def api_ai_chat(request: Request):
 @require_capability("grid.audits.manage")
 async def api_remote_sessions_list(request: Request):
     """List remote audit sessions, optionally filtered by audit_id."""
+    raw_audit_id = request.query_params.get("audit_id")
     from database import get_db
     db = get_db()
     try:
-        audit_id = request.query_params.get("audit_id")
-        if audit_id:
+        if raw_audit_id:
+            audit_id = _parse_positive_id(raw_audit_id, "audit_id")
+            _audit_in_scope_or_404(request, audit_id)
             rows = db.execute(
                 "SELECT rs.*, u.full_name as auditor_name FROM grid_remote_sessions rs "
                 "LEFT JOIN users u ON rs.auditor_id = u.id "
-                "WHERE rs.audit_id = %s ORDER BY rs.scheduled_start DESC", (int(audit_id),)
+                "WHERE rs.audit_id = %s ORDER BY rs.scheduled_start DESC", (audit_id,)
             ).fetchall()
         else:
-            rows = db.execute(
+            q = (
                 "SELECT rs.*, u.full_name as auditor_name FROM grid_remote_sessions rs "
                 "LEFT JOIN users u ON rs.auditor_id = u.id "
-                "ORDER BY rs.scheduled_start DESC"
-            ).fetchall()
+                "LEFT JOIN grid_audits a ON a.id = rs.audit_id"
+            )
+            params = []
+            scope = bu_scope_ids(request.state.user)
+            if scope is not None:
+                placeholders = ",".join(["%s"] * len(scope))
+                q += f" WHERE (a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+                params = list(scope)
+            q += " ORDER BY rs.scheduled_start DESC"
+            rows = db.execute(q, params).fetchall()
     finally:
         db.close()
     return JSONResponse([dict(r) for r in rows])
@@ -1814,6 +1869,11 @@ async def api_remote_sessions_list(request: Request):
 async def api_remote_session_create(request: Request):
     """Create a new remote audit session."""
     data = await _json_body(request)
+    raw_audit_id = data.get("audit_id")
+    audit_id = None
+    if raw_audit_id not in (None, ""):
+        audit_id = _parse_positive_id(raw_audit_id, "audit_id")
+        _audit_in_scope_or_404(request, audit_id)
     from database import get_db
     db = get_db()
     try:
@@ -1823,7 +1883,7 @@ async def api_remote_session_create(request: Request):
             "(audit_id, title, description, session_type, scheduled_start, scheduled_end, "
             "meeting_link, auditor_id, created_by) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
-                data.get("audit_id"),
+                audit_id,
                 data.get("title", "Remote Audit Session"),
                 data.get("description", ""),
                 data.get("session_type", "video"),
@@ -1854,6 +1914,7 @@ async def api_remote_session_create(request: Request):
 @require_capability("grid.audits.manage")
 async def api_remote_session_get(request: Request, sid: int):
     """Get a remote session with participants and findings."""
+    _remote_session_in_scope_or_404(request, sid)
     from database import get_db
     db = get_db()
     try:
@@ -1885,6 +1946,7 @@ async def api_remote_session_get(request: Request, sid: int):
 @require_capability("grid.audits.manage")
 async def api_remote_session_update(request: Request, sid: int):
     """Update a remote session (status, times, link, etc.)."""
+    _remote_session_in_scope_or_404(request, sid)
     data = await _json_body(request)
     from database import get_db
     db = get_db()
@@ -1913,6 +1975,7 @@ async def api_remote_session_update(request: Request, sid: int):
 @require_capability("grid.audits.manage")
 async def api_remote_session_start(request: Request, sid: int):
     """Mark a session as in-progress (started)."""
+    _remote_session_in_scope_or_404(request, sid)
     from database import get_db
     db = get_db()
     try:
@@ -1931,6 +1994,7 @@ async def api_remote_session_start(request: Request, sid: int):
 @require_capability("grid.audits.manage")
 async def api_remote_session_end(request: Request, sid: int):
     """Mark a session as completed."""
+    _remote_session_in_scope_or_404(request, sid)
     from database import get_db
     db = get_db()
     try:
@@ -1951,7 +2015,13 @@ async def api_remote_session_end(request: Request, sid: int):
 @require_capability("grid.audits.manage")
 async def api_remote_finding_create(request: Request, sid: int):
     """Capture a finding during a remote audit session."""
+    _remote_session_in_scope_or_404(request, sid)
     data = await _json_body(request)
+    raw_control_id = data.get("control_id")
+    control_id = None
+    if raw_control_id not in (None, ""):
+        control_id = _parse_positive_id(raw_control_id, "control_id")
+        _control_in_scope_or_404(request, control_id)
     from database import get_db
     db = get_db()
     try:
@@ -1962,7 +2032,7 @@ async def api_remote_finding_create(request: Request, sid: int):
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 sid,
-                data.get("control_id"),
+                control_id,
                 data.get("finding_type", "observation"),
                 data.get("severity", "minor"),
                 data.get("title", "Untitled finding"),
@@ -2000,6 +2070,7 @@ async def api_remote_finding_create(request: Request, sid: int):
 @require_capability("grid.audits.manage")
 async def api_remote_finding_update(request: Request, fid: int):
     """Update a remote finding (status, severity, description)."""
+    _remote_finding_in_scope_or_404(request, fid)
     data = await _json_body(request)
     from database import get_db
     db = get_db()
@@ -2027,6 +2098,7 @@ async def api_remote_finding_update(request: Request, fid: int):
 @require_capability("grid.audits.manage")
 async def api_remote_note_create(request: Request, sid: int):
     """Add a timestamped note during a remote session."""
+    _remote_session_in_scope_or_404(request, sid)
     data = await _json_body(request)
     from database import get_db
     db = get_db()
@@ -2049,6 +2121,7 @@ async def api_remote_note_create(request: Request, sid: int):
 @require_capability("grid.audits.manage")
 async def api_remote_participant_add(request: Request, sid: int):
     """Add a participant to a remote session."""
+    _remote_session_in_scope_or_404(request, sid)
     data = await _json_body(request)
     from database import get_db
     db = get_db()
@@ -2223,7 +2296,7 @@ async def api_report_docx(request: Request, audit_id: int):
 @require_capability("grid.audits.view")
 async def api_reports_list(request: Request):
     """List all audits with stats for the reports view."""
-    audits = ds.list_audits()
+    audits = ds.list_audits(bu_scope=bu_scope_ids(request.state.user))
     result = []
     for a in audits:
         stats = ds.get_audit_stats(a["id"])
