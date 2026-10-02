@@ -141,9 +141,12 @@ def list_audits(bu_scope=None):
         where_sql = ""
         params: list = []
         if bu_scope is not None:
-            ph = ",".join(["%s"] * len(bu_scope))
-            where_sql = f" WHERE (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
-            params = list(bu_scope)
+            if bu_scope:
+                ph = ",".join(["%s"] * len(bu_scope))
+                where_sql = f" WHERE (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
+                params = list(bu_scope)
+            else:
+                where_sql = " WHERE a.business_unit_id IS NULL"
         rows = _dicts(db.execute(
             "SELECT a.*, f.name AS framework_name, f.color AS framework_color, "
             "u.full_name AS lead_name, "
@@ -1653,13 +1656,18 @@ def list_share_links(audit_id):
     finally:
         db.close()
 
-def validate_share_link(token):
+def validate_share_link(token, recipient_email=None):
     db = get_db()
     try:
         link = _dict(db.execute("SELECT * FROM grid_share_links WHERE token=%s AND active=1", (token,)).fetchone())
         if not link:
             return None
         if link.get("expires_at") and to_dt(link["expires_at"]) < utcnow():
+            return None
+        invited_email = (link.get("auditor_email") or "").strip()
+        if invited_email and (
+            not recipient_email or invited_email.casefold() != recipient_email.casefold()
+        ):
             return None
         db.execute("UPDATE grid_share_links SET access_count=access_count+1 WHERE id=%s", (link["id"],))
         db.commit()
@@ -2247,14 +2255,20 @@ def unlock_audit(audit_id):
 # Audit program dashboard data
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_program_dashboard():
-    """
-    Multi-audit program overview: overall compliance posture,
-    per-audit stats, NC summary, trend data.
-    """
+def get_program_dashboard(bu_scope=None):
+    """Multi-audit posture, findings, and trends within the caller's BU scope."""
     db = get_db()
     try:
-        # Per-audit stats
+        scope_sql = "1=1"
+        scope_params = []
+        if bu_scope is not None:
+            if bu_scope:
+                placeholders = ",".join(["%s"] * len(bu_scope))
+                scope_sql = f"(a.business_unit_id IS NULL OR a.business_unit_id IN ({placeholders}))"
+                scope_params = list(bu_scope)
+            else:
+                scope_sql = "a.business_unit_id IS NULL"
+
         audits = _dicts(db.execute(f"""
             SELECT a.id, a.name, a.status, a.audit_date, a.is_locked,
                    a.parent_audit_id,
@@ -2268,38 +2282,39 @@ def get_program_dashboard():
             LEFT JOIN grid_frameworks f ON a.framework_id=f.id
             LEFT JOIN users u ON a.lead_id=u.id
             LEFT JOIN grid_controls c ON c.audit_id=a.id
+            WHERE {scope_sql}
             GROUP BY a.id, a.name, a.status, a.audit_date, a.is_locked,
                      a.parent_audit_id, a.created_at
             ORDER BY a.created_at DESC
-        """).fetchall())
+        """, scope_params).fetchall())
 
-        for a in audits:
-            t = a.get("total_controls") or 0
-            c = a.get("complete_controls") or 0
-            a["completion_pct"] = round(c / t * 100) if t > 0 else 0
+        for audit in audits:
+            total = audit.get("total_controls") or 0
+            complete = audit.get("complete_controls") or 0
+            audit["completion_pct"] = round(complete / total * 100) if total else 0
 
-        # Aggregate totals
-        total_controls = sum(a.get("total_controls", 0) for a in audits)
-        complete_controls = sum(a.get("complete_controls", 0) for a in audits)
-        overdue_controls = sum(a.get("overdue_controls", 0) for a in audits)
+        total_controls = sum(a.get("total_controls") or 0 for a in audits)
+        complete_controls = sum(a.get("complete_controls") or 0 for a in audits)
+        overdue_controls = sum(a.get("overdue_controls") or 0 for a in audits)
         overall_pct = round(complete_controls / total_controls * 100) if total_controls else 0
 
-        # NC summary across all audits
-        nc_stats = _dict(db.execute("""
+        nc_stats = _dict(db.execute(f"""
             SELECT COUNT(*) AS total_ncs,
-                   SUM(CASE WHEN status='closed' OR cap_status='Closed' THEN 1 ELSE 0 END) AS closed_ncs,
-                   SUM(CASE WHEN severity IN ('critical','major') AND status!='closed'
-                       AND cap_status NOT IN ('Closed','Verification') THEN 1 ELSE 0 END) AS critical_open
-            FROM grid_non_conformances
-        """).fetchone()) or {}
+                   SUM(CASE WHEN nc.status='closed' OR nc.cap_status='Closed' THEN 1 ELSE 0 END) AS closed_ncs,
+                   SUM(CASE WHEN nc.severity IN ('critical','major') AND nc.status!='closed'
+                       AND nc.cap_status NOT IN ('Closed','Verification') THEN 1 ELSE 0 END) AS critical_open
+            FROM grid_non_conformances nc
+            JOIN grid_audits a ON a.id=nc.audit_id
+            WHERE {scope_sql}
+        """, scope_params).fetchone()) or {}
 
-        # Compliance score trend (last 30 snapshots per audit)
-        trends = _dicts(db.execute("""
+        trends = _dicts(db.execute(f"""
             SELECT cs.audit_id, a.name AS audit_name, cs.score, cs.created_at
             FROM grid_compliance_scores cs
             JOIN grid_audits a ON cs.audit_id=a.id
+            WHERE {scope_sql}
             ORDER BY cs.created_at DESC LIMIT 180
-        """).fetchall())
+        """, scope_params).fetchall())
 
         return {
             "total_audits": len(audits),
@@ -2307,9 +2322,9 @@ def get_program_dashboard():
             "complete_controls": complete_controls,
             "overdue_controls": overdue_controls,
             "overall_pct": overall_pct,
-            "nc_total": nc_stats.get("total_ncs", 0),
-            "nc_closed": nc_stats.get("closed_ncs", 0),
-            "nc_critical_open": nc_stats.get("critical_open", 0),
+            "nc_total": nc_stats.get("total_ncs") or 0,
+            "nc_closed": nc_stats.get("closed_ncs") or 0,
+            "nc_critical_open": nc_stats.get("critical_open") or 0,
             "audits": audits,
             "score_trends": trends,
         }
@@ -2317,7 +2332,8 @@ def get_program_dashboard():
         db.close()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
+# =============================================================================
+
 # ARIA policy integration
 # ═════════════════════════════════════════════════════════════════════════════
 

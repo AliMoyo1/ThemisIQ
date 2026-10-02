@@ -151,6 +151,7 @@ def audit_share_html(
     <h2>&#128279; Audit Access Granted</h2>
     <p>Hi {_esc(auditor_name) or 'there'},</p>
     <p><strong>{_esc(created_by) or 'G.R.I.D AI'}</strong> has granted you read-only access to: <strong>{_esc(audit_name)}</strong></p>
+    <p>Sign in to ThemisIQ with this email address, then open the link below. The link only works for your account.</p>
     {expiry_line}
     <a href="{_esc(share_url)}" class="btn">View Audit</a>
     <hr/><p style="font-size:12px;color:#6b7280">Read-only access. Contact {_esc(created_by)} for write access.</p>

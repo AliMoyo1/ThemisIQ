@@ -8,17 +8,19 @@ All routes are prefixed with /grid and guarded by capability-based RBAC.
 import io
 import os
 import json
+import re
 import uuid
 import shutil
 import zipfile
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from database import get_db, insert_returning_id
+from database import get_db, get_current_tenant, insert_returning_id
 from core.middleware import require_module, require_capability
 from core.sanitize import sanitize_str as _s
 from core.shell_context import shell_ctx
@@ -111,6 +113,22 @@ def _control_in_scope_or_404(request: Request, control_id: int) -> None:
         and row["business_unit_id"] not in scope
     ):
         raise HTTPException(404, "Control not found")
+
+def _control_in_audit_or_404(control_id: int, audit_id: int | None) -> None:
+    """A scoped control must also belong to the record's owning audit."""
+    if audit_id is None:
+        raise HTTPException(404, "Control not found in audit")
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT 1 FROM grid_controls WHERE id=%s AND audit_id=%s",
+            (control_id, audit_id),
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        raise HTTPException(404, "Control not found in audit")
+
 
 def _evidence_file_control_in_scope_or_404(request: Request, evidence_id: int) -> int:
     db = get_db()
@@ -217,6 +235,63 @@ def _report_in_scope_or_404(request: Request, rid: int) -> dict:
     if rpt.get("audit_id") is not None:
         _audit_in_scope_or_404(request, rpt["audit_id"])
     return rpt
+
+
+def _report_file_path_or_404(rpt: dict, *, allow_legacy: bool = True) -> Path:
+    """Accept only GRID-generated report names inside this tenant's report area."""
+    from modules.grid.report_service import REPORTS_DIR
+
+    raw_path = rpt.get("file_path")
+    audit_id = rpt.get("audit_id")
+    report_type = rpt.get("report_type")
+    if not isinstance(raw_path, str) or not raw_path or report_type not in ("pdf", "docx"):
+        raise HTTPException(404, "Report file not found")
+    try:
+        path = Path(raw_path).resolve()
+        root = Path(REPORTS_DIR).resolve()
+        relative = path.relative_to(root)
+    except (OSError, RuntimeError, ValueError):
+        raise HTTPException(404, "Report file not found")
+    tenant = get_current_tenant() or "public"
+    if not (
+        (len(relative.parts) == 2 and relative.parts[0] == tenant)
+        or (allow_legacy and len(relative.parts) == 1)
+    ):
+        raise HTTPException(404, "Report file not found")
+    match = re.fullmatch(r"grid-report-(\d+)-\d+\.(pdf|docx)", path.name)
+    if (
+        match is None
+        or path.name != rpt.get("filename")
+        or int(match.group(1)) != audit_id
+        or match.group(2) != report_type
+    ):
+        raise HTTPException(404, "Report file not found")
+    return path
+
+
+def _configured_share_origin_or_503() -> str:
+    """Only an administrator-configured origin may receive emailed share tokens."""
+    configured = os.getenv("APP_URL", "").strip()
+    try:
+        parsed = urlsplit(configured)
+        hostname = parsed.hostname
+        parsed.port  # Reject malformed port syntax before building the URL.
+        scheme = parsed.scheme.lower()
+    except ValueError:
+        raise HTTPException(503, "APP_URL must be configured for share-link email")
+    if (
+        not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or (
+            scheme != "https"
+            and not (scheme == "http" and hostname in ("localhost", "127.0.0.1"))
+        )
+    ):
+        raise HTTPException(503, "APP_URL must be configured for share-link email")
+    return f"{scheme}://{parsed.netloc}"
 
 
 def _share_link_in_scope_or_404(request: Request, sid: int) -> dict:
@@ -1016,6 +1091,8 @@ async def api_reminders_create(request: Request):
     if raw_control_id not in (None, ""):
         control_id = _parse_positive_id(raw_control_id, "control_id")
         _control_in_scope_or_404(request, control_id)
+        if raw_audit_id not in (None, ""):
+            _control_in_audit_or_404(control_id, audit_id)
         body["control_id"] = control_id
     rid = ds.create_reminder(body)
     ds.log_activity(_uid(request), "create_reminder", "grid_reminders", rid)
@@ -1485,22 +1562,56 @@ async def api_share_create(request: Request):
     audit_id = _parse_audit_id(body.get("audit_id"))
     _audit_in_scope_or_404(request, audit_id)
     body["audit_id"] = audit_id
+    raw_email = body.get("auditor_email")
+    if raw_email is not None and not isinstance(raw_email, str):
+        raise HTTPException(422, "Valid auditor_email is required")
+    auditor_email = (raw_email or "").strip()
+    expires_days = body.get("expires_days", 30)
+    if type(expires_days) is not int or not 1 <= expires_days <= 365:
+        raise HTTPException(422, "expires_days must be between 1 and 365")
+    if auditor_email:
+        # Invitations require an existing account in this organization. A
+        # share token adds access to one audit; it does not create a login.
+        db = get_db()
+        try:
+            recipient = db.execute(
+                "SELECT u.id, COALESCE(o.slug, 'public') AS org_slug, o.status AS org_status "
+                "FROM users u LEFT JOIN organizations o ON o.id=u.org_id "
+                "WHERE LOWER(u.email)=LOWER(%s) AND u.is_active=1",
+                (auditor_email,),
+            ).fetchone()
+            roles = []
+            if recipient is not None:
+                roles = [
+                    row["role_key"] for row in db.execute(
+                        "SELECT role_key FROM user_roles WHERE user_id=%s",
+                        (recipient["id"],),
+                    ).fetchall()
+                ]
+        finally:
+            db.close()
+        from core.rbac import has_capability
+        if (
+            recipient is None
+            or recipient["org_slug"] != (request.state.user.get("org_slug") or "public")
+            or (recipient["org_status"] is not None and recipient["org_status"] != "active")
+            or not has_capability({"roles": roles}, "module.grid.access")
+        ):
+            raise HTTPException(422, "Auditor needs an active account with GRID access in this organization")
+    origin = _configured_share_origin_or_503() if auditor_email else None
     result = ds.create_share_link(
         audit_id, _uid(request),
-        body.get("auditor_email"), body.get("expires_days", 30),
+        auditor_email or None, expires_days,
     )
     ds.log_activity(_uid(request), "create_share_link", "grid_share_links", result["id"])
 
     # ── Send email notification if auditor_email provided ───────────────
-    auditor_email = (body.get("auditor_email") or "").strip()
     if auditor_email:
         from modules.grid.email_service import send_email, audit_share_html
 
         audit = ds.get_audit(audit_id)
         audit_name = audit.get("name", "Audit") if audit else "Audit"
 
-        # Build the share URL from request origin
-        origin = str(request.base_url).rstrip("/")
         share_url = f"{origin}/grid/api/share-links/validate/{result['token']}"
 
         creator = request.state.user.get("full_name") or request.state.user.get("username", "")
@@ -1527,18 +1638,47 @@ async def api_share_list(request: Request, audit_id: int):
     return JSONResponse(ds.list_share_links(audit_id))
 
 
-@router.get("/api/share-links/validate/{token}")
+@router.get("/api/share-links/validate/{token}", response_class=HTMLResponse)
 @require_capability("module.grid.access")
 async def api_share_validate(request: Request, token: str):
-    # Deliberately NOT audit/BU-scoped: the token itself (a 32-byte random
-    # secret) is the credential for this one endpoint, meant to be reachable
-    # by whoever holds the link (e.g. an external auditor), the same model
-    # every other share-link system uses.
-    link = ds.validate_share_link(token)
+    """Open a read-only audit view for a signed-in holder of this share link."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+        raise HTTPException(404, "Invalid or expired share link")
+    link = ds.validate_share_link(token, recipient_email=request.state.user["email"])
     if not link:
         raise HTTPException(404, "Invalid or expired share link")
-    return JSONResponse(link)
-
+    db = get_db()
+    try:
+        audit = db.execute(
+            "SELECT id, name, audit_type, status, scope, objective, "
+            "criteria, methodology, conclusion, start_date, end_date, audit_date "
+            "FROM grid_audits WHERE id=%s",
+            (link["audit_id"],),
+        ).fetchone()
+        if audit is None:
+            raise HTTPException(404, "Invalid or expired share link")
+        controls = db.execute(
+            "SELECT control_id, name, description, risk_level, status, due_date "
+            "FROM grid_controls WHERE audit_id=%s ORDER BY control_id",
+            (link["audit_id"],),
+        ).fetchall()
+        findings = db.execute(
+            "SELECT title, description, severity, status, due_date "
+            "FROM grid_non_conformances WHERE audit_id=%s ORDER BY created_at",
+            (link["audit_id"],),
+        ).fetchall()
+    finally:
+        db.close()
+    response = _templates.TemplateResponse(request, "shared_audit.html", {
+        "audit": dict(audit),
+        "controls": [dict(row) for row in controls],
+        "findings": [dict(row) for row in findings],
+        "expires_at": link.get("expires_at"),
+    })
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
 
 @router.put("/api/share-links/{sid}/revoke")
 @require_capability("grid.share.manage")
@@ -1605,7 +1745,7 @@ async def api_activity_list(request: Request):
 @require_capability("module.grid.access")
 async def api_dashboard(request: Request):
     """Summary stats across all audits for the dashboard view."""
-    audits = ds.list_audits()
+    audits = ds.list_audits(bu_scope=bu_scope_ids(request.state.user))
     total_audits = len(audits)
     total_controls = sum(a.get("total_controls", 0) for a in audits)
     complete_controls = sum(a.get("complete_controls", 0) for a in audits)
@@ -2015,13 +2155,14 @@ async def api_remote_session_end(request: Request, sid: int):
 @require_capability("grid.audits.manage")
 async def api_remote_finding_create(request: Request, sid: int):
     """Capture a finding during a remote audit session."""
-    _remote_session_in_scope_or_404(request, sid)
+    session_audit_id = _remote_session_in_scope_or_404(request, sid)
     data = await _json_body(request)
     raw_control_id = data.get("control_id")
     control_id = None
     if raw_control_id not in (None, ""):
         control_id = _parse_positive_id(raw_control_id, "control_id")
         _control_in_scope_or_404(request, control_id)
+        _control_in_audit_or_404(control_id, session_audit_id)
     from database import get_db
     db = get_db()
     try:
@@ -2344,8 +2485,8 @@ async def api_saved_report_detail(request: Request, rid: int):
 async def api_saved_report_download(request: Request, rid: int):
     """Download a previously saved report file."""
     rpt = _report_in_scope_or_404(request, rid)
-    fp = Path(rpt["file_path"])
-    if not fp.exists():
+    fp = _report_file_path_or_404(rpt)
+    if not fp.is_file():
         raise HTTPException(404, "Report file missing from disk")
     media = (
         "application/pdf" if rpt.get("report_type") == "pdf"
@@ -2369,6 +2510,10 @@ async def api_saved_report_create(request: Request):
     audit_id = _parse_positive_id(raw_audit_id, "audit_id")
     _audit_in_scope_or_404(request, audit_id)
     body["audit_id"] = audit_id
+    body.setdefault("report_type", "pdf")
+    file_path = _report_file_path_or_404(body, allow_legacy=False)
+    body["file_path"] = str(file_path)
+    body["filename"] = file_path.name
     body["generated_by"] = _uid(request)
     rid = ds.create_report(body)
     ds.log_activity(_uid(request), "save_report", "grid_reports", rid)
@@ -2380,10 +2525,13 @@ async def api_saved_report_create(request: Request):
 async def api_saved_report_delete(request: Request, rid: int):
     """Delete a saved report record and its file."""
     rpt = _report_in_scope_or_404(request, rid)
-    if rpt and rpt.get("file_path"):
-        fp = Path(rpt["file_path"])
+    try:
+        fp = _report_file_path_or_404(rpt)
+    except HTTPException:
+        fp = None  # Remove a legacy unsafe record without touching its path.
+    if fp is not None:
         try:
-            if fp.exists():
+            if fp.is_file():
                 fp.unlink()
         except OSError:
             pass
@@ -2517,7 +2665,7 @@ async def api_audit_unlock(request: Request, aid: int):
 @require_capability("module.grid.access")
 async def api_program_dashboard(request: Request):
     """Multi-audit program overview: posture, trends, NC summary."""
-    return JSONResponse(ds.get_program_dashboard())
+    return JSONResponse(ds.get_program_dashboard(bu_scope=bu_scope_ids(request.state.user)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -2636,6 +2784,7 @@ async def api_policy_request_create(request: Request):
     if raw_control_id not in (None, ""):
         control_id = _parse_positive_id(raw_control_id, "control_id")
         _control_in_scope_or_404(request, control_id)
+        _control_in_audit_or_404(control_id, audit_id)
         body["control_id"] = control_id
     body["requested_by"] = _uid(request)
     rid = ds.create_policy_request(body)

@@ -281,9 +281,12 @@ def test_saved_report_detail_download_delete_reject_cross_bu(
 ):
     owner, other = _clients(live_app, synthetic_tenant, second_bu_audit_lead)
     try:
+        from modules.grid.report_service import REPORTS_DIR
+        filename = f"grid-report-{other_bu_audit_and_control['audit_id']}-1234567890.pdf"
         created = other.post("/grid/api/reports/saved", json={
             "audit_id": other_bu_audit_and_control["audit_id"],
-            "filename": "other.pdf", "file_path": "missing-test-file-2.pdf",
+            "filename": filename,
+            "file_path": str(REPORTS_DIR / "ui-harness-org" / filename),
         })
         assert created.status_code == 201, created.text
         rid = created.json()["id"]
@@ -428,8 +431,8 @@ def test_share_link_create_list_revoke_reject_cross_bu(
             db.close()
         assert row["active"] == 1, "cross-BU revoke call deactivated another BU's share link despite denial"
 
-        # Token validation is deliberately unscoped -- the token itself is the
-        # credential, meant for an external holder with no GRID BU of their own.
+        # A signed-in GRID user with the token can view the shared audit
+        # even without membership in the audit's own business unit.
         validated = owner.get(f"/grid/api/share-links/validate/{token}")
         assert validated.status_code == 200
     finally:

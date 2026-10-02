@@ -1,3 +1,17 @@
+## 2026-10-02 F19 review follow-up - dashboard, report paths, references, share links
+
+Outcome: addressed four findings from the review of commits after 6fb4c66.
+
+- The GRID dashboard passes BU scope to list_audits. The program dashboard applies the same scope to audit rows, NC totals, and score trends.
+- Saved-report file access is limited to GRID-generated filenames tied to the selected audit and the configured report root. Newly generated reports use a tenant-specific subdirectory. Download and deletion reject unsafe stored paths; deletion may remove an unsafe DB record without touching its file path.
+- Remote findings and policy requests require their optional control to belong to the selected audit. Reminders enforce that relation when both ids are present.
+- Share links now open a read-only audit page for a signed-in GRID user with the token. Emailed invitations require an active same-organization GRID account, and access is bound to the recipient email. Existing random token format remains unchanged. The invitation now says to sign in. Email requires a configured HTTPS APP_URL (or loopback HTTP in development); a missing/invalid value fails before creating a token.
+- Automatic approval review rejected a public bearer-token route that would have exposed audit, control, and finding data without login. This follow-up uses authenticated access.
+
+Files changed: GRID routes, data service, report service, email service, core middleware (preserves the share page's no-referrer header), a new shared_audit.html template, and the existing GRID scope fixture; plan notes updated here, in findings.md, and in task_plan.md.
+
+Verification: static diff and call-site review, six Python files parsed with ast, the Jinja template parsed, and git diff --check passed. No tests or production deployment were run. The release gate remains open until relevant HTTP, browser, and PostgreSQL checks are run.
+
 ## 2026-10-01 F19 final sweep — reports/list, timeline, compliance scores, remote sessions
 
 Outcome: closed every explicitly-named remaining gap from the prior F19

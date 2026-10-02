@@ -1,0 +1,90 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <title>{{ audit.name }} | Shared audit | ThemisIQ</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #f4f7fb; color: #172033; line-height: 1.5; }
+    main { max-width: 1080px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    header, section { background: #fff; border: 1px solid #d8e0eb; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.25rem; }
+    h1, h2 { line-height: 1.2; margin-top: 0; }
+    h1 { font-size: 1.8rem; }
+    h2 { font-size: 1.25rem; }
+    .eyebrow { color: #37577b; font-size: .85rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .muted { color: #40546c; }
+    dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem 1.5rem; margin: 1.5rem 0 0; }
+    dt { font-size: .85rem; font-weight: 700; color: #40546c; }
+    dd { margin: .2rem 0 0; }
+    .text-block { white-space: pre-wrap; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border-bottom: 1px solid #d8e0eb; padding: .75rem; text-align: left; vertical-align: top; }
+    th { background: #edf2f8; }
+    @media (max-width: 640px) { main { padding: 1rem; } header, section { padding: 1rem; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">ThemisIQ · Shared audit</p>
+      <h1>{{ audit.name }}</h1>
+      <p class="muted">Read-only access{% if expires_at %} · Expires {{ expires_at }}{% endif %}</p>
+      <dl>
+        <div><dt>Status</dt><dd>{{ audit.status or '—' }}</dd></div>
+        <div><dt>Type</dt><dd>{{ audit.audit_type or '—' }}</dd></div>
+        <div><dt>Audit date</dt><dd>{{ audit.audit_date or '—' }}</dd></div>
+        <div><dt>Start date</dt><dd>{{ audit.start_date or '—' }}</dd></div>
+        <div><dt>End date</dt><dd>{{ audit.end_date or '—' }}</dd></div>
+      </dl>
+    </header>
+
+    <section aria-labelledby="overview-heading">
+      <h2 id="overview-heading">Overview</h2>
+      <h3>Scope</h3><p class="text-block">{{ audit.scope or '—' }}</p>
+      <h3>Objective</h3><p class="text-block">{{ audit.objective or '—' }}</p>
+      <h3>Criteria</h3><p class="text-block">{{ audit.criteria or '—' }}</p>
+      <h3>Methodology</h3><p class="text-block">{{ audit.methodology or '—' }}</p>
+      <h3>Conclusion</h3><p class="text-block">{{ audit.conclusion or '—' }}</p>
+    </section>
+
+    <section aria-labelledby="controls-heading">
+      <h2 id="controls-heading">Controls</h2>
+      {% if controls %}
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Reference</th><th scope="col">Control</th><th scope="col">Status</th><th scope="col">Risk</th><th scope="col">Due date</th></tr></thead>
+        <tbody>{% for control in controls %}
+          <tr>
+            <td>{{ control.control_id or '—' }}</td>
+            <td><strong>{{ control.name }}</strong>{% if control.description %}<br>{{ control.description }}{% endif %}</td>
+            <td>{{ control.status or '—' }}</td>
+            <td>{{ control.risk_level or '—' }}</td>
+            <td>{{ control.due_date or '—' }}</td>
+          </tr>
+        {% endfor %}</tbody>
+      </table></div>
+      {% else %}<p>No controls recorded for this audit.</p>{% endif %}
+    </section>
+
+    <section aria-labelledby="findings-heading">
+      <h2 id="findings-heading">Non-conformances</h2>
+      {% if findings %}
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">Finding</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Due date</th></tr></thead>
+        <tbody>{% for finding in findings %}
+          <tr>
+            <td><strong>{{ finding.title }}</strong>{% if finding.description %}<br>{{ finding.description }}{% endif %}</td>
+            <td>{{ finding.severity or '—' }}</td>
+            <td>{{ finding.status or '—' }}</td>
+            <td>{{ finding.due_date or '—' }}</td>
+          </tr>
+        {% endfor %}</tbody>
+      </table></div>
+      {% else %}<p>No non-conformances recorded for this audit.</p>{% endif %}
+    </section>
+  </main>
+</body>
+</html>
