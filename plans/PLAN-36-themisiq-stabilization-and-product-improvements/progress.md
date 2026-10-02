@@ -1,3 +1,32 @@
+## 2026-10-02 T08 session — GRID F19 follow-up HTTP regressions
+
+The user explicitly authorized testing after the preceding T08 review. Added three tests to oneforall/tests/ui/test_grid_additional_write_scope.py; no application code changed.
+
+- Both GRID dashboards: a second BU receives a new audit, completed control, major NC, and compliance score. The first BU's dashboard rows and all program aggregates remain unchanged; the second BU sees the new audit and score trend.
+- Saved reports: a tenant-local generated-name PDF can be created, downloaded, and deleted by its own BU, while another BU receives 404. A legacy DB record pointing outside the configured report root returns 404 on download; deleting the record does not unlink the outside file.
+- Emailed share links: missing APP_URL returns 503 before token creation; a configured HTTPS origin is used in the mocked email. The link requires login, rejects a same-org GRID user whose email does not match the invitation, renders the audit/controls/NCs for the recipient with no-store/no-referrer/noindex headers, and stops working after revocation.
+
+Verification from oneforall/ with ..\.venv\Scripts\python.exe:
+
+1. -m pytest tests/ui/test_grid_additional_write_scope.py -k "dashboards or saved_report_download_and_delete or share_link_requires" -q — 3 passed.
+2. -m pytest tests/ui/test_grid_nc_write_scope.py tests/ui/test_grid_additional_write_scope.py tests/ui/test_grid_remote_sessions_and_misc_scope.py -q — 26 passed.
+3. -m pytest tests --ignore=tests/ui -q — exit 0, no failures, 13 expected skips.
+4. -m pytest tests/ui -q — exit 0, no failures, 2 expected skips.
+
+All HTTP/browser fixtures use local synthetic SQLite data; saved-report files are under pytest tmp_path and outbound email is mocked. PostgreSQL-specific behavior, live SMTP delivery, and production deployment were not exercised. No commit or push was performed in this session.
+
+## 2026-10-02 T08 next-slice review — GRID follow-up HTTP contracts
+
+Baseline: clean `master` at `bb5a334`, matching `origin/master`. Read the current F19 follow-up source and the existing GRID HTTP tests. This is a coverage review only; no application or test code was changed and no tests were run.
+
+The 2026-10-02 F19 follow-up remains unverified by HTTP regression coverage in three specific areas:
+
+- `GET /grid/api/dashboard` and `GET /grid/api/program-dashboard` now pass BU scope, but existing tests only check dashboard loading and an earlier scoped `/api/reports/list`. Add a two-BU HTTP case that seeds an audit, control, NC, and compliance score in the other BU, then confirms both dashboards' rows and aggregates for the first BU remain unchanged while the owning BU can see the new data.
+- Saved-report tests currently prove cross-BU 404 for list/detail/download/delete. They do not prove that a valid tenant-local generated report downloads and deletes, or that an unsafe stored path is rejected for download and never unlinked on record deletion. Use disposable files under a temporary report root.
+- Share-link tests currently prove cross-BU create/list/revoke denial and a token-holder 200. They do not assert login is required, emailed recipient binding, configured `APP_URL` before token creation, read-only page content/security headers, or revocation of an opened token. Use the existing isolated test tenant, a mocked email sender, and a synthetic GRID recipient.
+
+An attempted edit to add the focused HTTP regressions was rejected by automatic approval review: the current user request to start the next item did not explicitly ask for testing, and the developer instruction prohibits adding or running tests without that request. The edit was not applied. This T08 slice is pending explicit testing authorization. No production host, database, email destination, or remote configuration was touched.
+
 ## 2026-10-02 F19 review follow-up - dashboard, report paths, references, share links
 
 Outcome: addressed four findings from the review of commits after 6fb4c66.

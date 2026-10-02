@@ -438,3 +438,186 @@ def test_share_link_create_list_revoke_reject_cross_bu(
     finally:
         owner.close()
         other.close()
+
+
+def test_dashboards_exclude_other_bu_audits_and_aggregates(
+    live_app, synthetic_tenant, second_bu_audit_lead,
+    owned_audit_and_control, other_bu_audit_and_control,
+):
+    """Adding another BU's audit must not change either dashboard for this BU."""
+    owner, other = _clients(live_app, synthetic_tenant, second_bu_audit_lead)
+    try:
+        paths = ("/grid/api/dashboard", "/grid/api/program-dashboard")
+        before = {}
+        for path in paths:
+            response = owner.get(path)
+            assert response.status_code == 200, response.text
+            before[path] = response.json()
+        assert any(a["id"] == owned_audit_and_control["audit_id"] for a in before[paths[0]]["audits"])
+        assert all(a["id"] != other_bu_audit_and_control["audit_id"] for a in before[paths[0]]["audits"])
+
+        db = database.get_db()
+        try:
+            db.execute(
+                "INSERT INTO grid_audits (name, business_unit_id) VALUES (%s, %s)",
+                ("F19 Dashboard Other BU Probe", second_bu_audit_lead["business_unit_id"]),
+            )
+            audit_id = db.execute(
+                "SELECT id FROM grid_audits WHERE name=%s",
+                ("F19 Dashboard Other BU Probe",),
+            ).fetchone()["id"]
+            db.execute(
+                "INSERT INTO grid_controls (audit_id, name, status) VALUES (%s, %s, %s)",
+                (audit_id, "Other BU dashboard control", "Complete"),
+            )
+            db.execute(
+                "INSERT INTO grid_non_conformances (audit_id, title, severity) VALUES (%s, %s, %s)",
+                (audit_id, "Other BU dashboard finding", "major"),
+            )
+            db.execute(
+                "INSERT INTO grid_compliance_scores (audit_id, score) VALUES (%s, %s)",
+                (audit_id, 87),
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        for path in paths:
+            response = owner.get(path)
+            assert response.status_code == 200, response.text
+            assert response.json() == before[path], f"{path} changed after another BU gained data"
+
+        other_dashboard = other.get(paths[0])
+        other_program = other.get(paths[1])
+        assert other_dashboard.status_code == other_program.status_code == 200
+        assert any(a["id"] == audit_id for a in other_dashboard.json()["audits"])
+        assert any(a["id"] == audit_id for a in other_program.json()["audits"])
+        assert any(t["audit_id"] == audit_id for t in other_program.json()["score_trends"])
+    finally:
+        owner.close()
+        other.close()
+
+def test_saved_report_download_and_delete_confine_file_paths(
+    live_app, synthetic_tenant, second_bu_audit_lead,
+    owned_audit_and_control, tmp_path, monkeypatch,
+):
+    from modules.grid import report_service
+
+    reports_root = tmp_path / "reports"
+    monkeypatch.setattr(report_service, "REPORTS_DIR", reports_root)
+    audit_id = owned_audit_and_control["audit_id"]
+    filename = f"grid-report-{audit_id}-1234567890.pdf"
+    owned_file = reports_root / "ui-harness-org" / filename
+    owned_file.parent.mkdir(parents=True)
+    owned_file.write_bytes(b"%PDF-1.4\nGRID fixture\n")
+    outside_file = tmp_path / "outside" / filename
+    outside_file.parent.mkdir(parents=True)
+    outside_file.write_bytes(b"%PDF-1.4\nDo not return or delete\n")
+
+    owner, other = _clients(live_app, synthetic_tenant, second_bu_audit_lead)
+    try:
+        created = owner.post("/grid/api/reports/saved", json={
+            "audit_id": audit_id, "title": "Scoped report", "report_type": "pdf",
+            "filename": filename, "file_path": str(owned_file),
+        })
+        assert created.status_code == 201, created.text
+        report_id = created.json()["id"]
+        downloaded = owner.get(f"/grid/api/reports/saved/{report_id}/download")
+        assert downloaded.status_code == 200, downloaded.text
+        assert downloaded.content == owned_file.read_bytes()
+        assert downloaded.headers["content-type"].startswith("application/pdf")
+        assert other.get(f"/grid/api/reports/saved/{report_id}/download").status_code == 404
+
+        db = database.get_db()
+        try:
+            db.execute(
+                "INSERT INTO grid_reports (audit_id, report_type, title, filename, file_path) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (audit_id, "pdf", "Unsafe legacy path", filename, str(outside_file)),
+            )
+            db.commit()
+            unsafe_id = db.execute(
+                "SELECT id FROM grid_reports WHERE title=%s", ("Unsafe legacy path",)
+            ).fetchone()["id"]
+        finally:
+            db.close()
+        assert owner.get(f"/grid/api/reports/saved/{unsafe_id}/download").status_code == 404
+        deleted_unsafe = owner.delete(f"/grid/api/reports/saved/{unsafe_id}")
+        assert deleted_unsafe.status_code == 200, deleted_unsafe.text
+        assert outside_file.read_bytes() == b"%PDF-1.4\nDo not return or delete\n"
+
+        deleted_owned = owner.delete(f"/grid/api/reports/saved/{report_id}")
+        assert deleted_owned.status_code == 200, deleted_owned.text
+        assert not owned_file.exists()
+    finally:
+        owner.close()
+        other.close()
+
+def test_share_link_requires_login_and_binds_emailed_recipient(
+    live_app, synthetic_tenant, second_bu_audit_lead,
+    owned_audit_and_control, monkeypatch,
+):
+    from modules.grid import email_service
+
+    recipient_creds = synthetic_tenant["users"]["viewer"]  # EXTERNAL_AUDITOR has GRID access.
+    recipient_email = f"{recipient_creds['username']}@example.test"
+    monkeypatch.delenv("APP_URL", raising=False)
+    owner, other = _clients(live_app, synthetic_tenant, second_bu_audit_lead)
+    try:
+        audit_id = owned_audit_and_control["audit_id"]
+        db = database.get_db()
+        try:
+            db.execute(
+                "INSERT INTO grid_non_conformances (audit_id, title) VALUES (%s, %s)",
+                (audit_id, "Shared audit finding"),
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        payload = {"audit_id": audit_id, "auditor_email": recipient_email}
+        unconfigured = owner.post("/grid/api/share-links", json=payload)
+        assert unconfigured.status_code == 503, unconfigured.text
+        db = database.get_db()
+        try:
+            assert db.execute(
+                "SELECT 1 FROM grid_share_links WHERE audit_id=%s AND auditor_email=%s",
+                (audit_id, recipient_email),
+            ).fetchone() is None
+        finally:
+            db.close()
+
+        sent = []
+        monkeypatch.setenv("APP_URL", "https://themisiq.example.test")
+        monkeypatch.setattr(email_service, "send_email", lambda **kwargs: sent.append(kwargs))
+        created = owner.post("/grid/api/share-links", json=payload)
+        assert created.status_code == 201, created.text
+        token = created.json()["token"]
+        path = f"/grid/api/share-links/validate/{token}"
+        assert len(sent) == 1
+        assert sent[0]["to"] == recipient_email
+        assert f"https://themisiq.example.test{path}" in sent[0]["body_html"]
+
+        with httpx.Client(base_url=live_app, follow_redirects=False, timeout=10) as anonymous:
+            logged_out = anonymous.get(path)
+        assert logged_out.status_code in (302, 303, 307, 308, 401)
+        assert other.get(path).status_code == 404  # Same org and GRID role, wrong recipient.
+
+        recipient = _login(live_app, recipient_creds["username"], recipient_creds["password"])
+        try:
+            view = recipient.get(path)
+            assert view.status_code == 200, view.text
+            assert "F19 Scope2 Owned Audit" in view.text
+            assert "F19 Scope2 Owned Control" in view.text
+            assert "Shared audit finding" in view.text
+            assert view.headers["cache-control"] == "no-store"
+            assert view.headers["referrer-policy"] == "no-referrer"
+            assert view.headers["x-robots-tag"] == "noindex, nofollow"
+            revoked = owner.put(f"/grid/api/share-links/{created.json()['id']}/revoke")
+            assert revoked.status_code == 200, revoked.text
+            assert recipient.get(path).status_code == 404
+        finally:
+            recipient.close()
+    finally:
+        owner.close()
+        other.close()
