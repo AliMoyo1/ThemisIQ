@@ -34,17 +34,22 @@ docs/generated/. Check mode reads them without changing files.
 
 Never imports with a real DATABASE_URL (forces "" like the test harness) --
 this only ever needs to introspect route registration, never touch data.
+If SECRET_KEY is absent, uses a process-local ephemeral key solely to allow
+the read-only app import; production startup still requires a configured key.
 """
 from __future__ import annotations
 
 import html
 import json
 import os
+import secrets
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 os.environ["DATABASE_URL"] = ""
+if not os.environ.get("SECRET_KEY"):
+    os.environ["SECRET_KEY"] = secrets.token_hex(32)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
