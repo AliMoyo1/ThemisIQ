@@ -137,6 +137,13 @@ reviewed virtual-environment update before restarting the service.
 
 ## 4. Capture the running environment securely
 
+This capture is for the standard, disabled-authoring release. If the
+root-owned environment already contains a separately approved ARIA pilot, skip
+`--capture-running-env`: it deliberately sets authoring to `false` and clears
+the allowlist. Preserve the existing environment, verify its ownership, mode,
+and non-secret safety flags, then use the pilot-specific preflight and apply
+commands below.
+
 The capture reads the already-running service process, keeps configured keys,
 forces production-safe flags, and writes values only to the root-owned
 `/etc/themisiq/themisiq.env`. It prints key names, never values.
