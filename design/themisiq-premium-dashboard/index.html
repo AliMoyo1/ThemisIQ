@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en" data-theme="sage" data-module="platform">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>ThemisIQ | Premium interface study</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="module-data.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="pulse" viewBox="0 0 24 24"><path d="M2 12h4l3-7 5 14 3-7h5"/></symbol>
+    <symbol id="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></symbol>
+    <symbol id="file" viewBox="0 0 24 24"><path d="M13 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V11Z"/><path d="M13 3v8h8M8 16h8"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+    <symbol id="spark" viewBox="0 0 24 24"><path d="m12 2 1.9 7.1L21 11l-7.1 1.9L12 20l-1.9-7.1L3 11l7.1-1.9L12 2Z"/></symbol>
+    <symbol id="refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2 6M20 5v6h-6"/></symbol>
+  </svg>
+  <div class="stage">
+    <header class="studio" aria-label="Design controls">
+      <div class="studio-title"><span>ThemisIQ / Design study</span><small>Interactive concept · illustrative data</small></div>
+      <div class="studio-actions">
+        <div class="theme-group" role="group" aria-label="Visual direction">
+          <button class="theme-button" data-theme="sage" aria-pressed="true">01 Sage / light</button>
+          <button class="theme-button" data-theme="dusk" aria-pressed="false">02 Dusk / dark</button>
+        </div>
+        <label class="glass-control" for="glassRange">Glass <input id="glassRange" type="range" min="40" max="90" value="72" aria-label="Glass opacity"><output id="glassValue">72</output></label>
+        <button class="motion-button" id="motionButton" aria-pressed="true"><span class="motion-dot"></span><span id="motionLabel">Motion on</span></button>
+      </div>
+    </header>
+    <div class="shell">
+      <aside class="sidebar glass reveal" aria-label="Preview navigation">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="m16 3 9 5v11l-9 10-9-10V8l9-5Z" stroke="currentColor" stroke-width="1.5"/><path d="m10 12 6 9 6-9" stroke="currentColor" stroke-width="1.5"/></svg></div>
+          <div><div class="brand-name">ThemisIQ</div><div class="brand-sub">Intelligence layer</div></div>
+        </div>
+        <div class="nav-label">Command view</div>
+        <nav class="nav-list" aria-label="Command view">
+          <button class="nav-btn" data-scope="platform" aria-current="page"><svg class="icon"><use href="#grid"/></svg>Command Centre<span class="module-swatch" style="--swatch:#1e3a8a"></span></button>
+        </nav>
+        <div class="nav-label">Core modules</div>
+        <nav class="nav-list" aria-label="Core modules">
+          <button class="nav-btn" data-scope="aria"><svg class="icon"><use href="#file"/></svg>Governance<span class="module-swatch" style="--swatch:#7d6527"></span></button>
+          <button class="nav-btn" data-scope="grid"><svg class="icon"><use href="#shield"/></svg>Audit<span class="module-swatch" style="--swatch:#059669"></span></button>
+          <button class="nav-btn" data-scope="bcm"><svg class="icon"><use href="#layers"/></svg>Resilience<span class="module-swatch" style="--swatch:#3d4660"></span></button>
+          <button class="nav-btn" data-scope="sentinel"><svg class="icon"><use href="#pulse"/></svg>Privacy<span class="module-swatch" style="--swatch:#3b5bdb"></span></button>
+          <button class="nav-btn" data-scope="erm"><svg class="icon"><use href="#shield"/></svg>Enterprise Risk<span class="module-swatch" style="--swatch:#881337"></span></button>
+          <button class="nav-btn" data-scope="orm"><svg class="icon"><use href="#pulse"/></svg>Operations Risk<span class="module-swatch" style="--swatch:#7c3a0a"></span></button>
+        </nav>
+        <div class="nav-label">Shared workspaces</div>
+        <nav class="nav-list" aria-label="Shared workspaces">
+          <button class="nav-btn" data-scope="evidence"><svg class="icon"><use href="#file"/></svg>Evidence Vault<span class="module-swatch" style="--swatch:#1e293b"></span></button>
+          <button class="nav-btn" data-scope="evidence_campaigns"><svg class="icon"><use href="#layers"/></svg>Evidence Campaigns<span class="module-swatch" style="--swatch:#1e293b"></span></button>
+          <button class="nav-btn" data-scope="readiness"><svg class="icon"><use href="#pulse"/></svg>Data Readiness<span class="module-swatch" style="--swatch:#1e293b"></span></button>
+          <button class="nav-btn" data-scope="saved_views"><svg class="icon"><use href="#grid"/></svg>Saved Views<span class="module-swatch" style="--swatch:#1e293b"></span></button>
+          <button class="nav-btn" data-scope="governance"><svg class="icon"><use href="#layers"/></svg>Governance Settings<span class="module-swatch" style="--swatch:#6d28d9"></span></button>
+        </nav>
+        <div class="sidebar-bottom"><div class="palette-meta"><span class="palette-meta-dot" aria-hidden="true"></span><div><strong id="paletteLabel">Platform blue</strong><small id="paletteHex">#1E3A8A | shell theme</small></div></div>
+          <div class="sidebar-insight"><div class="mini-orb"><svg class="icon"><use href="#spark"/></svg></div><strong>One clear signal.</strong><p>Less dashboard noise. More room for the decisions that move assurance forward.</p></div>
+          <div class="profile"><div class="avatar" aria-hidden="true">TI</div><div><strong>Preview workspace</strong><span>Concept environment</span></div></div>
+        </div>
+      </aside>
+      <main>
+        <div class="topbar">
+          <div class="crumb"><span>Workspace</span><span class="slash">/</span><strong id="crumbCurrent">Overview</strong></div>
+          <div class="top-actions">
+            <span class="module-pill" id="modulePill"><i></i><span id="modulePillText">Command Centre</span></span><span class="preview-tag"><i></i> Sample data</span>
+            <button class="icon-button" id="searchButton" aria-label="Open quick search" title="Quick search · Ctrl+K"><svg class="icon"><use href="#search"/></svg></button>
+            <div class="popover-anchor">
+              <button class="icon-button" id="notificationButton" aria-label="View preview notifications" aria-expanded="false" title="Preview notifications"><svg class="icon"><use href="#bell"/></svg><span class="badge-dot"></span></button>
+              <div id="notificationPopover" class="popover glass" role="status"><strong>In focus</strong><p>2 decisions need review this week.</p><p>Evidence readiness is trending upward in the sample view.</p></div>
+            </div>
+            <button class="icon-button" id="refreshButton" aria-label="Refresh sample dashboard" title="Refresh sample dashboard"><svg class="icon"><use href="#refresh"/></svg></button>
+          </div>
+        </div>
+        <section class="hero glass reveal delay-1" aria-labelledby="heroTitle">
+          <div class="hero-copy">
+            <div class="eyebrow" id="heroEyebrow">Enterprise command view</div>
+            <h1 id="heroTitle">Clarity across<br>every control.</h1>
+            <p class="hero-desc" id="heroDesc">A considered view of the work, exposure, and evidence that shape your organisation's position.</p>
+            <div class="hero-actions"><button class="primary-button" id="briefButton">Open board brief <svg class="icon"><use href="#arrow"/></svg></button><button class="secondary-button" id="prioritiesButton">View priorities</button></div>
+          </div>
+          <div class="hero-visual" aria-label="Illustrative assurance score, 81 out of 100">
+            <div class="halo"><div class="halo-core"><span id="haloScore">81</span><small id="haloCaption">assurance pulse</small></div></div>
+            <div class="float-chip"><svg class="icon"><use href="#pulse"/></svg><span id="haloTrend">+6 this quarter</span></div>
+          </div>
+        </section>
+        <div class="section-head reveal delay-2"><div><h2>At a glance</h2><div class="section-kicker" id="metricKicker">Enterprise overview · sample values</div></div>
+          <div class="period-group" role="group" aria-label="Preview time range"><button class="period-button" data-range="7" aria-pressed="false">7 days</button><button class="period-button" data-range="30" aria-pressed="true">30 days</button><button class="period-button" data-range="90" aria-pressed="false">90 days</button></div>
+        </div>
+        <section class="metrics reveal delay-2" aria-label="Illustrative metrics" id="metrics"></section>
+        <div class="grid-primary">
+          <section class="panel glass reveal delay-3" aria-labelledby="chartTitle">
+            <div class="panel-head"><div><h2 class="panel-title" id="chartTitle">Assurance momentum</h2><p class="panel-sub" id="chartSub">A quieter way to read the trajectory.</p></div><button class="quiet-button" id="chartInfoButton" aria-label="About the trend"><svg class="icon"><use href="#more"/></svg></button></div>
+            <div class="chart-wrap" id="chartWrap">
+              <svg id="trendChart" viewBox="0 0 600 200" preserveAspectRatio="none" role="group" aria-label="Illustrative assurance trend. Use arrow keys when focused to inspect values." tabindex="0">
+                <line class="chart-gridline" x1="0" y1="35" x2="600" y2="35"/><line class="chart-gridline" x1="0" y1="96" x2="600" y2="96"/><line class="chart-gridline" x1="0" y1="157" x2="600" y2="157"/>
+                <path class="chart-area" id="chartArea"/><path class="chart-path" id="chartLine"/>
+                <line class="chart-hoverline" id="chartHoverline" x1="0" x2="0" y1="10" y2="180" visibility="hidden"/>
+                <circle class="chart-marker" id="chartMarker" cx="0" cy="0" r="5" visibility="hidden"/><rect class="chart-hit" x="0" y="0" width="600" height="200"/>
+              </svg>
+              <div class="chart-tooltip" id="chartTooltip"></div>
+            </div>
+            <div class="chart-axis" id="chartAxis"><span>Start</span><span>Midpoint</span><span>Today</span></div>
+            <div class="chart-bottom"><div><strong id="chartSummary">Measured progress</strong><br><span id="chartSummarySub">Each point is illustrative.</span></div><span id="chartCurrent" aria-live="polite">Latest 81 / 100</span></div>
+          </section>
+          <section class="panel glass reveal delay-3" aria-labelledby="signalsTitle">
+            <div class="panel-head"><div><h2 class="panel-title" id="signalsTitle">Needs your attention</h2><p class="panel-sub">Prioritised actions, without the clutter.</p></div><button class="quiet-button" id="signalInfoButton" aria-label="About priorities"><svg class="icon"><use href="#more"/></svg></button></div>
+            <div class="signal-list" id="signalList"></div>
+            <div class="panel-foot"><span>Ordered by urgency · sample data</span><button class="text-button" id="allPrioritiesButton">See all</button></div>
+          </section>
+        </div>
+        <div class="grid-secondary">
+          <section class="panel glass reveal delay-4" aria-labelledby="domainsTitle"><div class="panel-head"><div><h2 class="panel-title" id="domainsTitle">Across the estate</h2><p class="panel-sub">Readiness by domain</p></div></div><div class="domain-list" id="domainList"></div></section>
+          <section class="panel glass reveal delay-4" aria-labelledby="activityTitle"><div class="panel-head"><div><h2 class="panel-title" id="activityTitle">Recent movement</h2><p class="panel-sub">A calm record of what changed</p></div><button class="text-button" id="activityInfoButton">How this works</button></div><div class="activity-list" id="activityList"></div></section>
+        </div>
+        <p class="footer-note">ThemisIQ interface concept · sample content · no live data or actions</p>
+      </main>
+    </div>
+  </div>
+  <dialog id="detailDialog" aria-labelledby="dialogTitle"><div class="dialog-body">
+    <div class="dialog-top"><span class="dialog-kicker" id="dialogKicker">Preview detail</span><button class="icon-button" id="detailClose" aria-label="Close details"><svg class="icon"><use href="#close"/></svg></button></div>
+    <h2 id="dialogTitle">A more focused decision view.</h2><p id="dialogDescription">This is a design concept using illustrative information.</p>
+    <div class="dialog-facts" id="dialogFacts"></div><button class="primary-button dialog-close" id="detailDone">Done <svg class="icon"><use href="#arrow"/></svg></button>
+  </div></dialog>
+  <dialog id="searchDialog" class="search-dialog" aria-labelledby="searchTitle"><div class="dialog-body">
+    <div class="dialog-top"><span class="dialog-kicker">Quick navigation</span><button class="icon-button" id="searchClose" aria-label="Close search"><svg class="icon"><use href="#close"/></svg></button></div>
+    <h2 id="searchTitle">Where would you like to go?</h2><label class="visually-hidden" for="searchInput">Search preview areas</label>
+    <input class="search-input" id="searchInput" type="search" placeholder="Try risk, assurance, evidence…" autocomplete="off"><div class="search-results" id="searchResults"></div>
+  </div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

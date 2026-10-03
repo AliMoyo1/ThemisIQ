@@ -173,7 +173,7 @@
 
 {% block content %}
 <!-- Section Header -->
-<div class="section-header animate-fade-up">
+<div class="section-header premium-dashboard-header animate-fade-up">
   <div>
     <div class="section-title">Command Centre</div>
     <div class="section-sub">Cross-module compliance overview · Last updated <span id="ccLastUpdated">—</span></div>
@@ -205,7 +205,7 @@
 {% if modules %}
 <div class="animate-fade-up" style="margin-bottom:24px">
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px">Your Modules</div>
-  <div style="display:grid;grid-template-columns:repeat({{ modules|length }},1fr);gap:10px">
+  <div class="cc-modules-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px">
     {% for mod in modules %}
     {% set mod_urls = {'aria':'/aria/','grid':'/grid/','bcm':'/bcm/','sentinel':'/sentinel/','erm':'/erm/','orm':'/orm/'} %}
     <a href="{{ mod_urls.get(mod.key, '/' + mod.key + '/') }}" class="glass-module" data-glass-tilt style="text-decoration:none">
@@ -214,8 +214,6 @@
         <div style="position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.13;background:radial-gradient(circle at 15% 20%,rgba(255,255,255,.95),transparent 52%)"></div>
         <!-- Glass reflection -->
         <div style="position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(135deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,.06) 25%,transparent 55%)"></div>
-        <!-- Top-edge glint -->
-        <div style="position:absolute;top:0;left:0;right:0;height:1px;z-index:4;pointer-events:none;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.55) 50%,transparent 100%)"></div>
         <!-- Bottom shimmer -->
         <div style="position:absolute;bottom:0;left:0;right:0;height:38%;z-index:1;pointer-events:none;opacity:.09;background:linear-gradient(to top,rgba(255,255,255,.3),transparent)"></div>
         <!-- Content -->
@@ -232,7 +230,7 @@
 {% endif %}
 
 <!-- ── Predictive Risk Intelligence Panel (collapsible) ── -->
-<div id="prPanel" class="card animate-fade-up" style="margin-bottom:16px;display:none;border-left:3px solid var(--pr-color,var(--muted));overflow:hidden">
+<div id="prPanel" class="card animate-fade-up" style="margin-bottom:16px;display:none;overflow:hidden">
   <!-- Collapsed bar — always visible once loaded -->
   <div id="prBar" onclick="togglePredictiveRisk()" style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
     <span style="font-size:15px;flex-shrink:0">&#128302;</span>
@@ -262,7 +260,7 @@
 </div>
 
 <!-- Breach Notification Countdown Alert -->
-<div id="ccBreachAlert" class="card breach-alert-card animate-fade-up" style="display:none;border-left:3px solid var(--red)">
+<div id="ccBreachAlert" class="card breach-alert-card animate-fade-up" style="display:none">
   <div class="breach-alert-header">
     <div class="ba-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="18" height="18"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
@@ -1017,9 +1015,8 @@ async function loadPredictiveRisk(force) {
 
     var col = PR_COLORS[d.risk_level] || PR_COLORS.low;
 
-    // Show panel, apply colour to left border
+    // Show panel and expose its status colour
     panel.style.display = 'block';
-    panel.style.borderLeftColor = col.hex;
     panel.style.setProperty('--pr-color', col.hex);
 
     // Badge in bar
@@ -1094,7 +1091,7 @@ function _renderPredictivePanel(d, col) {
   var domains = [
     {label:'Cyber',       val:d.delta_cyber||0,       color:'var(--red,#dc2626)'},
     {label:'Operational', val:d.delta_operational||0,  color:'var(--amber,#d97706)'},
-    {label:'Compliance',  val:d.delta_compliance||0,   color:'var(--accent)'},
+    {label:'Compliance',  val:d.delta_compliance||0,   color:'var(--accent-ink)'},
   ];
   var domainHtml = domains.map(function(dm){
     return '<div style="margin-bottom:8px">' +
@@ -1103,7 +1100,7 @@ function _renderPredictivePanel(d, col) {
         '<span style="font-weight:700;color:' + dm.color + '">' + dm.val + '%</span>' +
       '</div>' +
       '<div style="height:5px;background:var(--surface3);border-radius:100px">' +
-        '<div style="height:100%;width:' + dm.val + '%;background:' + dm.color + ';border-radius:100px;transition:width 1s ease"></div>' +
+        '<div class="cc-predictive-fill" style="height:100%;width:' + dm.val + '%;background:' + dm.color + ';border-radius:100px;transition:width 1s ease"></div>' +
       '</div></div>';
   }).join('');
 
@@ -1115,7 +1112,7 @@ function _renderPredictivePanel(d, col) {
     return '<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px">' +
       '<span style="flex:1;color:var(--muted)">' + lbl + '</span>' +
       '<div style="width:80px;height:4px;background:var(--surface3);border-radius:100px">' +
-        '<div style="height:100%;width:' + pct + '%;background:' + col.hex + ';border-radius:100px;opacity:.7;transition:width 1s ease"></div>' +
+        '<div class="cc-predictive-fill" style="height:100%;width:' + pct + '%;background:' + col.hex + ';border-radius:100px;opacity:.7;transition:width 1s ease"></div>' +
       '</div>' +
       '<span style="width:30px;text-align:right;font-weight:700;color:var(--text)">' + pct + '%</span>' +
     '</div>';

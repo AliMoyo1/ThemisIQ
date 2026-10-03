@@ -2,21 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script src="/static/js/premium_theme_init.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ThemisIQ — Sign In</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
-<script>
-(function(){
-  var saved = localStorage.getItem('ofa-theme') || 'light';
-  if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
-})();
-</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html{--particle-color-rgb:30,70,160}
 html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4fb;color:#1e293b;overflow:hidden}
-/* ── Particle canvas ── */
-#aegis-particles{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;mix-blend-mode:multiply;}
 
 /* ── Background scene ── */
 .scene{position:fixed;inset:0;z-index:0}
@@ -386,11 +378,9 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
   .card-perspective{max-width:100%}
 }
 </style>
+<link rel="stylesheet" href="/static/css/premium_standalone.css?v=1">
 </head>
-<body>
-
-<!-- Particle network -->
-<canvas id="aegis-particles" aria-hidden="true"></canvas>
+<body data-premium="login">
 
 <!-- Background scene -->
 <div class="scene">
@@ -702,40 +692,8 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#f0f4f
     submitBtn.classList.remove('loading');
     submitBtn.disabled = false;
   });
-
-  /* ── 3D card tilt + parallax glow spots, both mouse-driven and both
-     skipped under prefers-reduced-motion (the same motion-sensitivity
-     concern the CSS media query above addresses for the looping
-     animations) ── */
-  var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  const tilt = document.getElementById('cardTilt');
-  const MAX  = 10;
-  if (!prefersReducedMotion) {
-    tilt.addEventListener('mousemove', function(e){
-      var r  = tilt.getBoundingClientRect();
-      var dx = (e.clientX - r.left - r.width  / 2) / (r.width  / 2);
-      var dy = (e.clientY - r.top  - r.height / 2) / (r.height / 2);
-      tilt.style.transform = 'rotateX(' + (-dy * MAX) + 'deg) rotateY(' + (dx * MAX) + 'deg)';
-    });
-    tilt.addEventListener('mouseleave', function(){
-      tilt.style.transform = 'rotateX(0deg) rotateY(0deg)';
-    });
-
-    /* ── Parallax glow spots on mouse ── */
-    document.addEventListener('mousemove', function(e){
-      var ox = (e.clientX / window.innerWidth  - 0.5) * 20;
-      var oy = (e.clientY / window.innerHeight - 0.5) * 20;
-      var spots = document.querySelectorAll('.scene-spot');
-      spots.forEach(function(s, i){
-        var f = i === 0 ? 1 : -1;
-        s.style.transform = 'translate(' + (ox * f) + 'px,' + (oy * f) + 'px)';
-      });
-    });
-  }
 })();
 </script>
-<script src="/static/js/aegis-particles.js"></script>
 <meta name="ph-key" content="{{ posthog_api_key }}">
 <meta name="ph-host" content="{{ posthog_host }}">
 <script>

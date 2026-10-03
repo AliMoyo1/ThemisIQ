@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script src="/static/js/premium_theme_init.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ status_code }} - ThemisIQ</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
@@ -21,8 +22,9 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0f172a;c
 .btn-secondary:hover{color:#e2e8f0;border-color:#64748b}
 .logo{margin-bottom:32px;font-size:18px;font-weight:700;color:#64748b;letter-spacing:1px}
 </style>
+<link rel="stylesheet" href="/static/css/premium_standalone.css?v=1">
 </head>
-<body>
+<body data-premium="error">
 <div class="error-container">
   <div class="logo">THEMISIQ</div>
   <div class="error-code">{{ status_code }}</div>

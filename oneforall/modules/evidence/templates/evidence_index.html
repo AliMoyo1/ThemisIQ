@@ -28,21 +28,21 @@
 <div class="sidebar-section">
   <div class="sidebar-label">Modules</div>
   <a href="#" class="nav-item" onclick="filterModule('',this)">All Modules</a>
-  <a href="#" class="nav-item" onclick="filterModule('aria',this)">
-    <span style="width:8px;height:8px;border-radius:50%;background:#4f8ef7;display:inline-block"></span> ARIA
-    <span id="badge-aria" class="nav-badge" style="background:#4f8ef722;color:#4f8ef7"></span>
+  <a href="#" class="nav-item ev-filter ev-filter-aria" onclick="filterModule('aria',this)">
+    <span class="ev-filter-dot" aria-hidden="true"></span> ARIA
+    <span id="badge-aria" class="nav-badge ev-filter-badge"></span>
   </a>
-  <a href="#" class="nav-item" onclick="filterModule('grid',this)">
-    <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></span> GRID
-    <span id="badge-grid" class="nav-badge" style="background:#16a34a22;color:#16a34a"></span>
+  <a href="#" class="nav-item ev-filter ev-filter-grid" onclick="filterModule('grid',this)">
+    <span class="ev-filter-dot" aria-hidden="true"></span> GRID
+    <span id="badge-grid" class="nav-badge ev-filter-badge"></span>
   </a>
-  <a href="#" class="nav-item" onclick="filterModule('bcm',this)">
-    <span style="width:8px;height:8px;border-radius:50%;background:#d97706;display:inline-block"></span> BCM
-    <span id="badge-bcm" class="nav-badge" style="background:#d9770622;color:#d97706"></span>
+  <a href="#" class="nav-item ev-filter ev-filter-bcm" onclick="filterModule('bcm',this)">
+    <span class="ev-filter-dot" aria-hidden="true"></span> BCM
+    <span id="badge-bcm" class="nav-badge ev-filter-badge"></span>
   </a>
-  <a href="#" class="nav-item" onclick="filterModule('sentinel',this)">
-    <span style="width:8px;height:8px;border-radius:50%;background:#7c3aed;display:inline-block"></span> Sentinel
-    <span id="badge-sentinel" class="nav-badge" style="background:#7c3aed22;color:#7c3aed"></span>
+  <a href="#" class="nav-item ev-filter ev-filter-sentinel" onclick="filterModule('sentinel',this)">
+    <span class="ev-filter-dot" aria-hidden="true"></span> Sentinel
+    <span id="badge-sentinel" class="nav-badge ev-filter-badge"></span>
   </a>
 </div>
 <div class="sidebar-section">
@@ -276,6 +276,7 @@ var evSavedViews=[], evUserId={{ user.id }};
 var evViewMode = localStorage.getItem('ev-view-mode') || 'cards';
 var evCanBulkArchive = {{ 'true' if can_bulk_archive else 'false' }};
 var evSelectionMode = false, evSelectedIds = new Set(), evVisibleIds = [];
+var evLoadSeq = 0;
 var iconMap={policy:'📋',certificate:'🏅',screenshot:'🖼',report:'📊',
   procedure:'📝',training:'🎓',general:'📄',policy_approval:'📋',
   control_assessment:'📊',audit_finding:'⚠️',audit_completion:'✅',
@@ -423,6 +424,7 @@ function getCsrf(){
 }
 
 async function loadEvidence(){
+  var loadSeq=++evLoadSeq;
   var params=new URLSearchParams();
   if(currentCategory)params.set('category',currentCategory);
   if(currentStatus)params.set('status',currentStatus);
@@ -432,6 +434,7 @@ async function loadEvidence(){
   if(q)params.set('q',q);
   var r=await fetch('/evidence/api/items?'+params.toString());
   var items=await r.json();
+  if(loadSeq!==evLoadSeq)return;
   evSelectedIds.clear();
   evVisibleIds=items.filter(function(item){return item.status!=='archived';}).map(function(item){return Number(item.id);});
   evUpdateSelection();

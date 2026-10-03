@@ -13,7 +13,7 @@
      The icon sidebar at 64px stays as the primary nav. */
   .module-sidebar {
     position: fixed; top: var(--topbar-h); bottom: 0; left: var(--icon-sidebar-w);
-    z-index: 600; transform: translateX(-105%); transition: transform .22s ease-out;
+    z-index: 600; transform: translateX(calc(-100% - var(--icon-sidebar-w))); transition: transform .22s ease-out;
     box-shadow: 8px 0 24px rgba(0,0,0,.12);
   }
   .module-sidebar.open { transform: translateX(0); }

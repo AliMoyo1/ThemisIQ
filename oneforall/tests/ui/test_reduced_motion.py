@@ -14,27 +14,25 @@ preference).
 
 
 def test_login_page_ambient_animations_stop_under_reduced_motion(page, live_app):
-    """Red proof for this test (temporarily removing the login.html
-    reduced-motion media block): animationName stays 'topPulse' regardless
-    of the emulated preference. Restored, it becomes 'none'."""
+    """The visible bottom glow and hidden legacy beams have no animation
+    when the browser requests reduced motion."""
     page.emulate_media(reduced_motion="reduce")
     page.goto(f"{live_app}/login")
-    page.wait_for_selector(".scene-top-pulse")
-    for selector in [".scene-top-pulse", ".scene-bottom-glow", ".scene-spot",
+    page.wait_for_selector(".scene-bottom-glow")
+    for selector in [".scene-bottom-glow", ".scene-top-pulse", ".scene-spot",
                      ".beam-top", ".corner-tl"]:
         name = page.eval_on_selector(selector, "el => getComputedStyle(el).animationName")
         assert name == "none", f"{selector} still animates: {name}"
 
 
 def test_login_page_animations_run_normally_without_the_preference(page, live_app):
-    """Control case: with no reduced-motion preference, the same
-    animations are still active -- proves the fix is conditional, not a
-    blanket removal of the effect for everyone."""
+    """The visible bottom glow animates normally; legacy top beams stay hidden."""
     page.emulate_media(reduced_motion="no-preference")
     page.goto(f"{live_app}/login")
-    page.wait_for_selector(".scene-top-pulse")
-    name = page.eval_on_selector(".scene-top-pulse", "el => getComputedStyle(el).animationName")
-    assert name == "topPulse"
+    page.wait_for_selector(".scene-bottom-glow")
+    name = page.eval_on_selector(".scene-bottom-glow", "el => getComputedStyle(el).animationName")
+    assert name == "bottomPulse"
+    assert not page.locator(".scene-top-pulse").is_visible()
 
 
 def test_login_card_tilt_does_not_respond_to_mouse_under_reduced_motion(page, live_app):

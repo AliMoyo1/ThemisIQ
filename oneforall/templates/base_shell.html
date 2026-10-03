@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}ThemisIQ{% endblock %}</title>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
+<script src="/static/js/premium_theme_init.js"></script>
 <meta name="ph-key" content="{{ posthog_api_key }}">
 <meta name="ph-host" content="{{ posthog_host }}">
 {% if user %}<meta name="ph-uid" content="{{ user.id }}" data-email="{{ user.email or '' }}" data-name="{{ user.full_name or user.username or '' }}" data-role="{{ user.role or '' }}">{% endif %}
@@ -158,17 +159,6 @@
   opacity:0.03;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size:200px 200px;
-}
-
-/* ── Particle network canvas ── */
-#aegis-particles{
-  position:fixed;inset:0;width:100%;height:100%;
-  z-index:1;
-  pointer-events:none;
-  mix-blend-mode:multiply; /* Light mode: darkens on white → colored dots visible */
-}
-[data-theme="dark"] #aegis-particles{
-  mix-blend-mode:screen;   /* Dark mode: adds light → colored glow visible */
 }
 
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
@@ -430,6 +420,7 @@ input,select,textarea{font-family:var(--font)}
 .notif-panel.show{display:block}
 .notif-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
 .notif-header-title{font-size:14px;font-weight:700;color:var(--text)}
+.notif-mark-read{border:0;background:none;padding:4px 0;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer}
 .notif-list{max-height:320px;overflow-y:auto}
 .notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s}
 .notif-item:hover{background:var(--accent-bg)}
@@ -672,8 +663,6 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 .search-result{transition:background 0.1s}
 .search-result.active{background:var(--accent-pale) !important}
 
-{% block extra_styles %}{% endblock %}
-
 /* PLAN-36 T07: visually hidden until keyboard-focused, so it doesn't
    disturb sighted-mouse layout but is the very first Tab stop. */
 .skip-link{
@@ -690,8 +679,11 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
 }
+{% block extra_styles %}{% endblock %}
+
 </style>
 <link rel="stylesheet" href="/static/css/responsive.css">
+<link rel="stylesheet" href="/static/css/premium_theme.css?v=1">
 </head>
 
 <body data-module="{{ active_module | default('platform') }}">
@@ -709,9 +701,6 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 
 <!-- Noise texture overlay (z-index:0, opacity:3%, mix-blend-mode:overlay) -->
 <div id="bg-noise" aria-hidden="true"></div>
-
-<!-- Particle network canvas (z-index:-1, pointer-events:none — purely decorative) -->
-<canvas id="aegis-particles" aria-hidden="true"></canvas>
 
 <!-- ═══════════════════════════════════════════════════════════════════
      ICON SIDEBAR — always visible, switches modules
@@ -827,7 +816,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     </a>
     {% endif %}
     {% if can_governance_settings %}
-    <a href="/governance/" class="icon-nav-item{% if active_module == 'governance' %} active{% endif %}" title="Governance Settings" style="color:#6d28d9">
+    <a href="/governance/" class="icon-nav-item gov-settings-nav{% if active_module == 'governance' %} active{% endif %}" title="Governance Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V10M18 21V10M9 21V14h6v7M3 10l9-6 9 6"/></svg>
       <span class="icon-nav-tooltip">Governance Settings — Business Units &amp; Entities</span>
       <span class="nav-label">Governance Settings</span>
@@ -987,7 +976,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
         <div class="notif-panel" id="notifPanel">
           <div class="notif-header">
             <span class="notif-header-title">Notifications</span>
-            <span style="font-size:11px;color:var(--accent);cursor:pointer;font-weight:600" onclick="markAllRead()">Mark all read</span>
+            <button type="button" class="notif-mark-read" onclick="markAllRead()">Mark all read</button>
           </div>
           <div class="notif-list" id="notifList">
             <div class="empty-state" style="padding:24px">
@@ -1421,29 +1410,29 @@ setInterval(async()=>{
 {% block extra_scripts %}{% endblock %}
 
 <!-- Reminder Modal -->
-<div class="modal" id="reminderModal" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;">
+<div class="reminder-overlay" id="reminderModal" role="dialog" aria-modal="true" aria-labelledby="reminderTitle" style="display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;">
   <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);" onclick="closeReminderModal()"></div>
-  <div style="position:relative;background:var(--surface);border-radius:16px;padding:24px;width:400px;max-width:90vw;box-shadow:var(--shadow-lg);">
+  <div class="reminder-card" style="position:relative;background:var(--surface);border-radius:16px;padding:24px;width:400px;max-width:90vw;box-shadow:var(--shadow-lg);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <h3 style="font-size:16px;font-weight:700;color:var(--text);margin:0;">Set Email Reminder</h3>
-      <button onclick="closeReminderModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">&times;</button>
+      <h3 id="reminderTitle" style="font-size:16px;font-weight:700;color:var(--text);margin:0;">Set Email Reminder</h3>
+      <button type="button" aria-label="Close reminder" onclick="closeReminderModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">&times;</button>
     </div>
     <form id="reminderForm" onsubmit="createReminder(event)">
       <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Title</label>
+        <label for="remTitle" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Title</label>
         <input type="text" id="remTitle" required placeholder="e.g. Review audit findings" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
       </div>
       <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Message (optional)</label>
+        <label for="remMessage" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Message (optional)</label>
         <textarea id="remMessage" rows="2" placeholder="Additional details..." style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;resize:vertical;"></textarea>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
         <div>
-          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Date & Time</label>
+          <label for="remAt" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Date & Time</label>
           <input type="datetime-local" id="remAt" required style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
         </div>
         <div>
-          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Repeat</label>
+          <label for="remRepeat" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Repeat</label>
           <select id="remRepeat" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
             <option value="none">No repeat</option>
             <option value="daily">Daily</option>
@@ -1453,7 +1442,7 @@ setInterval(async()=>{
         </div>
       </div>
       <div style="margin-bottom:14px;">
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Module</label>
+        <label for="remModule" style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">Module</label>
         <select id="remModule" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--text);font-size:13px;">
           <option value="platform">Platform (General)</option>
           <option value="aria">Governance</option>
@@ -1500,13 +1489,7 @@ async function createReminder(e){
 
 {% include "_platform_trainer.html" %}
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     PARTICLE NETWORK BACKGROUND
-     Adapted from AetherFlow. Vanilla JS, no dependencies.
-     z-index:-1, pointer-events:none — completely non-interactive.
-     Pauses when tab is hidden; respects prefers-reduced-motion.
-     ═══════════════════════════════════════════════════════════════════ -->
-<script src="/static/js/aegis-particles.js"></script>
+
 <script src="/static/js/related_items.js"></script>
 <script src="/static/js/modal_manager.js?v=1"></script>
 

@@ -9,6 +9,7 @@ Gated by governance.entities.view (read) / governance.entities.manage (write).
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from database import get_db
 
 from core.middleware import require_capability
 from core.shell_context import shell_ctx

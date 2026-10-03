@@ -85,7 +85,7 @@
     Analytics &amp; Insights
   </span>
 
-  <select id="trendDays" class="an-select" onchange="reloadTrends()">
+  <select id="trendDays" class="an-select" aria-label="Trend period" onchange="reloadTrends()">
     <option value="7">7 days</option>
     <option value="30" selected>30 days</option>
     <option value="60">60 days</option>
@@ -205,6 +205,7 @@ let liveData     = null;   // from /api/command-centre/stats
 let snapshotData = [];     // from /api/analytics/current
 let trendData    = {};     // metric name → [{date, value}]
 const IS_ADMIN   = {{ 'true' if is_admin else 'false' }};
+let trendRequestSequence = 0;
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
@@ -240,7 +241,9 @@ async function loadAll(){
 }
 
 async function loadTrends(){
+  const requestId = ++trendRequestSequence;
   const days = document.getElementById('trendDays').value;
+  let nextTrends;
   try{
     const [cR,rR,aR,pR] = await Promise.all([
       fetch(`/api/analytics/trends?metric=compliance_pct&days=${days}`),
@@ -248,13 +251,17 @@ async function loadTrends(){
       fetch(`/api/analytics/trends?metric=audits_active&days=${days}`),
       fetch(`/api/analytics/trends?metric=breaches_open&days=${days}`),
     ]);
-    trendData.compliance = cR.ok ? await cR.json() : [];
-    trendData.risks      = rR.ok ? await rR.json() : [];
-    trendData.audits     = aR.ok ? await aR.json() : [];
-    trendData.privacy    = pR.ok ? await pR.json() : [];
+    nextTrends = {
+      compliance: cR.ok ? await cR.json() : [],
+      risks: rR.ok ? await rR.json() : [],
+      audits: aR.ok ? await aR.json() : [],
+      privacy: pR.ok ? await pR.json() : [],
+    };
   }catch(e){
-    trendData = {compliance:[],risks:[],audits:[],privacy:[]};
+    nextTrends = {compliance:[],risks:[],audits:[],privacy:[]};
   }
+  if(requestId !== trendRequestSequence) return;
+  trendData = nextTrends;
   renderAllCharts();
 }
 
@@ -327,14 +334,14 @@ function renderModuleHealth(){
   const items = (liveData?.module_health)||[];
   if(!items.length){ el.innerHTML='<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">No module data</div>'; return; }
 
-  const MOD_COLOR = {aria:'#7c3aed',grid:'#1a6b3a',bcm:'#d97706',sentinel:'#0891b2'};
+  const moduleKeys = ['aria','grid','bcm','sentinel','erm','orm','governance'];
   el.innerHTML = items.map(m=>{
     const pct = parseInt(m.pct)||0;
     const color = pct>=80?'var(--green-status)':pct>=60?'var(--amber)':'var(--red)';
-    const modColor = MOD_COLOR[m.key]||'var(--accent)';
+    const modKey = moduleKeys.includes(m.key) ? m.key : 'platform';
     return `<div class="mh-row">
       <div class="mh-name">
-        <span style="color:${modColor};margin-right:4px">●</span>${esc(m.name)}
+        <span class="mh-dot" data-module-key="${modKey}" aria-hidden="true">●</span>${esc(m.name)}
       </div>
       <div class="mh-track">
         <div class="mh-fill" style="width:${pct}%;background:${color}"></div>
@@ -377,18 +384,18 @@ function renderAllCharts(){
 
   // For compliance: higher is better (NOT inverted)
   renderChart('chartCompliance', d.compliance, 'compVal', 'compDelta', '%',
-    live?.compliance_pct??null, '#16a34a', false);
+    live?.compliance_pct??null, 'var(--chart-line)', false);
 
   // For risks: lower is better (inverted)
   const openRisks = (live?.risk_counts?.critical||0)+(live?.risk_counts?.high||0)+(live?.risk_counts?.medium||0);
   renderChart('chartRisks', d.risks, 'riskVal', 'riskDelta', '',
-    snapshotData.find(s=>s.metric_name==='risks_open')?.metric_value??openRisks, '#f97316', true);
+    snapshotData.find(s=>s.metric_name==='risks_open')?.metric_value??openRisks, 'var(--chart-line)', true);
 
   renderChart('chartAudits', d.audits, 'auditVal', 'auditDelta', '',
-    snapshotData.find(s=>s.metric_name==='audits_active')?.metric_value??null, '#2563eb', false);
+    snapshotData.find(s=>s.metric_name==='audits_active')?.metric_value??null, 'var(--chart-line)', false);
 
   renderChart('chartPrivacy', d.privacy, 'privVal', 'privDelta', '',
-    snapshotData.find(s=>s.metric_name==='breaches_open')?.metric_value??null, '#dc2626', true);
+    snapshotData.find(s=>s.metric_name==='breaches_open')?.metric_value??null, 'var(--chart-line)', true);
 
   // Re-run insights now that trend data is available (adds the trend bullet)
   if(liveData) runInsightEngine();
@@ -404,6 +411,7 @@ function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, 
   if(valEl) valEl.textContent = current!==null ? (current+suffix) : '—';
 
   if(!data||!data.length){
+    chartEl.onpointermove = chartEl.onpointerleave = null;
     chartEl.innerHTML = `<div class="an-chart-empty">No snapshot data yet — click Refresh Snapshot</div>`;
     if(deltaEl) deltaEl.innerHTML = '';
     return;
@@ -462,28 +470,59 @@ function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, 
   ] : [];
 
   const gradId = `grad-${chartId}`;
+  const title = chartEl.closest('.an-chart-card')?.querySelector('.an-chart-title')?.textContent.trim() || 'Trend';
 
-  chartEl.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+  chartEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} over selected period">
     <defs>
       <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${baseColor}" stop-opacity="0.25"/>
-        <stop offset="100%" stop-color="${baseColor}" stop-opacity="0.02"/>
+        <stop offset="0%" style="stop-color:${baseColor};stop-opacity:.24"/>
+        <stop offset="100%" style="stop-color:${baseColor};stop-opacity:.015"/>
       </linearGradient>
     </defs>
-    <!-- Grid lines -->
-    ${yLabels.map(l=>`<line x1="${PAD.left}" y1="${l.y.toFixed(1)}" x2="${PAD.left+innerW}" y2="${l.y.toFixed(1)}"
-      stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>`).join('')}
-    <!-- Y-axis labels -->
-    ${yLabels.map(l=>`<text x="${PAD.left-4}" y="${l.y+4}" text-anchor="end" font-size="9" fill="var(--muted)">${esc(l.val+suffix)}</text>`).join('')}
-    <!-- Area fill -->
-    <path d="${areaPath}" fill="url(#${gradId})"/>
-    <!-- Line -->
-    <path d="${linePath}" fill="none" stroke="${baseColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <!-- Last point dot -->
-    <circle cx="${pts[pts.length-1].x.toFixed(1)}" cy="${pts[pts.length-1].y.toFixed(1)}" r="4" fill="${baseColor}"/>
-    <!-- X-axis labels -->
-    ${xLabels.map((l,i)=>`<text x="${l.x}" y="${H}" text-anchor="${i===0?'start':'end'}" font-size="9" fill="var(--muted)">${esc(l.label)}</text>`).join('')}
-  </svg>`;
+    ${yLabels.map(l=>`<line class="an-chart-grid" x1="${PAD.left}" y1="${l.y.toFixed(1)}" x2="${PAD.left+innerW}" y2="${l.y.toFixed(1)}"/>`).join('')}
+    ${yLabels.map(l=>`<text class="an-chart-axis" x="${PAD.left-5}" y="${l.y+4}" text-anchor="end">${esc(l.val+suffix)}</text>`).join('')}
+    <g class="an-chart-series">
+      <path d="${areaPath}" fill="url(#${gradId})"/>
+      <path class="an-chart-line" d="${linePath}" fill="none" style="stroke:${baseColor}"/>
+      ${pts.map((p,i)=>`<g class="an-chart-point" tabindex="${i===0?0:-1}" role="img"
+        aria-label="${esc(String(p.d.date))}: ${esc(String(p.d.value))}${suffix}" data-point-index="${i}">
+        <circle class="an-chart-point-hit" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="11"/>
+        <circle class="an-chart-point-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" style="fill:${baseColor}"/>
+      </g>`).join('')}
+    </g>
+    ${xLabels.map((l,i)=>`<text class="an-chart-axis" x="${l.x}" y="${H}" text-anchor="${i===0?'start':'end'}">${esc(l.label)}</text>`).join('')}
+  </svg><div class="an-chart-tooltip" hidden></div>`;
+
+  const tooltip = chartEl.querySelector('.an-chart-tooltip');
+  function showPoint(point){
+    if(!point){ tooltip.hidden = true; return; }
+    const p = pts[Number(point.dataset.pointIndex)];
+    if(!p) return;
+    tooltip.textContent = `${p.d.date} | ${p.d.value}${suffix}`;
+    tooltip.style.left = `${Math.max(56, Math.min(W-56, p.x))}px`;
+    tooltip.style.top = `${p.y}px`;
+    tooltip.hidden = false;
+  }
+  chartEl.onpointermove = e => showPoint(e.target.closest('.an-chart-point'));
+  chartEl.onpointerleave = () => { tooltip.hidden = true; };
+  const points = [...chartEl.querySelectorAll('.an-chart-point')];
+  points.forEach((point,index) => {
+    point.onfocus = () => {
+      points.forEach((candidate,i) => candidate.setAttribute('tabindex', i===index ? '0' : '-1'));
+      showPoint(point);
+    };
+    point.onblur = () => { tooltip.hidden = true; };
+    point.onkeydown = event => {
+      let next = index;
+      if(event.key==='ArrowRight') next = Math.min(index+1, points.length-1);
+      else if(event.key==='ArrowLeft') next = Math.max(index-1, 0);
+      else if(event.key==='Home') next = 0;
+      else if(event.key==='End') next = points.length-1;
+      else return;
+      event.preventDefault();
+      points[next].focus();
+    };
+  });
 }
 
 /* ── AI Insight Engine ────────────────────────────────────────────────────── */
@@ -733,6 +772,17 @@ window.exportCSV = function(){
 /* ── Init ─────────────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', function(){
   loadAll();
+  if('ResizeObserver' in window){
+    const chart = document.getElementById('chartCompliance');
+    let chartWidth = chart.clientWidth;
+    new ResizeObserver(entries => {
+      const nextWidth = entries[0].contentRect.width;
+      if(Math.abs(nextWidth - chartWidth) > 2){
+        chartWidth = nextWidth;
+        if(Array.isArray(trendData.compliance)) renderAllCharts();
+      }
+    }).observe(chart);
+  }
 
   // Re-run insight engine + chart delta after trends load
   // (called inside loadTrends via renderAllCharts which triggers runInsightEngine 2nd time if trends are available)
