@@ -174,15 +174,22 @@ unlabeled worker, a mutable image tag, or a worker with extra mounts, ports,
 secrets or network access does not satisfy this gate.
 
 For an authorized pilot, first configure the root-owned environment with a
-non-empty, organization-specific allow-list. Preflight and apply then require
-both of the following options every time:
+non-empty, organization-specific allow-list. This VPS has two Docker daemons:
+the default socket reaches Snap Docker, while the system daemon used for the
+private preview spool listens on `/run/themisiq-docker.sock`. Explicitly select
+the system daemon for worker Compose, pilot preflight, and pilot apply. Verify
+that `sudo env DOCKER_HOST=unix:///run/themisiq-docker.sock docker info
+--format '{{.DockerRootDir}}'` prints `/var/lib/docker` before proceeding.
+Preflight and apply then require both pilot authorization options every time:
 
 ```bash
-sudo python3 oneforall/scripts/deploy.py \
+sudo env DOCKER_HOST=unix:///run/themisiq-docker.sock \
+  python3 oneforall/scripts/deploy.py \
   --authorize-aria-policy-authoring-org-ids '<ORG_ID[,ORG_ID...]>' \
   --accept-aria-policy-authoring-known-limitations
 
-sudo python3 oneforall/scripts/deploy.py --apply --restart \
+sudo env DOCKER_HOST=unix:///run/themisiq-docker.sock \
+  python3 oneforall/scripts/deploy.py --apply --restart \
   --authorize-aria-policy-authoring-org-ids '<ORG_ID[,ORG_ID...]>' \
   --accept-aria-policy-authoring-known-limitations
 ```

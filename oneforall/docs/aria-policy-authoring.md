@@ -228,7 +228,11 @@ export ARIA_PREVIEW_UID="$(id -u themisiq)"
 export ARIA_PREVIEW_GID="$(id -g themisiq)"
 export ARIA_POLICY_PREVIEW_SPOOL_DIR=/var/lib/themisiq/preview-spool
 export ARIA_PREVIEW_IMAGE='ghcr.io/.../themisiq-aria-preview@sha256:...'
-sudo -E docker compose -f deploy/aria-preview/compose.vps.yml up -d
+sudo env DOCKER_HOST=unix:///run/themisiq-docker.sock \
+  ARIA_PREVIEW_UID="$ARIA_PREVIEW_UID" ARIA_PREVIEW_GID="$ARIA_PREVIEW_GID" \
+  ARIA_POLICY_PREVIEW_SPOOL_DIR="$ARIA_POLICY_PREVIEW_SPOOL_DIR" \
+  ARIA_PREVIEW_IMAGE="$ARIA_PREVIEW_IMAGE" \
+  docker compose -f deploy/aria-preview/compose.vps.yml up -d
 ```
 
 Enabled-authoring preflight inspects the labeled container and refuses rollout
