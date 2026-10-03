@@ -22,8 +22,10 @@ Do not restart production unless every invariant below is true:
    SHA-256 sidecar.
 4. Key-based SSH as `themisadmin` works and `sudo id -u` prints `0`.
 5. The current `/health` and `/ready` probes pass before the change.
-6. ARIA policy authoring remains disabled and its organization allowlist is
-   empty. Enabling a pilot is a separate change.
+6. For a standard release, ARIA policy authoring remains disabled with an
+   empty organization allowlist. A separately approved pilot instead requires
+   the exact allowlist, worker isolation checks, and explicit pilot options in
+   section 4 for every preflight and apply.
 7. The database role in the production `DATABASE_URL` is neither a superuser
    nor a BYPASSRLS role, and no applicable database/role default enables
    `app.bypass_rls`. FORCE ROW LEVEL SECURITY does not constrain either role.
