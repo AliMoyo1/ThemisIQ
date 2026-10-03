@@ -1,5 +1,7 @@
 # ThemisIQ Pre-Launch Tracker
 
+**2026-10-02 source reconciliation note:** PLAN-36 implementation is in progress and its current uncommitted changes are unverified. The generated route inventory at [oneforall/docs/generated/capability_inventory.md](oneforall/docs/generated/capability_inventory.md) is the current source for registered routes; this older operations tracker must not be used to infer current VPS health, deployed commit, or completion of new PLAN-36 acceptance gates. Preserve the historical production observations below as dated evidence.
+
 **Last updated:** 2026-08-07 (reconciled against 168 commits made between 2026-06-25 and now — this doc had not been touched since v1.0.2 despite that entire body of work)
 **Target URL:** https://themisiq.net / https://app.themisiq.net
 **Stack:** FastAPI, PostgreSQL, Nginx, Cloudflare, Hetzner VPS

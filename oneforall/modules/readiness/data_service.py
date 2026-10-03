@@ -41,21 +41,49 @@ class RawFinding:
 
 
 _RULES: dict[str, "callable"] = {}
+_RULE_MODULES: dict[str, str | None] = {}
 
 
-def register_rule(rule_code: str):
+def register_rule(rule_code: str, module: str | None = None):
     """Decorator: adds a rule function to the registry under rule_code.
     modules/readiness/rules.py uses this on import; run_rules_for_org()
     iterates the registry rather than a hardcoded list, so adding a rule
     there is the only change needed to wire it in."""
     def _wrap(fn):
         _RULES[rule_code] = fn
+        _RULE_MODULES[rule_code] = module
         return fn
     return _wrap
 
 
 def _ensure_rules_imported():
     import modules.readiness.rules  # noqa: F401  (populates _RULES on import)
+
+
+def _licensed_modules(db, org_id: int) -> set[str] | None:
+    row = db.execute(
+        "SELECT module_keys,valid_until FROM licenses WHERE org_id=%s "
+        "ORDER BY id DESC LIMIT 1", (org_id,),
+    ).fetchone()
+    if not row or not row["module_keys"]:
+        return None
+    if row["valid_until"] and str(row["valid_until"]) < utcnow().isoformat():
+        return set()
+    return {part.strip() for part in row["module_keys"].split(",") if part.strip()}
+
+
+def get_rule_coverage(db, org_id: int) -> list[dict]:
+    """Show why a licensed module was not inspected, even with zero findings."""
+    _ensure_rules_imported()
+    licensed = _licensed_modules(db, org_id)
+    return [
+        {"rule_code": code, "module": module,
+         "state": ("skipped_unlicensed"
+                   if module in {"aria", "grid", "bcm", "sentinel", "erm", "orm"}
+                   and licensed is not None and module not in licensed
+                   else "eligible")}
+        for code, module in _RULE_MODULES.items()
+    ]
 
 
 def run_rules_for_org(db, org_id: int) -> dict:
@@ -74,13 +102,27 @@ def run_rules_for_org(db, org_id: int) -> dict:
     _ensure_rules_imported()
     now = utcnow().isoformat()
     seen_keys: set[tuple[str, str, str]] = set()
-    counts = {"new": 0, "updated": 0, "resolved": 0}
+    counts = {"new": 0, "updated": 0, "resolved": 0, "skipped": 0, "failed_rules": []}
+    licensed = _licensed_modules(db, org_id)
+    checked_rules: set[str] = set()
 
     for rule_code, rule_fn in _RULES.items():
+        module = _RULE_MODULES.get(rule_code)
+        if (module in {"aria", "grid", "bcm", "sentinel", "erm", "orm"}
+                and licensed is not None and module not in licensed):
+            counts["skipped"] += 1
+            continue
+        db.execute("SAVEPOINT readiness_rule")
         try:
             raw_findings = rule_fn(db, org_id)
+            db.execute("RELEASE SAVEPOINT readiness_rule")
+            checked_rules.add(rule_code)
         except Exception:
-            continue  # one broken rule must not block every other rule
+            db.execute("ROLLBACK TO SAVEPOINT readiness_rule")
+            db.execute("RELEASE SAVEPOINT readiness_rule")
+            counts["skipped"] += 1
+            counts["failed_rules"].append(rule_code)
+            continue  # never auto-resolve a finding for a rule we could not run
         for f in raw_findings:
             seen_keys.add((f.rule_code, f.entity_type, f.entity_id))
             existing = db.execute(
@@ -121,7 +163,7 @@ def run_rules_for_org(db, org_id: int) -> dict:
     ).fetchall()
     for row in open_rows:
         key = (row["rule_code"], row["entity_type"], row["entity_id"])
-        if key not in seen_keys:
+        if row["rule_code"] in checked_rules and key not in seen_keys:
             db.execute(
                 "UPDATE readiness_findings SET status='resolved', resolved_at=%s WHERE id=%s",
                 (now, row["id"]),

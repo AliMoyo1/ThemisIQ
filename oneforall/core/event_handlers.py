@@ -3091,7 +3091,8 @@ _WORKFLOW_TRIGGER_MAP = {
 
 def _auto_trigger_workflows(db, event_type: str, source_module: str,
                             entity_type: str, entity_id: int, user_id: int,
-                            event_id: int | None = None) -> None:
+                            event_id: int | None = None,
+                            org_id: int | None = None) -> None:
     """Start workflow instances for any active definitions that match this
     event.
 
@@ -3119,10 +3120,22 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
     if not trigger:
         return
     trigger_module, trigger_action = trigger
+    actor_org = None
+    if user_id is not None:
+        actor = db.execute("SELECT org_id FROM users WHERE id=%s", (user_id,)).fetchone()
+        actor_org = actor["org_id"] if actor else None
+    if org_id is not None and actor_org is not None and org_id != actor_org:
+        raise ValueError("Workflow event organization differs from actor organization")
+    tenant_id = org_id if org_id is not None else actor_org
+    if tenant_id is None:
+        # No trustworthy tenant: do not fan out an event to every definition.
+        return
     defns = db.execute(
-        "SELECT id, name, steps_json FROM workflow_definitions "
-        "WHERE is_active = 1 AND trigger_module = %s AND trigger_action = %s",
-        (trigger_module, trigger_action)
+        "SELECT wd.id, wd.name, wd.steps_json FROM workflow_definitions wd "
+        "JOIN users creator ON creator.id=wd.created_by "
+        "WHERE wd.is_active=1 AND wd.trigger_module=%s AND wd.trigger_action=%s "
+        "AND creator.org_id=%s",
+        (trigger_module, trigger_action, tenant_id)
     ).fetchall()
     if not defns:
         return
@@ -3142,10 +3155,10 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
             iid = insert_returning_id(
                 db,
                 "INSERT INTO workflow_instances "
-                "(definition_id, entity_module, entity_type, entity_id, started_by, source_event_id) "
-                "VALUES (%s,%s,%s,%s,%s,%s) "
+                "(definition_id, entity_module, entity_type, entity_id, started_by, org_id, source_event_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s) "
                 "ON CONFLICT (definition_id, source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING",
-                (defn["id"], source_module, entity_type, entity_id, user_id, event_id)
+                (defn["id"], source_module, entity_type, entity_id, user_id, tenant_id, event_id)
             )
             if iid is None:
                 # A previous attempt may have committed an instance before it
@@ -3167,9 +3180,9 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
             iid = insert_returning_id(
                 db,
                 "INSERT INTO workflow_instances "
-                "(definition_id, entity_module, entity_type, entity_id, started_by) "
-                "VALUES (%s,%s,%s,%s,%s)",
-                (defn["id"], source_module, entity_type, entity_id, user_id)
+                "(definition_id, entity_module, entity_type, entity_id, started_by, org_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s)",
+                (defn["id"], source_module, entity_type, entity_id, user_id, tenant_id)
             )
 
         if steps:
@@ -3198,7 +3211,7 @@ def workflow_trigger_on_aria_policy(event_type, source_module, entity_type,
                                     entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
     except Exception as exc:
         log.warning("workflow_trigger_on_aria_policy failed for %s: %s", event_type, exc)
         raise
@@ -3211,7 +3224,7 @@ def workflow_trigger_on_bcm_incident(event_type, source_module, entity_type,
                                      entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
     except Exception as exc:
         log.warning("workflow_trigger_on_bcm_incident failed for %s: %s", event_type, exc)
         raise
@@ -3224,7 +3237,7 @@ def workflow_trigger_on_sentinel_breach(event_type, source_module, entity_type,
                                         entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
     except Exception as exc:
         log.warning("workflow_trigger_on_sentinel_breach failed for %s: %s", event_type, exc)
         raise
@@ -3237,7 +3250,7 @@ def workflow_trigger_on_erm_risk(event_type, source_module, entity_type,
                                  entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
     except Exception as exc:
         log.warning("workflow_trigger_on_erm_risk failed for %s: %s", event_type, exc)
         raise
@@ -3250,7 +3263,7 @@ def workflow_trigger_on_grid_audit(event_type, source_module, entity_type,
                                    entity_id, payload, user_id, event_id=None, **kw):
     db = get_db()
     try:
-        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id)
+        _auto_trigger_workflows(db, event_type, source_module, entity_type, entity_id, user_id, event_id, kw.get("org_id"))
     except Exception as exc:
         log.warning("workflow_trigger_on_grid_audit failed for %s: %s", event_type, exc)
         raise

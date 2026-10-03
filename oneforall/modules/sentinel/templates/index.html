@@ -4310,8 +4310,14 @@
       if(dpiaCache.length < 1){ if(tries < 20) setTimeout(attempt, 250); return; }
       snOpenDpiaDrawer(id);
     },
-    'breach': function(){ snOpenModal('breach', undefined); },
-    'dsr': function(){ snOpenModal('dsr', undefined); }
+    'breach': async function(id){
+      try { snOpenModal('breach', await ApiClient.request('/sentinel/api/breaches/'+id)); }
+      catch(e){ if(window.showToast) showToast('Breach is unavailable or outside your scope.','error'); }
+    },
+    'dsr': async function(id){
+      try { snOpenModal('dsr', await ApiClient.request('/sentinel/api/dsrs/'+id)); }
+      catch(e){ if(window.showToast) showToast('Request is unavailable or outside your scope.','error'); }
+    }
     // 'vendor': no detail view available
   };
   var _plan06_fn = _plan06_openers[etype];

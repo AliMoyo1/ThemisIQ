@@ -309,3 +309,50 @@ New HTTP coverage: `tests/ui/test_grid_remote_sessions_and_misc_scope.py` (9 tes
 The 2026-10-01 sweep closed its named routes, but its claim that every audit-scoped GRID route was covered was too broad: /api/dashboard and /api/program-dashboard still returned other SBUs' audit data. The authenticated share-link view is a token-authorized exception to ordinary BU filtering. Vendor and framework registries remain org-wide.
 
 **2026-10-02 follow-up:** Both dashboard routes now apply the caller's BU scope to audit rows, aggregates, non-conformance counts, and score trends. Saved-report create/download/delete now constrain file paths to GRID-generated names inside the report area, with new output separated by tenant; existing flat report records are allowed only for read/delete when their paths meet the same filename/audit checks. Remote findings, policy requests, and reminders reject a control that belongs to a different audit. Share links now render an audit overview, controls, and non-conformances for a signed-in GRID user with the token; emailed links require an active same-org GRID account, match the recipient email, and use configured APP_URL instead of a request Host header. A public token-only route was rejected by automatic approval review because it would disclose audit data without login; the current implementation keeps authentication. No tests were run in this follow-up; release verification remains open.
+
+### F20 — RLS policy installation and backup role defaults could weaken tenant isolation (discovered 2026-10-02)
+
+Severity: high. This concerns PostgreSQL shared public tables; tenant-schema isolation does not cover them.
+
+- `core/rls.py::apply_rls_policies()` logged and swallowed any policy-installation error. A startup could therefore report ready even if a new shared-table policy was absent. Local fix: roll back and raise, stopping PostgreSQL startup.
+- `modules/grid/scheduler.py::perform_backup()` temporarily ran `ALTER ROLE <app user> SET app.bypass_rls = 'true'` before `pg_dump` and reset it afterward. New sessions could inherit the policy-bypass setting during that interval; a failed reset could leave it enabled. The claim that every app connection overrides it was too broad because `get_db()` only calls `set_rls_context()` when an org or super-admin context is present. Local fix: pass `PGOPTIONS=-c app.bypass_rls=true` only to the `pg_dump` child and use `--enable-row-security`, which allows the policy to include all rows without changing a role default.
+- The old backup job is disabled by the documented production configuration, where the host backup script is authoritative. Current production settings and role attributes have not been inspected, so this is source-backed risk, not evidence of a live leak.
+- A guarded PostgreSQL 18 probe showed default `pg_dump` failed on a FORCE-RLS table for a non-bypassing role; the session-scoped command succeeded and its archive contained both synthetic organizations. An ordinary session still saw zero rows, and the role had no persistent bypass setting. The deployment preflight now checks the configured role's superuser/BYPASSRLS flags and any applicable `app.bypass_rls=true` default.
+
+Local red/green regressions cover backup scope and fail-closed policy installation. Hosted CI, production role state, and authorized deployment remain outstanding; see the dated progress entry.
+
+
+### F21 — Task assignment could notify a user in another organization (discovered 2026-10-02)
+
+Severity: high. The Task Board create and reassignment routes accepted any existing user ID. Creating a task for another organization's user sent its title and description in a notification. A synthetic two-organization HTTP test returned 201 before the fix. The task service now checks active assignee membership in the actor's organization inside the create transaction; single and bulk reassignment use the same check. The HTTP regression covers all three paths and the denied task remains unchanged. Platform super administrators retain their explicit global scope.
+
+### F22 — Task Board static routes and statistics were unsafe (discovered 2026-10-02)
+
+Severity: medium. The dynamic PUT task-id route shadowed the bulk route, and the new dynamic GET detail route shadowed the stats route; both static paths returned 422. Static routes now precede the dynamic path. The stats endpoint also counted every organization's tasks on shared SQLite, while the list excluded other organizations. Its counts now use the same organization and SBU scope as the list. The new detail endpoint and My Work deep links are scope checked. HTTP and real-browser regressions cover the route order, count parity, and record drawer.
+
+### F23 — Fresh PostgreSQL initialization failed on calendar SBU foreign key (discovered 2026-10-02)
+
+Severity: release blocker. Adding a calendar_events.business_unit_id foreign key placed a PostgreSQL reference before the business_units table was created in both shared and tenant-platform schema strings. The guarded fresh-init test failed with UndefinedTable: relation business_units does not exist. The existing business-unit DDL now precedes the calendar DDL in both schema strings. The expanded disposable PostgreSQL suite passes, including a new assertion for BCM exercise tables and the calendar, reminder, report, and metrics columns. No production schema was touched.
+
+### F24 - Workflow definition and action routes crossed organization boundaries (discovered 2026-10-02)
+
+Severity: high; release gate.
+
+The generic workflow engine listed definitions and instances across organizations, fetched instance details by unscoped ID, and allowed an organization user to update another organization's definition. Pending actions with no assignee could be decided by any authenticated user; delegation could target an active user in another organization. Role resolution selected every active holder of a role across all organizations and sent each a workflow title and step notification. Event-triggered flows also matched definitions by trigger alone, including definitions owned by other organizations. My Work linked workflow actions only to the unfiltered list.
+
+Synthetic HTTP and service regressions reproduced the cross-organization definition read and event-triggered wrong-tenant flow before the fix. Definition reads/writes and workflow instance/action reads/writes now scope to the creator or instance organization, delegation only accepts a user in the instance organization, and role resolution only notifies holders in that organization. Event-triggered flows use the emitter's explicit tenant or the actor's organization, reject a conflicting actor/tenant pair, and skip triggering when neither provides a trustworthy organization. The workflow_instances.org_id column records system-triggered ownership; existing human-started rows are backfilled from their starter, while rows with no trustworthy owner remain inaccessible to tenant users. The My Work link now opens the scoped workflow detail drawer. Focused backend, HTTP, and Chromium tests pass; full-suite results are in the latest progress entry.
+
+Adjacent workflow validation defects were also confirmed by red HTTP regressions: a nonnumeric delegation target returned 500, and a definition accepted a non-list steps value. A next-step insert failure left the prior decision committed as approved. The route now validates step shape, stored step JSON, delegation IDs, and return-step IDs before mutation; starting an instance commits its first action in the same transaction, and deciding an action commits the decision, next step, and notifications together. The rollback regression proves a failed next-step insert leaves the original action pending.
+
+Existing cross-organization action/notification rows, if any exist on a deployed database, require a separately authorized data review. No production data was inspected or changed.
+
+
+### F25 - SLA instances and communication templates lacked organization scope (discovered 2026-10-03)
+
+Severity: high for shared SQLite and defense in depth for PostgreSQL tenant schemas. The PostgreSQL production deployment provisions separate platform tables in each tenant schema; no live production leak was established.
+
+A synthetic two-organization HTTP regression showed an organization user could list another organization's SLA instance. The same instance routes accepted foreign IDs for response, resolution, and escalation; breach scans and dashboard counts ignored organization ownership. SLA rows had no org_id column, so a tenant-safe filter was impossible. The background SLA warning job also selected compliance managers across organizations, risking notifications containing another organization's entity reference. Communication-template list/render/update routes likewise resolved templates without the creator's organization.
+
+The local fix adds sla_instances.org_id to SQLite and PostgreSQL schema and migration paths. New instances take the authenticated tenant's organization; a platform super administrator must choose an active target. Lists, detail mutations, breach scans, and statistics use that owner. The scheduler iterates active tenants and delivers warnings only to compliance managers in the same organization. Communication templates resolve through their creator's organization. Super-admin start dialogs load definitions from the selected tenant; PostgreSQL target writes bind to that tenant schema and fail closed if its schema is missing. The SLA response and resolution routes also replace SQLite-only row access and scalar MAX usage so the successful mutation path works on both engines.
+
+Historical SLA rows have no trustworthy owner field. Their new org_id remains NULL and tenant routes exclude them until a separately authorized data review assigns ownership. Historical communication templates whose creator was deleted or has no organization similarly fail closed. No production data was inspected or modified. Focused HTTP, browser, scheduler, and real PostgreSQL checks are recorded in the latest progress entry.

@@ -145,13 +145,16 @@ def emit(event_type: str, source_module: str, entity_type: str = "",
     # key an idempotency check on the exact event occurrence, not just the
     # entity -- see policy_published_handler and _auto_trigger_workflows
     # for the two that actually do.
+    from database import get_current_org
+    effective_org_id = org_id if org_id is not None else get_current_org()
     handlers = _handlers.get(event_type, [])
     any_failed = False
     for handler in handlers:
         try:
             handler(event_type=event_type, source_module=source_module,
                     entity_type=entity_type, entity_id=entity_id,
-                    payload=payload or {}, user_id=user_id, event_id=event_id)
+                    payload=payload or {}, user_id=user_id, event_id=event_id,
+                    org_id=effective_org_id)
         except Exception as exc:
             any_failed = True
             log.exception("Event handler %s failed for %s: %s", handler.__name__, event_type, exc)

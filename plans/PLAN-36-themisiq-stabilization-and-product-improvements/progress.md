@@ -1,3 +1,101 @@
+## 2026-10-03 PLAN-36 workflow and SLA tenant-isolation verification checkpoint
+
+Outcome: F24 and F25 are fixed in the local worktree. The broader PLAN-36 release gate remains open. No production database, service, or external integration was touched; no commit, push, or deployment was performed.
+
+This continuation completed the F24 workflow path: organization-owned definitions, instances, actions, delegation, role resolution, event triggers, and overdue reminders; direct My Work instance links; invalid step/delegation input handling; and atomic start/decision writes. Synthetic HTTP and service regressions reproduced the original foreign-definition read, wrong-tenant event trigger, malformed input, next-step partial commit, and historical foreign-assignee reminder before their fixes.
+
+F25 was then reproduced with a two-organization HTTP SLA-list failure. The local fix adds sla_instances.org_id to both database schemas and migrations; scopes SLA lists, mutations, breach scans, stats, and background warnings; scopes communication-template read/render/update to the creator's organization; and provides explicit super-admin organization selection. The selected PostgreSQL tenant schema is checked before definition lookup or record creation, and missing storage fails closed. A successful SLA respond request exposed a separate SQLite-row .get() error, which was corrected; response/resolution updates now use portable CASE SQL. The browser start dialogs load definitions from the selected organization.
+
+Final local verification, run from oneforall/ with ../.venv/Scripts/python.exe:
+
+1. Full backend: python -m pytest tests --ignore=tests/ui -q --disable-warnings --cov=. --cov-report=term --cov-report=xml --cov-fail-under=43 --tb=short --show-capture=no -- exit 0; 45.78% coverage against the 43% floor.
+2. Full HTTP/Chromium browser suite: python -m pytest tests/ui -q --disable-warnings --tb=short --show-capture=no -- exit 0.
+3. Guarded real PostgreSQL: with TEST_DATABASE_URL set only to the disposable localhost themisiq_test_plan36 database and THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1, python -m pytest tests/test_postgres_init.py -q --disable-warnings --tb=short --show-capture=no -- exit 0, 15 tests passed. The container was stopped afterward. This includes fresh schema, target-tenant selection, and missing-schema failure checks.
+4. Focused workflow/SLA/communication tenant HTTP, Chromium, scheduler, and schema regressions -- exit 0.
+5. Python compileall, node --check across static/js, node --test tests/js/*.test.js (4 passed), capability_inventory.py --check, pip check, and git diff --check -- exit 0.
+
+Migration limit: existing SLA instances have no trustworthy owner field, so their new org_id stays NULL and tenant routes exclude them. Existing deleted-creator communication templates also fail closed. A separately authorized ownership review is needed before deployment; there was no automatic assignment of historical rows.
+
+Still open: T08's complete action-registry success/postcondition coverage and controlled external-adapter smoke checks; T09 hosted CI and production preflight; T10 remaining route classification and cohesive extractions; and the product acceptance gaps named in task_plan.md. Local Chromium is not an installed Edge-channel result. At this verification checkpoint, the worktree had not yet been committed.
+
+## 2026-10-02 PLAN-36 build and local verification checkpoint
+
+Outcome: P08's BCM exercise lifecycle is built and its local acceptance paths pass. The build-first P01/P02/P03/P04/P06/P09 and T10 additions were checked as a batch. The programme release gate remains open for the named T08-T10 and product gaps in task_plan.md. Local master and the locally recorded origin/master both point to f8fd748cb80a827832260317425e182ca289869c; no fetch, commit, or push was performed.
+
+Files changed in this continuation: modules/launcher/my_work_service.py, routes_platform.py, task_service.py, templates/task_board.html; database.py; modules/bcm/scheduler.py; docs/generated/capability_inventory.json and .md; tests/test_my_work_service.py, test_diagnostics_probes.py, test_erm_scan_jobs.py, test_aria_policy_workbench.py, test_postgres_init.py, and new test_bcm_exercise_workflow.py; tests/ui/test_my_work_page.py, test_aria_policy_workbench_routes.py, test_evidence_keyboard_accessibility.py, test_evidence_upload_error_detail.py, and new test_task_board_deeplink_scope.py and test_bcm_exercise_workspace_routes.py; this plan folder's task_plan.md, findings.md, and progress.md. Earlier uncommitted build files were preserved.
+
+Key fixes and direct evidence:
+
+- My Work Evidence links now use the actual item opener; malformed base64 cursors return a validation error. Task links fetch a scoped record when it is outside the Board's first 500 rows. A browser test initially timed out because the new ID regex was over-escaped; after correction it opens the named drawer.
+- Task Board assignment could notify a user in another organization: a synthetic HTTP POST returned 201 before the fix. The create transaction and single/bulk reassignment now validate the active assignee's organization; the HTTP regression passes. The same regression found bulk and stats routes shadowed by the dynamic task-ID route (422 before fix), plus unscoped status counts. Static routes are now reachable and counts match the scoped list.
+- The BCM lifecycle service covers readiness, participant confirmation, injects, review, sign-off, corrective task completion, scoped evidence verification, retained JSON report, calendar projection, and idempotent reminder delivery. Synthetic service and HTTP tests pass for own and cross-organization records. The reminder notification now points at the exercise record opener.
+- The P03 comparison now has normalized-body hash and cross-organization 404 tests at service and HTTP level. Evidence Vault's table checkbox has a real keyboard selection/count test. An older upload browser test had mocked the list endpoint as an object even though the production API returns an array; its fixture now matches the route.
+- The first guarded PostgreSQL run failed fresh initialization because calendar_events referenced business_units before its CREATE TABLE. Moving the existing business-unit DDL before calendar in both shared and platform schema strings made the expanded 14-test suite pass. The PostgreSQL container was bound to localhost, used only the disposable themisiq_test_plan36 database, and was stopped afterward.
+
+Final local commands/results (from oneforall/ unless indicated):
+
+1. ../.venv/Scripts/python.exe -m pytest tests --ignore=tests/ui -q --disable-warnings — exit 0, full backend suite.
+2. ../.venv/Scripts/python.exe -m pytest tests/ui -q --disable-warnings — exit 0, full HTTP/Chromium browser suite. The added focused P03, P06, P08, and Task Board tests also passed.
+3. ../.venv/Scripts/python.exe -m pytest tests --ignore=tests/ui -q --disable-warnings --cov=. --cov-report=term --cov-report=xml --cov-fail-under=43 — exit 0, 45.70% total coverage against the 43% CI floor.
+4. With TEST_DATABASE_URL pointed at the disposable localhost themisiq_test_plan36 database and THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1: ../.venv/Scripts/python.exe -m pytest tests/test_postgres_init.py -q --disable-warnings — 14 passed.
+5. ../.venv/Scripts/python.exe -m compileall -q .; node --check on every static/js/*.js; node --test tests/js/*.test.js (4 passed); ../.venv/Scripts/python.exe scripts/capability_inventory.py --check (919 routes, 15 reviewed annotations); ../.venv/Scripts/python.exe -m pip check; git diff --check — all exit 0.
+6. ../.venv/Scripts/python.exe -m pip_audit -r requirements.txt, then requirements-dev.txt, then requirements-browser-dev.txt — each exit 0 with no known vulnerabilities.
+
+Still open: hosted CI cannot be observed without a separately authorized push; T08's every-action success/postcondition coverage and controlled live AI/SMTP/conversion adapter smoke tests are not complete; T10 has 904 route annotations still unreviewed and remaining cohesive extractions; P01 exact counts beyond bounded source reads, P03 full transition/two-tab browser coverage, P04 production-scale synthetic load, and P06 onboarding of modules beyond Evidence remain incomplete. Local Chromium is not a literal installed Edge channel. No production database, service, backup, or deployment was touched.
+
+## 2026-10-02 build-first continuation - T10 capability inventory curation
+
+The inventory generator previously claimed a human notes column but generated no such column. It now merges route maturity/notes from a separate reviewed `docs/capability_annotations.json`, preserving them across regeneration. Three source-reviewed routes are annotated; all other routes remain blank. Regeneration against the current checkout recorded 903 routes, compared with the earlier 857-route baseline.
+
+The generator now forces `DATABASE_URL` to an empty local-only value before importing the app. Stale annotation keys fail generation. New `--check` mode compares both checked-in generated artifacts with the current registered routes and annotations; the backend CI workflow invokes it before the backend suite. The generator completed artifact creation, but its check mode, stale-key failure path, and hosted CI remain untested until the final validation pass. No commit, push, or production change was performed.
+
+## 2026-10-02 build-first continuation - T10 BCM viewer and Task Board transaction
+
+The build-first direction remains in effect. This new code is unverified until the final test/fix pass.
+
+- Extracted the BCM AI document viewer from the large inline template into versioned, same-origin `/static/js/bcm_doc_viewer.js?v=1`. Copy, Download, Close, and backdrop close now use delegated listeners. The Copy handler now reads viewer state from its own closure; the previous generated inline handler referenced an IIFE-local variable from global handler scope. The viewer now exposes dialog semantics, Escape/Tab handling, and focus return. The AI plan and board-report callers still use the existing global `bcmOpenDocViewer` API; the unused duplicate content assignment in the plan caller was removed.
+- Moved Task Board create writes from `routes_platform.py` into `launcher/task_service.py`. Request sanitation remains in the route. The task and assigned-user notification now share one tenant connection and one commit; a failure rolls back the task rather than leaving it created without its notification. The route keeps its existing 201 response and data fields.
+- Inspected source and diffs only. No tests, browser checks, JavaScript/Python syntax checks, or static gates were run in this build phase. The final pass must cover BCM Copy/Download/Close, focus and keyboard behavior, Task Board create responses, notification creation, and rollback when notification insert fails. No commit, push, or production change was performed.
+
+## 2026-10-02 build-first direction - T10 ORM catalogue and deep-link extraction
+
+The user changed the work order: finish the authorized implementation scope before running the final test/fix pass. The existing release gates remain open; new code in this phase is unverified until that pass.
+
+- Moved the ORM PLAN-06 deep-link boot handler from the oversized `modules/orm/templates/index.html` inline script to versioned `/static/js/orm_deeplink.js?v=1`, loaded immediately after the main ORM script. Its dependency, `window.ormOpenEventDrawer`, remains defined by that main script.
+- Moved the complete RCSA template catalogue and picker into versioned `/static/js/orm_rcsa_templates.js?v=1`. The old generated inline "Use this template" handler referred to an IIFE-local `RCSA_TEMPLATES` array from global handler scope. The new picker uses delegated button events, keeps the selected template contract for `ormOpenRcsaModal`, and supports focus, Escape, Tab wrapping, and focus return.
+- Moved the KRI library catalogue and picker into versioned `/static/js/orm_kri_library.js?v=1`. The old generated Add handler embedded JSON directly in a double-quoted HTML attribute; the new picker uses a numeric data index and delegated button event. The KRI modal now uses the selected library item as a new-record preset (name, description, metric type, unit, thresholds, frequency, and auto-update type); previously it treated every item without an id as blank. Saving still creates a new KRI, while editing a stored id keeps the existing edit path.
+- Both catalogues retain their original data. No backend route or schema was changed for this T10 slice. The three same-origin static scripts follow the existing script-loading convention and are ordered after the main ORM script.
+
+Source and diff were inspected. No tests, browser checks, JavaScript syntax checks, or static gates were run in this build-only slice, per the user's requested sequence. Validate both catalogue pickers, KRI form prefilling, RCSA template selection, keyboard close/focus, and event deep links during the final pass. No commit, push, or production change was performed.
+
+## 2026-10-02 T09 continuation - RLS startup and GRID backup scope
+
+The prior RLS fixture repair prompted a local review of startup and backup behavior. F20 in `findings.md` records two confirmed source defects: failed PostgreSQL RLS policy installation was logged and swallowed, and the legacy GRID backup set `app.bypass_rls=true` as a database-role default for the duration of `pg_dump`. The production runbook says the in-app backup job is disabled in favor of a host cron backup, but the live setting was not inspected.
+
+- Added `tests/test_rls_policy_installation.py`: red under the prior swallow-and-continue path (`DID NOT RAISE`), green after `apply_rls_policies()` rolled back and raised on failure. SQLite remains a no-op. This changes PostgreSQL startup behavior, so the role and DDL privileges must be checked before any authorized deployment.
+- Added `tests/test_grid_backup_rls.py`: red under the prior role-wide `ALTER ROLE` path (`must not alter a database role`), green after `perform_backup()` gave only the `pg_dump` child `PGOPTIONS=-c app.bypass_rls=true` and `--enable-row-security`. No role default is changed by the new code.
+- Real PostgreSQL 18 smoke test used a disposable container with a synthetic two-organization FORCE-RLS table and a `NOSUPERUSER NOBYPASSRLS` login role. Ordinary `pg_dump` failed with `query would be affected by row-level security policy`; the new command succeeded. `pg_restore --data-only --table=probe -f -` showed both synthetic rows. A fresh ordinary role session returned zero rows, and its role default was absent.
+- The deployment preflight now queries superuser/BYPASSRLS flags and applicable role/database defaults for `app.bypass_rls=true` without displaying secret values. Against the disposable role, the default query returned `f`, then `t` with a temporary `ALTER ROLE` setting, then `f` after reset. The actual production role and environment remain unverified.
+
+Verification from `oneforall/` with `../.venv/Scripts/python.exe`:
+
+1. `-m pytest tests/test_grid_backup_rls.py tests/test_rls_policy_installation.py -q` - 2 passed after red/green checks.
+2. With `TEST_DATABASE_URL=postgresql://postgres:<synthetic-password>@127.0.0.1:7208/themisiq_test_rls` and `THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1`, `-m pytest tests/test_postgres_init.py -q` - 13 passed on disposable PostgreSQL 18.
+3. `-m pytest tests --ignore=tests/ui --ignore=tests/test_postgres_init.py -q` - exit 0, no failures; only dependency deprecation warnings.
+4. `git diff --check` - exit 0. Both disposable PostgreSQL containers were stopped and auto-removed after verification.
+
+Skipped: browser tests (no browser/UI change), hosted CI (requires a separately authorized push), production role inspection, and deployment. No production database, service, or backup was touched. No commit or push was performed.
+## 2026-10-02 T09 follow-up - PostgreSQL RLS test role
+
+Hosted PostgreSQL schema safety failed at commit `f8fd748` because the CI DSN connects as the `postgres` superuser. PostgreSQL superusers bypass RLS even when the table has FORCE ROW LEVEL SECURITY, so the test's cross-organisation read was testing a bypass role instead of the policy. The production role's current attributes have not been verified.
+
+- Reproduced the same failing assertion locally against an isolated PostgreSQL 18 Docker container bound to `127.0.0.1:7208` and a synthetic `themisiq_test_rls` database.
+- Changed the test to create a disposable `NOLOGIN NOSUPERUSER NOBYPASSRLS` role, grant only the SELECT permission needed, and run the no-context, other-org, and own-org probes under `SET ROLE` on separate raw connections. It checks the active role flags and `row_security_active()` before reading, then removes the role and its grants.
+- Scoped the policy metadata checks to `public.evidence_items`. Corrected the false superuser claim in `core/rls.py` and the unconditional RLS claims in the user manual. Added a read-only production role-attribute check to the deployment preflight.
+- Red: `../.venv/Scripts/python.exe -m pytest tests/test_postgres_init.py::test_evidence_items_gets_org_id_column_and_rls_policy_on_real_postgres -q` failed under the original superuser probe. Green: the focused test passed after the role change; after the final metadata-query edit, `../.venv/Scripts/python.exe -m pytest tests/test_postgres_init.py -q` passed all 13 tests.
+
+The local test container uses only synthetic data. The user manual is ignored by Git, so its wording correction is local only. No production DB, migration, restart, commit, or push was performed. Hosted CI remains unverified for this repair until a separately authorized push; the production `DATABASE_URL` role has not been inspected.
+
 ## 2026-10-02 T08 session — GRID F19 follow-up HTTP regressions
 
 The user explicitly authorized testing after the preceding T08 review. Added three tests to oneforall/tests/ui/test_grid_additional_write_scope.py; no application code changed.

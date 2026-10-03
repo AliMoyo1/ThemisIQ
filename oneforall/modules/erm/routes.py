@@ -543,6 +543,14 @@ async def api_emerging_add_to_register(request: Request, eid: int):
 @router.post("/api/emerging/scan")
 @require_capability("erm.ai.use")
 async def api_emerging_scan(request: Request):
+    from core.dependency_states import horizon_scan_state
+    capability_state = horizon_scan_state(request.state.user)
+    if capability_state.state != "available":
+        return JSONResponse(
+            {"detail": capability_state.to_dict()["message"],
+             "capability_state": capability_state.to_dict()},
+            status_code=403 if capability_state.state in ("forbidden", "unavailable_in_tier") else 503,
+        )
     if not check_ai_rate_limit(str(_uid(request))):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
 

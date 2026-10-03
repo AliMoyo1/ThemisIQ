@@ -4,6 +4,7 @@ Process automation routes.
 """
 import html
 import json as json_lib
+import re
 from datetime import timedelta
 
 from fastapi import APIRouter, Request, HTTPException
@@ -18,6 +19,83 @@ from modules.launcher._route_helpers import (
     _json_body,)
 
 router = APIRouter()
+
+
+def _valid_steps(steps):
+    return isinstance(steps, list) and all(isinstance(step, dict) for step in steps)
+
+
+def _stored_steps(raw):
+    try:
+        steps = json_lib.loads(raw or "[]")
+    except (TypeError, ValueError):
+        return None
+    return steps if _valid_steps(steps) else None
+
+
+def _workflow_scope(user, column):
+    """SQL predicate and parameters for a creator/starter-owned workflow."""
+    if user.get("is_super_admin"):
+        return "1=1", ()
+    return f"{column} = %s", (user.get("org_id"),)
+
+
+def _owned_definition(db, wid, user, *, active=False):
+    scope, params = _workflow_scope(user, "creator.org_id")
+    return db.execute(
+        "SELECT wd.* FROM workflow_definitions wd "
+        "LEFT JOIN users creator ON creator.id=wd.created_by "
+        f"WHERE wd.id=%s AND {scope}" + (" AND wd.is_active=1" if active else ""),
+        (wid, *params),
+    ).fetchone()
+
+
+def _owned_comm_template(db, tid, user, *, active=False):
+    scope, params = _workflow_scope(user, "creator.org_id")
+    return db.execute(
+        "SELECT ct.* FROM comm_templates ct "
+        "LEFT JOIN users creator ON creator.id=ct.created_by "
+        f"WHERE ct.id=%s AND {scope}" + (" AND ct.is_active=1" if active else ""),
+        (tid, *params),
+    ).fetchone()
+
+
+def _owned_action(db, aid, user):
+    scope, params = _workflow_scope(user, "COALESCE(wi.org_id, starter.org_id)")
+    return db.execute(
+        "SELECT wa.* FROM workflow_actions wa "
+        "JOIN workflow_instances wi ON wi.id=wa.instance_id "
+        "LEFT JOIN users starter ON starter.id=wi.started_by "
+        f"WHERE wa.id=%s AND {scope}",
+        (aid, *params),
+    ).fetchone()
+
+
+def _bind_target_org(db, org_id, user):
+    """Select the target tenant's schema for a super-admin request."""
+    org = db.execute(
+        "SELECT slug FROM organizations WHERE id=%s AND status='active'",
+        (org_id,),
+    ).fetchone()
+    if not org:
+        return False
+    if user.get("is_super_admin") and hasattr(db, "set_tenant"):
+        db.set_tenant(org["slug"])
+        safe_slug = re.sub(r"[^a-z0-9_]", "", org["slug"].lower())
+        expected_schema = "public" if org["slug"] == "public" else f"tenant_{safe_slug}"
+        actual_schema = db.execute("SELECT current_schema() AS name").fetchone()["name"]
+        if actual_schema != expected_schema:
+            raise HTTPException(status_code=503, detail="Organization storage is unavailable")
+        db.set_rls_context(org_id, True)
+    return True
+
+
+def _owned_sla_instance(db, iid, user):
+    scope, params = _workflow_scope(user, "org_id")
+    return db.execute(
+        f"SELECT * FROM sla_instances WHERE id=%s AND {scope}",
+        (iid, *params),
+    ).fetchone()
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -155,8 +233,11 @@ async def api_workflow_template_install(request: Request, template_id: str):
     db = get_db()
     try:
         # Check if already installed
+        scope, params = _workflow_scope(request.state.user, "creator.org_id")
         existing = db.execute(
-            "SELECT id FROM workflow_definitions WHERE name = %s", (template["name"],)
+            "SELECT wd.id FROM workflow_definitions wd "
+            "LEFT JOIN users creator ON creator.id=wd.created_by "
+            f"WHERE wd.name = %s AND {scope}", (template["name"], *params),
         ).fetchone()
         if existing:
             return _JSONResp({"id": existing[0], "already_exists": True})
@@ -197,12 +278,21 @@ async def workflows_page(request: Request):
 @require_auth
 async def api_workflow_definitions(request: Request):
     """List all workflow definitions."""
+    user = request.state.user
+    target = request.query_params.get("org_id") if user.get("is_super_admin") else None
+    try:
+        target = int(target) if target is not None else None
+    except ValueError:
+        return _JSONResp({"error": "Invalid organization"}, status_code=400)
     db = get_db()
     try:
+        if target is not None and not _bind_target_org(db, target, user):
+            return _JSONResp({"error": "Organization not found"}, status_code=404)
+        scope, params = _workflow_scope(user, "u.org_id")
         rows = db.execute(
             "SELECT wd.*, u.full_name as creator_name "
             "FROM workflow_definitions wd LEFT JOIN users u ON wd.created_by = u.id "
-            "ORDER BY wd.created_at DESC"
+            f"WHERE {scope} ORDER BY wd.created_at DESC", params,
         ).fetchall()
     finally:
         db.close()
@@ -214,6 +304,8 @@ async def api_workflow_definitions(request: Request):
 async def api_workflow_definition_create(request: Request):
     """Create a workflow definition."""
     data = await _json_body(request)
+    if not isinstance(data, dict) or not _valid_steps(data.get("steps", [])):
+        return _JSONResp({"error": "Steps must be a list of objects"}, status_code=400)
     db = get_db()
     try:
         steps = data.get("steps", [])
@@ -242,8 +334,14 @@ async def api_workflow_definition_create(request: Request):
 async def api_workflow_definition_update(request: Request, wid: int):
     """Update a workflow definition."""
     data = await _json_body(request)
+    if not isinstance(data, dict) or (
+        "steps" in data and not _valid_steps(data["steps"])
+    ):
+        return _JSONResp({"error": "Steps must be a list of objects"}, status_code=400)
     db = get_db()
     try:
+        if not _owned_definition(db, wid, request.state.user):
+            return _JSONResp({"error": "Workflow definition not found"}, status_code=404)
         fields = []
         params = []
         if "name" in data:
@@ -281,6 +379,8 @@ async def api_workflow_definition_delete(request: Request, wid: int):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
+        if not _owned_definition(db, wid, request.state.user):
+            return _JSONResp({"error": "Workflow definition not found"}, status_code=404)
         db.execute("UPDATE workflow_definitions SET is_active = 0 WHERE id = %s", (wid,))
         db.commit()
     finally:
@@ -296,8 +396,11 @@ async def api_workflow_instances(request: Request):
     try:
         status = request.query_params.get("status", "")
         module = request.query_params.get("module", "")
-        where = ["1=1"]
-        params = []
+        scope, scope_params = _workflow_scope(
+            request.state.user, "COALESCE(wi.org_id, u.org_id)"
+        )
+        where = [scope]
+        params = list(scope_params)
         if status:
             where.append("wi.status = %s")
             params.append(status)
@@ -318,16 +421,16 @@ async def api_workflow_instances(request: Request):
     return _JSONResp([dict(r) for r in rows])
 
 
-def _resolve_role_to_users(db, role_key: str) -> list:
-    """Return all active user ids with the given role key."""
-    if not role_key:
+def _resolve_role_to_users(db, role_key: str, org_id: int | None) -> list:
+    """Return active holders of a role inside the instance's organization."""
+    if not role_key or org_id is None:
         return []
     rows = db.execute(
         "SELECT u.id FROM users u "
         "JOIN user_roles ur ON ur.user_id = u.id "
-        "WHERE ur.role_key = %s AND u.is_active = 1 "
+        "WHERE ur.role_key = %s AND u.org_id = %s AND u.is_active = 1 "
         "ORDER BY u.id",
-        (role_key,)
+        (role_key, org_id)
     ).fetchall()
     return [r["id"] for r in rows]
 
@@ -345,7 +448,9 @@ def _step_due_at(step: dict) -> str | None:
     return None
 
 
-def _create_step_action(db, iid: int, step_index: int, step: dict, defn_name: str):
+def _create_step_action(
+    db, iid: int, step_index: int, step: dict, defn_name: str, *, commit: bool = True
+):
     """Create workflow_actions for all users with the step's role and notify them.
 
     Multiple users may hold the role; each gets their own action row.
@@ -354,7 +459,12 @@ def _create_step_action(db, iid: int, step_index: int, step: dict, defn_name: st
     role = step.get("role", "")
     action_type = step.get("type", "approve")
     due_at = _step_due_at(step)
-    assignees = _resolve_role_to_users(db, role)
+    owner = db.execute(
+        "SELECT COALESCE(wi.org_id, starter.org_id) AS org_id FROM workflow_instances wi "
+        "LEFT JOIN users starter ON starter.id=wi.started_by WHERE wi.id=%s",
+        (iid,),
+    ).fetchone()
+    assignees = _resolve_role_to_users(db, role, owner["org_id"] if owner else None)
 
     if not assignees:
         db.execute(
@@ -375,7 +485,8 @@ def _create_step_action(db, iid: int, step_index: int, step: dict, defn_name: st
                  f"Step {step_index + 1}: {step.get('name', 'Review & Approve')}",
                  f"/workflows?instance={iid}", "workflow")
             )
-    db.commit()
+    if commit:
+        db.commit()
 
 
 @router.post("/api/workflows/instances", status_code=201)
@@ -383,25 +494,51 @@ def _create_step_action(db, iid: int, step_index: int, step: dict, defn_name: st
 async def api_workflow_instance_start(request: Request):
     """Start a new workflow instance."""
     data = await _json_body(request)
+    if not isinstance(data, dict):
+        return _JSONResp({"error": "A JSON object is required"}, status_code=400)
+    user = request.state.user
+    if user.get("is_super_admin"):
+        try:
+            org_id = int(data.get("org_id"))
+        except (TypeError, ValueError):
+            return _JSONResp({"error": "A target organization is required"}, status_code=400)
+    else:
+        org_id = user.get("org_id")
+    if not org_id:
+        return _JSONResp({"error": "An organization is required"}, status_code=400)
     db = get_db()
     try:
-        defn = db.execute("SELECT * FROM workflow_definitions WHERE id = %s AND is_active = 1",
-                          (data.get("definition_id"),)).fetchone()
+        if not _bind_target_org(db, org_id, user):
+            return _JSONResp({"error": "Organization not found"}, status_code=404)
+        defn = _owned_definition(
+            db, data.get("definition_id"), user, active=True
+        )
         if not defn:
             return _JSONResp({"error": "Workflow definition not found or inactive"}, status_code=404)
+        creator = db.execute(
+            "SELECT org_id FROM users WHERE id=%s", (defn["created_by"],)
+        ).fetchone()
+        if creator and creator["org_id"] not in (None, org_id):
+            return _JSONResp({"error": "Workflow definition not found or inactive"}, status_code=404)
+        steps = _stored_steps(defn["steps_json"])
+        if steps is None:
+            return _JSONResp({"error": "Workflow steps are invalid"}, status_code=422)
 
         iid = insert_returning_id(
             db,
-            "INSERT INTO workflow_instances (definition_id, entity_module, entity_type, entity_id, started_by) "
-            "VALUES (%s,%s,%s,%s,%s)",
+            "INSERT INTO workflow_instances "
+            "(definition_id, entity_module, entity_type, entity_id, started_by, org_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s)",
             (defn["id"], data.get("entity_module", ""), data.get("entity_type", ""),
-             data.get("entity_id"), request.state.user["id"])
+             data.get("entity_id"), user["id"], org_id)
         )
-        db.commit()
-
-        steps = json_lib.loads(defn["steps_json"]) if defn["steps_json"] else []
         if steps:
             _create_step_action(db, iid, 0, steps[0], defn["name"])
+        else:
+            db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
     return _JSONResp({"id": iid}, status_code=201)
@@ -413,12 +550,15 @@ async def api_workflow_instance_get(request: Request, iid: int):
     """Get a workflow instance with its actions."""
     db = get_db()
     try:
+        scope, params = _workflow_scope(
+            request.state.user, "COALESCE(wi.org_id, u.org_id)"
+        )
         inst = db.execute(
             "SELECT wi.*, wd.name as workflow_name, wd.steps_json, u.full_name as started_by_name "
             "FROM workflow_instances wi "
             "LEFT JOIN workflow_definitions wd ON wi.definition_id = wd.id "
             "LEFT JOIN users u ON wi.started_by = u.id "
-            "WHERE wi.id = %s", (iid,)
+            f"WHERE wi.id = %s AND {scope}", (iid, *params)
         ).fetchone()
         if not inst:
             return _JSONResp({"error": "Not found"}, status_code=404)
@@ -450,21 +590,40 @@ async def api_workflow_action_decide(request: Request, aid: int):
       return_to_step - 0-based step index to return to (default: 0)
     """
     data = await _json_body(request)
+    if not isinstance(data, dict):
+        return _JSONResp({"error": "A JSON object is required"}, status_code=400)
     decision = data.get("decision", "approve")
     if decision not in _DECISION_STATUS:
         return _JSONResp({"error": "Invalid decision"}, status_code=400)
+    if decision == "return":
+        try:
+            return_to_step = int(data.get("return_to_step", 0))
+        except (TypeError, ValueError):
+            return _JSONResp({"error": "Invalid return step"}, status_code=400)
     comment = data.get("comment", "")
     uid = request.state.user["id"]
     is_admin = has_capability(request.state.user, "platform.manage_users")
     db = get_db()
     try:
-        action = db.execute("SELECT * FROM workflow_actions WHERE id = %s", (aid,)).fetchone()
+        action = _owned_action(db, aid, request.state.user)
         if not action:
             return _JSONResp({"error": "Action not found"}, status_code=404)
         if action["status"] != "pending":
             return _JSONResp({"error": "Action already processed"}, status_code=400)
-        if action["assigned_to"] is not None and action["assigned_to"] != uid and not is_admin:
+        if action["assigned_to"] != uid and not is_admin:
             return _JSONResp({"error": "You are not assigned to this workflow action"}, status_code=403)
+        iid = action["instance_id"]
+        inst = db.execute("SELECT * FROM workflow_instances WHERE id=%s", (iid,)).fetchone()
+        if not inst:
+            return _JSONResp({"error": "Workflow instance not found"}, status_code=404)
+        defn = db.execute(
+            "SELECT * FROM workflow_definitions WHERE id=%s", (inst["definition_id"],)
+        ).fetchone()
+        if not defn:
+            return _JSONResp({"error": "Workflow definition not found"}, status_code=404)
+        steps = _stored_steps(defn["steps_json"])
+        if steps is None:
+            return _JSONResp({"error": "Workflow steps are invalid"}, status_code=422)
 
         db.execute(
             "UPDATE workflow_actions SET status = %s, comment = %s, acted_at = CURRENT_TIMESTAMP WHERE id = %s",
@@ -476,24 +635,17 @@ async def api_workflow_action_decide(request: Request, aid: int):
             "WHERE instance_id = %s AND step_index = %s AND status = 'pending' AND id != %s",
             (action["instance_id"], action["step_index"], aid)
         )
-        db.commit()
-
-        iid = action["instance_id"]
-        inst = db.execute("SELECT * FROM workflow_instances WHERE id = %s", (iid,)).fetchone()
-        defn = db.execute("SELECT * FROM workflow_definitions WHERE id = %s", (inst["definition_id"],)).fetchone()
-        steps = json_lib.loads(defn["steps_json"]) if defn["steps_json"] else []
 
         if decision == "approve":
             next_step = action["step_index"] + 1
             if next_step < len(steps):
                 db.execute("UPDATE workflow_instances SET current_step = %s WHERE id = %s", (next_step, iid))
-                _create_step_action(db, iid, next_step, steps[next_step], defn["name"])
+                _create_step_action(db, iid, next_step, steps[next_step], defn["name"], commit=False)
             else:
                 db.execute(
                     "UPDATE workflow_instances SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = %s",
                     (iid,)
                 )
-                db.commit()
                 if inst["started_by"]:
                     db.execute(
                         "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
@@ -501,13 +653,11 @@ async def api_workflow_action_decide(request: Request, aid: int):
                          "All approval steps have been completed.",
                          f"/workflows?instance={iid}", "workflow")
                     )
-                    db.commit()
         elif decision == "reject":
             db.execute(
                 "UPDATE workflow_instances SET status = 'rejected', completed_at = CURRENT_TIMESTAMP WHERE id = %s",
                 (iid,)
             )
-            db.commit()
             if inst["started_by"]:
                 db.execute(
                     "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
@@ -515,16 +665,14 @@ async def api_workflow_action_decide(request: Request, aid: int):
                      f"Rejected at step {action['step_index'] + 1}: {comment}",
                      f"/workflows?instance={iid}", "workflow")
                 )
-                db.commit()
         elif decision == "return":
-            return_to = int(data.get("return_to_step", 0))
-            return_to = max(0, min(return_to, action["step_index"]))  # clamp: can't return forward
+            return_to = max(0, min(return_to_step, action["step_index"]))  # clamp: can't return forward
             db.execute(
                 "UPDATE workflow_instances SET current_step = %s, status = 'active' WHERE id = %s",
                 (return_to, iid)
             )
             if steps and return_to < len(steps):
-                _create_step_action(db, iid, return_to, steps[return_to], defn["name"])
+                _create_step_action(db, iid, return_to, steps[return_to], defn["name"], commit=False)
             if inst["started_by"]:
                 db.execute(
                     "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
@@ -532,7 +680,10 @@ async def api_workflow_action_decide(request: Request, aid: int):
                      f"Returned to step {return_to + 1}: {comment or 'Please review and resubmit.'}",
                      f"/workflows?instance={iid}", "workflow")
                 )
-                db.commit()
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
     return _JSONResp({"success": True, "decision": decision})
@@ -543,22 +694,38 @@ async def api_workflow_action_decide(request: Request, aid: int):
 async def api_workflow_action_delegate(request: Request, aid: int):
     """Delegate a pending workflow action to another user."""
     data = await _json_body(request)
+    if not isinstance(data, dict):
+        return _JSONResp({"error": "A JSON object is required"}, status_code=400)
     delegate_to = data.get("user_id")
-    if not delegate_to:
-        return _JSONResp({"error": "user_id is required"}, status_code=400)
+    if isinstance(delegate_to, bool):
+        return _JSONResp({"error": "Invalid user_id"}, status_code=400)
+    try:
+        delegate_to = int(delegate_to)
+    except (TypeError, ValueError, OverflowError):
+        return _JSONResp({"error": "Invalid user_id"}, status_code=400)
+    if delegate_to < 1 or delegate_to > 2**63 - 1:
+        return _JSONResp({"error": "Invalid user_id"}, status_code=400)
     uid = request.state.user["id"]
     is_admin = has_capability(request.state.user, "platform.manage_users")
     db = get_db()
     try:
-        action = db.execute("SELECT * FROM workflow_actions WHERE id = %s", (aid,)).fetchone()
+        action = _owned_action(db, aid, request.state.user)
         if not action:
             return _JSONResp({"error": "Action not found"}, status_code=404)
         if action["status"] != "pending":
             return _JSONResp({"error": "Action already processed"}, status_code=400)
         if action["assigned_to"] != uid and not is_admin:
             return _JSONResp({"error": "You can only delegate your own actions"}, status_code=403)
-        target = db.execute("SELECT id, full_name FROM users WHERE id = %s AND is_active = 1",
-                            (int(delegate_to),)).fetchone()
+        owner = db.execute(
+            "SELECT COALESCE(wi.org_id, starter.org_id) AS org_id FROM workflow_instances wi "
+            "LEFT JOIN users starter ON starter.id=wi.started_by WHERE wi.id=%s",
+            (action["instance_id"],),
+        ).fetchone()
+        target = db.execute(
+            "SELECT id, full_name FROM users "
+            "WHERE id=%s AND org_id=%s AND is_active=1",
+            (delegate_to, owner["org_id"] if owner else None),
+        ).fetchone()
         if not target:
             return _JSONResp({"error": "Target user not found or inactive"}, status_code=404)
         old_assignee = action["assigned_to"]
@@ -585,14 +752,18 @@ async def api_my_workflow_actions(request: Request):
     uid = request.state.user["id"]
     db = get_db()
     try:
+        scope, params = _workflow_scope(
+            request.state.user, "COALESCE(wi.org_id, starter.org_id)"
+        )
         rows = db.execute(
             "SELECT wa.*, wi.entity_module, wi.entity_type, wi.entity_id, wd.name as workflow_name "
             "FROM workflow_actions wa "
             "JOIN workflow_instances wi ON wa.instance_id = wi.id "
             "JOIN workflow_definitions wd ON wi.definition_id = wd.id "
-            "WHERE wa.assigned_to = %s AND wa.status = 'pending' "
+            "LEFT JOIN users starter ON starter.id=wi.started_by "
+            f"WHERE wa.assigned_to = %s AND wa.status = 'pending' AND {scope} "
             "ORDER BY wa.created_at DESC",
-            (uid,)
+            (uid, *params)
         ).fetchall()
     finally:
         db.close()
@@ -607,8 +778,16 @@ async def api_my_workflow_actions(request: Request):
 @require_auth
 async def api_sla_definitions(request: Request):
     """List SLA definitions."""
+    user = request.state.user
+    target = request.query_params.get("org_id") if user.get("is_super_admin") else None
+    try:
+        target = int(target) if target is not None else None
+    except ValueError:
+        return _JSONResp({"error": "Invalid organization"}, status_code=400)
     db = get_db()
     try:
+        if target is not None and not _bind_target_org(db, target, user):
+            return _JSONResp({"error": "Organization not found"}, status_code=404)
         module = request.query_params.get("module", "")
         if module:
             rows = db.execute("SELECT * FROM sla_definitions WHERE module = %s ORDER BY name", (module,)).fetchall()
@@ -691,16 +870,31 @@ async def api_sla_definition_update(request: Request, sid: int):
 async def api_sla_instance_start(request: Request):
     """Start tracking an SLA for a specific entity."""
     data = await _json_body(request)
-    def_id = data.get("definition_id")
-    if not def_id:
-        return _JSONResp({"error": "definition_id is required"}, status_code=400)
+    if not isinstance(data, dict):
+        return _JSONResp({"error": "A JSON object is required"}, status_code=400)
+    try:
+        def_id = int(data.get("definition_id"))
+    except (TypeError, ValueError):
+        return _JSONResp({"error": "A valid definition_id is required"}, status_code=400)
+    user = request.state.user
+    if user.get("is_super_admin"):
+        try:
+            org_id = int(data.get("org_id"))
+        except (TypeError, ValueError):
+            return _JSONResp({"error": "A target organization is required"}, status_code=400)
+    else:
+        org_id = user.get("org_id")
+    if not org_id:
+        return _JSONResp({"error": "An organization is required"}, status_code=400)
     entity_module = str(data.get("entity_module", "")).strip()
     entity_type = str(data.get("entity_type", "")).strip()
     entity_id = data.get("entity_id")
     db = get_db()
     try:
+        if not _bind_target_org(db, org_id, user):
+            return _JSONResp({"error": "Organization not found"}, status_code=404)
         defn = db.execute("SELECT * FROM sla_definitions WHERE id = %s AND is_active = 1",
-                          (int(def_id),)).fetchone()
+                          (def_id,)).fetchone()
         if not defn:
             return _JSONResp({"error": "SLA definition not found or inactive"}, status_code=404)
 
@@ -712,10 +906,10 @@ async def api_sla_instance_start(request: Request):
 
         iid = insert_returning_id(
             db,
-            "INSERT INTO sla_instances (definition_id, entity_module, entity_type, entity_id, "
+            "INSERT INTO sla_instances (definition_id, org_id, entity_module, entity_type, entity_id, "
             "started_at, response_due, resolution_due, escalation_due) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (defn["id"], entity_module, entity_type, entity_id,
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (defn["id"], org_id, entity_module, entity_type, entity_id,
              now, response_due, resolution_due, escalation_due)
         )
         db.commit()
@@ -733,8 +927,9 @@ async def api_sla_instances(request: Request):
         status = request.query_params.get("status", "")
         breached = request.query_params.get("breached", "")
         module = request.query_params.get("module", "")
-        where = ["1=1"]
-        params = []
+        scope, scope_params = _workflow_scope(request.state.user, "si.org_id")
+        where = [scope]
+        params = list(scope_params)
         if status:
             where.append("si.status = %s")
             params.append(status)
@@ -765,19 +960,19 @@ async def api_sla_respond(request: Request, iid: int):
     """Record SLA response time."""
     db = get_db()
     try:
-        inst = db.execute("SELECT * FROM sla_instances WHERE id = %s", (iid,)).fetchone()
+        inst = _owned_sla_instance(db, iid, request.state.user)
         if not inst:
             return _JSONResp({"error": "Instance not found"}, status_code=404)
         if inst["responded_at"]:
             return _JSONResp({"error": "Already responded"}, status_code=400)
         now = utcnow().strftime("%Y-%m-%d %H:%M:%S")
         breached = 0
-        breach_type = inst.get("breach_type") or None
+        breach_type = inst["breach_type"] or None
         if inst["response_due"] and now > inst["response_due"]:
             breached = 1
             breach_type = "response"
         db.execute(
-            "UPDATE sla_instances SET responded_at = %s, breached = MAX(breached, %s), breach_type = COALESCE(breach_type, %s) WHERE id = %s",
+            "UPDATE sla_instances SET responded_at = %s, breached = CASE WHEN breached = 1 OR %s = 1 THEN 1 ELSE 0 END, breach_type = COALESCE(breach_type, %s) WHERE id = %s",
             (now, breached, breach_type, iid)
         )
         db.commit()
@@ -793,20 +988,20 @@ async def api_sla_resolve(request: Request, iid: int):
     """Record SLA resolution time."""
     db = get_db()
     try:
-        inst = db.execute("SELECT * FROM sla_instances WHERE id = %s", (iid,)).fetchone()
+        inst = _owned_sla_instance(db, iid, request.state.user)
         if not inst:
             return _JSONResp({"error": "Instance not found"}, status_code=404)
         if inst["resolved_at"]:
             return _JSONResp({"error": "Already resolved"}, status_code=400)
         now = utcnow().strftime("%Y-%m-%d %H:%M:%S")
         breached = 0
-        breach_type = inst.get("breach_type") or None
+        breach_type = inst["breach_type"] or None
         if inst["resolution_due"] and now > inst["resolution_due"]:
             breached = 1
             breach_type = breach_type or "resolution"
         db.execute(
             "UPDATE sla_instances SET resolved_at = %s, status = 'resolved', "
-            "breached = MAX(breached, %s), breach_type = COALESCE(breach_type, %s) WHERE id = %s",
+            "breached = CASE WHEN breached = 1 OR %s = 1 THEN 1 ELSE 0 END, breach_type = COALESCE(breach_type, %s) WHERE id = %s",
             (now, breached, breach_type, iid)
         )
         db.commit()
@@ -822,7 +1017,7 @@ async def api_sla_escalate(request: Request, iid: int):
     """Record SLA escalation."""
     db = get_db()
     try:
-        inst = db.execute("SELECT * FROM sla_instances WHERE id = %s", (iid,)).fetchone()
+        inst = _owned_sla_instance(db, iid, request.state.user)
         if not inst:
             return _JSONResp({"error": "Instance not found"}, status_code=404)
         now = utcnow().strftime("%Y-%m-%d %H:%M:%S")
@@ -844,23 +1039,27 @@ async def api_sla_check_breaches(request: Request):
     db = get_db()
     try:
         now = utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        scope, scope_params = _workflow_scope(request.state.user, "org_id")
         # Response breaches
         resp_breached = db.execute(
             "UPDATE sla_instances SET breached = 1, breach_type = COALESCE(breach_type, 'response') "
             "WHERE status = 'active' AND breached = 0 AND response_due IS NOT NULL "
-            "AND responded_at IS NULL AND response_due < %s", (now,)
+            "AND responded_at IS NULL AND response_due < %s "
+            f"AND {scope}", (now, *scope_params)
         ).rowcount
         # Resolution breaches
         res_breached = db.execute(
             "UPDATE sla_instances SET breached = 1, breach_type = COALESCE(breach_type, 'resolution') "
             "WHERE status = 'active' AND breached = 0 AND resolution_due IS NOT NULL "
-            "AND resolved_at IS NULL AND resolution_due < %s", (now,)
+            "AND resolved_at IS NULL AND resolution_due < %s "
+            f"AND {scope}", (now, *scope_params)
         ).rowcount
         # Escalation breaches (mark escalation_due passed but don't double-flag breached)
         esc_due = db.execute(
             "UPDATE sla_instances SET breach_type = CASE WHEN breach_type IS NULL THEN 'escalation' ELSE breach_type END "
             "WHERE status = 'active' AND escalation_due IS NOT NULL "
-            "AND escalated_at IS NULL AND escalation_due < %s AND resolved_at IS NULL", (now,)
+            "AND escalated_at IS NULL AND escalation_due < %s AND resolved_at IS NULL "
+            f"AND {scope}", (now, *scope_params)
         ).rowcount
         db.commit()
     finally:
@@ -879,29 +1078,35 @@ async def api_sla_stats(request: Request):
     """SLA dashboard statistics."""
     db = get_db()
     try:
-        total = db.execute("SELECT COUNT(*) FROM sla_instances").fetchone()[0]
-        active = db.execute("SELECT COUNT(*) FROM sla_instances WHERE status = 'active'").fetchone()[0]
-        breached = db.execute("SELECT COUNT(*) FROM sla_instances WHERE breached = 1").fetchone()[0]
-        resolved = db.execute("SELECT COUNT(*) FROM sla_instances WHERE status = 'resolved'").fetchone()[0]
-        # Active breaches (still open)
-        active_breached = db.execute(
-            "SELECT COUNT(*) FROM sla_instances WHERE status = 'active' AND breached = 1"
-        ).fetchone()[0]
+        scope, scope_params = _workflow_scope(request.state.user, "org_id")
+        def count(condition=None, extra=()):
+            where = f"{scope} AND {condition}" if condition else scope
+            return db.execute(
+                f"SELECT COUNT(*) FROM sla_instances WHERE {where}",
+                (*scope_params, *extra),
+            ).fetchone()[0]
+
+        total = count()
+        active = count("status = 'active'")
+        breached = count("breached = 1")
+        resolved = count("status = 'resolved'")
+        active_breached = count("status = 'active' AND breached = 1")
         # At risk — due within 2 hours, not yet responded/resolved
         # Use Python-formatted string for comparison against TEXT columns
         _due_cutoff = (utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
         at_risk = db.execute(
-            "SELECT COUNT(*) FROM sla_instances WHERE status = 'active' AND breached = 0 "
+            f"SELECT COUNT(*) FROM sla_instances WHERE {scope} AND status = 'active' AND breached = 0 "
             "AND ((response_due IS NOT NULL AND responded_at IS NULL AND response_due <= %s) "
             " OR (resolution_due IS NOT NULL AND resolved_at IS NULL AND resolution_due <= %s))",
-            (_due_cutoff, _due_cutoff)
+            (*scope_params, _due_cutoff, _due_cutoff)
         ).fetchone()[0]
         # Compliance rate
         compliance_pct = round(((total - breached) / total * 100) if total > 0 else 100, 1)
         by_module = db.execute(
             "SELECT entity_module, COUNT(*) as c, SUM(breached) as breaches, "
             "SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as active_count "
-            "FROM sla_instances GROUP BY entity_module"
+            f"FROM sla_instances WHERE {scope} GROUP BY entity_module",
+            scope_params,
         ).fetchall()
         definitions = db.execute("SELECT COUNT(*) FROM sla_definitions").fetchone()[0]
     finally:
@@ -931,16 +1136,19 @@ async def api_comm_templates_list(request: Request):
     try:
         category = request.query_params.get("category", "")
         module = request.query_params.get("module", "")
-        where = ["is_active = 1"]
-        params = []
+        scope, scope_params = _workflow_scope(request.state.user, "creator.org_id")
+        where = ["ct.is_active = 1", scope]
+        params = list(scope_params)
         if category:
-            where.append("category = %s")
+            where.append("ct.category = %s")
             params.append(category)
         if module:
-            where.append("(module = %s OR module IS NULL OR module = '')")
+            where.append("(ct.module = %s OR ct.module IS NULL OR ct.module = '')")
             params.append(module)
         rows = db.execute(
-            f"SELECT * FROM comm_templates WHERE {' AND '.join(where)} ORDER BY category, name",
+            "SELECT ct.* FROM comm_templates ct "
+            "LEFT JOIN users creator ON creator.id=ct.created_by "
+            f"WHERE {' AND '.join(where)} ORDER BY ct.category, ct.name",
             params
         ).fetchall()
     finally:
@@ -953,6 +1161,10 @@ async def api_comm_templates_list(request: Request):
 async def api_comm_template_create(request: Request):
     """Create a communication template."""
     data = await _json_body(request)
+    if not isinstance(data, dict):
+        return _JSONResp({"error": "A JSON object is required"}, status_code=400)
+    if not request.state.user.get("org_id") and not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "An organization is required"}, status_code=400)
     db = get_db()
     try:
         tid = insert_returning_id(
@@ -980,8 +1192,12 @@ async def api_comm_template_create(request: Request):
 async def api_comm_template_update(request: Request, tid: int):
     """Update a communication template."""
     data = await _json_body(request)
+    if not isinstance(data, dict):
+        return _JSONResp({"error": "A JSON object is required"}, status_code=400)
     db = get_db()
     try:
+        if not _owned_comm_template(db, tid, request.state.user):
+            return _JSONResp({"error": "Template not found"}, status_code=404)
         fields, params = [], []
         for key in ("name", "category", "module", "subject_template", "body_template"):
             if key in data:
@@ -1009,6 +1225,8 @@ async def api_comm_template_delete(request: Request, tid: int):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
+        if not _owned_comm_template(db, tid, request.state.user):
+            return _JSONResp({"error": "Template not found"}, status_code=404)
         db.execute("UPDATE comm_templates SET is_active = 0 WHERE id = %s", (tid,))
         db.commit()
     finally:
@@ -1021,9 +1239,11 @@ async def api_comm_template_delete(request: Request, tid: int):
 async def api_comm_template_render(request: Request, tid: int):
     """Render a template with provided variables."""
     data = await _json_body(request)
+    if not isinstance(data, dict) or not isinstance(data.get("variables", {}), dict):
+        return _JSONResp({"error": "Variables must be an object"}, status_code=400)
     db = get_db()
     try:
-        tmpl = db.execute("SELECT * FROM comm_templates WHERE id = %s AND is_active = 1", (tid,)).fetchone()
+        tmpl = _owned_comm_template(db, tid, request.state.user, active=True)
         if not tmpl:
             return _JSONResp({"error": "Template not found"}, status_code=404)
     finally:

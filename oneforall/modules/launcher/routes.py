@@ -14,6 +14,7 @@ from modules.launcher.routes_risks import router as risks_router
 from modules.launcher.routes_workflows import router as workflows_router
 from modules.launcher.routes_reports import router as reports_router
 from modules.launcher.routes_platform import router as platform_router
+from modules.launcher.routes_calendar import router as calendar_router
 from modules.launcher.routes_vendors import router as vendors_router
 from modules.launcher.routes_my_work import router as my_work_router
 from modules.launcher.routes_capability_state import router as capability_state_router
@@ -45,6 +46,7 @@ router.include_router(reports_router)
 # Calendar, analytics, bulk ops, task board, notifications,
 # search, trainer, reminders
 router.include_router(platform_router)
+router.include_router(calendar_router)
 
 # Cross-module vendor directory
 router.include_router(vendors_router)

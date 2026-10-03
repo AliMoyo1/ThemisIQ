@@ -24,6 +24,9 @@ Do not restart production unless every invariant below is true:
 5. The current `/health` and `/ready` probes pass before the change.
 6. ARIA policy authoring remains disabled and its organization allowlist is
    empty. Enabling a pilot is a separate change.
+7. The database role in the production `DATABASE_URL` is neither a superuser
+   nor a BYPASSRLS role, and no applicable database/role default enables
+   `app.bypass_rls`. FORCE ROW LEVEL SECURITY does not constrain either role.
 
 The production service intentionally runs one Uvicorn process. The application
 starts in-process schedulers during startup; multiple workers would execute
@@ -55,9 +58,26 @@ systemctl is-active themisiq-app.service
 curl -fsS http://127.0.0.1:8080/health
 curl -fsS http://127.0.0.1:8080/ready
 pg_isready -h 127.0.0.1 -p 5434
+sudo -u postgres psql -p 5434 -d themisiq -Atc \
+  "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = 'themisiq'"
+sudo -u postgres psql -p 5434 -d themisiq -Atc \
+  "SELECT EXISTS (
+     SELECT 1 FROM pg_db_role_setting s, unnest(s.setconfig) cfg
+     WHERE s.setrole IN (0, (SELECT oid FROM pg_roles WHERE rolname = 'themisiq'))
+       AND s.setdatabase IN (0, (SELECT oid FROM pg_database
+                                WHERE datname = current_database()))
+       AND cfg ~* '^app[.]bypass_rls[[:space:]]*=[[:space:]]*(true|on|1)$'
+   )"
 ```
 
-Stop if tracked status prints any path or if any health command fails.
+Stop if tracked status prints any path or if any health command fails. The role
+query should print `themisiq|f|f`; the default-setting query should print
+`f`. Privately confirm that the username in the configured production
+`DATABASE_URL` is `themisiq`; if it differs, query that role instead and
+require both flags and the default-setting result to be `f`. Stop if the
+configured role is missing, privileged, or has a persistent RLS bypass.
+Confirm that the service environment does not set `PGOPTIONS` to bypass RLS.
+Do not print the database URL, the `PGOPTIONS` value, or secrets.
 
 Confirm the latest verified backup and checksum without deleting older files:
 

@@ -43,9 +43,10 @@ async def api_list_findings(request: Request):
             severity=q.get("severity") or None,
             status=q.get("status") or None,
         )
+        coverage = svc.get_rule_coverage(db, user["org_id"])
     finally:
         db.close()
-    return JSONResponse({"ok": True, "findings": findings})
+    return JSONResponse({"ok": True, "findings": findings, "rule_coverage": coverage})
 
 
 @router.get("/api/findings/export")

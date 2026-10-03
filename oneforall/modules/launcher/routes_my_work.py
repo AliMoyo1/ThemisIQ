@@ -24,4 +24,11 @@ async def my_work_page(request: Request):
 @router.get("/api/my-work")
 @require_auth
 async def api_my_work(request: Request):
-    return _JSONResp(get_my_work(request.state.user))
+    q = request.query_params
+    try:
+        result = get_my_work(request.state.user, source=q.get("source", ""),
+                             section=q.get("section", ""), q=q.get("q", ""),
+                             cursor=q.get("cursor"), page_size=50)
+    except ValueError as exc:
+        return _JSONResp({"error": str(exc)}, status_code=422)
+    return _JSONResp(result)

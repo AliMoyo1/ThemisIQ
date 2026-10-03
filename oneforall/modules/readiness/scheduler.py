@@ -68,7 +68,8 @@ def _scan_sweep() -> None:
             with tenant_context(org_id, slug):
                 counts = run_scan_now(org_id)
             for k, v in counts.items():
-                totals[k] = totals.get(k, 0) + v
+                if isinstance(v, int):
+                    totals[k] = totals.get(k, 0) + v
         except Exception as exc:
             log.warning("Readiness scan failed for org %s: %s", org_id, exc)
     if sum(totals.values()):

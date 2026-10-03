@@ -696,6 +696,16 @@ CREATE TABLE IF NOT EXISTS licenses (
 );
 
 -- ── Users & Auth ────────────────────────────────────────────────────────────
+-- PLAN-36 P09: daily counts of canonical capability states; no user content.
+CREATE TABLE IF NOT EXISTS capability_state_daily (
+    day TEXT NOT NULL,
+    org_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    area TEXT NOT NULL,
+    state TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, org_id, area, state)
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     username            TEXT UNIQUE NOT NULL,
@@ -884,6 +894,7 @@ CREATE TABLE IF NOT EXISTS workflow_instances (
     current_step    INTEGER DEFAULT 0,
     status          TEXT DEFAULT 'active',
     started_by      INTEGER REFERENCES users(id),
+    org_id          INTEGER REFERENCES organizations(id),
     started_at      TEXT DEFAULT (datetime('now')),
     completed_at    TEXT
 );
@@ -921,6 +932,7 @@ CREATE TABLE IF NOT EXISTS sla_definitions (
 CREATE TABLE IF NOT EXISTS sla_instances (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     definition_id   INTEGER NOT NULL REFERENCES sla_definitions(id),
+    org_id          INTEGER REFERENCES organizations(id),
     entity_module   TEXT,
     entity_type     TEXT,
     entity_id       INTEGER,
@@ -1035,6 +1047,21 @@ CREATE TABLE IF NOT EXISTS webhook_logs (
 
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_wh ON webhook_logs(webhook_id, attempted_at DESC);
 
+-- ── Governance Graph: Business Units (SBU hierarchy, before calendar FK) ──────────────────────
+CREATE TABLE IF NOT EXISTS business_units (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    code            TEXT,
+    description     TEXT,
+    parent_id       INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    head_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_active       INTEGER DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bu_parent ON business_units(parent_id);
+CREATE INDEX IF NOT EXISTS idx_bu_active ON business_units(is_active);
+
 -- ── Compliance Calendar ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS calendar_events (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1051,6 +1078,8 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     assigned_to     INTEGER REFERENCES users(id),
     status          TEXT DEFAULT 'scheduled',
     created_by      INTEGER REFERENCES users(id),
+    org_id          INTEGER REFERENCES organizations(id),
+    business_unit_id INTEGER REFERENCES business_units(id),
     created_at      TEXT DEFAULT (datetime('now'))
 );
 
@@ -1182,21 +1211,6 @@ CREATE TABLE IF NOT EXISTS people_directory (
 );
 CREATE INDEX IF NOT EXISTS idx_people_dept ON people_directory(department);
 CREATE INDEX IF NOT EXISTS idx_people_user ON people_directory(user_id);
-
--- ── Governance Graph: Business Units (SBU hierarchy) ──────────────────────
-CREATE TABLE IF NOT EXISTS business_units (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    name            TEXT NOT NULL,
-    code            TEXT,
-    description     TEXT,
-    parent_id       INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
-    head_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    is_active       INTEGER DEFAULT 1,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_bu_parent ON business_units(parent_id);
-CREATE INDEX IF NOT EXISTS idx_bu_active ON business_units(is_active);
 
 -- ── Effective-dated user assignment and SBU transfer history ─────────────
 -- The current assignment remains on public.users for fast authorization.
@@ -1497,6 +1511,7 @@ CREATE TABLE IF NOT EXISTS workflow_instances (
     current_step    INTEGER DEFAULT 0,
     status          TEXT DEFAULT 'active',
     started_by      INTEGER REFERENCES users(id),
+    org_id          INTEGER REFERENCES organizations(id),
     started_at      TEXT DEFAULT (datetime('now')),
     completed_at    TEXT
 );
@@ -1534,6 +1549,7 @@ CREATE TABLE IF NOT EXISTS sla_definitions (
 CREATE TABLE IF NOT EXISTS sla_instances (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     definition_id   INTEGER NOT NULL REFERENCES sla_definitions(id),
+    org_id          INTEGER REFERENCES organizations(id),
     entity_module   TEXT,
     entity_type     TEXT,
     entity_id       INTEGER,
@@ -1632,6 +1648,21 @@ CREATE TABLE IF NOT EXISTS webhook_logs (
 
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_wh ON webhook_logs(webhook_id, attempted_at DESC);
 
+-- ── Governance Graph: Business Units (SBU hierarchy) ──────────────────────
+CREATE TABLE IF NOT EXISTS business_units (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL,
+    code            TEXT,
+    description     TEXT,
+    parent_id       INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+    head_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    is_active       INTEGER DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bu_parent ON business_units(parent_id);
+CREATE INDEX IF NOT EXISTS idx_bu_active ON business_units(is_active);
+
 -- ── Compliance Calendar ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS calendar_events (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1648,6 +1679,8 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     assigned_to     INTEGER REFERENCES users(id),
     status          TEXT DEFAULT 'scheduled',
     created_by      INTEGER REFERENCES users(id),
+    org_id          INTEGER REFERENCES organizations(id),
+    business_unit_id INTEGER REFERENCES business_units(id),
     created_at      TEXT DEFAULT (datetime('now'))
 );
 
@@ -1779,21 +1812,6 @@ CREATE TABLE IF NOT EXISTS people_directory (
 );
 CREATE INDEX IF NOT EXISTS idx_people_dept ON people_directory(department);
 CREATE INDEX IF NOT EXISTS idx_people_user ON people_directory(user_id);
-
--- ── Governance Graph: Business Units (SBU hierarchy) ──────────────────────
-CREATE TABLE IF NOT EXISTS business_units (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    name            TEXT NOT NULL,
-    code            TEXT,
-    description     TEXT,
-    parent_id       INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
-    head_user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    is_active       INTEGER DEFAULT 1,
-    created_at      TEXT DEFAULT (datetime('now')),
-    updated_at      TEXT DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_bu_parent ON business_units(parent_id);
-CREATE INDEX IF NOT EXISTS idx_bu_active ON business_units(is_active);
 
 -- ── Effective-dated user assignment and SBU transfer history ─────────────
 -- The current assignment remains on public.users for fast authorization.
@@ -2767,9 +2785,71 @@ CREATE TABLE IF NOT EXISTS bcm_exercises (
     aar_strengths   TEXT,
     aar_improvements TEXT,
     aar_actions     TEXT,
+    org_id          INTEGER REFERENCES organizations(id),
+    business_unit_id INTEGER REFERENCES business_units(id),
+    created_by_id   INTEGER REFERENCES users(id),
+    owner_id        INTEGER REFERENCES users(id),
+    reviewer_id     INTEGER REFERENCES users(id),
+    scenario_id     INTEGER,
+    started_at      TEXT,
+    completed_at    TEXT,
+    closed_at       TEXT,
+    cancelled_at    TEXT,
+    aar_results     TEXT,
+    aar_gaps        TEXT,
+    aar_lessons     TEXT,
+    objectives_met  INTEGER,
+    objectives_total INTEGER,
+    effectiveness_score INTEGER,
+    aar_signed_off_by INTEGER REFERENCES users(id),
+    aar_signed_off_at TEXT,
+    report_json     TEXT,
+    report_hash     TEXT,
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS bcm_exercise_readiness (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    exercise_id     INTEGER NOT NULL REFERENCES bcm_exercises(id) ON DELETE CASCADE,
+    label           TEXT NOT NULL,
+    is_done         INTEGER DEFAULT 0,
+    confirmed_by    INTEGER REFERENCES users(id),
+    confirmed_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_bcm_ex_ready ON bcm_exercise_readiness(exercise_id);
+
+CREATE TABLE IF NOT EXISTS bcm_exercise_participants (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    exercise_id     INTEGER NOT NULL REFERENCES bcm_exercises(id) ON DELETE CASCADE,
+    user_id         INTEGER NOT NULL REFERENCES users(id),
+    role            TEXT NOT NULL,
+    confirmed_at    TEXT,
+    UNIQUE(exercise_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_bcm_ex_participant ON bcm_exercise_participants(exercise_id);
+
+CREATE TABLE IF NOT EXISTS bcm_exercise_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    exercise_id     INTEGER NOT NULL REFERENCES bcm_exercises(id) ON DELETE CASCADE,
+    event_type      TEXT NOT NULL,
+    note            TEXT NOT NULL,
+    occurred_at     TEXT NOT NULL,
+    logged_by       INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bcm_ex_events ON bcm_exercise_events(exercise_id, occurred_at);
+
+CREATE TABLE IF NOT EXISTS bcm_exercise_actions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    exercise_id     INTEGER NOT NULL REFERENCES bcm_exercises(id) ON DELETE CASCADE,
+    task_id         INTEGER NOT NULL UNIQUE REFERENCES task_board(id),
+    evidence_id     INTEGER REFERENCES evidence_items(id),
+    verified_by     INTEGER REFERENCES users(id),
+    verified_at     TEXT,
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_bcm_ex_actions ON bcm_exercise_actions(exercise_id);
 
 -- ── BCM: Vendors ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS bcm_vendors (
@@ -4529,6 +4609,7 @@ _COLUMN_MIGRATIONS = [
         ("sla_instances", "escalation_due", "TEXT"),
         ("sla_instances", "escalated_at", "TEXT"),
         ("sla_instances", "breach_type", "TEXT"),
+        ("sla_instances", "org_id", "INTEGER REFERENCES organizations(id)"),
         ("evidence_items", "file_hash", "TEXT"),
         ("evidence_items", "parent_id", "INTEGER REFERENCES evidence_items(id)"),
         ("grid_audits", "end_date", "TEXT"),
@@ -4600,6 +4681,7 @@ _COLUMN_MIGRATIONS = [
         # simply never sets it, matching current behavior exactly.
         ("task_board", "source_event_id", "INTEGER REFERENCES events(id)"),
         ("workflow_instances", "source_event_id", "INTEGER REFERENCES events(id)"),
+        ("workflow_instances", "org_id", "INTEGER REFERENCES organizations(id)"),
         # Sentinel DPIA — columns referenced by data_service but missing from CREATE TABLE
         ("sentinel_dpias", "org_name", "TEXT"),
         ("sentinel_dpias", "controller_name", "TEXT"),
@@ -4851,6 +4933,31 @@ _COLUMN_MIGRATIONS = [
         # ── BCM sub-page field gaps found in QA Pass 4 ──────────────────────────
         ("bcm_bia_records",       "status",            "TEXT"),
         ("bcm_exercises",         "description",       "TEXT"),
+        # PLAN-36 P08: calendar projections carry explicit tenant and BU scope.
+        ("calendar_events", "org_id", "INTEGER REFERENCES organizations(id)"),
+        ("calendar_events", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("task_board", "reminder_key", "TEXT"),
+        # PLAN-36 P08: exercise lifecycle and scoped after-action records.
+        ("bcm_exercises", "org_id", "INTEGER REFERENCES organizations(id)"),
+        ("bcm_exercises", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("bcm_exercises", "created_by_id", "INTEGER REFERENCES users(id)"),
+        ("bcm_exercises", "owner_id", "INTEGER REFERENCES users(id)"),
+        ("bcm_exercises", "reviewer_id", "INTEGER REFERENCES users(id)"),
+        ("bcm_exercises", "scenario_id", "INTEGER"),
+        ("bcm_exercises", "started_at", "TEXT"),
+        ("bcm_exercises", "completed_at", "TEXT"),
+        ("bcm_exercises", "closed_at", "TEXT"),
+        ("bcm_exercises", "cancelled_at", "TEXT"),
+        ("bcm_exercises", "aar_results", "TEXT"),
+        ("bcm_exercises", "aar_gaps", "TEXT"),
+        ("bcm_exercises", "aar_lessons", "TEXT"),
+        ("bcm_exercises", "objectives_met", "INTEGER"),
+        ("bcm_exercises", "objectives_total", "INTEGER"),
+        ("bcm_exercises", "effectiveness_score", "INTEGER"),
+        ("bcm_exercises", "aar_signed_off_by", "INTEGER REFERENCES users(id)"),
+        ("bcm_exercises", "aar_signed_off_at", "TEXT"),
+        ("bcm_exercises", "report_json", "TEXT"),
+        ("bcm_exercises", "report_hash", "TEXT"),
         ("bcm_dependency_nodes",  "owner",             "TEXT"),
         ("bcm_dependency_nodes",  "recovery_priority", "INTEGER"),
         # ── PLAN-36 T03 (findings.md F13): erm_risk_library tenant scope ──────
@@ -4932,6 +5039,12 @@ def _run_sqlite_alters(conn):
         except OperationalError:
             # Column doesn't exist — add it
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    # Historical human-started instances inherit their starter's tenant.
+    # Rows without a trustworthy owner remain NULL and fail closed in HTTP routes.
+    conn.execute(
+        "UPDATE workflow_instances SET org_id=(SELECT org_id FROM users WHERE id=started_by) "
+        "WHERE org_id IS NULL AND started_by IS NOT NULL"
+    )
     # Baseline-only packs remain organization-wide (NULL).
     _backfill_board_pack_business_units(conn)
     conn.commit()
@@ -4969,6 +5082,7 @@ def _run_sqlite_alters(conn):
         # its own new task/instance, not be deduplicated against its first
         # publication).
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_reminder_key ON task_board(reminder_key) WHERE reminder_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",
         # S-9: Performance indexes for high-frequency status/regulation filters
         "CREATE INDEX IF NOT EXISTS idx_bcm_incidents_status    ON bcm_incidents(status)",
@@ -6304,6 +6418,10 @@ def _run_pg_alters(conn) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
         except Exception:
             pass
+    conn.execute(
+        "UPDATE workflow_instances SET org_id=(SELECT org_id FROM users WHERE id=started_by) "
+        "WHERE org_id IS NULL AND started_by IS NOT NULL"
+    )
     try:
         _backfill_board_pack_business_units(conn)
     except Exception:
@@ -6318,6 +6436,7 @@ def _run_pg_alters(conn) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_grid_evidence_control_version ON grid_evidence_files(control_id, aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_reminder_key ON task_board(reminder_key) WHERE reminder_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",
         "CREATE INDEX IF NOT EXISTS idx_erm_board_packs_bu ON erm_board_packs(business_unit_id)",
         # PLAN-36 T03: erm_risk_library title uniqueness, scoped instead of

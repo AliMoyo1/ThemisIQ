@@ -84,9 +84,12 @@ def _scoped_evidence_item(db, eid: int, user: dict):
         return None
     if user.get("is_super_admin"):
         return row
-    if row["org_id"] is not None and row["org_id"] == user.get("org_id"):
-        return row
-    return None
+    if row["org_id"] is None or row["org_id"] != user.get("org_id"):
+        return None
+    scope = bu_scope_ids(user)
+    if scope is not None and row["business_unit_id"] is not None and row["business_unit_id"] not in scope:
+        return None
+    return row
 
 
 # ── SPA Page ────────────────────────────────────────────────────────────────
@@ -96,6 +99,7 @@ def _scoped_evidence_item(db, eid: int, user: dict):
 async def evidence_page(request: Request):
     """Evidence repository SPA page."""
     ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
+    ctx["can_bulk_archive"] = has_capability(request.state.user, "evidence.delete")
     return shell_templates.TemplateResponse(request, "evidence_index.html", ctx)
 
 
@@ -118,6 +122,11 @@ async def api_evidence_list(request: Request):
         if not user.get("is_super_admin"):
             where.append("e.org_id = %s")
             params.append(user.get("org_id"))
+        scope = bu_scope_ids(user)
+        if scope is not None:
+            marks = ",".join(["%s"] * len(scope)) if scope else "NULL"
+            where.append(f"(e.business_unit_id IS NULL OR e.business_unit_id IN ({marks}))")
+            params.extend(scope)
         if category:
             where.append("e.category = %s")
             params.append(category)

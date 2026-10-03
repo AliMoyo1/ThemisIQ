@@ -842,6 +842,24 @@ document.addEventListener('dragend',()=>{
 document.addEventListener('DOMContentLoaded', async ()=>{
   await loadUsers();   // populate assignee dropdowns
   await loadTasks();   // load tasks + render board
+  const url = new URL(window.location.href);
+  const openId = url.searchParams.get('open');
+  if(openId === null) return;
+  url.searchParams.delete('open');
+  window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+  if(!/^[1-9]\d*$/.test(openId)) return;
+  const taskId = Number(openId);
+  if(!Number.isSafeInteger(taskId)) return;
+  try{
+    let task = allTasks.find(t => t.id === taskId);
+    if(!task){
+      task = await ApiClient.request('/api/tasks/' + taskId, { actionId: 'task_board.task.open' });
+      allTasks.push(task);
+    }
+    openDrawer(taskId);
+  }catch(e){
+    if(typeof showToast === 'function') showToast(e.detail || 'Task unavailable', 'error');
+  }
 });
 
 // Keyboard: Escape closes drawer

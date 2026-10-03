@@ -97,6 +97,10 @@ jobs:
         working-directory: oneforall
         run: python -m pip install -r requirements-dev.txt
 
+      - name: Capability inventory drift
+        working-directory: oneforall
+        run: python scripts/capability_inventory.py --check
+
       - name: Run backend suite with coverage
         working-directory: oneforall
         run: |

@@ -107,7 +107,7 @@ def get_capability_state():
         return available()
     return not_configured(
         reason_code="ai_provider_key_missing",
-        message=f"AI features are not configured (provider: {_provider()}).",
+        message="AI features have not been configured.",
         remediation_route="/admin",
     )
 

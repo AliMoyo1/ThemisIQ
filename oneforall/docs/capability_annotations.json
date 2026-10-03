@@ -1,0 +1,64 @@
+{
+  "routes": {
+    "GET /aria/documents/{doc_id}/workbench": {
+      "maturity": "gated",
+      "notes": "Implemented page; ARIA module access is required."
+    },
+    "GET /aria/api/documents/{doc_id}/workbench": {
+      "maturity": "gated",
+      "notes": "Implemented document state endpoint; ARIA module access is required."
+    },
+    "GET /api/capability-state/ai": {
+      "maturity": "configuration-required",
+      "notes": "Reports provider configuration without exposing keys; other dependency states have dedicated endpoints."
+    },
+    "GET /aria/api/documents/{doc_id}/compare": {
+      "maturity": "gated",
+      "notes": "Scoped comparison of retained policy versions and approval history. Build awaiting final regression validation."
+    },
+    "POST /bcm/api/exercises/{ex_id}/actions": {
+      "maturity": "gated",
+      "notes": "Creates canonical Task Board corrective action. Build awaiting final regression validation."
+    },
+    "POST /bcm/api/exercises/{ex_id}/actions/{action_id}/verify": {
+      "maturity": "gated",
+      "notes": "Reviewer verifies completed task with scoped evidence. Build awaiting final regression validation."
+    },
+    "GET /bcm/api/exercises/{ex_id}/report": {
+      "maturity": "gated",
+      "notes": "Downloads retained and SHA-256-checked after-action snapshot. Build awaiting final regression validation."
+    },
+    "POST /bcm/api/exercises/{ex_id}/transition": {
+      "maturity": "gated",
+      "notes": "Authorized BCM exercise lifecycle transition. Build awaiting final regression validation."
+    },
+    "GET /bcm/api/exercises/{ex_id}/workspace": {
+      "maturity": "gated",
+      "notes": "Scoped BCM exercise lifecycle workspace read model. Build awaiting final regression validation."
+    },
+    "GET /api/capability-state/connectors/{name}": {
+      "maturity": "gated",
+      "notes": "Role-first connector configuration state without webhook URLs. Build awaiting final regression validation."
+    },
+    "GET /api/capability-state/{area}": {
+      "maturity": "gated",
+      "notes": "Role-first state for authoring, conversion, ERM scan, export and email. Build awaiting final regression validation."
+    },
+    "GET /api/admin/diagnostics": {
+      "maturity": "gated",
+      "notes": "Sanitized diagnostic probes and platform-only aggregate state frequency. Build awaiting final regression validation."
+    },
+    "GET /api/my-work": {
+      "maturity": "gated",
+      "notes": "Scoped federated My Work feed with bounded keyset paging; source caps are reported. Build awaiting final regression validation."
+    },
+    "GET /my-work": {
+      "maturity": "gated",
+      "notes": "My Work page. Federated source state and filters are built. Build awaiting final regression validation."
+    },
+    "GET /readiness/api/findings": {
+      "maturity": "gated",
+      "notes": "Scoped data-readiness findings and licensed rule coverage. Build awaiting final regression validation."
+    }
+  }
+}

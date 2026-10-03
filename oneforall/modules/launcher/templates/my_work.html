@@ -15,6 +15,11 @@
 .mywork-item-title{font-size:14px;font-weight:600;color:var(--text)}
 .mywork-item-meta{font-size:12px;color:var(--muted);margin-top:2px}
 .mywork-empty{padding:24px 20px;text-align:center;color:var(--muted);font-size:13px}
+.mywork-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.mywork-controls input,.mywork-controls select{padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text)}
+.mywork-controls input:focus-visible,.mywork-controls select:focus-visible,.mywork-controls button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.mywork-controls input{min-width:180px;flex:1}
+.mywork-more{display:block;margin:8px auto 18px}
 .mywork-pending-note{font-size:12px;color:var(--muted);margin-top:24px;padding:12px 16px;border:1px dashed var(--border);border-radius:var(--radius);background:var(--surface2,var(--surface3))}
 {% endblock %}
 
@@ -26,78 +31,25 @@
   </div>
 </div>
 
-<div id="myWorkSections"></div>
-<div id="myWorkPendingNote" class="mywork-pending-note" style="display:none"></div>
-
-<script>
-(function () {
-  'use strict';
-
-  var SECTION_LABELS = {
-    needs_my_action:  'Needs My Action',
-    waiting_on_others: 'Waiting On Others',
-    due_soon:         'Due Soon',
-    overdue:          'Overdue',
-    recently_completed: 'Recently Completed',
-  };
-  var SECTION_ORDER = ['overdue', 'needs_my_action', 'due_soon', 'waiting_on_others', 'recently_completed'];
-
-  function esc(s) {
-    if (!s) return '';
-    var d = document.createElement('div');
-    d.textContent = String(s);
-    return d.innerHTML;
-  }
-
-  function fmtDate(ts) {
-    if (!ts) return '';
-    var d = new Date(ts.length === 10 ? ts + 'T00:00:00' : ts);
-    if (isNaN(d.getTime())) return ts;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  }
-
-  function renderSection(name, items) {
-    var wrap = document.createElement('div');
-    wrap.className = 'mywork-section';
-    var head = '<div class="mywork-section-head">' +
-      '<div class="mywork-section-title">' + esc(SECTION_LABELS[name] || name) + '</div>' +
-      '<div class="mywork-section-count">' + items.length + '</div></div>';
-    var body;
-    if (!items.length) {
-      body = '<div class="mywork-empty">Nothing here.</div>';
-    } else {
-      body = items.map(function (it) {
-        var meta = esc(it.source_module) + (it.due_date ? ' · Due ' + esc(fmtDate(it.due_date)) : '');
-        return '<a class="mywork-item" href="' + esc(it.link) + '">' +
-          '<div><div class="mywork-item-title">' + esc(it.title) + '</div>' +
-          '<div class="mywork-item-meta">' + meta + '</div></div>' +
-          '</a>';
-      }).join('');
-    }
-    wrap.innerHTML = head + body;
-    return wrap;
-  }
-
-  async function load() {
-    var container = document.getElementById('myWorkSections');
-    try {
-      var data = await ApiClient.request('/api/my-work');
-      container.innerHTML = '';
-      SECTION_ORDER.forEach(function (name) {
-        container.appendChild(renderSection(name, data.sections[name] || []));
-      });
-      var noteEl = document.getElementById('myWorkPendingNote');
-      if (data.pending_sources && data.pending_sources.length) {
-        noteEl.style.display = '';
-        noteEl.textContent = 'Not yet included here (coming in a later release): ' + data.pending_sources.join('; ') + '.';
-      }
-    } catch (err) {
-      container.innerHTML = '<div class="mywork-empty">Could not load My Work' +
-        (err && err.detail ? ': ' + esc(err.detail) : '.') + '</div>';
-    }
-  }
-
-  load();
-})();
-</script>
+<div class="mywork-controls" role="search" aria-label="Filter My Work" data-user-id="{{ user.id }}">
+  <label for="myWorkQ">Search</label><input id="myWorkQ" type="search" maxlength="100" placeholder="Search work titles">
+  <label for="myWorkSource">Source</label><select id="myWorkSource"><option value="">All sources</option>
+    <option value="aria">ARIA</option><option value="evidence">Evidence</option><option value="platform">Platform</option>
+    <option value="grid">GRID</option><option value="erm">ERM</option><option value="orm">ORM</option>
+    <option value="bcm">BCM</option><option value="sentinel">Sentinel</option>
+  </select>
+  <label for="myWorkSection">Section</label><select id="myWorkSection"><option value="">All sections</option>
+    <option value="needs_my_action">Needs my action</option><option value="waiting_on_others">Waiting on others</option>
+    <option value="due_soon">Due soon</option><option value="overdue">Overdue</option>
+    <option value="recently_completed">Recently completed</option>
+  </select>
+  <button type="button" class="btn btn-secondary" id="myWorkApply">Apply</button>
+  <label for="myWorkSaved">Saved filters</label><select id="myWorkSaved"><option value="">Choose a filter</option></select>
+  <button type="button" class="btn btn-secondary" id="myWorkSave">Save current</button>
+  <button type="button" class="btn btn-secondary" id="myWorkDelete">Delete selected</button>
+</div>
+<div id="myWorkSections" aria-live="polite"></div>
+<button type="button" class="btn btn-secondary mywork-more" id="myWorkMore" hidden>Load more</button>
+<div id="myWorkPendingNote" class="mywork-pending-note" style="display:none" role="status"></div>
+<script src="/static/js/my_work.js?v=1" defer></script>
 {% endblock %}

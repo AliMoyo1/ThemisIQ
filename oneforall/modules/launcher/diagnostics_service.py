@@ -15,7 +15,7 @@ configuration state (their own licensed modules, whether email is
 configured) plus the same AI capability state every user can already see
 via GET /api/capability-state/ai.
 """
-from core.capability_state import CapabilityState, AVAILABLE, NOT_CONFIGURED
+from core.capability_state import CapabilityState, AVAILABLE, degraded, not_configured
 
 
 def _safe(probe_fn) -> dict:
@@ -27,12 +27,8 @@ def _safe(probe_fn) -> dict:
         if isinstance(result, CapabilityState):
             return result.to_dict()
         return result
-    except Exception as exc:
-        return CapabilityState(
-            state=NOT_CONFIGURED,
-            reason_code="probe_error",
-            message="This check could not run.",
-        ).to_dict()
+    except Exception:
+        return degraded("probe_error", "This check could not run. Try again shortly.").to_dict()
 
 
 def _database_state() -> CapabilityState:
@@ -46,15 +42,24 @@ def _database_state() -> CapabilityState:
 
 
 def _email_configured_state(org_id) -> CapabilityState:
-    from core.email import _get_setting
-    from config import settings
-    host = (_get_setting("smtp_host") or settings.SMTP_HOST or "").strip()
-    if host:
+    """Read the same provider resolution/config used by core.email.send_email."""
+    from core.email import _resolve_provider, _smtp_config, _graph_config, _sendgrid_config
+    provider = _resolve_provider()
+    if provider in ("google", "microsoft_smtp", "smtp"):
+        cfg = _smtp_config()
+        ready = all(cfg.get(key) for key in ("host", "user", "password", "from"))
+    elif provider == "microsoft_graph":
+        cfg = _graph_config()
+        ready = all(cfg.get(key) for key in ("tenant_id", "client_id", "client_secret", "from_address"))
+    elif provider == "sendgrid":
+        cfg = _sendgrid_config()
+        ready = bool(cfg.get("api_key") and cfg.get("from"))
+    else:
+        ready = False
+    if ready:
         return CapabilityState(state=AVAILABLE, reason_code="email_configured")
-    return CapabilityState(
-        state=NOT_CONFIGURED,
-        reason_code="email_not_configured",
-        message="No SMTP host is configured.",
+    return not_configured(
+        "email_not_configured", "Email delivery has not been configured.",
         remediation_route="/admin/email",
     )
 
@@ -69,15 +74,20 @@ def get_diagnostics(user: dict) -> dict:
         "email": _safe(lambda: _email_configured_state(user.get("org_id"))),
     }
 
+    if not user.get("is_super_admin") and result["email"].get("remediation_route"):
+        result["email"]["remediation_route"] = None
+
     if user.get("is_super_admin"):
         from modules.grid.scheduler import get_scheduler_status
         from core.backup_status import get_backup_freshness
         from modules.aria.policy_preview import get_worker_heartbeat_state
 
+        from core.capability_metrics import frequency
         result["platform"] = {
             "scheduler": _safe(get_scheduler_status),
             "backup": _safe(get_backup_freshness),
             "aria_preview_worker": _safe(get_worker_heartbeat_state),
+            "capability_state_frequency": _safe(frequency),
         }
 
     return result

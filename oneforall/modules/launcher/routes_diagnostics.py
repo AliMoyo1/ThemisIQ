@@ -25,4 +25,6 @@ async def diagnostics_page(request: Request):
 async def api_diagnostics(request: Request):
     from core.middleware import log_audit
     log_audit(request.state.user, "platform", "Viewed platform diagnostics")
-    return _JSONResp(get_diagnostics(request.state.user))
+    data = get_diagnostics(request.state.user)
+    data["request_id"] = getattr(request.state, "request_id", None)
+    return _JSONResp(data)

@@ -419,6 +419,40 @@
      HELPERS
      ════════════════════════════════════════════════════════════════════════ */
   function esc(s){if(!s)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+  var wfIsSuperAdmin={{ 'true' if is_super_admin else 'false' }};
+  async function wfTargetOrgField(){
+    if(!wfIsSuperAdmin) return '';
+    var orgs=(await apiFetch('/super-admin/api/orgs')).filter(function(o){return o.status==='active';});
+    if(!orgs.length) throw new Error('No active organization is available');
+    return '<div class="form-group"><label for="wfTargetOrg">Organization</label>'+
+      '<select id="wfTargetOrg" required onchange="wfLoadTargetDefinitions()"><option value="">Select an organization</option>'+
+      orgs.map(function(o){return '<option value="'+Number(o.id)+'">'+esc(o.name)+'</option>';}).join('')+
+      '</select></div>';
+  }
+  function wfSelectedOrg(body){
+    var select=document.getElementById('wfTargetOrg');
+    if(select) body.org_id=Number(select.value);
+    return body;
+  }
+  window.wfLoadTargetDefinitions=async function(){
+    var target=document.getElementById('wfTargetOrg');
+    var select=document.getElementById('wfStartDef')||document.getElementById('slaStartDef');
+    if(!target||!select) return;
+    select.innerHTML='<option value="">Select an organization first</option>';
+    if(!target.value) return;
+    var isSla=select.id==='slaStartDef';
+    var url=(isSla?'/api/sla/definitions':'/api/workflows/definitions')+
+      '?org_id='+encodeURIComponent(target.value);
+    try{
+      var defs=(await apiFetch(url)).filter(function(d){return d.is_active;});
+      select.innerHTML='<option value="">Select '+(isSla?'an SLA policy':'a workflow')+'</option>'+
+        defs.map(function(d){return '<option value="'+Number(d.id)+'">'+esc(d.name)+'</option>';}).join('');
+      if(!defs.length&&typeof showToast==='function')
+        showToast('No active '+(isSla?'SLA policies':'workflows')+' for this organization','error');
+    }catch(e){
+      if(typeof showToast==='function') showToast('Failed to load definitions','error');
+    }
+  };
 
   function timeAgo(ts){
     if(!ts) return '--';
@@ -676,13 +710,19 @@
   }
 
   // Start instance with entity context modal
-  window.wfStartInstanceModal=function(defId, defName){
+  window.wfStartInstanceModal=async function(defId, defName){
+    var orgField;
+    try{orgField=await wfTargetOrgField();}
+    catch(e){if(typeof showToast==='function') showToast(e.message||'Failed to load organizations','error');return;}
     var html='<div class="modal-overlay" onclick="if(event.target===this)wfCloseModal()">'+
       '<div class="modal-box" style="max-width:440px">'+
       '<button class="modal-close" onclick="wfCloseModal()">&times;</button>'+
       '<div class="modal-title">Start Workflow</div>'+
-      '<div class="ctx-block"><div class="ctx-label">Workflow</div><div class="ctx-val">'+esc(defName)+'</div></div>'+
+      (wfIsSuperAdmin?'':'<div class="ctx-block"><div class="ctx-label">Workflow</div><div class="ctx-val">'+esc(defName)+'</div></div>')+
       '<form onsubmit="return wfSubmitStartInst(event,'+defId+')">'+
+        orgField+
+        (wfIsSuperAdmin?'<div class="form-group"><label for="wfStartDef">Workflow</label>'+
+          '<select id="wfStartDef" required><option value="">Select an organization first</option></select></div>':'')+
         '<div class="form-row">'+
           '<div class="form-group"><label>Entity Module (optional)</label>'+
             '<select id="siModule"><option value="">None</option><option value="aria">ARIA</option><option value="sentinel">Sentinel</option><option value="grid">GRID</option><option value="bcm">BCM</option></select></div>'+
@@ -702,12 +742,12 @@
   window.wfSubmitStartInst=function(e,defId){
     e.preventDefault();
     var body={
-      definition_id:defId,
+      definition_id:wfIsSuperAdmin?Number(document.getElementById('wfStartDef').value):defId,
       entity_module:document.getElementById('siModule').value,
       entity_type:document.getElementById('siType').value,
       entity_id:parseInt(document.getElementById('siId').value)||null
     };
-    apiFetch('/api/workflows/instances',{method:'POST',body:body}).then(function(){
+    apiFetch('/api/workflows/instances',{method:'POST',body:wfSelectedOrg(body)}).then(function(){
       wfCloseModal();
       if(typeof showToast==='function') showToast('Workflow started');
       loadStats();
@@ -1323,11 +1363,14 @@
     var defs=[];
     try{defs=await apiFetch('/api/sla/definitions');}catch(e){}
     var activeDefs=defs.filter(function(d){return d.is_active;});
-    if(!activeDefs.length){
+    if(!activeDefs.length&&!wfIsSuperAdmin){
       if(typeof showToast==='function') showToast('No active SLA policies — create one first','error');
       return;
     }
-    var optsHtml=activeDefs.map(function(d){
+    var orgField;
+    try{orgField=await wfTargetOrgField();}
+    catch(e){if(typeof showToast==='function') showToast(e.message||'Failed to load organizations','error');return;}
+    var optsHtml=(wfIsSuperAdmin?[]:activeDefs).map(function(d){
       return '<option value="'+d.id+'">'+esc(d.name)+' ('+esc(d.module)+' / '+esc(d.entity_type)+')</option>';
     }).join('');
     var html='<div class="modal-overlay" onclick="if(event.target===this)wfCloseModal()">'+
@@ -1335,7 +1378,9 @@
       '<button class="modal-close" onclick="wfCloseModal()">&times;</button>'+
       '<div class="modal-title">Start SLA Tracking</div>'+
       '<form onsubmit="return slaSubmitStart(event)">'+
-        '<div class="form-group"><label>SLA Policy</label><select id="slaStartDef" required>'+optsHtml+'</select></div>'+
+        orgField+
+        '<div class="form-group"><label>SLA Policy</label><select id="slaStartDef" required>'+
+          (wfIsSuperAdmin?'<option value="">Select an organization first</option>':'')+optsHtml+'</select></div>'+
         '<div class="form-row">'+
           '<div class="form-group"><label>Entity Module</label>'+
             '<select id="slaStartMod"><option value="aria">ARIA</option><option value="sentinel">Sentinel</option><option value="grid">GRID</option><option value="bcm">BCM</option></select></div>'+
@@ -1355,7 +1400,7 @@
       entity_type:document.getElementById('slaStartType').value,
       entity_id:parseInt(document.getElementById('slaStartId').value)||null
     };
-    apiFetch('/api/sla/instances',{method:'POST',body:body}).then(function(){
+    apiFetch('/api/sla/instances',{method:'POST',body:wfSelectedOrg(body)}).then(function(){
       wfCloseModal();loadSlaInstances();loadSlaStats();
       if(typeof showToast==='function') showToast('SLA tracking started');
     }).catch(function(){
@@ -1588,7 +1633,15 @@
   /* ════════════════════════════════════════════════════════════════════════
      INIT
      ════════════════════════════════════════════════════════════════════════ */
-  loadStats();
+  loadStats().then(function(){
+    var url=new URL(window.location.href);
+    var instance=url.searchParams.get('instance');
+    if(instance!==null){
+      url.searchParams.delete('instance');
+      history.replaceState(null,'',url.pathname+url.search+url.hash);
+      if(/^[1-9][0-9]*$/.test(instance)) wfOpenInstance(Number(instance));
+    }
+  });
   loadTemplates();
 
   // Close modal/drawer with Escape

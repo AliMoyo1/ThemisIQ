@@ -60,7 +60,7 @@ def test_successful_upload_closes_the_modal_and_shows_success_toast(login_as, li
     page.route("**/evidence/api/stats", lambda r: r.fulfill(
         status=200, content_type="application/json", body='{}'))
     page.route("**/evidence/api/items?**", lambda r: r.fulfill(
-        status=200, content_type="application/json", body='{"items": [], "total": 0}'))
+        status=200, content_type="application/json", body='[]'))
     page.click("button:has-text('Upload Evidence')")
     page.wait_for_selector(".toast-success", timeout=5000)
     assert "uploaded" in page.locator(".toast-success").inner_text().lower()

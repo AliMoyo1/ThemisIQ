@@ -59,3 +59,57 @@ def test_api_returns_404_not_500_for_a_nonexistent_document(live_app, synthetic_
         assert body["error"]["code"] == "NOT_FOUND"
     finally:
         client.close()
+
+
+def test_compare_route_returns_own_version_and_hides_other_org(live_app, synthetic_tenant):
+    import database
+
+    db = database.get_db()
+    try:
+        db.execute(
+            "INSERT INTO organizations (name,slug) VALUES ('Other Compare Org','other-compare-org')"
+        )
+        other_org = db.execute(
+            "SELECT id FROM organizations WHERE slug='other-compare-org'"
+        ).fetchone()["id"]
+        version_ids = {}
+        for label, org_id in (("OWN-COMPARE", synthetic_tenant["org_id"]),
+                              ("OTHER-COMPARE", other_org)):
+            db.execute(
+                "INSERT INTO aria_documents "
+                "(doc_id,framework,title,org_id,policy_workflow_managed) "
+                "VALUES (%s,'Test','Comparison policy',%s,1)",
+                (label, org_id),
+            )
+            doc_pk = db.execute(
+                "SELECT id FROM aria_documents WHERE doc_id=%s", (label,)
+            ).fetchone()["id"]
+            db.execute(
+                "INSERT INTO aria_policy_versions "
+                "(org_id,document_id,version_major,version_minor,version,state,origin,body) "
+                "VALUES (%s,%s,1,0,'1.0','approved','authored','Policy body')",
+                (org_id, doc_pk),
+            )
+            version_ids[label] = db.execute(
+                "SELECT id FROM aria_policy_versions WHERE document_id=%s", (doc_pk,)
+            ).fetchone()["id"]
+        db.commit()
+    finally:
+        db.close()
+
+    creds = synthetic_tenant["users"]["compliance_manager"]
+    client = _login(live_app, creds["username"], creds["password"])
+    try:
+        own_id = version_ids["OWN-COMPARE"]
+        own = client.get(
+            f"/aria/api/documents/OWN-COMPARE/compare?left={own_id}&right={own_id}"
+        )
+        assert own.status_code == 200
+        assert own.json()["left"]["normalized_text"] == "Policy body"
+        other_id = version_ids["OTHER-COMPARE"]
+        other = client.get(
+            f"/aria/api/documents/OTHER-COMPARE/compare?left={other_id}&right={other_id}"
+        )
+        assert other.status_code == 404
+    finally:
+        client.close()

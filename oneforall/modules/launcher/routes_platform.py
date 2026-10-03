@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
-from database import insert_returning_id, sql_date_offset
+from database import sql_date_offset
 from core.security import sanitize_text, sanitize_short, validate_int, validate_choice, validate_date
 
 from modules.launcher._route_helpers import (
@@ -18,6 +18,7 @@ from modules.launcher._route_helpers import (
     _json_body,)
 from modules.aria.policy_access import document_scope_sql
 from modules.governance.data_service import bu_scope_ids
+from modules.launcher.task_service import create_task_with_assignment_notification, validate_task_assignee
 
 router = APIRouter()
 
@@ -248,149 +249,8 @@ async def api_global_search(request: Request):
 # COMPLIANCE CALENDAR
 # ═════════════════════════════════════════════════════════════════════════════
 
-@router.get("/calendar", response_class=HTMLResponse)
-@require_auth
-async def calendar_page(request: Request):
-    """Compliance calendar page."""
-    ctx = shell_ctx(request, active_module="platform", active_section="calendar")
-    return shell_templates.TemplateResponse(request, "calendar.html", ctx)
+# Calendar handlers live in routes_calendar.py.
 
-
-@router.get("/api/calendar/events")
-@require_auth
-async def api_calendar_events(request: Request):
-    """Get calendar events within a date range."""
-    db = get_db()
-    try:
-        start = request.query_params.get("start", "")
-        end = request.query_params.get("end", "")
-        module = request.query_params.get("module", "")
-        event_type = request.query_params.get("type", "")
-
-        where = ["1=1"]
-        params = []
-        if start:
-            where.append("ce.start_date >= %s"); params.append(start)
-        if end:
-            where.append("ce.start_date <= %s"); params.append(end)
-        if module:
-            where.append("ce.module = %s"); params.append(module)
-        if event_type:
-            where.append("ce.event_type = %s"); params.append(event_type)
-
-        rows = db.execute(
-            f"SELECT ce.*, u.full_name as assigned_name "
-            f"FROM calendar_events ce LEFT JOIN users u ON ce.assigned_to = u.id "
-            f"WHERE {' AND '.join(where)} ORDER BY ce.start_date LIMIT 500",
-            params
-        ).fetchall()
-    finally:
-        db.close()
-    return _JSONResp([dict(r) for r in rows])
-
-
-@router.post("/api/calendar/events", status_code=201)
-@require_auth
-async def api_calendar_event_create(request: Request):
-    """Create a calendar event."""
-    data = await _json_body(request)
-    title = sanitize_short(data.get("title"), 255)
-    if not title:
-        return _JSONResp({"error": "Title is required."}, 400)
-    start_date = validate_date(data.get("start_date"))
-    if not start_date:
-        return _JSONResp({"error": "Valid start date is required."}, 400)
-    db = get_db()
-    try:
-        eid = insert_returning_id(
-            db,
-            "INSERT INTO calendar_events (title, description, event_type, module, entity_type, "
-            "entity_id, start_date, end_date, all_day, recurrence, assigned_to, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            (
-                title,
-                sanitize_text(data.get("description"), 2000),
-                validate_choice(data.get("event_type"), {"audit", "review", "deadline", "meeting", "training", "other"}, "other"),
-                sanitize_short(data.get("module"), 50),
-                sanitize_short(data.get("entity_type"), 50),
-                validate_int(data.get("entity_id")),
-                start_date,
-                validate_date(data.get("end_date")),
-                1 if data.get("all_day", True) else 0,
-                validate_choice(data.get("recurrence"), {"", "daily", "weekly", "monthly", "yearly"}, ""),
-                validate_int(data.get("assigned_to")),
-                request.state.user["id"],
-            )
-        )
-        db.commit()
-    finally:
-        db.close()
-    return _JSONResp({"id": eid}, status_code=201)
-
-
-@router.put("/api/calendar/events/{eid}")
-@require_auth
-async def api_calendar_event_update(request: Request, eid: int):
-    """Update a calendar event."""
-    data = await _json_body(request)
-    uid = request.state.user["id"]
-    is_admin = has_capability(request.state.user, "platform.manage_users")
-    db = get_db()
-    try:
-        row = db.execute("SELECT created_by FROM calendar_events WHERE id = %s", (eid,)).fetchone()
-        if not row:
-            return _JSONResp({"error": "Event not found."}, 404)
-        if not is_admin and row["created_by"] != uid:
-            return _JSONResp({"error": "Access denied."}, 403)
-        _SANITIZERS = {
-            "title": lambda v: sanitize_short(v, 255),
-            "description": lambda v: sanitize_text(v, 2000),
-            "event_type": lambda v: validate_choice(v, {"audit", "review", "deadline", "meeting", "training", "other"}),
-            "module": lambda v: sanitize_short(v, 50),
-            "start_date": lambda v: validate_date(v),
-            "end_date": lambda v: validate_date(v),
-            "all_day": lambda v: 1 if v else 0,
-            "recurrence": lambda v: validate_choice(v, {"", "daily", "weekly", "monthly", "yearly"}, ""),
-            "assigned_to": lambda v: validate_int(v),
-            "status": lambda v: validate_choice(v, {"scheduled", "in_progress", "completed", "cancelled"}),
-        }
-        fields, params = [], []
-        for key, sanitizer in _SANITIZERS.items():
-            if key in data:
-                val = sanitizer(data[key])
-                if val is not None:
-                    fields.append(f"{key} = %s")
-                    params.append(val)
-        if fields:
-            params.append(eid)
-            db.execute(f"UPDATE calendar_events SET {', '.join(fields)} WHERE id = %s", params)
-            db.commit()
-    finally:
-        db.close()
-    return _JSONResp({"success": True})
-
-
-@router.delete("/api/calendar/events/{eid}")
-@require_auth
-async def api_calendar_event_delete(request: Request, eid: int):
-    """Delete a calendar event."""
-    uid = request.state.user["id"]
-    is_admin = has_capability(request.state.user, "platform.manage_users")
-    db = get_db()
-    try:
-        if is_admin:
-            db.execute("DELETE FROM calendar_events WHERE id = %s", (eid,))
-        else:
-            db.execute("DELETE FROM calendar_events WHERE id = %s AND created_by = %s", (eid, uid))
-        db.commit()
-    finally:
-        db.close()
-    return _JSONResp({"success": True})
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# ANALYTICS & TRENDS
-# ═════════════════════════════════════════════════════════════════════════════
 
 @router.get("/analytics", response_class=HTMLResponse)
 @require_auth
@@ -693,6 +553,11 @@ async def api_tasks_list(request: Request):
             where.append("t.assigned_to = %s"); params.append(int(assigned))
         if my_tasks:
             where.append("t.assigned_to = %s"); params.append(request.state.user["id"])
+        # task_board predates org_id. Its creator owns the task's tenant;
+        # only legacy system tasks fall back to the assignee's tenant.
+        if not request.state.user.get("is_super_admin"):
+            where.append("COALESCE(c.org_id, u.org_id) = %s")
+            params.append(request.state.user.get("org_id"))
 
         rows = db.execute(
             f"SELECT t.*, u.full_name as assigned_name, c.full_name as creator_name "
@@ -708,6 +573,82 @@ async def api_tasks_list(request: Request):
     finally:
         db.close()
     return _JSONResp([dict(r) for r in rows])
+
+
+@router.get("/api/tasks/stats")
+@require_auth
+async def api_tasks_stats(request: Request):
+    """Task counts use the same tenant and BU scope as the visible board."""
+    user = request.state.user
+    scope = bu_scope_ids(user)
+    where = ["1=1"]
+    params = []
+    if not user.get("is_super_admin"):
+        where.append(
+            "COALESCE((SELECT org_id FROM users WHERE id=t.created_by), "
+            "(SELECT org_id FROM users WHERE id=t.assigned_to))=%s"
+        )
+        params.append(user.get("org_id"))
+    if scope is not None:
+        placeholders = ",".join(["%s"] * len(scope)) if scope else "NULL"
+        where.append(f"(t.business_unit_id IS NULL OR t.business_unit_id IN ({placeholders}))")
+        params.extend(scope)
+    visible = " AND ".join(where)
+    db = get_db()
+    try:
+        by_status = db.execute(
+            f"SELECT t.status, COUNT(*) as c FROM task_board t WHERE {visible} GROUP BY t.status",
+            params,
+        ).fetchall()
+        my_pending = db.execute(
+            f"SELECT COUNT(*) FROM task_board t WHERE {visible} "
+            "AND t.assigned_to=%s AND t.status NOT IN ('done','cancelled')",
+            params + [user["id"]],
+        ).fetchone()[0]
+        overdue = db.execute(
+            f"SELECT COUNT(*) FROM task_board t WHERE {visible} "
+            "AND t.due_date < CURRENT_DATE AND t.status NOT IN ('done','cancelled')",
+            params,
+        ).fetchone()[0]
+    finally:
+        db.close()
+    return _JSONResp({
+        "by_status": {r["status"]: r["c"] for r in by_status},
+        "my_pending": my_pending,
+        "overdue": overdue,
+    })
+
+
+@router.get("/api/tasks/{tid}")
+@require_auth
+async def api_task_detail(request: Request, tid: int):
+    """Return one tenant- and business-unit-visible task for a deep link."""
+    user = request.state.user
+    where = ["t.id = %s"]
+    params = [tid]
+    if not user.get("is_super_admin"):
+        where.append("COALESCE(c.org_id, u.org_id) = %s")
+        params.append(user.get("org_id"))
+    scope = bu_scope_ids(user)
+    if scope is not None:
+        placeholders = ",".join(["%s"] * len(scope)) if scope else "NULL"
+        where.append(f"(t.business_unit_id IS NULL OR t.business_unit_id IN ({placeholders}))")
+        params.extend(scope)
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT t.*, u.full_name AS assigned_name, c.full_name AS creator_name "
+            "FROM task_board t "
+            "LEFT JOIN users u ON t.assigned_to = u.id "
+            "LEFT JOIN users c ON t.created_by = c.id "
+            f"WHERE {' AND '.join(where)}",
+            params,
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None:
+        return _JSONResp({"error": "Task not found."}, 404)
+    return _JSONResp(dict(row))
 
 
 @router.post("/api/tasks", status_code=201)
@@ -728,77 +669,16 @@ async def api_task_create(request: Request):
     due_date = validate_date(data.get("due_date"))
     tags = sanitize_short(data.get("tags"), 500)
     uid = request.state.user["id"]
-    db = get_db()
     try:
-        tid = insert_returning_id(
-            db,
-            "INSERT INTO task_board (title, description, module, entity_type, entity_id, "
-            "assigned_to, priority, status, due_date, tags, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-            (title, description, module, entity_type, entity_id,
-             assigned_to, priority, status, due_date, tags, uid)
+        tid = create_task_with_assignment_notification(
+            title=title, description=description, module=module,
+            entity_type=entity_type, entity_id=entity_id, assigned_to=assigned_to,
+            priority=priority, status=status, due_date=due_date, tags=tags,
+            created_by=uid,
         )
-        db.commit()
-    finally:
-        db.close()
-    if assigned_to:
-        db2 = get_db()
-        try:
-            db2.execute(
-                "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
-                (assigned_to, f"New Task: {title}", description[:100], "/tasks", "task")
-            )
-            db2.commit()
-        finally:
-            db2.close()
+    except ValueError as exc:
+        return _JSONResp({"error": str(exc)}, status_code=400)
     return _JSONResp({"id": tid}, status_code=201)
-
-
-@router.put("/api/tasks/{tid}")
-@require_auth
-async def api_task_update(request: Request, tid: int):
-    """Update a task (including status changes for drag-drop)."""
-    data = await _json_body(request)
-    uid = request.state.user["id"]
-    is_admin = has_capability(request.state.user, "platform.manage_users")
-    db = get_db()
-    try:
-        row = db.execute("SELECT created_by, assigned_to FROM task_board WHERE id = %s", (tid,)).fetchone()
-        if not row:
-            return _JSONResp({"error": "Task not found."}, 404)
-        if not is_admin and row["created_by"] != uid and row["assigned_to"] != uid:
-            return _JSONResp({"error": "Access denied."}, 403)
-        _SANITIZERS = {
-            "title": lambda v: sanitize_short(v, 255),
-            "description": lambda v: sanitize_text(v, 5000),
-            "module": lambda v: sanitize_short(v, 50),
-            "assigned_to": lambda v: validate_int(v),
-            "priority": lambda v: validate_choice(v, {"critical", "high", "medium", "low"}),
-            "status": lambda v: validate_choice(v, {"todo", "in_progress", "review", "done", "cancelled"}),
-            "due_date": lambda v: validate_date(v),
-            "tags": lambda v: sanitize_short(v, 500),
-        }
-        fields, params = [], []
-        for key, sanitizer in _SANITIZERS.items():
-            if key in data:
-                val = sanitizer(data[key])
-                if val is not None:
-                    fields.append(f"{key} = %s")
-                    params.append(val)
-        if fields:
-            fields.append("updated_at = CURRENT_TIMESTAMP")
-            params.append(tid)
-            sql = f"UPDATE task_board SET {', '.join(fields)} WHERE id = %s"
-            if not is_admin:
-                sql += " AND (created_by = %s OR assigned_to = %s)"
-                params.extend([uid, uid])
-            cur = db.execute(sql, params)
-            db.commit()
-            if cur.rowcount == 0:
-                return _JSONResp({"error": "Task changed or was removed; refresh and retry."}, 409)
-    finally:
-        db.close()
-    return _JSONResp({"success": True})
 
 
 @router.put("/api/tasks/bulk")
@@ -833,6 +713,11 @@ async def api_tasks_bulk_update(request: Request):
     fields.append("updated_at = CURRENT_TIMESTAMP")
     db = get_db()
     try:
+        if updates.get("assigned_to") not in (None, ""):
+            try:
+                validate_task_assignee(db, uid, validate_int(updates["assigned_to"]))
+            except ValueError as exc:
+                return _JSONResp({"error": str(exc)}, status_code=400)
         if not is_admin:
             placeholders = ", ".join(["%s"] * len(ids))
             owned = db.execute(
@@ -856,6 +741,58 @@ async def api_tasks_bulk_update(request: Request):
     return _JSONResp({"updated": len(ids)})
 
 
+@router.put("/api/tasks/{tid}")
+@require_auth
+async def api_task_update(request: Request, tid: int):
+    """Update a task (including status changes for drag-drop)."""
+    data = await _json_body(request)
+    uid = request.state.user["id"]
+    is_admin = has_capability(request.state.user, "platform.manage_users")
+    db = get_db()
+    try:
+        row = db.execute("SELECT created_by, assigned_to FROM task_board WHERE id = %s", (tid,)).fetchone()
+        if not row:
+            return _JSONResp({"error": "Task not found."}, 404)
+        if not is_admin and row["created_by"] != uid and row["assigned_to"] != uid:
+            return _JSONResp({"error": "Access denied."}, 403)
+        _SANITIZERS = {
+            "title": lambda v: sanitize_short(v, 255),
+            "description": lambda v: sanitize_text(v, 5000),
+            "module": lambda v: sanitize_short(v, 50),
+            "assigned_to": lambda v: validate_int(v),
+            "priority": lambda v: validate_choice(v, {"critical", "high", "medium", "low"}),
+            "status": lambda v: validate_choice(v, {"todo", "in_progress", "review", "done", "cancelled"}),
+            "due_date": lambda v: validate_date(v),
+            "tags": lambda v: sanitize_short(v, 500),
+        }
+        if data.get("assigned_to") not in (None, ""):
+            try:
+                validate_task_assignee(db, uid, validate_int(data["assigned_to"]))
+            except ValueError as exc:
+                return _JSONResp({"error": str(exc)}, status_code=400)
+        fields, params = [], []
+        for key, sanitizer in _SANITIZERS.items():
+            if key in data:
+                val = sanitizer(data[key])
+                if val is not None:
+                    fields.append(f"{key} = %s")
+                    params.append(val)
+        if fields:
+            fields.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(tid)
+            sql = f"UPDATE task_board SET {', '.join(fields)} WHERE id = %s"
+            if not is_admin:
+                sql += " AND (created_by = %s OR assigned_to = %s)"
+                params.extend([uid, uid])
+            cur = db.execute(sql, params)
+            db.commit()
+            if cur.rowcount == 0:
+                return _JSONResp({"error": "Task changed or was removed; refresh and retry."}, 409)
+    finally:
+        db.close()
+    return _JSONResp({"success": True})
+
+
 @router.delete("/api/tasks/{tid}")
 @require_auth
 async def api_task_delete(request: Request, tid: int):
@@ -877,32 +814,6 @@ async def api_task_delete(request: Request, tid: int):
     finally:
         db.close()
     return _JSONResp({"success": True})
-
-
-@router.get("/api/tasks/stats")
-@require_auth
-async def api_tasks_stats(request: Request):
-    """Task board statistics."""
-    uid = request.state.user["id"]
-    db = get_db()
-    try:
-        by_status = db.execute(
-            "SELECT status, COUNT(*) as c FROM task_board GROUP BY status"
-        ).fetchall()
-        my_pending = db.execute(
-            "SELECT COUNT(*) FROM task_board WHERE assigned_to = %s AND status NOT IN ('done','cancelled')",
-            (uid,)
-        ).fetchone()[0]
-        overdue = db.execute(
-            "SELECT COUNT(*) FROM task_board WHERE due_date < CURRENT_DATE AND status NOT IN ('done','cancelled')"
-        ).fetchone()[0]
-    finally:
-        db.close()
-    return _JSONResp({
-        "by_status": {r["status"]: r["c"] for r in by_status},
-        "my_pending": my_pending,
-        "overdue": overdue,
-    })
 
 
 @router.post("/api/tasks/ai-prioritize")

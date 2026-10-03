@@ -9,8 +9,10 @@ Context variables (PostgreSQL session settings):
   app.is_super_admin  - 'true' / 'false'
   app.bypass_rls      - 'true' to skip all policies (auth layer, provisioning)
 
-ENABLE + FORCE ROW LEVEL SECURITY is used so even superuser connections
-(the typical app role) are constrained by the policies.
+ENABLE + FORCE ROW LEVEL SECURITY also subjects table owners to the policies.
+PostgreSQL superusers and roles with BYPASSRLS always bypass them, even with
+FORCE. The application role must therefore be NOSUPERUSER and NOBYPASSRLS
+for these policies to provide defense in depth.
 """
 import logging
 
@@ -112,8 +114,9 @@ def apply_rls_policies(db) -> None:
 
     Idempotent: DROP POLICY IF EXISTS + CREATE means it is safe to call on
     every startup. Only meaningful on PostgreSQL; no-ops on SQLite.
-    Errors are logged and swallowed so a policy failure does not prevent the
-    app from starting (schema-level isolation still protects tenant data).
+    A failed installation aborts PostgreSQL startup because shared public
+    tables are not isolated by tenant schemas. Request paths must also retain
+    explicit organization filters.
     """
     from config import settings
     if not settings.is_postgres():
@@ -130,8 +133,9 @@ def apply_rls_policies(db) -> None:
             "public.bulk_action_runs"
         )
     except Exception as exc:
-        _logger.error("RLS policy application failed (non-fatal): %s", exc)
+        _logger.error("RLS policy installation failed; refusing startup: %s", exc)
         try:
             db.rollback()
         except Exception:
             pass
+        raise RuntimeError("RLS policy installation failed") from exc

@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from database import get_db_background as get_db, sql_date_offset  # scheduler: fail-fast, never block UI
+from database import get_db_background as get_db, sql_date_offset, list_active_tenants, tenant_context  # scheduler: fail-fast, never block UI
 from core.email import send_email as _core_send_email
 
 log = logging.getLogger("bcm.scheduler")
@@ -61,17 +61,15 @@ def _notify_admins(db, title: str, message: str, link: str = "/bcm/") -> None:
         log.warning("_notify_admins failed: %s", e)
 
 
-def _task_exists(db, title_fragment: str, entity_type: str, entity_id: int) -> bool:
-    """Check if an open task already exists to avoid duplicates."""
-    try:
-        row = db.execute(
-            "SELECT id FROM task_board WHERE module='bcm' AND entity_type=%s "
-            "AND entity_id=%s AND status!='done' AND title LIKE %s",
-            (entity_type, entity_id, f"%{title_fragment}%"),
-        ).fetchone()
-        return row is not None
-    except Exception:
-        return False
+def _task_exists(db, title_fragment: str, entity_type: str, entity_id: int, *, include_done=False) -> bool:
+    """Check for an existing BCM reminder. Exercise reminders are once per exercise."""
+    status_clause = "" if include_done else "AND status!='done' "
+    row = db.execute(
+        "SELECT id FROM task_board WHERE module='bcm' AND entity_type=%s "
+        "AND entity_id=%s " + status_clause + "AND title LIKE %s",
+        (entity_type, entity_id, f"%{title_fragment}%"),
+    ).fetchone()
+    return row is not None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -142,58 +140,60 @@ def _plan_review_check() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _exercise_alert_check() -> None:
-    """
-    Alert when a planned exercise is within 14 days of its scheduled date.
-    """
-    log.info("BCM: running exercise alert check")
+    """Create one owner-assigned reminder per upcoming exercise in each tenant."""
+    try:
+        tenants = list_active_tenants()
+    except Exception as exc:
+        log.warning("BCM exercise alert: tenant list failed: %s", exc)
+        return
+    for org_id, slug in tenants:
+        with tenant_context(org_id, slug):
+            _exercise_alert_check_tenant(org_id)
+
+
+def _exercise_alert_check_tenant(org_id: int) -> None:
     db = get_db()
     try:
         rows = db.execute(
-            "SELECT id, title, exercise_type, scheduled_date "
-            "FROM bcm_exercises "
-            "WHERE status = 'planned' "
-            "  AND scheduled_date IS NOT NULL "
-            f"  AND scheduled_date <= {sql_date_offset('+14 days')} "
-            "  AND scheduled_date >= CURRENT_DATE "
-            "ORDER BY scheduled_date ASC"
+            "SELECT id,title,type,scheduled_date,owner_id,business_unit_id "
+            "FROM bcm_exercises WHERE org_id=%s AND status='planned' "
+            "AND scheduled_date IS NOT NULL "
+            f"AND scheduled_date <= {sql_date_offset('+14 days')} "
+            "AND scheduled_date >= CURRENT_DATE ORDER BY scheduled_date,id",
+            (org_id,),
         ).fetchall()
-
-        alerted = 0
+        created = 0
         for ex in rows:
-            eid  = ex["id"]
-            name = ex["title"] or f"Exercise #{eid}"
-            date = ex["scheduled_date"]
-            etype = ex["exercise_type"] or "Exercise"
-
-            if _task_exists(db, "EXERCISE UPCOMING:", "exercise", eid):
+            eid = ex["id"]
+            if _task_exists(db, "EXERCISE UPCOMING:", "exercise", eid, include_done=True):
                 continue
-
-            db.execute(
+            name = ex["title"] or f"Exercise #{eid}"
+            inserted = db.execute(
                 "INSERT INTO task_board "
-                "(title, description, module, entity_type, entity_id, priority, status) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                (
-                    f"EXERCISE UPCOMING: {name}",
-                    f"{etype} '{name}' is scheduled for {date} (within 14 days). "
-                    f"Ensure participants are briefed and materials are prepared.",
-                    "bcm", "exercise", eid, "medium", "todo",
-                ),
+                "(title,description,module,entity_type,entity_id,assigned_to,"
+                "business_unit_id,priority,status,due_date,reminder_key) "
+                "VALUES (%s,%s,'bcm','exercise',%s,%s,%s,'medium','todo',%s,%s) "
+                "ON CONFLICT DO NOTHING",
+                (f"EXERCISE UPCOMING: {name}",
+                 f"{ex['type'] or 'Exercise'} '{name}' is scheduled for "
+                 f"{ex['scheduled_date']}. Confirm readiness and participants.",
+                 eid, ex["owner_id"], ex["business_unit_id"], ex["scheduled_date"],
+                 f"bcm:exercise:{org_id}:{eid}"),
             )
-            alerted += 1
-
-        if alerted:
-            _notify_admins(
-                db,
-                f"BCM: {alerted} exercise(s) within 14 days",
-                f"{alerted} BCM exercise(s) are coming up within 14 days. "
-                f"Check the Task Board for preparation reminders.",
-                "/bcm/#exercises",
-            )
-
+            if not inserted.rowcount:
+                continue
+            if ex["owner_id"]:
+                db.execute(
+                    "INSERT INTO notifications (user_id,module,title,message,link) "
+                    "VALUES (%s,'bcm',%s,%s,%s)",
+                    (ex["owner_id"], "BCM exercise upcoming", name, f"/bcm/?open=exercise:{eid}"),
+                )
+            created += 1
         db.commit()
-        log.info("BCM exercise alert check: %d task(s) created", alerted)
-    except Exception as e:
-        log.warning("BCM exercise alert check failed: %s", e)
+        log.info("BCM exercise reminders: org=%s created=%s", org_id, created)
+    except Exception as exc:
+        db.rollback()
+        log.warning("BCM exercise alert failed for org=%s: %s", org_id, exc)
     finally:
         db.close()
 

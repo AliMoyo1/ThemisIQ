@@ -473,17 +473,19 @@
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- EXERCISES VIEW                                                        -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="spa-view" id="view-exercises">
+<div class="spa-view" id="view-exercises" data-can-manage="{{ 'true' if bcm_can_manage_exercises else 'false' }}" data-user-id="{{ user.id }}">
   <div class="section-header">
     <div>
       <div class="section-title">Exercises &amp; Testing</div>
       <div class="section-sub">Plan validation through tabletop exercises and drills</div>
     </div>
     <div class="header-actions">
+      {% if bcm_can_manage_exercises %}
       <button class="btn btn-primary" onclick="bcmOpenModal('exercise')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         New Exercise
       </button>
+      {% endif %}
     </div>
   </div>
   <div id="bcmExStats" class="bcm-view-stats"></div>
@@ -815,6 +817,7 @@
 
 {% block extra_scripts %}
 <script src="/static/js/thinking-trace.js"></script>
+<script src="/static/js/bcm_doc_viewer.js?v=1"></script>
 <script>
 (function(){
   'use strict';
@@ -875,36 +878,6 @@
     if(s>=6)  return 'medium';
     return 'low';
   }
-
-  /* ── Doc Viewer (slide-out panel for AI-generated content) ─────────────── */
-  var _bcmDocContent='';
-  window.bcmOpenDocViewer=function(title,content){
-    _bcmDocContent=content||'';
-    var root=document.getElementById('bcmDocViewerRoot');
-    root.innerHTML=
-      '<div class="bcm-doc-overlay" onclick="if(event.target===this)bcmCloseDocViewer()">'+
-      '<div class="bcm-doc-panel">'+
-        '<div class="bcm-doc-head">'+
-          '<div style="font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="bcmDocTitle"></div>'+
-          '<div style="display:flex;gap:6px;flex-shrink:0" id="bcmDocHeadBtns">'+
-            '<button class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText(_bcmDocContent).then(function(){typeof showToast===\'function\'&&showToast(\'Copied!\')})">Copy</button>'+
-            '<button class="btn btn-sm btn-secondary" id="bcmDocDlBtn">Download</button>'+
-            '<button class="btn btn-sm btn-secondary" onclick="bcmCloseDocViewer()">&#10005;</button>'+
-          '</div>'+
-        '</div>'+
-        '<div class="bcm-doc-body" id="bcmDocViewerBody"></div>'+
-      '</div></div>';
-    document.getElementById('bcmDocTitle').textContent=title;
-    document.getElementById('bcmDocViewerBody').textContent=content||'';
-    document.getElementById('bcmDocDlBtn').onclick=function(){bcmDownloadDoc(title);};
-  };
-  window.bcmCloseDocViewer=function(){document.getElementById('bcmDocViewerRoot').innerHTML='';};
-  window.bcmDownloadDoc=function(name){
-    var blob=new Blob([_bcmDocContent],{type:'text/plain'});
-    var a=document.createElement('a');a.href=URL.createObjectURL(blob);
-    a.download=(name||'bcm-document').replace(/[^a-z0-9]/gi,'_').toLowerCase()+'.txt';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-  };
 
   async function apiFetch(url,opts){
     // PLAN-36 T06 (findings.md F08): delegates to the shared ApiClient so
@@ -1655,6 +1628,7 @@
      EXERCISES CRUD
      ════════════════════════════════════════════════════════════════════════ */
   var exCache=[];
+  var bcmCanManageExercises={{ 'true' if bcm_can_manage_exercises else 'false' }};
   window.bcmLoadExercises=async function(){
     var body=document.getElementById('bcmExBody');body.innerHTML=spinner(6);
     try{
@@ -1663,7 +1637,7 @@
       exCache=items;
       if(!items.length){body.innerHTML=emptyRow(6,'No exercises found');return;}
       body.innerHTML=items.map(function(e){
-        return '<tr><td>'+esc(e.title||e.name||'')+'</td><td>'+esc(e.exercise_type||e.type||'')+'</td><td>'+fmtDate(e.scheduled_date||e.date)+'</td><td>'+statusBadge(e.status)+'</td><td>'+statusBadge(e.outcome||'—')+'</td><td>'+actionBtns('bcmEditEx('+e.id+')','bcmDeleteRecord(\'exercise\','+e.id+')')+'</td></tr>';
+        return '<tr><td>'+esc(e.title||e.name||'')+'</td><td>'+esc(e.exercise_type||e.type||'')+'</td><td>'+fmtDate(e.scheduled_date||e.date)+'</td><td>'+statusBadge(e.status)+'</td><td>'+statusBadge(e.outcome||'—')+'</td><td><button type="button" class="btn btn-secondary" data-ex-workspace="'+Number(e.id)+'">Workspace</button> '+(bcmCanManageExercises&&e.status==='planned'?actionBtns('bcmEditEx('+e.id+')','bcmDeleteRecord(\'exercise\','+e.id+')'):'')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(6,'Failed to load exercises');}
   };
@@ -2427,9 +2401,7 @@
         {name:'description',label:'Description',type:'textarea'},
         {name:'scenario',label:'Scenario',type:'textarea'},
         {name:'scheduled_date',label:'Scheduled Date',type:'date'},
-        {name:'status',label:'Status',type:'select',options:['planned','in_progress','completed','cancelled']},
-        {name:'outcome',label:'Outcome',type:'select',options:['passed','partial','failed','pending']},
-        {name:'aar_summary',label:'Lessons Learned',type:'textarea'}
+        {name:'objectives',label:'Objectives',type:'textarea'}
       ]
     },
     risk:{
@@ -2661,7 +2633,7 @@
     await _bcmExStatsHook();
     var items=exCache;
     var total=items.length;
-    var completed=items.filter(function(e){return (e.status||'')==='completed';}).length;
+    var completed=items.filter(function(e){return ['completed','completed_awaiting_review','closed'].indexOf(e.status||'')>=0;}).length;
     var planned=items.filter(function(e){return (e.status||'')==='planned';}).length;
     var passed=items.filter(function(e){return (e.outcome||'')==='passed';}).length;
     var passRate=completed>0?Math.round(passed/completed*100):0;
@@ -3326,7 +3298,6 @@
       var res=await apiFetch('/bcm/api/ai/generate-plan',{method:'POST',body:{scenario:scenario,scope:scope,industry:industry}});
       trace.destroy();
       document.getElementById('genPlanModal').remove();
-      _bcmDocContent=res.content||'';
       _bcmGenPlanMeta={scenario:scenario,scope:scope,content:res.content};
       bcmOpenDocViewer('AI Plan: '+scenario,res.content);
       // Inject Save button into viewer head
@@ -3551,9 +3522,13 @@
   var eid = parseInt(openParam.slice(sep + 1), 10);
   if(!eid) return;
   window.history.replaceState({}, '', window.location.pathname);
-  // No supported entity types for deep-link yet.
-  // When plan opens by id become available, add to _plan06_openers.
-  var _plan06_openers = {};
+  var _plan06_openers = {
+    incident: function(id){ bcmOpenIncidentConsole(id); },
+    exercise: function(id){
+      if(typeof window.bcmOpenExerciseWorkspace !== 'function') throw new Error('Exercise workspace loading');
+      window.bcmOpenExerciseWorkspace(id);
+    }
+  };
   var _plan06_fn = _plan06_openers[etype];
   if(!_plan06_fn) return;
   var tries = 0;
@@ -3563,4 +3538,5 @@
   })();
 })();
 </script>
+<script src="/static/js/bcm_exercises.js?v=1"></script>
 {% endblock %}

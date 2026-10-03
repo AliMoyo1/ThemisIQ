@@ -15,8 +15,9 @@ def test_my_work_page_loads_with_no_console_errors(login_as, live_app):
     sections = page.locator("#myWorkSections .mywork-section")
     assert sections.count() == 5, "all 5 sections (needs action/waiting/due soon/overdue/completed) must render"
 
-    # The pending-sources note must be visible in this first P01 slice --
-    # 5 sources are named-but-not-wired yet (see my_work_service.py).
+    # The live source-status note names disabled/degraded/truncated sources,
+    # rather than claiming the five now-wired sources are still pending.
     note = page.locator("#myWorkPendingNote")
-    assert note.is_visible()
-    assert "coming in a later release" in note.inner_text()
+    if note.is_visible():
+        assert "Some sources could not be fully checked" in note.inner_text()
+    assert "coming in a later release" not in note.inner_text()

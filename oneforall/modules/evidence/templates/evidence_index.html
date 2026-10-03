@@ -138,6 +138,28 @@
   <!-- Coverage Indicator -->
   <div id="coverageBar" style="margin-bottom:16px"></div>
 
+  {% if can_bulk_archive %}
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+    <button type="button" class="btn btn-secondary" id="evSelectModeBtn" onclick="evToggleSelection()">Select evidence</button>
+    <div id="evBulkBar" style="display:none;align-items:center;gap:8px" role="group" aria-label="Evidence bulk actions">
+      <span id="evSelectedCount" role="status" aria-live="polite">0 selected</span>
+      <button type="button" class="btn btn-primary" id="evBulkArchiveBtn" onclick="evBulkArchive()" disabled>Archive selected</button>
+      <button type="button" class="btn btn-secondary" onclick="evToggleSelection()">Cancel selection</button>
+    </div>
+  </div>
+  <div id="evBulkResult" role="status" aria-live="polite" style="font-size:12px;margin-bottom:10px"></div>
+  {% endif %}
+
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    <label for="evSavedViews">Saved views</label>
+    <select id="evSavedViews" class="form-input" onchange="evApplySavedView(this.value)">
+      <option value="">Choose a saved view</option>
+    </select>
+    <button type="button" class="btn btn-secondary" onclick="evSaveCurrentView()">Save current filters</button>
+    <button type="button" class="btn btn-secondary" id="evDeleteViewBtn" onclick="evDeleteSavedView()" disabled>Delete my view</button>
+  </div>
+  <div id="evSavedViewStatus" role="status" aria-live="polite" style="font-size:12px;margin-bottom:10px"></div>
+
   <!-- Evidence Grid (cards) -->
   <div id="evidenceGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
 
@@ -145,6 +167,7 @@
   <div id="evidenceTable" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
     <table class="ev-table">
       <thead><tr>
+        {% if can_bulk_archive %}<th id="evSelectHeading" style="display:none"><input type="checkbox" id="evSelectAll" aria-label="Select all visible evidence"></th>{% endif %}
         <th>File</th><th>Category</th><th>Linked To</th><th>Confidence</th><th>Expiry</th><th>Status</th><th></th>
       </tr></thead>
       <tbody id="evidenceTableBody"></tbody>
@@ -248,8 +271,11 @@
 </div>
 
 <script>
-var currentView='all', currentModule='', currentCategory='', searchTimeout=null, entitySearchTimeout=null;
+var currentView='all', currentModule='', currentCategory='', currentStatus='', searchTimeout=null, entitySearchTimeout=null;
+var evSavedViews=[], evUserId={{ user.id }};
 var evViewMode = localStorage.getItem('ev-view-mode') || 'cards';
+var evCanBulkArchive = {{ 'true' if can_bulk_archive else 'false' }};
+var evSelectionMode = false, evSelectedIds = new Set(), evVisibleIds = [];
 var iconMap={policy:'📋',certificate:'🏅',screenshot:'🖼',report:'📊',
   procedure:'📝',training:'🎓',general:'📄',policy_approval:'📋',
   control_assessment:'📊',audit_finding:'⚠️',audit_completion:'✅',
@@ -399,12 +425,16 @@ function getCsrf(){
 async function loadEvidence(){
   var params=new URLSearchParams();
   if(currentCategory)params.set('category',currentCategory);
+  if(currentStatus)params.set('status',currentStatus);
   if(currentModule)params.set('module',currentModule);
   if(currentView&&currentView!=='all')params.set('view',currentView);
   var q=document.getElementById('searchInput').value;
   if(q)params.set('q',q);
   var r=await fetch('/evidence/api/items?'+params.toString());
   var items=await r.json();
+  evSelectedIds.clear();
+  evVisibleIds=items.filter(function(item){return item.status!=='archived';}).map(function(item){return Number(item.id);});
+  evUpdateSelection();
   var grid=document.getElementById('evidenceGrid');
   var tbl=document.getElementById('evidenceTable');
   var body=document.getElementById('evidenceTableBody');
@@ -430,6 +460,8 @@ async function loadEvidence(){
       var expiryCell=item.expiry_date?(expBadge||fmtDate(item.expiry_date)):'<span style="color:var(--muted)">—</span>';
       var statusDot=item.status==='current'?'<span style="color:var(--good)">●</span>':item.status==='archived'?'<span style="color:var(--muted)">●</span>':'<span style="color:var(--warn)">●</span>';
       return '<tr onclick="openDetail('+item.id+')" style="cursor:pointer">'+
+        (evSelectionMode&&evCanBulkArchive?'<td onclick="event.stopPropagation()">'+
+          (item.status==='archived'?'': '<input type="checkbox" class="ev-row-select" value="'+Number(item.id)+'" aria-label="Select '+escHtml(item.title)+'">')+'</td>':'')+
         '<td><div style="display:flex;align-items:center;gap:8px"><span>'+icon+'</span>'+
           '<div><div style="font-weight:600;font-size:13px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(item.title)+'</div>'+
           '<div style="font-size:10px;color:var(--muted)">'+escHtml(item.file_name||'')+'</div></div></div></td>'+
@@ -464,7 +496,151 @@ async function loadEvidence(){
   }
 }
 
+function evUpdateSelection(){
+  if(!evCanBulkArchive)return;
+  var count=document.getElementById('evSelectedCount');
+  var bar=document.getElementById('evBulkBar');
+  var button=document.getElementById('evSelectModeBtn');
+  var heading=document.getElementById('evSelectHeading');
+  var archive=document.getElementById('evBulkArchiveBtn');
+  count.textContent=evSelectedIds.size+' selected';
+  bar.style.display=evSelectionMode?'flex':'none';
+  button.style.display=evSelectionMode?'none':'';
+  heading.style.display=evSelectionMode?'':'none';
+  archive.disabled=evSelectedIds.size===0;
+  var all=document.getElementById('evSelectAll');
+  all.checked=evVisibleIds.length>0&&evVisibleIds.every(function(id){return evSelectedIds.has(id);});
+  all.indeterminate=evSelectedIds.size>0&&!all.checked;
+}
+function evToggleSelection(){
+  if(!evCanBulkArchive)return;
+  evSelectionMode=!evSelectionMode;
+  evSelectedIds.clear();
+  if(evSelectionMode){setViewMode('table');}
+  else{evUpdateSelection();loadEvidence();}
+}
+document.addEventListener('change',function(event){
+  if(!evSelectionMode)return;
+  if(event.target.id==='evSelectAll'){
+    evVisibleIds.forEach(function(id){
+      if(event.target.checked)evSelectedIds.add(id);
+      else evSelectedIds.delete(id);
+    });
+    document.querySelectorAll('.ev-row-select').forEach(function(input){
+      input.checked=event.target.checked;
+    });
+  }else if(event.target.matches('.ev-row-select')){
+    var id=Number(event.target.value);
+    if(event.target.checked)evSelectedIds.add(id);
+    else evSelectedIds.delete(id);
+  }else{return;}
+  evUpdateSelection();
+});
+async function evBulkArchive(){
+  if(!evCanBulkArchive||!evSelectedIds.size)return;
+  var ids=Array.from(evSelectedIds);
+  if(!confirm('Archive '+ids.length+' selected evidence item'+(ids.length===1?'':'s')+
+    '? Linked evidence will be archived with each item.'))return;
+  var button=document.getElementById('evBulkArchiveBtn');
+  var resultEl=document.getElementById('evBulkResult');
+  button.disabled=true;
+  try{
+    var key=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():
+      String(Date.now())+'-'+Math.random();
+    var result=await ApiClient.request('/evidence/api/items/bulk-archive',{
+      method:'PUT',body:{ids:ids},idempotencyKey:key,actionId:'evidence.bulk_archive'
+    });
+    var skipped=result.skipped||[];
+    resultEl.textContent=(result.applied||[]).length+' archived. '+
+      (skipped.length?skipped.length+' skipped: '+
+        skipped.map(function(row){return '#'+row.id+' '+row.reason;}).join('; '):'');
+    evSelectedIds.clear();
+    await loadEvidence();
+    if(typeof loadStats==='function')loadStats();
+  }catch(error){
+    resultEl.textContent=error.detail||'Bulk archive failed. Please retry.';
+    evUpdateSelection();
+  }
+}
+async function evLoadSavedViews(){
+  var select=document.getElementById('evSavedViews');
+  var current=select.value;
+  try{
+    var data=await ApiClient.request('/api/saved-views?module=evidence&view_key=items_list');
+    evSavedViews=data.views||[];
+    select.innerHTML='<option value="">Choose a saved view</option>'+
+      evSavedViews.map(function(view){
+        return '<option value="'+Number(view.id)+'">'+escHtml(view.name)+
+          (view.shared?' (shared)':'')+'</option>';
+      }).join('');
+    if(evSavedViews.some(function(view){return String(view.id)===current;}))select.value=current;
+    evUpdateViewDelete();
+  }catch(error){
+    document.getElementById('evSavedViewStatus').textContent=
+      error.detail||'Saved views could not be loaded.';
+  }
+}
+function evUpdateViewDelete(){
+  var chosen=Number(document.getElementById('evSavedViews').value);
+  var view=evSavedViews.find(function(v){return Number(v.id)===chosen;});
+  document.getElementById('evDeleteViewBtn').disabled=!view||Number(view.owner_user_id)!==Number(evUserId);
+}
+function evApplySavedView(rawId){
+  evUpdateViewDelete();
+  var view=evSavedViews.find(function(v){return Number(v.id)===Number(rawId);});
+  if(!view)return;
+  var filters=view.filter_params||{};
+  currentCategory=filters.category||'';
+  currentModule=filters.module||'';
+  currentStatus=filters.status||'';
+  currentView=filters.view||'all';
+  document.getElementById('searchInput').value=filters.q||'';
+  document.querySelectorAll('.nav-item').forEach(function(node){node.classList.remove('active');});
+  var nav=document.getElementById('nav-'+currentView);
+  if(nav)nav.classList.add('active');
+  loadEvidence();
+}
+async function evSaveCurrentView(){
+  var name=window.prompt('Name this saved view');
+  if(!name||!name.trim())return;
+  var filters={};
+  if(currentCategory)filters.category=currentCategory;
+  if(currentModule)filters.module=currentModule;
+  if(currentStatus)filters.status=currentStatus;
+  if(currentView!=='all')filters.view=currentView;
+  var query=document.getElementById('searchInput').value;
+  if(query)filters.q=query;
+  try{
+    var result=await ApiClient.request('/api/saved-views',{
+      method:'POST',actionId:'evidence.saved_view.create',
+      body:{module:'evidence',view_key:'items_list',name:name.trim(),filter_params:filters}
+    });
+    await evLoadSavedViews();
+    document.getElementById('evSavedViews').value=String(result.view.id);
+    evUpdateViewDelete();
+    document.getElementById('evSavedViewStatus').textContent='View saved.';
+  }catch(error){
+    document.getElementById('evSavedViewStatus').textContent=error.detail||'Could not save view.';
+  }
+}
+async function evDeleteSavedView(){
+  var id=Number(document.getElementById('evSavedViews').value);
+  var view=evSavedViews.find(function(v){return Number(v.id)===id;});
+  if(!view||Number(view.owner_user_id)!==Number(evUserId))return;
+  if(!confirm('Delete saved view "'+view.name+'"?'))return;
+  try{
+    await ApiClient.request('/api/saved-views/'+id,{method:'DELETE',actionId:'evidence.saved_view.delete'});
+    document.getElementById('evSavedViews').value='';
+    await evLoadSavedViews();
+    document.getElementById('evSavedViewStatus').textContent='View deleted.';
+  }catch(error){
+    document.getElementById('evSavedViewStatus').textContent=error.detail||'Could not delete view.';
+  }
+}
 function setViewMode(mode){
+  if(mode==='cards' && evSelectionMode){
+    evSelectionMode=false;evSelectedIds.clear();evUpdateSelection();
+  }
   evViewMode=mode;
   localStorage.setItem('ev-view-mode',mode);
   var bc=document.getElementById('btnCards'),bt=document.getElementById('btnTable');
@@ -1035,7 +1211,7 @@ async function handleUpload(e){
 
 document.addEventListener('DOMContentLoaded',function(){
   setViewMode(evViewMode);  // Apply saved view mode to toggle buttons
-  loadStats();loadEvidence();loadCoverage();
+  loadStats();loadEvidence();loadCoverage();evLoadSavedViews();
 });
 
 /* ── PLAN-06 deep-link boot handler ── */

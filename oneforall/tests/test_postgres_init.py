@@ -31,6 +31,7 @@ two-part guard is checked before any connection or DROP is attempted.
 """
 import os
 from urllib.parse import unquote, urlparse
+from uuid import uuid4
 
 import pytest
 
@@ -282,6 +283,92 @@ def test_fresh_init_builds_the_workflow_schema_on_real_postgres(pg):
     _assert_required_policy_fks(pg)
 
 
+def test_plan36_exercise_calendar_and_metrics_schema_on_real_postgres(pg):
+    """Fresh PostgreSQL must create the new BCM and shared projections in FK order."""
+    pg.init_db()
+    present = _tables_present(pg)
+    for table in (
+        "bcm_exercise_readiness", "bcm_exercise_participants",
+        "bcm_exercise_events", "bcm_exercise_actions",
+        "capability_state_daily",
+    ):
+        assert table in present
+    conn = pg.get_db_bypass_rls()
+    try:
+        rows = conn.execute(
+            "SELECT table_name,column_name FROM information_schema.columns "
+            "WHERE table_schema=current_schema() AND table_name IN "
+            "('calendar_events','task_board','bcm_exercises','workflow_instances','sla_instances')"
+        ).fetchall()
+        columns = {(row["table_name"], row["column_name"]) for row in rows}
+        assert {("calendar_events", "org_id"),
+                ("calendar_events", "business_unit_id"),
+                ("task_board", "reminder_key"),
+                ("bcm_exercises", "report_hash"),
+                ("bcm_exercises", "aar_signed_off_at"),
+                ("workflow_instances", "org_id"),
+                ("sla_instances", "org_id")} <= columns
+    finally:
+        conn.close()
+
+
+def test_plan36_super_admin_target_uses_real_tenant_schema(pg):
+    """A target selection must write the target schema and reject a missing schema."""
+    from fastapi import HTTPException
+    from modules.launcher.routes_workflows import _bind_target_org
+
+    pg.init_db()
+    db = pg.get_db_bypass_rls()
+    try:
+        target_id = pg.insert_returning_id(
+            db,
+            "INSERT INTO organizations (name,slug) VALUES ('Target schema','targetschema')",
+            (),
+        )
+        missing_id = pg.insert_returning_id(
+            db,
+            "INSERT INTO organizations (name,slug) VALUES ('Missing schema','missingschema')",
+            (),
+        )
+        db.commit()
+    finally:
+        db.close()
+    pg.provision_tenant_schema("targetschema")
+
+    db = pg.get_db()
+    try:
+        assert _bind_target_org(db, target_id, {"is_super_admin": True})
+        assert db.execute("SELECT current_schema() AS name").fetchone()["name"] == "tenant_targetschema"
+        pg.insert_returning_id(
+            db,
+            "INSERT INTO sla_definitions (name,module,entity_type) "
+            "VALUES ('Target-only SLA','bcm','incident')",
+            (),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    with pg.tenant_context(target_id, "targetschema", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            assert db.execute(
+                "SELECT id FROM sla_definitions WHERE name='Target-only SLA'"
+            ).fetchone()
+        finally:
+            db.close()
+    db = pg.get_db()
+    try:
+        assert not db.execute(
+            "SELECT id FROM sla_definitions WHERE name='Target-only SLA'"
+        ).fetchone()
+        with pytest.raises(HTTPException) as exc:
+            _bind_target_org(db, missing_id, {"is_super_admin": True})
+        assert exc.value.status_code == 503
+    finally:
+        db.close()
+
+
 def test_reinit_is_idempotent(pg):
     """An 'upgrade' over an already-initialized DB: running init_db() again
     must not raise and must not duplicate the deferred FK constraints."""
@@ -520,24 +607,22 @@ def test_evidence_items_gets_org_id_column_and_rls_policy_on_real_postgres(pg):
     try:
         policy = conn.execute(
             "SELECT polname FROM pg_policy p "
-            "JOIN pg_class c ON c.oid = p.polrelid "
-            "WHERE c.relname = 'evidence_items' AND p.polname = 'tenant_isolation'"
+            "WHERE p.polrelid = 'public.evidence_items'::regclass "
+            "AND p.polname = 'tenant_isolation'"
         ).fetchone()
         assert policy is not None, "evidence_items has no tenant_isolation RLS policy"
 
         forced = conn.execute(
-            "SELECT relforcerowsecurity FROM pg_class WHERE relname='evidence_items'"
+            "SELECT relforcerowsecurity FROM pg_class "
+            "WHERE oid = 'public.evidence_items'::regclass"
         ).fetchone()
         assert forced[0] is True, "evidence_items must FORCE row level security"
     finally:
         conn.close()
 
-    # Functional proof, not just "the policy exists": a real cross-org read
-    # through the app's normal RLS-context connection must come back empty,
-    # and the owning org's own context must see it -- the same guarantee
-    # tests/ui/test_org_isolation.py already proves at the app layer on
-    # SQLite (where RLS does not exist at all), now proven at the database
-    # layer on the engine RLS actually runs on.
+    # The CI DSN uses postgres, which always bypasses RLS, even when FORCE
+    # is set. Exercise the policy with a disposable non-superuser role while
+    # retaining the application's set_rls_context() behavior.
     setup = pg.get_db_bypass_rls()
     try:
         setup.execute(
@@ -560,25 +645,62 @@ def test_evidence_items_gets_org_id_column_and_rls_policy_on_real_postgres(pg):
     finally:
         setup.close()
 
-    org_b_conn = pg.get_db()
+    role_name = "themisiq_rls_probe_" + uuid4().hex[:12]
+    role_created = False
     try:
-        org_b_conn.set_rls_context(org_b)
-        visible = org_b_conn.execute(
-            "SELECT title FROM evidence_items WHERE title='Org A RLS Probe'"
-        ).fetchall()
-        assert visible == [], "org B's RLS-scoped connection could read org A's evidence row"
-    finally:
-        org_b_conn.close()
+        role_admin = _raw_conn()
+        try:
+            with role_admin.cursor() as cur:
+                cur.execute(sql.SQL("CREATE ROLE {} NOLOGIN NOSUPERUSER NOBYPASSRLS")
+                            .format(sql.Identifier(role_name)))
+                role_created = True
+                cur.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}")
+                            .format(sql.Identifier(role_name)))
+                cur.execute(sql.SQL("GRANT SELECT ON public.evidence_items TO {}")
+                            .format(sql.Identifier(role_name)))
+        finally:
+            role_admin.close()
 
-    org_a_conn = pg.get_db()
-    try:
-        org_a_conn.set_rls_context(org_a)
-        visible = org_a_conn.execute(
-            "SELECT title FROM evidence_items WHERE title='Org A RLS Probe'"
-        ).fetchall()
-        assert len(visible) == 1, "positive control failed: org A's own RLS-scoped connection could not read its own row"
+        def visible_for(org_id):
+            raw = _raw_conn()
+            try:
+                scoped = pg._PgConnWrapper(raw)
+                scoped.set_rls_context(org_id)
+                scoped.execute(sql.SQL("SET ROLE {}").format(sql.Identifier(role_name)))
+                attrs = scoped.execute(
+                    "SELECT r.rolsuper, r.rolbypassrls, "
+                    "row_security_active('public.evidence_items'::regclass) AS rls_active "
+                    "FROM pg_roles r WHERE r.rolname=current_user"
+                ).fetchone()
+                assert attrs is not None
+                assert attrs["rolsuper"] is False
+                assert attrs["rolbypassrls"] is False
+                assert attrs["rls_active"] is True
+                return scoped.execute(
+                    "SELECT title FROM public.evidence_items "
+                    "WHERE title='Org A RLS Probe'"
+                ).fetchall()
+            finally:
+                # This connection was opened outside the app pool solely for
+                # the probe; never return a SET ROLE session to that pool.
+                raw.close()
+
+        assert visible_for(None) == [], "RLS must fail closed without org context"
+        assert visible_for(org_b) == [], (
+            "org B's RLS-scoped role could read org A's evidence row"
+        )
+        assert len(visible_for(org_a)) == 1, (
+            "positive control failed: org A's RLS-scoped role could not read its own row"
+        )
     finally:
-        org_a_conn.close()
+        if role_created:
+            role_admin = _raw_conn()
+            try:
+                with role_admin.cursor() as cur:
+                    cur.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(role_name)))
+                    cur.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(role_name)))
+            finally:
+                role_admin.close()
 
 
 def test_warm_replay_queries_execute_on_real_postgres(pg):

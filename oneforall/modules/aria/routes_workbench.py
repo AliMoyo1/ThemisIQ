@@ -45,3 +45,20 @@ async def api_policy_workbench_state(request: Request, doc_id: str):
     finally:
         db.close()
     return JSONResponse({"ok": True, **state})
+
+
+@router.get("/api/documents/{doc_id}/compare")
+@require_module("aria")
+async def api_compare_policy_versions(request: Request, doc_id: str, left: int, right: int):
+    from modules.aria.policy_comparison import compare_versions
+    if left <= 0 or right <= 0:
+        return JSONResponse({"ok": False, "error": {"code": "INVALID_INPUT",
+            "message": "Positive version IDs are required."}}, status_code=400)
+    db = get_db()
+    try:
+        result = compare_versions(db, request.state.user, doc_id, left, right)
+    except svc.PolicyWorkflowError as exc:
+        return _error_response(exc)
+    finally:
+        db.close()
+    return JSONResponse({"ok": True, **result})

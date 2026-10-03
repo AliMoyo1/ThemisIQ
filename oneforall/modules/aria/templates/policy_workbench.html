@@ -29,6 +29,7 @@
 </div>
 
 <div id="wbPublicationStatus"></div>
+<div id="wbAuthoringState" role="status" class="aria-workflow-hint" style="display:none"></div>
 <div id="wbSubmitSection" class="wb-submit-section" style="display:none">
   <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Submit for Approval</div>
   <div id="wbSubmitEmpty" class="aria-workflow-hint" style="display:none">No eligible approver is currently available.</div>
@@ -68,6 +69,18 @@
     <div id="wbHistoryCard"></div>
   </div>
 </div>
+
+<section class="wb-card" aria-labelledby="wbCompareTitle">
+  <h2 id="wbCompareTitle" class="wb-card-title">Compare retained versions</h2>
+  <div class="wb-row">
+    <label for="wbCompareLeft">Earlier version</label>
+    <select id="wbCompareLeft" class="form-input"></select>
+    <label for="wbCompareRight">Later version</label>
+    <select id="wbCompareRight" class="form-input"></select>
+    <button type="button" id="wbCompareBtn" class="btn btn-secondary">Compare</button>
+  </div>
+  <div id="wbCompareResult" role="status" aria-live="polite" class="wb-empty"></div>
+</section>
 
 {# Same pinned/self-hosted libraries and load order documents.html uses --
    aria_pdf_viewer.js requires window.pdfjsLib to already exist, and
@@ -204,6 +217,72 @@
     }
   }
 
+  function renderCompareChoices(history) {
+    var left = document.getElementById('wbCompareLeft');
+    var right = document.getElementById('wbCompareRight');
+    var button = document.getElementById('wbCompareBtn');
+    var options = (history || []).map(function (version) {
+      return '<option value="' + Number(version.id) + '">v' + esc(version.version) +
+        ' · ' + esc(version.state) + '</option>';
+    }).join('');
+    left.innerHTML = options;
+    right.innerHTML = options;
+    if ((history || []).length > 1) {
+      left.value = String(history[history.length - 1].id);
+      right.value = String(history[0].id);
+      button.disabled = false;
+    } else {
+      button.disabled = true;
+      document.getElementById('wbCompareResult').textContent =
+        'Two retained versions are needed for comparison.';
+    }
+  }
+
+  async function compareVersions() {
+    var left = Number(document.getElementById('wbCompareLeft').value);
+    var right = Number(document.getElementById('wbCompareRight').value);
+    var result = document.getElementById('wbCompareResult');
+    if (!left || !right) return;
+    result.textContent = 'Comparing versions…';
+    try {
+      var data = await ApiClient.request('/aria/api/documents/' +
+        encodeURIComponent(DOC_ID) + '/compare?left=' + left + '&right=' + right);
+      result.innerHTML =
+        '<div class="wb-grid">' +
+        '<div><h3>Earlier version</h3><pre data-compare-left style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>' +
+        '<div><h3>Later version</h3><pre data-compare-right style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></div>' +
+        '</div><h3>Normalized text changes</h3>' +
+        '<pre data-compare-diff style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:480px;overflow:auto"></pre>';
+      function summary(side) {
+        return JSON.stringify({
+          version: side.version.version, state: side.version.state,
+          approved_at: side.version.approved_at,
+          metadata: side.metadata,
+          artifact_hashes: {
+            input: side.version.input_sha256,
+            source: side.version.source_sha256,
+            branded: side.version.branded_sha256,
+            preview: side.version.preview_sha256,
+            template: side.version.template_sha256
+          },
+          normalized_text_sha256: side.normalized_text_sha256,
+          text_truncated: side.text_truncated,
+          approval_history: side.approval_history
+        }, null, 2);
+      }
+      result.querySelector('[data-compare-left]').textContent = summary(data.left);
+      result.querySelector('[data-compare-right]').textContent = summary(data.right);
+      result.querySelector('[data-compare-diff]').textContent =
+        data.normalized_diff === null ?
+          'Normalized text is unavailable for one or both retained versions. Compare metadata and artifact hashes above.' :
+          (data.normalized_diff.join('\n') || 'No normalized text changes.') +
+          (data.diff_truncated ? '\nDiff truncated for display.' : '');
+    } catch (error) {
+      result.textContent = error.detail || 'Could not compare these versions.';
+    }
+  }
+  document.getElementById('wbCompareBtn').addEventListener('click', compareVersions);
+
   async function loadWorkbench() {
     var res = await window.AriaPolicyWorkflow.api.getWorkbench(DOC_ID);
     if (!res.ok) {
@@ -220,7 +299,25 @@
     renderSubmitSection(res.data);
     renderApprovalSection(res.data);
     window.AriaPolicyWorkflow.ui.renderVersionHistory(document.getElementById('wbHistoryCard'), doc);
+    renderCompareChoices(res.data.history);
     window.AriaPolicyWorkflow.ui.renderPublicationStatus(document.getElementById('wbPublicationStatus'), doc);
+    try {
+      var capability = await ApiClient.request('/api/capability-state/aria-authoring');
+      var hint = document.getElementById('wbAuthoringState');
+      if (capability.state !== 'available' && capability.state !== 'forbidden') {
+        hint.textContent = capability.message;
+        hint.style.display = '';
+        var start = document.getElementById('wbStartRevisionBtn');
+        if (start) start.remove();
+        document.getElementById('wbSubmitSection').style.display = 'none';
+      } else {
+        hint.style.display = 'none';
+      }
+    } catch (error) {
+      var start = document.getElementById('wbStartRevisionBtn');
+      if (start) start.remove();
+      document.getElementById('wbSubmitSection').style.display = 'none';
+    }
   }
 
   window.loadWorkbench = loadWorkbench;

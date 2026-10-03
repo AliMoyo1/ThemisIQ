@@ -33,11 +33,12 @@ def _event(db, event_type: str = "aria.policy.published") -> int:
 
 
 def _workflow_definition(db, steps_json: str) -> int:
+    _org_and_user(db)
     definition_id = insert_returning_id(
         db,
         "INSERT INTO workflow_definitions "
-        "(name, trigger_module, trigger_action, steps_json, is_active) "
-        "VALUES ('Publication review','aria','policy.created',%s,1)",
+        "(name, trigger_module, trigger_action, steps_json, is_active, created_by) "
+        "VALUES ('Publication review','aria','policy.created',%s,1,1)",
         (steps_json,),
     )
     db.commit()
@@ -50,7 +51,7 @@ def test_workflow_bad_steps_never_leaves_a_committed_empty_instance(test_db):
 
     with pytest.raises(json.JSONDecodeError):
         event_handlers._auto_trigger_workflows(
-            test_db, "aria.policy.published", "aria", "document", 10, None, event_id
+            test_db, "aria.policy.published", "aria", "document", 10, None, event_id, org_id=1
         )
 
     count = test_db.execute(
@@ -75,7 +76,7 @@ def test_workflow_replay_repairs_an_existing_instance_missing_step_zero(test_db)
     test_db.commit()
 
     event_handlers._auto_trigger_workflows(
-        test_db, "aria.policy.published", "aria", "document", 10, None, event_id
+        test_db, "aria.policy.published", "aria", "document", 10, None, event_id, org_id=1
     )
 
     actions = test_db.execute(
@@ -92,10 +93,10 @@ def test_workflow_replay_does_not_duplicate_an_existing_step_zero_action(test_db
     )
 
     event_handlers._auto_trigger_workflows(
-        test_db, "aria.policy.published", "aria", "document", 10, None, event_id
+        test_db, "aria.policy.published", "aria", "document", 10, None, event_id, org_id=1
     )
     event_handlers._auto_trigger_workflows(
-        test_db, "aria.policy.published", "aria", "document", 10, None, event_id
+        test_db, "aria.policy.published", "aria", "document", 10, None, event_id, org_id=1
     )
 
     counts = test_db.execute(
@@ -166,3 +167,71 @@ def test_auto_resolve_grid_request_rolls_back_and_raises_when_notification_fails
     assert request["status"] == "pending"
     assert request["aria_document_id"] is None
     assert request["resolved_at"] is None
+
+
+def test_auto_workflow_trigger_stays_inside_actor_organization(test_db):
+    _org_and_user(test_db)
+    test_db.execute(
+        "INSERT INTO organizations (id,name,slug) VALUES (2,'Other Org','other-org')"
+    )
+    test_db.execute(
+        "INSERT INTO users (id,username,email,full_name,password_hash,org_id,is_active) "
+        "VALUES (2,'other','other@example.test','Other','x',2,1)"
+    )
+    test_db.execute("INSERT INTO user_roles (user_id,role_key) VALUES (1,'compliance_mgr')")
+    test_db.execute("INSERT INTO user_roles (user_id,role_key) VALUES (2,'compliance_mgr')")
+    steps = json.dumps([{"name": "Review", "role": "compliance_mgr"}])
+    for uid in (1, 2):
+        test_db.execute(
+            "INSERT INTO workflow_definitions "
+            "(name,trigger_module,trigger_action,steps_json,created_by) "
+            "VALUES (%s,'aria','policy.created',%s,%s)",
+            (f"Org {uid} flow", steps, uid),
+        )
+    test_db.commit()
+    event_id = _event(test_db)
+    event_handlers._auto_trigger_workflows(
+        test_db, "aria.policy.published", "aria", "document", 10, 1, event_id
+    )
+    rows = test_db.execute(
+        "SELECT wd.name,wa.assigned_to FROM workflow_instances wi "
+        "JOIN workflow_definitions wd ON wd.id=wi.definition_id "
+        "JOIN workflow_actions wa ON wa.instance_id=wi.id"
+    ).fetchall()
+    assert [(r["name"], r["assigned_to"]) for r in rows] == [("Org 1 flow", 1)]
+    assert not test_db.execute(
+        "SELECT 1 FROM notifications WHERE user_id=2 AND module='workflow'"
+    ).fetchone()
+
+
+def test_system_workflow_event_uses_explicit_tenant_for_assignments(test_db):
+    definition_id = _workflow_definition(
+        test_db, json.dumps([{"name": "Review", "role": "compliance_mgr"}])
+    )
+    test_db.execute(
+        "INSERT INTO organizations (id,name,slug) VALUES (2,'Other Org','other-org')"
+    )
+    test_db.execute(
+        "INSERT INTO users (id,username,email,full_name,password_hash,org_id,is_active) "
+        "VALUES (2,'other','other@example.test','Other','x',2,1)"
+    )
+    test_db.execute("INSERT INTO user_roles (user_id,role_key) VALUES (1,'compliance_mgr')")
+    test_db.execute("INSERT INTO user_roles (user_id,role_key) VALUES (2,'compliance_mgr')")
+    event_id = _event(test_db)
+    event_handlers._auto_trigger_workflows(
+        test_db, "aria.policy.published", "aria", "document", 10, None, event_id, org_id=1
+    )
+    instance = test_db.execute(
+        "SELECT id,org_id,started_by FROM workflow_instances WHERE definition_id=%s",
+        (definition_id,),
+    ).fetchone()
+    assert instance["org_id"] == 1
+    assert instance["started_by"] is None
+    assignees = test_db.execute(
+        "SELECT assigned_to FROM workflow_actions WHERE instance_id=%s",
+        (instance["id"],),
+    ).fetchall()
+    assert [r["assigned_to"] for r in assignees] == [1]
+    assert not test_db.execute(
+        "SELECT 1 FROM notifications WHERE user_id=2 AND module='workflow'"
+    ).fetchone()

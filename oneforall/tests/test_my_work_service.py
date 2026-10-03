@@ -51,7 +51,7 @@ def _user(test_db, username, org_id):
     return {"id": cur.lastrowid, "org_id": org_id, "is_super_admin": False}
 
 
-def test_shape_has_all_five_sections_and_pending_sources_list(test_db):
+def test_shape_has_all_five_sections_and_registered_sources(test_db):
     org_id = _org(test_db, "mywork-shape-org")
     user = _user(test_db, "mywork_shape_user", org_id)
 
@@ -59,7 +59,12 @@ def test_shape_has_all_five_sections_and_pending_sources_list(test_db):
 
     assert set(result["sections"].keys()) == set(SECTIONS)
     assert isinstance(result["pending_sources"], list)
-    assert len(result["pending_sources"]) == 5, "5 sources are named-but-not-wired in this first P01 slice"
+    assert result["pending_sources"] == []
+    assert {state["source"] for state in result["source_states"]} == {
+        "aria_approvals", "evidence_expiry", "task_board", "notifications",
+        "workflow_actions", "grid_non_conformances", "erm_reviews",
+        "orm_reviews", "bcm_incidents", "privacy_deadlines",
+    }
 
 
 def test_evidence_expiring_soon_is_scoped_to_my_org(test_db):

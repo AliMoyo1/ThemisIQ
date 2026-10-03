@@ -164,7 +164,12 @@ def test_stale_worker_cannot_overwrite_current_lease_owner(test_db):
 
 def test_scan_route_returns_202_without_calling_ai(monkeypatch):
     from modules.erm import routes
+    from core import dependency_states
+    from core.capability_state import available
 
+    # This test isolates enqueue behavior; the capability gate is covered
+    # separately and must be enabled for this synthetic, decorator-bypassed user.
+    monkeypatch.setattr(dependency_states, "horizon_scan_state", lambda _user: available())
     job = {
         "id": 41,
         "state": "pending",

@@ -640,9 +640,10 @@
     </div>
     <div style="display:flex;gap:10px">
       <button class="btn btn-secondary" onclick="extOpenAddModal()">+ Add Item</button>
-      <button class="btn btn-primary" id="extScanBtn" onclick="extRunScan(this)">🔍 Scan for emerging risks</button>
+      <button class="btn btn-primary" id="extScanBtn" style="display:none" onclick="extRunScan(this)">🔍 Scan for emerging risks</button>
     </div>
   </div>
+  <div id="extScanState" role="status" style="font-size:12px;color:var(--muted)"></div>
   <div id="extScanTraceMount" style="display:none;max-width:420px;margin-bottom:14px"></div>
   <div class="erm-filter-bar" id="extStatusBar" style="margin-bottom:14px">
     <button type="button" class="erm-chip active" data-status="new">New</button>
@@ -3886,6 +3887,20 @@ async function extPollScan(jobId){
   timeoutError.backgroundScan=true;
   throw timeoutError;
 }
+(async function(){
+  var button=document.getElementById('extScanBtn');
+  var message=document.getElementById('extScanState');
+  if(!button || !message) return;
+  try {
+    var state=await ApiClient.request('/api/capability-state/erm-horizon-scan');
+    if(state.state==='forbidden' || state.state==='unavailable_in_tier') return;
+    button.style.display='';
+    if(state.state!=='available'){
+      button.disabled=true;
+      message.textContent=state.message || 'The horizon scan is unavailable.';
+    }
+  } catch(e) { message.textContent='Could not check scan availability.'; }
+})();
 window.extRunScan=async function(btn){
   var orig=btn.textContent;
   btn.disabled=true;

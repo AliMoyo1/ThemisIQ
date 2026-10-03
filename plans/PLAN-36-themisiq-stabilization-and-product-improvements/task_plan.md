@@ -1,11 +1,17 @@
 # PLAN-36: ThemisIQ stabilization and product-improvement programme
 
-- Status: **T00-T07 complete; T08-T10 in progress; P01-P06 and P09 in progress; P07 implementation and local acceptance verification complete; P08 not started.** The programme release gate remains open. This is an implementation plan, not a completion report -- see `progress.md` for fresh verification evidence and each task section for named gaps and environment limits.
+- Status: **T00-T07 complete; T08-T10 and P01-P06/P09 remain open; P07 and P08 implementation have local acceptance evidence.** The programme release gate remains open. This is an implementation plan, not a completion report -- see `progress.md` for fresh verification evidence and each task section for named gaps and environment limits.
 - Created: 2026-09-24.
 - Repository baseline inspected: `2b98cc4549e5e74decab32e7bafa79985008b17b`.
 - Scope: ThemisIQ only.
 - Production target: Hetzner Ubuntu VPS, PostgreSQL, `themisiq-app.service`.
 - Companion records: [findings](findings.md) and [progress](progress.md).
+
+## 2026-10-03 build and verification checkpoint
+
+P08 now has a scoped exercise workspace, retained after-action record, Task Board corrective actions, calendar/reminder projection, and locally verified lifecycle, tenant, evidence, report, and reminder behavior. The latest continuation closed F24 and F25 in local code: SLA instance routes, warning delivery, communication templates, and super-admin target selection now enforce organization ownership and tenant-schema binding. Historical SLA rows remain unassigned and require a separately authorized ownership review before deployment. The F24 continuation also closed workflow scope: workflow definition, instance, action, delegation, role resolution, and event-trigger paths now enforce organization scope; My Work workflow links open the scoped instance drawer. System-triggered instances carry explicit organization ownership and legacy human-started instances are backfilled from their starter. See findings.md and progress.md for the red/green evidence, verification results, and the historical-data review still required before deployment. P01's ten adapters, saved personal filters, cursor, source states, and record deep links; P03's version comparison; P04's skipped-rule reporting; P06's Evidence keyboard bulk selection; and P09's expanded capability states are built. The detailed older task notes below describe earlier slices and are superseded where they say those features are not yet built. See the latest progress entry for tested behavior and remaining gates.
+
+The programme release gate is still open: T08's full action-registry success coverage and controlled external-adapter smoke tests, T09 hosted CI, T10 full capability classification and extraction coverage, and product acceptance gaps remain. A local test pass does not authorize commit, push, migration, or deployment.
 
 ## 0. How to use this plan
 
@@ -24,6 +30,8 @@ Working rules:
 9. Do not commit, push, migrate, restart, deploy, or run production cleanup unless the user separately requests that action.
 10. Stabilization tasks T00-T10 block product feature tasks P01-P09. Do not start features while a release blocker remains.
 11. A less-powerful implementing model must follow the named file anchors and acceptance checks; it must not replace the selected design with a shortcut.
+
+2026-10-02 user-directed execution order: complete the remaining authorized implementation work first, then run the necessary regression, PostgreSQL, browser, accessibility, and security checks together and fix any failures. For this build phase, defer the red-before-fix and contract-test-before-extraction sequence in rules above; mark new work unverified until the final validation pass. This changes the order of work, not the release acceptance criteria or the separate authorization required for commit, push, and deployment.
 
 ## 1. Programme objective and measurable success
 
@@ -452,6 +460,8 @@ Steps:
 
 Completion gate: a deliberately failing Python test, browser test, PostgreSQL test, and template compile each block CI in a temporary branch; restored source returns green. **Not yet demonstrated** -- this requires pushing to a real branch and observing actual GitHub Actions runs, which this session has not been authorized to do. Every step above was instead verified as thoroughly as possible locally (see progress.md): YAML parse-validated, every shell fragment run locally exactly as written (git diff --check fallback logic, the JS check/test loops, the coverage command against real measured data), and the new template-compilation and Postgres tests each red/green-proved or reasoned through against exact, re-read method signatures where a live Postgres instance to execute against was not available.
 
+2026-10-02 follow-up: the PostgreSQL 18 test file passed locally (13 tests) after correcting the F14 RLS probe to use a non-bypassing role. F20 also found a role-wide RLS bypass default in the legacy GRID backup and a fail-open PostgreSQL policy-installation path; both now have local red/green regressions and the backup has a synthetic PostgreSQL dump proof. Hosted PostgreSQL CI still needs a new run with these changes; the production application role remains unverified. See `findings.md` and `progress.md`.
+
 ### T10 — Reduce regression pressure and make capability documentation authoritative
 
 Priority: medium, required before feature programme. Dependencies: T06-T09.
@@ -465,14 +475,14 @@ Primary areas:
 Steps:
 
 - [x] Measure file size, inline-handler count, route count, cyclomatic hotspots, and ownership boundaries; record the baseline. Baseline recorded in progress.md T10 session 1: 5 module `index.html` templates over 3,000 lines (sentinel 4322, erm 4040, grid 3879, bcm 3566, orm 3074) and 4 route/service files over 1,500 lines (aria/routes.py 3055, grid/routes.py 2293, launcher/routes_platform.py 2134, sentinel/routes.py 1730), confirming findings.md F11's claim still holds. Inline-handler count and cyclomatic hotspots were not separately measured (no tool for either was already in this repo's dev dependencies; adding one is its own scoped decision, not done silently).
-- [ ] Extract JavaScript by cohesive feature, not arbitrary line count. Preserve cache-busting and CSP behavior. **Not started.** Each of the 5 oversized templates is its own multi-step extraction project needing contract tests written first (per the step below) -- genuinely large, separate work this session did not attempt, to avoid rushing a big-bang change T10's own instructions prohibit.
-- [ ] Move business rules from route handlers into existing/new module services with explicit transaction boundaries. **Not started**, same reasoning.
-- [ ] Replace inline global handlers incrementally with module namespaces/event listeners. Do not rewrite a full module in one task. **Not started**, same reasoning.
-- [ ] Add contract tests before extracting each area and compare rendered/API behavior after extraction. N/A until an extraction is actually attempted.
-- [x] Build a read-only capability inventory generator from registered routes, capability decorators, roles, feature flags, background workers, and external prerequisites. New `oneforall/scripts/capability_inventory.py`: introspects the real running route table (857 routes) via each route's own decorator closure (exact, not a source-text guess -- immune to decorator aliasing like `routes_admin.py`'s `_require_cap`), cross-references `core/rbac.py`'s `CAPABILITIES` table, and flags any capability string granted to no role at all. Found and closed a real bug the same run: `orm.event.view` (findings.md F15) was granted to nobody, silently 403-ing every user including super admins on ORM's CSV export; fixing it surfaced a second bug (a nonexistent column) masked by the first. Background workers and external prerequisites (feature flags, license requirements) are partially covered (license-required modules are flagged) but not exhaustively -- named as a real gap, not silently dropped.
-- [ ] Mark each capability as implemented, gated, configuration-required, pilot-only, deprecated, or planned. **Deliberately left as a manual step**: the generator's own docstring and Markdown output explain why -- pilot-only/deprecated/planned are product judgments a static scan cannot make honestly, so the generated `docs/generated/capability_inventory.md` has a blank column for a human to fill in once, next to facts the generator gets right for free.
+- [ ] Extract JavaScript by cohesive feature, not arbitrary line count. Preserve cache-busting and CSP behavior. **In progress, unverified**: the ORM RCSA template picker, KRI library picker, and PLAN-06 deep-link boot handler moved into three same-origin, versioned static scripts on 2026-10-02. The remaining ORM logic and four oversized templates still need incremental work; BCM document-viewer code now also lives in a versioned same-origin script, with delegated controls and dialog keyboard handling. This new slice is unverified. The user directed final-phase testing for this build batch; do not mark this step complete before that validation.
+- [ ] Move business rules from route handlers into existing/new module services with explicit transaction boundaries. **In progress, unverified**: Task Board creation now calls a launcher service that creates the task and assignment notification in one tenant transaction and rolls back both on failure. Other large route handlers remain.
+- [ ] Replace inline global handlers incrementally with module namespaces/event listeners. Do not rewrite a full module in one task. **Partial, unverified**: ORM RCSA and KRI picker selection/close actions now use delegated listeners; the BCM document-viewer controls now use delegated listeners, too; most other inline handlers remain.
+- [ ] Add contract coverage and compare rendered/API behavior after extraction. Deferred to the final validation pass under the user's 2026-10-02 build-first direction; ORM catalogue selection, prefilled KRI creation, RCSA template selection, keyboard close/focus, and event deep links are required checks. Add BCM document-viewer copy/download/close/focus and Task Board creation/notification atomicity to the final pass.
+- [x] Build a read-only capability inventory generator from registered routes, capability decorators, roles, feature flags, background workers, and external prerequisites. New `oneforall/scripts/capability_inventory.py`: introspects the real running route table (857 routes at the original baseline; 903 in the 2026-10-02 regenerated inventory) via each route's own decorator closure (exact, not a source-text guess -- immune to decorator aliasing like `routes_admin.py`'s `_require_cap`), cross-references `core/rbac.py`'s `CAPABILITIES` table, and flags any capability string granted to no role at all. Found and closed a real bug the same run: `orm.event.view` (findings.md F15) was granted to nobody, silently 403-ing every user including super admins on ORM's CSV export; fixing it surfaced a second bug (a nonexistent column) masked by the first. Background workers and external prerequisites (feature flags, license requirements) are partially covered (license-required modules are flagged) but not exhaustively -- named as a real gap, not silently dropped.
+- [ ] Mark each capability as implemented, gated, configuration-required, pilot-only, deprecated, or planned. **In progress**: exact route annotations now live in human-reviewed `docs/capability_annotations.json` and survive regeneration; three source-reviewed routes are marked. The other 900 route rows remain explicitly unclassified. Route-level notes are a first slice, not a completed capability/product classification.
 - [ ] Update feature inventory/roadmap from generated evidence and retain a human-reviewed product description layer. **Not started.** `FEATURE_INVENTORY.md` (304 lines), `ROADMAP.md` (146 lines), and `PRELAUNCH_TRACKER.md` (395 lines) all exist and were not cross-checked against the new generated inventory this session -- a real, sizeable review task (845 lines against 857 routes) left honestly undone rather than rushed.
-- [ ] Add a CI drift check so documented route/capability identifiers cannot silently disappear. **Not started** -- depends on the manual maturity-marking step above existing first (a drift check needs something authoritative to diff against).
+- [ ] Add a CI drift check so documented route/capability identifiers cannot silently disappear. **Implemented locally, unverified**: `capability_inventory.py --check` compares both checked-in generated outputs with the registered route table plus persistent annotations; stale annotation keys fail generation. The backend CI job now invokes it. Final local and hosted CI execution remain open.
 
 Completion gate: no behavior change is bundled with a pure extraction unless explicitly tested; planning documents no longer advertise already-delivered features as missing; new feature tasks use the generated inventory as a discovery input. **Not met** -- most of T10 beyond the capability-inventory generator and its own incidental bug-find is not yet done; see the individual steps above for exactly what remains.
 
@@ -753,20 +763,20 @@ Dependencies: T06-T10, P01, optional P05 evidence integration.
 
 Discovery gate:
 
-- [ ] Map `bcm_exercises`, scenarios, injects, participants/contacts, outcomes, lessons learned, scheduler alerts, tasks, evidence links, and reporting.
-- [ ] Identify actual gaps in preparation, execution logging, after-action review, and corrective-action closure.
+- [x] Map `bcm_exercises`, scenarios, injects, participants/contacts, outcomes, lessons learned, scheduler alerts, tasks, evidence links, and reporting.
+- [x] Identify actual gaps in preparation, execution logging, after-action review, and corrective-action closure.
 
 Implementation tasks:
 
-- [ ] Add an explicit exercise lifecycle: planned, ready, running, completed-awaiting-review, closed, cancelled.
-- [ ] Add readiness checklist and participant/role confirmation without storing unnecessary personal data.
-- [ ] Add timestamped inject/event log and observations during execution.
-- [ ] Add after-action review with objectives, results, strengths, gaps, lessons, owner, reviewer, and sign-off.
-- [ ] Link corrective actions to canonical Task Board items with due date, owner, evidence, and closure verification; do not duplicate task state.
-- [ ] Add exercise effectiveness measures and recurrence comparison with clear data provenance.
-- [ ] Feed upcoming/overdue actions into P01 and Calendar.
+- [x] Add an explicit exercise lifecycle: planned, ready, running, completed-awaiting-review, closed, cancelled.
+- [x] Add readiness checklist and participant/role confirmation without storing unnecessary personal data.
+- [x] Add timestamped inject/event log and observations during execution.
+- [x] Add after-action review with objectives, results, strengths, gaps, lessons, owner, reviewer, and sign-off.
+- [x] Link corrective actions to canonical Task Board items with due date, owner, evidence, and closure verification; do not duplicate task state.
+- [x] Add exercise effectiveness measures and recurrence comparison with clear data provenance.
+- [x] Feed upcoming/overdue actions into P01 and Calendar.
 
-Acceptance:
+Acceptance (local SQLite service/HTTP checks and disposable PostgreSQL schema gate passed; hosted CI and production acceptance remain open):
 
 - state transitions are authorized and auditable;
 - closing an exercise cannot silently close open corrective actions;

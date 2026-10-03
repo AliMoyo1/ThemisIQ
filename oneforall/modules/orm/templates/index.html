@@ -1472,34 +1472,35 @@ window.ormDeleteKri=async function(id){
 };
 window.ormOpenKriModal=async function(existing){
   var isEdit=!!(existing&&existing.id);
+  var preset=existing||{};
   var users=await ormLoadUsers();
   var html='<div class="orm-modal-overlay" id="kriModal" onclick="if(event.target===this)this.remove()">'+
     '<div class="modal-box" style="max-width:520px">'+
       '<button class="modal-close" onclick="document.getElementById(\'kriModal\').remove()">&#10005;</button>'+
       '<div class="modal-title">'+(isEdit?'Edit':'Add')+' Key Risk Indicator</div>'+
-      '<div class="form-group"><label>Name *</label><input id="kr_name" value="'+esc(isEdit?(existing.name||''):'')+'"></div>'+
-      '<div class="form-group"><label>Description</label><input id="kr_desc" value="'+esc(isEdit?(existing.description||''):'')+'"></div>'+
+      '<div class="form-group"><label>Name *</label><input id="kr_name" value="'+esc(preset.name||'')+'"></div>'+
+      '<div class="form-group"><label>Description</label><input id="kr_desc" value="'+esc(preset.description||'')+'"></div>'+
       '<div class="form-row">'+
-        '<div class="form-group"><label>Metric Type</label><select id="kr_type">'+['count','amount','percentage','duration'].map(function(t){return'<option value="'+t+'"'+(isEdit&&existing.metric_type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'+
-        '<div class="form-group"><label>Unit</label><input id="kr_unit" placeholder="e.g. events, $, %, hours" value="'+esc(isEdit?(existing.unit||'events'):'events')+'"></div>'+
+        '<div class="form-group"><label>Metric Type</label><select id="kr_type">'+['count','amount','percentage','duration'].map(function(t){return'<option value="'+t+'"'+(preset.metric_type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Unit</label><input id="kr_unit" placeholder="e.g. events, $, %, hours" value="'+esc(preset.unit||'events')+'"></div>'+
       '</div>'+
       '<div class="form-row">'+
-        '<div class="form-group"><label>Warning Threshold</label><input type="number" id="kr_warn" value="'+esc(isEdit?(existing.threshold_warn||''):'')+'"></div>'+
-        '<div class="form-group"><label>Critical Threshold</label><input type="number" id="kr_crit" value="'+esc(isEdit?(existing.threshold_crit||''):'')+'"></div>'+
+        '<div class="form-group"><label>Warning Threshold</label><input type="number" id="kr_warn" value="'+esc(preset.threshold_warn??'')+'"></div>'+
+        '<div class="form-group"><label>Critical Threshold</label><input type="number" id="kr_crit" value="'+esc(preset.threshold_crit??'')+'"></div>'+
       '</div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Current Value</label><input type="number" id="kr_val" value="'+(isEdit?(existing.current_value||0):0)+'"></div>'+
-        '<div class="form-group"><label>Frequency</label><select id="kr_freq">'+['daily','weekly','monthly','quarterly'].map(function(f){return'<option value="'+f+'"'+(isEdit&&existing.frequency===f?' selected':'')+'>'+f+'</option>';}).join('')+'</select></div>'+
+        '<div class="form-group"><label>Frequency</label><select id="kr_freq">'+['daily','weekly','monthly','quarterly'].map(function(f){return'<option value="'+f+'"'+(preset.frequency===f?' selected':'')+'>'+f+'</option>';}).join('')+'</select></div>'+
       '</div>'+
       '<div class="form-group"><label>Auto-update when event type is logged <span style="font-size:10px;color:var(--muted)">(optional)</span></label>'+
         '<select id="kr_auto_type">'+
           '<option value="">— Manual updates only —</option>'+
           ['process_failure','fraud','system_failure','human_error','outage','vendor_failure','customer_impact'].map(function(t){
-            return'<option value="'+t+'"'+(isEdit&&existing.auto_update_event_type===t?' selected':'')+'>'+typeIcon(t)+' '+t.replace(/_/g,' ')+'</option>';
+            return'<option value="'+t+'"'+(preset.auto_update_event_type===t?' selected':'')+'>'+typeIcon(t)+' '+t.replace(/_/g,' ')+'</option>';
           }).join('')+
         '</select>'+
       '</div>'+
-      '<div class="form-group"><label>Auto-update notes <span style="font-size:10px;color:var(--muted)">(optional)</span></label><input id="kr_auto_notes" placeholder="e.g. increments by 1 per matching event" value="'+esc(isEdit?(existing.auto_update_notes||''):'')+'"></div>'+
+      '<div class="form-group"><label>Auto-update notes <span style="font-size:10px;color:var(--muted)">(optional)</span></label><input id="kr_auto_notes" placeholder="e.g. increments by 1 per matching event" value="'+esc(preset.auto_update_notes||'')+'"></div>'+
       '<div class="form-group"><label>Owner</label><select id="kr_owner">'+
         '<option value="">— Unassigned —</option>'+
         users.map(function(u){return'<option value="'+u.id+'"'+(isEdit&&existing.owner_id==u.id?' selected':'')+'>'+esc(u.full_name)+'</option>';}).join('')+
@@ -2931,144 +2932,13 @@ window.ormSaveKriUpdate=async function(id){
   }catch(e){if(typeof showToast==='function')showToast('Update failed','error');}
 };
 
-/* ─────────────────────────── KRI LIBRARY ─────────────────────────── */
-var KRI_LIBRARY=[
-  {name:'Monthly Fraud Events',description:'Number of fraud incidents per month',metric_type:'count',unit:'events',threshold_warn:3,threshold_crit:8,frequency:'monthly',auto_update_event_type:'fraud'},
-  {name:'System Downtime Hours',description:'Total unplanned downtime hours per month',metric_type:'duration',unit:'hours',threshold_warn:4,threshold_crit:12,frequency:'monthly',auto_update_event_type:'outage'},
-  {name:'Process Failure Rate',description:'Process failure incidents per month',metric_type:'count',unit:'events',threshold_warn:5,threshold_crit:15,frequency:'monthly',auto_update_event_type:'process_failure'},
-  {name:'Human Error Incidents',description:'Human error events per month',metric_type:'count',unit:'events',threshold_warn:3,threshold_crit:8,frequency:'monthly',auto_update_event_type:'human_error'},
-  {name:'Vendor Failures',description:'Supplier/vendor failure incidents per quarter',metric_type:'count',unit:'events',threshold_warn:2,threshold_crit:5,frequency:'quarterly',auto_update_event_type:'vendor_failure'},
-  {name:'Customer-Impacting Events',description:'Events directly affecting customers per month',metric_type:'count',unit:'events',threshold_warn:3,threshold_crit:10,frequency:'monthly',auto_update_event_type:'customer_impact'},
-  {name:'Data Breach / Security Incidents',description:'Security and data breach events',metric_type:'count',unit:'events',threshold_warn:1,threshold_crit:3,frequency:'monthly',auto_update_event_type:'system_failure'},
-  {name:'Financial Loss per Month',description:'Total operational loss ($) per month',metric_type:'amount',unit:'$',threshold_warn:10000,threshold_crit:50000,frequency:'monthly',auto_update_event_type:''},
-  {name:'Average Resolution Time',description:'Average days to resolve operational events',metric_type:'duration',unit:'days',threshold_warn:5,threshold_crit:14,frequency:'monthly',auto_update_event_type:''},
-  {name:'Recurring Events Count',description:'Events flagged as recurring over last 30 days',metric_type:'count',unit:'events',threshold_warn:3,threshold_crit:7,frequency:'monthly',auto_update_event_type:''}
-];
-window.ormOpenKriLibrary=function(){
-  var html='<div class="orm-modal-overlay" id="kriLibModal" onclick="if(event.target===this)this.remove()">'+
-    '<div class="modal-box" style="max-width:700px;max-height:80vh;overflow-y:auto">'+
-      '<button class="modal-close" onclick="document.getElementById(\'kriLibModal\').remove()">&#10005;</button>'+
-      '<div class="modal-title">&#128218; KRI Library — Pre-built Indicators</div>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">Click "Add" to pre-fill the KRI form with suggested settings</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
-      KRI_LIBRARY.map(function(lib,i){
-        return'<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;border:1px solid var(--border)">'+
-          '<div style="font-size:13px;font-weight:700;margin-bottom:4px">'+esc(lib.name)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">'+esc(lib.description)+'</div>'+
-          '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">'+
-            '<span style="font-size:10px;background:var(--surface3);padding:2px 7px;border-radius:100px;color:var(--muted)">&#9200; '+esc(lib.frequency)+'</span>'+
-            (lib.threshold_warn?'<span style="font-size:10px;background:rgba(217,119,6,.1);padding:2px 7px;border-radius:100px;color:var(--amber,#d97706)">Warn: '+lib.threshold_warn+'</span>':'')+
-            (lib.threshold_crit?'<span style="font-size:10px;background:rgba(220,38,38,.1);padding:2px 7px;border-radius:100px;color:var(--red)">Crit: '+lib.threshold_crit+'</span>':'')+
-            (lib.auto_update_event_type?'<span style="font-size:10px;background:rgba(var(--accent-rgb,.1),0.1);padding:2px 7px;border-radius:100px;color:var(--accent)">Auto: '+lib.auto_update_event_type.replace(/_/g,' ')+'</span>':'')+
-          '</div>'+
-          '<button class="btn btn-sm btn-primary" onclick="document.getElementById(\'kriLibModal\').remove();ormOpenKriModal('+JSON.stringify(lib)+')">+ Add this KRI</button>'+
-        '</div>';
-      }).join('')+
-      '</div>'+
-    '</div></div>';
-  document.body.insertAdjacentHTML('beforeend',html);
-};
-
-/* ─────────────────────────── RCSA TEMPLATES ─────────────────────────── */
-var RCSA_TEMPLATES=[
-  {id:'it_cyber',title:'IT Operations & Cybersecurity',scope:'Information Technology',icon:'💻',description:'Covers data security, system availability, access control, patch management, and incident response.',
-   risks:[
-    {title:'Unauthorized Access / Data Breach',inherent_likelihood:3,inherent_impact:5,control_effectiveness:3,controls:['Access control reviews (quarterly)','MFA on all critical systems','Privileged Access Management (PAM)']},
-    {title:'Ransomware / Malware Infection',inherent_likelihood:3,inherent_impact:5,control_effectiveness:3,controls:['Endpoint detection & response (EDR)','Offline backup testing (monthly)','Security patch management (<30d critical)']},
-    {title:'Unplanned System Outage',inherent_likelihood:3,inherent_impact:4,control_effectiveness:3,controls:['Change management process (CAB)','High-availability / failover configuration','Incident response runbooks']},
-    {title:'Vendor / Third-Party Access Risk',inherent_likelihood:3,inherent_impact:4,control_effectiveness:2,controls:['Third-party access register','Vendor access reviews (quarterly)','Contractual security obligations (ISO/SOC)']},
-    {title:'Insider Threat / Data Exfiltration',inherent_likelihood:2,inherent_impact:5,control_effectiveness:3,controls:['DLP tools on email and endpoints','User activity monitoring (UAM)','Offboarding access revocation checklist']}
-  ]},
-  {id:'privacy_gdpr',title:'Privacy & Data Protection (GDPR)',scope:'Data Protection / Privacy',icon:'🔒',description:'Covers consent management, data subject rights, breach notification, cross-border transfers, and data minimization.',
-   risks:[
-    {title:'Unlawful Data Processing / Consent Failure',inherent_likelihood:3,inherent_impact:4,control_effectiveness:3,controls:['ROPA maintained and reviewed','Consent management platform active','Legal basis documented per process']},
-    {title:'Data Subject Rights Failure (DSR)',inherent_likelihood:3,inherent_impact:3,control_effectiveness:3,controls:['DSR intake and tracking process','Response within 30 days (GDPR Art.12)','DSR register maintained']},
-    {title:'Cross-Border Transfer Risk',inherent_likelihood:2,inherent_impact:4,control_effectiveness:3,controls:['Transfer impact assessments (TIA)','SCCs / adequacy decision reviewed','Transfer registry maintained']},
-    {title:'Breach Notification Failure',inherent_likelihood:2,inherent_impact:5,control_effectiveness:3,controls:['Breach detection tools (SIEM/DLP)','72-hour notification procedure','Incident severity classification guide']},
-    {title:'Privacy by Design not embedded',inherent_likelihood:3,inherent_impact:3,control_effectiveness:2,controls:['DPIA process for new processing','Privacy review in project approval gate','Data minimization standards']}
-  ]},
-  {id:'financial',title:'Financial Controls',scope:'Finance & Accounting',icon:'💰',description:'Covers fraud prevention, payment controls, financial reporting accuracy, and budget governance.',
-   risks:[
-    {title:'Internal Fraud / Misappropriation',inherent_likelihood:2,inherent_impact:5,control_effectiveness:3,controls:['Segregation of duties (SoD)','Dual authorization on payments >$10k','Monthly reconciliations reviewed by management']},
-    {title:'Payment Processing Error',inherent_likelihood:3,inherent_impact:3,control_effectiveness:3,controls:['Automated reconciliation tool','Exception reporting dashboard','Daily bank reconciliation']},
-    {title:'Financial Reporting Inaccuracy',inherent_likelihood:2,inherent_impact:4,control_effectiveness:3,controls:['Monthly close checklist','CFO review and sign-off','ERP access control reviews']},
-    {title:'Budget Overrun / Variance',inherent_likelihood:3,inherent_impact:3,control_effectiveness:3,controls:['Budget vs actuals review (monthly)','Procurement approval limits enforced','Variance explanation required >5%']}
-  ]},
-  {id:'hr_people',title:'Human Resources & People',scope:'Human Resources',icon:'👥',description:'Covers key person risk, conduct, training compliance, recruitment, and workforce management.',
-   risks:[
-    {title:'Key Person Dependency',inherent_likelihood:3,inherent_impact:4,control_effectiveness:2,controls:['Cross-training / knowledge transfer plans','Succession plans for critical roles','Process documentation maintained']},
-    {title:'Workforce Misconduct / Policy Breach',inherent_likelihood:2,inherent_impact:3,control_effectiveness:3,controls:['Code of conduct training (annual)','Whistleblower / speak-up channel','Disciplinary policy enforced consistently']},
-    {title:'Training Compliance Failure',inherent_likelihood:3,inherent_impact:3,control_effectiveness:3,controls:['Mandatory training tracking system','Completion deadlines enforced','Manager accountability for team completion']},
-    {title:'Poor Recruitment / Onboarding Controls',inherent_likelihood:2,inherent_impact:3,control_effectiveness:3,controls:['Background screening for all new hires','Structured onboarding checklist','Role-based access provisioned on day 1']}
-  ]},
-  {id:'vendor_supply',title:'Vendor & Supply Chain',scope:'Procurement / Vendor Management',icon:'📦',description:'Covers critical vendor dependency, vendor security, contract management, and third-party compliance.',
-   risks:[
-    {title:'Critical Vendor Failure / Dependency',inherent_likelihood:2,inherent_impact:4,control_effectiveness:2,controls:['Single-source vendor risk register','Alternative vendor pre-qualified','Vendor SLA monitoring dashboard']},
-    {title:'Vendor Data Security Breach',inherent_likelihood:2,inherent_impact:4,control_effectiveness:2,controls:['Annual vendor security assessment','Data processing agreements (DPA)','Minimum security standards contractual requirement']},
-    {title:'Contract Expiry / Non-Renewal Risk',inherent_likelihood:3,inherent_impact:3,control_effectiveness:2,controls:['Contract expiry calendar/alerts','90-day renewal review process','Legal review of key contracts']},
-    {title:'Third-Party Compliance Failure',inherent_likelihood:2,inherent_impact:3,control_effectiveness:2,controls:['Annual compliance questionnaire','Right-to-audit clause in contracts','Vendor compliance certificate on file']}
-  ]},
-  {id:'bcm_resilience',title:'Business Continuity & Resilience',scope:'Business Continuity',icon:'🔄',description:'Covers disaster recovery, crisis communication, regulatory resilience requirements, and BCP testing.',
-   risks:[
-    {title:'Disaster Recovery / BCP Failure',inherent_likelihood:2,inherent_impact:5,control_effectiveness:3,controls:['Annual BCP / DR test (documented)','Recovery objectives (RTO/RPO) defined and tested','Offsite backup verified monthly']},
-    {title:'Crisis Communication Breakdown',inherent_likelihood:2,inherent_impact:4,control_effectiveness:2,controls:['Crisis communication plan documented','Contact tree tested annually','Spokesperson trained and designated']},
-    {title:'Regulatory Resilience Non-Compliance',inherent_likelihood:2,inherent_impact:4,control_effectiveness:3,controls:['Regulatory resilience calendar maintained','Senior manager accountability (SMCR/DORA)','Annual resilience self-assessment']},
-    {title:'Critical Process Outage',inherent_likelihood:2,inherent_impact:4,control_effectiveness:3,controls:['BIA reviewed annually','Critical process workarounds documented','Backup IT site / cloud failover tested']}
-  ]}
-];
-
-window.ormOpenTemplatePickerModal=function(){
-  var html='<div class="orm-modal-overlay" id="tmplPickerModal" onclick="if(event.target===this)this.remove()">'+
-    '<div class="modal-box" style="max-width:800px;max-height:85vh;overflow-y:auto">'+
-      '<button class="modal-close" onclick="document.getElementById(\'tmplPickerModal\').remove()">&#10005;</button>'+
-      '<div class="modal-title">&#128203; Start from a Template</div>'+
-      '<div style="font-size:12px;color:var(--muted);margin-bottom:20px">Select a template to pre-populate your assessment with common risks and suggested controls</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'+
-      RCSA_TEMPLATES.map(function(t){
-        return'<div style="background:var(--surface2);border-radius:var(--radius-lg);padding:16px;border:1px solid var(--border)">'+
-          '<div style="font-size:20px;margin-bottom:6px">'+t.icon+'</div>'+
-          '<div style="font-size:14px;font-weight:700;margin-bottom:4px">'+esc(t.title)+'</div>'+
-          '<div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:8px">'+esc(t.scope)+'</div>'+
-          '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.4">'+esc(t.description)+'</div>'+
-          '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">'+t.risks.length+' risks included</div>'+
-          '<details style="margin-bottom:10px"><summary style="font-size:11px;color:var(--accent);cursor:pointer">Preview risks &#9660;</summary>'+
-            '<ul style="margin:6px 0 0 0;padding-left:16px">'+t.risks.map(function(r){return'<li style="font-size:11px;color:var(--muted);margin-bottom:2px">'+esc(r.title)+'</li>';}).join('')+'</ul>'+
-          '</details>'+
-          '<button class="btn btn-primary" style="width:100%" onclick="(function(){window._selectedRcsaTemplate=RCSA_TEMPLATES.find(function(x){return x.id===\''+t.id+'\'});document.getElementById(\'tmplPickerModal\').remove();ormOpenRcsaModal({title:\''+t.title.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'- RCSA\',scope:\''+t.scope.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\'});})()">Use this template &#8594;</button>'+
-        '</div>';
-      }).join('')+
-      '</div>'+
-    '</div></div>';
-  document.body.insertAdjacentHTML('beforeend',html);
-};
-
 /* ─────────────────────────── INIT ─────────────────────────── */
 ormRouter.resolve();
 setInterval(function(){if(ormRouter.current==='dashboard')ormLoadDashboard();},300000);
 
 })();
-
-/* ── PLAN-06 deep-link boot handler ── */
-(function(){
-  var openParam = new URLSearchParams(window.location.search).get('open');
-  if(!openParam) return;
-  var sep = openParam.indexOf(':');
-  if(sep < 1) return;
-  var etype = openParam.slice(0, sep);
-  var eid = parseInt(openParam.slice(sep + 1), 10);
-  if(!eid) return;
-  window.history.replaceState({}, '', window.location.pathname);
-  var tries = 0;
-  function attempt(){
-    tries++;
-    try { _plan06_fn(eid); } catch(e){ if(tries < 20) setTimeout(attempt, 250); }
-  }
-  var _plan06_openers = {
-    'event': function(id){ ormOpenEventDrawer(id); }
-  };
-  var _plan06_fn = _plan06_openers[etype];
-  if(!_plan06_fn) return;
-  attempt();
-})();
 </script>
+<script src="/static/js/orm_kri_library.js?v=1"></script>
+<script src="/static/js/orm_rcsa_templates.js?v=1"></script>
+<script src="/static/js/orm_deeplink.js?v=1"></script>
 {% endblock %}

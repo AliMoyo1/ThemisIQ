@@ -52,6 +52,7 @@
   </select>
 </div>
 
+<div id="rdCoverageStatus" role="status" aria-live="polite" style="margin-bottom:12px;font-size:12px;color:var(--muted)"></div>
 <table class="rd-table">
   <thead>
     <tr><th>Severity</th><th>Module</th><th>Issue</th><th>Detected</th><th>Status</th><th></th></tr>
@@ -87,6 +88,13 @@
     try {
       var data = await ApiClient.request('/readiness/api/findings' + qs());
       var findings = data.findings || [];
+      var skipped = (data.rule_coverage || []).filter(function (rule) {
+        return rule.state === 'skipped_unlicensed';
+      });
+      var modulesSkipped = Array.from(new Set(skipped.map(function (rule) { return rule.module; })));
+      document.getElementById('rdCoverageStatus').textContent = modulesSkipped.length ?
+        'Not inspected because the module is not licensed: ' + modulesSkipped.join(', ') +
+        '. An empty findings list does not mean those modules are healthy.' : '';
       if (!findings.length) {
         tbody.innerHTML = '<tr><td colspan="6" class="rd-empty">No issues found for this filter.</td></tr>';
         return;
@@ -175,8 +183,15 @@
     btn.disabled = true;
     btn.textContent = 'Scanning…';
     try {
-      await ApiClient.request('/readiness/api/scan', { method: 'POST' });
-      if (window.showToast) showToast('Scan complete.', 'success');
+      var scan = await ApiClient.request('/readiness/api/scan', { method: 'POST' });
+      var failed = (scan.counts && scan.counts.failed_rules) || [];
+      var skipped = (scan.counts && scan.counts.skipped) || 0;
+      if (window.showToast) showToast(
+        failed.length ? 'Scan completed with ' + failed.length + ' rule error(s): ' + failed.join(', ') :
+          skipped ? 'Scan complete. ' + skipped + ' rule(s) skipped because modules are unlicensed.' :
+            'Scan complete.',
+        failed.length ? 'error' : 'success'
+      );
       loadFindings();
     } catch (e) {
       if (window.showToast) showToast((e && e.detail) || 'Scan failed.', 'error');

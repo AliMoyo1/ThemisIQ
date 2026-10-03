@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
 from core.shell_context import shell_ctx
+from core.rbac import has_capability
 from database import get_db
 from core.events import (
     emit, BCM_INCIDENT_DECLARED, BCM_INCIDENT_RESOLVED,
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/bcm", tags=["bcm"])
 templates = Jinja2Templates(directory=["modules/bcm/templates", "templates"])
 
 from modules.bcm import data_service as ds
+from modules.bcm import exercise_service as exs
 from modules.governance.data_service import bu_scope_ids
 
 def _uid(request: Request) -> int:
@@ -44,6 +46,7 @@ async def bcm_spa(request: Request):
     user = request.state.user
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
+        "bcm_can_manage_exercises": has_capability(user, "bcm.exercise.manage"),
         **shell_ctx(request, active_module="bcm"),
     })
 
@@ -338,6 +341,7 @@ async def api_scenarios_use(request: Request, sid: int):
         "title": body.get("title") or scenario["title"] + " Exercise",
         "type": "Tabletop",
         "scenario": scenario["description"],
+        "scenario_id": sid,
         "objectives": scenario["objectives"],
         "scheduled_date": body.get("scheduled_date"),
         "duration_minutes": scenario.get("estimated_duration_minutes", 120),
@@ -345,7 +349,7 @@ async def api_scenarios_use(request: Request, sid: int):
         "participants": body.get("participants", ""),
         "status": "planned",
     }
-    eid = ds.create_exercise(exercise_data)
+    eid = _exercise_call(exs.create_exercise, request.state.user, exercise_data)
     return JSONResponse({"id": eid, "exercise_id": eid}, status_code=201)
 
 
@@ -851,43 +855,44 @@ async def api_incident_ai_suggest(request: Request, inc_id: int):
     return JSONResponse({"suggestions": suggestions})
 
 
+def _exercise_call(fn, *args):
+    try:
+        return fn(*args)
+    except exs.ExerciseError as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+
+
 @router.get("/api/exercises")
 @require_capability("module.bcm.access")
 async def api_exercises_list(request: Request):
-    return JSONResponse(ds.list_exercises())
+    return JSONResponse(_exercise_call(exs.list_exercises, request.state.user))
 
 
 @router.get("/api/exercises/{ex_id}")
 @require_capability("module.bcm.access")
 async def api_exercise_detail(request: Request, ex_id: int):
-    ex = ds.get_exercise(ex_id)
-    if not ex:
-        raise HTTPException(404)
-    return JSONResponse(ex)
+    return JSONResponse(_exercise_call(exs.get_workspace, request.state.user, ex_id)["exercise"])
 
 
 @router.post("/api/exercises")
 @require_capability("bcm.exercise.manage")
 async def api_exercise_create(request: Request):
-    body = await _json_body(request)
-    eid = ds.create_exercise(body)
+    eid = _exercise_call(exs.create_exercise, request.state.user, await _json_body(request))
     return JSONResponse({"id": eid}, status_code=201)
 
 
 @router.put("/api/exercises/{ex_id}")
 @require_capability("bcm.exercise.manage")
 async def api_exercise_update(request: Request, ex_id: int):
-    body = await _json_body(request)
-    ds.update_exercise(ex_id, body)
+    _exercise_call(exs.update_exercise, request.state.user, ex_id, await _json_body(request))
     return JSONResponse({"ok": True})
 
 
 @router.delete("/api/exercises/{ex_id}")
 @require_capability("bcm.exercise.manage")
 async def api_exercise_delete(request: Request, ex_id: int):
-    ds.delete_exercise(ex_id)
+    _exercise_call(exs.delete_exercise, request.state.user, ex_id)
     return JSONResponse({"ok": True})
-
 
 @router.get("/api/vendors")
 @require_capability("module.bcm.access")
@@ -1376,3 +1381,7 @@ async def api_reports_board(request: Request):
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     return JSONResponse({"stats": stats, "narrative": narrative})
+
+
+from modules.bcm.routes_exercises import router as exercise_workspace_router
+router.include_router(exercise_workspace_router)

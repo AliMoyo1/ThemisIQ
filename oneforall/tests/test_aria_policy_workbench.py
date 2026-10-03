@@ -234,3 +234,26 @@ def test_draft_editable_by_owner_hidden_from_bystander(test_db, scenario):
     bystander_state = svc.get_document_workbench_state(test_db, scenario["bystander"], doc["doc_id"])
     assert bystander_state["draft"] is None  # exists, but not theirs to see
     assert bystander_state["can_start_revision"] is False  # no edit_own/edit_any permission
+
+
+def test_comparison_returns_normalized_text_and_rejects_cross_org(test_db, scenario):
+    import hashlib
+    from modules.aria.policy_comparison import compare_versions
+
+    doc_id = test_db.execute(
+        "SELECT doc_id FROM aria_documents WHERE id=%s",
+        (scenario["confirmed"]["document_id"],),
+    ).fetchone()["doc_id"]
+    version_id = scenario["confirmed"]["version_id"]
+    result = compare_versions(test_db, scenario["author"], doc_id, version_id, version_id)
+    assert result["normalized_diff"] == []
+    body = result["left"]["normalized_text"]
+    assert body and "# Policy" in body
+    assert result["left"]["normalized_text_sha256"] == hashlib.sha256(body.encode()).hexdigest()
+    assert "body" not in result["left"]["version"]
+
+    _org(test_db, org_id=2)
+    _user(test_db, 99, org_id=2, username="compare-outsider")
+    test_db.commit()
+    with pytest.raises(svc.NotFoundError):
+        compare_versions(test_db, _actor(test_db, 99), doc_id, version_id, version_id)

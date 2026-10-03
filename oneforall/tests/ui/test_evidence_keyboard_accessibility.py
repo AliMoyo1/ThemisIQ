@@ -105,3 +105,28 @@ def test_toast_container_is_a_live_region(login_as, live_app):
     container = page.locator("#toastContainer")
     assert container.get_attribute("role") == "status"
     assert container.get_attribute("aria-live") == "polite"
+
+
+def test_bulk_selection_checkbox_works_by_keyboard(login_as, live_app, synthetic_tenant):
+    import database
+
+    db = database.get_db()
+    try:
+        db.execute(
+            "INSERT INTO evidence_items (title,org_id,status) "
+            "VALUES ('Keyboard bulk proof',%s,'current')",
+            (synthetic_tenant["org_id"],),
+        )
+        db.commit()
+    finally:
+        db.close()
+    page = login_as("compliance_manager")
+    page.goto(f"{live_app}/evidence")
+    page.locator("#evSelectModeBtn").click()
+    checkbox = page.get_by_role("checkbox", name="Select Keyboard bulk proof")
+    checkbox.wait_for(timeout=10000)
+    checkbox.focus()
+    page.keyboard.press("Space")
+    assert checkbox.is_checked()
+    assert page.locator("#evSelectedCount").inner_text() == "1 selected"
+    assert page.locator("#evBulkArchiveBtn").is_enabled()

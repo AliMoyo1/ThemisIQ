@@ -2075,7 +2075,7 @@ def get_dashboard_stats():
         ).fetchone()[0]
         exercise_count     = db.execute("SELECT COUNT(*) FROM bcm_exercises").fetchone()[0]
         completed_exercises = db.execute(
-            "SELECT COUNT(*) FROM bcm_exercises WHERE status='completed'"
+            "SELECT COUNT(*) FROM bcm_exercises WHERE status IN ('completed','completed_awaiting_review','closed')"
         ).fetchone()[0]
         vendor_count       = db.execute("SELECT COUNT(*) FROM bcm_vendors WHERE status='active'").fetchone()[0]
         training_modules   = db.execute("SELECT COUNT(*) FROM bcm_training_modules WHERE status='active'").fetchone()[0]

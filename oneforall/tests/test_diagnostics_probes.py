@@ -110,16 +110,17 @@ def test_get_diagnostics_never_leaks_the_configured_smtp_host(monkeypatch):
     judgement only -- the configured host/credentials must never appear
     anywhere in the serialized response."""
     import json
-    from config import settings
 
     secret_host = "smtp.internal-secret-host.example.com"
-    # _email_configured_state reads core.email._get_setting("smtp_host") first
-    # (a real settings-table row, if any, takes precedence over settings.SMTP_HOST)
-    # -- patch that primary path directly rather than the env fallback so the
-    # test exercises the actual precedence order, not a path it never takes.
+    # Provider readiness now requires all delivery fields, not only a host.
+    # Supply a complete synthetic SMTP configuration to exercise redaction.
     import core.email
-    monkeypatch.setattr(core.email, "_get_setting", lambda key, default="": secret_host if key == "smtp_host" else default)
-    monkeypatch.setattr(settings, "SMTP_HOST", secret_host, raising=False)
+    monkeypatch.setattr(core.email, "_resolve_provider", lambda: "smtp")
+    monkeypatch.setattr(
+        core.email, "_smtp_config",
+        lambda: {"host": secret_host, "user": "test-user",
+                 "password": "test-secret", "from": "test@example.test"},
+    )
 
     from modules.launcher.diagnostics_service import get_diagnostics
     result = get_diagnostics({"org_id": 1, "is_super_admin": True, "licensed_modules": []})

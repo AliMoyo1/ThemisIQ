@@ -32,7 +32,7 @@ from modules.readiness.data_service import RawFinding, register_rule
 # 1. Missing organization/SBU/owner
 # ─────────────────────────────────────────────────────────────────────────
 
-@register_rule("MISSING_RISK_OWNER")
+@register_rule("MISSING_RISK_OWNER", module="erm")
 def missing_risk_owner(db, org_id: int) -> list[RawFinding]:
     """An enterprise risk with nobody accountable for it -- erm_enterprise_risks
     has no org_id column (BU-scoped only, see module docstring), so this
@@ -54,7 +54,7 @@ def missing_risk_owner(db, org_id: int) -> list[RawFinding]:
 # 2. Deleted or inactive assignee
 # ─────────────────────────────────────────────────────────────────────────
 
-@register_rule("INACTIVE_CONTROL_ASSIGNEE")
+@register_rule("INACTIVE_CONTROL_ASSIGNEE", module="grid")
 def inactive_control_assignee(db, org_id: int) -> list[RawFinding]:
     """A GRID control assigned to a user who can no longer act on it --
     modules/grid/scheduler.py's own reminder jobs silently `continue` past
@@ -79,7 +79,7 @@ def inactive_control_assignee(db, org_id: int) -> list[RawFinding]:
 # 3. Broken cross-module reference
 # ─────────────────────────────────────────────────────────────────────────
 
-@register_rule("BROKEN_FRAMEWORK_REFERENCE")
+@register_rule("BROKEN_FRAMEWORK_REFERENCE", module="grid")
 def broken_framework_reference(db, org_id: int) -> list[RawFinding]:
     """grid_controls.framework_id is a bare INTEGER with no real FK to the
     (global, shared) frameworks table -- a value that doesn't resolve is a
@@ -103,7 +103,7 @@ def broken_framework_reference(db, org_id: int) -> list[RawFinding]:
 # 4. Missing policy template/build
 # ─────────────────────────────────────────────────────────────────────────
 
-@register_rule("ARIA_DRAFT_MISSING_BUILD")
+@register_rule("ARIA_DRAFT_MISSING_BUILD", module="aria")
 def aria_draft_missing_build(db, org_id: int) -> list[RawFinding]:
     """A draft claiming to be built ('ready') or already committed with no
     build_id/template_id recorded -- the service layer never produces this
@@ -129,7 +129,7 @@ def aria_draft_missing_build(db, org_id: int) -> list[RawFinding]:
 # 5. Invalid lifecycle combination
 # ─────────────────────────────────────────────────────────────────────────
 
-@register_rule("ARIA_VERSION_STATE_MISMATCH")
+@register_rule("ARIA_VERSION_STATE_MISMATCH", module="aria")
 def aria_version_state_mismatch(db, org_id: int) -> list[RawFinding]:
     """A version's state and its approved_at timestamp disagree -- either
     is possible only through a bug or direct tampering; confirm_draft/
@@ -157,7 +157,7 @@ def aria_version_state_mismatch(db, org_id: int) -> list[RawFinding]:
 # 6. Stale queue/lease
 # ─────────────────────────────────────────────────────────────────────────
 
-@register_rule("STALE_PUBLICATION_LEASE")
+@register_rule("STALE_PUBLICATION_LEASE", module="aria")
 def stale_publication_lease(db, org_id: int) -> list[RawFinding]:
     """A publication job claimed ('running') whose lease has already
     expired without being reclaimed -- claim_next_job() only reclaims on
@@ -186,7 +186,7 @@ def stale_publication_lease(db, org_id: int) -> list[RawFinding]:
 # 7. Overdue evidence/review
 # ─────────────────────────────────────────────────────────────────────────
 
-@register_rule("EVIDENCE_EXPIRED_UNFLAGGED")
+@register_rule("EVIDENCE_EXPIRED_UNFLAGGED", module="evidence")
 def evidence_expired_unflagged(db, org_id: int) -> list[RawFinding]:
     """Evidence past its own expiry_date that the record's own status
     field has not been updated to reflect -- modules/evidence/scheduler.py's
@@ -213,7 +213,7 @@ def evidence_expired_unflagged(db, org_id: int) -> list[RawFinding]:
 # 8. Capability/config prerequisite not met
 # ─────────────────────────────────────────────────────────────────────────
 
-@register_rule("ARIA_AUTHORING_NO_TEMPLATE")
+@register_rule("ARIA_AUTHORING_NO_TEMPLATE", module="aria")
 def aria_authoring_no_template(db, org_id: int) -> list[RawFinding]:
     """Policy authoring is enabled for this org, but it has no active
     document template -- every draft build would fail with BUILD_REQUIRED

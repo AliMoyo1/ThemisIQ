@@ -251,11 +251,15 @@ def execute_bulk_action(db, actor: dict, *, module: str, action_name: str, recor
     applied = []
     if not (atomic and skipped):
         for rid in authorized:
+            db.execute("SAVEPOINT bulk_action_item")
             try:
                 execute_fn(db, actor, rid)
+                db.execute("RELEASE SAVEPOINT bulk_action_item")
                 applied.append(rid)
-            except Exception as exc:
-                skipped.append({"id": rid, "reason": str(exc)})
+            except Exception:
+                db.execute("ROLLBACK TO SAVEPOINT bulk_action_item")
+                db.execute("RELEASE SAVEPOINT bulk_action_item")
+                skipped.append({"id": rid, "reason": "Could not apply this action. Retry or contact support."})
     elif atomic and skipped:
         # Atomic + at least one authorization failure: apply nothing: every
         # id that *would* have been authorized is reported skipped too, so
