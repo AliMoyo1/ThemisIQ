@@ -256,12 +256,14 @@ Required results:
 Verify from a separate machine as well:
 
 ```bash
-curl -fsS https://themisiq.net/health
-curl -fsSI https://themisiq.net/login
+curl -fsS https://app.themisiq.net/health
+curl -fsS -o /dev/null -w 'login_http=%{http_code}\n' \
+  https://app.themisiq.net/login
 ```
 
 Use the production hostname actually configured in the reverse proxy if it is
-different. Confirm TLS validity, the login response, and security headers.
+different. The login route supports GET; a HEAD request returns 405. Confirm
+TLS validity, the login response, and security headers.
 
 ## 7. Make the verified backup implementation durable
 
