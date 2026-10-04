@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import logging
 
+from database import sql_current_date, sql_date_offset, sql_days_between
+
 log = logging.getLogger(__name__)
 
 # ── Score mapping ────────────────────────────────────────────────────────────
@@ -55,7 +57,7 @@ def _signal_evidence_expiring(db) -> dict | None:
     try:
         row = db.execute(
             "SELECT COUNT(*) AS cnt FROM evidence_items "
-            "WHERE expiry_date BETWEEN date('now') AND date('now', '+7 days') "
+            f"WHERE expiry_date BETWEEN {sql_current_date()} AND {sql_date_offset('+7 days')} "
             "  AND status = 'current'"
         ).fetchone()
         count = row["cnt"] if row else 0
@@ -82,7 +84,7 @@ def _signal_overdue_audits(db) -> dict | None:
     try:
         row = db.execute(
             "SELECT COUNT(*) AS cnt FROM grid_audits "
-            "WHERE end_date < date('now') "
+            f"WHERE end_date < {sql_current_date()} "
             "  AND status NOT IN ('completed', 'locked', 'cancelled')"
         ).fetchone()
         count = row["cnt"] if row else 0
@@ -152,11 +154,8 @@ def _signal_bcm_stale(db) -> dict | None:
                 "link": "/bcm/",
                 "score": _SCORE["medium"],
             }
-        # julianday is SQLite-specific; on PG this won't match but the scheduler
-        # is a background job — if someone runs PG, this signal degrades gracefully
-        # (the query returns None and we skip).
         row2 = db.execute(
-            "SELECT (julianday('now') - julianday(%s)) AS days_since",
+            f"SELECT {sql_days_between('CURRENT_DATE', '%s')} AS days_since",
             (max_date,),
         ).fetchone()
         days = row2["days_since"] if row2 else None
@@ -295,10 +294,11 @@ def compose_briefing(db, today: str) -> int:
     inserted = 0
     for idx, s in enumerate(top):
         try:
-            db.execute(
-                "INSERT OR IGNORE INTO governance_advisories "
+            cursor = db.execute(
+                "INSERT INTO governance_advisories "
                 "(briefing_date, severity, signal_key, title, detail, link, ai_narrative) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                "ON CONFLICT(briefing_date, signal_key) DO NOTHING",
                 (
                     today,
                     s["severity"],
@@ -309,7 +309,7 @@ def compose_briefing(db, today: str) -> int:
                     ai_narrative if idx == 0 else None,
                 ),
             )
-            inserted += 1
+            inserted += max(cursor.rowcount, 0)
         except Exception:
             log.warning(
                 "Failed to insert advisory for signal_key=%s", s.get("signal_key"),

@@ -49,7 +49,7 @@ def db():
         );
         CREATE TABLE IF NOT EXISTS bcm_exercises (
             id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT,
-            exercise_date TEXT
+            scheduled_date TEXT
         );
         CREATE TABLE IF NOT EXISTS ai_risk_predictions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,6 +115,7 @@ def test_compose_briefing_idempotent(db):
     assert second == 0, "Second compose for same date must return 0"
     count = con.execute("SELECT COUNT(*) FROM governance_advisories WHERE briefing_date='2026-07-11'").fetchone()[0]
     assert count > 0
+    assert first == count
     # Second call should not add rows
     assert count >= first, "Rows must not decrease"
 
@@ -136,3 +137,94 @@ def test_advisory_acknowledge(db):
 
     updated = con.execute("SELECT acknowledged_by FROM governance_advisories WHERE id=?", (advisory_id,)).fetchone()[0]
     assert updated == 99
+
+
+def test_sqlite_date_signals_use_real_schema(db):
+    """Evidence, audit, and BCM dates yield signals on the local database."""
+    fake, _ = db
+    from core.advisor import (
+        _signal_evidence_expiring, _signal_overdue_audits, _signal_bcm_stale,
+    )
+
+    fake._c.execute(
+        "INSERT INTO evidence_items (title, status, expiry_date) "
+        "VALUES ('Expiring', 'current', date('now', '+3 days'))"
+    )
+    fake._c.execute(
+        "INSERT INTO grid_audits (name, end_date, status) "
+        "VALUES ('Late audit', date('now', '-1 day'), 'active')"
+    )
+    fake._c.execute(
+        "INSERT INTO bcm_exercises (title, scheduled_date) "
+        "VALUES ('Old exercise', date('now', '-181 days'))"
+    )
+    assert _signal_evidence_expiring(fake)["signal_key"] == "evidence_expiring"
+    assert _signal_overdue_audits(fake)["signal_key"] == "overdue_audits"
+    assert _signal_bcm_stale(fake)["signal_key"] == "bcm_stale"
+
+
+def test_postgres_date_signals_generate_portable_sql(monkeypatch):
+    """Production date queries must not use SQLite functions or compare TEXT to DATE."""
+    from core.advisor import (
+        _signal_evidence_expiring, _signal_overdue_audits, _signal_bcm_stale,
+    )
+
+    monkeypatch.setattr(db_mod.settings, "is_postgres", lambda: True)
+
+    class CaptureDb:
+        queries = []
+
+        def execute(self, sql, params=None):
+            self.queries.append((sql, params))
+            return self
+
+        def fetchone(self):
+            sql = self.queries[-1][0]
+            if "MAX(scheduled_date)" in sql:
+                return {"max_date": "2026-01-01"}
+            if "days_since" in sql:
+                return {"days_since": 181}
+            return {"cnt": 1}
+
+    db = CaptureDb()
+    assert _signal_evidence_expiring(db)["signal_key"] == "evidence_expiring"
+    assert _signal_overdue_audits(db)["signal_key"] == "overdue_audits"
+    assert _signal_bcm_stale(db)["signal_key"] == "bcm_stale"
+    queries = [query for query, _ in db.queries]
+    assert "CURRENT_DATE::text" in queries[0]
+    assert "INTERVAL '7 days')::text" in queries[0]
+    assert "CURRENT_DATE::text" in queries[1]
+    assert "EXTRACT(EPOCH FROM" in queries[3]
+    assert "::timestamptz" in queries[3]
+    assert all("julianday" not in query and "date('now')" not in query for query in queries)
+
+
+def test_briefing_insert_uses_portable_conflict_handling(monkeypatch):
+    """The advisory write works in both engines and reports inserted rows."""
+    from core import advisor
+    from core import ai_client
+
+    monkeypatch.setattr(advisor, "collect_signals", lambda _db: [{
+        "signal_key": "overdue_audits", "severity": "medium", "title": "One overdue audit",
+        "detail": "Review it", "link": "/grid/", "score": 2,
+    }])
+    monkeypatch.setattr(ai_client, "is_configured", lambda: False)
+
+    class CaptureDb:
+        statements = []
+        rowcount = 1
+
+        def execute(self, sql, params=None):
+            self.statements.append(sql)
+            return self
+
+        def fetchone(self):
+            return (0,)
+
+        def commit(self):
+            pass
+
+    db = CaptureDb()
+    assert advisor.compose_briefing(db, "2026-10-04") == 1
+    assert "ON CONFLICT(briefing_date, signal_key) DO NOTHING" in db.statements[1]
+    assert "INSERT OR IGNORE" not in db.statements[1]
