@@ -2554,10 +2554,10 @@
           var ass=mods.grid.latest_assessment;
           panelHtml+='<div style="font-size:11px;font-weight:700;color:#0ea5e9">Registered</div>';
           if(ass) panelHtml+='<div style="font-size:10px;color:var(--muted)">Score: '+(ass.score||'—')+'%</div>';
-          panelHtml+='<a href="/grid/#vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View</a>';
+          panelHtml+='<a href="/grid/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View</a>';
         } else {
           panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Audit</div>'+
-            '<a href="/grid/#vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Add →</a>';
+            '<a href="/grid/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Add →</a>';
         }
         panelHtml+='</div>';
         // Resilience badge
@@ -2567,10 +2567,10 @@
           var tierCol=mods.bcm.tier===1?'#dc2626':mods.bcm.tier===2?'#f97316':'#16a34a';
           panelHtml+='<div style="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
             '<div style="font-size:10px;color:var(--muted);text-transform:capitalize">'+esc(mods.bcm.criticality||'—')+'</div>'+
-            '<a href="/bcm/#vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View</a>';
+            '<a href="/bcm/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View</a>';
         } else {
           panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Resilience</div>'+
-            '<a href="/bcm/#vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Add →</a>';
+            '<a href="/bcm/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Add →</a>';
         }
         panelHtml+='</div></div>';
         if(flags.length){

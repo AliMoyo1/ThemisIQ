@@ -248,8 +248,11 @@
           <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Module</label>
           <select id="linkModule" onchange="loadEntityTypes()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
             <option value="">Select module</option>
-            <option value="aria">ARIA</option><option value="grid">GRID</option>
-            <option value="bcm">BCM</option><option value="sentinel">Sentinel</option>
+            {% if 'aria' in user_modules %}<option value="aria">Governance</option>{% endif %}
+            {% if 'grid' in user_modules %}<option value="grid">Audit</option>{% endif %}
+            {% if 'bcm' in user_modules %}<option value="bcm">Resilience</option>{% endif %}
+            {% if 'sentinel' in user_modules %}<option value="sentinel">Privacy</option>{% endif %}
+            {% if 'erm' in user_modules %}<option value="erm">Enterprise Risk</option>{% endif %}
           </select>
         </div>
         <div>
@@ -282,15 +285,16 @@ var iconMap={policy:'📋',certificate:'🏅',screenshot:'🖼',report:'📊',
   control_assessment:'📊',audit_finding:'⚠️',audit_completion:'✅',
   non_conformance:'❌',risk_assessment:'🔴',incident_record:'🚨',breach_record:'🔓',
   dpia_record:'🛡️',dsr_overdue:'⏰',plan_approval:'✅'};
-var modColors={aria:'#4f8ef7',grid:'#16a34a',bcm:'#d97706',sentinel:'#7c3aed',platform:'#6b7280'};
+var modColors={aria:'#7e8062',grid:'#1a6b3a',bcm:'#8a8a5b',sentinel:'#00a5c8',erm:'#dc3c50',platform:'#6b7280'};
 var entityTypes={
   aria:['control','document','risk','framework'],
   grid:['audit','control','non_conformance'],
-  bcm:['plan','incident','risk','compliance_control'],
-  sentinel:['ropa','dpia','breach','dsr','vendor']
+  bcm:['plan','incident','risk','bia','compliance_control'],
+  sentinel:['ropa','dpia','breach','dsr','vendor'],
+  erm:['risk']
 };
 
-function escHtml(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function escHtml(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/\"/g,'&quot;').replace(/'/g,'&#39;');}
 function fmtSize(b){if(!b)return '0 B';var k=1024,s=['B','KB','MB','GB'],i=Math.floor(Math.log(b)/Math.log(k));return parseFloat((b/Math.pow(k,i)).toFixed(1))+' '+s[i];}
 function fmtDate(ts){if(!ts)return '—';try{var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));if(isNaN(d.getTime()))return ts;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return ts;}}
 
@@ -725,8 +729,8 @@ async function openDetail(eid){
   var canDownload=hasFile||isAriaLinked;
   html+='<div class="ev-section" style="display:flex;gap:8px;flex-wrap:wrap">';
   if(canDownload){
-    html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',false)">Download Word</button>';
-    html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',true)">Download PDF</button>';
+    html+='<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',false)">Download original</button>';
+    if(canPdf||isAriaLinked)html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="evDownload('+eid+',true)">Download PDF</button>';
     if(hasFile){
       html+='<button class="btn btn-secondary" style="font-size:12px;padding:6px 14px" onclick="verifyIntegrity('+eid+')">Verify Integrity</button>';
     }
@@ -852,7 +856,7 @@ async function openDetail(eid){
   if(links.length){
     var specs2=links.map(function(l){return {module:l.module,entity_type:l.entity_type,entity_id:l.entity_id};});
     var resolved2=[];
-    try{var rr2=await fetch('/evidence/api/resolve-links?links='+encodeURIComponent(JSON.stringify(specs2)));resolved2=await rr2.json();}catch(e){}
+    try{var rr2=await fetch('/evidence/api/resolve-links?evidence_id='+encodeURIComponent(eid)+'&links='+encodeURIComponent(JSON.stringify(specs2)));resolved2=await rr2.json();}catch(e){}
     html+=_resolvedLinksHtml(links,resolved2,eid);
   }else{
     html+='<div style="font-size:12px;color:var(--muted);padding:8px 0">No linked entities. Use "Link to..." or "AI Suggest" to connect this evidence.</div>';
@@ -1087,7 +1091,11 @@ function loadEntityTypes(){
   var sel=document.getElementById('linkEntityType');
   sel.innerHTML='<option value="">Select type</option>';
   if(mod&&entityTypes[mod]){
-    entityTypes[mod].forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});
+    var labels={nc:'Nonconformance',non_conformance:'Nonconformance',bia:'Business impact assessment',
+      compliance_control:'Compliance control',ropa:'Processing activity',dpia:'Privacy impact assessment',
+      dsr:'Data subject request'};
+    entityTypes[mod].forEach(function(t){var o=document.createElement('option');o.value=t;
+      o.textContent=labels[t]||t.replace(/_/g,' ').replace(/^./,function(c){return c.toUpperCase();});sel.appendChild(o);});
   }
 }
 function debounceEntitySearch(){clearTimeout(entitySearchTimeout);entitySearchTimeout=setTimeout(searchEntities,300);}
@@ -1098,7 +1106,15 @@ async function searchEntities(){
   var el=document.getElementById('linkEntityList');
   if(!mod||!etype){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Select a module and entity type</div>';return;}
   var params='module='+mod+'&entity_type='+etype;if(q)params+='&q='+encodeURIComponent(q);
-  var r=await fetch('/evidence/api/search-entities?'+params);var items=await r.json();
+  var items;
+  try {
+    var r=await fetch('/evidence/api/search-entities?'+params);
+    if(!r.ok)throw new Error('Search unavailable');
+    items=await r.json();
+  } catch(e) {
+    el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Entity search is unavailable. Try again shortly.</div>';
+    return;
+  }
   if(!items.length){el.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No entities found</div>';return;}
   var eid=document.getElementById('linkEvidenceId').value;
   el.innerHTML=items.map(function(e){

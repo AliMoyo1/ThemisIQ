@@ -471,7 +471,9 @@
       <div class="section-title">AI Controls Catalogue</div>
       <div class="section-sub">Built-in and custom AI governance controls across 5 pillars</div>
     </div>
+    {% if orm_can_manage_controls %}
     <button class="btn btn-primary" onclick="ormOpenAiControlModal()">+ Add Control</button>
+    {% endif %}
   </div>
 
   <div class="orm-filter-bar" id="aicPillarBar">
@@ -2324,6 +2326,7 @@ window.ormDeleteRcsaAction=async function(actionId,assessId){
 };
 
 /* ─────────────────────────── AI CONTROLS CATALOGUE (PLAN-21) ─────────────────────────── */
+var ormCanManageAiControls={{ 'true' if orm_can_manage_controls else 'false' }};
 var aicCache=null;
 var _aicPillarFilter='';
 async function ormEnsureAicCache(force){
@@ -2368,12 +2371,16 @@ window.ormRenderAicRows=function(){
       '<td style="text-align:center">'+(c.link_count>0?'<span class="badge badge-draft">'+c.link_count+'</span>':'<span style="color:var(--muted);font-size:12px">—</span>')+'</td>'+
       '<td>'+statBadge+'</td>'+
       '<td><div style="display:flex;gap:4px">'+
-        '<button class="btn btn-sm btn-secondary" onclick="ormOpenAiControlModal(aicCache.find(function(x){return x.id==='+c.id+'}))" title="Edit">&#9998;</button>'+
+        (ormCanManageAiControls?'<button class="btn btn-sm btn-secondary" onclick="ormEditAiControl('+c.id+')" title="Edit" aria-label="Edit '+escChartAttr(c.ref)+'">&#9998;</button>'+
         '<button class="btn btn-sm btn-secondary" onclick="ormToggleAiControlActive('+c.id+','+(c.is_active?'0':'1')+')" title="'+(c.is_active?'Deactivate':'Activate')+'">'+(c.is_active?'&#8863;':'&#10003;')+'</button>'+
-        (canDelete?'<button class="btn btn-sm btn-secondary" onclick="ormDeleteAiControl('+c.id+')" style="color:var(--red)" title="Delete">&#10005;</button>':'')+
+        (canDelete?'<button class="btn btn-sm btn-secondary" onclick="ormDeleteAiControl('+c.id+')" style="color:var(--red)" title="Delete">&#10005;</button>':''):'')+
       '</div></td>'+
     '</tr>';
   }).join('');
+};
+window.ormEditAiControl=function(id){
+  var control=(aicCache||[]).find(function(x){return x.id===id;});
+  if(control)ormOpenAiControlModal(control);
 };
 window.ormOpenAiControlModal=function(existing){
   var isEdit=!!(existing&&existing.id);
@@ -2384,10 +2391,10 @@ window.ormOpenAiControlModal=function(existing){
       '<div class="modal-title">'+(isEdit?'Edit Control':'Add Control')+'</div>'+
       (isEdit&&existing.source==='built_in'?'<div style="font-size:11px;color:var(--muted);margin-bottom:12px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius)">This is a built-in control. It can be reworded but not deleted &mdash; deactivate instead.</div>':'')+
       '<div class="form-row">'+
-        '<div class="form-group"><label>Ref</label><input id="aic_ref" '+(isEdit?'readonly style="opacity:.6"':'')+' value="'+esc(isEdit?(existing.ref||''):'')+'" placeholder="Auto-generated if blank"></div>'+
+        '<div class="form-group"><label>Ref</label><input id="aic_ref" '+(isEdit?'readonly style="opacity:.6"':'')+' value="'+escChartAttr(isEdit?(existing.ref||''):'')+'" placeholder="Auto-generated if blank"></div>'+
         '<div class="form-group"><label>Pillar *</label><select id="aic_pillar">'+pillars.map(function(p){return'<option value="'+p+'"'+(isEdit&&existing.pillar===p?' selected':'')+'>'+p+'</option>';}).join('')+'</select></div>'+
       '</div>'+
-      '<div class="form-group"><label>Title *</label><input id="aic_title" value="'+esc(isEdit?(existing.title||''):'')+'"></div>'+
+      '<div class="form-group"><label>Title *</label><input id="aic_title" value="'+escChartAttr(isEdit?(existing.title||''):'')+'"></div>'+
       '<div class="form-group"><label>Description</label><textarea id="aic_desc" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;box-sizing:border-box">'+esc(isEdit?(existing.description||''):'')+'</textarea></div>'+
       '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">'+
         '<button class="btn btn-secondary" onclick="document.getElementById(\'aicModal\').remove()">Cancel</button>'+

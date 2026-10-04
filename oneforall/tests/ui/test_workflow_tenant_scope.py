@@ -178,6 +178,7 @@ def test_my_work_workflow_link_opens_instance(login_as, live_app, synthetic_tena
     page = login_as("compliance_manager")
     page.goto(f"{live_app}/workflows?instance={instance_id}")
     page.locator("#wfDrawerRoot .drawer").wait_for(timeout=10000)
+    page.wait_for_function("() => document.querySelector('#wfDrawerRoot .drawer-header span')?.textContent === 'Deep linked workflow'", timeout=10000)
     assert page.locator("#wfDrawerRoot .drawer-header span").inner_text() == "Deep linked workflow"
     assert "instance=" not in page.url
 

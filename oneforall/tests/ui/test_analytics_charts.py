@@ -90,7 +90,10 @@ def test_analytics_trends_theme_motion_controls_and_resize(login_as, live_app, r
         "el => getComputedStyle(el).animationDuration"
     ) == "0s"
     violations = run_axe()
-    assert not violations, [(v["id"], [n["target"] for n in v["nodes"]]) for v in violations]
+    assert not violations, "\n".join(
+        f"{v['id']} {n['target']}: {n.get('failureSummary', '')}"
+        for v in violations for n in v['nodes']
+    )
     assert not errors, errors
 
 

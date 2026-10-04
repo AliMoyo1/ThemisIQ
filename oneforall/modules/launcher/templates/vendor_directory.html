@@ -203,7 +203,7 @@ async function vdOpenDrawer(canonicalId){
         '<div class="vd-kv"><span class="vd-kv-k">Risk Level</span><span class="vd-kv-v">'+rb(sen.risk_level)+'</span></div>'+
         '<div class="vd-kv"><span class="vd-kv-k">Regulation</span><span class="vd-kv-v">'+esc(sen.regulation||'—')+'</span></div>'+
         (sen.ai_assessment?'<div class="vd-kv"><span class="vd-kv-k">AI Assessment</span><span class="vd-kv-v" style="font-size:11px;max-width:220px;text-align:right">'+esc((sen.ai_assessment||'').substring(0,80)+(sen.ai_assessment&&sen.ai_assessment.length>80?'…':''))+'</span></div>':'')+
-        '<a class="vd-go-btn" href="/sentinel/#vendors">→ Open in Privacy</a>';
+        '<a class="vd-go-btn" href="/sentinel/vendors">→ Open in Privacy</a>';
     } else {
       html+='<div style="color:var(--muted);font-size:12px;margin-bottom:8px">Not registered in Privacy</div>'+
         '<button class="vd-add-btn" onclick="vdPromptAddModule('+canonicalId+',\'sentinel\')">+ Register in Privacy</button>';
@@ -219,7 +219,7 @@ async function vdOpenDrawer(canonicalId){
         '<div class="vd-kv"><span class="vd-kv-k">Frameworks</span><span class="vd-kv-v">'+esc(grid.frameworks||'—')+'</span></div>'+
         (grid.contract_expiry?'<div class="vd-kv"><span class="vd-kv-k">Contract Expiry</span><span class="vd-kv-v">'+esc(grid.contract_expiry)+'</span></div>':'')+
         (ass?'<div class="vd-kv"><span class="vd-kv-k">Last Score</span><span class="vd-kv-v" style="color:'+(ass.score>=70?'#16a34a':ass.score>=50?'#d97706':'#dc2626')+'">'+ass.score+'%  ('+esc(ass.assessment_date)+')</span></div>':'<div class="vd-kv"><span class="vd-kv-k">Last Score</span><span class="vd-kv-v" style="color:var(--muted)">Not yet assessed</span></div>')+
-        '<a class="vd-go-btn" href="/grid/#vendors">→ Open in Audit</a>';
+        '<a class="vd-go-btn" href="/grid/vendors">→ Open in Audit</a>';
     } else {
       html+='<div style="color:var(--muted);font-size:12px;margin-bottom:8px">Not registered in Audit</div>'+
         '<button class="vd-add-btn" onclick="vdPromptAddModule('+canonicalId+',\'grid\')">+ Register in Audit</button>';
@@ -234,7 +234,7 @@ async function vdOpenDrawer(canonicalId){
         (bcm.sla?'<div class="vd-kv"><span class="vd-kv-k">SLA</span><span class="vd-kv-v">'+esc(bcm.sla)+'</span></div>':'')+
         (bcm.contract_renewal?'<div class="vd-kv"><span class="vd-kv-k">Contract Renewal</span><span class="vd-kv-v">'+esc(bcm.contract_renewal)+'</span></div>':'')+
         (bcm.data_sensitivity?'<div class="vd-kv"><span class="vd-kv-k">Data Sensitivity</span><span class="vd-kv-v">'+esc(bcm.data_sensitivity)+'</span></div>':'')+
-        '<a class="vd-go-btn" href="/bcm/#vendors">→ Open in Resilience</a>';
+        '<a class="vd-go-btn" href="/bcm/vendors">→ Open in Resilience</a>';
     } else {
       html+='<div style="color:var(--muted);font-size:12px;margin-bottom:8px">Not registered in Resilience</div>'+
         '<button class="vd-add-btn" onclick="vdPromptAddModule('+canonicalId+',\'bcm\')">+ Register in Resilience</button>';

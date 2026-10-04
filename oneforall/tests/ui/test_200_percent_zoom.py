@@ -17,7 +17,6 @@ import pytest
 
 ROUTES = [
     ("/", "super_admin"),
-    ("/my-dashboard", "super_admin"),
     ("/tasks", "super_admin"),
     ("/reports", "super_admin"),
     ("/calendar", "super_admin"),

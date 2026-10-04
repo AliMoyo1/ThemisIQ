@@ -129,6 +129,8 @@ body[data-module] .section-title{font-family:var(--display);font-size:clamp(30px
 body[data-module] .section-sub{font-size:13px;line-height:1.55}
 body[data-module] .card-title,body[data-module] .dash-widget-title{font-size:15px;letter-spacing:-.01em;text-transform:none}
 body[data-module] .btn{border-radius:999px;transition:transform .22s ease,box-shadow .22s ease,background-color .22s ease,color .22s ease}
+body[data-module] .btn-secondary:hover{color:var(--accent-ink)}
+html[data-theme="dark"] body[data-module] .nav-item.active{background:var(--surface3);color:var(--accent-ink)}
 body[data-module] .btn-primary{box-shadow:0 8px 20px rgba(var(--accent-rgb),.16)}
 body[data-module] .btn-primary:hover{box-shadow:0 12px 26px rgba(var(--accent-rgb),.22)}
 body[data-module] .stat-card,body[data-module] .card,body[data-module] .panel-card,
@@ -457,3 +459,11 @@ body[data-module] .seats-bar-fill:hover{filter:brightness(1.12)}
 body[data-module] .premium-chart-column{transform-origin:center bottom;border-radius:8px 8px 2px 2px;transition:height .3s ease,filter .2s ease}
 body[data-module] .premium-chart-column:hover{filter:brightness(1.15)}
 @media(prefers-reduced-motion:reduce){body[data-module] .premium-chart-column{transition:none!important}}
+
+/* Theme changes must settle immediately when the user requests reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html *, html *::before, html *::after {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}

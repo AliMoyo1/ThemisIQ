@@ -540,15 +540,23 @@
       <div class="section-sub">Map inter-dependencies between processes, systems, and vendors</div>
     </div>
     <div class="header-actions">
+      {% if bcm_can_manage_dependencies %}
+      <button class="btn btn-secondary" onclick="bcmOpenDepConnection()" id="bcmConnectNodesBtn">Connect nodes</button>
       <button class="btn btn-primary" onclick="bcmOpenModal('dep_node')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Node
       </button>
+      {% endif %}
     </div>
   </div>
   <div id="bcmDepSentinelBanner"></div>
+  <p style="color:var(--muted);font-size:13px;margin:0 0 14px">Add the processes, systems and partners you rely on. Connect them to see what a disruption could affect.</p>
   <div class="dep-grid" id="bcmDepGrid">
     <div style="text-align:center;padding:32px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>
+  </div>
+  <div class="card" style="margin-top:18px;padding:20px">
+    <div style="font-size:16px;font-weight:700;margin-bottom:12px">Connections</div>
+    <div id="bcmDepConnections">Connect two nodes to map their relationship.</div>
   </div>
 </div>
 
@@ -666,7 +674,10 @@
         <option value="media">Media</option>
         <option value="general">General</option>
       </select>
+      {% if bcm_can_manage_comms %}
+      <button class="btn btn-secondary" onclick="bcmOpenCommsStarters()">Starter messages</button>
       <button class="btn btn-primary" onclick="bcmOpenCommsModal()">+ New Template</button>
+      {% endif %}
     </div>
   </div>
   <div id="commsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:8px">
@@ -826,6 +837,7 @@
      HELPERS
      ════════════════════════════════════════════════════════════════════════ */
   function esc(s){if(!s)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+  function escAttr(s){return esc(s).replace(/"/g,'&quot;');}
   function fmtDate(ts){
     if(!ts) return '—';
     var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));
@@ -859,12 +871,10 @@
   }
   function actionBtns(editFn,deleteFn){
     return '<div style="display:flex;gap:4px">'+
-      '<button class="btn btn-sm btn-secondary" onclick="'+editFn+'" title="Edit" style="padding:4px 8px">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'+
-      '</button>'+
-      '<button class="btn btn-sm btn-secondary" onclick="'+deleteFn+'" title="Delete" style="padding:4px 8px;color:var(--red)">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>'+
-      '</button>'+
+      (editFn?'<button class="btn btn-sm btn-secondary" onclick="'+editFn+'" title="Edit" style="padding:4px 8px">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>':'')+
+      (deleteFn?'<button class="btn btn-sm btn-secondary" onclick="'+deleteFn+'" title="Delete" style="padding:4px 8px;color:var(--red)">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>':'')+
     '</div>';
   }
   function spinner(cols){return '<tr><td colspan="'+cols+'" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';}
@@ -1671,21 +1681,78 @@
   /* ════════════════════════════════════════════════════════════════════════
      DEPENDENCIES
      ════════════════════════════════════════════════════════════════════════ */
+  var bcmCanManageDependencies={{ 'true' if bcm_can_manage_dependencies else 'false' }};
   var depCache=[];
+  var depEdges=[];
   window.bcmLoadDeps=async function(){
     var grid=document.getElementById('bcmDepGrid');
+    var connections=document.getElementById('bcmDepConnections');
     grid.innerHTML='<div style="text-align:center;padding:32px;color:var(--muted);grid-column:1/-1"><div class="spinner" style="margin:0 auto"></div></div>';
     try{
-      var data=await apiFetch('/bcm/api/dependencies/nodes');
-      var items=Array.isArray(data)?data:data.records||data.items||[];
-      depCache=items;
-      if(!items.length){grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">No dependency nodes mapped yet</div>';return;}
-      grid.innerHTML=items.map(function(n){
-        return '<div class="dep-node"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px"><div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(n.name||n.title||'')+'</div>'+riskBadge(n.criticality||n.risk_level||'medium')+'</div><div style="font-size:12px;color:var(--muted);margin-bottom:8px">'+esc(n.type||n.node_type||'System')+'</div><div style="font-size:12px;color:var(--text-mid)">'+esc(n.description||'')+'</div><div style="margin-top:10px;display:flex;gap:4px">'+actionBtns('bcmEditDep('+n.id+')','bcmDeleteRecord(\'dep_node\','+n.id+')')+'</div></div>';
-      }).join('');
-    }catch(e){grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">Failed to load dependencies</div>';}
+      var graph=await apiFetch('/bcm/api/dependencies/graph');
+      depCache=graph.nodes||[];
+      depEdges=graph.edges||[];
+      var connectBtn=document.getElementById('bcmConnectNodesBtn');
+      if(connectBtn){connectBtn.disabled=depCache.length<2;connectBtn.title=depCache.length<2?'Add at least two nodes first':'Connect two nodes';}
+      grid.innerHTML=depCache.length?depCache.map(function(n){
+        var out=depEdges.filter(function(e){return e.source_id===n.id;}).length;
+        var incoming=depEdges.filter(function(e){return e.target_id===n.id;}).length;
+        return '<div class="dep-node"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px"><div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(n.name||'')+'</div>'+riskBadge(n.criticality||'medium')+'</div><div style="font-size:12px;color:var(--muted);margin-bottom:8px">'+esc(n.node_type||'System')+'</div><div style="font-size:12px;color:var(--text-mid)">'+esc(n.description||'')+'</div><div style="font-size:11px;color:var(--muted);margin-top:10px">'+out+' downstream / '+incoming+' upstream</div><div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-sm btn-secondary" onclick="bcmShowDepImpact('+n.id+')">Impact chain</button>'+(bcmCanManageDependencies?actionBtns('bcmEditDep('+n.id+')','bcmDeleteRecord(\'dep_node\','+n.id+')'):'')+'</div></div>';
+      }).join(''):'<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">No nodes yet. Add a process, system, vendor or team to start the map.</div>';
+      connections.innerHTML=depEdges.length?depEdges.map(function(e){
+        var source=depCache.find(function(n){return n.id===e.source_id;});
+        var target=depCache.find(function(n){return n.id===e.target_id;});
+        return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><span style="flex:1">'+esc(source?source.name:'#'+e.source_id)+' &rarr; '+esc(target?target.name:'#'+e.target_id)+(e.label?' <span style="color:var(--muted)">('+esc(e.label)+')</span>':'')+'</span> '+(bcmCanManageDependencies?'<button class="btn btn-sm btn-secondary" onclick="bcmDeleteDepConnection('+e.id+')" aria-label="Remove connection">Remove</button>':'')+'</div>';
+      }).join(''):'<div style="color:var(--muted);font-size:13px">No connections yet. Connect two nodes to expose downstream impact.</div>';
+    }catch(e){
+      grid.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted);grid-column:1/-1">Failed to load dependency map</div>';
+      connections.textContent='Connections could not be loaded.';
+    }
   };
   window.bcmEditDep=function(id){var item=depCache.find(function(n){return n.id===id;});if(item)bcmOpenModal('dep_node',item);};
+  window.bcmOpenDepConnection=function(){
+    if(depCache.length<2)return;
+    var options=depCache.map(function(n){return '<option value="'+n.id+'">'+esc(n.name)+'</option>';}).join('');
+    var html='<div class="modal-overlay" id="depConnectionModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:540px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'depConnectionModal\').remove()" aria-label="Close">?</button>'+
+      '<div class="modal-title">Connect nodes</div><p style="font-size:13px;color:var(--muted)">Choose a dependency and what is affected when it fails.</p>'+
+      '<div class="form-group"><label for="depSource">Dependency</label><select id="depSource">'+options+'</select></div>'+
+      '<div class="form-group"><label for="depTarget">Affected process or service</label><select id="depTarget">'+options+'</select></div>'+
+      '<div class="form-group"><label for="depLabel">Relationship</label><input id="depLabel" placeholder="e.g. hosts, supplies, enables"></div>'+
+      '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary" onclick="document.getElementById(\'depConnectionModal\').remove()">Cancel</button><button class="btn btn-primary" onclick="bcmSaveDepConnection()">Connect</button></div></div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    document.getElementById('depTarget').selectedIndex=1;
+  };
+  window.bcmSaveDepConnection=async function(){
+    var source=Number(document.getElementById('depSource').value),target=Number(document.getElementById('depTarget').value);
+    if(source===target){if(typeof showToast==='function')showToast('Choose two different nodes','error');return;}
+    if(depEdges.some(function(e){return e.source_id===source&&e.target_id===target;})){if(typeof showToast==='function')showToast('This connection already exists','error');return;}
+    try{
+      await apiFetch('/bcm/api/dependencies/edges',{method:'POST',body:{source_id:source,target_id:target,label:document.getElementById('depLabel').value.trim()}});
+      document.getElementById('depConnectionModal').remove();
+      await bcmLoadDeps();
+      if(typeof showToast==='function')showToast('Nodes connected','success');
+    }catch(e){if(typeof showToast==='function')showToast(e.message||'Could not connect nodes','error');}
+  };
+  window.bcmDeleteDepConnection=async function(id){
+    if(!confirm('Remove this connection?'))return;
+    try{await apiFetch('/bcm/api/dependencies/edges/'+id,{method:'DELETE'});await bcmLoadDeps();}
+    catch(e){if(typeof showToast==='function')showToast(e.message||'Could not remove connection','error');}
+  };
+  window.bcmShowDepImpact=async function(id){
+    var node=depCache.find(function(n){return n.id===id;});
+    if(!node)return;
+    try{
+      var result=await apiFetch('/bcm/api/dependencies/impact/'+id);
+      var impacted=result.impacted||[];
+      var html='<div class="modal-overlay" id="depImpactModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:540px">'+
+        '<button class="modal-close" onclick="document.getElementById(\'depImpactModal\').remove()" aria-label="Close">?</button>'+
+        '<div class="modal-title">If '+esc(node.name)+' is disrupted</div>'+
+        (impacted.length?'<p style="font-size:13px;color:var(--muted)">These downstream nodes may be affected:</p><ul>'+impacted.map(function(n){return '<li>'+esc(n.name)+' / '+esc(n.node_type||'')+'</li>';}).join('')+'</ul>':'<p style="font-size:13px;color:var(--muted)">No downstream impact is mapped yet. Add a connection to see affected services.</p>')+
+        '<button class="btn btn-secondary" onclick="document.getElementById(\'depImpactModal\').remove()">Close</button></div></div>';
+      document.body.insertAdjacentHTML('beforeend',html);
+    }catch(e){if(typeof showToast==='function')showToast(e.message||'Could not compute impact','error');}
+  };
 
   /* ════════════════════════════════════════════════════════════════════════
      TRAINING CRUD
@@ -1757,20 +1824,44 @@
   /* ════════════════════════════════════════════════════════════════════════
      CRISIS COMMUNICATION TEMPLATES (BCM-14)
      ════════════════════════════════════════════════════════════════════════ */
+  var bcmCanManageComms={{ 'true' if bcm_can_manage_comms else 'false' }};
   var commsCache=[];
+  {% raw %}
+  var commsStarters=[
+    {title:'Initial staff alert',category:'all-staff',subject:'Service disruption update: {{incident_name}}',incident_types:'outage,cyber,facility',body:'We are responding to {{incident_name}}, first identified at {{incident_time}}. The current impact is {{impact_summary}}. Please follow {{staff_action}}. The next update will be provided by {{next_update_time}}. Direct questions to {{contact_point}}.'},
+    {title:'Customer service update',category:'external',subject:'Update on {{service_name}}',incident_types:'outage,cyber',body:'We are experiencing an issue affecting {{service_name}}. We identified it at {{incident_time}} and are working to restore normal service. Current customer impact: {{impact_summary}}. Please use {{customer_workaround}} if you need immediate help. Our next update is scheduled for {{next_update_time}}.'},
+    {title:'Regulator notification draft',category:'authority',subject:'Incident notification: {{incident_reference}}',incident_types:'cyber,privacy,outage',body:'To {{authority_name}}: We are notifying you of {{incident_name}} (reference {{incident_reference}}), detected at {{incident_time}}. Confirmed scope and impact: {{impact_summary}}. Containment actions: {{containment_actions}}. Our contact for follow-up is {{contact_point}}. We will provide a further update by {{next_update_time}}.'},
+    {title:'Media holding statement',category:'media',subject:'Holding statement: {{incident_name}}',incident_types:'cyber,outage,facility',body:'We are aware of {{incident_name}} affecting {{impact_summary}}. Our response teams are working to establish the facts and reduce disruption. We will share verified updates through {{public_channel}} by {{next_update_time}}. Media enquiries: {{contact_point}}.'},
+    {title:'All clear and recovery',category:'all-staff',subject:'Recovery update: {{incident_name}}',incident_types:'outage,cyber,facility',body:'The immediate disruption from {{incident_name}} has been resolved as of {{resolution_time}}. The services restored are {{restored_services}}. Please report any remaining issues to {{contact_point}}. A follow-up review will be shared by {{review_date}}.'}
+  ];
+  {% endraw %}
+  window.bcmOpenCommsStarters=function(){
+    var html='<div class="modal-overlay" id="commsStarterModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:620px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'commsStarterModal\').remove()" aria-label="Close">X</button>'+
+      '<div class="modal-title">Starter crisis messages</div><p style="font-size:13px;color:var(--muted)">Choose a draft, tailor it to your organization, then save it. These are starting points, not pre-approved statements.</p>'+
+      commsStarters.map(function(t,i){return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)"><div style="flex:1"><strong>'+esc(t.title)+'</strong><div style="font-size:12px;color:var(--muted)">'+esc(t.category)+'</div></div><button class="btn btn-sm btn-primary" onclick="bcmUseCommsStarter('+i+')">Use draft</button></div>';}).join('')+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  };
+  window.bcmUseCommsStarter=function(index){
+    var starter=commsStarters[index];if(!starter)return;
+    document.getElementById('commsStarterModal').remove();
+    bcmOpenCommsModal(starter);
+  };
   window.bcmLoadComms=async function(category){
     var grid=document.getElementById('commsGrid');
     grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>';
     try{
+      category=category||document.getElementById('commsFilter').value;
       var url='/bcm/api/comms'+(category&&category!=='all'?'?category='+encodeURIComponent(category):'');
       var data=await apiFetch(url);
       var items=Array.isArray(data)?data:data.items||[];
       commsCache=items;
-      if(!items.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">No templates found. Add one to get started.</div>';return;}
+      if(!items.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">No templates found. Start with a draft message or add your own.</div>';return;}
       var catColors={internal:'var(--blue)','all-staff':'var(--accent)',external:'var(--green-status)',authority:'var(--amber)',media:'var(--red)',general:'var(--muted)'};
       grid.innerHTML=items.map(function(t){
         var cc=catColors[t.category]||'var(--muted)';
-        var vars=(t.variables||'').split(',').filter(Boolean).map(function(v){return '<code style="font-size:10px;background:var(--surface3);padding:1px 4px;border-radius:3px">{{'+v.trim()+'}}</code>';}).join(' ');
+        var vars=(t.variables||'').split(',').filter(Boolean).map(function(v){return '<code style="font-size:10px;background:var(--surface3);padding:1px 4px;border-radius:3px">{{'+esc(v.trim())+'}}</code>';}).join(' ');
         return '<div class="card" style="padding:20px;display:flex;flex-direction:column;gap:10px">'+
           '<div style="display:flex;justify-content:space-between;align-items:start">'+
             '<div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(t.title)+'</div>'+
@@ -1780,32 +1871,75 @@
           (vars?'<div style="font-size:11px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px">'+vars+'</div>':'')+
           '<div style="display:flex;gap:8px;margin-top:4px">'+
             '<button class="btn btn-sm btn-secondary" onclick="bcmPreviewComms('+t.id+')">Preview</button>'+
-            '<button class="btn btn-sm btn-secondary" onclick="bcmCopyComms('+t.id+')">Copy</button>'+
-            actionBtns('bcmEditComms('+t.id+')','bcmDeleteCommsItem('+t.id+')')+
+            '<button class="btn btn-sm btn-primary" onclick="bcmActivateComms('+t.id+')">Activate</button>'+
+
+            (bcmCanManageComms?actionBtns('bcmEditComms('+t.id+')','bcmDeleteCommsItem('+t.id+')'):'')+
           '</div>'+
         '</div>';
       }).join('');
     }catch(e){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--muted)">Failed to load templates</div>';}
   };
   window.bcmPreviewComms=function(id){
-    var t=commsCache.find(function(x){return x.id===id;});if(!t) return;
-    var html='<div class="modal-overlay" onclick="if(event.target===this)this.remove()">'+
-      '<div class="modal-box" style="max-width:700px">'+
-        '<div class="modal-title">'+esc(t.title)+'</div>'+
-        (t.subject?'<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:12px">Subject: '+esc(t.subject)+'</div>':'')+
-        '<div style="background:var(--surface2);border-radius:var(--radius);padding:16px;font-size:13px;white-space:pre-wrap;max-height:400px;overflow-y:auto;line-height:1.7">'+esc(t.body)+'</div>'+
-        '<div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px">'+
-          '<button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">Close</button>'+
-          '<button class="btn btn-primary" onclick="navigator.clipboard.writeText('+JSON.stringify(t.body)+').then(function(){showToast&&showToast(\'Copied!\')})">Copy Body</button>'+
-        '</div>'+
-      '</div></div>';
+    var t=commsCache.find(function(x){return x.id===id;});if(!t)return;
+    var html='<div class="modal-overlay" id="commsPreviewModal" onclick="if(event.target===this)this.remove()">'+
+      '<div class="modal-box" style="max-width:700px"><div class="modal-title">'+esc(t.title)+'</div>'+
+      (t.subject?'<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:12px">Subject: '+esc(t.subject)+'</div>':'')+
+      '<div style="background:var(--surface2);border-radius:var(--radius);padding:16px;font-size:13px;white-space:pre-wrap;max-height:400px;overflow-y:auto;line-height:1.7">'+esc(t.body)+'</div>'+
+      '<div style="margin-top:16px;display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary" onclick="document.getElementById(\'commsPreviewModal\').remove()">Close</button>'+
+      '<button class="btn btn-primary" onclick="bcmActivateComms('+id+')">Activate</button></div></div></div>';
     document.body.insertAdjacentHTML('beforeend',html);
   };
   window.bcmCopyComms=function(id){
-    var t=commsCache.find(function(x){return x.id===id;});if(!t) return;
+    var t=commsCache.find(function(x){return x.id===id;});if(!t)return;
     navigator.clipboard.writeText((t.subject?'Subject: '+t.subject+'\n\n':'')+t.body).then(function(){
-      if(typeof showToast==='function') showToast('Template copied to clipboard');
+      if(typeof showToast==='function')showToast('Template copied to clipboard');
+    }).catch(function(){if(typeof showToast==='function')showToast('Clipboard unavailable','error');});
+  };
+  function commsVariableNames(t){
+    var names=[];
+    ((t.subject||'')+' '+(t.body||'')).replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g,function(_,name){
+      if(names.indexOf(name)<0)names.push(name);
+      return '';
     });
+    return names;
+  }
+  window.bcmActivateComms=function(id){
+    var t=commsCache.find(function(x){return x.id===id;});if(!t)return;
+    var preview=document.getElementById('commsPreviewModal');if(preview)preview.remove();
+    var names=commsVariableNames(t);
+    var html='<div class="modal-overlay" id="commsActivateModal" onclick="if(event.target===this)this.remove()"><div class="modal-box" style="max-width:720px">'+
+      '<button class="modal-close" onclick="document.getElementById(\'commsActivateModal\').remove()" aria-label="Close">X</button>'+
+      '<div class="modal-title">Activate: '+esc(t.title)+'</div>'+
+      '<p style="font-size:13px;color:var(--muted)">Fill every field, review the final text, then copy it into your approved sending channel. This does not send a message.</p>'+
+      names.map(function(name){return '<div class="form-group"><label for="commsVar_'+name+'">'+esc(name.replace(/_/g,' '))+'</label><input id="commsVar_'+name+'" data-comms-var="'+name+'" oninput="bcmRenderActivatedComms('+id+')" required></div>';}).join('')+
+      '<div class="form-group"><label>Ready-to-send message</label><div id="commsActivatedText" style="background:var(--surface2);padding:16px;border-radius:var(--radius);white-space:pre-wrap;max-height:260px;overflow:auto"></div></div>'+
+      '<div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn btn-secondary" onclick="document.getElementById(\'commsActivateModal\').remove()">Close</button>'+
+      '<button class="btn btn-primary" id="commsCopyActivated" onclick="bcmCopyActivatedComms('+id+')">Copy message</button></div></div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+    bcmRenderActivatedComms(id);
+    var first=document.querySelector('#commsActivateModal [data-comms-var]');if(first)first.focus();
+  };
+  window.bcmRenderActivatedComms=function(id){
+    var t=commsCache.find(function(x){return x.id===id;});if(!t)return;
+    var values={};var complete=true;
+    document.querySelectorAll('#commsActivateModal [data-comms-var]').forEach(function(input){
+      values[input.dataset.commsVar]=input.value.trim();
+      if(!input.value.trim())complete=false;
+    });
+    function fill(text){return (text||'').replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g,function(match,name){return values[name]||match;});}
+    var subject=fill(t.subject),body=fill(t.body);
+    var output=(subject?'Subject: '+subject+'\n\n':'')+body;
+    document.getElementById('commsActivatedText').textContent=output;
+    var copy=document.getElementById('commsCopyActivated');
+    copy.disabled=!complete||/\{\{[^}]+\}\}/.test(output);
+    return output;
+  };
+  window.bcmCopyActivatedComms=function(id){
+    var copy=document.getElementById('commsCopyActivated');
+    if(copy.disabled)return;
+    navigator.clipboard.writeText(bcmRenderActivatedComms(id)).then(function(){
+      if(typeof showToast==='function')showToast('Ready message copied. Review before sending.','success');
+    }).catch(function(){if(typeof showToast==='function')showToast('Clipboard unavailable','error');});
   };
   window.bcmEditComms=function(id){var t=commsCache.find(function(x){return x.id===id;});if(t)bcmOpenCommsModal(t);};
   window.bcmDeleteCommsItem=async function(id){
@@ -1815,18 +1949,19 @@
   };
   window.bcmOpenCommsModal=function(existing){
     var isEdit=!!(existing&&existing.id);
+    var draft=existing||{};
     var html='<div class="modal-overlay" id="commsModal" onclick="if(event.target===this)this.remove()">'+
       '<div class="modal-box" style="max-width:680px">'+
         '<button class="modal-close" onclick="document.getElementById(\'commsModal\').remove()">&#10005;</button>'+
         '<div class="modal-title">'+(isEdit?'Edit Template':'New Communication Template')+'</div>'+
-        '<div class="form-row"><div class="form-group"><label>Title</label><input id="ct_title" value="'+esc(isEdit?existing.title:'')+'"></div>'+
+        '<div class="form-row"><div class="form-group"><label>Title</label><input id="ct_title" value="'+escAttr(draft.title||'')+'"></div>'+
         '<div class="form-group"><label>Category</label><select id="ct_cat">'+
-          ['all-staff','internal','external','authority','media','general'].map(function(c){return '<option value="'+c+'"'+(isEdit&&existing.category===c?' selected':'')+'>'+c+'</option>';}).join('')+
+          ['all-staff','internal','external','authority','media','general'].map(function(c){return '<option value="'+c+'"'+(draft.category===c?' selected':'')+'>'+c+'</option>';}).join('')+
         '</select></div></div>'+
-        '<div class="form-group"><label>Subject Line (optional)</label><input id="ct_subject" value="'+esc(isEdit?(existing.subject||''):'')+'"></div>'+
-        '<div class="form-group"><label>Incident Types (comma-separated, e.g. ransomware,outage)</label><input id="ct_types" value="'+esc(isEdit?(existing.incident_types||''):'')+'"></div>'+
+        '<div class="form-group"><label>Subject Line (optional)</label><input id="ct_subject" value="'+escAttr(draft.subject||'')+'"></div>'+
+        '<div class="form-group"><label>Incident Types (comma-separated, e.g. ransomware,outage)</label><input id="ct_types" value="'+escAttr(draft.incident_types||'')+'"></div>'+
         '<div class="form-group"><label>Template Body (use {{variable_name}} for placeholders)</label>'+
-          '<textarea id="ct_body" rows="10" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;font-family:monospace;box-sizing:border-box">'+esc(isEdit?(existing.body||''):'')+'</textarea></div>'+
+          '<textarea id="ct_body" rows="10" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;font-family:monospace;box-sizing:border-box">'+esc(draft.body||'')+'</textarea></div>'+
         '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">'+
           '<button class="btn btn-secondary" onclick="document.getElementById(\'commsModal\').remove()">Cancel</button>'+
           '<button class="btn btn-primary" onclick="bcmSaveComms('+(isEdit?existing.id:'null')+')">Save Template</button>'+
@@ -1836,9 +1971,11 @@
   };
   window.bcmSaveComms=async function(id){
     var body=document.getElementById('ct_body').value.trim();
-    if(!body){if(typeof showToast==='function')showToast('Body is required','error');return;}
-    var vars=[...body.matchAll(/\{\{([^}]+)\}\}/g)].map(function(m){return m[1];}).join(',');
-    var data={title:document.getElementById('ct_title').value.trim(),
+    var title=document.getElementById('ct_title').value.trim();
+    if(!title){if(typeof showToast==='function')showToast('Title is required','error');document.getElementById('ct_title').focus();return;}
+    if(!body){if(typeof showToast==='function')showToast('Body is required','error');document.getElementById('ct_body').focus();return;}
+    var vars=commsVariableNames({subject:document.getElementById('ct_subject').value,body:body}).join(',');
+    var data={title:title,
       category:document.getElementById('ct_cat').value,
       subject:document.getElementById('ct_subject').value.trim(),
       incident_types:document.getElementById('ct_types').value.trim(),
@@ -1847,7 +1984,9 @@
       if(id) await apiFetch('/bcm/api/comms/'+id,{method:'PUT',body:data});
       else await apiFetch('/bcm/api/comms',{method:'POST',body:data});
       document.getElementById('commsModal').remove();
-      bcmLoadComms();
+      var filter=document.getElementById('commsFilter');
+      if(filter.value!=='all'&&filter.value!==data.category)filter.value='all';
+      bcmLoadComms(filter.value);
       if(typeof showToast==='function')showToast('Template saved');
     }catch(e){if(typeof showToast==='function')showToast('Save failed','error');}
   };
@@ -2207,7 +2346,7 @@
       if(banner){
         if(noDpaCritical.length){
           banner.innerHTML='<div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.22);border-radius:8px;font-size:12px;font-weight:600;color:#dc2626">'+
-            '<span>⚠</span><span>'+noDpaCritical.length+' critical vendor'+(noDpaCritical.length>1?'s have':' has')+' no DPA record in Privacy — <a href="/sentinel/#vendors" style="color:#dc2626;text-decoration:underline">register now</a></span></div>';
+            '<span>⚠</span><span>'+noDpaCritical.length+' critical vendor'+(noDpaCritical.length>1?'s have':' has')+' no DPA record in Privacy — <a href="/sentinel/vendors" style="color:#dc2626;text-decoration:underline">register now</a></span></div>';
         } else { banner.innerHTML=''; }
       }
 
@@ -2254,10 +2393,10 @@
           var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#d97706';
           panelHtml+='<div style="font-size:11px;font-weight:700;color:'+dpaCol+'">DPA: '+esc(dpa)+'</div>'+
             (mods.sentinel.regulation?'<div style="font-size:10px;color:var(--muted)">'+esc(mods.sentinel.regulation)+'</div>':'')+
-            '<a href="/sentinel/#vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Privacy</a>';
+            '<a href="/sentinel/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Privacy</a>';
         } else {
           panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Privacy</div>'+
-            '<a href="/sentinel/#vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
+            '<a href="/sentinel/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
         }
         panelHtml+='</div>';
         // Audit
@@ -2266,10 +2405,10 @@
           var ass=mods.grid.latest_assessment;
           panelHtml+='<div style="font-size:11px;font-weight:700;color:#0ea5e9">Registered</div>';
           if(ass) panelHtml+='<div style="font-size:10px;color:var(--muted)">Score: '+(ass.score||'—')+'% &middot; '+esc(ass.assessment_date||'')+'</div>';
-          panelHtml+='<a href="/grid/#vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Audit</a>';
+          panelHtml+='<a href="/grid/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Audit</a>';
         } else {
           panelHtml+='<div style="font-size:11px;color:var(--muted)">Not in Audit</div>'+
-            '<a href="/grid/#vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
+            '<a href="/grid/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
         }
         panelHtml+='</div></div>';
         if(flags.length){
@@ -2501,13 +2640,13 @@
         html+='<select id="bcmf_'+f.name+'" name="'+f.name+'"'+(f.required?' required':'')+'><option value="">Select...</option>';
         (f.options||[]).forEach(function(o){
           var sel=(String(val).toLowerCase()===String(o).toLowerCase())?' selected':'';
-          html+='<option value="'+esc(o)+'"'+sel+'>'+esc(o.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</option>';
+          html+='<option value="'+escAttr(o)+'"'+sel+'>'+esc(o.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</option>';
         });
         html+='</select>';
       } else if(f.type==='textarea'){
         html+='<textarea id="bcmf_'+f.name+'" name="'+f.name+'" rows="3"'+(f.required?' required':'')+'>'+esc(val)+'</textarea>';
       } else {
-        html+='<input type="'+(f.type||'text')+'" id="bcmf_'+f.name+'" name="'+f.name+'" value="'+esc(val)+'"'+(f.required?' required':'')+(f.placeholder?' placeholder="'+esc(f.placeholder)+'"':'')+'>';
+        html+='<input type="'+(f.type||'text')+'" id="bcmf_'+f.name+'" name="'+f.name+'" value="'+escAttr(val)+'"'+(f.required?' required':'')+(f.placeholder?' placeholder="'+escAttr(f.placeholder)+'"':'')+'>';
       }
       html+='</div>';
     });

@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Redirect
 from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_auth, require_capability
-from core.rbac import has_capability
+from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from database import get_db, insert_returning_id, sql_date_offset, sql_current_date
 from modules.governance.data_service import bu_scope_ids
@@ -966,11 +966,17 @@ async def api_evidence_link_create(request: Request, eid: int):
     entity_type = data.get("entity_type", "")
     entity_id   = data.get("entity_id")
     user_id     = _uid(request)
+    try:
+        entity_id = int(entity_id)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Invalid link target")
 
     db = get_db()
     try:
         if not _scoped_evidence_item(db, eid, request.state.user):
             raise HTTPException(404, "Evidence not found")
+        if not _visible_target(db, (module, entity_type), entity_id, request.state.user):
+            raise HTTPException(404, "Link target not found")
         lid = insert_returning_id(
             db,
             "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by) VALUES (%s,%s,%s,%s,%s)",
@@ -981,7 +987,7 @@ async def api_evidence_link_create(request: Request, eid: int):
         # ── IMS evidence inheritance ──────────────────────────────────────
         # When evidence is linked to a grid_control that is part of an IMS audit,
         # auto-create evidence_links for all ims_equivalent mapped controls.
-        if entity_type in ("grid_control", "control") and entity_id:
+        if module == "grid" and entity_type == "control" and entity_id:
             mapped_ctrls = db.execute("""
                 SELECT
                     CASE WHEN gcm.source_control_id=%s THEN gcm.target_control_id
@@ -998,7 +1004,7 @@ async def api_evidence_link_create(request: Request, eid: int):
                     "SELECT 1 FROM evidence_links WHERE evidence_id=%s AND entity_type=%s AND entity_id=%s AND deleted_at IS NULL",
                     (eid, entity_type, mapped_id)
                 ).fetchone()
-                if not exists:
+                if not exists and _visible_target(db, (module, entity_type), mapped_id, request.state.user):
                     db.execute(
                         "INSERT INTO evidence_links "
                         "(evidence_id, module, entity_type, entity_id, linked_by) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
@@ -1022,7 +1028,7 @@ async def api_evidence_link_create(request: Request, eid: int):
                     "SELECT 1 FROM evidence_links WHERE evidence_id=%s AND module='aria' AND entity_type='control' AND entity_id=%s AND deleted_at IS NULL",
                     (eid, mr[0])
                 ).fetchone()
-                if not exists:
+                if not exists and _visible_target(db, ("aria", "control"), mr[0], request.state.user):
                     db.execute(
                         "INSERT INTO evidence_links "
                         "(evidence_id, module, entity_type, entity_id, linked_by) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
@@ -1072,53 +1078,33 @@ async def api_evidence_suggest_links(request: Request, eid: int):
         existing = [dict(r) for r in db.execute(
             "SELECT module, entity_type, entity_id FROM evidence_links WHERE evidence_id = %s AND deleted_at IS NULL", (eid,)
         ).fetchall()]
-        controls = [dict(r) for r in db.execute(
-            "SELECT c.id, c.ref AS reference_code, c.name AS title, f.name AS framework_name "
-            "FROM controls c JOIN frameworks f ON f.id = c.framework_id LIMIT 100"
-        ).fetchall()]
-        # PLAN-36 T04 incidental fix: grid_audits has no framework_name column
-        # (only framework_id) -- this query has never once executed
-        # successfully; every suggest-links call silently fell through to
-        # the `except Exception: suggestions = []` below regardless of the
-        # erm_risks fix elsewhere in this function. Not named in F05, but
-        # in the exact function that finding is about and blocks verifying
-        # it at all, so fixed here rather than left broken. Joins
-        # grid_frameworks (GRID's own frameworks table, not the shared
-        # `frameworks` table the controls query above uses for ARIA) and
-        # is scoped by business unit like the risks query below it --
-        # audits were the one unscoped query in this function; without
-        # this, a scoped user's suggest-links call exposed every other
-        # business unit's audit names to the AI prompt.
-        audit_bu_scope = bu_scope_ids(request.state.user)
-        audit_where, audit_params = "a.status != 'closed'", []
-        if audit_bu_scope is not None:
-            ph = ",".join(["%s"] * len(audit_bu_scope))
-            audit_where += f" AND (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
-            audit_params = list(audit_bu_scope)
-        audits = [dict(r) for r in db.execute(
-            f"SELECT a.id, a.name, f.name AS framework_name FROM grid_audits a "
-            f"LEFT JOIN grid_frameworks f ON f.id = a.framework_id WHERE {audit_where} LIMIT 30",
-            audit_params,
-        ).fetchall()]
-        # PLAN-36 T04 (findings.md F05): erm_risks was renamed to
-        # erm_enterprise_risks; this query still targeted the old name and
-        # has never once returned a row. `title AS name` keeps the prompt
-        # text below identical to before -- nothing parses this dict by
-        # key, but audits (below) already uses plain `name` and there is no
-        # reason to introduce a second convention. Scoped by BU like every
-        # other ERM listing in this codebase (modules/erm/data_service.py's
-        # list_emerging, etc.) so another business unit's risk titles never
-        # reach the AI prompt.
-        risk_bu_scope = bu_scope_ids(request.state.user)
-        risk_where, risk_params = "", []
-        if risk_bu_scope is not None:
-            ph = ",".join(["%s"] * len(risk_bu_scope))
-            risk_where = f"WHERE (business_unit_id IN ({ph}) OR business_unit_id IS NULL)"
-            risk_params = list(risk_bu_scope)
-        risks = [dict(r) for r in db.execute(
-            f"SELECT id, title AS name, category FROM erm_enterprise_risks {risk_where} LIMIT 50",
-            risk_params,
-        ).fetchall()]
+        def candidates(key, columns, extra_join="", extra_where="", limit=50):
+            if key[0] not in user_modules(request.state.user):
+                return []
+            joins, where, params = _target_scope_sql(key, request.state.user)
+            if extra_where:
+                where.append(extra_where)
+            table = _ENTITY_RESOLVERS[key][0]
+            sql = f"SELECT {columns} FROM {table} t{joins}{extra_join}"
+            if where:
+                sql += " WHERE " + " AND ".join(where)
+            sql += f" LIMIT {limit}"
+            return [dict(row) for row in db.execute(sql, params).fetchall()]
+
+        controls = candidates(
+            ("aria", "control"),
+            "t.id, t.ref AS reference_code, t.name AS title, f.name AS framework_name",
+            " JOIN frameworks f ON f.id = t.framework_id", limit=100,
+        )
+        audits = candidates(
+            ("grid", "audit"),
+            "t.id, t.name, f.name AS framework_name",
+            " LEFT JOIN grid_frameworks f ON f.id = t.framework_id",
+            "t.status != 'closed'", limit=30,
+        )
+        risks = candidates(
+            ("erm", "risk"), "t.id, t.title AS name, t.category", limit=50,
+        )
     finally:
         db.close()
     evidence_info = dict(item)
@@ -1133,7 +1119,8 @@ async def api_evidence_suggest_links(request: Request, eid: int):
         f"Available audits: {audits[:20]}\n\n"
         f"Available risks: {risks[:30]}\n\n"
         "Suggest up to 5 linkages. Return JSON array of objects with keys: "
-        "module (aria/grid/erm), entity_type (control/audit/risk), entity_id (int), "
+        "module and entity_type must be one of aria/control, grid/audit, erm/risk; "
+        "entity_id (int), "
         "entity_name (str), reason (str, one sentence). "
         "Do NOT suggest items already linked. Only suggest high-confidence matches."
     )
@@ -1148,7 +1135,39 @@ async def api_evidence_suggest_links(request: Request, eid: int):
             suggestions = []
     except Exception:
         suggestions = []
-    return JSONResponse({"suggestions": suggestions})
+    allowed = {("aria", "control"), ("grid", "audit"), ("erm", "risk")}
+    existing_keys = {(r["module"], r["entity_type"], r["entity_id"]) for r in existing}
+    safe = []
+    seen = set()
+    db = get_db()
+    try:
+        for suggestion in suggestions:
+            if not isinstance(suggestion, dict):
+                continue
+            key = (suggestion.get("module"), suggestion.get("entity_type"))
+            if key not in allowed:
+                continue
+            try:
+                target_id = int(suggestion.get("entity_id"))
+            except (TypeError, ValueError):
+                continue
+            identity = (*key, target_id)
+            if identity in existing_keys or identity in seen:
+                continue
+            target = _visible_target(db, key, target_id, request.state.user)
+            if not target:
+                continue
+            safe.append({
+                "module": key[0], "entity_type": key[1], "entity_id": target_id,
+                "entity_name": target[_ENTITY_RESOLVERS[key][1]],
+                "reason": str(suggestion.get("reason") or "")[:240],
+            })
+            seen.add(identity)
+            if len(safe) == 5:
+                break
+    finally:
+        db.close()
+    return JSONResponse({"suggestions": safe})
 
 
 @router.get("/api/items/{eid}/audit")
@@ -1256,23 +1275,79 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
 # Mapping: (module, entity_type) → (table_name, name_column, url_template)
 # url_template uses {id} as placeholder for the entity_id
 _ENTITY_RESOLVERS: dict[tuple[str, str], tuple[str, str, str]] = {
-    ("aria", "control"):    ("aria_controls",       "name",   "/aria#controls/{id}"),
-    ("aria", "document"):   ("aria_documents",      "title",  "/aria#documents/{id}"),
-    ("aria", "risk"):       ("aria_risks",          "title",  "/aria#risks/{id}"),
-    ("aria", "framework"):  ("aria_frameworks",     "name",   "/aria#frameworks/{id}"),
-    ("grid", "audit"):      ("grid_audits",         "name",   "/grid#audits/{id}"),
-    ("grid", "control"):    ("grid_controls",       "name",   "/grid#controls/{id}"),
-    ("grid", "nc"):         ("grid_non_conformances", "title", "/grid#ncs/{id}"),
-    ("bcm", "plan"):        ("bcm_plans",           "name",   "/bcm#plans/{id}"),
-    ("bcm", "incident"):    ("bcm_incidents",       "title",  "/bcm#incidents/{id}"),
-    ("bcm", "risk"):        ("bcm_risks",           "title",  "/bcm#risks/{id}"),
-    ("bcm", "bia"):         ("bcm_bia_records",     "process_name", "/bcm#bia/{id}"),
-    ("sentinel", "ropa"):   ("sentinel_ropa",       "process_name", "/sentinel#ropa/{id}"),
-    ("sentinel", "dpia"):   ("sentinel_dpias",      "title",  "/sentinel#dpia/{id}"),
-    ("sentinel", "breach"):  ("sentinel_breaches",  "title",  "/sentinel#breaches/{id}"),
-    ("sentinel", "dsr"):    ("sentinel_dsr",        "subject_name", "/sentinel#dsr/{id}"),
-    ("sentinel", "vendor"):  ("sentinel_vendors",   "name",   "/sentinel#vendors/{id}"),
+    ("aria", "control"):    ("controls", "name", "/aria/frameworks"),
+    ("aria", "document"):   ("aria_documents", "title", "/aria/documents?open={doc_id}"),
+    ("aria", "risk"):       ("aria_risks", "description", "/aria/risks"),
+    ("aria", "framework"):  ("frameworks", "name", "/aria/frameworks"),
+    ("grid", "audit"):      ("grid_audits", "name", "/grid/audits/{id}"),
+    ("grid", "control"):    ("grid_controls", "name", "/grid/controls"),
+    ("grid", "nc"):         ("grid_non_conformances", "title", "/grid/?open=nc:{id}"),
+    ("grid", "non_conformance"): ("grid_non_conformances", "title", "/grid/?open=nc:{id}"),
+    ("bcm", "plan"):        ("bcm_plans", "title", "/bcm/plans"),
+    ("bcm", "incident"):    ("bcm_incidents", "title", "/bcm/?open=incident:{id}"),
+    ("bcm", "risk"):        ("bcm_risks", "title", "/bcm/risks"),
+    ("bcm", "bia"):         ("bcm_bia_records", "process_name", "/bcm/bia"),
+    ("bcm", "compliance_control"): ("bcm_compliance_controls", "title", "/bcm/compliance"),
+    ("sentinel", "ropa"):   ("sentinel_ropa", "processing_name", "/sentinel/?open=ropa:{id}"),
+    ("sentinel", "dpia"):   ("sentinel_dpias", "title", "/sentinel/?open=dpia:{id}"),
+    ("sentinel", "breach"): ("sentinel_breaches", "title", "/sentinel/?open=breach:{id}"),
+    ("sentinel", "dsr"):    ("sentinel_dsr", "requester_name", "/sentinel/?open=dsr:{id}"),
+    ("sentinel", "vendor"): ("sentinel_vendors", "name", "/sentinel/vendors"),
+    ("erm", "risk"):        ("erm_enterprise_risks", "title", "/erm/register?open=risk:{id}"),
 }
+
+
+_TARGET_BU_COLUMNS = {
+    ("aria", "document"): "t.business_unit_id",
+    ("grid", "audit"): "t.business_unit_id",
+    ("grid", "control"): "a.business_unit_id",
+    ("grid", "nc"): "a.business_unit_id",
+    ("grid", "non_conformance"): "a.business_unit_id",
+    ("bcm", "plan"): "t.business_unit_id",
+    ("bcm", "incident"): "t.business_unit_id",
+    ("bcm", "bia"): "t.business_unit_id",
+    ("sentinel", "ropa"): "t.business_unit_id",
+    ("sentinel", "dpia"): "t.business_unit_id",
+    ("sentinel", "breach"): "t.business_unit_id",
+    ("sentinel", "dsr"): "t.business_unit_id",
+    ("erm", "risk"): "t.business_unit_id",
+}
+
+
+def _target_scope_sql(key, user):
+    joins = " JOIN grid_audits a ON a.id = t.audit_id" if key in {
+        ("grid", "control"), ("grid", "nc"), ("grid", "non_conformance")
+    } else ""
+    where, params = [], []
+    if not user.get("is_super_admin"):
+        if key[0] not in user_modules(user):
+            where.append("1 = 0")
+        if key == ("aria", "document"):
+            if not user.get("org_id"):
+                where.append("1 = 0")
+            else:
+                where.append("t.org_id = %s")
+                params.append(user["org_id"])
+        bu_col = _TARGET_BU_COLUMNS.get(key)
+        scope = bu_scope_ids(user)
+        if bu_col and scope is not None:
+            if scope:
+                where.append(f"({bu_col} IS NULL OR {bu_col} IN ({','.join('%s' for _ in scope)}))")
+                params.extend(scope)
+            else:
+                where.append(f"{bu_col} IS NULL")
+    return joins, where, params
+
+
+def _visible_target(db, key, entity_id, user):
+    resolver = _ENTITY_RESOLVERS.get(key)
+    if not resolver or entity_id <= 0:
+        return None
+    joins, where, params = _target_scope_sql(key, user)
+    sql = f"SELECT t.* FROM {resolver[0]} t{joins} WHERE t.id = %s"
+    if where:
+        sql += " AND " + " AND ".join(where)
+    return db.execute(sql, (entity_id, *params)).fetchone()
 
 
 @router.get("/api/resolve-links")
@@ -1296,10 +1371,18 @@ async def api_resolve_links(request: Request):
     if not isinstance(link_specs, list) or len(link_specs) > 50:
         return JSONResponse({"error": "links must be an array of max 50 items"}, status_code=400)
 
+    try:
+        evidence_id = int(request.query_params.get("evidence_id", "0"))
+    except (TypeError, ValueError):
+        evidence_id = 0
     results = []
     db = get_db()
     try:
+        if not evidence_id or not _scoped_evidence_item(db, evidence_id, request.state.user):
+            return JSONResponse({"error": "Evidence item not found"}, status_code=404)
         for spec in link_specs:
+            if not isinstance(spec, dict):
+                return JSONResponse({"error": "Invalid link specification"}, status_code=400)
             module = str(spec.get("module", "")).strip().lower()
             entity_type = str(spec.get("entity_type", "")).strip().lower()
             try:
@@ -1317,15 +1400,22 @@ async def api_resolve_links(request: Request):
             }
 
             if resolver and entity_id:
-                table, name_col, url_tpl = resolver
-                # Use parameterised query — table/column names are from the
-                # hardcoded _ENTITY_RESOLVERS dict, never from user input.
-                row = db.execute(
-                    f"SELECT {name_col} FROM {table} WHERE id = %s", (entity_id,)
+                linked = db.execute(
+                    "SELECT 1 FROM evidence_links WHERE evidence_id = %s AND module = %s "
+                    "AND entity_type = %s AND entity_id = %s AND deleted_at IS NULL",
+                    (evidence_id, module, entity_type, entity_id),
                 ).fetchone()
+                if not linked:
+                    results.append(entry)
+                    continue
+                _, name_col, url_tpl = resolver
+                row = _visible_target(db, (module, entity_type), entity_id, request.state.user)
                 if row:
+                    from urllib.parse import quote
                     entry["name"] = row[name_col]
-                    entry["url"] = url_tpl.replace("{id}", str(entity_id))
+                    entry["url"] = url_tpl.replace("{id}", str(entity_id)).replace(
+                        "{doc_id}", quote(row["doc_id"], safe="") if (module, entity_type) == ("aria", "document") else ""
+                    )
 
             results.append(entry)
     finally:
@@ -1344,25 +1434,31 @@ async def api_search_entities(request: Request):
     entity_type = request.query_params.get("entity_type", "")
     q = request.query_params.get("q", "")
 
-    valid_modules = frozenset({"aria", "grid", "bcm", "sentinel"})
+    valid_modules = frozenset({"aria", "grid", "bcm", "sentinel", "erm"})
     if module not in valid_modules:
         return JSONResponse({"error": "Invalid module"}, 400)
 
     # Map (module, entity_type) → (table, name_col, id_col)
     entity_map = {
-        ("aria", "control"): ("aria_controls", "name", "id"),
+        ("aria", "control"): ("controls", "name", "id"),
         ("aria", "document"): ("aria_documents", "title", "id"),
-        ("aria", "risk"): ("aria_risks", "title", "id"),
-        ("aria", "framework"): ("aria_frameworks", "name", "id"),
+        ("aria", "risk"): ("aria_risks", "description", "id"),
+        ("aria", "framework"): ("frameworks", "name", "id"),
         ("grid", "audit"): ("grid_audits", "name", "id"),
         ("grid", "control"): ("grid_controls", "name", "id"),
         ("grid", "nc"): ("grid_non_conformances", "title", "id"),
-        ("bcm", "plan"): ("bcm_plans", "name", "id"),
+        ("grid", "non_conformance"): ("grid_non_conformances", "title", "id"),
+        ("bcm", "plan"): ("bcm_plans", "title", "id"),
         ("bcm", "incident"): ("bcm_incidents", "title", "id"),
         ("bcm", "risk"): ("bcm_risks", "title", "id"),
-        ("sentinel", "ropa"): ("sentinel_ropa", "process_name", "id"),
+        ("bcm", "bia"): ("bcm_bia_records", "process_name", "id"),
+        ("bcm", "compliance_control"): ("bcm_compliance_controls", "title", "id"),
+        ("sentinel", "ropa"): ("sentinel_ropa", "processing_name", "id"),
         ("sentinel", "dpia"): ("sentinel_dpias", "title", "id"),
         ("sentinel", "breach"): ("sentinel_breaches", "title", "id"),
+        ("sentinel", "dsr"): ("sentinel_dsr", "requester_name", "id"),
+        ("sentinel", "vendor"): ("sentinel_vendors", "name", "id"),
+        ("erm", "risk"): ("erm_enterprise_risks", "title", "id"),
     }
 
     key = (module, entity_type)
@@ -1372,15 +1468,17 @@ async def api_search_entities(request: Request):
     table, name_col, id_col = entity_map[key]
     db = get_db()
     try:
-        sql = f"SELECT {id_col} AS id, {name_col} AS name FROM {table}"
-        params = []
+        joins, where, params = _target_scope_sql(key, request.state.user)
         if q:
-            sql += f" WHERE {name_col} LIKE %s"
+            where.append(f"LOWER(t.{name_col}) LIKE LOWER(%s)")
             params.append(f"%{q}%")
-        sql += f" ORDER BY {name_col} LIMIT 50"
+        sql = f"SELECT t.{id_col} AS id, t.{name_col} AS name FROM {table} t{joins}"
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += f" ORDER BY t.{name_col} LIMIT 50"
         rows = db.execute(sql, params).fetchall()
     except Exception:
-        return JSONResponse([])
+        return JSONResponse({"error": "Entity search unavailable"}, status_code=503)
     finally:
         db.close()
     return JSONResponse([dict(r) for r in rows])
@@ -1389,52 +1487,81 @@ async def api_search_entities(request: Request):
 @router.get("/api/coverage")
 @require_auth
 async def api_evidence_coverage(request: Request):
-    """Evidence coverage per module: entities with evidence vs without."""
+    """Count linkable records and active evidence within the caller's scope."""
+    user = request.state.user
+    allowed_modules = set(user_modules(user))
+    checks = [
+        ("aria", "control", ("control",)),
+        ("aria", "document", ("document",)),
+        ("aria", "risk", ("risk",)),
+        ("aria", "framework", ("framework",)),
+        ("grid", "audit", ("audit",)),
+        ("grid", "control", ("control",)),
+        ("grid", "non_conformance", ("non_conformance", "nc")),
+        ("bcm", "plan", ("plan",)),
+        ("bcm", "incident", ("incident",)),
+        ("bcm", "risk", ("risk",)),
+        ("bcm", "bia", ("bia",)),
+        ("bcm", "compliance_control", ("compliance_control",)),
+        ("sentinel", "dpia", ("dpia",)),
+        ("sentinel", "breach", ("breach",)),
+        ("sentinel", "ropa", ("ropa",)),
+        ("sentinel", "dsr", ("dsr",)),
+        ("sentinel", "vendor", ("vendor",)),
+        ("erm", "risk", ("risk",)),
+    ]
+    coverage = {}
     db = get_db()
     try:
-        coverage = {}
-        # Define countable entities per module
-        checks = [
-            ("aria",     "control",        "aria_controls",         "id"),
-            ("aria",     "document",       "aria_documents",        "id"),
-            ("aria",     "risk",           "aria_risks",            "id"),
-            ("grid",     "audit",          "grid_audits",           "id"),
-            ("grid",     "control",        "grid_controls",         "id"),
-            ("grid",     "non_conformance","grid_non_conformances", "id"),
-            ("bcm",      "plan",           "bcm_plans",             "id"),
-            ("bcm",      "incident",       "bcm_incidents",         "id"),
-            ("bcm",      "risk",           "bcm_risks",             "id"),
-            ("sentinel", "dpia",           "sentinel_dpias",        "id"),
-            ("sentinel", "breach",         "sentinel_breaches",     "id"),
-            ("sentinel", "ropa",           "sentinel_ropa",         "id"),
-            ("sentinel", "dsr",            "sentinel_dsr",          "id"),
-            ("sentinel", "vendor",         "sentinel_vendors",      "id"),
-        ]
-        for mod, etype, table, id_col in checks:
-            try:
-                total = db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-                with_ev = db.execute(
-                    f"SELECT COUNT(DISTINCT t.{id_col}) FROM {table} t "
-                    f"JOIN evidence_links el ON el.entity_id=t.{id_col} "
-                    f"AND el.module=%s AND el.entity_type=%s",
-                    (mod, etype),
-                ).fetchone()[0]
-                if mod not in coverage:
-                    coverage[mod] = {"total": 0, "with_evidence": 0, "entities": []}
-                coverage[mod]["total"] += total
-                coverage[mod]["with_evidence"] += with_ev
-                coverage[mod]["entities"].append({
-                    "type": etype, "total": total,
-                    "with_evidence": with_ev,
-                    "pct": round(with_ev / total * 100) if total else 0,
-                })
-            except Exception:
-                pass  # Table may not exist yet
-        # Calculate module-level percentages
-        for mod in coverage:
-            t = coverage[mod]["total"]
-            w = coverage[mod]["with_evidence"]
-            coverage[mod]["pct"] = round(w / t * 100) if t else 0
+        for module, entity_type, link_types in checks:
+            if module not in allowed_modules:
+                continue
+            key = (module, entity_type)
+            table = _ENTITY_RESOLVERS[key][0]
+            joins, target_where, target_params = _target_scope_sql(key, user)
+            base = f" FROM {table} t{joins}"
+            total_sql = "SELECT COUNT(DISTINCT t.id)" + base
+            if target_where:
+                total_sql += " WHERE " + " AND ".join(target_where)
+            total = db.execute(total_sql, target_params).fetchone()[0]
+
+            marks = ",".join("%s" for _ in link_types)
+            linked_sql = (
+                "SELECT COUNT(DISTINCT t.id)" + base
+                + " JOIN evidence_links el ON el.entity_id = t.id"
+                + " JOIN evidence_items e ON e.id = el.evidence_id"
+                + f" WHERE el.module = %s AND el.entity_type IN ({marks})"
+                + " AND el.deleted_at IS NULL AND e.status != 'archived'"
+            )
+            linked_params = [module, *link_types]
+            if target_where:
+                linked_sql += " AND " + " AND ".join(target_where)
+                linked_params.extend(target_params)
+            if not user.get("is_super_admin"):
+                if not user.get("org_id"):
+                    linked_sql += " AND 1 = 0"
+                else:
+                    linked_sql += " AND e.org_id = %s"
+                    linked_params.append(user["org_id"])
+                scope = bu_scope_ids(user)
+                if scope is not None:
+                    if scope:
+                        linked_sql += f" AND (e.business_unit_id IS NULL OR e.business_unit_id IN ({','.join('%s' for _ in scope)}))"
+                        linked_params.extend(scope)
+                    else:
+                        linked_sql += " AND e.business_unit_id IS NULL"
+            with_evidence = db.execute(linked_sql, linked_params).fetchone()[0]
+            data = coverage.setdefault(module, {"total": 0, "with_evidence": 0, "entities": []})
+            data["total"] += total
+            data["with_evidence"] += with_evidence
+            data["entities"].append({
+                "type": entity_type,
+                "total": total,
+                "with_evidence": with_evidence,
+                "pct": round(with_evidence / total * 100) if total else 0,
+            })
+        for data in coverage.values():
+            data["pct"] = round(data["with_evidence"] / data["total"] * 100) if data["total"] else 0
     finally:
         db.close()
     return JSONResponse(coverage)

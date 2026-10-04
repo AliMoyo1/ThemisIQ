@@ -604,18 +604,18 @@ def list_enterprise_risks(category=None, status=None, source_module=None, board_
     try:
         where, params = [], []
         if category:
-            where.append("category=%s"); params.append(category)
+            where.append("e.category=%s"); params.append(category)
         if status:
-            where.append("status=%s"); params.append(status)
+            where.append("e.status=%s"); params.append(status)
         if source_module:
-            where.append("source_module=%s"); params.append(source_module)
+            where.append("e.source_module=%s"); params.append(source_module)
         if board_only:
-            where.append("board_visibility=1")
+            where.append("e.board_visibility=1")
         if bu_id is not None:
-            where.append("business_unit_id=%s"); params.append(bu_id)
+            where.append("e.business_unit_id=%s"); params.append(bu_id)
         if bu_scope is not None:
             ph = ",".join(["%s"] * len(bu_scope))
-            where.append(f"(business_unit_id IN ({ph}) OR business_unit_id IS NULL)")
+            where.append(f"(e.business_unit_id IN ({ph}) OR e.business_unit_id IS NULL)")
             params.extend(bu_scope)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         rows = db.execute(
@@ -623,8 +623,8 @@ def list_enterprise_risks(category=None, status=None, source_module=None, board_
             f"FROM erm_enterprise_risks e "
             f"LEFT JOIN users u ON u.id = e.owner_id "
             f"{clause} ORDER BY "
-            f"CASE status WHEN 'open' THEN 0 WHEN 'under_review' THEN 1 ELSE 2 END, "
-            f"(likelihood*impact) DESC LIMIT %s",
+            f"CASE e.status WHEN 'open' THEN 0 WHEN 'under_review' THEN 1 ELSE 2 END, "
+            f"(e.likelihood*e.impact) DESC LIMIT %s",
             params + [limit],
         ).fetchall()
         return _dicts(rows)

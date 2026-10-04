@@ -1,11 +1,11 @@
 """
-Launcher sub-router: Dashboard — Launcher home (/), My Dashboard.
+Launcher sub-router: Command Centre home and legacy dashboard API aliases.
 """
 import json as json_lib
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from database import insert_returning_id, sql_now_offset, sql_now_ts, sql_date_offset, sql_date_ts, sql_current_date, sql_current_timestamp
 from modules.launcher._route_helpers import (
@@ -112,10 +112,8 @@ async def launcher(request: Request):
 @router.get("/my-dashboard", response_class=HTMLResponse)
 @require_auth
 async def my_dashboard(request: Request):
-    """Role-specific dashboard with contextual widgets."""
-    ctx = shell_ctx(request, active_module="platform", active_section="my-dashboard")
-    ctx["user_caps"] = list(user_capabilities(request.state.user))
-    return shell_templates.TemplateResponse(request, "my_dashboard.html", ctx)
+    """Keep existing bookmarks working after dashboard consolidation."""
+    return RedirectResponse(url="/", status_code=302)
 
 
 def _org_scope_filter(user):
@@ -787,6 +785,91 @@ async def api_my_dashboard_preferences_put(request: Request):
 
 
 # ── Predictive AI Risk Analytics ─────────────────────────────────────────────
+
+# Per-user layout with a fixed widget catalog. Stored preferences cannot add
+# arbitrary selectors or markup to the rendered dashboard.
+_CC_WIDGETS = frozenset({
+    "modules", "compliance", "projects", "overdue", "erm_critical",
+    "sentinel_breaches", "erm_appetite", "orm_events", "bcm_incidents",
+    "grid_findings", "reviews", "frameworks", "evidence", "module_health",
+    "sla", "activity", "risks", "workflows", "overdue_table", "briefing",
+    "predictive", "pending_actions", "unread_alerts",
+})
+_CC_LAYOUT_KEY = "command_centre_layout_v1"
+
+
+@router.get("/api/command-centre/layout")
+@require_auth
+async def command_centre_layout_get(request: Request):
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT pref_value FROM user_preferences WHERE user_id = %s AND pref_key = %s",
+            (request.state.user["id"], _CC_LAYOUT_KEY),
+        ).fetchone()
+    finally:
+        db.close()
+    try:
+        layout = json_lib.loads(row["pref_value"]) if row else None
+    except (TypeError, ValueError, KeyError):
+        layout = None
+    return _JSONResp({"layout": layout})
+
+
+@router.put("/api/command-centre/layout")
+@require_auth
+async def command_centre_layout_put(request: Request):
+    try:
+        body = await _json_body(request)
+    except Exception:
+        return _JSONResp({"detail": "Invalid JSON body"}, status_code=400)
+    layout = body.get("layout") if isinstance(body, dict) else None
+    if layout is not None:
+        if not isinstance(layout, dict) or set(layout) != {"order", "hidden"}:
+            return _JSONResp({"detail": "Invalid dashboard layout"}, status_code=400)
+        order, hidden = layout.get("order"), layout.get("hidden")
+        if not all(isinstance(v, list) for v in (order, hidden)):
+            return _JSONResp({"detail": "Invalid dashboard layout"}, status_code=400)
+        if (len(order) > len(_CC_WIDGETS) or len(hidden) > len(_CC_WIDGETS)
+                or any(not isinstance(v, str) or v not in _CC_WIDGETS for v in order + hidden)
+                or len(order) != len(set(order)) or len(hidden) != len(set(hidden))
+                or any(v not in order for v in hidden)):
+            return _JSONResp({"detail": "Unknown or duplicate dashboard widget"}, status_code=400)
+    value = json_lib.dumps(layout, separators=(",", ":"))
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO user_preferences (user_id, pref_key, pref_value, updated_at) "
+            "VALUES (%s, %s, %s, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(user_id, pref_key) DO UPDATE SET pref_value = excluded.pref_value, "
+            "updated_at = excluded.updated_at",
+            (request.state.user["id"], _CC_LAYOUT_KEY, value),
+        )
+        db.commit()
+    finally:
+        db.close()
+    return _JSONResp({"ok": True, "layout": layout})
+
+
+@router.get("/api/command-centre/personal")
+@require_auth
+async def command_centre_personal(request: Request):
+    """Return only the current user's actionable counts."""
+    uid = request.state.user["id"]
+    db = get_db()
+    try:
+        pending = db.execute(
+            "SELECT COUNT(*) FROM workflow_actions WHERE assigned_to = %s AND status = 'pending'",
+            (uid,),
+        ).fetchone()[0]
+        unread = db.execute(
+            "SELECT COUNT(*) FROM notifications WHERE user_id = %s AND is_read = 0",
+            (uid,),
+        ).fetchone()[0]
+    finally:
+        db.close()
+    return _JSONResp({"pending_actions": pending, "unread_alerts": unread})
+
 
 @router.get("/api/predictive-risk")
 @require_auth

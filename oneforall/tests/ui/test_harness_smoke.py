@@ -23,7 +23,7 @@ def _action(action_id: str) -> dict:
 
 def test_login_navigation_modal_and_readonly_api(login_as, live_app):
     login = _action("auth.login.submit")
-    nav = _action("nav.launcher.my_dashboard")
+    nav = _action("nav.launcher.command_centre")
     modal = _action("aria.documents.add_document.open")
 
     # 1. Login (real form submit, real session cookie).
@@ -32,7 +32,7 @@ def test_login_navigation_modal_and_readonly_api(login_as, live_app):
         f"expected to land on {live_app}/ after login, got {page.url}"
     )
 
-    # 2. Navigation: the shell renders and its My Dashboard nav item is present.
+    # 2. Navigation: the shell renders and its Command Centre nav item is present.
     assert page.locator(nav["selector"]).count() > 0, (
         f"nav selector {nav['selector']!r} not found after login"
     )

@@ -72,6 +72,47 @@
   .breach-alert-row{flex-wrap:wrap;gap:8px}
   .ba-countdown{min-width:100%;text-align:left}
 }
+
+/* Personal Command Centre canvas */
+.cc-customize-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:16px 0 12px;padding:13px 18px;border-radius:20px;background:var(--surface);box-shadow:0 12px 32px rgba(20,40,31,.06)}
+.cc-customize-toolbar strong{display:block;font:500 22px/1.15 var(--display);letter-spacing:-.025em;color:var(--text)}
+.cc-customize-toolbar span{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+.cc-customizer{padding:18px 20px;margin-bottom:14px;border-radius:20px;background:var(--surface);box-shadow:0 16px 38px rgba(20,40,31,.08)}
+.cc-customizer[hidden]{display:none}
+.cc-customizer strong{font-size:14px;color:var(--text)}
+.cc-customizer p{margin:3px 0 12px;font-size:12px;color:var(--muted)}
+.cc-widget-palette{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.cc-widget-palette button{border:1px solid var(--border);border-radius:999px;background:var(--surface2);padding:7px 12px;color:var(--text);font:600 12px var(--font);cursor:pointer;transition:transform .2s,background .2s}
+.cc-widget-palette button:hover{transform:translateY(-2px);background:var(--surface3)}
+.cc-widget-palette .cc-all-added{font-size:12px;color:var(--muted)}
+.cc-dashboard-canvas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:stretch;margin-bottom:24px}
+.cc-widget{position:relative;min-width:0;grid-column:span 1;transition:filter .2s,transform .2s;animation:cc-enter .44s cubic-bezier(.2,.8,.2,1) both}
+.cc-widget[data-span="2"]{grid-column:span 2}
+.cc-widget[data-span="4"]{grid-column:span 4}
+.cc-widget[hidden]{display:none!important}
+.cc-widget-body{height:100%;min-width:0}
+.cc-widget-body>.stat-card,.cc-widget-body>.panel-card,.cc-widget-body>.card{height:100%;margin:0;box-sizing:border-box}
+.cc-widget-body>#ccModulesSection{height:100%;margin:0!important}
+.cc-widget-body>#ccModulesSection .cc-modules-grid{height:100%}
+.cc-widget[data-key="compliance"] .cc-widget-body>.stat-card{min-height:155px}
+.cc-widget-body>.stat-card{min-height:144px}
+.cc-widget-body>.panel-card{min-height:220px}
+.cc-widget[data-key="overdue_table"] .cc-widget-body>.card{min-height:250px}
+.cc-widget-tools{display:none;align-items:center;gap:5px;position:absolute;z-index:10;top:8px;right:9px;padding:4px;border-radius:12px;background:var(--surface);box-shadow:0 8px 22px rgba(10,30,25,.17)}
+.cc-editing .cc-widget-tools{display:flex}
+.cc-editing .cc-widget-body{pointer-events:none}
+.cc-widget-tools button{width:29px;height:29px;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--text-mid);font:600 14px var(--font);cursor:pointer}
+.cc-widget-tools button:hover,.cc-widget-tools button:focus-visible{background:var(--surface3);color:var(--text)}
+.cc-widget-tools .cc-drag-handle{cursor:grab;touch-action:none}
+.cc-widget-tools .cc-drag-handle:active{cursor:grabbing}
+.cc-widget.cc-dragging{opacity:.55;transform:scale(.98)}
+.cc-drag-ghost{position:fixed;z-index:9999;pointer-events:none;padding:10px 15px;border-radius:14px;background:var(--accent);color:#fff;font:700 12px var(--font);box-shadow:0 16px 32px rgba(10,30,25,.26);transform:rotate(-2deg)}
+.cc-widget.cc-drop-before:before,.cc-widget.cc-drop-after:after{content:"";position:absolute;z-index:12;top:8px;bottom:8px;width:4px;border-radius:8px;background:var(--accent);box-shadow:0 0 16px var(--accent)}
+.cc-widget.cc-drop-before:before{left:-9px}.cc-widget.cc-drop-after:after{right:-9px}
+@keyframes cc-enter{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:1100px){.cc-dashboard-canvas{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-widget[data-span="4"]{grid-column:span 2}}
+@media(max-width:620px){.cc-dashboard-canvas{grid-template-columns:minmax(0,1fr)}.cc-widget,.cc-widget[data-span="2"],.cc-widget[data-span="4"]{grid-column:span 1}.cc-customize-toolbar{align-items:flex-start;flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.cc-widget{animation:none!important;transition:none!important}}
 {% endblock %}
 
 {% block module_sidebar %}
@@ -203,7 +244,7 @@
 
 <!-- Module Tiles Grid -->
 {% if modules %}
-<div class="animate-fade-up" style="margin-bottom:24px">
+<div id="ccModulesSection" class="animate-fade-up" style="margin-bottom:24px">
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px">Your Modules</div>
   <div class="cc-modules-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px">
     {% for mod in modules %}
@@ -244,7 +285,18 @@
   <div class="breach-alert-list" id="ccBreachAlertList"></div>
 </div>
 
-<!-- 4 Stat Cards -->
+<!-- Live widget sources move into the personalized grid when the page initializes. -->
+<div class="cc-customize-toolbar" aria-label="Dashboard layout controls">
+  <div><strong>Your view</strong><span id="ccLayoutStatus" role="status" aria-live="polite">Arrange the signals that matter to you</span></div>
+  <button type="button" class="btn btn-secondary" id="ccCustomizeBtn" aria-expanded="false" aria-controls="ccCustomizer">Customise dashboard</button>
+</div>
+<div id="ccCustomizer" class="cc-customizer" hidden>
+  <div><strong>Add cards</strong><p>Drag a handle to move a card, or use its arrows. Hidden cards can be added again here.</p></div>
+  <div id="ccWidgetPalette" class="cc-widget-palette" aria-label="Available dashboard cards"></div>
+  <button type="button" class="btn btn-secondary" id="ccResetLayout">Reset layout</button>
+</div>
+<div id="ccDashboardCanvas" class="cc-dashboard-canvas" data-modules="{{ user_modules|join(',') }}" aria-label="Customizable Command Centre cards"></div>
+
 <div class="dash-section-heading"><h2>At a glance</h2><span>Enterprise position today</span></div>
 <div class="stats-row premium-kpi-grid cc-primary-metrics animate-fade-up anim-1">
   <!-- Hero: Overall Compliance — click to open ARIA -->
@@ -260,14 +312,14 @@
   </div>
 
   <!-- Active Projects — click to open Compliance Projects page -->
-  <div class="stat-card" onclick="window.location.href='/projects'" style="cursor:pointer" title="View Compliance Projects">
+  <div class="stat-card" id="ccProjectsCard" onclick="window.location.href='/projects'" style="cursor:pointer" title="View Compliance Projects">
     <div class="stat-label">Active Projects</div>
     <div class="stat-value" id="ccActiveProjects">—</div>
     <div class="stat-sub" id="ccProjectsList">—</div>
   </div>
 
   <!-- Overdue Actions — click to scroll to table -->
-  <div class="stat-card" onclick="document.getElementById('ccOverdueTable').scrollIntoView({behavior:'smooth'})" style="cursor:pointer" title="Jump to overdue items">
+  <div class="stat-card" id="ccOverdueCard" onclick="document.getElementById('ccOverdueTable').scrollIntoView({behavior:'smooth'})" style="cursor:pointer" title="Jump to overdue items">
     <div class="stat-label">Overdue Actions</div>
     <div class="stat-value" id="ccOverdueCount" style="color:var(--red)">—</div>
     <div class="stat-trend down" id="ccOverdueTrend" style="color:var(--red)">
@@ -280,6 +332,15 @@
 </div>
 
 <!-- ═══ Today's Briefing Strip ═══ -->
+<div class="cc-personal-source" id="ccPersonalSource">
+  <div class="stat-card" id="ccPendingActionsCard" onclick="window.location.href='/workflows'" style="cursor:pointer" title="Open assigned workflow actions">
+    <div class="stat-label">My Pending Actions</div><div class="stat-value" id="ccPendingActions">&mdash;</div><div class="stat-sub">Assigned to you</div>
+  </div>
+  <div class="stat-card" id="ccUnreadAlertsCard" onclick="document.getElementById('notifBtn').click()" style="cursor:pointer" title="Open your notifications">
+    <div class="stat-label">Unread Alerts</div><div class="stat-value" id="ccUnreadAlerts">&mdash;</div><div class="stat-sub">Your notifications</div>
+  </div>
+</div>
+
 <div id="briefingStrip" style="display:none;margin-bottom:16px">
   <div class="panel-card" style="padding:0;overflow:hidden">
     <div style="display:flex;align-items:center;padding:12px 16px;background:var(--accent);color:white;font-size:13px;font-weight:700">
@@ -375,13 +436,13 @@
     <div class="stat-sub">Next 30 days</div>
   </div>
   <!-- Active Frameworks -->
-  <div class="stat-card" onclick="window.location.href='/aria/'" style="cursor:pointer" title="Open Governance">
+  <div class="stat-card" id="ccFrameworksCard" onclick="window.location.href='/aria/'" style="cursor:pointer" title="Open Governance">
     <div class="stat-label">Active Frameworks</div>
     <div class="stat-value" id="ccActiveFrameworks" style="color:var(--accent)">—</div>
     <div class="stat-sub">Compliance frameworks</div>
   </div>
   <!-- Evidence Collected (kept but demoted) -->
-  <div class="stat-card" onclick="window.location.href='/evidence/'" style="cursor:pointer" title="Open Evidence Repository">
+  <div class="stat-card" id="ccEvidenceCard" onclick="window.location.href='/evidence/'" style="cursor:pointer" title="Open Evidence Repository">
     <div class="stat-label">Evidence Collected</div>
     <div class="stat-value" id="ccEvidenceCount">—</div>
     <div class="stat-sub">Repository</div>
@@ -391,7 +452,7 @@
 <!-- 3-Column Cards: Module Health, SLA Performance, Recent Activity -->
 <div class="three-col animate-fade-up anim-2">
   <!-- Module Health -->
-  <div class="panel-card">
+  <div class="panel-card" id="ccModuleHealthCard">
     <div class="panel-title">Module Health</div>
     <div id="ccModuleHealth">
       <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
@@ -435,7 +496,7 @@
   </div>
 
   <!-- Recent Activity -->
-  <div class="panel-card">
+  <div class="panel-card" id="ccActivityCard">
     <div class="panel-title">Recent Activity</div>
     <div id="ccRecentActivity">
       <div style="text-align:center;padding:24px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></div>
@@ -446,7 +507,7 @@
 <!-- Risk Register + Workflow strip -->
 <div class="two-col animate-fade-up anim-3" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px">
   <!-- Open Risks -->
-  <div class="panel-card" style="cursor:pointer" onclick="window.location.href='/risk-register'" title="Open Risk Register">
+  <div class="panel-card" id="ccRisksCard" style="cursor:pointer" onclick="window.location.href='/risk-register'" title="Open Risk Register">
     <div class="panel-title">Open Risks
       <span style="font-size:9px;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px">↗ Risk Register</span>
     </div>
@@ -457,7 +518,7 @@
     </div>
   </div>
   <!-- Active Workflows -->
-  <div class="panel-card" style="cursor:pointer" onclick="window.location.href='/workflows'" title="Open Workflows">
+  <div class="panel-card" id="ccWorkflowsCard" style="cursor:pointer" onclick="window.location.href='/workflows'" title="Open Workflows">
     <div class="panel-title">Active Workflows
       <span style="font-size:9px;color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0;margin-left:4px">↗</span>
     </div>
@@ -469,7 +530,7 @@
 </div>
 
 <!-- Overdue Action Items Table -->
-<div class="card animate-fade-up anim-4">
+<div class="card animate-fade-up anim-4" id="ccOverduePanel">
   <div class="card-header">
     <div class="card-title">Overdue Action Items</div>
   </div>
@@ -549,7 +610,7 @@
   function setLastUpdated(isoTs){
     const el = document.getElementById('ccLastUpdated');
     if(!el) return;
-    el.textContent = isoTs ? 'Updated ' + timeAgoShort(isoTs) : 'just now';
+    el.textContent = isoTs ? timeAgoShort(isoTs) : 'just now';
   }
 
   // ── Placeholder / fallback data (shown until real API endpoints are created) ──
@@ -746,7 +807,7 @@
       var regLabel = esc(a.regulation) + ' / ' + esc(a.authority);
       var hoursLabel = a.breach_hours ? a.breach_hours + 'h deadline' : 'ASAP';
 
-      html += '<div class="breach-alert-row" onclick="window.location.href=\'/sentinel/#breaches\'" title="Open in Sentinel">';
+      html += '<div class="breach-alert-row" onclick="window.location.href=\'/sentinel/breaches\'" title="Open in Sentinel">';
       html += '<span class="ba-sev ' + sevCls + '">' + esc(a.severity) + '</span>';
       html += '<div class="ba-info">';
       html += '<div class="ba-info-title">' + esc(a.ref) + ': ' + esc(a.title) + '</div>';
@@ -1319,4 +1380,5 @@ async function generateBoardReport(){
   }
 }
 </script>
+<script src="{{ url_for('static', path='js/command_centre_layout.js') }}"></script>
 {% endblock %}

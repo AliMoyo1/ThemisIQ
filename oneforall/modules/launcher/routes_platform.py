@@ -875,12 +875,12 @@ _TRAINER_ENTRIES = [
     (["home", "command", "centre", "center", "overview", "dashboard", "main"],
      "The Command Centre is your home dashboard showing key metrics across all modules. "
      "Use the icon sidebar on the far left to switch between modules. "
-     "The platform sidebar (right of the icons) has links to My Dashboard, Risk Register, "
+     "The platform sidebar (right of the icons) has links to Command Centre, Risk Register, "
      "Evidence Vault, Workflows, Reports, Task Board, Calendar, and Analytics."),
 
     (["dashboard", "personal", "assigned", "tasks"],
-     "My Dashboard shows your personal view: tasks assigned to you, recent activity, "
-     "upcoming deadlines, and quick links. Navigate to it from the platform sidebar."),
+     "Command Centre has movable cards for your actions, alerts, recent activity, "
+     "upcoming deadlines, and quick links. Open it from the platform sidebar."),
 
     (["navigate", "switch", "module", "sidebar", "menu", "icon"],
      "The far-left icon sidebar lets you switch between modules. Each icon represents "

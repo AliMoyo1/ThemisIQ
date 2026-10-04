@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_module, require_capability
 from core.shell_context import shell_ctx
+from core.rbac import has_capability
 from core.events import emit, ORM_EVENT_LOGGED, ORM_EVENT_ELEVATED, ORM_EVENT_RESOLVED
 from modules.orm import data_service as ds
 from modules.orm import ai_service as ai
@@ -45,6 +46,7 @@ async def orm_spa(request: Request):
     user = request.state.user
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
+        "orm_can_manage_controls": has_capability(user, "orm.event.manage"),
         **shell_ctx(request, active_module="orm"),
     })
 

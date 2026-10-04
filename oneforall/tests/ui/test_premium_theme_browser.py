@@ -6,7 +6,6 @@ import pytest
 
 THEMED_ROUTES = [
     ("/", "platform"),
-    ("/my-dashboard", "platform"),
     ("/aria/", "aria"),
     ("/grid/", "grid"),
     ("/bcm/", "bcm"),
@@ -66,7 +65,7 @@ def test_sign_in_controls_and_standalone_theme(page, live_app):
 
 
 ACCEPTANCE_ROUTES = [
-    "/", "/my-dashboard", "/tasks", "/reports", "/calendar",
+    "/", "/tasks", "/reports", "/calendar",
     "/risk-register", "/people", "/admin/users", "/admin/api-keys",
     "/admin/webhooks", "/admin/email", "/aria/documents",
     "/erm/register", "/erm/library", "/erm/external", "/evidence",

@@ -47,6 +47,8 @@ async def bcm_spa(request: Request):
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
         "bcm_can_manage_exercises": has_capability(user, "bcm.exercise.manage"),
+        "bcm_can_manage_dependencies": has_capability(user, "bcm.dependency.manage"),
+        "bcm_can_manage_comms": has_capability(user, "bcm.plan.manage"),
         **shell_ctx(request, active_module="bcm"),
     })
 

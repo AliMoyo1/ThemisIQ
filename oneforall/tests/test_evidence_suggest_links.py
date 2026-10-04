@@ -67,7 +67,7 @@ def _actor(db, uid, bu_id, org_id):
     )
     db.commit()
     return {"id": uid, "username": f"user{uid}", "business_unit_id": bu_id,
-            "org_id": org_id, "is_super_admin": 0}
+            "org_id": org_id, "is_super_admin": 0, "roles": ["compliance_manager"]}
 
 
 def _evidence_item(db, org_id, title="Evidence A"):
@@ -264,3 +264,60 @@ def test_suggest_links_uses_grid_frameworks_not_shared_frameworks_table(test_db,
     # so the framework_name value itself appears in the text only if the
     # join actually matched a real grid_frameworks row.
     assert "ISO 27001 GRID Copy" in captured["prompt"]
+
+def test_suggest_links_only_returns_authorized_real_targets(test_db, _mock_auth, monkeypatch):
+    finance = _bu(test_db, "Finance")
+    legal = _bu(test_db, "Legal")
+    org_id = _org(test_db)
+    actor = _actor(test_db, 10, bu_id=finance, org_id=org_id)
+    eid = _evidence_item(test_db, org_id=org_id)
+    _risk(test_db, "Visible Risk", bu_id=finance)
+    _risk(test_db, "Private Risk", bu_id=legal)
+    visible_id = test_db.execute(
+        "SELECT id FROM erm_enterprise_risks WHERE title='Visible Risk'"
+    ).fetchone()["id"]
+    private_id = test_db.execute(
+        "SELECT id FROM erm_enterprise_risks WHERE title='Private Risk'"
+    ).fetchone()["id"]
+
+    monkeypatch.setattr("core.ai_client.is_configured", lambda: True)
+    monkeypatch.setattr("core.ai_client.create_message", lambda *a, **k: "[]")
+    monkeypatch.setattr("core.ai_client.safe_json_parse", lambda raw: [
+        {"module": "erm", "entity_type": "risk", "entity_id": visible_id,
+         "entity_name": "Model-supplied name", "reason": "Related risk"},
+        {"module": "erm", "entity_type": "risk", "entity_id": private_id},
+        {"module": "grid", "entity_type": "audit", "entity_id": "1);alert(1)//"},
+        {"module": "unknown", "entity_type": "risk", "entity_id": 1},
+    ])
+
+    import json
+    result = _run(routes.api_evidence_suggest_links(_request_as(_mock_auth, actor), eid))
+    suggestions = json.loads(result.body)["suggestions"]
+    assert len(suggestions) == 1
+    assert suggestions[0]["entity_name"] == "Visible Risk"
+    assert suggestions[0]["entity_id"] == visible_id
+
+def test_suggest_links_lists_active_aria_controls(test_db, _mock_auth, monkeypatch):
+    finance = _bu(test_db, "Finance")
+    org_id = _org(test_db)
+    actor = _actor(test_db, 10, bu_id=finance, org_id=org_id)
+    eid = _evidence_item(test_db, org_id=org_id)
+    test_db.execute("INSERT INTO frameworks (name) VALUES ('Evidence AI Framework')")
+    framework_id = test_db.execute(
+        "SELECT id FROM frameworks WHERE name='Evidence AI Framework'"
+    ).fetchone()["id"]
+    test_db.execute(
+        "INSERT INTO controls (framework_id, ref, name) VALUES (%s, 'A.99', 'Live governance control')",
+        (framework_id,),
+    )
+    test_db.commit()
+    captured = {}
+    monkeypatch.setattr("core.ai_client.is_configured", lambda: True)
+    def fake_create_message(messages, **kwargs):
+        captured["prompt"] = messages[0]["content"]
+        return "[]"
+
+    monkeypatch.setattr("core.ai_client.create_message", fake_create_message)
+    monkeypatch.setattr("core.ai_client.safe_json_parse", lambda raw: [])
+    _run(routes.api_evidence_suggest_links(_request_as(_mock_auth, actor), eid))
+    assert "Live governance control" in captured["prompt"]

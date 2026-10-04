@@ -37,17 +37,17 @@
       "notes": "modules/launcher/routes_auth.py login_submit(); CSRF-protected, must be driven via the real form, not raw fetch."
     },
     {
-      "id": "nav.launcher.my_dashboard",
+      "id": "nav.launcher.command_centre",
       "module": "launcher.shell",
       "route": "/",
       "selector": "a.nav-item[href=\"/\"]",
-      "label": "My Dashboard",
+      "label": "Command Centre",
       "required_capability": null,
       "classification": "read_only",
       "backend": {"method": "GET", "path": "/"},
       "personas": ["super_admin", "org_admin", "policy_author", "policy_approver", "compliance_manager", "risk_owner", "audit_lead", "bcm_manager", "dpo", "employee", "external_auditor"],
       "fixture": "authenticated session (any persona)",
-      "expected_success_ui": "My Dashboard page renders, nav item gets .active",
+      "expected_success_ui": "Command Centre renders, nav item gets .active",
       "expected_failure_ui": "redirect to /login (session invalid) or error.html on 5xx",
       "destructive_test_policy": "safe_idempotent_read",
       "notes": "templates/base_shell.html:850. Used by T00's own harness-proof smoke test."

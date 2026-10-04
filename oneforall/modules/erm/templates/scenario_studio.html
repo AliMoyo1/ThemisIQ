@@ -184,8 +184,10 @@
       html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:flex-end">' +
         '<div class="form-group" style="margin:0"><label class="form-label" for="ssLinkType">Type</label>' +
           '<select id="ssLinkType"><option value="risk">Risk</option><option value="control">Control</option><option value="kri">KRI</option><option value="objective">Objective</option><option value="external_context">External Context</option></select></div>' +
-        '<div class="form-group" style="margin:0"><label class="form-label" for="ssLinkId">ID</label><input type="number" id="ssLinkId" style="width:80px"></div>' +
-        '<div class="form-group" style="margin:0;flex:1"><label class="form-label" for="ssLinkDelta">Delta JSON (optional)</label><input type="text" id="ssLinkDelta" placeholder="{&quot;likelihood_override&quot;: 5}" style="width:100%"></div>' +
+        '<div class="form-group" style="margin:0;flex:1;min-width:180px" id="ssLinkPickerWrap"><label class="form-label" for="ssLinkSearch">Find item</label><input id="ssLinkSearch" type="search" placeholder="Search by name" style="width:100%"><select id="ssLinkPicker" style="width:100%;margin-top:4px"><option value="">Choose an item</option></select></div>' +
+        '<div class="form-group" style="margin:0" id="ssLinkIdWrap"><label class="form-label" for="ssLinkId">Item ID</label><input type="number" min="1" id="ssLinkId" style="width:90px"></div>' +
+        '<div class="form-group" style="margin:0" id="ssRiskOverrideWrap"><label class="form-label" for="ssLikelihoodOverride">Scenario likelihood</label><select id="ssLikelihoodOverride"><option value="">Keep baseline</option><option value="1">1 - Rare</option><option value="2">2 - Unlikely</option><option value="3">3 - Possible</option><option value="4">4 - Likely</option><option value="5">5 - Almost certain</option></select><label class="form-label" for="ssImpactOverride">Scenario impact</label><select id="ssImpactOverride"><option value="">Keep baseline</option><option value="1">1 - Low</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5 - Severe</option></select></div>' +
+        '<details style="flex:1;min-width:180px"><summary style="cursor:pointer;font-size:12px">Advanced changes (JSON)</summary><div class="form-group" style="margin:4px 0"><label class="form-label" for="ssLinkDelta">Delta JSON</label><input type="text" id="ssLinkDelta" placeholder="{&quot;residual_likelihood_override&quot;: 4}" style="width:100%"></div></details>' +
         '<button class="btn btn-primary" id="ssAddLinkBtn" type="button" style="font-size:12px;padding:7px 14px">Add Link</button>' +
       '</div>';
     }
@@ -209,7 +211,15 @@
     var deleteBtn = document.getElementById('ssDeleteBtn');
     if (deleteBtn) deleteBtn.onclick = function () { deleteScenario(scenario.id); };
     var addLinkBtn = document.getElementById('ssAddLinkBtn');
-    if (addLinkBtn) addLinkBtn.onclick = function () { addLink(scenario.id); };
+    if (addLinkBtn) {
+      addLinkBtn.onclick = function () { addLink(scenario.id); };
+      document.getElementById('ssLinkType').onchange = loadLinkCandidates;
+      document.getElementById('ssLinkSearch').oninput = filterLinkCandidates;
+      document.getElementById('ssLinkPicker').onchange = function () {
+        document.getElementById('ssLinkId').value = this.value;
+      };
+      loadLinkCandidates();
+    }
     Array.prototype.forEach.call(el.querySelectorAll('.ss-unlink-btn'), function (btn) {
       btn.onclick = function () { removeLink(scenario.id, btn.getAttribute('data-type'), btn.getAttribute('data-id')); };
     });
@@ -234,15 +244,57 @@
     } catch (e) { toast(e.message, 'error'); }
   }
 
+  var linkCandidates = [];
+  async function loadLinkCandidates() {
+    var type = document.getElementById('ssLinkType').value;
+    var routes = { risk: '/erm/api/risks' };
+    var pickerWrap = document.getElementById('ssLinkPickerWrap');
+    var idWrap = document.getElementById('ssLinkIdWrap');
+    pickerWrap.style.display = routes[type] ? '' : 'none';
+    document.getElementById('ssRiskOverrideWrap').style.display = type === 'risk' ? '' : 'none';
+    idWrap.style.display = routes[type] ? 'none' : '';
+    document.getElementById('ssLinkId').value = '';
+    document.getElementById('ssLinkSearch').value = '';
+    if (!routes[type]) { linkCandidates = []; return; }
+    var picker = document.getElementById('ssLinkPicker');
+    picker.innerHTML = '<option value="">Loading...</option>';
+    try {
+      var rows = await api(routes[type]);
+      // The detail pane may have been replaced while the request was in flight.
+      if (!document.getElementById('ssLinkPicker') || document.getElementById('ssLinkType').value !== type) return;
+      linkCandidates = (Array.isArray(rows) ? rows : rows.items || []).map(function (row) {
+        return { id: row.id, label: row.title || row.name || ('#' + row.id) };
+      });
+      filterLinkCandidates();
+    } catch (e) {
+      picker.innerHTML = '<option value="">Could not load items; enter an ID</option>';
+      idWrap.style.display = '';
+    }
+  }
+  function filterLinkCandidates() {
+    var picker = document.getElementById('ssLinkPicker');
+    if (!picker) return;
+    var term = document.getElementById('ssLinkSearch').value.trim().toLowerCase();
+    var rows = linkCandidates.filter(function (row) { return String(row.label).toLowerCase().indexOf(term) >= 0; });
+    picker.innerHTML = '<option value="">'+(rows.length?'Choose an item':'No matches')+'</option>' +
+      rows.slice(0, 100).map(function (row) { return '<option value="' + Number(row.id) + '">' + esc(row.label) + '</option>'; }).join('');
+  }
+
   async function addLink(scenarioId) {
     var type = document.getElementById('ssLinkType').value;
-    var id = parseInt(document.getElementById('ssLinkId').value, 10);
+    var id = parseInt(document.getElementById('ssLinkId').value || (document.getElementById('ssLinkPicker') && document.getElementById('ssLinkPicker').value), 10);
     var deltaRaw = document.getElementById('ssLinkDelta').value.trim();
     var delta = {};
     if (deltaRaw) {
       try { delta = JSON.parse(deltaRaw); } catch (e) { toast('Delta must be valid JSON', 'error'); return; }
     }
-    if (!id) { toast('Enter a valid ID', 'error'); return; }
+    if (type === 'risk') {
+      var likelihood = document.getElementById('ssLikelihoodOverride').value;
+      var impact = document.getElementById('ssImpactOverride').value;
+      if (likelihood) delta.likelihood_override = Number(likelihood);
+      if (impact) delta.impact_override = Number(impact);
+    }
+    if (!id) { toast('Choose an item or enter a valid ID', 'error'); return; }
     try {
       await api('/erm/api/scenarios/' + scenarioId + '/links', { method: 'POST', body: { link_type: type, link_id: id, delta: delta } });
       toast('Link added', 'success');

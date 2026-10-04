@@ -20,7 +20,6 @@ _VIEWPORT_IDS = [f"{w}x{h}" for w, h in DESKTOP_VIEWPORTS]
 # Same acceptance routes as test_200_percent_zoom.py (T07).
 ROUTES = [
     ("/", "super_admin"),
-    ("/my-dashboard", "super_admin"),
     ("/tasks", "super_admin"),
     ("/reports", "super_admin"),
     ("/calendar", "super_admin"),

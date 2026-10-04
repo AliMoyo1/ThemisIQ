@@ -2299,7 +2299,7 @@
     if(banner){
       banner.innerHTML=dpaGaps.length
         ? '<div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(249,115,22,.07);border:1px solid rgba(249,115,22,.25);border-radius:8px;font-size:12px;font-weight:600;color:#f97316">'+
-          '<span>⚠</span><span>'+dpaGaps.length+' high-criticality vendor'+(dpaGaps.length>1?'s':'')+' have no Privacy DPA record — <a href="/sentinel/#vendors" style="color:#f97316;text-decoration:underline">register in Privacy</a></span></div>'
+          '<span>⚠</span><span>'+dpaGaps.length+' high-criticality vendor'+(dpaGaps.length>1?'s':'')+' have no Privacy DPA record — <a href="/sentinel/vendors" style="color:#f97316;text-decoration:underline">register in Privacy</a></span></div>'
         : '';
     }
 
@@ -2367,10 +2367,10 @@
       var dpa=mods.sentinel.dpa_status||'pending';
       var dpaCol=dpa==='signed'?'#16a34a':dpa==='expired'?'#dc2626':'#d97706';
       html+='<div style="font-size:11px;font-weight:700;color:'+dpaCol+'">DPA: '+esc(dpa)+'</div>'+
-        '<a href="/sentinel/#vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Privacy</a>';
+        '<a href="/sentinel/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Privacy</a>';
     } else {
       html+='<div style="font-size:11px;color:var(--muted)">Not in Privacy</div>'+
-        '<a href="/sentinel/#vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
+        '<a href="/sentinel/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
     }
     html+='</div>';
     // Resilience
@@ -2378,10 +2378,10 @@
     if(mods.bcm){
       var tierCol=mods.bcm.tier===1?'#dc2626':mods.bcm.tier===2?'#f97316':'#16a34a';
       html+='<div style="font-size:11px;font-weight:700;color:'+tierCol+'">Tier '+esc(String(mods.bcm.tier||3))+'</div>'+
-        '<a href="/bcm/#vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Resilience</a>';
+        '<a href="/bcm/vendors" style="font-size:10px;color:var(--accent);text-decoration:none">→ View in Resilience</a>';
     } else {
       html+='<div style="font-size:11px;color:var(--muted)">Not in Resilience</div>'+
-        '<a href="/bcm/#vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
+        '<a href="/bcm/vendors" style="font-size:10px;color:var(--muted);text-decoration:none">+ Register →</a>';
     }
     html+='</div></div>';
     if(flags.length){

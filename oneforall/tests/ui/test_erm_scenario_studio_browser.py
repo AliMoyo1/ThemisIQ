@@ -32,3 +32,34 @@ def test_scenario_studio_loads_and_creates_a_scenario(live_app, page, synthetic_
     # which does not auto-retry the way wait_for_selector does.
     page.wait_for_selector("#ssDetailPane .ss-card-title:has-text('Browser-created scenario')", timeout=5000)
     assert page.locator("#ssDetailPane .ss-card-title:has-text('Browser-created scenario')").count() == 1
+
+
+
+def test_scenario_studio_risk_picker_and_guided_override(live_app, page, login_as, synthetic_tenant):
+    import database
+
+    db = database.get_db()
+    try:
+        db.execute(
+            "INSERT INTO erm_enterprise_risks (title, status, likelihood, impact, business_unit_id) "
+            "VALUES ('Browser picker risk', 'open', 2, 3, %s)",
+            (synthetic_tenant["business_unit_id"],),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    login_as("risk_owner")
+    page.goto(f"{live_app}/erm/scenario-studio")
+    page.locator("#ssNewScenarioBtn").click()
+    page.locator("#ssNewTitle").fill("Browser picker scenario")
+    page.locator("#ssNewSubmitBtn").click()
+    page.locator("#ssLinkSearch").wait_for()
+    page.locator("#ssLinkSearch").fill("Browser picker")
+    page.locator("#ssLinkPicker").select_option(label="Browser picker risk")
+    page.locator("#ssLikelihoodOverride").select_option("5")
+    page.locator("#ssImpactOverride").select_option("4")
+    page.locator("#ssAddLinkBtn").click()
+    page.locator(".ss-link-row:has-text('Browser picker risk')").wait_for()
+    page.locator("#ssComputeBtn").click()
+    page.locator("#ssImpactResult table").first.wait_for()

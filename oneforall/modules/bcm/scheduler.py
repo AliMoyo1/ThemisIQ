@@ -124,7 +124,7 @@ def _plan_review_check() -> None:
                 f"BCM: {created} plan(s) due for review",
                 f"{created} continuity plan(s) are due for review within 30 days. "
                 f"Check the Task Board for details.",
-                "/bcm/#plans",
+                "/bcm/plans",
             )
 
         db.commit()
@@ -248,7 +248,7 @@ def _training_due_check() -> None:
                 f"BCM: {created} training module(s) due within 7 days",
                 f"{created} BCM training module(s) are due within 7 days. "
                 f"Check the Task Board for details.",
-                "/bcm/#training",
+                "/bcm/training",
             )
 
         db.commit()

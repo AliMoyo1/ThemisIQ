@@ -53,23 +53,21 @@ def test_task_move_reverts_the_optimistic_update_on_a_real_rejection(login_as, l
     assert "moved by someone else" in page.locator(".toast-error").inner_text()
 
 
-def test_my_dashboard_loads_via_apiclient(login_as, live_app):
+def test_legacy_dashboard_bookmark_opens_command_centre(login_as, live_app):
     page = login_as("super_admin")
-    seen = {"hit": False}
-    page.on("request", lambda req: seen.__setitem__("hit", seen["hit"] or "/api/my-dashboard/" in req.url))
     page.goto(f"{live_app}/my-dashboard")
-    page.wait_for_selector("#dashStats", timeout=5000)
-    page.wait_for_load_state("networkidle", timeout=10000)
-    assert seen["hit"], "expected a real request under /api/my-dashboard/, saw none"
-    assert not page.console_errors, f"unexpected console/page errors: {page.console_errors}"
+    page.wait_for_selector("#ccDashboardCanvas .cc-widget")
+    assert page.url.rstrip("/") == live_app.rstrip("/")
+    assert page.locator('a.nav-item[href="/my-dashboard"]').count() == 0
+    assert page.locator("#ccPersonalSource").count() == 0
+    assert not page.console_errors, page.console_errors
 
 
-def test_my_dashboard_data_load_failure_shows_a_toast_instead_of_a_blank_page(login_as, live_app):
-    """loadDashboard() previously did `if (!resp.ok) return;` -- a failure
-    left the page blank with no explanation at all."""
+def test_personal_counts_failure_does_not_blank_dashboard(login_as, live_app):
     page = login_as("super_admin")
-    page.route("**/api/my-dashboard/data", lambda r: r.fulfill(
-        status=500, content_type="application/json", body='{"detail": "Dashboard data unavailable."}'))
-    page.goto(f"{live_app}/my-dashboard")
-    page.wait_for_selector(".toast-error", timeout=5000)
-    assert "Dashboard data unavailable" in page.locator(".toast-error").inner_text()
+    page.route("**/api/command-centre/personal", lambda r: r.fulfill(
+        status=500, content_type="application/json", body='{"detail":"Unavailable"}'))
+    page.goto(f"{live_app}/")
+    page.wait_for_selector("#ccDashboardCanvas .cc-widget")
+    assert page.locator("#ccComplianceCard").count() == 1
+    assert page.locator("#ccPendingActions").inner_text() == "\u2014"

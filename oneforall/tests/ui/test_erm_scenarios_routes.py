@@ -131,3 +131,26 @@ def test_verify_chain_literal_route_not_shadowed_by_pack_id_route(live_app, synt
         assert "problems" in resp.json()
     finally:
         client.close()
+
+
+
+def test_bu_scoped_risk_listing_for_scenario_picker(live_app, synthetic_tenant):
+    db = database.get_db()
+    try:
+        db.execute(
+            "INSERT INTO erm_enterprise_risks (title, status, business_unit_id) "
+            "VALUES ('Picker scoped risk', 'open', %s)",
+            (synthetic_tenant["business_unit_id"],),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    creds = synthetic_tenant["users"]["risk_owner"]
+    client = _login(live_app, creds["username"], creds["password"])
+    try:
+        response = client.get("/erm/api/risks")
+        assert response.status_code == 200, response.text
+        assert any(row["title"] == "Picker scoped risk" for row in response.json())
+    finally:
+        client.close()
