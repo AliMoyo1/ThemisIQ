@@ -25,6 +25,7 @@ browser; everything else stays in-process against a stub DB connection
 (see tests/conftest.py's test_db fixture).
 """
 import os
+import secrets
 import socket
 import threading
 import time
@@ -58,9 +59,17 @@ PERSONAS = {
 
 
 def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    # Windows can assign low ephemeral ports such as 1720, which Chromium
+    # rejects with ERR_UNSAFE_PORT before a browser test reaches the app.
+    for _ in range(100):
+        candidate = 20000 + secrets.randbelow(40000)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", candidate))
+            except OSError:
+                continue
+            return candidate
+    raise RuntimeError("UI harness could not find a free browser-safe port")
 
 
 class _ServerThread(threading.Thread):

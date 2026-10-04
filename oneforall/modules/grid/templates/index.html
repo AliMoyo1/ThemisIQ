@@ -4,10 +4,10 @@
 
 {% block extra_styles %}
 /* ── GRID SPA styles ── */
-.grid-donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;margin:0 auto}
+.grid-donut-wrap{position:relative;width:176px;height:176px;flex-shrink:0;margin:0 auto}
 .grid-donut-wrap svg{display:block;width:100%;height:100%}
 .grid-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
-.grid-donut-pct{font-size:26px;font-weight:800;color:var(--text);line-height:1}
+.grid-donut-pct{font:500 42px/1 var(--display);letter-spacing:-.05em;color:var(--text);font-variant-numeric:tabular-nums}
 .grid-donut-lbl{font-size:9px;color:var(--muted);font-weight:600;letter-spacing:1px;margin-top:3px}
 .grid-ev-stats{display:flex;gap:24px;margin-top:18px;justify-content:center}
 .grid-ev-stat{text-align:center}
@@ -300,7 +300,7 @@
     </div>
 
     <!-- Onboarding Banner -->
-    <div id="gridOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+    <div id="gridOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with GRID</h3>
         <button onclick="this.closest('#gridOnboardBanner').style.display='none';localStorage.setItem('hide_grid_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
@@ -320,17 +320,20 @@
       </div>
       <div class="panel-card">
         <div class="panel-title">Evidence Collection</div>
-        <div style="display:flex;flex-direction:column;align-items:center">
+        <div class="grid-chart-content">
           <div class="grid-donut-wrap">
-            <svg viewBox="0 0 140 140" id="gridEvidenceDonut">
+            <svg viewBox="0 0 140 140" id="gridEvidenceDonut" aria-hidden="true">
               <circle cx="70" cy="70" r="56" fill="none" stroke="var(--surface3)" stroke-width="10"/>
               <circle cx="70" cy="70" r="56" fill="none" stroke="var(--accent)" stroke-width="10"
                       stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
-                      transform="rotate(-90 70 70)" id="gridEvCollectedArc" style="transition:stroke-dashoffset 1s ease"/>
+                      transform="rotate(-90 70 70)" id="gridEvCollectedArc" style="transition:stroke-dashoffset 1s ease"><title>Collected: 0 controls</title></circle>
+              <circle cx="70" cy="70" r="56" fill="none" stroke="var(--amber)" stroke-width="10"
+                      stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="butt"
+                      transform="rotate(-90 70 70)" id="gridEvPendingArc" style="transition:stroke-dashoffset 1s ease"><title>Pending: 0 controls</title></circle>
             </svg>
             <div class="grid-donut-center">
               <div class="grid-donut-pct" id="gridEvPct">&mdash;</div>
-              <div class="grid-donut-lbl">COLLECTED</div>
+              <div class="grid-donut-lbl" id="gridEvCaption">COLLECTED</div>
             </div>
           </div>
           <div class="grid-ev-stats">
@@ -819,17 +822,30 @@
   }
 
   function populateEvidenceDonut(data){
-    // Calculate evidence from audit controls
     const audits=data.audits||[];
     let collected=0,total=0;
     audits.forEach(a=>{collected+=(a.complete_controls||0);total+=(a.total_controls||0);});
-    const pending=total-collected;
+    collected=Math.max(0,Math.min(total,collected));
+    const pending=Math.max(0,total-collected);
     const pct=total?Math.round(collected/total*100):0;
     const circ=2*Math.PI*56;
-    document.getElementById('gridEvCollectedArc').setAttribute('stroke-dashoffset',circ-(circ*pct/100));
-    document.getElementById('gridEvPct').textContent=pct+'%';
+    const doneArc=document.getElementById('gridEvCollectedArc');
+    const pendingArc=document.getElementById('gridEvPendingArc');
+    doneArc.querySelector('title').textContent='Collected: '+collected+' controls';
+    pendingArc.querySelector('title').textContent='Pending: '+pending+' controls';
+    function paint(){
+      doneArc.style.visibility=collected?'visible':'hidden';
+      pendingArc.style.visibility=pending?'visible':'hidden';
+      doneArc.setAttribute('stroke-dashoffset',String(circ*(1-collected/(total||1))));
+      pendingArc.setAttribute('transform','rotate('+(-90+360*collected/(total||1))+' 70 70)');
+      pendingArc.setAttribute('stroke-dashoffset',String(circ*(1-pending/(total||1))));
+    }
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)paint();
+    else requestAnimationFrame(()=>requestAnimationFrame(paint));
+    document.getElementById('gridEvPct').textContent=total?pct+'%':String.fromCharCode(8212);
+    document.getElementById('gridEvCaption').textContent=total?'COLLECTED':'NO AUDIT CONTROLS';
     document.getElementById('gridEvCollected').textContent=collected;
-    document.getElementById('gridEvPending').textContent=pending>0?pending:0;
+    document.getElementById('gridEvPending').textContent=pending;
     document.getElementById('gridEvOverdue').textContent=0;
   }
 

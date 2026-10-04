@@ -393,7 +393,7 @@
   </div>
 
   <!-- Onboarding Banner -->
-  <div id="snOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+  <div id="snOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Sentinel</h3>
       <button onclick="this.closest('#snOnboardBanner').style.display='none';localStorage.setItem('hide_sn_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
@@ -421,13 +421,13 @@
             <circle cx="55" cy="55" r="42" fill="none" stroke="var(--surface3)" stroke-width="10"/>
             <circle cx="55" cy="55" r="42" fill="none" stroke="var(--red)" stroke-width="10"
                     stroke-dasharray="263.89" stroke-dashoffset="263.89" stroke-linecap="round"
-                    transform="rotate(-90 55 55)" id="snRiskHigh" style="transition:stroke-dashoffset 1s ease"/>
+                    transform="rotate(-90 55 55)" id="snRiskHigh" style="transition:stroke-dashoffset 1s ease"><title>High risk: 0 DPIAs</title></circle>
             <circle cx="55" cy="55" r="42" fill="none" stroke="var(--amber)" stroke-width="10"
                     stroke-dasharray="263.89" stroke-dashoffset="263.89" stroke-linecap="round"
-                    transform="rotate(-90 55 55)" id="snRiskMed" style="transition:stroke-dashoffset 1s ease"/>
+                    transform="rotate(-90 55 55)" id="snRiskMed" style="transition:stroke-dashoffset 1s ease"><title>Medium risk: 0 DPIAs</title></circle>
             <circle cx="55" cy="55" r="42" fill="none" stroke="var(--green-status)" stroke-width="10"
                     stroke-dasharray="263.89" stroke-dashoffset="263.89" stroke-linecap="round"
-                    transform="rotate(-90 55 55)" id="snRiskLow" style="transition:stroke-dashoffset 1s ease"/>
+                    transform="rotate(-90 55 55)" id="snRiskLow" style="transition:stroke-dashoffset 1s ease"><title>Low risk: 0 DPIAs</title></circle>
           </svg>
           <div class="sn-donut-center">
             <div class="sn-donut-pct" id="snRiskTotal">&mdash;</div>
@@ -1322,20 +1322,27 @@
     '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--muted);font-weight:600">Total Requests</span><span style="font-family:var(--mono);font-weight:700;color:var(--text)">'+(dsr.total||(dsr.open+dsr.in_progress+dsr.completed))+'</span></div>';
   }
   function populateRiskDonut(dpia){
-    var total=(dpia.high||0)+(dpia.medium||0)+(dpia.low||0);
+    var counts=[Math.max(0,dpia.high||0),Math.max(0,dpia.medium||0),Math.max(0,dpia.low||0)];
+    var total=counts.reduce(function(sum,n){return sum+n;},0);
     var circ=2*Math.PI*42;
     document.getElementById('snRiskTotal').textContent=total||dpia.total||0;
-    document.getElementById('snRiskHighVal').textContent=dpia.high||0;
-    document.getElementById('snRiskMedVal').textContent=dpia.medium||0;
-    document.getElementById('snRiskLowVal').textContent=dpia.low||0;
-    if(total>0){
-      var hp=(dpia.high||0)/total,mp=(dpia.medium||0)/total,lp=(dpia.low||0)/total;
-      document.getElementById('snRiskHigh').setAttribute('stroke-dashoffset',circ-(circ*hp));
-      document.getElementById('snRiskMed').setAttribute('transform','rotate('+((hp*360)-90)+' 55 55)');
-      document.getElementById('snRiskMed').setAttribute('stroke-dashoffset',circ-(circ*mp));
-      document.getElementById('snRiskLow').setAttribute('transform','rotate('+(((hp+mp)*360)-90)+' 55 55)');
-      document.getElementById('snRiskLow').setAttribute('stroke-dashoffset',circ-(circ*lp));
+    document.getElementById('snRiskHighVal').textContent=counts[0];
+    document.getElementById('snRiskMedVal').textContent=counts[1];
+    document.getElementById('snRiskLowVal').textContent=counts[2];
+    function paint(){
+      var angle=-90;
+      ['snRiskHigh','snRiskMed','snRiskLow'].forEach(function(id,i){
+        var arc=document.getElementById(id);
+        arc.querySelector('title').textContent=['High risk: ','Medium risk: ','Low risk: '][i]+counts[i]+' DPIAs';
+        var fraction=total?counts[i]/total:0;
+        arc.style.visibility=counts[i]?'visible':'hidden';
+        arc.setAttribute('transform','rotate('+angle+' 55 55)');
+        arc.setAttribute('stroke-dashoffset',String(circ*(1-fraction)));
+        angle+=fraction*360;
+      });
     }
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)paint();
+    else requestAnimationFrame(function(){requestAnimationFrame(paint);});
   }
   function populateActivity(items){
     var el=document.getElementById('snRecentActivity');

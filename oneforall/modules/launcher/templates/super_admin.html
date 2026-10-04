@@ -717,7 +717,7 @@ function renderDemoChart() {
     var h = b.count === 0 ? 4 : Math.max(8, Math.round((b.count / maxCount) * 72));
     var color = b.contacted === b.count && b.count > 0 ? '#16a34a' : b.count > 0 ? '#f59e0b' : 'var(--border)';
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end" title="' + b.label + ': ' + b.count + ' request(s)">' +
-           '<div style="width:100%;height:' + h + 'px;background:' + color + ';border-radius:3px 3px 0 0;transition:height .2s"></div>' +
+           '<div class="premium-chart-column" style="width:100%;height:' + h + 'px;background:' + color + ';border-radius:7px 7px 2px 2px;transition:height .2s"></div>' +
            '</div>';
   }).join('');
 

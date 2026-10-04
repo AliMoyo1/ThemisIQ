@@ -8,7 +8,7 @@
 .stat-card-hero .pbar-fill{background:white}
 .stat-card-hero .stat-trend{color:rgba(255,255,255,0.85)}
 .stat-card-hero .stat-sub{color:rgba(255,255,255,0.7)}
-.stat-card-incident{border-left:3px solid var(--red)}
+
 
 .plan-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
 .plan-item:last-child{border-bottom:none}
@@ -293,7 +293,7 @@
   </div>
 
   <!-- Getting Started banner -->
-  <div id="bcmOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+  <div id="bcmOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Business Continuity</h3>
       <button onclick="this.closest('#bcmOnboardBanner').style.display='none';localStorage.setItem('hide_bcm_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
@@ -321,16 +321,16 @@
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface3)" stroke-width="10"/>
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--red)" stroke-width="10"
                     stroke-dasharray="0 314.16" stroke-linecap="round"
-                    transform="rotate(-90 60 60)" id="riskArcCrit" style="transition:stroke-dasharray 1s ease"/>
+                    transform="rotate(-90 60 60)" id="riskArcCrit" style="transition:stroke-dasharray 1s ease"><title>Critical: 0 risks</title></circle>
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--amber)" stroke-width="10"
                     stroke-dasharray="0 314.16" stroke-linecap="round"
-                    transform="rotate(-90 60 60)" id="riskArcHigh" style="transition:stroke-dasharray 1s ease"/>
+                    transform="rotate(-90 60 60)" id="riskArcHigh" style="transition:stroke-dasharray 1s ease"><title>High: 0 risks</title></circle>
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--blue)" stroke-width="10"
                     stroke-dasharray="0 314.16" stroke-linecap="round"
-                    transform="rotate(-90 60 60)" id="riskArcMed" style="transition:stroke-dasharray 1s ease"/>
+                    transform="rotate(-90 60 60)" id="riskArcMed" style="transition:stroke-dasharray 1s ease"><title>Medium: 0 risks</title></circle>
             <circle cx="60" cy="60" r="50" fill="none" stroke="var(--green-status)" stroke-width="10"
                     stroke-dasharray="0 314.16" stroke-linecap="round"
-                    transform="rotate(-90 60 60)" id="riskArcLow" style="transition:stroke-dasharray 1s ease"/>
+                    transform="rotate(-90 60 60)" id="riskArcLow" style="transition:stroke-dasharray 1s ease"><title>Low: 0 risks</title></circle>
           </svg>
           <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
             <div style="font-size:20px;font-weight:800;color:var(--text);line-height:1" id="riskTotal">&mdash;</div>
@@ -1046,23 +1046,28 @@
     }).join('');
   }
   function populateRiskDonut(dist){
-    var c=dist.critical||0,h=dist.high||0,m=dist.medium||0,l=dist.low||0;
-    var total=c+h+m+l;
-    document.getElementById('riskTotal').textContent=total;
-    document.getElementById('riskCritVal').textContent=c;
-    document.getElementById('riskHighVal').textContent=h;
-    document.getElementById('riskMedVal').textContent=m;
-    document.getElementById('riskLowVal').textContent=l;
-    if(total===0) return;
-    var circ=2*Math.PI*50;
-    var segments=[{id:'riskArcCrit',val:c},{id:'riskArcHigh',val:h},{id:'riskArcMed',val:m},{id:'riskArcLow',val:l}];
-    var offset=0;
-    segments.forEach(function(seg){
-      var arc=(seg.val/total)*circ;
-      var el=document.getElementById(seg.id);
-      if(el){el.setAttribute('stroke-dasharray',arc+' '+(circ-arc));el.setAttribute('stroke-dashoffset',-offset);}
-      offset+=arc;
+    var counts=[Math.max(0,dist.critical||0),Math.max(0,dist.high||0),
+                Math.max(0,dist.medium||0),Math.max(0,dist.low||0)];
+    var total=counts.reduce(function(sum,n){return sum+n;},0);
+    ['riskCritVal','riskHighVal','riskMedVal','riskLowVal'].forEach(function(id,i){
+      document.getElementById(id).textContent=counts[i];
     });
+    document.getElementById('riskTotal').textContent=total;
+    var circ=2*Math.PI*50;
+    function paint(){
+      var offset=0;
+      ['riskArcCrit','riskArcHigh','riskArcMed','riskArcLow'].forEach(function(id,i){
+        var el=document.getElementById(id);
+        el.querySelector('title').textContent=['Critical: ','High: ','Medium: ','Low: '][i]+counts[i]+' risks';
+        var length=total?counts[i]/total*circ:0;
+        el.style.visibility=counts[i]?'visible':'hidden';
+        el.setAttribute('stroke-dasharray',length+' '+circ);
+        el.setAttribute('stroke-dashoffset',String(-offset));
+        offset+=length;
+      });
+    }
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)paint();
+    else requestAnimationFrame(function(){requestAnimationFrame(paint);});
   }
   function populateActivity(items){
     var el=document.getElementById('bcmRecentActivity');

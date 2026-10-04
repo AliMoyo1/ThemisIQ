@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <script src="/static/js/premium_theme_init.js"></script>
+<script src="/static/js/premium_charts.js?v=1" defer></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}ThemisIQ{% endblock %}</title>
-<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/fonts/fonts.css?v=2">
 <style>
 :root {
   --bg: #0f1116;
@@ -33,9 +34,9 @@
   --shadow: 0 4px 16px rgba(0,0,0,0.25);
   --r-md: 12px;
   --r-lg: 16px;
-  --font: 'DM Sans', sans-serif;
-  --display: 'Space Grotesk', sans-serif;
-  --mono: 'JetBrains Mono', monospace;
+  --font: 'Manrope', 'DM Sans', sans-serif;
+  --display: 'Newsreader', 'Cormorant Garamond', Georgia, serif;
+  --mono: 'Manrope', 'DM Sans', sans-serif;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -220,7 +221,7 @@ select:focus, input:focus, textarea:focus {
 }
 </style>
 {% block head %}{% endblock %}
-<link rel="stylesheet" href="/static/css/premium_standalone.css?v=1">
+<link rel="stylesheet" href="/static/css/premium_standalone.css?v=2">
 </head>
 <body data-premium="admin">
 <div class="admin-shell">

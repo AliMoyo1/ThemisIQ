@@ -48,8 +48,8 @@
 .an-chart-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
 .an-chart-hero{font-size:22px;font-weight:800;color:var(--text);line-height:1;margin-bottom:2px}
 .an-chart-delta{font-size:11px;font-weight:700;margin-bottom:10px}
-.an-chart-area{position:relative;height:100px}
-.an-chart-empty{display:flex;align-items:center;justify-content:center;height:100px;font-size:12px;color:var(--muted)}
+.an-chart-area{position:relative;height:140px}
+.an-chart-empty{display:flex;align-items:center;justify-content:center;height:140px;font-size:12px;color:var(--muted)}
 
 /* ── Bottom row: module health + risk distribution ───────────────────────── */
 .an-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -276,7 +276,7 @@ function renderLiveMetrics(){
   const compPct  = d.compliance_pct||0;
   const risks    = (d.risk_counts?.critical||0)+(d.risk_counts?.high||0)+(d.risk_counts?.medium||0);
   const critRisk = d.risk_counts?.critical||0;
-  const slaPct   = d.sla?.pct||100;
+  const slaPct   = d.sla?.pct ?? 100;
   const evCount  = d.evidence_count||0;
   const wfActive = d.workflow_active||0;
 
@@ -361,12 +361,13 @@ function renderRiskDist(){
     {key:'medium',   label:'Medium',   color:'#d97706', val:rc.medium||0},
     {key:'low',      label:'Low',      color:'#16a34a', val:rc.low||0},
   ];
-  const total = levels.reduce((s,l)=>s+l.val,0)||1;
+  const riskCount = levels.reduce((s,l)=>s+l.val,0);
+  const total = riskCount||1;
   el.innerHTML = levels.map(l=>{
     const w = Math.round((l.val/total)*100);
     return `<div class="risk-row">
       <div class="risk-lbl" style="color:${l.color}">${esc(l.label)}</div>
-      <div class="risk-track">
+      <div class="risk-track" role="img" aria-label="${esc(l.label)}: ${l.val} risks, ${w}% of total" title="${esc(l.label)}: ${l.val} risks (${w}%)">
         <div class="risk-fill" style="width:${w}%;background:${l.color}">
           ${l.val>0?`<span class="risk-fill-num">${l.val}</span>`:''}
         </div>
@@ -374,7 +375,7 @@ function renderRiskDist(){
       <div class="risk-num" style="color:${l.color}">${l.val}</div>
     </div>`;
   }).join('') +
-  (total===1?'<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px">No risks in register</div>':'');
+  (riskCount===0?'<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px">No risks in register</div>':'');
 }
 
 /* ── Charts ───────────────────────────────────────────────────────────────── */
@@ -434,7 +435,7 @@ function renderChart(chartId, data, valId, deltaId, suffix, liveVal, baseColor, 
 
   // Draw SVG chart with area fill
   const W = chartEl.clientWidth || 320;
-  const H = 100;
+  const H = 140;
   const PAD = {top:10, right:10, bottom:18, left:32};
   const vals = data.map(d=>d.value);
   const max  = Math.max(...vals);
@@ -560,7 +561,7 @@ function runInsightEngine(){
   }
 
   // 3. SLA performance
-  const slaPct  = d.sla?.pct||100;
+  const slaPct  = d.sla?.pct ?? 100;
   const slaBr   = d.sla?.breached||0;
   const slaRisk = d.sla?.at_risk||0;
   if(slaBr > 0){
@@ -664,7 +665,7 @@ window.askAnalytics = function(){
   // SLA
   else if(/sla|service level|breach/.test(q)){
     const sla = d?.sla||{};
-    response = `SLA performance: <strong>${sla.pct||100}% on-time</strong>. Met: ${sla.met||0} | At risk: ${sla.at_risk||0} | Breached: ${sla.breached||0}. `+
+    response = `SLA performance: <strong>${sla.pct ?? 100}% on-time</strong>. Met: ${sla.met||0} | At risk: ${sla.at_risk||0} | Breached: ${sla.breached||0}. `+
       (sla.breached>0?'Navigate to Workflows → SLA → Breach Monitor to resolve active breaches.':'No active breaches.');
   }
 

@@ -243,7 +243,7 @@
   </div>
 
   <!-- Getting Started banner -->
-  <div id="ormOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+  <div id="ormOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Operational Risk</h3>
       <button onclick="this.closest('#ormOnboardBanner').style.display='none';localStorage.setItem('hide_orm_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
@@ -574,6 +574,7 @@ var ORM_CURRENT_USER_ID = {{ user.id }};
 
 /* ─────────────────────────── HELPERS ─────────────────────────── */
 function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function escChartAttr(s){return esc(s).replace(/"/g,'&quot;');}
 function fmtDate(ts){if(!ts)return'—';var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));if(isNaN(d.getTime()))return ts;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
 function timeAgo(ts){if(!ts)return'';var s=Math.floor((Date.now()-new Date(ts.includes('T')?ts:ts+'Z').getTime())/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
 function fmtCurrency(v){v=parseFloat(v)||0;if(v>=1000000)return'$'+(v/1000000).toFixed(1)+'M';if(v>=1000)return'$'+(v/1000).toFixed(1)+'K';return'$'+v.toFixed(0);}
@@ -623,7 +624,7 @@ function ormKriGauge(val,warn,crit){
   var fillColor=crit&&val>=crit?'var(--red,#dc2626)':warn&&val>=warn?'var(--amber,#d97706)':'var(--good,#16a34a)';
   return'<div style="height:10px;border-radius:100px;background:var(--surface3);overflow:hidden;margin:8px 0;position:relative">'+
     '<div style="position:absolute;inset:0;background:linear-gradient(to right,var(--good,#16a34a) '+warnPct+'%,var(--amber,#d97706) '+warnPct+'% '+critPct+'%,var(--red,#dc2626) '+critPct+'% 100%);opacity:.2"></div>'+
-    '<div style="position:absolute;top:0;left:0;height:100%;width:'+curPct+'%;background:'+fillColor+';border-radius:100px;transition:width .6s ease"></div>'+
+    '<div class="kri-gauge-fill" style="position:absolute;top:0;left:0;height:100%;width:'+curPct+'%;background:'+fillColor+';border-radius:100px;transition:width .6s ease"></div>'+
   '</div>';
 }
 
@@ -642,12 +643,12 @@ function ormDrawRing(wrapperId,legendId,segments){
     if(!len)return'';
     return'<circle cx="60" cy="60" r="50" fill="none" stroke="'+seg.color+'" stroke-width="11" '+
       'stroke-dasharray="'+len.toFixed(2)+' '+C+'" '+
-      'transform="rotate('+rotDeg.toFixed(1)+' 60 60)" style="transition:stroke-dasharray 1s ease"/>';
+      'transform="rotate('+rotDeg.toFixed(1)+' 60 60)"><title>'+esc(seg.label)+': '+esc(String(seg.count))+'</title></circle>';
   }).join('');
   wrap.innerHTML=
     '<div style="position:relative;display:inline-flex;align-items:center;justify-content:center">'+
-    '<svg viewBox="0 0 120 120" style="width:100px;height:100px">'+
-    '<circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface3)" stroke-width="11"/>'+arcs+'</svg>'+
+    '<svg class="orm-ring-chart" viewBox="0 0 120 120" style="width:126px;height:126px">'+
+    '<circle cx="60" cy="60" r="50" fill="none" stroke="var(--chart-track,var(--surface3))" stroke-width="11"/>'+arcs+'</svg>'+
     '<div style="position:absolute;text-align:center"><div style="font-size:18px;font-weight:800;color:var(--text)">'+total+'</div><div style="font-size:9px;color:var(--muted)">Total</div></div>'+
     '</div>';
   if(leg){
@@ -866,7 +867,7 @@ function ormRenderTypeChart(elId,byType){
         '<span>'+typeIcon(t.event_type)+' '+esc((t.event_type||'').replace(/_/g,' '))+'</span>'+
         '<span style="color:var(--muted)">'+t.cnt+' ('+sharePct+'%)</span>'+
       '</div>'+
-      '<div style="height:8px;background:var(--surface3);border-radius:100px"><div style="height:100%;width:'+pct+'%;background:'+col+';border-radius:100px;transition:width .6s ease"></div></div>'+
+      '<div style="height:8px;background:var(--chart-track,var(--surface3));border-radius:100px" title="'+escChartAttr((t.event_type||'').replace(/_/g,' '))+': '+esc(String(t.cnt))+' events"><div class="premium-chart-bar" style="height:100%;width:'+pct+'%;background:'+col+';border-radius:100px;transition:width .6s ease"></div></div>'+
     '</div>';
   }).join('');
 }
@@ -1320,7 +1321,7 @@ function ormKriSparkline(points){
   var d='M'+xs.map(function(x,i){return x.toFixed(1)+','+ys[i].toFixed(1);}).join(' L');
   var last=points[points.length-1];var prev=points[0];
   var col=last>prev?'var(--red,#dc2626)':last<prev?'var(--good,#16a34a)':'var(--muted)';
-  return'<svg class="kri-sparkline" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+
+  return'<svg class="kri-sparkline" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'"><title>From '+esc(String(prev))+' to '+esc(String(last))+'</title>'+
     '<polyline points="'+xs.map(function(x,i){return x.toFixed(1)+','+ys[i].toFixed(1);}).join(' ')+'" fill="none" stroke="'+col+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'+
     '<circle cx="'+xs[xs.length-1].toFixed(1)+'" cy="'+ys[ys.length-1].toFixed(1)+'" r="2.5" fill="'+col+'"/>'+
   '</svg>';
@@ -1591,7 +1592,7 @@ function ormRenderDeptHeat(events){
           var op=cnt>0?(0.12+(cnt/maxCnt)*0.65).toFixed(2):'0';
           var rgb=sevRgb[s]||'99,102,241';
           return'<td style="padding:5px 8px;text-align:center">'+
-            (cnt>0?'<div style="display:inline-block;min-width:26px;padding:2px 6px;border-radius:4px;font-size:12px;font-weight:700;background:rgba('+rgb+','+op+');color:rgba('+rgb+',.95)">'+cnt+'</div>':'<span style="color:var(--surface3);font-size:12px">—</span>')+
+            (cnt>0?'<span class="orm-heat-cell" title="'+escChartAttr(d)+': '+escChartAttr(s)+' severity, '+cnt+' events" style="display:inline-block;min-width:26px;padding:2px 6px;border-radius:8px;font-size:12px;font-weight:700;background:rgba('+rgb+','+op+');color:rgba('+rgb+',.95)">'+cnt+'</span>':'<span style="color:var(--surface3);font-size:12px">—</span>')+
           '</td>';
         }).join('')+
         '<td style="padding:5px 8px;text-align:center;font-size:12px;font-weight:700">'+rowTotal+'</td></tr>';
@@ -1622,7 +1623,7 @@ function ormRenderLossTrend(events){
         '<span style="color:'+(m.loss>0?'var(--red)':'var(--muted)')+'">'+fmtCurrency(m.loss)+'</span>'+
       '</div>'+
       '<div style="height:7px;background:var(--surface3);border-radius:100px">'+
-        '<div style="height:100%;width:'+pct+'%;background:var(--red,#dc2626);border-radius:100px;transition:width .6s ease"></div>'+
+        '<div class="premium-chart-bar" style="height:100%;width:'+pct+'%;background:var(--red,#dc2626);border-radius:100px;transition:width .6s ease" title="'+escChartAttr(m.label)+': '+escChartAttr(fmtCurrency(m.loss))+'"></div>'+
       '</div>'+
     '</div>';
   }).join('');

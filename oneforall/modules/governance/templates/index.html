@@ -19,6 +19,16 @@
 .gov-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
 .gov-stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:6px}
 .gov-stat-val{font-size:24px;font-weight:700;color:var(--text)}
+@media (max-width:900px){
+  .gov-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media (max-width:600px){
+  .gov-header{flex-direction:column;align-items:stretch}
+  .gov-header .gov-btn{align-self:stretch;justify-content:center;min-height:42px;white-space:nowrap}
+  .gov-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .gov-tabs{overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin}
+  .gov-tab{flex:0 0 auto}
+}
 
 .gov-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap}
 .gov-toolbar .filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -46,7 +56,7 @@
 .tree-node:hover{border-color:var(--accent)}
 .tree-node-info{flex:1;min-width:0}
 .tree-node-name{font-weight:600;font-size:14px}
-.tree-node-code{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);background:var(--surface2);padding:1px 6px;border-radius:3px;margin-left:8px}
+.tree-node-code{font-family:var(--font);font-size:11px;color:var(--accent);background:var(--surface2);padding:1px 6px;border-radius:3px;margin-left:8px}
 .tree-node-desc{color:var(--muted);font-size:12px;margin-top:2px}
 .tree-node-actions{display:flex;gap:6px;flex-shrink:0}
 

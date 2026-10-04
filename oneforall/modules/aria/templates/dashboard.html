@@ -4,12 +4,12 @@
 
 {% block extra_styles %}
 /* ── ARIA Dashboard Styles ── */
-.aria-donut-wrap{position:relative;width:140px;height:140px;flex-shrink:0;margin:0 auto}
+.aria-donut-wrap{position:relative;width:176px;height:176px;flex-shrink:0;margin:0 auto}
 .aria-donut-wrap svg{display:block;width:100%;height:100%}
 .aria-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
-.aria-donut-pct{font-size:26px;font-weight:800;color:var(--text);line-height:1}
+.aria-donut-pct{font:500 42px/1 var(--display);letter-spacing:-.05em;color:var(--text);font-variant-numeric:tabular-nums}
 .aria-donut-lbl{font-size:9px;color:var(--muted);font-weight:600;letter-spacing:1px;margin-top:3px}
-.aria-donut-legend{display:flex;flex-direction:column;gap:6px;margin-top:16px;width:100%}
+.aria-donut-legend{display:flex;flex-direction:column;gap:9px;margin-top:20px;width:min(100%,250px)}
 .aria-legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text)}
 .aria-legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .aria-legend-val{margin-left:auto;font-weight:700;font-family:var(--mono)}
@@ -69,7 +69,8 @@
 </div>
 
 <!-- 4 Stat Cards -->
-<div class="stats-row animate-fade-up anim-1">
+<div class="dash-section-heading"><h2>At a glance</h2><span>Control implementation and review</span></div>
+<div class="stats-row premium-kpi-grid animate-fade-up anim-1">
   <!-- Hero: Overall Compliance -->
   <div class="stat-card stat-card-hero">
     <div class="stat-label">Overall Compliance</div>
@@ -105,7 +106,7 @@
 
 <!-- Onboarding Banner -->
 {% if fw_stats|length == 0 %}
-<div id="ariaOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent)">
+<div id="ariaOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px">
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
     <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with ARIA</h3>
     <button onclick="this.closest('#ariaOnboardBanner').style.display='none';localStorage.setItem('hide_aria_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
@@ -140,20 +141,24 @@
   </div>
 
   <!-- Control Status Donut -->
-  <div class="panel-card">
+  <div class="panel-card chart-panel" id="ariaControlPanel">
     <div class="panel-title">Control Status</div>
-    <div style="display:flex;flex-direction:column;align-items:center">
+    <div class="aria-chart-content">
       <div class="aria-donut-wrap">
-        <svg viewBox="0 0 140 140" id="ariaStatusDonut">
-          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--surface3)" stroke-width="10"/>
+        <svg viewBox="0 0 140 140" id="ariaStatusDonut" aria-hidden="true">
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--chart-track,var(--surface3))" stroke-width="11"/>
           <!-- Implemented arc -->
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--green-status)" stroke-width="10"
                   stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
-                  transform="rotate(-90 70 70)" id="ariaArcImpl" style="transition:stroke-dashoffset 1s ease"/>
+                  transform="rotate(-90 70 70)" id="ariaArcImpl" style="transition:stroke-dashoffset 1s ease"><title>Implemented: {{ totals.implemented }} controls</title></circle>
           <!-- In Progress arc -->
           <circle cx="70" cy="70" r="56" fill="none" stroke="var(--amber)" stroke-width="10"
                   stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="round"
-                  transform="rotate(-90 70 70)" id="ariaArcProg" style="transition:stroke-dashoffset 1s ease"/>
+                  transform="rotate(-90 70 70)" id="ariaArcProg" style="transition:stroke-dashoffset 1s ease"><title>In progress: {{ totals.in_progress }} controls</title></circle>
+          <!-- Not started is a real segment, not an unlabelled empty track. -->
+          <circle cx="70" cy="70" r="56" fill="none" stroke="var(--red)" stroke-width="11"
+                  stroke-dasharray="351.86" stroke-dashoffset="351.86" stroke-linecap="butt"
+                  transform="rotate(-90 70 70)" id="ariaArcNotStarted" style="transition:stroke-dashoffset 1s ease"><title>Not started: {{ totals.not_started }} controls</title></circle>
         </svg>
         <div class="aria-donut-center">
           <div class="aria-donut-pct">{{ totals.total }}</div>
@@ -270,30 +275,35 @@
 (function(){
   // ── Animate the Control Status donut ──
   const totals = {{ totals_json | safe }};
-  const circ = 2 * Math.PI * 56; // ~351.86
-  const total = totals.total || 1;
+  const circ = 2 * Math.PI * 56;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Implemented arc
-  const implPct = totals.implemented / total;
-  const implOffset = circ - (circ * implPct);
-  const arcImpl = document.getElementById('ariaArcImpl');
-  if(arcImpl){
-    arcImpl.setAttribute('stroke-dashoffset', implOffset);
+  function paintStatusRing(values){
+    const counts = [
+      Math.max(0, Number(values.implemented) || 0),
+      Math.max(0, Number(values.in_progress) || 0),
+      Math.max(0, Number(values.not_started) || 0)
+    ];
+    const total = counts.reduce((sum, value) => sum + value, 0);
+    const ids = ['ariaArcImpl', 'ariaArcProg', 'ariaArcNotStarted'];
+    let angle = -90;
+    function draw(){
+      counts.forEach((count, index) => {
+        const arc = document.getElementById(ids[index]);
+        if(!arc) return;
+        const fraction = total ? count / total : 0;
+        arc.style.visibility = count ? 'visible' : 'hidden';
+        arc.setAttribute('transform', 'rotate(' + angle + ' 70 70)');
+        arc.setAttribute('stroke-dashoffset', String(circ * (1 - fraction)));
+        angle += fraction * 360;
+      });
+    }
+    if(reduceMotion) draw();
+    else requestAnimationFrame(() => requestAnimationFrame(draw));
   }
+  paintStatusRing(totals);
 
-  // In Progress arc, offset by the implemented portion
-  const progPct = totals.in_progress / total;
-  const progLen = circ * progPct;
-  const progGap = circ - progLen;
-  const arcProg = document.getElementById('ariaArcProg');
-  if(arcProg){
-    // Rotate this arc to start after the implemented arc
-    const implDeg = implPct * 360;
-    arcProg.setAttribute('transform', 'rotate(' + (-90 + implDeg) + ' 70 70)');
-    arcProg.setAttribute('stroke-dashoffset', circ - progLen);
-  }
-
-  // ── Live refresh from API ──
+  // Live refresh from API
   async function refreshDashboard(){
     try {
       const resp = await fetch('/aria/api/dashboard');

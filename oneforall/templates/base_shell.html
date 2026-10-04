@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}ThemisIQ{% endblock %}</title>
-<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/fonts/fonts.css?v=2">
 <script src="/static/js/premium_theme_init.js"></script>
+<script src="/static/js/premium_charts.js?v=1" defer></script>
 <meta name="ph-key" content="{{ posthog_api_key }}">
 <meta name="ph-host" content="{{ posthog_host }}">
 {% if user %}<meta name="ph-uid" content="{{ user.id }}" data-email="{{ user.email or '' }}" data-name="{{ user.full_name or user.username or '' }}" data-role="{{ user.role or '' }}">{% endif %}
@@ -46,7 +47,7 @@
   --shadow-accent:0 8px 24px var(--accent-shadow);
   --radius:10px;--radius-lg:16px;--radius-xl:22px;
   --topbar-h:60px;--icon-sidebar-w:64px;--sidebar-w:248px;
-  --font:'Hanken Grotesk','Space Grotesk','Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+  --font:'Manrope','DM Sans',sans-serif;--mono:'Manrope','DM Sans',sans-serif;
   --particle-color-rgb:100,140,200;
   --glass-bg:rgba(255,255,255,0.72);--glass-border:rgba(255,255,255,0.80);--glass-blur:16px;
 
@@ -510,7 +511,7 @@ input,select,textarea{font-family:var(--font)}
 .card-body{padding:18px 20px}
 
 .data-table{width:100%;border-collapse:collapse}
-.data-table th{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;padding:10px 14px;background:var(--surface2);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.data-table th{font-size:12px;font-family:var(--font);font-weight:700;color:var(--text-mid);text-transform:none;letter-spacing:0;padding:13px 14px;background:var(--surface2);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
 .data-table td{padding:11px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
 .data-table tr:last-child td{border-bottom:none}
 .data-table tbody tr{cursor:pointer;transition:background 0.15s}
@@ -683,7 +684,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
 
 </style>
 <link rel="stylesheet" href="/static/css/responsive.css?v=b55cdd1d6f05">
-<link rel="stylesheet" href="/static/css/premium_theme.css?v=1">
+<link rel="stylesheet" href="/static/css/premium_theme.css?v=2">
 </head>
 
 <body data-module="{{ active_module | default('platform') }}">

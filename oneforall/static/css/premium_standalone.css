@@ -12,8 +12,8 @@
   --premium-shadow:0 22px 60px rgba(36,56,43,.12),0 3px 12px rgba(36,56,43,.04);
   --premium-brand:#1e3a8a;
   --premium-brand-soft:rgba(30,58,138,.10);
-  --premium-font:'DM Sans','Segoe UI',sans-serif;
-  --premium-display:'Cormorant Garamond',Georgia,serif;
+  --premium-font:'Manrope','DM Sans',sans-serif;
+  --premium-display:'Newsreader','Cormorant Garamond',Georgia,serif;
 }
 html[data-theme="dark"]{
   color-scheme:dark;
@@ -159,3 +159,8 @@ body[data-premium="login"] .container{height:auto;min-height:100dvh}
   body[data-premium="launcher"] .topbar-right{flex-wrap:wrap}
   body[data-premium="launcher"] .welcome h2{font-size:32px}
 }
+
+
+body[data-premium] .premium-chart-column{transform-origin:center bottom;transition:height .3s ease,filter .2s ease}
+body[data-premium] .premium-chart-column:hover{filter:brightness(1.15)}
+@media(prefers-reduced-motion:reduce){body[data-premium] .premium-chart-column{transition:none}}

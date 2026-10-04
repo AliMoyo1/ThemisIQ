@@ -69,7 +69,7 @@
     <div class="stat-label">AI Generated</div>
     <div class="stat-value" style="color:var(--accent)">{{ stats.ai_gen }}</div>
   </div>
-  <div class="stat-card" style="border-left:3px solid {% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--border){% endif %}">
+  <div class="stat-card" style="--status-color:{% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--green-status){% endif %}">
     <div class="stat-label">Due for Review</div>
     <div class="stat-value" style="color:{% if stats.review_due > 0 %}var(--amber,#d97706){% else %}var(--muted){% endif %}">{{ stats.review_due }}</div>
   </div>

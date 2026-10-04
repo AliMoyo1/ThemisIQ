@@ -351,7 +351,7 @@
   </div>
 
   <!-- Getting Started banner (shown when no risks exist) -->
-  <div id="ermOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;border-left:3px solid var(--accent);display:none">
+  <div id="ermOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Enterprise Risk</h3>
       <button onclick="this.closest('#ermOnboardBanner').style.display='none';localStorage.setItem('hide_erm_onboard','1')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px" title="Dismiss">&times;</button>
@@ -854,6 +854,7 @@
 
 /* ────────────────── HELPERS ────────────────── */
 function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+function escChartAttr(s){return esc(s).replace(/"/g,'&quot;');}
 function fmtDate(ts){if(!ts)return'—';try{var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));if(isNaN(d.getTime()))return ts;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return ts;}}
 function daysUntil(ds){if(!ds)return null;var diff=Math.round((new Date(ds)-new Date())/(864e5));return diff;}
 function timeAgo(ts){if(!ts)return'';try{var s=Math.floor((Date.now()-new Date(ts.includes('T')?ts:ts+' UTC'))/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}catch(e){return'';}}
@@ -1036,7 +1037,7 @@ function ermRenderHeatMap(hm){
       var cnt=hm[l][i]||0;var sc=(l+1)*(i+1);
       var ll=l+1,ii=i+1;
       var cls=bandHeatClass(scoreToBand(ll,ii));
-      cells+='<div class="heat-cell '+cls+'" onclick="ermNavToRegisterFiltered('+ll+','+ii+')" title="L'+ll+'×I'+ii+'='+sc+' ('+cnt+' risks)">'+(cnt||'')+'</div>';
+      cells+='<button type="button" class="heat-cell '+cls+'" onclick="ermNavToRegisterFiltered('+ll+','+ii+')" aria-label="Likelihood '+ll+', impact '+ii+', '+cnt+' risks. Open risk register" title="L'+ll+'×I'+ii+'='+sc+' ('+cnt+' risks)">'+(cnt||'')+'</button>';
     }
   }
   var hdr='<div></div>';for(var j=1;j<=5;j++)hdr+='<div class="heat-axis">'+j+'</div>';
@@ -1110,8 +1111,9 @@ function ermRenderTrajectory(buckets){
   });
   el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:150px">'+
     '<line x1="'+pad+'" y1="'+(H-pad)+'" x2="'+(W-pad)+'" y2="'+(H-pad)+'" stroke="var(--border)" stroke-width="1"/>'+
-    (irrPts?'<polyline points="'+irrPts+'" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4,3"/>':'')+
-    (rrrPts?'<polyline points="'+rrrPts+'" fill="none" stroke="var(--red)" stroke-width="2"/>':'')+
+    (irrPts?'<polyline class="premium-chart-line" points="'+irrPts+'" fill="none" stroke="var(--muted)" stroke-width="1.8" stroke-dasharray="4,3"><title>Average inherent risk rating</title></polyline>':'')+
+    (rrrPts?'<polyline class="premium-chart-line" points="'+rrrPts+'" fill="none" stroke="var(--red)" stroke-width="2.6"><title>Average residual risk rating</title></polyline>':'')+
+    buckets.map(function(b,idx){return ['avg_irr','avg_rrr'].map(function(key){if(b[key]==null)return '';var x=pad+idx*xStep;return '<circle class="premium-chart-point" cx="'+x.toFixed(1)+'" cy="'+y(b[key]).toFixed(1)+'" r="4" fill="'+(key==='avg_rrr'?'var(--red)':'var(--muted)')+'" tabindex="0" role="img" aria-label="'+escChartAttr(String(b.month))+': average '+(key==='avg_rrr'?'residual':'inherent')+' risk rating '+escChartAttr(String(b[key]))+'"><title>'+esc(String(b.month))+': '+(key==='avg_rrr'?'RRR':'IRR')+' '+esc(String(b[key]))+'</title></circle>';}).join('');}).join('')+
     labels+
   '</svg>'+
   '<div style="display:flex;gap:14px;font-size:10px;color:var(--muted);margin-top:4px;justify-content:center">'+
@@ -2912,7 +2914,7 @@ window.ermOpenResultsDrawer=async function(id){
       var s=qStats(q.id,q.question_type);
       if(q.question_type==='scale'){
         var maxDist=Math.max.apply(null,Object.values(s.dist||{}).concat([1]));
-        var bars=[1,2,3,4,5].map(function(v){var cnt=s.dist[v]||0;var pct=Math.round(cnt/maxDist*100);return'<div class="assess-bar-row"><span style="width:12px;text-align:right;flex-shrink:0">'+v+'</span><div class="assess-bar-track"><div class="assess-bar-fill" style="width:'+pct+'%"></div></div><span style="width:20px;color:var(--muted)">'+cnt+'</span></div>';}).join('');
+        var bars=[1,2,3,4,5].map(function(v){var cnt=s.dist[v]||0;var pct=Math.round(cnt/maxDist*100);return'<div class="assess-bar-row"><span style="width:12px;text-align:right;flex-shrink:0">'+v+'</span><div class="assess-bar-track"><div class="assess-bar-fill" title="'+v+': '+cnt+' responses" style="width:'+pct+'%"></div></div><span style="width:20px;color:var(--muted)">'+cnt+'</span></div>';}).join('');
         return'<div class="assess-q-result"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(q.question)+'</div>'+bars+'<div style="font-size:11px;color:var(--muted);margin-top:4px">'+s.count+' response(s) &bull; avg: <strong>'+s.avg+'</strong></div></div>';
       }
       if(q.question_type==='yes_no'){var yPct=s.count?Math.round(s.yes/s.count*100):0;var nPct=100-yPct;return'<div class="assess-q-result"><div style="font-size:13px;font-weight:600;margin-bottom:8px">'+esc(q.question)+'</div><div class="assess-bar-row"><span style="width:28px;font-size:11px">Yes</span><div class="assess-bar-track"><div class="assess-bar-fill" style="width:'+yPct+'%;background:var(--good,#16a34a)"></div></div><span style="font-size:11px;color:var(--muted);width:40px">'+s.yes+' ('+yPct+'%)</span></div><div class="assess-bar-row"><span style="width:28px;font-size:11px">No</span><div class="assess-bar-track"><div class="assess-bar-fill" style="width:'+nPct+'%;background:var(--red)"></div></div><span style="font-size:11px;color:var(--muted);width:40px">'+s.no+' ('+nPct+'%)</span></div></div>';}
@@ -2970,18 +2972,18 @@ window.ermLoadReports=async function(){
     var donut=document.getElementById('rptDonut');
     if(donut&&s.by_level){
       var lvls=ERM_BAND_ORDER.slice().reverse().map(function(k){return{k:k,c:bandColor(k),l:bandLabel(k)};});
-      var total=Object.values(s.by_level).reduce(function(a,b){return a+b;},0)||1;
+      var rawTotal=Object.values(s.by_level).reduce(function(a,b){return a+b;},0);var total=rawTotal||1;
       var r=52,cx=64,cy=64,stroke=22;var dash=2*Math.PI*r;
-      var offset=0;var segs=lvls.map(function(lv){var pct=(s.by_level[lv.k]||0)/total;var seg='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+lv.c+'" stroke-width="'+stroke+'" stroke-dasharray="'+(pct*dash).toFixed(2)+' '+dash.toFixed(2)+'" stroke-dashoffset="'+(-offset*dash).toFixed(2)+'" transform="rotate(-90 '+cx+' '+cy+')" opacity="0.85"/>';offset+=pct;return seg;}).join('');
+      var offset=0;var segs=lvls.map(function(lv){var pct=(s.by_level[lv.k]||0)/total;var seg='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+lv.c+'" stroke-width="'+stroke+'" stroke-dasharray="'+(pct*dash).toFixed(2)+' '+dash.toFixed(2)+'" stroke-dashoffset="'+(-offset*dash).toFixed(2)+'" transform="rotate(-90 '+cx+' '+cy+')" opacity="0.9"><title>'+esc(lv.l)+': '+esc(String(s.by_level[lv.k]||0))+'</title></circle>';offset+=pct;return seg;}).join('');
       var legend=lvls.map(function(lv){return'<div class="erm-ring-item"><div class="erm-ring-dot" style="background:'+lv.c+'"></div><span>'+lv.l+': <strong>'+(s.by_level[lv.k]||0)+'</strong></span></div>';}).join('');
-      donut.innerHTML='<div class="erm-ring-wrap"><svg width="128" height="128" viewBox="0 0 128 128"><'+segs.slice(1)+'</svg><div class="erm-ring-legend">'+legend+'</div></div>';
+      donut.innerHTML='<div class="erm-ring-wrap"><svg width="148" height="148" viewBox="0 0 128 128"><circle cx="64" cy="64" r="52" fill="none" stroke="var(--chart-track,var(--surface3))" stroke-width="22"/>'+segs+'</svg><div class="erm-ring-legend">'+legend+'</div></div>';
     }
     // Module bars
     var byMod=document.getElementById('rptByModule');
-    if(byMod&&s.by_module){var maxV=Math.max.apply(null,Object.values(s.by_module).concat([1]));var modC={aria:'#7e8062',grid:'#16a34a',bcm:'#d97706',sentinel:'#0891b2',erm:'var(--accent)',orm:'#ea580c'};byMod.innerHTML=Object.entries(s.by_module).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxV*100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="text-transform:capitalize">'+esc(e[0])+'</span><span>'+e[1]+'</span></div><div style="height:7px;background:var(--surface3);border-radius:100px"><div class="erm-trend-fill" style="height:100%;width:'+pct+'%;background:'+(modC[e[0]]||'var(--accent)')+';border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
+    if(byMod&&s.by_module){var maxV=Math.max.apply(null,Object.values(s.by_module).concat([1]));var modC={aria:'#7e8062',grid:'#16a34a',bcm:'#d97706',sentinel:'#0891b2',erm:'var(--accent)',orm:'#ea580c'};byMod.innerHTML=Object.entries(s.by_module).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxV*100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="text-transform:capitalize">'+esc(e[0])+'</span><span>'+e[1]+'</span></div><div style="height:7px;background:var(--surface3);border-radius:100px"><div class="erm-trend-fill" title="'+escChartAttr(e[0])+': '+e[1]+' risks" style="height:100%;width:'+pct+'%;background:'+(modC[e[0]]||'var(--accent)')+';border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
     // Category bars
     var byCat=document.getElementById('rptByCategory');
-    if(byCat&&s.by_category){var maxC=Math.max.apply(null,Object.values(s.by_category).concat([1]));byCat.innerHTML=Object.entries(s.by_category).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxC*100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="text-transform:capitalize">'+esc(e[0].replace(/_/g,' '))+'</span><span>'+e[1]+'</span></div><div style="height:7px;background:var(--surface3);border-radius:100px"><div class="erm-trend-fill" style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
+    if(byCat&&s.by_category){var maxC=Math.max.apply(null,Object.values(s.by_category).concat([1]));byCat.innerHTML=Object.entries(s.by_category).sort(function(a,b){return b[1]-a[1];}).map(function(e){var pct=Math.round(e[1]/maxC*100);return'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="text-transform:capitalize">'+esc(e[0].replace(/_/g,' '))+'</span><span>'+e[1]+'</span></div><div style="height:7px;background:var(--surface3);border-radius:100px"><div class="erm-trend-fill" title="'+escChartAttr(e[0].replace(/_/g,' '))+': '+e[1]+' risks" style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:100px;transition:width .6s ease"></div></div></div>';}).join('');}
     // Appetite matrix
     var matrix=document.getElementById('rptAppetiteMatrix');
     if(matrix){
@@ -3028,12 +3030,12 @@ window.ermLoadTrendChart=async function(period){
       return x.toFixed(1)+','+y.toFixed(1);
     }).join(' ');
     el.innerHTML='<svg width="100%" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="overflow:visible">'+
-      '<polyline fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" points="'+pts+'" />'+
+      '<polyline class="premium-chart-line" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" points="'+pts+'" />'+
       daily.filter(function(d,i){return i===0||i===daily.length-1||d.new_risks===maxV;}).map(function(d,i){
         var idx=daily.indexOf(d);
         var x=PAD+(idx/(daily.length-1||1))*(W-PAD*2);
         var y=H-PAD-(d.new_risks/maxV)*(H-PAD*2);
-        return'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="var(--accent)"/><text x="'+x.toFixed(1)+'" y="'+(y-7).toFixed(1)+'" text-anchor="middle" font-size="9" fill="var(--muted)">'+d.new_risks+'</text>';
+        return'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="4" fill="var(--accent)" class="premium-chart-point"><title>'+esc(String(d.day)+': '+String(d.new_risks)+' new risks')+'</title></circle><text x="'+x.toFixed(1)+'" y="'+(y-7).toFixed(1)+'" text-anchor="middle" font-size="9" fill="var(--muted)">'+d.new_risks+'</text>';
       }).join('')+
       '<text x="'+PAD+'" y="'+(H-5)+'" font-size="9" fill="var(--muted)">'+esc((daily[0]||{}).day||'')+'</text>'+
       '<text x="'+(W-PAD)+'" y="'+(H-5)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+esc((daily[daily.length-1]||{}).day||'')+'</text>'+
@@ -3052,16 +3054,16 @@ window.ermLoadAgingChart=async function(){
       {k:'d90_180',label:'90–180 days',color:'#ea580c'},
       {k:'gt180',label:'> 180 days',color:'var(--red)'}
     ];
-    var total=buckets.reduce(function(s,b){return s+(data[b.k]&&data[b.k].count||0);},0)||1;
+    var total=buckets.reduce(function(s,b){return s+(data[b.k]&&data[b.k].count||0);},0);
     el.innerHTML=buckets.map(function(b){
       var cnt=(data[b.k]&&data[b.k].count)||0;
-      var pct=Math.round(cnt/total*100);
+      var pct=total?Math.round(cnt/total*100):0;
       return'<div style="margin-bottom:10px">'+
         '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">'+
           '<span>'+b.label+'</span><span style="font-weight:700;color:'+b.color+'">'+cnt+'</span>'+
         '</div>'+
         '<div style="height:8px;background:var(--surface3);border-radius:100px">'+
-          '<div style="height:100%;width:'+pct+'%;background:'+b.color+';border-radius:100px;transition:width .6s ease"></div>'+
+          '<div class="premium-chart-bar" title="'+b.label+': '+cnt+' risks" style="height:100%;width:'+pct+'%;background:'+b.color+';border-radius:100px;transition:width .6s ease"></div>'+
         '</div>'+
       '</div>';
     }).join('')+'<div style="font-size:11px;color:var(--muted);margin-top:8px">'+total+' open risks tracked</div>';
