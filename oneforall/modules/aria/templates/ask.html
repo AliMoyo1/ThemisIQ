@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Ask ARIA: Policy Assistant{% endblock %}
 {% block head %}
+<style>
 /* ── Stats strip ─────────────────────────────────────────────────────────── */
 .ask-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
 @media(max-width:760px){.ask-stats{grid-template-columns:repeat(2,1fr)}}
@@ -170,6 +171,7 @@
 .chat-send:active:not(:disabled){transform:translateY(1px)}
 .chat-send:disabled{opacity:.4;cursor:not-allowed}
 .input-hint{font-size:10px;color:var(--dim);margin-top:5px;text-align:center}
+</style>
 {% endblock %}
 
 {% block breadcrumb %}
