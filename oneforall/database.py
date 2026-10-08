@@ -237,6 +237,12 @@ def _pg_script_statements(sql: str) -> tuple[str, ...]:
     )
 
 
+_SAVEPOINT_STATEMENT = re.compile(
+    r"^\s*(?:(SAVEPOINT)|(RELEASE)(?:\s+SAVEPOINT)?|(ROLLBACK)\s+TO(?:\s+SAVEPOINT)?)\s+(\w+)\s*;?\s*$",
+    re.IGNORECASE,
+)
+
+
 class _PgConnWrapper:
     """Mimics the sqlite3.Connection interface over a pooled psycopg2 connection.
 
@@ -246,6 +252,7 @@ class _PgConnWrapper:
 
     def __init__(self, pgconn):
         self._conn = pgconn
+        self._savepoints: list[str] = []  # open savepoint names, innermost last
 
     def _is_alive(self) -> bool:
         """Check whether the pooled connection is still usable."""
@@ -258,6 +265,7 @@ class _PgConnWrapper:
 
     def execute(self, sql: str, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        savepoint_stmt = _SAVEPOINT_STATEMENT.match(sql) if isinstance(sql, str) else None
         # Pass None (not empty tuple) when no params so psycopg2 skips
         # its % formatter — literal LIKE '%value%' in SQL would otherwise crash.
         try:
@@ -267,12 +275,32 @@ class _PgConnWrapper:
             # Roll back so subsequent queries on this connection don't all fail
             # with "current transaction is aborted". Re-raise so callers still
             # see the original exception (their try/except blocks still fire).
-            try:
-                self._conn.rollback()
-            except Exception:
-                pass
+            # Exception: inside an open savepoint the caller's ROLLBACK TO
+            # SAVEPOINT recovers the transaction, and a full rollback here would
+            # destroy that savepoint and every uncommitted write before it. A
+            # failing savepoint statement itself is never recoverable.
+            if savepoint_stmt is not None or not self._savepoints:
+                self._savepoints.clear()
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    pass
             raise
+        if savepoint_stmt is not None:
+            self._track_savepoint(savepoint_stmt)
         return _NormCursor(cur)
+
+    def _track_savepoint(self, stmt):
+        name = stmt.group(4).lower()
+        if stmt.group(1):  # SAVEPOINT name
+            self._savepoints.append(name)
+            return
+        for i in range(len(self._savepoints) - 1, -1, -1):
+            if self._savepoints[i] == name:
+                # RELEASE drops the named savepoint and all later ones;
+                # ROLLBACK TO drops only the later ones.
+                del self._savepoints[i + (1 if stmt.group(3) else 0):]
+                return
 
     def executemany(self, sql: str, seq):
         cur = self._conn.cursor()
@@ -292,26 +320,38 @@ class _PgConnWrapper:
         slug='public' keeps the default public schema (used by the default org
         so existing data needs no migration). Any other slug resolves to
         tenant_{slug} with public as fallback (for shared tables like users).
+
+        This and the two RLS setters below commit straight away. PostgreSQL
+        undoes a SET together with the transaction it ran in, and execute()
+        rolls the whole transaction back on any error, so an uncommitted scope
+        would silently revert to the pooled connection's previous one and a
+        caller that caught the error would carry on in the wrong schema. Work
+        already pending in the transaction is committed with them, so bind the
+        scope before writing, as get_db() does.
         """
         if slug == "public":
             cur = self._conn.cursor()
             cur.execute("SET search_path TO public")
+            self.commit()
             return
         safe = re.sub(r"[^a-z0-9_]", "", slug.lower())
         cur = self._conn.cursor()
         cur.execute(f"SET search_path TO tenant_{safe}, public")
+        self.commit()
 
     def set_rls_context(self, org_id: "int | None", is_super: bool = False):
         """Set session variables used by RLS policies.
 
-        Uses SET (session-level, not LOCAL) so the value survives COMMIT within
-        a single handler that calls commit() mid-flight. _clear_rls_context()
-        in close() resets them before the connection returns to the pool.
+        Uses SET (session-level, not LOCAL) and commits at once, so the value
+        survives both COMMIT and ROLLBACK within a single handler.
+        _clear_rls_context() in close() resets them before the connection
+        returns to the pool.
         """
         cur = self._conn.cursor()
         cur.execute("SET app.current_org_id = %s", (str(org_id) if org_id else '',))
         cur.execute("SET app.is_super_admin = %s", ('true' if is_super else 'false',))
         cur.execute("SET app.bypass_rls = 'false'")
+        self.commit()
 
     def set_rls_bypass(self):
         """Grant unrestricted access to RLS-protected tables for this connection."""
@@ -319,6 +359,7 @@ class _PgConnWrapper:
         cur.execute("SET app.bypass_rls = 'true'")
         cur.execute("SET app.current_org_id = ''")
         cur.execute("SET app.is_super_admin = 'false'")
+        self.commit()
 
     def _clear_rls_context(self):
         """Restore every session-level tenant/security setting.
@@ -335,13 +376,16 @@ class _PgConnWrapper:
         cur.execute("SET app.bypass_rls = 'false'")
 
     def commit(self):
+        self._savepoints.clear()
         self._conn.commit()
 
     def rollback(self):
+        self._savepoints.clear()
         self._conn.rollback()
 
     def close(self):
         pool = _get_pg_pool()
+        self._savepoints.clear()
         try:
             # First discard the caller's open/aborted transaction. Then reset
             # all session-level tenant state in a fresh transaction and COMMIT
@@ -6728,21 +6772,18 @@ def provision_tenant_schema(slug: str) -> None:
         pg_conn = pool.getconn()
         wrapper = _PgConnWrapper(pg_conn)
     pg_conn.autocommit = False
-    # Provisioning needs full access to public schema tables (users, licenses).
-    wrapper.set_rls_bypass()
     conn = wrapper
     try:
+        # Provisioning needs full access to public schema tables (users, licenses).
+        wrapper.set_rls_bypass()
         from psycopg2 import sql as psql
         pg_conn.cursor().execute(psql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(psql.Identifier(schema_name)))
         conn.commit()
         pg_conn.cursor().execute(psql.SQL("SET search_path TO {}, public").format(psql.Identifier(schema_name)))
         _apply_tenant_schema_ddl(conn)
     finally:
-        try:
-            pg_conn.rollback()
-        except Exception:
-            pass
-        pool.putconn(pg_conn)
+        # close() resets search_path and every app.* setting before the pool sees the connection again.
+        wrapper.close()
 
 
 def _migrate_all_tenant_schemas() -> None:
@@ -6772,9 +6813,9 @@ def _migrate_all_tenant_schemas() -> None:
         pg_conn = pool.getconn()
         wrapper = _PgConnWrapper(pg_conn)
     pg_conn.autocommit = False
-    wrapper.set_rls_bypass()
     conn = wrapper
     try:
+        wrapper.set_rls_bypass()
         cur = pg_conn.cursor()
         cur.execute(
             "SELECT schema_name FROM information_schema.schemata "
@@ -6797,11 +6838,8 @@ def _migrate_all_tenant_schemas() -> None:
                 log.warning("Could not migrate tenant schema %s (skipped): %s",
                             schema_name, exc)
     finally:
-        try:
-            pg_conn.rollback()
-        except Exception:
-            pass
-        pool.putconn(pg_conn)
+        # close() resets search_path and every app.* setting before the pool sees the connection again.
+        wrapper.close()
 
 
 def init_db():

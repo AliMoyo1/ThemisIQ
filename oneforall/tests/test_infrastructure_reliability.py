@@ -1,5 +1,9 @@
 """Focused regressions for publication retries and PostgreSQL session hygiene."""
 
+import types
+
+import pytest
+
 import core.events
 import database
 from database import insert_returning_id
@@ -167,6 +171,38 @@ def test_postgres_pool_return_resets_and_commits_tenant_session_state(monkeypatc
     assert events.index(("commit",)) < events.index(("putconn", False))
 
 
+def test_postgres_scope_setters_commit_so_a_rollback_cannot_undo_them():
+    """PostgreSQL undoes an uncommitted SET when its transaction rolls back, and
+    execute() rolls back on any error. Each scope setter must therefore end on a
+    commit. The real-PG proof is in test_postgres_init.py (skipped without a
+    TEST_DATABASE_URL); this keeps the invariant guarded in the default suite."""
+    events = []
+
+    class _Cursor:
+        def execute(self, sql, params=None):
+            events.append(("execute", sql))
+
+    class _RawConnection:
+        def cursor(self, *args, **kwargs):
+            return _Cursor()
+
+        def commit(self):
+            events.append(("commit",))
+
+    wrapper = database._PgConnWrapper(_RawConnection())
+
+    for call in (
+        lambda: wrapper.set_tenant("acme"),
+        lambda: wrapper.set_tenant("public"),
+        lambda: wrapper.set_rls_context(7, True),
+        lambda: wrapper.set_rls_bypass(),
+    ):
+        events.clear()
+        call()
+        assert events[-1] == ("commit",)
+        assert len(events) > 1 and all(e[0] == "execute" for e in events[:-1])
+
+
 def test_postgres_script_splitter_discards_comments_before_semicolon_split():
     script = """
     PRAGMA foreign_keys=ON;
@@ -190,3 +226,93 @@ def test_postgres_script_splitter_discards_comments_before_semicolon_split():
         statement.startswith("NULL for terminal rows")
         for statement in erm_statements
     )
+
+
+class _SavepointConnection:
+    """Raw connection stand-in: records statements, fails any that contain 'boom'."""
+
+    def __init__(self):
+        self.events = []
+
+    def cursor(self, *args, **kwargs):
+        events = self.events
+
+        class _Cursor:
+            def execute(self, sql, params=None):
+                events.append(sql)
+                if "boom" in sql:
+                    raise RuntimeError("boom")
+
+        return _Cursor()
+
+    def commit(self):
+        self.events.append("COMMIT")
+
+    def rollback(self):
+        self.events.append("ROLLBACK")
+
+
+def _savepoint_wrapper(monkeypatch):
+    monkeypatch.setattr(
+        database, "psycopg2",
+        types.SimpleNamespace(extras=types.SimpleNamespace(DictCursor=object)), raising=False,
+    )
+    raw = _SavepointConnection()
+    return database._PgConnWrapper(raw), raw
+
+
+def _fails(wrapper, sql="SELECT boom"):
+    with pytest.raises(RuntimeError):
+        wrapper.execute(sql)
+
+
+def test_failed_statement_without_a_savepoint_rolls_the_transaction_back(monkeypatch):
+    wrapper, raw = _savepoint_wrapper(monkeypatch)
+    _fails(wrapper)
+    assert raw.events[-1] == "ROLLBACK"
+
+
+def test_failed_statement_inside_a_savepoint_leaves_the_transaction_recoverable(monkeypatch):
+    wrapper, raw = _savepoint_wrapper(monkeypatch)
+    wrapper.execute("SAVEPOINT sp")
+    _fails(wrapper)
+    assert "ROLLBACK" not in raw.events          # the savepoint must survive for ROLLBACK TO
+    wrapper.execute("ROLLBACK TO SAVEPOINT sp")
+    wrapper.execute("RELEASE SAVEPOINT sp")
+    assert wrapper._savepoints == []
+    _fails(wrapper)
+    assert raw.events[-1] == "ROLLBACK"           # no savepoint open any more: full rollback again
+
+
+def test_savepoint_bookkeeping_handles_nesting_case_and_both_spellings(monkeypatch):
+    wrapper, _ = _savepoint_wrapper(monkeypatch)
+    wrapper.execute("savepoint Outer_Sp")
+    wrapper.execute("SAVEPOINT inner_sp;")
+    assert wrapper._savepoints == ["outer_sp", "inner_sp"]
+    wrapper.execute("rollback to outer_sp")       # keeps outer, destroys inner
+    assert wrapper._savepoints == ["outer_sp"]
+    wrapper.execute("SAVEPOINT again_sp")
+    wrapper.execute("RELEASE outer_sp")           # releases outer and everything after it
+    assert wrapper._savepoints == []
+
+
+def test_failed_savepoint_statement_is_unrecoverable_and_rolls_everything_back(monkeypatch):
+    wrapper, raw = _savepoint_wrapper(monkeypatch)
+    wrapper.execute("SAVEPOINT sp")
+    _fails(wrapper, "ROLLBACK TO SAVEPOINT boom_missing")
+    assert raw.events[-1] == "ROLLBACK"
+    assert wrapper._savepoints == []
+
+
+def test_commit_rollback_and_scope_setters_forget_open_savepoints(monkeypatch):
+    for action in (
+        lambda w: w.commit(),
+        lambda w: w.rollback(),
+        lambda w: w.set_tenant("acme"),
+        lambda w: w.set_rls_context(7, False),
+        lambda w: w.set_rls_bypass(),
+    ):
+        wrapper, _ = _savepoint_wrapper(monkeypatch)
+        wrapper.execute("SAVEPOINT sp")
+        action(wrapper)
+        assert wrapper._savepoints == []
