@@ -1,6 +1,6 @@
 # Integrate the changes made in parallel chats (2026-10-08)
 
-Status: integrated and verified (2026-10-08); waiting for a decision on committing. Nothing here is committed or pushed. The other chats' worktrees under `.claude/worktrees/` are read only for this job: changes are copied into this working tree, never edited in place.
+Status: integrated and verified (2026-10-08). Committed on the local branch `claude/pg-layer-scope-and-findings` (three commits); nothing is pushed or deployed. The other chats' worktrees under `.claude/worktrees/` are read only for this job: changes are copied into this working tree, never edited in place.
 
 ## What the other chats left (all uncommitted, all based on eec119f)
 

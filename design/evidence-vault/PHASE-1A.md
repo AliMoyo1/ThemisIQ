@@ -1,6 +1,6 @@
 # Evidence Vault Phase 1a: correct data layer
 
-Status: implemented and verified locally on 2026-10-07, except the PostgreSQL lane (not run: no local PostgreSQL). Parent plan: [PLAN.md](PLAN.md). Nothing here is committed or deployed.
+Status: implemented and verified locally on 2026-10-07. The PostgreSQL lane has since been run on a real PostgreSQL 18.6 (2026-10-08, see PLAN_integrate_parallel_chat_changes.md). Parent plan: [PLAN.md](PLAN.md). Committed on the local branch `claude/pg-layer-scope-and-findings` on 2026-10-08; not pushed or deployed.
 
 ## Goal
 

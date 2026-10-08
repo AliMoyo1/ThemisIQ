@@ -1,6 +1,6 @@
 # Close the findings left open after the parallel-chat integration (2026-10-08)
 
-Status: done and verified (2026-10-08); waiting for a decision on committing. Nothing here is committed or pushed. Follows `PLAN_integrate_parallel_chat_changes.md`, whose "Open, reported and not fixed here" list this plan works through. The user's instruction was "fix all that is pending"; it does not authorize committing.
+Status: done and verified (2026-10-08). Committed on the local branch `claude/pg-layer-scope-and-findings` (three commits); nothing is pushed or deployed. Follows `PLAN_integrate_parallel_chat_changes.md`, whose "Open, reported and not fixed here" list this plan works through. The user's instruction was "fix all that is pending", which did not authorize committing; the later reply "continue with what you recommend" to the offered commit split was taken as the go-ahead for local commits only.
 
 ## Items (in the order they will be done)
 
