@@ -1,0 +1,36 @@
+# Review of the supplied CISO feature list
+
+**Decision record:** 2026-10-08. **Input:** user-supplied `CISO-COPYABLE-FEATURES.md` dated 2026-10-07. It is a proposal to assess, not an instruction to implement, copy source code, or adopt its estimates. **Basis:** local `master` at `eec119f`, current working tree, yesterday's [portfolio](../ROADMAP-2026-10.md) and [CISO plans](README.md), plus the linked CISO Assistant product documentation. This review changes plans only; it does not verify production rollout.
+
+## Corrections before prioritizing
+
+- **Runtime:** production deployment validation requires PostgreSQL (`oneforall/scripts/deploy.py`); SQLite is supported for local/test use. The attachment's SQLite-only description and exact table count are not a production baseline.
+- **Frameworks:** ThemisIQ already has a platform framework management page, custom creation/activation, control entry/bulk operations, mappings, and a separate ERM import route. The gap is a governed, versioned import and update lifecycle, not an inability to add any framework without a code release.
+- **Search:** the shell already calls `/api/search` across modules. [PLAN-37](../PLAN-37-connected-compliance-experience.md) records scope and disclosure work; calling search a stub hides the more important permission problem.
+- **Respondents versus public portals:** CISO Assistant's [assignments](https://github.com/intuitem/ciso-assistant-community/blob/main/product-docs/features/assignments.md) use signed-in users with a respondent role. Its [public portals](https://github.com/intuitem/ciso-assistant-community/blob/main/product-docs/features/portals.md) are read-only trust centers. An accountless write/upload invitation is a separate ThemisIQ proposal, with a different threat model.
+- **Quality checks:** CISO Assistant's [X-rays](https://github.com/intuitem/ciso-assistant-community/blob/main/product-docs/features/x-rays.md) operate on existing records. ThemisIQ's first inspector can likewise use current ARIA, GRID, ERM and Vault facts; it does not depend on a new universal assessment schema.
+- **License and content:** the reference repository [licenses](https://github.com/intuitem/ciso-assistant-community/blob/main/LICENSE.md) its Community and `enterprise/` code differently. Design independently and review rights to any code, mappings or framework text before reuse. The attachment's categorical legal conclusion about every network use or port is not adopted here.
+
+## Decision matrix
+
+| Attachment idea | Decision in this portfolio | Why and next gate |
+| --- | --- | --- |
+| 1.1 Declarative framework packs | **Advance discovery and one customer-owned pilot** within [05](05-framework-library-import.md); full catalogue remains later | Version and diff solve a real gap. Reconcile existing framework/control IDs, audit references, content rights and PostgreSQL migration first. No bulk seed of third-party standards. |
+| 1.2 Accountless external questionnaire | **Separate conditional discovery** in [06](06-external-questionnaire-invitations.md) | New potential vendor/TPRM value, but not CISO respondent mode or its public portal. Needs named recipient, minimum disclosed scope, revocation, upload handling and human review. |
+| 1.3 Risk acceptance and exceptions | **Keep early**, in [04](04-risk-acceptance-and-exceptions.md) | ERM already has an `accept` treatment; formal approval, expiry and basis are the missing controls. Start with ERM acceptance, then add scoped exceptions. Avoid a generic cross-module acceptance table before source permissions are defined. |
+| 2.1 Quick forms | **Discovery after the first assignment/intake pilot** | Existing module-specific questions and Vault requests may meet the immediate job. Build a generic form engine only for repeated, validated use across modules; published versions must freeze question meaning. Never turn an unreviewed response directly into a risk, finding or compliance verdict. |
+| 2.2 Workflow graph | **Improve definition safety first; graph later** | Current `steps_json` gets basic shape validation. Add bounded semantic validation and a read-only path preview before introducing conditions. A graph editor and expression language need a separate threat and operational review. |
+| 2.3 Custom fields | **Defer pending customer examples** | Potential flexibility, but access rules, exports, search, retention, field types and reporting semantics must be specified per owning module. Generic JSON values cannot silently drive core compliance decisions. |
+| 2.4 Comments and approvals | **Fold into existing decision contract** | GRID and other modules already have comments/approvals; [PLAN-37](../PLAN-37-connected-compliance-experience.md) and [VerifyWise approval gates](../verifywise-features/03-approval-gates.md) own shared review semantics. Start with a scoped view of source threads, not an unrestricted polymorphic `comments` table. |
+| 3.1 Decoupled assessment model | **Architecture research alongside [02](02-cross-framework-assessment-reuse.md), not a prerequisite for its pilot** | Reviewable projection of one source answer into another framework can ship before a large data-model migration. Decide on a first-class requirement assessment only after reuse proves its value and migration cost is mapped. |
+| 3.2 X-rays quality checks | **Retain as first assurance feature** in [01](01-assurance-quality-inspector.md) | Deterministic checks on existing source records provide earlier value. Add source/version explanations and one Fix route. |
+| 3.3 Search/palette | **Repair and extend existing search** through PLAN-37/SBU scope work | No duplicate search service or index until current permission and performance behavior is measured. |
+| 3.4 Shared metric catalogue | **Defer** | First define metric ownership, denominators, date windows and reconciliation across current dashboards; a new table alone would not make the numbers trustworthy. |
+| 3.5 Specialist methodologies | **Customer discovery only** | CRQ, EBIOS, threat modelling and similar methods need identified users, source data and decision use. Do not equate current predictive risk signals with formal quantitative risk analysis. |
+| 3.6 Integrations | **Demand-led** | Extend existing API/webhook contracts for a named source and permission model, rather than adopting a broad connector list. |
+
+## Cross-cutting implementation guardrails
+
+The attachment's table names, endpoints, file layout, timelines and “additive only” rule are design sketches, not approved implementation decisions. Before any build, inspect current schema, permissions, source ownership, migrations and production PostgreSQL behavior. The current worktree contains unrelated uncommitted code and plans; retain it and reconcile status before a release.
+
+Cross-module references and events should carry an actor/tenant/BU scope and a permission-checked resolver. `core/links.py` currently validates link shape; do not infer that it enforces target read access. A generic event must not create a risk, finding or accepted evidence without the owning module's validation and reviewer decision. Estimate effort after a scoped design and a small real-user journey, rather than using the attachment's one-week and three-to-four-week forecasts as commitments.
