@@ -351,6 +351,8 @@ async def api_analytics_capture_snapshot(request: Request):
 @require_auth
 async def api_analytics_trends(request: Request):
     """Get trend data for specified metrics."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         metric = request.query_params.get("metric", "compliance_pct")
@@ -377,6 +379,8 @@ async def api_analytics_trends(request: Request):
 @require_auth
 async def api_analytics_current(request: Request):
     """Get current (latest) values for all metrics."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         rows = db.execute(
@@ -2086,6 +2090,12 @@ async def api_links_delete(request: Request, link_id: int):
             (link_id,),
         ).fetchone()
         if not row:
+            return _JSONResp({"error": "Link not found."}, status_code=404)
+        source = (row["source_module"], row["source_type"])
+        target = (row["target_module"], row["target_type"])
+        if (source not in _LINKABLE or target not in _LINKABLE
+                or not _linkable_visible(db, source, row["source_id"], user)
+                or not _linkable_visible(db, target, row["target_id"], user)):
             return _JSONResp({"error": "Link not found."}, status_code=404)
         if not is_admin and row["created_by"] != uid:
             return _JSONResp({"error": "Access denied."}, status_code=403)

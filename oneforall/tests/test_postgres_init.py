@@ -2037,3 +2037,53 @@ def test_a_backup_code_cannot_be_spent_twice_on_real_postgres(pg, monkeypatch):
 
     monkeypatch.setattr(mfa.bcrypt, "checkpw", checkpw)
     assert mfa.verify_code(uid, codes[1]) is False
+
+
+def test_scoped_dashboard_and_reports_run_on_real_postgres(pg):
+    """Cross-module metrics must parse on PostgreSQL and exclude sibling BU rows."""
+    from modules.launcher.scoped_metrics import scoped_count
+    from modules.launcher.routes_dashboard import _scoped_command_stats
+    from modules.launcher.routes_reports import _report_result
+
+    pg.init_db()
+    org = _make_org(pg, "metric_scope", provision=False)
+    db = pg.get_db_bypass_rls()
+    try:
+        units = {}
+        for tag in ("A", "B"):
+            units[tag] = pg.insert_returning_id(
+                db, "INSERT INTO business_units (name, is_active) VALUES (%s, 1)", (tag,),
+            )
+            db.execute(
+                "INSERT INTO sentinel_breaches "
+                "(ref_number, title, status, business_unit_id) VALUES (%s, %s, 'open', %s)",
+                (f"BR-{tag}", f"Private breach {tag}", units[tag]),
+            )
+            db.execute(
+                "INSERT INTO grid_audits (name, status, business_unit_id) "
+                "VALUES (%s, 'Planning', %s)", (f"Private audit {tag}", units[tag]),
+            )
+            db.execute(
+                "INSERT INTO evidence_items (title, org_id, business_unit_id, status) "
+                "VALUES (%s, %s, %s, 'current')", (f"Private evidence {tag}", org, units[tag]),
+            )
+            db.execute(
+                "INSERT INTO erm_enterprise_risks "
+                "(title, likelihood, impact, business_unit_id) VALUES (%s, 4, 4, %s)",
+                (f"Private risk {tag}", units[tag]),
+            )
+        db.commit()
+        user = {"id": 999, "org_id": org, "business_unit_id": units["A"],
+                "is_super_admin": 0, "roles": ["dpo"]}
+        assert scoped_count(db, user, "sentinel_breaches") == 1
+        assert _report_result(db, user, "privacy_overview")["breaches_open"] == 1
+        assert _report_result(db, user, "executive_brief")["audits_active"] == 1
+        risk_report = _report_result(db, user, "risk_report")
+        assert risk_report["total_open"] == 1
+        assert "Private risk B" not in str(risk_report)
+        stats = _scoped_command_stats(db, user)
+        assert stats["evidence_count"] == 1
+        assert stats["sentinel_open_breaches"] == 0
+        assert "Private breach B" not in str(stats)
+    finally:
+        db.close()

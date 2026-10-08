@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 
 from database import insert_returning_id
+from modules.launcher.scoped_metrics import scoped_count, table_scope
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, shell_ctx, shell_templates, get_db,
     _json_body,)
@@ -43,6 +44,7 @@ async def risk_register_page(request: Request):
 @require_auth
 async def api_risks_list(request: Request):
     """List all risks — unified view of risk_register + erm_enterprise_risks."""
+    user = request.state.user
     db = get_db()
     try:
         module   = request.query_params.get("module", "")
@@ -56,6 +58,10 @@ async def api_risks_list(request: Request):
         # erm_enterprise_risks rows tagged with register_source='erm'
         rr_where, rr_params = ["1=1"], []
         erm_where, erm_params = ["1=1"], []
+        rr_scope, rr_scope_params = table_scope("risk_register", user, "r")
+        erm_scope, erm_scope_params = table_scope("erm_enterprise_risks", user, "e")
+        rr_where.append(rr_scope); rr_params.extend(rr_scope_params)
+        erm_where.append(erm_scope); erm_params.extend(erm_scope_params)
 
         if module:
             if module == "erm":
@@ -133,6 +139,8 @@ async def api_risks_list(request: Request):
 @require_auth
 async def api_risk_create(request: Request):
     """Create a new risk entry."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     db = get_db()
     try:
@@ -172,24 +180,30 @@ async def api_risk_create(request: Request):
 @require_auth
 async def api_risk_stats(request: Request):
     """Risk register statistics — unified (risk_register + erm_enterprise_risks)."""
+    user = request.state.user
     db = get_db()
     try:
+        rr_scope, rr_params = table_scope("risk_register", user)
+        erm_scope, erm_params = table_scope("erm_enterprise_risks", user)
         # Platform register
-        rr_total = db.execute("SELECT COUNT(*) FROM risk_register WHERE status != 'closed'").fetchone()[0]
+        rr_total = scoped_count(db, user, "risk_register", "status != 'closed'")
         rr_by_level = {r["risk_level"]: r["c"] for r in db.execute(
-            "SELECT risk_level, COUNT(*) as c FROM risk_register WHERE status != 'closed' GROUP BY risk_level"
+            f"SELECT risk_level, COUNT(*) as c FROM risk_register WHERE {rr_scope} "
+            "AND status != 'closed' GROUP BY risk_level", rr_params
         ).fetchall()}
         rr_by_module = {(r["source_module"] or "unassigned"): r["c"] for r in db.execute(
-            "SELECT source_module, COUNT(*) as c FROM risk_register WHERE status != 'closed' GROUP BY source_module"
+            f"SELECT source_module, COUNT(*) as c FROM risk_register WHERE {rr_scope} "
+            "AND status != 'closed' GROUP BY source_module", rr_params
         ).fetchall()}
         # ERM enterprise risks
-        erm_total = db.execute("SELECT COUNT(*) FROM erm_enterprise_risks WHERE status != 'closed'").fetchone()[0]
+        erm_total = scoped_count(db, user, "erm_enterprise_risks", "status != 'closed'")
         erm_by_level = {}
         for row in db.execute(
             "SELECT CASE WHEN (likelihood*impact)>=20 THEN 'critical' "
             "WHEN (likelihood*impact)>=12 THEN 'high' WHEN (likelihood*impact)>=6 THEN 'medium' "
             "ELSE 'low' END as lvl, COUNT(*) as c "
-            "FROM erm_enterprise_risks WHERE status != 'closed' GROUP BY lvl"
+            f"FROM erm_enterprise_risks WHERE {erm_scope} AND status != 'closed' GROUP BY lvl",
+            erm_params
         ).fetchall():
             erm_by_level[row["lvl"]] = row["c"]
 
@@ -201,7 +215,8 @@ async def api_risk_stats(request: Request):
         by_module["erm"] = by_module.get("erm", 0) + erm_total
 
         heat_data = db.execute(
-            "SELECT likelihood, impact, COUNT(*) as c FROM risk_register WHERE status != 'closed' GROUP BY likelihood, impact"
+            f"SELECT likelihood, impact, COUNT(*) as c FROM risk_register WHERE {rr_scope} "
+            "AND status != 'closed' GROUP BY likelihood, impact", rr_params
         ).fetchall()
     finally:
         db.close()
@@ -217,6 +232,8 @@ async def api_risk_stats(request: Request):
 @require_auth
 async def api_risk_get(request: Request, rid: int):
     """Get a single risk with full details."""
+    if not request.state.user.get("is_super_admin"):
+        raise HTTPException(404, "Risk not found")
     db = get_db()
     try:
         row = db.execute(
@@ -234,6 +251,8 @@ async def api_risk_get(request: Request, rid: int):
 @require_auth
 async def api_risk_update(request: Request, rid: int):
     """Update a risk entry."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     db = get_db()
     try:
@@ -269,6 +288,8 @@ async def api_risk_update(request: Request, rid: int):
 @require_auth
 async def api_risk_delete(request: Request, rid: int):
     """Close/archive a risk."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         db.execute("UPDATE risk_register SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = %s", (rid,))

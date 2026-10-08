@@ -37,15 +37,18 @@ _KINDS = {
     ("sentinel", "vendor"):   _Kind("sentinel", "sentinel.vendor.manage"),
     ("grid", "audit"):        _Kind("grid", "module.grid.access", "business_unit_id"),
     ("grid", "nc"):           _Kind("grid", "grid.nc.manage", via_audit=True),
+    ("grid", "control"):      _Kind("grid", "module.grid.access", via_audit=True),
     ("grid", "vendor"):       _Kind("grid", "grid.vendor.manage"),
     ("bcm", "plan"):          _Kind("bcm", "module.bcm.access", "business_unit_id"),
     ("bcm", "incident"):      _Kind("bcm", "module.bcm.access", "business_unit_id"),
+    ("bcm", "exercise"):      _Kind("bcm", "module.bcm.access", "business_unit_id"),
     ("bcm", "vendor"):        _Kind("bcm", "module.bcm.access"),
     ("erm", "risk"):          _Kind("erm", "erm.risk.view", "business_unit_id"),
     ("erm", "obligation"):    _Kind("erm", "module.erm.access"),
     ("platform", "risk"):     _Kind("erm", "erm.risk.view"),           # the register behind ERM and ORM
     ("orm", "event"):         _Kind("orm", "module.orm.access", "business_unit_id"),
     ("orm", "kri"):           _Kind("orm", "module.orm.access"),
+    ("platform", "task"):    _Kind("", "", "business_unit_id"),
 }
 
 
@@ -68,6 +71,10 @@ def entity_scope_sql(key: tuple, user: dict, alias: str = "") -> tuple[str, list
         raise ValueError("alias must be a plain SQL identifier")
     kind = _KINDS.get(key)
     if kind is None or not may_view_kind(user, key):
+        return "(1 = 0)", []
+    if key == ("platform", "risk") and not user.get("is_super_admin"):
+        # Legacy platform risks have no reliable BU owner. Their titles must not
+        # bypass the scoped ERM view through topbar search or cross-module reads.
         return "(1 = 0)", []
     if key == ("aria", "document"):
         return document_scope_sql(user)  # unqualified columns, like the module's own queries

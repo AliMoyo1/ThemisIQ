@@ -310,35 +310,3 @@ async def api_framework_ai_generate_controls(request: Request, fid: int):
 
 
 # ── Cross-Module Links ──────────────────────────────────────────────────────
-
-@router.get("/api/links")
-@require_auth
-async def api_links_get(request: Request):
-    """Get cross-module links for an entity."""
-    from core.framework_service import get_links
-    module = request.query_params.get("module", "")
-    entity_type = request.query_params.get("type", "")
-    entity_id = int(request.query_params.get("id", "0"))
-    if not module or not entity_type or not entity_id:
-        return _JSONResp([])
-    return _JSONResp(get_links(module, entity_type, entity_id))
-
-
-@router.post("/api/links")
-@require_auth
-async def api_links_create(request: Request):
-    """Create a cross-module link."""
-    from core.framework_service import create_link
-    data = await _json_body(request)
-    uid = request.state.user["id"]
-    link_id = create_link(
-        source_module=data.get("source_module", ""),
-        source_type=data.get("source_type", ""),
-        source_id=data.get("source_id", 0),
-        target_module=data.get("target_module", ""),
-        target_type=data.get("target_type", ""),
-        target_id=data.get("target_id", 0),
-        relationship=data.get("relationship", "related"),
-        user_id=uid,
-    )
-    return _JSONResp({"id": link_id}, status_code=201)

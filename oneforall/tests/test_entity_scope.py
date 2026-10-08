@@ -19,6 +19,10 @@ import pytest
 
 import core.middleware as middleware
 import modules.launcher.routes_platform as plat
+import modules.launcher.routes_dashboard as dash
+import modules.launcher.routes_reports as reports
+import modules.launcher.routes_risks as risks
+from modules.launcher.routes import router as launcher_router
 from core import rbac
 from modules.governance.entity_scope import entity_scope_sql, may_view_kind
 
@@ -163,6 +167,8 @@ def world(test_db):
 def _tags_seen(name, key):
     """The tags of the rows of `key` this persona may see."""
     role, tag = PERSONAS[name]
+    if key == ("platform", "risk") and role != rbac.SUPER_ADMIN:
+        return set()
     if key not in ALLOWED[role]:
         return set()
     if key in FLAT:
@@ -367,12 +373,22 @@ def test_unlinking_is_audited_and_still_limited_to_the_creator_or_an_admin(world
     assert _call(plat.api_links_delete(_request(admin), 424242))[0] == 404
 
 
+def test_link_creator_cannot_delete_after_losing_source_unit(world):
+    creator = world.users["dpo_a"]
+    source = (("erm", "risk"), world.rows[("erm", "risk")]["A"])
+    target = (("sentinel", "ropa"), world.rows[("sentinel", "ropa")]["A"])
+    _, made = _create(creator, source, target)
+    moved = {**creator, "business_unit_id": world.unit["B"]}
+    assert _call(plat.api_links_delete(_request(moved), made["link_id"]))[0] == 404
+    assert _count_links(world) == 1
+
+
 # ── The shared rule itself ──────────────────────────────────────────────────
 
 def test_unknown_kinds_match_nothing_and_a_bad_alias_is_refused(world):
     admin = world.users["super"]
     assert entity_scope_sql(("platform", "evidence"), admin) == ("(1 = 0)", [])
-    assert not may_view_kind(admin, ("grid", "control"))
+    assert not may_view_kind(admin, ("grid", "unknown"))
     with pytest.raises(ValueError):
         entity_scope_sql(("sentinel", "ropa"), admin, "t; DROP TABLE users")
 
@@ -388,3 +404,90 @@ def test_a_module_the_organization_is_not_licensed_for_is_closed_even_to_its_rol
     assert may_view_kind(dpo, ("aria", "document"))
     assert not may_view_kind(dpo, ("sentinel", "breach"))
     assert not may_view_kind(dpo, ("erm", "risk"))
+
+
+def test_only_one_link_create_route_is_registered():
+    routes = [route for included in launcher_router.routes
+              for route in included.original_router.routes]
+    matches = [r for r in routes if getattr(r, "path", None) == "/api/links"
+               and "POST" in r.methods]
+    assert len(matches) == 1
+    assert matches[0].endpoint is plat.api_links_create
+
+
+def test_command_centre_counts_and_alert_titles_follow_business_unit(world):
+    db = world.db
+    for tag, owner in (("A", "dpo_a"), ("B", "dpo_b")):
+        _insert(db, "task_board", title=f"secret task {tag}",
+                business_unit_id=world.unit[tag], created_by=world.users[owner]["id"],
+                due_date="2026-01-01")
+    for tag in ("A", "B"):
+        db.execute("UPDATE sentinel_breaches SET notify_deadline = %s "
+                   "WHERE id = %s", ("2026-12-01", world.rows[("sentinel", "breach")][tag]))
+    db.commit()
+    _, a = _call(dash.api_command_centre_stats(_request(world.users["dpo_a"])))
+    _, b = _call(dash.api_command_centre_stats(_request(world.users["dpo_b"])))
+    assert a["evidence_count"] == 3 and b["evidence_count"] == 2
+    assert a["overdue_count"] == b["overdue_count"] == 1
+    assert "secret task B" not in json.dumps(a)
+    assert "secret task A" not in json.dumps(b)
+    assert "needle breach A" in json.dumps(a["breach_alerts"])
+    assert "needle breach B" not in json.dumps(a)
+    assert "needle breach B" in json.dumps(b["breach_alerts"])
+    assert "needle breach A" not in json.dumps(b)
+
+
+def test_report_definitions_and_runs_are_owner_and_scope_bound(world):
+    a, b = world.users["dpo_a"], world.users["dpo_b"]
+    status, created = _call(reports.api_report_definition_create(
+        _request(a, payload={"name": "Private", "report_type": "privacy_overview"})))
+    assert status == 201
+    rid = created["id"]
+    assert all(r["id"] != rid for r in _call(reports.api_report_definitions(_request(b)))[1])
+    assert _call(reports.api_report_run(_request(b), rid))[0] == 404
+    status, run = _call(reports.api_report_run(_request(a), rid))
+    assert status == 200 and run["result"]["ropa_count"] == 3
+    run_id = run["run_id"]
+    assert _call(reports.api_report_run_get(_request(b), run_id))[0] == 404
+    assert _call(reports.api_report_run_get(_request(a), run_id))[1]["result"]["ropa_count"] == 3
+    world.db.execute("UPDATE sentinel_ropa SET business_unit_id = %s WHERE id = %s",
+                     (world.unit["B"], world.rows[("sentinel", "ropa")]["A"]))
+    world.db.commit()
+    assert _call(reports.api_report_run_get(_request(a), run_id))[1]["result"]["ropa_count"] == 2
+    assert world.db.execute("SELECT result_json FROM report_runs WHERE id = %s", (run_id,)).fetchone()[0] is None
+    moved = {**a, "business_unit_id": world.unit["B"]}
+    assert _call(reports.api_report_run_get(_request(moved), run_id))[0] == 404
+    assert all(r["id"] != run_id for r in _call(reports.api_report_runs(_request(moved)))[1])
+    assert _call(reports.api_report_definition_update(
+        _request(b, payload={"name": "Stolen"}), rid))[0] == 404
+
+
+def test_executive_brief_uses_visible_audits_and_breaches(world):
+    a, b = world.users["dpo_a"], world.users["dpo_b"]
+    a_result = reports._report_result(world.db, a, "executive_brief")
+    b_result = reports._report_result(world.db, b, "executive_brief")
+    assert a_result["audits_active"] == 3
+    assert b_result["audits_active"] == 2
+    assert a_result["breaches_open"] == 3
+    assert b_result["breaches_open"] == 2
+    assert a_result["risks_high"] == b_result["risks_high"] == 0
+
+
+def test_risk_register_list_stats_and_report_hide_sibling_unit(world):
+    a, b = world.users["dpo_a"], world.users["dpo_b"]
+    _, a_list = _call(risks.api_risks_list(_request(a)))
+    _, b_list = _call(risks.api_risks_list(_request(b)))
+    assert a_list["total"] == 3 and b_list["total"] == 2
+    assert "needle risk B" not in json.dumps(a_list)
+    assert "needle risk A" not in json.dumps(b_list)
+    assert "needle risk" not in json.dumps([r for r in a_list["items"]
+                                            if r["register_source"] == "platform"])
+    _, a_stats = _call(risks.api_risk_stats(_request(a)))
+    assert a_stats["total"] == 3 and a_stats["by_module"]["erm"] == 3
+    report = reports._report_result(world.db, a, "risk_report")
+    assert report["total_open"] == 3
+    assert "needle risk B" not in json.dumps(report)
+    assert not any(r["module"] == "platform" and r["type"] == "risk"
+                   for r in _search(a, "needle risk"))
+    assert _call(plat.api_analytics_current(_request(a)))[0] == 403
+    assert _call(plat.api_analytics_trends(_request(a)))[0] == 403
