@@ -11,6 +11,7 @@ import string
 from datetime import datetime, timedelta
 from core.timeutils import utcnow, to_dt
 from database import get_db, insert_returning_id, sql_current_date
+from core.sql_like import ci_like, like_pattern
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -212,8 +213,8 @@ def list_ropa(search=None, regulation=None, status=None, risk=None, limit=500, b
     sql = "SELECT * FROM sentinel_ropa WHERE 1=1"
     params = []
     if search:
-        sql += " AND (processing_name LIKE %s OR department LIKE %s OR owner LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('processing_name')} OR {ci_like('department')} OR {ci_like('owner')})"
+        like = like_pattern(search)
         params += [like, like, like]
     if regulation:
         sql += " AND regulation=%s"
@@ -366,8 +367,8 @@ def list_dpias(search=None, regulation=None, status=None, limit=500, bu_scope=No
     )
     params = []
     if search:
-        sql += " AND (d.title LIKE %s OR d.org_name LIKE %s OR d.activity_type LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('d.title')} OR {ci_like('d.org_name')} OR {ci_like('d.activity_type')})"
+        like = like_pattern(search)
         params += [like, like, like]
     if regulation:
         sql += " AND d.regulation=%s"
@@ -588,8 +589,8 @@ def list_aiias(search=None, status=None, limit=500, bu_scope=None):
     )
     params = []
     if search:
-        sql += " AND (a.title LIKE %s OR a.ai_system_name LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('a.title')} OR {ci_like('a.ai_system_name')})"
+        like = like_pattern(search)
         params += [like, like]
     if status:
         sql += " AND a.status=%s"
@@ -710,8 +711,8 @@ def list_breaches(search=None, status=None, severity=None, limit=500, bu_scope=N
     sql = "SELECT * FROM sentinel_breaches WHERE 1=1"
     params = []
     if search:
-        sql += " AND (title LIKE %s OR description LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('title')} OR {ci_like('description')})"
+        like = like_pattern(search)
         params += [like, like]
     if status:
         sql += " AND status=%s"
@@ -803,8 +804,8 @@ def list_dsrs(search=None, status=None, request_type=None, limit=500, bu_scope=N
     sql = "SELECT * FROM sentinel_dsr WHERE 1=1"
     params = []
     if search:
-        sql += " AND (requester_name LIKE %s OR requester_email LIKE %s OR description LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('requester_name')} OR {ci_like('requester_email')} OR {ci_like('description')})"
+        like = like_pattern(search)
         params += [like, like, like]
     if status:
         sql += " AND status=%s"
@@ -874,8 +875,8 @@ def list_vendors(search=None, risk=None, dpa_status=None, limit=500):
     sql = "SELECT * FROM sentinel_vendors WHERE 1=1"
     params = []
     if search:
-        sql += " AND (name LIKE %s OR services LIKE %s OR country LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('name')} OR {ci_like('services')} OR {ci_like('country')})"
+        like = like_pattern(search)
         params += [like, like, like]
     if risk:
         sql += " AND risk_level=%s"
@@ -948,8 +949,8 @@ def list_consent(search=None, status=None, limit=500):
     sql = "SELECT * FROM sentinel_consent WHERE 1=1"
     params = []
     if search:
-        sql += " AND (subject_name LIKE %s OR subject_email LIKE %s OR purpose LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('subject_name')} OR {ci_like('subject_email')} OR {ci_like('purpose')})"
+        like = like_pattern(search)
         params += [like, like, like]
     if status:
         sql += " AND status=%s"
@@ -1099,8 +1100,8 @@ def list_policies(search=None, status=None, policy_type=None, limit=500):
     sql = "SELECT * FROM sentinel_policies WHERE 1=1"
     params = []
     if search:
-        sql += " AND (title LIKE %s OR owner LIKE %s OR department LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('title')} OR {ci_like('owner')} OR {ci_like('department')})"
+        like = like_pattern(search)
         params += [like, like, like]
     if status:
         sql += " AND status=%s"
@@ -1144,8 +1145,8 @@ def list_training(search=None, department=None, limit=500):
     sql = "SELECT * FROM sentinel_training WHERE 1=1"
     params = []
     if search:
-        sql += " AND (staff_name LIKE %s OR training_name LIKE %s OR department LIKE %s)"
-        like = f"%{search}%"
+        sql += f" AND ({ci_like('staff_name')} OR {ci_like('training_name')} OR {ci_like('department')})"
+        like = like_pattern(search)
         params += [like, like, like]
     if department:
         sql += " AND department=%s"

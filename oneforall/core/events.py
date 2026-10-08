@@ -15,6 +15,7 @@ from core.timeutils import utcnow
 from typing import Callable, Optional
 
 from database import get_db, get_db_background, insert_returning_id, IntegrityError
+from core.best_effort import swallowed
 
 log = logging.getLogger("oneforall.events")
 
@@ -215,7 +216,7 @@ def _set_status(event_id: int, status: str):
         )
         db.commit()
     except Exception:
-        pass  # Bookkeeping failure is non-critical
+        swallowed("_set_status (events)")  # Bookkeeping failure is non-critical
     finally:
         db.close()
 

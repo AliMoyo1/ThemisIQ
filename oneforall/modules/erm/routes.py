@@ -19,6 +19,7 @@ from modules.erm import data_service as ds
 from modules.erm import ai_service as ai
 from modules.erm import scan_jobs
 from modules.governance.data_service import bu_scope_ids
+from core.best_effort import swallowed
 
 log = logging.getLogger(__name__)
 
@@ -383,7 +384,7 @@ async def api_risk_control_suggest_ice(request: Request, risk_id: int, control_i
                 if rationale:
                     result["rationale"] = rationale
         except Exception:
-            pass
+            swallowed("api_risk_control_suggest_ice (canonical_controls)")
     return JSONResponse(result)
 
 

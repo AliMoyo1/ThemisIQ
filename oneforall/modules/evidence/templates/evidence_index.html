@@ -98,6 +98,7 @@
 .ev-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);padding:0 20px}
 .ev-tab{padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;font-family:inherit}
 .ev-tab.active{color:var(--accent);border-color:var(--accent)}
+#evidenceGrid,#evidenceTable{scroll-margin-top:72px}
 </style>
 
 <div class="topbar">
@@ -173,6 +174,15 @@
       <tbody id="evidenceTableBody"></tbody>
     </table>
   </div>
+
+  <!-- Pager -->
+  <nav id="evPager" aria-label="Evidence pages" style="display:none;align-items:center;justify-content:flex-start;gap:16px;flex-wrap:wrap;margin-top:14px;margin-bottom:84px">
+    <span id="evPagerStatus" role="status" aria-live="polite" style="font-size:12px;color:var(--muted)"></span>
+    <div id="evPagerButtons" style="display:flex;gap:8px">
+      <button type="button" class="btn btn-secondary" id="evPrevPage" onclick="evGoToPage(evPage-1)">Previous</button>
+      <button type="button" class="btn btn-secondary" id="evNextPage" onclick="evGoToPage(evPage+1)">Next</button>
+    </div>
+  </nav>
 
   <!-- Empty State -->
   <div id="emptyState" style="display:none;text-align:center;padding:60px 20px;color:var(--muted)">
@@ -275,6 +285,7 @@
 
 <script>
 var currentView='all', currentModule='', currentCategory='', currentStatus='', searchTimeout=null, entitySearchTimeout=null;
+var evPage=1, evPages=1;
 var evSavedViews=[], evUserId={{ user.id }};
 var evViewMode = localStorage.getItem('ev-view-mode') || 'cards';
 var evCanBulkArchive = {{ 'true' if can_bulk_archive else 'false' }};
@@ -427,6 +438,29 @@ function getCsrf(){
   return m?decodeURIComponent(m[1]):'';
 }
 
+function evRenderPager(data){
+  var nav=document.getElementById('evPager');
+  evPage=data.page;evPages=data.pages;
+  if(!data.total){nav.style.display='none';return;}
+  var from=(data.page-1)*data.page_size+1;
+  var to=Math.min(data.page*data.page_size,data.total);
+  document.getElementById('evPagerStatus').textContent='Showing '+from+' to '+to+' of '+data.total;
+  document.getElementById('evPagerButtons').style.display=data.pages>1?'flex':'none';
+  [['evPrevPage',data.page<=1],['evNextPage',data.page>=data.pages]].forEach(function(spec){
+    var button=document.getElementById(spec[0]);
+    button.setAttribute('aria-disabled',spec[1]?'true':'false');
+    button.style.opacity=spec[1]?'.5':'';
+    button.style.cursor=spec[1]?'not-allowed':'';
+  });
+  nav.style.display='flex';
+}
+async function evGoToPage(n){
+  if(n<1||n>evPages||n===evPage)return;
+  evPage=n;
+  await loadEvidence();
+  var list=document.getElementById(evViewMode==='table'?'evidenceTable':'evidenceGrid');
+  if(list)list.scrollIntoView({block:'start'});
+}
 async function loadEvidence(){
   var loadSeq=++evLoadSeq;
   var params=new URLSearchParams();
@@ -436,9 +470,16 @@ async function loadEvidence(){
   if(currentView&&currentView!=='all')params.set('view',currentView);
   var q=document.getElementById('searchInput').value;
   if(q)params.set('q',q);
+  params.set('page',evPage);
   var r=await fetch('/evidence/api/items?'+params.toString());
-  var items=await r.json();
+  var data=await r.json();
   if(loadSeq!==evLoadSeq)return;
+  if(!data||!Array.isArray(data.items)){
+    if(typeof showToast==='function')showToast('Could not load evidence.','error');
+    return;
+  }
+  var items=data.items;
+  evRenderPager(data);
   evSelectedIds.clear();
   evVisibleIds=items.filter(function(item){return item.status!=='archived';}).map(function(item){return Number(item.id);});
   evUpdateSelection();
@@ -601,6 +642,7 @@ function evApplySavedView(rawId){
   currentModule=filters.module||'';
   currentStatus=filters.status||'';
   currentView=filters.view||'all';
+  evPage=1;
   document.getElementById('searchInput').value=filters.q||'';
   document.querySelectorAll('.nav-item').forEach(function(node){node.classList.remove('active');});
   var nav=document.getElementById('nav-'+currentView);
@@ -1142,14 +1184,14 @@ async function createLink(eid,mod,etype,entityId){
 
 /* ── View/Filter Switching ── */
 function switchView(v,el){
-  currentView=v;
+  currentView=v;evPage=1;
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   if(el)el.classList.add('active');
   loadEvidence();
 }
-function filterModule(m,el){currentModule=m;loadEvidence();}
-function filterCategory(c){currentCategory=c;loadEvidence();}
-function debounceSearch(){clearTimeout(searchTimeout);searchTimeout=setTimeout(loadEvidence,300);}
+function filterModule(m,el){currentModule=m;evPage=1;loadEvidence();}
+function filterCategory(c){currentCategory=c;evPage=1;loadEvidence();}
+function debounceSearch(){clearTimeout(searchTimeout);searchTimeout=setTimeout(function(){evPage=1;loadEvidence();},300);}
 
 /* ── Upload ── */
 async function handleUpload(e){
@@ -1185,6 +1227,7 @@ async function handleUpload(e){
   ModalManager.close('uploadModal');
   document.getElementById('uploadForm').reset();
   document.getElementById('uploadExpiry').value='';
+  evPage=1;
   loadEvidence();loadStats();
   if(typeof showToast==='function')showToast('Evidence uploaded','success');
 }

@@ -18,6 +18,8 @@ from modules.launcher._route_helpers import (
     EMPLOYEE, ALL_ROLES, ROLE_LABELS,
     csv, io, json_lib, Response,
     _json_body,)
+from core.sql_like import ci_like, like_pattern
+from core.best_effort import swallowed
 
 router = APIRouter()
 
@@ -74,6 +76,7 @@ def _user_reference_counts(db, uid: int) -> dict:
                 tuple([uid] * len(cols)),
             ).fetchone()[0]
         except Exception:
+            swallowed("_user_reference_counts")
             n = 0
         if n:
             counts[label] = counts.get(label, 0) + n
@@ -906,11 +909,11 @@ async def admin_api_logs(request: Request):
             where_clauses.append("al.module = %s")
             params.append(module)
         if action:
-            where_clauses.append("al.action LIKE %s")
-            params.append(f"%{action}%")
+            where_clauses.append(ci_like("al.action"))
+            params.append(like_pattern(action))
         if user_filter:
-            where_clauses.append("(al.username LIKE %s OR u.full_name LIKE %s)")
-            params.extend([f"%{user_filter}%", f"%{user_filter}%"])
+            where_clauses.append(f"({ci_like('al.username')} OR {ci_like('u.full_name')})")
+            params.extend([like_pattern(user_filter)] * 2)
         if date_from:
             where_clauses.append("al.created_at >= %s")
             params.append(date_from)
@@ -935,7 +938,8 @@ async def admin_api_logs(request: Request):
 
         # Get distinct modules for filter dropdown (scoped to visible logs).
         modules = db.execute(
-            f"SELECT DISTINCT al.module FROM audit_log al WHERE {where_sql} AND al.module IS NOT NULL ORDER BY al.module",
+            f"SELECT DISTINCT al.module FROM audit_log al LEFT JOIN users u ON al.user_id = u.id "
+            f"WHERE {where_sql} AND al.module IS NOT NULL ORDER BY al.module",
             params
         ).fetchall()
     finally:

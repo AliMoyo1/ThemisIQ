@@ -29,6 +29,7 @@ from core.events import (
 
 from modules.sentinel import data_service as ds
 from modules.governance.data_service import bu_scope_ids
+from core.best_effort import swallowed
 
 router = APIRouter(prefix="/sentinel", tags=["sentinel"])
 
@@ -145,6 +146,7 @@ async def api_active_breach(request: Request):
             })
         return JSONResponse({"active": False, "id": None, "title": None, "severity": None})
     except Exception:
+        swallowed("api_active_breach (sentinel_breaches)")
         return JSONResponse({"active": False, "id": None, "title": None, "severity": None})
     finally:
         db.close()
@@ -640,7 +642,7 @@ async def api_vendor_cross_module(request: Request, vendor_id: int):
     from database import get_db
     db = get_db()
     try:
-        return JSONResponse(get_cross_module_profile(db, v["canonical_id"]))
+        return JSONResponse(get_cross_module_profile(db, v["canonical_id"], request.state.user))
     finally:
         db.close()
 

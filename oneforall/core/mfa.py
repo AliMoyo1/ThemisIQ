@@ -20,6 +20,7 @@ import qrcode
 
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id
+from core.best_effort import swallowed
 
 ISSUER = "ThemisIQ"
 _BACKUP_CODE_COUNT = 8
@@ -202,18 +203,22 @@ def verify_code(user_id: int, code: str) -> bool:
                 remaining = [x for x in hashed_list if x != h]
                 db = get_db()
                 try:
-                    db.execute(
+                    # Compare and set: the write only counts if the list is still the one we read.
+                    # Otherwise another request changed it meanwhile, most likely by spending this
+                    # very code, and this one must not succeed as well.
+                    spent = db.execute(
                         "UPDATE user_mfa SET backup_codes = %s, last_used_at = %s "
-                        "WHERE id = %s",
+                        "WHERE id = %s AND backup_codes = %s",
                         (json.dumps(remaining),
                          utcnow().isoformat(sep=" ")[:19],
-                         row["id"]),
-                    )
+                         row["id"], row["backup_codes"]),
+                    ).rowcount
                     db.commit()
                 finally:
                     db.close()
-                return True
+                return spent == 1
         except Exception:
+            swallowed("verify_code (user_mfa)")
             continue
     return False
 

@@ -32,6 +32,7 @@ from core.events import (
     emit, GRID_AUDIT_COMPLETED, GRID_FINDING_CREATED, GRID_NC_RAISED,
     GRID_POLICY_REQUESTED,
 )
+from core.best_effort import swallowed
 
 router = APIRouter(prefix="/grid", tags=["grid"])
 
@@ -1143,7 +1144,7 @@ def _send_nc_assignment_email(ncid: int, assigner_id: int | None = None) -> None
             ),
         )
     except Exception:
-        pass  # Email is best-effort; never block the API response
+        swallowed("_send_nc_assignment_email (users)")  # Email is best-effort; never block the API response
 
 
 @router.get("/api/ncs")
@@ -1448,7 +1449,7 @@ async def api_vendor_cross_module(request: Request, vid: int):
     from core.vendor_link import get_cross_module_profile
     db = get_db()
     try:
-        return JSONResponse(get_cross_module_profile(db, v["canonical_id"]))
+        return JSONResponse(get_cross_module_profile(db, v["canonical_id"], request.state.user))
     finally:
         db.close()
 
@@ -1867,7 +1868,7 @@ async def api_ai_checklist(request: Request, audit_id: int):
             er = [e.strip() for e in er.split(",") if e.strip()]
         evidence_names.extend(er)
     if evidence_names:
-        vault_matches = ds.search_vault_for_evidence(evidence_names)
+        vault_matches = ds.search_vault_for_evidence(request.state.user, evidence_names)
 
     for item in items:
         ev_req = item.get("evidence_required") or []
@@ -2684,7 +2685,7 @@ async def api_vault_evidence(request: Request):
     module = request.query_params.get("module")
     search = request.query_params.get("q")
     return JSONResponse(ds.list_vault_evidence(
-        category=category, module=module, search=search,
+        request.state.user, category=category, module=module, search=search,
     ))
 
 

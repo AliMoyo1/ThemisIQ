@@ -11,6 +11,7 @@ from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
     shell_ctx, shell_templates, get_db,
     _json_body,)
+from core.best_effort import swallowed
 
 router = APIRouter()
 
@@ -288,6 +289,7 @@ async def api_executive_summary(request: Request):
             try:
                 stats[k] = db.execute(q).fetchone()[0]
             except Exception:
+                swallowed("api_executive_summary")
                 stats[k] = 0
         if stats["controls_total"]:
             stats["compliance_pct"] = round(stats["controls_compliant"] / stats["controls_total"] * 100)

@@ -165,12 +165,12 @@ def _upload_evidence(client: httpx.Client, title: str) -> int:
 def test_evidence_from_another_org_is_not_listed(org_a_client, org_b_client):
     eid = _upload_evidence(org_a_client, "Org A Evidence Isolation Probe")
 
-    org_b_items = org_b_client.get("/evidence/api/items").json()
+    org_b_items = org_b_client.get("/evidence/api/items").json()["items"]
     assert all(item["id"] != eid for item in org_b_items), (
         "org B's list included an evidence item uploaded by org A"
     )
 
-    org_a_items = org_a_client.get("/evidence/api/items").json()
+    org_a_items = org_a_client.get("/evidence/api/items").json()["items"]
     assert any(item["id"] == eid for item in org_a_items), (
         "positive control failed: org A can't see its own uploaded evidence"
     )

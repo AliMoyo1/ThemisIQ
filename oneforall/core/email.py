@@ -37,6 +37,7 @@ from email.mime.text import MIMEText
 from typing import Optional
 
 from config import settings
+from core.best_effort import swallowed
 
 log = logging.getLogger("aegis.email")
 
@@ -57,6 +58,7 @@ def _get_setting(key: str, default: str = "") -> str:
         finally:
             db.close()
     except Exception:
+        swallowed("_get_setting (settings)")
         return default
 
 

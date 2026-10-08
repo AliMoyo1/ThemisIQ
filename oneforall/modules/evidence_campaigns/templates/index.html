@@ -230,14 +230,14 @@
   async function submitRequest(requestId, lockVersion) {
     var q = window.prompt('Search your uploaded evidence by title:');
     if (q === null) return;
-    var items;
+    var found;
     try {
-      items = await ApiClient.request('/evidence/api/items?q=' + encodeURIComponent(q || ''));
+      found = await ApiClient.request('/evidence/api/items?q=' + encodeURIComponent(q || ''));
     } catch (err) {
       if (window.showToast) showToast('Could not search evidence.', 'error');
       return;
     }
-    items = Array.isArray(items) ? items : [];
+    var items = (found && found.items) || [];
     if (!items.length) {
       if (window.showToast) showToast('No matching evidence found. Upload it in Evidence Vault first.', 'error');
       return;

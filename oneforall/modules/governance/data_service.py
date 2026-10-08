@@ -12,6 +12,7 @@ import json
 from config import settings
 from database import get_db, insert_returning_id
 from core.timeutils import utcnow
+from core.best_effort import is_missing_relation, swallowed
 
 
 def _dicts(rows):
@@ -183,8 +184,11 @@ def delete_business_unit(bu_id: int) -> bool:
                 ).fetchone()[0]
                 if cnt:
                     return False
-            except Exception:
-                # Table or column may not exist yet in older migrations — skip.
+            except Exception as exc:
+                # Only a table or column missing from an older schema may be skipped. Any other
+                # failure must not let the delete go ahead unchecked.
+                if not is_missing_relation(exc):
+                    raise
                 continue
         db.execute("DELETE FROM business_units WHERE id=%s", (bu_id,))
         db.commit()
@@ -565,7 +569,9 @@ def delete_department(dept_id: int) -> bool:
                 ).fetchone()[0]
                 if cnt:
                     return False
-            except Exception:
+            except Exception as exc:
+                if not is_missing_relation(exc):  # same rule as delete_business_unit
+                    raise
                 continue
         db.execute("DELETE FROM departments WHERE id=%s", (dept_id,))
         db.commit()
@@ -973,12 +979,14 @@ def get_governance_summary() -> dict:
                     f"SELECT COUNT(*) FROM {table} WHERE is_active=1"
                 ).fetchone()[0]
             except Exception:
+                swallowed("get_governance_summary")
                 counts[label] = 0
         try:
             counts["open_regulatory_updates"] = db.execute(
                 "SELECT COUNT(*) FROM regulatory_updates WHERE status='open'"
             ).fetchone()[0]
         except Exception:
+            swallowed("get_governance_summary (regulatory_updates)")
             counts["open_regulatory_updates"] = 0
         return counts
     finally:
@@ -1112,6 +1120,7 @@ def _task_exists_by_title(db, title: str) -> bool:
         ).fetchone()
         return row is not None
     except Exception:
+        swallowed("_task_exists_by_title (task_board)")
         return False
 
 

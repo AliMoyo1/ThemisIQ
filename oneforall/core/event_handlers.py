@@ -25,6 +25,7 @@ from core.notifications import notify_connectors
 from database import get_db_background as get_db  # handlers must fail-fast, never queue behind user writes
 from database import insert_returning_id
 from config import settings
+from core.best_effort import swallowed
 
 log = logging.getLogger("oneforall.handlers")
 
@@ -3318,6 +3319,7 @@ def recompute_effectiveness_on_status_change(event_type, source_module, entity_t
                         cid = row[0]
                         break
                 except Exception:
+                    swallowed("recompute_effectiveness_on_status_change")
                     continue
         if not cid:
             return

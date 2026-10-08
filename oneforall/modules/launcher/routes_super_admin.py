@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from config import settings
 from core.middleware import get_current_user
 from database import get_db, provision_tenant_schema, insert_returning_id
+from core.best_effort import attempt
 
 log = logging.getLogger("oneforall.super_admin")
 router = APIRouter(prefix="/super-admin", tags=["super-admin"])
@@ -346,10 +347,8 @@ async def delete_org_user(request: Request, org_id: int, user_id: int):
             "sentinel_lia", "erm_enterprise_risks",
             "erm_regulatory_obligations", "erm_assessments", "orm_rcsa_assessments",
         ):
-            try:
+            with attempt(db, f"clear created_by on {tbl}"):
                 db.execute(f"UPDATE {tbl} SET created_by=NULL WHERE created_by=%s", (uid,))
-            except Exception:
-                pass
 
         # NULL out nullable user_id columns that are references, not ownership.
         for tbl in (
@@ -357,10 +356,8 @@ async def delete_org_user(request: Request, org_id: int, user_id: int):
             "grid_control_comments", "grid_remote_participants",
             "grid_remote_notes", "bcm_training_attestations",
         ):
-            try:
+            with attempt(db, f"clear user_id on {tbl}"):
                 db.execute(f"UPDATE {tbl} SET user_id=NULL WHERE user_id=%s", (uid,))
-            except Exception:
-                pass
 
         # Delete records owned by the user.
         for tbl in ("notifications", "user_preferences", "grid_reminders",
@@ -368,10 +365,8 @@ async def delete_org_user(request: Request, org_id: int, user_id: int):
                     "erm_chat_messages", "orm_chat_messages",
                     "grid_digest_subscriptions",
                     "user_roles", "sessions"):
-            try:
+            with attempt(db, f"delete {tbl} rows of the user"):
                 db.execute(f"DELETE FROM {tbl} WHERE user_id=%s", (uid,))
-            except Exception:
-                pass
 
         db.execute("DELETE FROM users WHERE id=%s AND org_id=%s", (uid, org_id))
         db.commit()

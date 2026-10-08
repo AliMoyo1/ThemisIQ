@@ -36,6 +36,7 @@ from modules.grid.email_service import (
     nc_deadline_reminder_html,
     nc_cap_escalation_html,
 )
+from core.best_effort import swallowed
 
 log = logging.getLogger("grid.scheduler")
 TZ = "Africa/Harare"
@@ -578,7 +579,7 @@ def perform_integrity_audit() -> None:
                         ),
                     )
                 except Exception:
-                    pass
+                    swallowed("perform_integrity_audit (notifications)")
                 mismatches += 1
                 continue
 
@@ -606,7 +607,7 @@ def perform_integrity_audit() -> None:
                         ),
                     )
                 except Exception:
-                    pass
+                    swallowed("perform_integrity_audit (notifications)")
                 mismatches += 1
 
         db.commit()

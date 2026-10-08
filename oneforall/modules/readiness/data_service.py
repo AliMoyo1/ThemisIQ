@@ -23,6 +23,7 @@ import io
 from dataclasses import dataclass
 
 from core.timeutils import utcnow
+from core.best_effort import swallowed
 
 
 @dataclass(frozen=True)
@@ -118,6 +119,7 @@ def run_rules_for_org(db, org_id: int) -> dict:
             db.execute("RELEASE SAVEPOINT readiness_rule")
             checked_rules.add(rule_code)
         except Exception:
+            swallowed(f"readiness rule {rule_code}")
             db.execute("ROLLBACK TO SAVEPOINT readiness_rule")
             db.execute("RELEASE SAVEPOINT readiness_rule")
             counts["skipped"] += 1

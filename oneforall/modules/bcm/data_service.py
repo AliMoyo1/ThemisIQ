@@ -11,6 +11,8 @@ from datetime import datetime
 from core.timeutils import utcnow
 
 from database import get_db, insert_returning_id
+from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
+from core.sql_like import ci_like, like_pattern
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -818,16 +820,16 @@ def unlink_incident_plan(link_id):
         db.close()
 
 
-def search_vault_items(query, limit=20):
+def search_vault_items(user, query, limit=20):
+    scope_sql, scope_params = evidence_scope_sql(user)
+    search_sql, search_params = evidence_search_sql(query or "")
     db = get_db()
     try:
-        q = '%' + (query or '').strip() + '%'
         return _dicts(db.execute(
-            "SELECT id, title, category, tags, status, updated_at "
-            "FROM evidence_items WHERE status != 'archived' "
-            "AND (title LIKE %s OR tags LIKE %s OR category LIKE %s) "
-            "ORDER BY updated_at DESC LIMIT %s",
-            (q, q, q, limit)).fetchall())
+            "SELECT e.id, e.title, e.category, e.tags, e.status, e.updated_at "
+            f"FROM evidence_items e WHERE {current_library_sql()} AND {scope_sql} AND {search_sql} "
+            "ORDER BY e.updated_at DESC, e.id DESC LIMIT %s",
+            [*scope_params, *search_params, limit]).fetchall())
     finally:
         db.close()
 
@@ -1419,8 +1421,8 @@ def search_chunks(query_terms, limit=10):
     """Simple keyword search across chunks."""
     db = get_db()
     try:
-        like_clauses = " AND ".join("content LIKE %s" for _ in query_terms)
-        params = [f"%{t}%" for t in query_terms]
+        like_clauses = " AND ".join(ci_like("content") for _ in query_terms)
+        params = [like_pattern(t) for t in query_terms]
         params.append(limit)
         return _dicts(db.execute(
             f"SELECT * FROM bcm_document_chunks WHERE {like_clauses} LIMIT %s",

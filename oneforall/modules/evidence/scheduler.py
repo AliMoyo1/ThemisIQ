@@ -17,6 +17,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from database import get_db_background as get_db, sql_date_offset  # scheduler: fail-fast, never block UI
 from core.email import send_email as _core_send_email
+from core.best_effort import swallowed
 
 log = logging.getLogger("evidence.scheduler")
 TZ = "UTC"
@@ -61,6 +62,7 @@ def _task_exists(db, evidence_id: int, days_label: str) -> bool:
         ).fetchone()
         return row is not None
     except Exception:
+        swallowed("_task_exists (task_board)")
         return False
 
 

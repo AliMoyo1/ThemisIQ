@@ -12,6 +12,7 @@ from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, user_modules, user_capabilities,
     ROLE_LABELS, shell_ctx, templates, shell_templates, get_db,
     _json_body,)
+from core.best_effort import swallowed
 
 router = APIRouter()
 
@@ -26,6 +27,7 @@ async def health_check():
         db.execute("SELECT 1").fetchone()
         db_ok = True
     except Exception:
+        swallowed("health_check")
         db_ok = False
     finally:
         db.close()
@@ -219,7 +221,7 @@ async def api_command_centre_stats(request: Request):
             # Only include if user has erm access (always include in stats, visibility filtered by template)
             module_health.append({"key": "erm", "name": "Enterprise Risk", "pct": erm_pct})
         except Exception:
-            pass  # ERM tables may not exist in all deployments
+            swallowed("api_command_centre_stats (erm_risk_appetite)")  # ERM tables may not exist in all deployments
 
         # ORM — % of events resolved
         try:
@@ -230,7 +232,7 @@ async def api_command_centre_stats(request: Request):
             orm_pct = round((orm_closed / max(1, orm_total)) * 100) if orm_total else 100
             module_health.append({"key": "orm", "name": "Operations Risk", "pct": orm_pct})
         except Exception:
-            pass  # ORM tables may not exist in all deployments
+            swallowed("api_command_centre_stats (orm_events)")  # ORM tables may not exist in all deployments
 
         # ── SLA performance ──
         sla_met = db.execute(
@@ -315,7 +317,7 @@ async def api_command_centre_stats(request: Request):
                     "priority": "high",
                 })
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (erm_regulatory_obligations)")
 
         # ORM overdue events (open/investigating past resolved date)
         try:
@@ -335,7 +337,7 @@ async def api_command_centre_stats(request: Request):
                     "priority": "medium",
                 })
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (orm_events)")
 
         overdue_items.sort(key=lambda x: x["due"] or "9999")
         overdue_items = overdue_items[:20]
@@ -396,7 +398,7 @@ async def api_command_centre_stats(request: Request):
                 )
             db.commit()
         except Exception:
-            pass  # snapshot write failure must not break the response
+            swallowed("api_command_centre_stats (analytics_snapshots)")  # snapshot write failure must not break the response
 
         # ── Open risk counts (for risk register widget) ──
         risk_rows = db.execute(
@@ -426,7 +428,7 @@ async def api_command_centre_stats(request: Request):
                                         else "high" if (s_row and s_row["sev"] == 1)
                                         else None)
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (sentinel_breaches)")
 
         # Sentinel: breach notification countdown alerts
         breach_alerts = []
@@ -454,7 +456,7 @@ async def api_command_centre_stats(request: Request):
                     "authority_notified": bool(r["authority_notified"]),
                 })
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (sentinel_breaches)")
 
         # ERM: appetite breach count
         erm_appetite_breaches = 0
@@ -465,7 +467,7 @@ async def api_command_centre_stats(request: Request):
                 "       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted')) > a.max_score"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (erm_risk_appetite)")
 
         # ORM: open events (last 30 days)
         orm_open_events = 0
@@ -476,7 +478,7 @@ async def api_command_centre_stats(request: Request):
                 f"AND created_at >= {sql_date_ts('-30 days')}"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (orm_events)")
 
         # BCM: active incidents
         bcm_active_incidents = 0
@@ -486,7 +488,7 @@ async def api_command_centre_stats(request: Request):
                 "WHERE status NOT IN ('closed','resolved')"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (bcm_incidents)")
 
         # ── IMS stats (from aria_control_mappings) ────────────────────────
         ims_integrated_controls = 0
@@ -511,7 +513,7 @@ async def api_command_centre_stats(request: Request):
                 "SELECT COUNT(*) FROM frameworks WHERE is_active=1"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (controls)")
 
         # ERM: critical/high open risks
         erm_critical_high = 0
@@ -522,7 +524,7 @@ async def api_command_centre_stats(request: Request):
                 "AND status NOT IN ('closed','accepted')"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (erm_enterprise_risks)")
 
         # GRID: open audit findings
         grid_open_findings = 0
@@ -532,7 +534,7 @@ async def api_command_centre_stats(request: Request):
                 "WHERE status NOT IN ('compliant','not_applicable','closed')"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (grid_controls)")
 
         # Upcoming reviews (risks or plans due in next 30 days)
         upcoming_reviews = 0
@@ -543,14 +545,14 @@ async def api_command_centre_stats(request: Request):
                 "AND status NOT IN ('closed','accepted')"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (erm_enterprise_risks)")
         try:
             upcoming_reviews += db.execute(
                 "SELECT COUNT(*) FROM bcm_plans "
                 f"WHERE last_reviewed IS NOT NULL AND last_reviewed <= {sql_date_ts('-335 days')}"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (bcm_plans)")
 
     finally:
         db.close()

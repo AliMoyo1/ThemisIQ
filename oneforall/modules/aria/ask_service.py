@@ -11,6 +11,17 @@ Design:
   * If no chunk scores above trust threshold (or Claude says "not covered"),
     we decline and suggest the nearest owner.
 
+Tenancy:
+  Every chunk carries org_id and business_unit_id in the index itself, and
+  search() filters on them in SQL, before ranking and the top-k cut, so one
+  organization's chunks can neither reach another's prompt nor crowd its own
+  results out of the top k. Documents copy both columns from aria_documents.
+  Controls and risks have no org column in their source tables (PostgreSQL
+  isolates them by tenant schema), so they are stamped with the tenant bound
+  when they are indexed; NULL (no tenant bound) stays visible to everyone in
+  that schema or database, as it was before scoping existed.
+  _filter_chunks_by_scope remains as a live-row check on document chunks.
+
 Engine-specific entry points:
   _search_sqlite(): FTS5 MATCH + bm25()
   _search_pg()     : tsvector @@ to_tsquery() + ts_rank_cd()
@@ -27,7 +38,7 @@ from typing import Optional
 log = logging.getLogger("oneforall.aria")
 
 from config import settings
-from database import get_db, insert_returning_id, OperationalError
+from database import get_db, get_current_org, insert_returning_id
 from modules.aria.ai_generator import _call_ai
 
 
@@ -44,6 +55,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS aria_ask_index USING fts5(
     framework,
     control_ref,
     url_path,
+    org_id UNINDEXED,
+    business_unit_id UNINDEXED,
     tokenize = 'porter unicode61'
 );
 """
@@ -60,6 +73,8 @@ CREATE TABLE IF NOT EXISTS aria_ask_index (
     framework    TEXT NOT NULL DEFAULT '',
     control_ref  TEXT NOT NULL DEFAULT '',
     url_path     TEXT NOT NULL DEFAULT '',
+    org_id       INTEGER,
+    business_unit_id INTEGER,
     body_tsv     tsvector GENERATED ALWAYS AS (
         setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
         setweight(to_tsvector('english', coalesce(section, '')), 'B') ||
@@ -71,12 +86,52 @@ CREATE INDEX IF NOT EXISTS idx_aria_ask_index_cid ON aria_ask_index(content_type
 """
 
 
+def _index_columns(db) -> set:
+    """Column names of aria_ask_index in the CURRENT schema (empty if absent)."""
+    if settings.is_postgres():
+        rows = db.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = 'aria_ask_index'"
+        ).fetchall()
+        return {r["column_name"] for r in rows}
+    return {r["name"] for r in db.execute("PRAGMA table_info(aria_ask_index)").fetchall()}
+
+
 def init_index():
-    """Create the search index table/virtual-table if it doesn't exist."""
-    ddl = _FTS_DDL_PG if settings.is_postgres() else _FTS_DDL_SQLITE
+    """Create the search index table/virtual-table if it doesn't exist, and
+    upgrade one built before scoping existed (no org_id column).
+
+    The check is one catalog read, cheap enough to run before every question
+    and every write. It also guarantees the table exists in the CURRENT tenant
+    schema: an unqualified table name otherwise falls through the PostgreSQL
+    search_path to the shared public table, so a tenant that has not built its
+    own index yet would read and write the default organization's.
+    """
+    pg = settings.is_postgres()
     db = get_db()
     try:
-        db.executescript(ddl)
+        cols = _index_columns(db)
+        if "org_id" in cols:
+            return
+        if cols and not pg:
+            # FTS5 virtual tables cannot be altered. The index is derived data,
+            # so drop it; "Rebuild index" repopulates it (same as a fresh install).
+            db.execute("DROP TABLE aria_ask_index")
+        db.executescript(_FTS_DDL_PG if pg else _FTS_DDL_SQLITE)
+        if cols and pg:
+            # Keep the existing rows so search keeps answering during the upgrade.
+            # Documents take their scope from the source row now; controls and
+            # risks stay NULL (visible, as before) until the next rebuild stamps them.
+            db.execute("ALTER TABLE aria_ask_index ADD COLUMN IF NOT EXISTS org_id INTEGER")
+            db.execute("ALTER TABLE aria_ask_index ADD COLUMN IF NOT EXISTS business_unit_id INTEGER")
+            db.execute(
+                "UPDATE aria_ask_index SET "
+                "org_id = (SELECT d.org_id FROM aria_documents d "
+                "          WHERE d.doc_id = aria_ask_index.content_id), "
+                "business_unit_id = (SELECT d.business_unit_id FROM aria_documents d "
+                "          WHERE d.doc_id = aria_ask_index.content_id) "
+                "WHERE content_type = 'document'"
+            )
         db.commit()
     finally:
         db.close()
@@ -88,6 +143,9 @@ def rebuild_index() -> int:
     Use once after PostgreSQL cutover to populate the tsvector GIN index,
     or after major schema changes.  Returns the number of indexed chunks.
     """
+    # DROP resolves the unqualified name through the PostgreSQL search_path: make
+    # sure this tenant's own table exists first so it, not public's, is dropped.
+    init_index()
     db = get_db()
     try:
         db.execute("DROP TABLE IF EXISTS aria_ask_index")
@@ -130,6 +188,10 @@ def _chunk_markdown(md: str) -> list[tuple[str, str]]:
 # ── Index build / sync ──────────────────────────────────────────────────────
 
 def _clear_by(content_type: str, content_id: str):
+    # Every write path (reindex_*, remove_from_index) starts here and inserts
+    # afterwards in the same tenant context, so this is the one place that
+    # guarantees the table exists in the current schema before any write.
+    init_index()
     db = get_db()
     try:
         db.execute(
@@ -216,12 +278,14 @@ def reindex_document(doc_id: str):
             db.execute(
                 "INSERT INTO aria_ask_index "
                 "(content_type, content_id, title, section, body, "
-                " owner, framework, control_ref, url_path) "
-                "VALUES ('document', %s, %s, %s, %s, %s, %s, %s, %s)",
+                " owner, framework, control_ref, url_path, "
+                " org_id, business_unit_id) "
+                "VALUES ('document', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (doc_id, doc["title"], section, text,
                  doc["owner"] or "", doc["framework"] or "",
                  doc["control_ref"] or "",
-                 f"/aria/documents"),
+                 f"/aria/documents",
+                 doc.get("org_id"), doc.get("business_unit_id")),
             )
         db.commit()
     finally:
@@ -260,8 +324,8 @@ def reindex_control(control_id: int):
         db.execute(
             "INSERT INTO aria_ask_index "
             "(content_type, content_id, title, section, body, "
-            " owner, framework, control_ref, url_path) "
-            "VALUES ('control', %s, %s, %s, %s, %s, %s, %s, %s)",
+            " owner, framework, control_ref, url_path, org_id) "
+            "VALUES ('control', %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (str(control_id),
              f"{ctrl['ref']} -- {ctrl['name']}",
              ctrl["category"] or "",
@@ -269,7 +333,8 @@ def reindex_control(control_id: int):
              ctrl["owner"] or "",
              ctrl["fw_name"],
              ctrl["ref"],
-             f"/aria/framework/{ctrl['fw_id']}"),
+             f"/aria/framework/{ctrl['fw_id']}",
+             get_current_org()),
         )
         db.commit()
     finally:
@@ -305,8 +370,8 @@ def reindex_risk(risk_id: str):
         db.execute(
             "INSERT INTO aria_ask_index "
             "(content_type, content_id, title, section, body, "
-            " owner, framework, control_ref, url_path) "
-            "VALUES ('risk', %s, %s, %s, %s, %s, %s, %s, %s)",
+            " owner, framework, control_ref, url_path, org_id) "
+            "VALUES ('risk', %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (risk_id,
              f"{risk_id} -- {risk['description'][:60]}",
              risk["category"] or "",
@@ -314,7 +379,8 @@ def reindex_risk(risk_id: str):
              risk["owner"] or "",
              risk["framework"] or "",
              risk["control_ref"] or "",
-             "/aria/risks"),
+             "/aria/risks",
+             get_current_org()),
         )
         db.commit()
     finally:
@@ -392,97 +458,109 @@ def _build_fts_query(question: str) -> str:
     return " OR ".join(f"{t}*" for t in uniq)
 
 
-def search(question: str, k: int = 8,
-           framework_filter: str = "") -> list[dict]:
-    """Return top-k chunks as dicts with a relevance score.
-    If framework_filter is set, restricts to that framework; falls back
-    to unfiltered results if the filtered set is empty.
+def _scope_sql(user: dict) -> tuple[str, list]:
+    """WHERE fragment (parenthesized) + params limiting the index to what
+    `user` may see, over the index's own org_id/business_unit_id columns.
+
+    Same rule as policy_access.document_read_ok. A NULL org_id is unscoped
+    (a legacy document, or a control/risk indexed with no tenant bound) and
+    stays visible. A scoped row needs the user's org and, when the row has a
+    business unit, a unit inside the user's scope (None scope = super admin,
+    any unit in their own org). Documents are re-checked against the live
+    row afterwards by _filter_chunks_by_scope.
     """
-    q = _build_fts_query(question)
-    if not q:
-        return []
+    from modules.governance.data_service import bu_scope_ids
+    scope = bu_scope_ids(user)
+    if scope is None:
+        return "(org_id IS NULL OR org_id = %s)", [user.get("org_id")]
+    marks = ",".join(["%s"] * len(scope))
+    return (
+        "(org_id IS NULL OR (org_id = %s AND "
+        f"(business_unit_id IS NULL OR business_unit_id IN ({marks}))))",
+        [user.get("org_id"), *scope],
+    )
+
+
+def indexed_count(user: dict) -> int:
+    """How many index chunks `user` may retrieve: the figure on the Ask ARIA page header."""
+    init_index()  # so a tenant that has not built an index yet reads its own empty table, not public's
+    scope_sql, scope_params = _scope_sql(user)
     db = get_db()
     try:
-        if settings.is_postgres():
-            return _search_pg(db, q, k, (framework_filter or "").strip())
-        return _search_sqlite(db, q, k, (framework_filter or "").strip())
+        return db.execute(
+            f"SELECT COUNT(*) FROM aria_ask_index WHERE {scope_sql}", scope_params
+        ).fetchone()[0]
     finally:
         db.close()
 
 
-def _search_sqlite(db, q: str, k: int, fw: str) -> list[dict]:
+def search(question: str, k: int = 8, framework_filter: str = "",
+           user: Optional[dict] = None) -> list[dict]:
+    """Return top-k chunks the asking user may see, as dicts with a relevance score.
+    The user's org/BU scope is part of the query, so it is applied before
+    ranking and the top-k cut: another tenant's chunks can neither be
+    returned nor crowd this user's out. No user means no results (the index
+    is not an authorization database).
+    If framework_filter is set, restricts to that framework; falls back
+    to unfiltered (but still scoped) results if the filtered set is empty.
+    A failed query raises: it is an outage, not "nothing matched", and ask()
+    reports it as one instead of telling the user no policy covers them.
+    """
+    q = _build_fts_query(question)
+    if not q or not user:
+        return []
+    scope_sql, scope_params = _scope_sql(user)
+    fw = (framework_filter or "").strip()
+    db = get_db()
+    try:
+        if settings.is_postgres():
+            return _search_pg(db, q, k, fw, scope_sql, scope_params)
+        return _search_sqlite(db, q, k, fw, scope_sql, scope_params)
+    finally:
+        db.close()
+
+
+def _search_sqlite(db, q: str, k: int, fw: str,
+                   scope_sql: str, scope_params: list) -> list[dict]:
     """FTS5-backed search for SQLite."""
     base_sql = (
         "SELECT content_type, content_id, title, section, body, "
         "       owner, framework, control_ref, url_path, "
         "       bm25(aria_ask_index) AS score "
         "FROM aria_ask_index "
-        "WHERE aria_ask_index MATCH %s "
+        "WHERE aria_ask_index MATCH %s AND " + scope_sql + " "
     )
+    args = (q, *scope_params)
+    rows = []
     if fw:
-        try:
-            rows = db.execute(
-                base_sql + "AND framework = %s ORDER BY score LIMIT %s",
-                (q, fw, k),
-            ).fetchall()
-        except OperationalError:
-            rows = []
-        if not rows:
-            try:
-                rows = db.execute(
-                    base_sql + "ORDER BY score LIMIT %s", (q, k)
-                ).fetchall()
-            except OperationalError:
-                rows = []
-    else:
-        try:
-            rows = db.execute(
-                base_sql + "ORDER BY score LIMIT %s", (q, k)
-            ).fetchall()
-        except OperationalError:
-            rows = []
+        rows = db.execute(
+            base_sql + "AND framework = %s ORDER BY score LIMIT %s", (*args, fw, k)
+        ).fetchall()
+    if not rows:
+        rows = db.execute(base_sql + "ORDER BY score LIMIT %s", (*args, k)).fetchall()
     return [dict(r) for r in rows]
 
 
-def _search_pg(db, q: str, k: int, fw: str) -> list[dict]:
+def _search_pg(db, q: str, k: int, fw: str,
+               scope_sql: str, scope_params: list) -> list[dict]:
     """tsvector-backed search for PostgreSQL."""
-    import logging as _logging
-    _log = _logging.getLogger(__name__)
     base_sql = (
         "SELECT content_type, content_id, title, section, body, "
         "       owner, framework, control_ref, url_path, "
         "       ts_rank_cd(body_tsv, to_tsquery('english', %s)) AS score "
         "FROM aria_ask_index "
-        "WHERE body_tsv @@ to_tsquery('english', %s) "
+        "WHERE body_tsv @@ to_tsquery('english', %s) AND " + scope_sql + " "
     )
+    args = (q, q, *scope_params)
+    rows = []
     if fw:
-        try:
-            rows = db.execute(
-                base_sql + "AND framework = %s ORDER BY score DESC LIMIT %s",
-                (q, q, fw, k),
-            ).fetchall()
-        except Exception as exc:
-            _log.warning("ARIA PG search (fw=%s) failed: %s", fw, exc)
-            db.rollback()
-            rows = []
-        if not rows:
-            try:
-                rows = db.execute(
-                    base_sql + "ORDER BY score DESC LIMIT %s", (q, q, k)
-                ).fetchall()
-            except Exception as exc:
-                _log.warning("ARIA PG search (no-fw fallback) failed: %s", exc)
-                db.rollback()
-                rows = []
-    else:
-        try:
-            rows = db.execute(
-                base_sql + "ORDER BY score DESC LIMIT %s", (q, q, k)
-            ).fetchall()
-        except Exception as exc:
-            _log.warning("ARIA PG search failed: %s", exc)
-            db.rollback()
-            rows = []
+        rows = db.execute(
+            base_sql + "AND framework = %s ORDER BY score DESC LIMIT %s", (*args, fw, k)
+        ).fetchall()
+    if not rows:
+        # Only reached after the filtered query succeeded and matched nothing.
+        # A failed query raises: it is an outage, not an empty answer.
+        rows = db.execute(base_sql + "ORDER BY score DESC LIMIT %s", (*args, k)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -562,17 +640,20 @@ def _filter_chunks_by_scope(chunks: list[dict], user: Optional[dict]) -> list[di
     """PLAN-35 T08 (section 10.2): "The Ask ARIA index is not an
     authorization database. Join/validate every document hit against the
     current authorized document before sending text to an AI provider."
-    `search()` has no notion of the asking user at all; this is a
-    post-filter on its results, applied here rather than inside the
-    FTS5/tsvector query so the search internals stay untouched.
 
-    Scoped to content_type == 'document' only, which is what PLAN-35 is
-    actually about: aria_documents rows now carry org_id/business_unit_id/
-    policy_workflow_managed (T01) and policy_access.document_read_ok (T02)
-    already knows how to apply the same rule used everywhere else in this
-    plan. Control and risk chunks have a separate, pre-existing
-    authorization model this plan does not change; they pass through
-    unfiltered, same as before this fix.
+    search() now applies the asking user's org/BU scope inside the query
+    (see _scope_sql), before ranking and the top-k cut. This post-filter
+    stays as defense in depth for documents because it checks the LIVE
+    aria_documents row: it catches an index row that went stale (document
+    deleted, or moved to another BU or org after it was indexed) and one with
+    no stamp (NULL org_id, e.g. written before the scoping columns existed).
+
+    Scoped to content_type == 'document' only: aria_documents rows carry
+    org_id/business_unit_id/policy_workflow_managed (T01) and
+    policy_access.document_read_ok (T02) is the rule. Control and risk
+    chunks have no live source row to re-check (their tables have no org
+    column), so for them the stamp applied in SQL is the only scope; they
+    pass through here unchanged.
     """
     if not user:
         return []  # no actor at all: nothing is authorized to retrieve
@@ -624,9 +705,21 @@ async def ask(question: str, user: Optional[dict] = None,
         result["log_id"] = _log_qa(user, question, result)
         return result
 
-    init_index()
-    chunks = search(question, k=8, framework_filter=framework_filter)
-    chunks = _filter_chunks_by_scope(chunks, user)
+    try:
+        init_index()
+        chunks = search(question, k=8, framework_filter=framework_filter, user=user)
+        chunks = _filter_chunks_by_scope(chunks, user)
+    except Exception:
+        # An outage, not "nothing matched". Say so, and keep it out of the Q&A
+        # log so it is not counted as a question the policies do not cover.
+        log.exception("Ask ARIA retrieval failed")
+        return {
+            "success": False, "covered": False, "answer": "",
+            "citations": [], "nearest_owner": None, "framework": None,
+            "chunks_retrieved": 0, "latency_ms": ms(),
+            "error": "Search is temporarily unavailable. Please try again in a moment.",
+            "log_id": None,
+        }
     if not chunks:
         result = {
             "success": True, "covered": False,

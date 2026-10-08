@@ -9,17 +9,21 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from modules.launcher._route_helpers import (
-    require_auth, shell_ctx, shell_templates, get_db,
+    require_auth, require_capability, has_capability, shell_ctx, shell_templates, get_db,
     _json_body,)
 from core.vendor_link import get_vendor_directory, get_cross_module_profile
 
 router = APIRouter()
+
+# Managing a vendor in the shared directory needs what managing it in its own module needs.
+_VENDOR_MANAGE = ("sentinel.vendor.manage", "grid.vendor.manage", "bcm.vendor.manage")
 
 
 @router.get("/vendors", response_class=HTMLResponse)
 @require_auth
 async def vendor_directory_page(request: Request):
     ctx = shell_ctx(request, active_module="platform", active_section="vendors")
+    ctx["can_add_vendor"] = any(has_capability(request.state.user, c) for c in _VENDOR_MANAGE)
     return shell_templates.TemplateResponse(request, "vendor_directory.html", ctx)
 
 
@@ -28,7 +32,7 @@ async def vendor_directory_page(request: Request):
 async def api_vendor_directory(request: Request):
     db = get_db()
     try:
-        vendors = get_vendor_directory(db)
+        vendors = get_vendor_directory(db, request.state.user)
         return JSONResponse({"items": vendors, "total": len(vendors)})
     finally:
         db.close()
@@ -39,14 +43,14 @@ async def api_vendor_directory(request: Request):
 async def api_vendor_profile(request: Request, canonical_id: int):
     db = get_db()
     try:
-        profile = get_cross_module_profile(db, canonical_id)
+        profile = get_cross_module_profile(db, canonical_id, request.state.user)
         return JSONResponse(profile)
     finally:
         db.close()
 
 
 @router.post("/api/vendors/directory")
-@require_auth
+@require_capability(*_VENDOR_MANAGE)
 async def api_vendor_directory_create(request: Request):
     """Create a canonical vendor record (without attaching it to a specific module)."""
     body = await _json_body(request)

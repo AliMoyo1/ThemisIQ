@@ -189,6 +189,17 @@ read (`resolve_stored_path` refuses an absolute path or a `..` segment).
   intentionally lazy, per document, at first revision or submission.
 - **`scripts/aria_policy_preview_worker.py`** -- the conversion worker
   entry point referenced by the section 7.6 deployment contract.
+- **`scripts/rebuild_ask_index.py`** -- rebuilds the Ask ARIA search index
+  for every active organization (`--slug SLUG` for one; `public` is the
+  default organization). Run it once after deploying the change that put
+  `org_id` and `business_unit_id` on every index chunk: it stamps control and
+  risk chunks with the tenant that owns them and clears any stray rows an
+  earlier publication wrote into the shared `public` table. It writes only
+  derived data (`aria_ask_index`); an organization's Ask ARIA results are
+  incomplete while its own rebuild runs, which takes seconds. It needs the
+  application's environment (the same `DATABASE_URL` as the service). Exit
+  status: 0 everything rebuilt, 1 a rebuild failed, 2 `--slug` matched no
+  active organization.
 
 ### VPS companion worker
 

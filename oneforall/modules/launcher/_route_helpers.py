@@ -40,6 +40,7 @@ shell_templates = Jinja2Templates(directory=["templates", "modules/launcher/temp
 
 # Register shared Jinja2 filters
 from core.timeutils import format_dt as _format_dt
+from core.best_effort import swallowed
 templates.env.filters["format_dt"] = _format_dt
 shell_templates.env.filters["format_dt"] = _format_dt
 
@@ -160,7 +161,7 @@ def _render_admin_users(request, user, flash=None):
             ).fetchall():
                 bu_parent_names[bu_row["id"]] = bu_row["parent_name"]
         except Exception:
-            pass
+            swallowed("_render_admin_users (business_units)")
 
         # Group users by organization when super admin
         orgs_grouped = []
@@ -208,6 +209,7 @@ def _render_admin_users(request, user, flash=None):
             ).fetchall()
             business_units = [{"id": b["id"], "name": b["name"]} for b in bu_rows]
         except Exception:
+            swallowed("_render_admin_users (business_units)")
             business_units = []
 
         # Top-level BU grouping for the single-org (org-admin) view. The

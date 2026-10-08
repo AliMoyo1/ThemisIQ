@@ -12,9 +12,11 @@ from pathlib import Path
 from core.timeutils import utcnow, to_dt
 
 from database import get_db, insert_returning_id, sql_current_date, get_current_org
+from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
 
 
 import re as _re
+from core.best_effort import swallowed
 
 # helpers
 def _dict(row):
@@ -104,7 +106,7 @@ def seed_frameworks():
             if added:
                 db.commit()
         except Exception:
-            pass  # unified frameworks table may not exist yet
+            swallowed("seed_frameworks (frameworks)")  # unified frameworks table may not exist yet
     finally:
         db.close()
 
@@ -281,6 +283,7 @@ def get_aria_policy_titles(actor=None):
         ).fetchall()
         return [r["title"] for r in rows]
     except Exception:
+        swallowed("get_aria_policy_titles (aria_documents)")
         return []
     finally:
         db.close()
@@ -295,26 +298,31 @@ def get_active_regulations():
         ).fetchall()
         return [r["name"] for r in rows]
     except Exception:
+        swallowed("get_active_regulations (frameworks)")
         return []
     finally:
         db.close()
 
 
-def search_vault_for_evidence(evidence_names):
-    """Search the Evidence Vault for items matching a list of evidence item names.
+def search_vault_for_evidence(user, evidence_names):
+    """Search the Evidence Vault, within the user's scope, for items matching each evidence item name.
 
     Returns a dict: {evidence_name: [{id, title, category, status}]}
     """
+    scope_sql, scope_params = evidence_scope_sql(user)
     db = get_db()
     try:
         result = {}
         for name in evidence_names:
-            q = "%" + name.strip() + "%"
+            if not name.strip():
+                result[name] = []
+                continue
+            search_sql, search_params = evidence_search_sql(name)
             rows = db.execute(
-                "SELECT id, title, category, status FROM evidence_items "
-                "WHERE status != 'archived' AND (title LIKE %s OR tags LIKE %s) "
-                "ORDER BY updated_at DESC LIMIT 3",
-                (q, q)
+                "SELECT e.id, e.title, e.category, e.status FROM evidence_items e "
+                f"WHERE {current_library_sql()} AND {search_sql} AND {scope_sql} "
+                "ORDER BY e.updated_at DESC, e.id DESC LIMIT 3",
+                [*search_params, *scope_params],
             ).fetchall()
             result[name] = [dict(r) for r in rows]
         return result
@@ -2812,28 +2820,27 @@ def sync_grid_evidence_to_vault(grid_evidence_id, db=None):
             db.close()
 
 
-def list_vault_evidence(category=None, module=None, search=None, limit=100):
-    """Browse the central evidence vault with filters — used by GRID's vault picker."""
+def list_vault_evidence(user, category=None, module=None, search=None, limit=100):
+    """Browse the central evidence vault within the user's scope, with filters (GRID's vault picker)."""
+    scope_sql, scope_params = evidence_scope_sql(user)
+    search_sql, search_params = evidence_search_sql(search or "")
     db = get_db()
     try:
         q = (
             "SELECT e.*, u.full_name AS uploaded_by_name, "
-            "(SELECT COUNT(*) FROM evidence_links el WHERE el.evidence_id=e.id) AS link_count "
+            "(SELECT COUNT(*) FROM evidence_links el WHERE el.evidence_id=e.id AND el.deleted_at IS NULL) AS link_count "
             "FROM evidence_items e "
             "LEFT JOIN users u ON e.uploaded_by=u.id "
-            "WHERE e.status != 'archived'"
+            f"WHERE {current_library_sql()} AND {scope_sql} AND {search_sql}"
         )
-        params = []
+        params = [*scope_params, *search_params]
         if category:
             q += " AND e.category=%s"
             params.append(category)
         if module:
-            q += " AND e.id IN (SELECT evidence_id FROM evidence_links WHERE module=%s)"
+            q += " AND e.id IN (SELECT evidence_id FROM evidence_links WHERE module=%s AND deleted_at IS NULL)"
             params.append(module)
-        if search:
-            q += " AND (e.title LIKE %s OR e.tags LIKE %s OR e.description LIKE %s)"
-            params.extend([f"%{search}%"] * 3)
-        q += " ORDER BY e.updated_at DESC LIMIT %s"
+        q += " ORDER BY e.updated_at DESC, e.id DESC LIMIT %s"
         params.append(limit)
         return _dicts(db.execute(q, params).fetchall())
     finally:
@@ -2857,17 +2864,16 @@ def attach_vault_item_to_grid_control(control_id, vault_evidence_id, user_id):
         if not item:
             return None
 
-        # Check if already attached to this control
+        # Check if already attached to this control. The comma makes the marker exact:
+        # "vault_evidence_id=1" is also the start of "vault_evidence_id=12".
         existing = db.execute(
             "SELECT id FROM grid_evidence_files "
             "WHERE control_id=%s AND notes LIKE %s",
-            (control_id, f"%vault_evidence_id={vault_evidence_id}%"),
+            (control_id, f"%vault_evidence_id={vault_evidence_id},%"),
         ).fetchone()
-        if existing:
-            return existing[0]
 
         # Create GRID evidence file pointing to vault item
-        grid_eid = insert_returning_id(db,
+        grid_eid = existing[0] if existing else insert_returning_id(db,
             "INSERT INTO grid_evidence_files "
             "(control_id, filename, original_name, file_path, file_size, "
             " mime_type, uploaded_by, notes, status) "
@@ -2886,10 +2892,12 @@ def attach_vault_item_to_grid_control(control_id, vault_evidence_id, user_id):
             ),
         )
 
-        # Ensure vault link exists to this control
+        # Ensure a live vault link exists to this control, also for an attachment that already
+        # existed: the Vault may have removed the link and the GRID record is still here.
         existing_link = db.execute(
             "SELECT id FROM evidence_links "
-            "WHERE evidence_id=%s AND module='grid' AND entity_type='control' AND entity_id=%s",
+            "WHERE evidence_id=%s AND module='grid' AND entity_type='control' AND entity_id=%s "
+            "AND deleted_at IS NULL",
             (vault_evidence_id, control_id),
         ).fetchone()
         if not existing_link:
@@ -2901,7 +2909,8 @@ def attach_vault_item_to_grid_control(control_id, vault_evidence_id, user_id):
             )
 
         db.commit()
-        _auto_status_control(db, control_id)
+        if not existing:  # a re-attach adds no evidence, so it must not move the control's status
+            _auto_status_control(db, control_id)
         return grid_eid
     finally:
         db.close()

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from difflib import get_close_matches
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id, sql_now_offset, sql_now_ts, sql_days_between, sql_date_offset, sql_date_ts, sql_current_date
+from core.sql_like import ci_like, like_pattern
 
 
 def _dict(row):
@@ -989,15 +990,16 @@ def list_risk_controls(risk_id):
     """Return all controls linked to a risk, joined with canonical_controls
     for title/ref/p2st2_category, the contributing factor (if any) each is
     assessed against, and a count of evidence linked to the control
-    (evidence_links has no soft-delete column; includes evidence mirrored
-    onto the canonical control from grid/aria)."""
+    (live links only: unlinking soft deletes via evidence_links.deleted_at;
+    includes evidence mirrored onto the canonical control from grid/aria)."""
     db = get_db()
     try:
         rows = db.execute(
             "SELECT rc.*, cc.title AS control_title, cc.ref AS control_ref, "
             "cc.p2st2_category AS p2st2_category, cf.cf_ref AS cf_ref, "
             "(SELECT COUNT(*) FROM evidence_links el WHERE "
-            " el.entity_type='canonical_control' AND el.entity_id=rc.control_id) AS evidence_count "
+            " el.entity_type='canonical_control' AND el.entity_id=rc.control_id "
+            " AND el.deleted_at IS NULL) AS evidence_count "
             "FROM risk_controls rc "
             "JOIN canonical_controls cc ON rc.control_id = cc.id "
             "LEFT JOIN erm_contributing_factors cf ON cf.id = rc.cf_id "
@@ -2928,7 +2930,7 @@ def list_statements(category=None, tags=None, limit=200):
         if category:
             where.append("category=%s"); params.append(category)
         if tags:
-            where.append("tags LIKE %s"); params.append(f"%{tags}%")
+            where.append(ci_like("tags")); params.append(like_pattern(tags))
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         return _dicts(db.execute(
             f"SELECT * FROM erm_risk_statements {clause} "
