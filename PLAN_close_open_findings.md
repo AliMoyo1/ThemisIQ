@@ -110,3 +110,27 @@ Final run after the second round (vendor directory permission and MFA single use
 - Throwaway containers removed.
 - New test files this work added (collected counts): `test_entity_scope.py` 24, `test_vendor_profile_scope.py` 13, `test_vendor_directory_permissions.py` 13, `test_vault_rescores_controls.py` 7, `test_grid_vault_attach.py` 3, `test_list_searches_ignore_case.py` 14, `test_best_effort.py` 7, `test_governance_delete_guards.py` 5, `test_no_silent_database_swallows.py` 1, `test_super_admin_user_delete.py` 3, `test_mfa_backup_code_single_use.py` 2, one more in `test_aria_ask_scoping.py` (21 in the file), and ten in `test_postgres_init.py` (user deletion, scoped search and Related Items, Ask page count, list searches, Vault rescoring with GRID re-attach, backup codes, three ordinary-role RLS tests, `rebuild_index`).
 - Not verified: the production VPS (role attributes, data). Not done by design: nothing pushed or deployed.
+
+## Review of e3ddfad and the follow-up commit (2026-10-09)
+
+Another session committed `e3ddfad` ("Scope cross-module dashboards and reports by business unit") on this branch and pushed it. This is what reviewing it found and what the follow-up commit does.
+
+**Findings**
+
+1. **My Related Items fix had never run in the live app.** `routes_frameworks.py` still declared `POST /api/links` (and an unscoped query-style `GET /api/links`), and its router is registered before `routes_platform.py`'s, so the old handler answered. Proof with real requests through the whole app on commit `eafc59f`: linking two records that do not exist returned 201. After `e3ddfad` removed the legacy handlers the same request returns 404 from the scoped handler. My tests called the handler functions directly and skipped the router, so they could not see it; my earlier statement that link creation was scoped and audited was wrong for the running app until `e3ddfad`.
+2. **`e3ddfad` broke the browser suite** (37 tests): it made `/api/predictive-risk` refuse every role except super admin, but the Command Centre still called it for everyone, so each non-admin page load logged a console error and showed an error card. The commit's notes list only a subset of the browser tests.
+3. Behaviour changes in that commit that need a product decision, not a fix: for every role except super admin the SLA, workflow and appetite cards show zero, advisories are empty, analytics trends are refused, the legacy platform risk register is hidden and `POST /api/risks` is super-admin only; report results for restricted users are not stored.
+
+**This commit**
+
+- The Predictive Risk card is rendered only for super administrators (`templates/command_centre.html`).
+- The Analytics link is hidden from everyone else in `base_shell.html`, `command_centre.html` and `platform_base.html`. The page is still reachable by URL and shows the viewer's own live figures.
+- Deleted `core.framework_service.create_link` and `get_links` (no callers left; `create_link` was an unvalidated insert) and the orphan section header in `routes_frameworks.py`.
+- `GET /health` was declared twice; the one in `main.py` is registered first and is what `scripts/deploy.py` and the container health check call, so the launcher's `health_check` never ran. Deleted it. A first attempt at this deletion also removed `MODULE_INFO` (the launcher tile table) because the slice ran to the wrong marker; the diff review caught it before anything was committed, the file was restored and only the handler removed.
+- `tests/test_no_duplicate_routes.py`: a static scan of every route decorator (using the prefix of its `APIRouter`) that fails when two handlers share a method and path; `{x}`, `{x:int}` and `{x:path}` count as different shapes because a catch-all registered after a single-segment route is an ordering question, not a duplicate. Scanner run on the tree of `eafc59f`: reports `POST /api/links` and `GET /health`; on the current tree: nothing. Self-tests on planted sources keep a green result from being vacuous.
+- `tests/test_pages_through_the_app.py` (20 tests): renders `/`, `/vendors`, `/risk-register` and `/calendar` through the routers as three restricted roles and as a super administrator. RED before the template change (15 failing), GREEN after. It prints Starlette's notice that `starlette.testclient` will want `httpx2`; left visible as an upgrade heads-up.
+- Regenerated `docs/generated/capability_inventory.{json,md}` (919 routes). CI runs `capability_inventory.py --check`, which already failed on `master`; it passes now. The diff shows the removed duplicates, three command-centre routes added earlier, and `POST /api/vendors/directory` listing `sentinel.vendor.manage`, `grid.vendor.manage` and `bcm.vendor.manage`.
+
+**Verification** (repo venv, from `oneforall/`, PostgreSQL 18.6 container removed afterwards): backend with the real PostgreSQL tests 1143 passed, 0 failed, 0 skipped; browser suite 411 passed, 0 failed, 2 intentional skips. An end-to-end probe of search, Related Items, Command Centre, audit log filters, vendor create and vendor profile through the whole app, as restricted roles, passed 10 of 10 on `e3ddfad` before this commit.
+
+**Still open (decisions, not fixes):** whether non-admin roles should get the zeroed cards back with proper ownership data (the commit author's own follow-up); the Analytics page remains reachable by URL for non-admins and issues two requests that the server refuses.

@@ -700,13 +700,15 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/` | authenticated | - | - | - |  |
 | GET | `/api/advisories/today` | authenticated | - | - | - |  |
 | POST | `/api/advisories/{aid}/ack` | authenticated | - | - | - |  |
+| GET | `/api/command-centre/layout` | authenticated | - | - | - |  |
+| PUT | `/api/command-centre/layout` | authenticated | - | - | - |  |
+| GET | `/api/command-centre/personal` | authenticated | - | - | - |  |
 | GET | `/api/command-centre/stats` | authenticated | - | - | - |  |
 | GET | `/api/my-dashboard/data` | authenticated | - | - | - |  |
 | GET | `/api/my-dashboard/preferences` | authenticated | - | - | - |  |
 | PUT | `/api/my-dashboard/preferences` | authenticated | - | - | - |  |
 | GET | `/api/predictive-risk` | authenticated | - | - | - |  |
 | POST | `/api/predictive-risk/acknowledge` | authenticated | - | - | - |  |
-| GET | `/health` | public | - | - | - |  |
 | GET | `/my-dashboard` | authenticated | - | - | - |  |
 
 ## `modules.launcher.routes_diagnostics`
@@ -734,8 +736,6 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/api/frameworks/{fid}/controls/ai-generate` | authenticated | - | - | - |  |
 | POST | `/api/frameworks/{fid}/controls/bulk` | authenticated | - | - | - |  |
 | POST | `/api/frameworks/{fid}/deactivate` | authenticated | - | - | - |  |
-| GET | `/api/links` | authenticated | - | - | - |  |
-| POST | `/api/links` | authenticated | - | - | - |  |
 | GET | `/projects` | authenticated | - | - | - |  |
 
 ## `modules.launcher.routes_my_work`
@@ -841,7 +841,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | Method | Path | Gate | Capability | Roles | License | Maturity / notes |
 |---|---|---|---|---|---|---|
 | GET | `/api/vendors/directory` | authenticated | - | - | - |  |
-| POST | `/api/vendors/directory` | authenticated | - | - | - |  |
+| POST | `/api/vendors/directory` | capability | sentinel.vendor.manage<br>grid.vendor.manage<br>bcm.vendor.manage | sentinel.vendor.manage: dpo, super_admin<br>grid.vendor.manage: audit_lead, super_admin<br>bcm.vendor.manage: bcm_manager, super_admin | - |  |
 | GET | `/api/vendors/{canonical_id}/profile` | authenticated | - | - | - |  |
 | GET | `/vendors` | authenticated | - | - | - |  |
 

@@ -155,10 +155,12 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Calendar
   </a>
+  {% if user and user.is_super_admin %}
   <a href="/analytics" class="nav-item{% if active_section == 'analytics' %} active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
     Analytics
   </a>
+  {% endif %}
 </div>
 <div class="sidebar-section">
   <div class="sidebar-label">Data</div>
@@ -352,6 +354,7 @@
 </div>
 
 <!-- ── Predictive Risk Intelligence Panel (collapsible) ── -->
+{% if user and user.is_super_admin %}
 <div id="prPanel" class="card animate-fade-up" style="margin-bottom:16px;display:none;overflow:hidden">
   <!-- Collapsed bar — always visible once loaded -->
   <div id="prBar" onclick="togglePredictiveRisk()" style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
@@ -380,6 +383,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- Row 2: Module-specific headline stats -->
 <div class="dash-section-heading"><h2>Operational exposure</h2><span>Signals from across the estate</span></div>

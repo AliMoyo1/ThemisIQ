@@ -236,52 +236,6 @@ def update_control_status(control_id: int, status: str, user_id: int = None) -> 
         db.close()
 
 
-# ── Cross-module links ──────────────────────────────────────────────────────
-
-def create_link(source_module: str, source_type: str, source_id: int,
-                target_module: str, target_type: str, target_id: int,
-                relationship: str = "related", user_id: int = None) -> int:
-    """Create a cross-module link."""
-    db = get_db()
-    try:
-        cursor = insert_returning_id(db,
-            "INSERT INTO cross_module_links (source_module, source_type, source_id, "
-            "target_module, target_type, target_id, relationship, created_by) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (source_module, source_type, source_id,
-             target_module, target_type, target_id, relationship, user_id),
-        )
-        db.commit()
-        return cursor
-    finally:
-        db.close()
-
-
-def get_links(module: str, entity_type: str, entity_id: int) -> list[dict]:
-    """Get all cross-module links for an entity (as source or target)."""
-    db = get_db()
-    try:
-        rows = db.execute(
-            "SELECT id, source_module, source_type, source_id, "
-            "target_module, target_type, target_id, relationship, created_at "
-            "FROM cross_module_links "
-            "WHERE (source_module = %s AND source_type = %s AND source_id = %s) "
-            "   OR (target_module = %s AND target_type = %s AND target_id = %s) "
-            "ORDER BY created_at DESC",
-            (module, entity_type, entity_id, module, entity_type, entity_id),
-        ).fetchall()
-        return [
-            {
-                "id": r[0], "source_module": r[1], "source_type": r[2],
-                "source_id": r[3], "target_module": r[4], "target_type": r[5],
-                "target_id": r[6], "relationship": r[7], "created_at": r[8],
-            }
-            for r in rows
-        ]
-    finally:
-        db.close()
-
-
 # ── Stats ───────────────────────────────────────────────────────────────────
 
 def get_framework_stats() -> dict:

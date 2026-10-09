@@ -14159,6 +14159,48 @@
       "notes": ""
     },
     {
+      "path": "/api/command-centre/layout",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "command_centre_layout_get",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/command-centre/layout",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "command_centre_layout_put",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/command-centre/personal",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "command_centre_personal",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/api/command-centre/stats",
       "methods": [
         "GET"
@@ -14239,20 +14281,6 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_predictive_risk_acknowledge",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/health",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.launcher.routes_dashboard",
-      "gate": "public",
-      "capabilities": [],
-      "roles_by_capability": {},
-      "license_modules_required": [],
-      "name": "health_check",
       "maturity": "",
       "notes": ""
     },
@@ -14513,34 +14541,6 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_framework_deactivate",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/api/links",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.launcher.routes_frameworks",
-      "gate": "authenticated",
-      "capabilities": [],
-      "roles_by_capability": {},
-      "license_modules_required": [],
-      "name": "api_links_get",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/api/links",
-      "methods": [
-        "POST"
-      ],
-      "module": "modules.launcher.routes_frameworks",
-      "gate": "authenticated",
-      "capabilities": [],
-      "roles_by_capability": {},
-      "license_modules_required": [],
-      "name": "api_links_create",
       "maturity": "",
       "notes": ""
     },
@@ -15664,9 +15664,26 @@
         "POST"
       ],
       "module": "modules.launcher.routes_vendors",
-      "gate": "authenticated",
-      "capabilities": [],
-      "roles_by_capability": {},
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.vendor.manage",
+        "grid.vendor.manage",
+        "bcm.vendor.manage"
+      ],
+      "roles_by_capability": {
+        "sentinel.vendor.manage": [
+          "dpo",
+          "super_admin"
+        ],
+        "grid.vendor.manage": [
+          "audit_lead",
+          "super_admin"
+        ],
+        "bcm.vendor.manage": [
+          "bcm_manager",
+          "super_admin"
+        ]
+      },
       "license_modules_required": [],
       "name": "api_vendor_directory_create",
       "maturity": "",

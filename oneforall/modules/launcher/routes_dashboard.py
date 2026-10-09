@@ -18,27 +18,6 @@ from modules.launcher.scoped_metrics import scoped_count, table_scope
 router = APIRouter()
 
 
-# ── Health check (no auth required — used by load balancers / orchestrators) ──
-
-@router.get("/health")
-async def health_check():
-    """Liveness + readiness probe. Returns DB connectivity status."""
-    db = get_db()
-    try:
-        db.execute("SELECT 1").fetchone()
-        db_ok = True
-    except Exception:
-        swallowed("health_check")
-        db_ok = False
-    finally:
-        db.close()
-    status = "ok" if db_ok else "degraded"
-    return JSONResponse(
-        {"status": status, "db": db_ok, "version": "1.0"},
-        status_code=200 if db_ok else 503,
-    )
-
-
 # ── Module info for launcher tiles ──────────────────────────────────────────
 
 MODULE_INFO = {
