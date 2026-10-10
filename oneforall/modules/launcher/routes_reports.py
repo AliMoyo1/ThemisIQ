@@ -49,23 +49,38 @@ def _report_result(db, user, report_type):
         }
     if report_type == "risk_report":
         if not user.get("is_super_admin"):
-            scope, params = table_scope("erm_enterprise_risks", user)
-            rows = db.execute(
+            # The enterprise and the platform risks in scope: the two sets the risk register page counts.
+            escope, eparams = table_scope("erm_enterprise_risks", user)
+            pscope, pparams = table_scope("risk_register", user)
+            enterprise = db.execute(
                 "SELECT title, likelihood, impact, treatment, status FROM erm_enterprise_risks "
-                f"WHERE {scope} AND status != 'closed' ORDER BY likelihood * impact DESC",
-                params,
+                f"WHERE {escope} AND status != 'closed'", eparams,
+            ).fetchall()
+            platform = db.execute(
+                "SELECT title, likelihood, impact, risk_level, source_module, treatment, status FROM risk_register "
+                f"WHERE {pscope} AND status != 'closed'", pparams,
             ).fetchall()
             levels = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-            top = []
-            for r in rows:
+            by_module = {}
+            ranked = []
+            for r in enterprise:
                 score = (r["likelihood"] or 0) * (r["impact"] or 0)
                 level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
                 levels[level] += 1
-                if len(top) < 10:
-                    top.append({"title": r["title"], "risk_level": level, "source_module": "erm",
-                                "treatment": r["treatment"], "status": r["status"]})
-            return {"total_open": len(rows), "by_level": levels,
-                    "by_module": {"erm": len(rows)}, "top_risks": top}
+                ranked.append((score, {"title": r["title"], "risk_level": level, "source_module": "erm",
+                                       "treatment": r["treatment"], "status": r["status"]}))
+            for r in platform:
+                if r["risk_level"] in levels:
+                    levels[r["risk_level"]] += 1
+                module = r["source_module"] or "unassigned"
+                by_module[module] = by_module.get(module, 0) + 1
+                ranked.append(((r["likelihood"] or 0) * (r["impact"] or 0), {
+                    "title": r["title"], "risk_level": r["risk_level"], "source_module": r["source_module"],
+                    "treatment": r["treatment"], "status": r["status"]}))
+            by_module["erm"] = by_module.get("erm", 0) + len(enterprise)
+            ranked.sort(key=lambda pair: pair[0], reverse=True)
+            return {"total_open": len(enterprise) + len(platform), "by_level": levels,
+                    "by_module": by_module, "top_risks": [row for _, row in ranked[:10]]}
         scope, params = table_scope("risk_register", user)
         levels = db.execute(
             f"SELECT risk_level, COUNT(*) AS c FROM risk_register WHERE {scope} "

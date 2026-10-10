@@ -21,7 +21,7 @@
       <option value="monitoring">Monitoring</option>
       <option value="closed">Closed</option>
     </select>
-    <button class="btn btn-primary" onclick="openNewRisk()">+ New Risk</button>
+    {% if user and user.is_super_admin %}<button class="btn btn-primary" onclick="openNewRisk()">+ New Risk</button>{% endif %}
   </div>
 </div>
 

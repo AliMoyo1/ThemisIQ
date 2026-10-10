@@ -2087,3 +2087,277 @@ def test_scoped_dashboard_and_reports_run_on_real_postgres(pg):
         assert "Private breach B" not in str(stats)
     finally:
         db.close()
+
+
+# ── Ownership of platform risks, SLA clocks and workflow instances (platform risk / SLA / workflow scope) ──
+
+_OWNED_TABLES = ("risk_register", "sla_instances", "workflow_instances")
+_OWNER_MARKER = "ownership.backfill.v1"
+
+
+def _pg_one(sql_text, params=None):
+    """Run one statement on a raw autocommit connection and return its first column (None when it has none)."""
+    conn = _raw_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql_text, params)
+            row = cur.fetchone() if cur.description else None
+            return row[0] if row else None
+    finally:
+        conn.close()
+
+
+def _legacy_owner_world(schema, org_id, shift):
+    """In `schema` (public or tenant_x): a unit, a breach in it, and the rows of the three tables that predate
+    ownership. `shift` pre-burns that many unit ids so a lookup in the wrong schema would give a wrong id.
+    Returns the unit id, the ids of the rows, and the id of a user with no unit."""
+    for _ in range(shift):
+        _pg_one(f"INSERT INTO {schema}.business_units (name, is_active) VALUES ('filler', 1) RETURNING id")
+    unit = _pg_one(f"INSERT INTO {schema}.business_units (name, is_active) VALUES ('Owner unit', 1) RETURNING id")
+    breach = _pg_one(f"INSERT INTO {schema}.sentinel_breaches (ref_number, title, business_unit_id) "
+                     "VALUES ('BR-OWN', 'Owned breach', %s) RETURNING id", (unit,))
+    suffix = schema.replace("tenant_", "")
+    creator = _pg_one("INSERT INTO public.users (username, email, full_name, password_hash, org_id, business_unit_id) "
+                      "VALUES (%s, %s, 'c', 'x', %s, %s) RETURNING id",
+                      (f"creator_{suffix}", f"creator_{suffix}@example.test", org_id, unit))
+    loner = _pg_one("INSERT INTO public.users (username, email, full_name, password_hash, org_id) "
+                    "VALUES (%s, %s, 'l', 'x', %s) RETURNING id",
+                    (f"loner_{suffix}", f"loner_{suffix}@example.test", org_id))
+    risk = lambda created_by, entity=(None, None, None): _pg_one(  # noqa: E731
+        f"INSERT INTO {schema}.risk_register (title, source_module, source_entity_type, source_entity_id, created_by) "
+        "VALUES ('Old risk', %s, %s, %s, %s) RETURNING id", (*entity, created_by))
+    definition = _pg_one(f"INSERT INTO {schema}.workflow_definitions (name, steps_json, created_by) "
+                         "VALUES ('Old flow', '[]', %s) RETURNING id", (creator,))
+    sla_definition = _pg_one(f"INSERT INTO {schema}.sla_definitions (name, module, entity_type) "
+                             "VALUES ('Old SLA', 'sentinel', 'breach') RETURNING id")
+    rows = {
+        "risk_from_record": risk(None, ("sentinel", "breach", breach)),
+        "risk_from_creator": risk(creator, ("aria", "risk", 5)),
+        "risk_unplaceable": risk(loner),
+        "flow_from_creator": _pg_one(
+            f"INSERT INTO {schema}.workflow_instances (definition_id, entity_module, entity_type, entity_id, "
+            "started_by, org_id) VALUES (%s, 'grid', 'finding', 9, %s, %s) RETURNING id", (definition, creator, org_id)),
+        "clock_from_record": _pg_one(
+            f"INSERT INTO {schema}.sla_instances (definition_id, org_id, entity_module, entity_type, entity_id) "
+            "VALUES (%s, %s, 'sentinel', 'breach', %s) RETURNING id", (sla_definition, org_id, breach)),
+    }
+    return unit, rows, loner
+
+
+def _owner_of(schema, table, row_id):
+    return _pg_one(f"SELECT business_unit_id FROM {schema}.{table} WHERE id = %s", (row_id,))
+
+
+def test_ownership_reaches_public_and_every_tenant_schema_and_is_placed_once_on_real_postgres(pg):
+    """The column migration, the one-time placement of existing rows and the marker all run per schema.
+    Unit ids differ by schema on purpose, so a lookup that read the wrong schema's tables would be caught."""
+    pg.init_db()
+    public_org = _make_org(pg, "ownpublic", provision=False)
+    org_one = _make_org(pg, "ownone")
+    org_two = _make_org(pg, "owntwo")
+    schemas = {"public": (public_org, 0), "tenant_ownone": (org_one, 2), "tenant_owntwo": (org_two, 5)}
+
+    found = _raw_rows(
+        "SELECT table_schema, table_name FROM information_schema.columns WHERE column_name = 'business_unit_id' "
+        "AND table_name = ANY(%s) AND table_schema = ANY(%s)", (list(_OWNED_TABLES), list(schemas)))
+    assert len(found) == 3 * len(schemas), found
+
+    world = {}
+    for schema, (org_id, shift) in schemas.items():
+        _pg_one(f"DELETE FROM {schema}.settings WHERE key = %s RETURNING 1", (_OWNER_MARKER,))
+        world[schema] = _legacy_owner_world(schema, org_id, shift)
+    assert len({unit for unit, _, _ in world.values()}) == 3
+
+    pg.init_db()  # the upgrade: public through _run_pg_alters, every tenant through _migrate_all_tenant_schemas
+    for schema, (unit, rows, _) in world.items():
+        assert _owner_of(schema, "risk_register", rows["risk_from_record"]) == unit, schema
+        assert _owner_of(schema, "risk_register", rows["risk_from_creator"]) == unit, schema
+        assert _owner_of(schema, "risk_register", rows["risk_unplaceable"]) is None, schema
+        assert _owner_of(schema, "workflow_instances", rows["flow_from_creator"]) == unit, schema
+        assert _owner_of(schema, "sla_instances", rows["clock_from_record"]) == unit, schema
+        assert _pg_one(f"SELECT count(*) FROM {schema}.settings WHERE key = %s", (_OWNER_MARKER,)) == 1, schema
+
+    # Once: a user who is given a unit later does not inherit the rows nobody could place.
+    for schema, (unit, rows, loner) in world.items():
+        _pg_one("UPDATE public.users SET business_unit_id = %s WHERE id = %s RETURNING 1", (unit, loner))
+    pg.init_db()
+    for schema, (unit, rows, _) in world.items():
+        assert _owner_of(schema, "risk_register", rows["risk_unplaceable"]) is None, schema
+
+
+def test_a_failing_placement_does_not_stop_startup_and_is_retried_on_real_postgres(pg, monkeypatch):
+    """Inside the migration transaction a failure is rolled back to its savepoint: the columns and the other
+    migrations survive, no marker is written, and the next start places the rows."""
+    import modules.governance.entity_scope as scope
+
+    pg.init_db()
+    org = _make_org(pg, "ownretry", provision=False)
+    _pg_one("DELETE FROM public.settings WHERE key = %s RETURNING 1", (_OWNER_MARKER,))
+    unit, rows, _ = _legacy_owner_world("public", org, 0)
+
+    real = scope.owner_unit
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("lookup failed")
+
+    monkeypatch.setattr(scope, "owner_unit", broken)
+    pg.init_db()  # must not raise
+    monkeypatch.setattr(scope, "owner_unit", real)
+    assert _pg_one("SELECT count(*) FROM public.settings WHERE key = %s", (_OWNER_MARKER,)) == 0
+    assert _owner_of("public", "risk_register", rows["risk_from_record"]) is None
+    assert _column_exists(pg, "risk_register", "business_unit_id")
+
+    pg.init_db()
+    assert _owner_of("public", "risk_register", rows["risk_from_record"]) == unit
+    assert _pg_one("SELECT count(*) FROM public.settings WHERE key = %s", (_OWNER_MARKER,)) == 1
+
+
+def test_owners_scope_and_the_restored_cards_run_on_real_postgres(pg, monkeypatch):
+    """The unit rule for the three tables, the organization predicate on the two instance tables, the appetite
+    subquery, the record lookups (a table, a grid audit join, the ARIA organization rule) and the register
+    detail query must parse and give the right rows on PostgreSQL."""
+    import asyncio
+    import json
+    import types
+
+    from fastapi import HTTPException
+
+    import core.middleware as middleware
+    from modules.governance.entity_scope import owner_unit, record_unit
+    from modules.launcher import routes_risks
+    from modules.launcher.routes_dashboard import _scoped_command_stats
+    from modules.launcher.routes_reports import _report_result
+    from modules.launcher.scoped_metrics import scoped_count
+
+    pg.init_db()
+    org = _make_org(pg, "ownscope", provision=False)
+    other = _make_org(pg, "ownscopeother", provision=False)
+    db = pg.get_db_bypass_rls()
+    try:
+        unit = {tag: pg.insert_returning_id(db, "INSERT INTO business_units (name, is_active) VALUES (%s, 1)", (tag,))
+                for tag in ("A", "B")}
+        sla_def = pg.insert_returning_id(
+            db, "INSERT INTO sla_definitions (name, module, entity_type) VALUES ('SLA', 'sentinel', 'breach')", ())
+        flow_def = pg.insert_returning_id(
+            db, "INSERT INTO workflow_definitions (name, steps_json) VALUES ('Flow', '[]')", ())
+        risk, clock, flow = {}, {}, {}
+        for tag, level in (("A", "critical"), ("B", "critical")):
+            risk[tag] = pg.insert_returning_id(
+                db, "INSERT INTO risk_register (title, likelihood, impact, risk_level, source_module, business_unit_id) "
+                    "VALUES (%s, 5, 4, %s, 'sentinel', %s)", (f"Owned risk {tag}", level, unit[tag]))
+            clock[tag] = pg.insert_returning_id(
+                db, "INSERT INTO sla_instances (definition_id, org_id, entity_module, entity_type, status, breached, "
+                    "resolution_due, business_unit_id) VALUES (%s, %s, 'sentinel', 'breach', 'active', 1, "
+                    "'2000-01-01 00:00:00', %s)", (sla_def, org, unit[tag]))
+            flow[tag] = pg.insert_returning_id(
+                db, "INSERT INTO workflow_instances (definition_id, org_id, status, business_unit_id) "
+                    "VALUES (%s, %s, 'active', %s)", (flow_def, org, unit[tag]))
+        # another organization's rows, no unit: a restricted user must never count them
+        db.execute("INSERT INTO sla_instances (definition_id, org_id, status, breached) VALUES (%s, %s, 'active', 1)",
+                   (sla_def, other))
+        db.execute("INSERT INTO workflow_instances (definition_id, org_id, status) VALUES (%s, %s, 'active')",
+                   (flow_def, other))
+        for tag, score in (("A", 5), ("B", 2)):
+            db.execute("INSERT INTO erm_enterprise_risks (title, category, likelihood, impact, business_unit_id) "
+                       "VALUES (%s, 'operational', %s, 4, %s)", (f"ERM {tag}", score, unit[tag]))
+        db.execute("INSERT INTO erm_risk_appetite (category, max_score) VALUES ('operational', 10)")
+        audit = pg.insert_returning_id(db, "INSERT INTO grid_audits (name, business_unit_id) VALUES ('Audit A', %s)",
+                                       (unit["A"],))
+        nc = pg.insert_returning_id(db, "INSERT INTO grid_non_conformances (audit_id, title) VALUES (%s, 'NC')", (audit,))
+        document = pg.insert_returning_id(
+            db, "INSERT INTO aria_documents (doc_id, framework, title, org_id, business_unit_id, "
+                "policy_workflow_managed) VALUES ('OWN-1', 'ISO 27001', 'Owned policy', %s, %s, 0)", (org, unit["A"]))
+        db.commit()
+
+        owner_a = {"id": 901, "org_id": org, "business_unit_id": unit["A"], "is_super_admin": 0, "roles": ["risk_owner"]}
+        owner_b = {**owner_a, "id": 902, "business_unit_id": unit["B"]}
+        admin = {"id": 903, "org_id": org, "business_unit_id": None, "is_super_admin": 1, "roles": ["super_admin"]}
+
+        assert scoped_count(db, owner_a, "risk_register") == 1
+        assert scoped_count(db, owner_b, "risk_register") == 1
+        assert scoped_count(db, owner_a, "sla_instances") == 1 and scoped_count(db, owner_a, "workflow_instances") == 1
+        assert scoped_count(db, admin, "sla_instances") == 3 and scoped_count(db, admin, "workflow_instances") == 3
+
+        stats = _scoped_command_stats(db, owner_a)
+        assert stats["sla"] == {"pct": 0, "met": 0, "at_risk": 0, "breached": 1}
+        assert stats["workflow_active"] == 1
+        assert stats["erm_appetite_breaches"] == 1          # A's ERM risk 5x4=20 > 10
+        assert _scoped_command_stats(db, owner_b)["erm_appetite_breaches"] == 0   # B's is 2x4=8
+        assert stats["risk_counts"]["critical"] == 2        # the platform risk and the ERM one, unit A only
+        assert [r["id"] for r in stats["overdue_items"] if r["id"].startswith("SLA-")] == [f"SLA-{clock['A']}"]
+
+        assert _report_result(db, owner_a, "sla_performance")["breached"] == 1
+        assert _report_result(db, owner_a, "executive_brief")["sla_breaches"] == 1
+        assert _report_result(db, owner_a, "risk_report")["total_open"] == 2
+        assert "Owned risk B" not in str(_report_result(db, owner_a, "risk_report"))
+
+        assert record_unit(db, "sentinel", "breach", 99999) == (False, None)
+        lead_a, lead_b = {**owner_a, "roles": ["audit_lead"]}, {**owner_b, "roles": ["audit_lead"]}
+        assert record_unit(db, "grid", "non_conformance", nc, lead_a) == (True, unit["A"])
+        assert record_unit(db, "grid", "non_conformance", nc, lead_b) == (False, None)
+        assert owner_unit(db, "aria", "policy", document, user={**owner_a, "roles": ["dpo"]}) == unit["A"]
+        assert owner_unit(db, "aria", "policy", document, user={**owner_b, "roles": ["dpo"]}) == unit["B"]  # not B's
+    finally:
+        db.close()
+
+    async def signed_in(request):
+        return request.state.user
+
+    monkeypatch.setattr(middleware, "get_current_user", signed_in)
+
+    def detail(user, rid):
+        request = types.SimpleNamespace(state=types.SimpleNamespace(user=user), url=types.SimpleNamespace(path="/api/risks"))
+        try:
+            return asyncio.run(routes_risks.api_risk_get(request, rid)).status_code
+        except HTTPException as refused:
+            return refused.status_code
+
+    assert detail(owner_a, risk["A"]) == 200 and detail(owner_a, risk["B"]) == 404
+    assert detail(owner_b, risk["B"]) == 200 and detail(admin, risk["A"]) == 200
+    opened = asyncio.run(routes_risks.api_risk_get(
+        types.SimpleNamespace(state=types.SimpleNamespace(user=owner_a), url=types.SimpleNamespace(path="/api/risks")),
+        risk["A"]))
+    assert json.loads(opened.body)["business_unit_id"] == unit["A"]
+
+
+def _foreign_keys_to_business_units_in(schema):
+    """(table, column) for every foreign key in `schema` that points at that schema's own business_units."""
+    return {(table, column) for table, column in _raw_rows(
+        "SELECT t.relname, a.attname FROM pg_constraint c "
+        "JOIN pg_class t ON t.oid = c.conrelid "
+        "JOIN pg_namespace tn ON tn.oid = t.relnamespace "
+        "JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) "
+        "WHERE c.contype = 'f' AND tn.nspname = %s AND c.confrelid = (%s || '.business_units')::regclass",
+        (schema, schema))}
+
+
+def test_delete_business_unit_checks_every_foreign_key_to_a_business_unit_on_real_postgres(pg):
+    """The schema scan of tests/test_governance_delete_guards.py, read from pg_constraint, in the public schema and in
+    a tenant schema. Then the refusal itself, which PostgreSQL would otherwise answer with a ForeignKeyViolation."""
+    from contextlib import nullcontext
+
+    import modules.governance.data_service as gov
+
+    pg.init_db()
+    org = _make_org(pg, "bufks")
+    checked = set(gov._BU_REFERENCES)
+    for schema in ("public", "tenant_bufks"):
+        in_schema = _foreign_keys_to_business_units_in(schema) - {("business_units", "parent_id")}  # children: counted first
+        assert in_schema, f"{schema}: the schema scan found no foreign keys to business_units"
+        assert not in_schema - checked, f"{schema}: delete_business_unit does not check {sorted(in_schema - checked)}"
+
+    def a_unit(with_exercise):
+        db = pg.get_db()
+        try:
+            unit = pg.insert_returning_id(db, "INSERT INTO business_units (name, is_active) VALUES ('Unit', 1)", ())
+            if with_exercise:
+                db.execute("INSERT INTO bcm_exercises (title, business_unit_id) VALUES ('Drill', %s)", (unit,))
+            db.commit()
+            return unit
+        finally:
+            db.close()
+
+    for scope in (nullcontext(), pg.tenant_context(org, "bufks", is_super_admin=False)):
+        with scope:
+            assert gov.delete_business_unit(a_unit(with_exercise=True)) is False
+            assert gov.delete_business_unit(a_unit(with_exercise=False)) is True

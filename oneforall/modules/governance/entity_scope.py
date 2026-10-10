@@ -23,32 +23,39 @@ class _Kind(NamedTuple):
     capability: str           # what the owning module's own routes require ("" when only a sign-in)
     bu: str = ""              # business unit column ("" when the table has none)
     via_audit: bool = False   # no unit of its own: follows its grid audit's
+    table: str = ""           # set on every kind that has (or follows) a unit, so record_unit can read it
 
 
 # (module, type) -> rule. Capabilities are the ones the module's list and detail routes require.
 _KINDS = {
     ("aria", "control"):      _Kind("aria", "module.aria.access"),
-    ("aria", "document"):     _Kind("aria", "module.aria.access"),     # org and legacy rules: document_scope_sql
+    # org and legacy rules: document_scope_sql, which is also why `bu` is not what limits it
+    ("aria", "document"):     _Kind("aria", "module.aria.access", "business_unit_id", table="aria_documents"),
     ("evidence", "item"):     _Kind("", ""),                           # org and unit rules: evidence_scope_sql
-    ("sentinel", "ropa"):     _Kind("sentinel", "module.sentinel.access", "business_unit_id"),
-    ("sentinel", "breach"):   _Kind("sentinel", "sentinel.breach.manage", "business_unit_id"),
-    ("sentinel", "dpia"):     _Kind("sentinel", "sentinel.dpia.manage", "business_unit_id"),
-    ("sentinel", "dsr"):      _Kind("sentinel", "sentinel.dsr.manage", "business_unit_id"),
+    ("sentinel", "ropa"):     _Kind("sentinel", "module.sentinel.access", "business_unit_id", table="sentinel_ropa"),
+    ("sentinel", "breach"):   _Kind("sentinel", "sentinel.breach.manage", "business_unit_id", table="sentinel_breaches"),
+    ("sentinel", "dpia"):     _Kind("sentinel", "sentinel.dpia.manage", "business_unit_id", table="sentinel_dpias"),
+    ("sentinel", "dsr"):      _Kind("sentinel", "sentinel.dsr.manage", "business_unit_id", table="sentinel_dsr"),
     ("sentinel", "vendor"):   _Kind("sentinel", "sentinel.vendor.manage"),
-    ("grid", "audit"):        _Kind("grid", "module.grid.access", "business_unit_id"),
-    ("grid", "nc"):           _Kind("grid", "grid.nc.manage", via_audit=True),
-    ("grid", "control"):      _Kind("grid", "module.grid.access", via_audit=True),
+    ("grid", "audit"):        _Kind("grid", "module.grid.access", "business_unit_id", table="grid_audits"),
+    ("grid", "nc"):           _Kind("grid", "grid.nc.manage", via_audit=True, table="grid_non_conformances"),
+    ("grid", "control"):      _Kind("grid", "module.grid.access", via_audit=True, table="grid_controls"),
     ("grid", "vendor"):       _Kind("grid", "grid.vendor.manage"),
-    ("bcm", "plan"):          _Kind("bcm", "module.bcm.access", "business_unit_id"),
-    ("bcm", "incident"):      _Kind("bcm", "module.bcm.access", "business_unit_id"),
-    ("bcm", "exercise"):      _Kind("bcm", "module.bcm.access", "business_unit_id"),
+    ("bcm", "plan"):          _Kind("bcm", "module.bcm.access", "business_unit_id", table="bcm_plans"),
+    ("bcm", "incident"):      _Kind("bcm", "module.bcm.access", "business_unit_id", table="bcm_incidents"),
+    ("bcm", "exercise"):      _Kind("bcm", "module.bcm.access", "business_unit_id", table="bcm_exercises"),
     ("bcm", "vendor"):        _Kind("bcm", "module.bcm.access"),
-    ("erm", "risk"):          _Kind("erm", "erm.risk.view", "business_unit_id"),
+    ("erm", "risk"):          _Kind("erm", "erm.risk.view", "business_unit_id", table="erm_enterprise_risks"),
     ("erm", "obligation"):    _Kind("erm", "module.erm.access"),
-    ("platform", "risk"):     _Kind("erm", "erm.risk.view"),           # the register behind ERM and ORM
-    ("orm", "event"):         _Kind("orm", "module.orm.access", "business_unit_id"),
+    # The register behind ERM and ORM, and the SLA clocks and workflow instances: all three store the unit
+    # of the record they are about, or of whoever created them (see owner_unit). SLA clocks and workflow
+    # instances need only a sign-in, like the Workflows module itself.
+    ("platform", "risk"):     _Kind("erm", "erm.risk.view", "business_unit_id", table="risk_register"),
+    ("platform", "sla"):      _Kind("", "", "business_unit_id", table="sla_instances"),
+    ("platform", "workflow"): _Kind("", "", "business_unit_id", table="workflow_instances"),
+    ("orm", "event"):         _Kind("orm", "module.orm.access", "business_unit_id", table="orm_events"),
     ("orm", "kri"):           _Kind("orm", "module.orm.access"),
-    ("platform", "task"):    _Kind("", "", "business_unit_id"),
+    ("platform", "task"):     _Kind("", "", "business_unit_id", table="task_board"),
 }
 
 
@@ -72,10 +79,6 @@ def entity_scope_sql(key: tuple, user: dict, alias: str = "") -> tuple[str, list
     kind = _KINDS.get(key)
     if kind is None or not may_view_kind(user, key):
         return "(1 = 0)", []
-    if key == ("platform", "risk") and not user.get("is_super_admin"):
-        # Legacy platform risks have no reliable BU owner. Their titles must not
-        # bypass the scoped ERM view through topbar search or cross-module reads.
-        return "(1 = 0)", []
     if key == ("aria", "document"):
         return document_scope_sql(user)  # unqualified columns, like the module's own queries
     if key == ("evidence", "item"):
@@ -95,3 +98,59 @@ def entity_scope_sql(key: tuple, user: dict, alias: str = "") -> tuple[str, list
         )
     column = prefix + kind.bu
     return f"({column} IS NULL OR {column} IN ({marks}))", list(scope)
+
+
+# ── Who owns a new row ──────────────────────────────────────────────────────
+
+# Names callers use for a registered kind: the event handlers say non_conformance and enterprise_risk,
+# the workflow form offers policy. A name nothing registers is simply unknown.
+_TYPE_ALIASES = {"non_conformance": "nc", "enterprise_risk": "risk", "policy": "document"}
+_MAX_ID = 2 ** 31 - 1  # an INTEGER primary key; a larger number is not a record and would only raise in PostgreSQL
+
+
+def record_unit(db, module, entity_type, entity_id, user=None) -> tuple[bool, "int | None"]:
+    """(known, business_unit_id) of the record a platform risk, SLA clock or workflow instance is about.
+
+    `known` is False when the reference names nothing we can place: a kind that is not registered, no usable
+    id, a row that is not there, or (when `user` is given) a record that user cannot open. A record that is
+    organization wide is (True, None). Nothing here raises for a bad reference, because the workflow form
+    takes a free-text type and an optional id and must keep working.
+    """
+    module = str(module or "").strip().lower()
+    entity_type = str(entity_type or "").strip().lower()
+    key = (module, _TYPE_ALIASES.get(entity_type, entity_type))
+    kind = _KINDS.get(key)
+    if kind is None or not kind.table or not (kind.bu or kind.via_audit):
+        return False, None
+    try:
+        record_id = int(entity_id)
+    except (TypeError, ValueError):
+        return False, None
+    if not 0 < record_id <= _MAX_ID:
+        return False, None
+    scope, params = ("(1 = 1)", []) if user is None else entity_scope_sql(key, user, "t")
+    if kind.via_audit:
+        source, unit = f"{kind.table} t JOIN grid_audits a ON a.id = t.audit_id", "a.business_unit_id"
+    else:
+        source, unit = f"{kind.table} t", f"t.{kind.bu}"
+    row = db.execute(f"SELECT {unit} FROM {source} WHERE t.id = %s AND {scope}", [record_id, *params]).fetchone()
+    return (True, row[0]) if row else (False, None)
+
+
+def owner_unit(db, module, entity_type, entity_id, *, user=None, user_id=None) -> "int | None":
+    """The business unit a new platform risk, SLA clock or workflow instance belongs to.
+
+    The unit of the record it is about, when that is a registered kind (and, if `user` is given, one that
+    user can open); otherwise the unit of whoever created it; otherwise None, which is organization wide.
+    Pass `user` from a request, so nobody can place a row in a unit they cannot see by naming its record.
+    Pass `user_id` from a background handler, which acts for a user it has already authorized.
+    """
+    known, unit = record_unit(db, module, entity_type, entity_id, user)
+    if known:
+        return unit
+    if user is not None:
+        return user.get("business_unit_id") or None
+    if user_id is None:
+        return None
+    row = db.execute("SELECT business_unit_id FROM users WHERE id = %s", (user_id,)).fetchone()
+    return (row[0] or None) if row else None

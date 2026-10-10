@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 
 from database import insert_returning_id
+from modules.governance.entity_scope import owner_unit
 from modules.launcher.scoped_metrics import scoped_count, table_scope
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, shell_ctx, shell_templates, get_db,
@@ -26,6 +27,25 @@ def _validate_score(data: dict, key: str, default: int) -> int:
     if not (1 <= val <= 5):
         raise HTTPException(400, f"{key} must be an integer between 1 and 5")
     return val
+
+
+def _active_unit(db, named):
+    """`named` when it is the id of an active business unit; anything else is a 400."""
+    active = (isinstance(named, int) and not isinstance(named, bool)
+              and db.execute("SELECT 1 FROM business_units WHERE id = %s AND is_active = 1", (named,)).fetchone())
+    if not active:
+        raise HTTPException(400, "business_unit_id must be the id of an active business unit")
+    return named
+
+
+def _owning_unit(db, data: dict, user: dict):
+    """The business unit a hand-made risk belongs to: the active unit the caller names, else the unit of
+    the record the risk is about, else the creator's own (none for a super administrator: organization wide)."""
+    named = data.get("business_unit_id")
+    if named in (None, ""):
+        return owner_unit(db, data.get("source_module"), data.get("source_entity_type"),
+                          data.get("source_entity_id"), user=user)
+    return _active_unit(db, named)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -148,12 +168,13 @@ async def api_risk_create(request: Request):
         impact = _validate_score(data, "impact", 3)
         score = likelihood * impact
         level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
+        unit = _owning_unit(db, data, request.state.user)
         rid = insert_returning_id(
             db,
             "INSERT INTO risk_register (title, description, source_module, source_entity_type, "
             "source_entity_id, category, likelihood, impact, risk_level, owner_id, treatment, "
-            "treatment_plan, status, review_date, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "treatment_plan, status, review_date, created_by, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 data.get("title", "Untitled Risk"),
                 data.get("description", ""),
@@ -168,6 +189,7 @@ async def api_risk_create(request: Request):
                 data.get("status", "open"),
                 data.get("review_date"),
                 request.state.user["id"],
+                unit,
             )
         )
         db.commit()
@@ -231,14 +253,13 @@ async def api_risk_stats(request: Request):
 @router.get("/api/risks/{rid}")
 @require_auth
 async def api_risk_get(request: Request, rid: int):
-    """Get a single risk with full details."""
-    if not request.state.user.get("is_super_admin"):
-        raise HTTPException(404, "Risk not found")
+    """Get a single risk with full details (404, never 403, for one outside the caller's scope)."""
+    scope, params = table_scope("risk_register", request.state.user, "r")
     db = get_db()
     try:
         row = db.execute(
             "SELECT r.*, u.full_name as owner_name FROM risk_register r "
-            "LEFT JOIN users u ON r.owner_id = u.id WHERE r.id = %s", (rid,)
+            f"LEFT JOIN users u ON r.owner_id = u.id WHERE r.id = %s AND {scope}", (rid, *params)
         ).fetchone()
         if not row:
             raise HTTPException(404, "Risk not found")
@@ -258,7 +279,10 @@ async def api_risk_update(request: Request, rid: int):
     try:
         allowed = ["title", "description", "category", "likelihood", "impact",
                    "owner_id", "treatment", "treatment_plan", "status", "review_date",
-                   "source_module", "source_entity_type", "source_entity_id"]
+                   "source_module", "source_entity_type", "source_entity_id", "business_unit_id"]
+        if "business_unit_id" in data:  # how a risk whose owner was never known is placed (null = organization wide)
+            data["business_unit_id"] = (None if data["business_unit_id"] in (None, "")
+                                        else _active_unit(db, data["business_unit_id"]))
         sets = []
         vals = []
         for k in allowed:

@@ -5044,6 +5044,12 @@ _COLUMN_MIGRATIONS = [
         ("sentinel_dsr", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         # PLAN-36 P07: freeze scope on immutable board-pack snapshots.
         ("erm_board_packs", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # Ownership of the legacy platform risk register and of SLA clocks and workflow instances, which the
+        # dashboards and reports could not scope by unit before. NULL is organization wide, as everywhere
+        # else; _backfill_owner_units places the rows that already exist, once.
+        ("risk_register",      "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("sla_instances",      "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("workflow_instances", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
 ]
 
 
@@ -5075,6 +5081,49 @@ def _backfill_board_pack_business_units(conn) -> None:
             )
 
 
+_OWNER_BACKFILL_KEY = "ownership.backfill.v1"
+# table, then the columns naming the record a row is about and the user who created it (None: not recorded)
+_OWNED_TABLES = (
+    ("risk_register",      "source_module", "source_entity_type", "source_entity_id", "created_by"),
+    ("workflow_instances", "entity_module", "entity_type",        "entity_id",        "started_by"),
+    ("sla_instances",      "entity_module", "entity_type",        "entity_id",        None),
+)
+
+
+def _backfill_owner_units(conn) -> None:
+    """Place the platform risks, workflow instances and SLA clocks that were created before they carried
+    a business unit, by the rule a new row follows (entity_scope.owner_unit): the unit of the record the
+    row is about, else its creator's, else none (organization wide).
+
+    Runs ONCE per schema, recorded by a row in that schema's `settings`: running it again would hand
+    a row to a user who has since changed unit. A failure leaves no marker and is retried at the next
+    start; it never blocks startup. Rows nobody can be found for stay NULL and are only counted here."""
+    import logging
+    from core.best_effort import attempt
+    from modules.governance.entity_scope import owner_unit
+    if conn.execute("SELECT 1 FROM settings WHERE key = %s", (_OWNER_BACKFILL_KEY,)).fetchone():
+        return
+    placed = unplaced = 0
+    with attempt(conn, "backfill of business units on risks, SLA clocks and workflow instances"):
+        for table, module, kind, ident, creator in _OWNED_TABLES:
+            rows = conn.execute(
+                f"SELECT id, {module}, {kind}, {ident}, {creator or 'NULL'} FROM {table} "
+                "WHERE business_unit_id IS NULL"
+            ).fetchall()
+            for row in rows:
+                unit = owner_unit(conn, row[1], row[2], row[3], user_id=row[4])
+                if unit is None:
+                    unplaced += 1
+                    continue
+                conn.execute(f"UPDATE {table} SET business_unit_id = %s WHERE id = %s", (unit, row[0]))
+                placed += 1
+        conn.execute("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
+                     (_OWNER_BACKFILL_KEY, "done"))
+        logging.getLogger("oneforall.migrations").info(
+            "Placed %d platform risks, SLA clocks and workflow instances in a business unit; "
+            "%d left organization wide.", placed, unplaced)
+
+
 def _run_sqlite_alters(conn):
     """SQLite-only: ALTER TABLE ADD COLUMN for schema evolution and UNIQUE index creation."""
     for table, column, definition in _COLUMN_MIGRATIONS:
@@ -5091,6 +5140,7 @@ def _run_sqlite_alters(conn):
     )
     # Baseline-only packs remain organization-wide (NULL).
     _backfill_board_pack_business_units(conn)
+    _backfill_owner_units(conn)
     conn.commit()
 
     # ── Create indexes that depend on migrated columns ──
@@ -6470,6 +6520,7 @@ def _run_pg_alters(conn) -> None:
         _backfill_board_pack_business_units(conn)
     except Exception:
         pass
+    _backfill_owner_units(conn)
     conn.commit()
     # PLAN-35: correctness constraints on version-keyed evidence columns that
     # were just added above. _run_sqlite_alters' _POST_MIGRATION_INDEXES has

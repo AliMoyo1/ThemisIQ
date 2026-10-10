@@ -158,8 +158,34 @@ def update_business_unit(bu_id: int, data: dict) -> bool:
         db.close()
 
 
+# Every foreign key to business_units(id), as (table, column). A unit that any of them still references
+# is kept. tests/test_governance_delete_guards.py (SQLite) and tests/test_postgres_init.py (PostgreSQL)
+# read the schema and fail when one is missing here, so a new table cannot be forgotten.
+_BU_REFERENCES = tuple((table, "business_unit_id") for table in (
+    "erm_enterprise_risks", "orm_events", "orm_rcsa_assessments",
+    "aria_documents", "aria_controls", "grid_audits",
+    "sentinel_ropa", "sentinel_breaches", "sentinel_dpias",
+    "bcm_plans", "bcm_bia_records", "bcm_incidents",
+    "evidence_items", "task_board", "departments",
+    "business_processes", "applications", "data_assets",
+    "risk_register", "sla_instances", "workflow_instances",
+    "aria_doc_templates", "aria_document_approvals", "aria_policy_drafts",
+    "aria_policy_publication_jobs", "aria_policy_versions",
+    "bcm_exercises", "calendar_events", "erm_board_packs", "erm_scenarios",
+    "evidence_campaigns", "evidence_requests", "people_directory",
+    "readiness_findings", "sentinel_dsr",
+    "user_business_unit_assignments",
+)) + (
+    ("business_unit_transfers", "from_business_unit_id"),
+    ("business_unit_transfers", "to_business_unit_id"),
+)
+
+
 def delete_business_unit(bu_id: int) -> bool:
     """Delete a BU only if no children and no scoped entities reference it.
+
+    Assignment and transfer history counts as a reference: it records who sat in the unit and
+    when, so a unit it names is deactivated instead of deleted.
 
     Safer than a CASCADE — governance data should be preserved. Callers can
     reassign entities to the parent BU first if they really want to delete.
@@ -172,15 +198,10 @@ def delete_business_unit(bu_id: int) -> bool:
         if children:
             return False
         # Check references — if any scoped entity uses this BU, refuse.
-        for tbl in ("erm_enterprise_risks", "orm_events", "orm_rcsa_assessments",
-                    "aria_documents", "aria_controls", "grid_audits",
-                    "sentinel_ropa", "sentinel_breaches", "sentinel_dpias",
-                    "bcm_plans", "bcm_bia_records", "bcm_incidents",
-                    "evidence_items", "task_board", "departments",
-                    "business_processes", "applications", "data_assets"):
+        for tbl, col in _BU_REFERENCES:
             try:
                 cnt = db.execute(
-                    f"SELECT COUNT(*) FROM {tbl} WHERE business_unit_id=%s", (bu_id,)
+                    f"SELECT COUNT(*) FROM {tbl} WHERE {col}=%s", (bu_id,)
                 ).fetchone()[0]
                 if cnt:
                     return False

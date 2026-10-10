@@ -103,7 +103,11 @@ async def api_bu_update(request: Request, bu_id: int):
 async def api_bu_delete(request: Request, bu_id: int):
     ok = ds.delete_business_unit(bu_id)
     if not ok:
-        raise HTTPException(409, "Cannot delete — BU has children or is referenced by scoped entities")
+        raise HTTPException(
+            409,
+            "Cannot delete: the business unit has children, is referenced by records, "
+            "or has assignment or transfer history. Deactivate it instead.",
+        )
     return JSONResponse({"ok": True})
 
 

@@ -19,6 +19,7 @@ from modules.erm import data_service as ds
 from modules.erm import ai_service as ai
 from modules.erm import scan_jobs
 from modules.governance.data_service import bu_scope_ids
+from modules.governance.entity_scope import entity_scope_sql
 from core.best_effort import swallowed
 
 log = logging.getLogger(__name__)
@@ -624,9 +625,11 @@ async def api_register_entry_delete(request: Request, reg_id: int):
     """Delete a platform risk_register row that was auto-created from another module.
     Only deletes rows in risk_register; erm_enterprise_risks has its own DELETE route."""
     from database import get_db as _get_db
+    # Same business unit rule as the enterprise risk routes: 404, never 403, for an entry outside the caller's scope.
+    scope, params = entity_scope_sql(("platform", "risk"), request.state.user)
     db = _get_db()
     try:
-        row = db.execute("SELECT id FROM risk_register WHERE id=%s", (reg_id,)).fetchone()
+        row = db.execute(f"SELECT id FROM risk_register WHERE id=%s AND {scope}", (reg_id, *params)).fetchone()
         if not row:
             raise HTTPException(404, "Risk register entry not found")
         db.execute("DELETE FROM risk_register WHERE id=%s", (reg_id,))
@@ -1399,6 +1402,9 @@ async def api_export_csv(request: Request):
     import io
     from starlette.responses import StreamingResponse
     from database import get_db
+    # Same business unit rule as the risk list: organization wide rows stay, another unit's rows do not.
+    erm_scope, erm_params = entity_scope_sql(("erm", "risk"), request.state.user, "e")
+    rr_scope, rr_params = entity_scope_sql(("platform", "risk"), request.state.user, "r")
     db = get_db()
     try:
         # ERM enterprise risks: full detail, including the PLAN-23 fields.
@@ -1408,7 +1414,8 @@ async def api_export_csv(request: Request):
             "e.source_module, e.created_at, e.updated_at, "
             "e.risk_ref, e.irr_score, e.loa_pct, e.rrr, e.emv_inherent, e.emv_residual "
             "FROM erm_enterprise_risks e LEFT JOIN users u ON u.id=e.owner_id "
-            "ORDER BY e.created_at DESC"
+            f"WHERE {erm_scope} ORDER BY e.created_at DESC",
+            erm_params,
         ).fetchall()
         # Platform risk_register stub rows (cross-module, not yet escalated to
         # ERM) have none of the PLAN-23 fields; they export with those blank.
@@ -1417,7 +1424,8 @@ async def api_export_csv(request: Request):
             "r.likelihood, r.impact, u.full_name AS owner_name, "
             "r.source_module, r.created_at, r.updated_at "
             "FROM risk_register r LEFT JOIN users u ON u.id=r.owner_id "
-            "ORDER BY r.created_at DESC"
+            f"WHERE {rr_scope} ORDER BY r.created_at DESC",
+            rr_params,
         ).fetchall()
     finally:
         db.close()

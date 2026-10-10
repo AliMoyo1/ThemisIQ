@@ -51,10 +51,10 @@ PERSONAS = {
 SENTINEL = {("sentinel", "ropa"), ("sentinel", "breach"), ("sentinel", "dpia"),
             ("sentinel", "dsr"), ("sentinel", "vendor")}
 FLAT = {("aria", "control"), ("sentinel", "vendor"), ("erm", "obligation"),
-        ("orm", "kri"), ("platform", "risk")}  # no business unit column: gated by capability only
+        ("orm", "kri")}  # no business unit column: gated by capability only
 ALL_KINDS = SENTINEL | FLAT | {
     ("aria", "document"), ("evidence", "item"), ("grid", "audit"), ("grid", "nc"),
-    ("bcm", "plan"), ("bcm", "incident"), ("erm", "risk"), ("orm", "event"),
+    ("bcm", "plan"), ("bcm", "incident"), ("erm", "risk"), ("orm", "event"), ("platform", "risk"),
 }
 # Written from core/rbac.py: the capability each owning module's list/detail route requires.
 ALLOWED = {
@@ -88,9 +88,9 @@ UNIT_KINDS = {
     ("bcm", "incident"): ("bcm_incidents", "title", lambda t, b: {"business_unit_id": b}),
     ("erm", "risk"): ("erm_enterprise_risks", "title", lambda t, b: {"business_unit_id": b}),
     ("orm", "event"): ("orm_events", "title", lambda t, b: {"business_unit_id": b}),
+    ("platform", "risk"): ("risk_register", "title", lambda t, b: {"business_unit_id": b}),
 }
 FLAT_KINDS = {
-    ("platform", "risk"): ("risk_register", "title", {}),
     ("sentinel", "vendor"): ("sentinel_vendors", "name", {}),
     ("erm", "obligation"): ("erm_regulatory_obligations", "regulation_name",
                             {"regulator": "Regulator", "obligation": "Obligation"}),
@@ -167,8 +167,6 @@ def world(test_db):
 def _tags_seen(name, key):
     """The tags of the rows of `key` this persona may see."""
     role, tag = PERSONAS[name]
-    if key == ("platform", "risk") and role != rbac.SUPER_ADMIN:
-        return set()
     if key not in ALLOWED[role]:
         return set()
     if key in FLAT:
@@ -474,20 +472,24 @@ def test_executive_brief_uses_visible_audits_and_breaches(world):
 
 
 def test_risk_register_list_stats_and_report_hide_sibling_unit(world):
+    """The enterprise risks and the platform risks of the register, each held to the unit rule."""
     a, b = world.users["dpo_a"], world.users["dpo_b"]
     _, a_list = _call(risks.api_risks_list(_request(a)))
     _, b_list = _call(risks.api_risks_list(_request(b)))
-    assert a_list["total"] == 3 and b_list["total"] == 2
+    assert a_list["total"] == 6 and b_list["total"] == 4          # enterprise + platform, organization wide + own
     assert "needle risk B" not in json.dumps(a_list)
     assert "needle risk A" not in json.dumps(b_list)
-    assert "needle risk" not in json.dumps([r for r in a_list["items"]
-                                            if r["register_source"] == "platform"])
+    by_source = lambda body, source: sorted(r["title"] for r in body["items"] if r["register_source"] == source)  # noqa: E731
+    for source in ("erm", "platform"):
+        assert by_source(a_list, source) == ["needle risk A", "needle risk A1", "needle risk org"]
+        assert by_source(b_list, source) == ["needle risk B", "needle risk org"]
     _, a_stats = _call(risks.api_risk_stats(_request(a)))
-    assert a_stats["total"] == 3 and a_stats["by_module"]["erm"] == 3
+    assert a_stats["total"] == 6 and a_stats["by_module"] == {"unassigned": 3, "erm": 3}
     report = reports._report_result(world.db, a, "risk_report")
-    assert report["total_open"] == 3
+    assert report["total_open"] == 6
     assert "needle risk B" not in json.dumps(report)
-    assert not any(r["module"] == "platform" and r["type"] == "risk"
-                   for r in _search(a, "needle risk"))
+    found = {(r["module"], r["type"], r["id"]) for r in _search(a, "needle risk")}
+    assert ("platform", "risk", world.rows[("platform", "risk")]["A"]) in found
+    assert ("platform", "risk", world.rows[("platform", "risk")]["B"]) not in found
     assert _call(plat.api_analytics_current(_request(a)))[0] == 403
     assert _call(plat.api_analytics_trends(_request(a)))[0] == 403

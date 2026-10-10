@@ -401,7 +401,9 @@ async def api_analytics_current(request: Request):
 @router.get("/api/bulk/export/{entity_type}")
 @require_auth
 async def api_bulk_export(request: Request, entity_type: str):
-    """Export entities as JSON."""
+    """Export entities as JSON. Whole tables, so only the administrator who may import them may export them."""
+    if not has_capability(request.state.user, "platform.manage_users"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         table_map = {

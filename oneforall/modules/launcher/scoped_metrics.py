@@ -24,26 +24,33 @@ TABLE_KINDS = {
     "orm_events": ("orm", "event"),
     "evidence_items": ("evidence", "item"),
     "task_board": ("platform", "task"),
+    "risk_register": ("platform", "risk"),
+    "sla_instances": ("platform", "sla"),
+    "workflow_instances": ("platform", "workflow"),
+}
+
+# Tables whose rows also belong to one organization, for callers who are not super administrators:
+# SQL for the organization of a row ({p} is the table alias prefix, "" or "t.").
+_ORG_OF = {
+    "task_board": ("COALESCE((SELECT org_id FROM users WHERE id={p}created_by), "
+                   "(SELECT org_id FROM users WHERE id={p}assigned_to))"),
+    "sla_instances": "{p}org_id",
+    "workflow_instances": "COALESCE({p}org_id, (SELECT org_id FROM users WHERE id={p}started_by))",
 }
 
 
 def table_scope(table, user, alias=""):
-    """Only whitelisted table names are accepted. Unowned aggregates fail closed."""
-    if table == "task_board":
-        scope, params = entity_scope_sql(("platform", "task"), user, alias)
-        if user.get("is_super_admin"):
-            return scope, params
-        prefix = f"{alias}." if alias else ""
-        org = (f"COALESCE((SELECT org_id FROM users WHERE id={prefix}created_by), "
-               f"(SELECT org_id FROM users WHERE id={prefix}assigned_to)) = %s")
-        return f"({scope} AND {org})", [*params, user.get("org_id")]
+    """Only whitelisted table names are accepted. Tables nobody owns fail closed."""
     if table in TABLE_KINDS:
-        return entity_scope_sql(TABLE_KINDS[table], user, alias)
+        scope, params = entity_scope_sql(TABLE_KINDS[table], user, alias)
+        if table in _ORG_OF and not user.get("is_super_admin"):
+            org = _ORG_OF[table].format(p=f"{alias}." if alias else "")
+            return f"({scope} AND {org} = %s)", [*params, user.get("org_id")]
+        return scope, params
     if table == "frameworks":
         allowed = has_capability(user, "module.aria.access") and "aria" in user_modules(user)
         return ("(1 = 1)" if allowed else "(1 = 0)"), []
-    if table in {"risk_register", "sla_instances", "workflow_instances",
-                 "erm_risk_appetite", "erm_regulatory_obligations"}:
+    if table in {"erm_risk_appetite", "erm_regulatory_obligations"}:
         return ("(1 = 1)" if user.get("is_super_admin") else "(1 = 0)"), []
     raise ValueError(f"No cross-module scope for {table}")
 

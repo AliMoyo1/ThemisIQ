@@ -109,6 +109,18 @@ def _org_scope_filter(user):
     return " WHERE al.org_id = %s", (caller_org_id,)
 
 
+def _appetite_breaches(db, user):
+    """Appetite categories whose worst open risk is over the limit, judged over the ERM risks this user can see.
+    The limits are organization configuration; only the risks they are held against are scoped."""
+    scope, params = table_scope("erm_enterprise_risks", user, "e")
+    return db.execute(
+        "SELECT COUNT(*) FROM erm_risk_appetite a "
+        "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
+        f"       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted') AND {scope}) > a.max_score",
+        params,
+    ).fetchone()[0]
+
+
 def _scoped_command_stats(db, user):
     """BU-visible signals for callers who cannot see the organization-wide view."""
     count = lambda table, condition="": scoped_count(db, user, table, condition)
@@ -136,6 +148,20 @@ def _scoped_command_stats(db, user):
          "assigned": r["assigned_name"] or "", "due": r["due"], "sla": "breached",
          "priority": r["priority"] or "medium"} for r in tasks
     ]
+    sla_scope, sla_params = table_scope("sla_instances", user, "si")
+    overdue_items += [
+        {"id": f"SLA-{r['id']}", "item": r["item"] or "SLA Action", "module": r["module"] or "",
+         "assigned": "", "due": r["due"] or "", "sla": r["sla"], "priority": "high"}
+        for r in db.execute(
+            "SELECT si.id, si.entity_type AS item, si.entity_module AS module, si.resolution_due AS due, "
+            "CASE WHEN si.breached = 1 THEN 'breached' ELSE 'at_risk' END AS sla "
+            "FROM sla_instances si WHERE si.status = 'active' "
+            f"AND (si.breached = 1 OR si.resolution_due < {sql_current_timestamp()}) AND {sla_scope} "
+            "ORDER BY si.resolution_due ASC LIMIT 20", sla_params,
+        ).fetchall()
+    ]
+    overdue_items.sort(key=lambda x: x["due"] or "9999")
+    overdue_items = overdue_items[:20]
     bscope, bp = table_scope("sentinel_breaches", user)
     breaches = db.execute(
         "SELECT id, ref_number, title, severity, regulation, notify_deadline, authority_notified "
@@ -185,6 +211,19 @@ def _scoped_command_stats(db, user):
         score = (r["likelihood"] or 0) * (r["impact"] or 0)
         level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
         risk_counts[level] += 1
+    # The widget opens the risk register page, so it counts what that page counts: the platform risks in
+    # scope as well as the enterprise ones (api_risk_stats).
+    pscope, pp = table_scope("risk_register", user)
+    for r in db.execute(
+        f"SELECT risk_level, COUNT(*) AS c FROM risk_register WHERE {pscope} AND status != 'closed' "
+        "GROUP BY risk_level", pp,
+    ).fetchall():
+        if r["risk_level"] in risk_counts:
+            risk_counts[r["risk_level"]] += r["c"]
+    sla_met = count("sla_instances", "status IN ('completed','resolved') AND breached = 0")
+    sla_breached = count("sla_instances", "breached = 1")
+    sla_at_risk = count("sla_instances", "status = 'active' AND breached = 0")
+    sla_resolved = sla_met + sla_breached
     critical_breaches = count("sentinel_breaches", "status NOT IN ('closed','resolved') "
                               "AND severity = 'critical'")
     high_breaches = count("sentinel_breaches", "status NOT IN ('closed','resolved') "
@@ -194,16 +233,18 @@ def _scoped_command_stats(db, user):
         "compliance_trend": "Current visible records", "active_projects": len(frameworks),
         "projects_list": " · ".join(r["name"] for r in frameworks[:5]),
         "overdue_count": count("task_board", "status != 'done' AND due_date IS NOT NULL "
-                               f"AND due_date < {sql_current_date()}"),
+                               f"AND due_date < {sql_current_date()}")
+                         + count("sla_instances", "breached = 1 AND status = 'active'"),
         "overdue_trend": "Current visible records", "evidence_count": evidence,
         "evidence_trend": "Current visible records", "evidence_target": max(evidence, 1),
         "evidence_expiring": expiring, "module_health": health,
-        "sla": {"pct": 0, "met": 0, "at_risk": 0, "breached": 0},
+        "sla": {"pct": round(sla_met / sla_resolved * 100) if sla_resolved else 100, "met": sla_met,
+                "at_risk": sla_at_risk, "breached": sla_breached},
         "activity": activity, "overdue_items": overdue_items, "risk_counts": risk_counts,
-        "workflow_active": 0,
+        "workflow_active": count("workflow_instances", "status = 'active'"),
         "sentinel_open_breaches": critical_breaches + high_breaches,
         "sentinel_breach_severity": ("critical" if critical_breaches else "high" if high_breaches else None),
-        "breach_alerts": alerts, "erm_appetite_breaches": 0,
+        "breach_alerts": alerts, "erm_appetite_breaches": _appetite_breaches(db, user),
         "orm_open_events": count("orm_events", "status IN ('open','investigating') "
                                  f"AND created_at >= {sql_date_ts('-30 days')}"),
         "bcm_active_incidents": count("bcm_incidents", "status NOT IN ('closed','resolved')"),
@@ -555,11 +596,7 @@ async def api_command_centre_stats(request: Request):
         # ERM: appetite breach count
         erm_appetite_breaches = 0
         try:
-            erm_appetite_breaches = db.execute(
-                "SELECT COUNT(*) FROM erm_risk_appetite a "
-                "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
-                "       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted')) > a.max_score"
-            ).fetchone()[0]
+            erm_appetite_breaches = _appetite_breaches(db, user)
         except Exception:
             swallowed("api_command_centre_stats (erm_risk_appetite)")
 
@@ -720,8 +757,12 @@ async def api_my_dashboard_data(request: Request):
                 "SELECT COUNT(*) FROM notifications WHERE user_id = %s AND is_read = 0",
                 (uid,),
             ).fetchone()[0]
-            data["sla_breaches"] = 0
-            data["risks"] = {}
+            data["sla_breaches"] = scoped_count(db, user, "sla_instances", "breached = 1 AND status = 'active'")
+            scope, params = table_scope("risk_register", user)
+            data["risks"] = {r["risk_level"]: r["c"] for r in db.execute(
+                f"SELECT risk_level, COUNT(*) as c FROM risk_register WHERE {scope} AND status != 'closed' "
+                "GROUP BY risk_level", params
+            ).fetchall()}
             return _JSONResp(data)
         # Pending workflow actions for this user
         data["pending_actions"] = db.execute(

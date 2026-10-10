@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 
 from core.timeutils import utcnow
 from database import insert_returning_id, sql_now_offset
+from modules.governance.entity_scope import owner_unit
 
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
@@ -524,13 +525,15 @@ async def api_workflow_instance_start(request: Request):
         if steps is None:
             return _JSONResp({"error": "Workflow steps are invalid"}, status_code=422)
 
+        # The unit of the record it is about when the starter can open that record, else the starter's own.
+        unit = owner_unit(db, data.get("entity_module"), data.get("entity_type"), data.get("entity_id"), user=user)
         iid = insert_returning_id(
             db,
             "INSERT INTO workflow_instances "
-            "(definition_id, entity_module, entity_type, entity_id, started_by, org_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s)",
+            "(definition_id, entity_module, entity_type, entity_id, started_by, org_id, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s)",
             (defn["id"], data.get("entity_module", ""), data.get("entity_type", ""),
-             data.get("entity_id"), user["id"], org_id)
+             data.get("entity_id"), user["id"], org_id, unit)
         )
         if steps:
             _create_step_action(db, iid, 0, steps[0], defn["name"])
@@ -904,13 +907,14 @@ async def api_sla_instance_start(request: Request):
         resolution_due = (now_dt + timedelta(hours=int(defn["resolution_hours"]))).strftime("%Y-%m-%d %H:%M:%S") if defn["resolution_hours"] else None
         escalation_due = (now_dt + timedelta(hours=int(defn["escalation_hours"]))).strftime("%Y-%m-%d %H:%M:%S") if defn["escalation_hours"] else None
 
+        unit = owner_unit(db, entity_module, entity_type, entity_id, user=user)
         iid = insert_returning_id(
             db,
             "INSERT INTO sla_instances (definition_id, org_id, entity_module, entity_type, entity_id, "
-            "started_at, response_due, resolution_due, escalation_due) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "started_at, response_due, resolution_due, escalation_due, business_unit_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (defn["id"], org_id, entity_module, entity_type, entity_id,
-             now, response_due, resolution_due, escalation_due)
+             now, response_due, resolution_due, escalation_due, unit)
         )
         db.commit()
     finally:

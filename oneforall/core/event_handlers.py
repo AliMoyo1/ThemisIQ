@@ -84,15 +84,20 @@ def _notify_admins(db, module, title, message, link=None) -> bool:
 def _insert_risk(db, title, description, source_module, entity_type,
                  entity_id, category, likelihood, impact, risk_level,
                  user_id):
-    """Insert into risk_register.  Returns lastrowid or None."""
+    """Insert into risk_register.  Returns lastrowid or None.
+
+    The risk belongs to the business unit of the record it came from (a breach, an incident...), else to
+    the unit of the user whose action raised it, else to nobody (organization wide)."""
+    from modules.governance.entity_scope import owner_unit
     try:
+        unit = owner_unit(db, source_module, entity_type, entity_id, user_id=user_id)
         cur = insert_returning_id(db,
             "INSERT INTO risk_register (title, description, source_module, "
             "source_entity_type, source_entity_id, category, likelihood, impact, "
-            "risk_level, status, created_by) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "risk_level, status, created_by, business_unit_id) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (title, description, source_module, entity_type, entity_id,
-             category, likelihood, impact, risk_level, "open", user_id),
+             category, likelihood, impact, risk_level, "open", user_id, unit),
         )
         return cur
     except Exception as exc:
@@ -3142,8 +3147,11 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
         return
 
     from database import insert_returning_id
+    from modules.governance.entity_scope import owner_unit
     import json as _json
 
+    # Every instance of this event belongs to the unit of the record it is about, else of the user who acted.
+    unit = owner_unit(db, source_module, entity_type, entity_id, user_id=user_id)
     for defn in defns:
         # Parse before inserting anything. A malformed definition must leave no
         # committed "active" instance that a retry then mistakes for success.
@@ -3156,10 +3164,11 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
             iid = insert_returning_id(
                 db,
                 "INSERT INTO workflow_instances "
-                "(definition_id, entity_module, entity_type, entity_id, started_by, org_id, source_event_id) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s) "
+                "(definition_id, entity_module, entity_type, entity_id, started_by, org_id, source_event_id, "
+                "business_unit_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) "
                 "ON CONFLICT (definition_id, source_event_id) WHERE source_event_id IS NOT NULL DO NOTHING",
-                (defn["id"], source_module, entity_type, entity_id, user_id, tenant_id, event_id)
+                (defn["id"], source_module, entity_type, entity_id, user_id, tenant_id, event_id, unit)
             )
             if iid is None:
                 # A previous attempt may have committed an instance before it
@@ -3181,9 +3190,9 @@ def _auto_trigger_workflows(db, event_type: str, source_module: str,
             iid = insert_returning_id(
                 db,
                 "INSERT INTO workflow_instances "
-                "(definition_id, entity_module, entity_type, entity_id, started_by, org_id) "
-                "VALUES (%s,%s,%s,%s,%s,%s)",
-                (defn["id"], source_module, entity_type, entity_id, user_id, tenant_id)
+                "(definition_id, entity_module, entity_type, entity_id, started_by, org_id, business_unit_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (defn["id"], source_module, entity_type, entity_id, user_id, tenant_id, unit)
             )
 
         if steps:
