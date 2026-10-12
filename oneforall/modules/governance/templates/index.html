@@ -241,6 +241,7 @@
 
 <script>
 var CAN_MANAGE = {{ 'true' if can_manage else 'false' }};
+var GOV_AI_ON = {{ 'true' if can_ai_use else 'false' }};
 var govActiveTab = 'bu';
 var govBuList = [];
 var govDeptList = [];
@@ -416,6 +417,7 @@ function govDeleteDept(id){
 
 // ── Business Processes ──────────────────────────────────────────────
 var govBpList = [];
+var govBpUsesAiBefore = '|';
 function govLoadBps(){
   var bu = document.getElementById('bpBuFilter').value;
   var dept = document.getElementById('bpDeptFilter').value;
@@ -467,10 +469,10 @@ function govLoadApps(){
     var tbody = document.getElementById('appTBody');
     if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No applications yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
-      var actions = CAN_MANAGE ? (
+      var actions = (GOV_AI_ON && r.has_ai_profile ? '<a class="gov-btn ghost small" href="/ai-governance/systems/'+r.id+'">AI workspace</a> ' : '') + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditApp('+r.id+')">Edit</button> '+
         '<button class="gov-btn ghost small" onclick="govDeleteApp('+r.id+')">Delete</button>'
-      ) : '';
+      ) : '');
       return '<tr>'
         + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.application_type || '–')+'</td>'
@@ -722,15 +724,21 @@ function govOpenBpModal(row){
         + '<div class="form-group"><label>Revenue impact / hr</label><input type="number" step="1" id="bp_rev" value="'+(row&&row.revenue_impact_per_hour!=null?row.revenue_impact_per_hour:'')+'"></div>'
       + '</div>'
       + '<div class="form-group"><label>Description</label><textarea id="bp_desc" rows="3">'+esc(row?(row.description||''):'')+'</textarea></div>'
+      + (GOV_AI_ON ? '<div class="form-row">'
+        + '<div class="form-group"><label>Uses AI or embedded AI?</label><select id="bp_uses_ai"><option value="">Not asked</option><option value="yes">Yes</option><option value="no">No</option><option value="unknown">Not sure</option></select></div>'
+        + '<div class="form-group"><label>What does the AI do?</label><input id="bp_uses_ai_note" maxlength="500" value="'+esc(row?(row.uses_ai_note||''):'')+'"></div>'
+      + '</div>' : '')
       + (isEdit ? '<div class="form-check"><input type="checkbox" id="bp_active"'+(row.is_active?' checked':'')+'><label for="bp_active">Active</label></div>' : '')
       + '<div class="modal-actions">'
         + '<button class="gov-btn ghost" onclick="govCloseModal()">Cancel</button>'
         + '<button class="gov-btn" onclick="govSaveBp('+(row?row.id:'null')+')">Save</button>'
       + '</div>'
     + '</div></div>';
+  govBpUsesAiBefore = row ? ((row.uses_ai || '') + '|' + (row.uses_ai_note || '')) : '|';
   if(isEdit){
     document.getElementById('bp_bu').value = row.business_unit_id || '';
     document.getElementById('bp_crit').value = row.criticality || 'medium';
+    if(document.getElementById('bp_uses_ai')) document.getElementById('bp_uses_ai').value = row.uses_ai || '';
     _refreshBpDeptOptions(row.business_unit_id, row.department_id);
   }
   document.getElementById('bp_bu').addEventListener('change', function(){
@@ -759,7 +767,16 @@ function govSaveBp(id){
     description: document.getElementById('bp_desc').value.trim(),
   };
   if(id) body.is_active = document.getElementById('bp_active').checked ? 1 : 0;
+  var usesAiBox = document.getElementById('bp_uses_ai');
+  var usesAi = usesAiBox ? usesAiBox.value : '', usesAiNote = usesAiBox ? document.getElementById('bp_uses_ai_note').value.trim() : '';
   apiFetch('/governance/api/business-processes' + (id ? '/'+id : ''), {method: id ? 'PUT' : 'POST', body: JSON.stringify(body)})
+    .then(res=>{
+      var pid = id || (res && res.id);
+      if(pid && usesAi && (usesAi + '|' + usesAiNote) !== govBpUsesAiBefore){
+        return apiFetch('/ai-governance/api/flags/process/'+pid, {method: 'PUT',
+          body: JSON.stringify({answer: usesAi, note: usesAiNote, source: 'Governance settings'})});
+      }
+    })
     .then(()=>{ govCloseModal(); govLoadBps(); govLoadSummary(); })
     .catch(err=>alert('Save failed: '+err.message));
 }

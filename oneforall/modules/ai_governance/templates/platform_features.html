@@ -1,0 +1,21 @@
+{% extends "base_shell.html" %}
+{% block title %}Platform AI features | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">Platform AI features</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+{% block content %}
+<div class="aig-page aig-platform-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">Platform AI features</h1>
+      <p class="aig-lede">Internal oversight of the AI calls ThemisIQ registers in code. Review owners, provider and model notes, limitations, incident paths and due dates.</p>
+    </div>
+  </div>
+  <div class="aig-banner aig-banner-info">Operator record only. This is not a customer AI inventory or a certification. Data categories are declarations in code. Usage numbers are metadata counts across organizations; no prompt, answer or evidence is shown here.</div>
+  <div id="aigPlatformFeatures"></div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_platform_features.js?v=1"></script>
+{% endblock %}

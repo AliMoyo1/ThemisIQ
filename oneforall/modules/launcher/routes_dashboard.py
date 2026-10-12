@@ -1075,6 +1075,7 @@ async def api_predictive_risk(request: Request, background_tasks: BackgroundTask
                     ADVISORY_SYSTEM_PROMPT,
                     build_advisory_prompt(metrics, result),
                     max_tokens=600,
+                    feature="launcher.api_predictive_risk",
                 )
             except Exception as exc:
                 import logging

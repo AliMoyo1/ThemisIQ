@@ -55,8 +55,9 @@ def test_evidence_links_open_real_module_targets_and_are_item_scoped(login_as, l
     results = response.json()
     assert results[0]["url"] == f"/bcm/?open=incident:{incident_id}"
     assert results[1]["url"] == "/aria/documents?open=DOC-HANDOFF-1"
-    assert results[2]["name"] == "Handoff requester"
-    assert results[2]["url"] == f"/sentinel/?open=dsr:{dsr_id}"
+    # A data subject request names a person. Sentinel's own routes need sentinel.dsr.manage for it, so a compliance
+    # manager who only has Sentinel module access learns nothing about it through an evidence link either.
+    assert results[2]["name"] is None and results[2]["url"] is None
     assert results[3]["url"] == f"/erm/register?open=risk:{erm_risk_id}"
     coverage_response = page.request.get(f"{live_app}/evidence/api/coverage")
     assert coverage_response.status == 200
@@ -103,6 +104,12 @@ def test_evidence_links_open_real_module_targets_and_are_item_scoped(login_as, l
     page.locator("#bcmConsoleRoot .bcm-console-panel").wait_for(state="visible", timeout=10000)
     page.goto(f"{live_app}{results[3]['url']}")
     page.locator("#ermRiskDrawer .erm-drawer-panel").wait_for(state="visible", timeout=10000)
+
+    page.context.clear_cookies()  # sign out of the compliance manager session
+    dpo_page = login_as("dpo")  # holds sentinel.dsr.manage, so the same link resolves to its name and view
+    dpo_dsr = dpo_page.request.get(url).json()[2]
+    assert dpo_dsr["name"] == "Handoff requester"
+    assert dpo_dsr["url"] == f"/sentinel/?open=dsr:{dsr_id}"
 
 def test_link_picker_all_offered_targets_resolve_in_search(login_as, live_app):
     page = login_as("super_admin")

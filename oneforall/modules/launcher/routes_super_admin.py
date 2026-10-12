@@ -375,6 +375,26 @@ async def delete_org_user(request: Request, org_id: int, user_id: int):
         db.close()
 
 
+# ── Event delivery ────────────────────────────────────────────────────────────
+# An event whose handler kept failing is parked as "dead" (core/events.py); these two routes let the platform
+# operator see them and hand one a fresh set of attempts once the cause is fixed.
+
+@router.get("/api/events/dead")
+@require_super_admin
+async def list_dead_events(request: Request):
+    from core.events import list_dead
+    return JSONResponse(list_dead())
+
+
+@router.post("/api/events/{event_id}/retry")
+@require_super_admin
+async def retry_dead_event(request: Request, event_id: int):
+    from core.events import retry_dead
+    if not retry_dead(event_id):
+        raise HTTPException(status_code=404, detail="No dead event with that id.")
+    return JSONResponse({"ok": True})
+
+
 # ── Demo Requests ─────────────────────────────────────────────────────────────
 
 @router.get("/api/demo-requests")

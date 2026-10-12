@@ -30,7 +30,7 @@ def score_risk(title: str, description: str, category: str = "") -> dict:
         '"treatment": "<mitigate|accept|avoid|transfer>", "rationale": "<1 sentence>"}'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=512)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=512, feature="erm.score_risk")
         return safe_json_parse(text, _stub_score(title))
     except Exception as exc:
         log.error("ERM AI score failed: %s", exc)
@@ -83,7 +83,7 @@ def suggest_scores(title: str, description: str, category: str, framework_contex
         '"rationale": "<2-3 sentences explaining your scoring reasoning>"}'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=1024)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=1024, feature="erm.suggest_scores")
         result = safe_json_parse(text, _stub_scores(title, dim_names))
         if "dimension_scores" in result:
             valid = []
@@ -123,7 +123,7 @@ def suggest_treatment(title: str, description: str, category: str, likelihood: i
         '"recommended_owner": "<job title best suited to own this risk>"}'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800, feature="erm.suggest_treatment")
         return safe_json_parse(text, _stub_treatment(title))
     except Exception as exc:
         log.error("ERM treatment suggestion failed: %s", exc)
@@ -157,7 +157,7 @@ def suggest_ice_rationale(control_title: str, control_description: str, ice_sugg
         "is reasonable. Plain text only, no JSON, no markdown."
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=100)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=100, feature="erm.suggest_ice_rationale")
         return (text or "").strip()
     except Exception as exc:
         log.error("ERM ICE rationale failed: %s", exc)
@@ -178,7 +178,7 @@ def generate_board_narrative(stats: dict, appetite_status: list) -> str:
         "Use professional tone. Format as plain paragraphs (no markdown headers)."
     )
     try:
-        return create_message([{"role": "user", "content": prompt}], max_tokens=1500)
+        return create_message([{"role": "user", "content": prompt}], max_tokens=1500, feature="erm.generate_board_narrative")
     except Exception as exc:
         log.error("ERM board narrative failed: %s", exc)
         return _stub_board_narrative(stats)
@@ -211,7 +211,7 @@ def chat(history: list, stats: dict = None) -> str:
     if stats:
         system += f"\n\nCurrent platform risk stats: {json.dumps(stats, default=str)}"
     try:
-        return create_message(history, system=system, max_tokens=2048)
+        return create_message(history, system=system, max_tokens=2048, feature="erm.chat")
     except Exception as exc:
         log.error("ERM chat failed: %s", exc)
         return _stub_chat(history)
@@ -241,7 +241,7 @@ def generate_risk_statement(category: str, description: str) -> dict:
         '{"cause":"Due to [root cause / failure]","event":"there is a risk that [risk event]","consequence":"resulting in [impact/consequence]","full_statement":"[complete sentence combining all three]"}'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=300)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=300, feature="erm.generate_risk_statement")
         return safe_json_parse(text, {"full_statement": description})
     except Exception as exc:
         log.error("ERM generate_risk_statement failed: %s", exc)
@@ -267,7 +267,7 @@ def suggest_assessment_questions(assessment_type: str, linked_risk_titles: list,
         '[{"question":"...","question_type":"scale|yes_no|text|multiple_choice","weight":1.0}]'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=600)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=600, feature="erm.suggest_assessment_questions")
         return safe_json_parse(text, [])
     except Exception as exc:
         log.error("ERM suggest_assessment_questions failed: %s", exc)
@@ -287,7 +287,7 @@ def identify_risks_from_responses(responses_text: str, assessment_title: str) ->
         '[{"title":"...","description":"...","category":"strategic|operational|compliance|financial|reputational|technology|third_party|environmental","likelihood":3,"impact":3,"treatment":"mitigate|accept|avoid|transfer"}]'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800, feature="erm.identify_risks_from_responses")
         return safe_json_parse(text, [])
     except Exception as exc:
         log.error("ERM identify_risks_from_responses failed: %s", exc)
@@ -314,7 +314,7 @@ def smart_remediation_plan(title: str, description: str, category: str, score: i
         '{"summary":"...","steps":[{"step":1,"action":"...","timeline":"...","responsible":"..."}],"cost_tier":"low|medium|high","success_criteria":"..."}'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800, feature="erm.smart_remediation_plan")
         return safe_json_parse(text, {"summary": "Unable to generate plan."})
     except Exception as exc:
         log.error("ERM smart_remediation_plan failed: %s", exc)
@@ -372,6 +372,7 @@ def scan_emerging_risks_grounded(org_context: dict) -> list:
         max_tokens=_emerging_scan_token_budget(),
         max_searches=getattr(settings, "ERM_SCAN_MAX_SEARCHES", 8),
         allowed_domains=getattr(settings, "ERM_SCAN_ALLOWED_DOMAINS", None),
+        feature="erm.scan_emerging_risks_grounded",
     )
     items = safe_json_parse(result.get("text", ""), []) or []
     if not isinstance(items, list):
@@ -443,6 +444,7 @@ def scan_emerging_risks(org_context: dict, *, raise_on_error: bool = False) -> l
         text = create_message(
             [{"role": "user", "content": prompt}],
             max_tokens=_emerging_scan_token_budget(),
+            feature="erm.scan_emerging_risks",
         )
     except Exception as exc:
         log.warning("ERM knowledge-only scan failed: %s", exc)

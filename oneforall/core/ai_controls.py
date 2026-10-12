@@ -60,6 +60,7 @@ def generate_controls_for_framework(
             [{"role": "user", "content": user_msg}],
             system=system_prompt,
             max_tokens=4000,
+            feature="core.generate_controls_for_framework",
         )
         text = re.sub(r"```json\s*", "", text)
         text = re.sub(r"```\s*", "", text).strip()

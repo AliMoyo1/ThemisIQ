@@ -24,6 +24,7 @@ _VENDOR_MANAGE = ("sentinel.vendor.manage", "grid.vendor.manage", "bcm.vendor.ma
 async def vendor_directory_page(request: Request):
     ctx = shell_ctx(request, active_module="platform", active_section="vendors")
     ctx["can_add_vendor"] = any(has_capability(request.state.user, c) for c in _VENDOR_MANAGE)
+    ctx["can_flag_ai"] = ctx["can_add_vendor"] or has_capability(request.state.user, "ai_use.review")
     return shell_templates.TemplateResponse(request, "vendor_directory.html", ctx)
 
 

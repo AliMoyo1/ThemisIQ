@@ -63,7 +63,6 @@ def _insert(db, table, **cols):
 SENTINEL_LISTS = [
     (sentinel_ds.list_ropa, "sentinel_ropa", "processing_name", {"ref_number": "R-{n}"}),
     (sentinel_ds.list_dpias, "sentinel_dpias", "title", {"ref_number": "D-{n}"}),
-    (sentinel_ds.list_aiias, "sentinel_aiia", "title", {"ref_number": "A-{n}"}),
     (sentinel_ds.list_breaches, "sentinel_breaches", "title", {"ref_number": "B-{n}"}),
     (sentinel_ds.list_dsrs, "sentinel_dsr", "requester_name", {"ref_number": "S-{n}"}),
     (sentinel_ds.list_vendors, "sentinel_vendors", "name", {}),
@@ -89,6 +88,16 @@ def test_sentinel_list_search_ignores_case_and_treats_wildcards_literally(test_d
     assert [r["id"] for r in fn(search="quartz 5% ledger")] == [hit]
     assert [r["id"] for r in fn(search="QUARTZ 5%")] == [hit], "a typed % is not a wildcard"
     assert {r["id"] for r in fn(search="quartz")} == {hit, decoy}
+
+
+def test_ai_assessment_list_search_ignores_case_and_treats_wildcards_literally(test_db):
+    from modules.ai_governance import assessments
+
+    hit, decoy = _seed_two(test_db, "sentinel_aiia", "title", {"ref_number": "A-{n}"})
+    found = lambda text: [r["id"] for r in assessments.list_assessments(test_db, ADMIN, q=text)["items"]]  # noqa: E731
+    assert found("quartz 5% ledger") == [hit]
+    assert found("QUARTZ 5%") == [hit], "a typed % is not a wildcard"
+    assert set(found("quartz")) == {hit, decoy}
 
 
 def test_erm_risk_statement_tag_search_ignores_case(test_db):

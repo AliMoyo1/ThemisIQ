@@ -382,6 +382,7 @@ async def api_executive_summary(request: Request):
             [{"role": "user", "content": prompt}],
             system="You are a GRC reporting assistant writing for a board of directors. Be concise and professional.",
             max_tokens=1500,
+            feature="launcher.api_executive_summary",
         )
     except Exception:
         narrative = "AI narrative generation failed. Please review the metrics below."

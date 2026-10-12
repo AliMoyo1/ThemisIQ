@@ -9,6 +9,7 @@ import io
 import json
 import logging
 import os
+import re
 import zipfile
 from datetime import datetime
 from core.timeutils import utcnow, to_dt
@@ -16,11 +17,12 @@ from core.timeutils import utcnow, to_dt
 log = logging.getLogger("oneforall.sentinel")
 
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from config import settings
 from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
+from core.rbac import has_capability
 from core.shell_context import shell_ctx
 from core.events import (
     emit, SENTINEL_BREACH_CONFIRMED, SENTINEL_BREACH_RESOLVED,
@@ -49,6 +51,83 @@ async def _json_body(request: Request) -> dict:
     return sanitize_dict(body)
 
 
+def _own_unit(row):
+    return row.get("business_unit_id")
+
+
+def _ropas_unit(row):
+    """A record with no unit of its own (an LIA, a data flow) sits where its RoPA entry sits: organization wide
+    when it has none."""
+    ropa = ds.get_ropa(row["ropa_id"]) if row.get("ropa_id") else None
+    return ropa.get("business_unit_id") if ropa else None
+
+
+# The record kinds that are reached through a business unit (the registry in governance/entity_scope.py names the
+# first four): how to load one, what it is called when it is missing or in another unit, and where it sits.
+_UNIT_RECORDS = {
+    "ropa": (ds.get_ropa, "RoPA entry not found", _own_unit),
+    "dpia": (ds.get_dpia, "DPIA not found", _own_unit),
+    "breach": (ds.get_breach, "Breach not found", _own_unit),
+    "dsr": (ds.get_dsr, "DSR not found", _own_unit),
+    "consent": (ds.get_consent, "Consent record not found", _own_unit),
+    "lia": (ds.get_lia, "LIA not found", _ropas_unit),
+    "dataflow": (ds.get_dataflow, "Data flow not found", _ropas_unit),
+}
+
+
+def _visible(scope, unit) -> bool:
+    """A NULL unit is organization wide; anything else has to sit inside `scope` (bu_scope_ids: None for a super
+    administrator, otherwise the caller's unit and the units under it)."""
+    return scope is None or unit is None or unit in scope
+
+
+def _scoped_or_404(request: Request, kind: str, record_id: int) -> dict:
+    """The record, when the caller may open it. One in another unit answers exactly like one that is missing."""
+    load, missing, unit_of = _UNIT_RECORDS[kind]
+    row = load(record_id)
+    if row is None or not _visible(bu_scope_ids(request.state.user), unit_of(row)):
+        raise HTTPException(404, missing)
+    return row
+
+
+def _check_references(request: Request, data: dict, current: "dict | None" = None) -> None:
+    """A body may only file a record under a business unit, or link it to a RoPA entry or DPIA, that the writer may
+    open (400 otherwise; an id that is missing answers like one in another unit). A form sends ids as text, so they
+    are read as numbers, and an empty value clears the link. `current` is the record being updated: only an
+    administrator may take it out of its unit, which would show it to every unit."""
+    scope = bu_scope_ids(request.state.user)
+    if scope is not None and "business_unit_id" in data:
+        unit = data["business_unit_id"]
+        if unit in (None, ""):
+            if current is not None and current.get("business_unit_id") is not None:
+                raise HTTPException(400, "Only an administrator can make a record organization wide")
+            data["business_unit_id"] = None
+        else:
+            try:
+                unit = int(unit)
+            except (TypeError, ValueError):
+                unit = None
+            if unit not in scope:
+                raise HTTPException(400, "Choose a business unit you belong to")
+            data["business_unit_id"] = unit
+    for field, kind, label in (("ropa_id", "ropa", "RoPA entry"), ("dpia_id", "dpia", "DPIA")):
+        if field not in data:
+            continue
+        target = data[field]
+        if target in (None, ""):
+            data[field] = None
+            continue
+        try:
+            target = int(target)
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"Unknown {label}")
+        load, _, unit_of = _UNIT_RECORDS[kind]
+        row = load(target)
+        if row is None or not _visible(scope, unit_of(row)):
+            raise HTTPException(400, f"Unknown {label}")
+        data[field] = target
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # SPA INDEX
 # ═════════════════════════════════════════════════════════════════════════════
@@ -57,6 +136,10 @@ async def _json_body(request: Request) -> dict:
 @require_module("sentinel")
 async def sentinel_index(request: Request):
     """Serve the Sentinel SPA shell."""
+    # AI impact assessments moved to AI Governance (plans/ai-governance/06): an old link still lands on the right page.
+    moved = re.fullmatch(r"aiia:(\d{1,9})", request.query_params.get("open", ""))
+    if moved:
+        return RedirectResponse(f"/ai-governance/assessments/{moved.group(1)}", status_code=302)
     templates = _templates  # use module-level instance
 
     # Import reference data for the SPA
@@ -105,12 +188,13 @@ _SPA_PAGES = {
     # New features
     "lia",           # SENT-14: Legitimate Interest Assessments
     "jurisdictions", # Multi-jurisdiction manager
-    "aiia",          # PLAN-20: AI Impact Assessments
 }
 
 @router.get("/{page}", response_class=HTMLResponse)
 @require_module("sentinel")
 async def sentinel_spa_page(request: Request, page: str):
+    if page == "aiia":  # moved to AI Governance
+        return RedirectResponse("/ai-governance/assessments", status_code=302)
     if page.startswith("api") or page not in _SPA_PAGES:
         raise HTTPException(404)
     return await sentinel_index(request)
@@ -131,17 +215,23 @@ async def api_active_breach(request: Request):
     from database import get_db as _get_db
     db = _get_db()
     try:
+        # Only a breach the caller can open: the banner names it, and the same person is refused its record otherwise.
+        unit, unit_params = ds.unit_scope_sql(bu_scope_ids(request.state.user))
         row = db.execute(
             "SELECT id, title, severity FROM sentinel_breaches "
-            "WHERE status NOT IN ('closed','resolved') "
+            f"WHERE status NOT IN ('closed','resolved'){unit} "
             "ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 ELSE 2 END "
-            "LIMIT 1"
+            "LIMIT 1",
+            unit_params,
         ).fetchone()
         if row:
+            # Several roles hold the module without sentinel.breach.manage and are shown this banner by BCM and GRID:
+            # they learn that a breach is active and how severe, not which one (both banners fall back to generic text).
+            may_open = has_capability(request.state.user, "sentinel.breach.manage")
             return JSONResponse({
                 "active": True,
-                "id": row["id"],
-                "title": row["title"],
+                "id": row["id"] if may_open else None,
+                "title": row["title"] if may_open else None,
                 "severity": row["severity"],
             })
         return JSONResponse({"active": False, "id": None, "title": None, "severity": None})
@@ -159,7 +249,7 @@ async def api_active_breach(request: Request):
 @router.get("/api/stats")
 @require_capability("module.sentinel.access")
 async def api_stats(request: Request):
-    return JSONResponse(ds.get_stats())
+    return JSONResponse(ds.get_stats(bu_scope=bu_scope_ids(request.state.user)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -183,7 +273,8 @@ async def api_ropa_list(request: Request):
 @require_capability("sentinel.ropa.manage")
 async def api_ropa_create(request: Request):
     data = await _json_body(request)
-    new_id = ds.create_ropa(data)
+    _check_references(request, data)
+    new_id = ds.create_ropa(data, business_unit_id=request.state.user.get("business_unit_id"))
     entry = ds.get_ropa(new_id)
     return JSONResponse(entry, status_code=201)
 
@@ -191,19 +282,15 @@ async def api_ropa_create(request: Request):
 @router.get("/api/ropa/{ropa_id}")
 @require_capability("module.sentinel.access")
 async def api_ropa_get(request: Request, ropa_id: int):
-    entry = ds.get_ropa(ropa_id)
-    if not entry:
-        raise HTTPException(404, "RoPA entry not found")
-    scope = bu_scope_ids(request.state.user)
-    if scope is not None and entry.get("business_unit_id") is not None and entry["business_unit_id"] not in scope:
-        raise HTTPException(404, "RoPA entry not found")
-    return JSONResponse(entry)
+    return JSONResponse(_scoped_or_404(request, "ropa", ropa_id))
 
 
 @router.put("/api/ropa/{ropa_id}")
 @require_capability("sentinel.ropa.manage")
 async def api_ropa_update(request: Request, ropa_id: int):
+    current = _scoped_or_404(request, "ropa", ropa_id)
     data = await _json_body(request)
+    _check_references(request, data, current)
     ds.update_ropa(ropa_id, data)
     return JSONResponse(ds.get_ropa(ropa_id))
 
@@ -211,16 +298,18 @@ async def api_ropa_update(request: Request, ropa_id: int):
 @router.delete("/api/ropa/{ropa_id}")
 @require_capability("sentinel.ropa.manage")
 async def api_ropa_delete(request: Request, ropa_id: int):
-    ds.delete_ropa(ropa_id)
+    _scoped_or_404(request, "ropa", ropa_id)
+    try:
+        ds.delete_ropa(ropa_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
     return JSONResponse({"ok": True})
 
 
 @router.post("/api/ropa/{ropa_id}/spawn-dpia", status_code=201)
 @require_capability("sentinel.dpia.manage")
 async def api_spawn_dpia_from_ropa(request: Request, ropa_id: int):
-    ropa = ds.get_ropa(ropa_id)
-    if not ropa:
-        raise HTTPException(404, "RoPA entry not found")
+    ropa = _scoped_or_404(request, "ropa", ropa_id)
     if ropa.get("dpia_id"):
         raise HTTPException(409, "This activity already has a linked DPIA.")
     def _str(val):
@@ -249,7 +338,7 @@ async def api_spawn_dpia_from_ropa(request: Request, ropa_id: int):
         "dpo_email": _str(ropa.get("dpo_email", "")),
         "ropa_id": ropa_id,
     }
-    new_id = ds.create_dpia(dpia_data)
+    new_id = ds.create_dpia(dpia_data, business_unit_id=ropa.get("business_unit_id"))
     ds.update_ropa(ropa_id, {"dpia_id": new_id})
     dpia = ds.get_dpia(new_id)
     return JSONResponse({"ok": True, "dpia_id": new_id, "dpia": dpia}, status_code=201)
@@ -275,26 +364,25 @@ async def api_dpia_list(request: Request):
 @require_capability("sentinel.dpia.manage")
 async def api_dpia_create(request: Request):
     data = await _json_body(request)
-    new_id = ds.create_dpia(data)
+    _check_references(request, data)
+    ropa = ds.get_ropa(data["ropa_id"]) if data.get("ropa_id") else None
+    new_id = ds.create_dpia(data, business_unit_id=(ropa.get("business_unit_id") if ropa else
+                                                   request.state.user.get("business_unit_id")))
     return JSONResponse(ds.get_dpia(new_id), status_code=201)
 
 
 @router.get("/api/dpias/{dpia_id}")
 @require_capability("sentinel.dpia.manage")
 async def api_dpia_get(request: Request, dpia_id: int):
-    dpia = ds.get_dpia(dpia_id)
-    if not dpia:
-        raise HTTPException(404, "DPIA not found")
-    scope = bu_scope_ids(request.state.user)
-    if scope is not None and dpia.get("business_unit_id") is not None and dpia["business_unit_id"] not in scope:
-        raise HTTPException(404, "DPIA not found")
-    return JSONResponse(dpia)
+    return JSONResponse(_scoped_or_404(request, "dpia", dpia_id))
 
 
 @router.put("/api/dpias/{dpia_id}")
 @require_capability("sentinel.dpia.manage")
 async def api_dpia_update(request: Request, dpia_id: int):
+    current = _scoped_or_404(request, "dpia", dpia_id)
     data = await _json_body(request)
+    _check_references(request, data, current)
     ds.update_dpia(dpia_id, data)
 
     # Emit DPIA completed event when status changes to completed/approved
@@ -320,6 +408,7 @@ async def api_dpia_update(request: Request, dpia_id: int):
 @router.delete("/api/dpias/{dpia_id}")
 @require_capability("sentinel.dpia.manage")
 async def api_dpia_delete(request: Request, dpia_id: int):
+    _scoped_or_404(request, "dpia", dpia_id)
     ds.delete_dpia(dpia_id)
     return JSONResponse({"ok": True})
 
@@ -327,82 +416,16 @@ async def api_dpia_delete(request: Request, dpia_id: int):
 @router.post("/api/dpias/{dpia_id}/link-ropa")
 @require_capability("sentinel.dpia.manage")
 async def api_dpia_link_ropa(request: Request, dpia_id: int):
+    _scoped_or_404(request, "dpia", dpia_id)
     data = await _json_body(request)
     ropa_id = data.get("ropa_id")
     if not ropa_id:
         raise HTTPException(400, "ropa_id required")
+    _scoped_or_404(request, "ropa", int(ropa_id))
     ok = ds.link_dpia_to_ropa(dpia_id, int(ropa_id))
     if not ok:
         raise HTTPException(409, "RoPA is already linked to a different DPIA.")
     return JSONResponse({"ok": True, "dpia": ds.get_dpia(dpia_id)})
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# AIIA — AI Impact Assessments (PLAN-20)
-# ═════════════════════════════════════════════════════════════════════════════
-
-@router.get("/api/aiia-dimensions")
-@require_capability("module.sentinel.access")
-async def api_aiia_dimensions_list(request: Request):
-    return JSONResponse(ds.list_aiia_dimensions())
-
-
-@router.put("/api/aiia-dimensions")
-@require_capability("sentinel.dpia.manage")
-async def api_aiia_dimensions_save(request: Request):
-    data = await _json_body(request)
-    dimensions = data.get("dimensions") or []
-    try:
-        ds.save_aiia_dimensions(dimensions)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc))
-    return JSONResponse(ds.list_aiia_dimensions())
-
-
-@router.get("/api/aiias")
-@require_capability("module.sentinel.access")
-async def api_aiia_list(request: Request):
-    return JSONResponse(ds.list_aiias(
-        search=request.query_params.get("q"),
-        status=request.query_params.get("status"),
-        bu_scope=bu_scope_ids(request.state.user),
-    ))
-
-
-@router.post("/api/aiias", status_code=201)
-@require_capability("sentinel.dpia.manage")
-async def api_aiia_create(request: Request):
-    data = await _json_body(request)
-    data["created_by"] = request.state.user["id"]
-    new_id = ds.create_aiia(data)
-    return JSONResponse(ds.get_aiia(new_id), status_code=201)
-
-
-@router.get("/api/aiias/{aiia_id}")
-@require_capability("module.sentinel.access")
-async def api_aiia_get(request: Request, aiia_id: int):
-    aiia = ds.get_aiia(aiia_id)
-    if not aiia:
-        raise HTTPException(404, "AI Impact Assessment not found")
-    scope = bu_scope_ids(request.state.user)
-    if scope is not None and aiia.get("business_unit_id") is not None and aiia["business_unit_id"] not in scope:
-        raise HTTPException(404, "AI Impact Assessment not found")
-    return JSONResponse(aiia)
-
-
-@router.put("/api/aiias/{aiia_id}")
-@require_capability("sentinel.dpia.manage")
-async def api_aiia_update(request: Request, aiia_id: int):
-    data = await _json_body(request)
-    ds.update_aiia(aiia_id, data)
-    return JSONResponse(ds.get_aiia(aiia_id))
-
-
-@router.delete("/api/aiias/{aiia_id}")
-@require_capability("sentinel.dpia.manage")
-async def api_aiia_delete(request: Request, aiia_id: int):
-    ds.delete_aiia(aiia_id)
-    return JSONResponse({"ok": True})
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -424,7 +447,8 @@ async def api_breach_list(request: Request):
 @require_capability("sentinel.breach.manage")
 async def api_breach_create(request: Request):
     data = await _json_body(request)
-    new_id = ds.create_breach(data)
+    _check_references(request, data)
+    new_id = ds.create_breach(data, business_unit_id=request.state.user.get("business_unit_id"))
 
     # Emit breach confirmed event
     emit(
@@ -449,19 +473,15 @@ async def api_breach_create(request: Request):
 @router.get("/api/breaches/{breach_id}")
 @require_capability("sentinel.breach.manage")
 async def api_breach_get(request: Request, breach_id: int):
-    b = ds.get_breach(breach_id)
-    if not b:
-        raise HTTPException(404, "Breach not found")
-    scope = bu_scope_ids(request.state.user)
-    if scope is not None and b.get("business_unit_id") is not None and b["business_unit_id"] not in scope:
-        raise HTTPException(404, "Breach not found")
-    return JSONResponse(b)
+    return JSONResponse(_scoped_or_404(request, "breach", breach_id))
 
 
 @router.put("/api/breaches/{breach_id}")
 @require_capability("sentinel.breach.manage")
 async def api_breach_update(request: Request, breach_id: int):
+    current = _scoped_or_404(request, "breach", breach_id)
     data = await _json_body(request)
+    _check_references(request, data, current)
     ds.update_breach(breach_id, data)
 
     # Emit events based on status transition
@@ -502,6 +522,7 @@ async def api_breach_update(request: Request, breach_id: int):
 @router.delete("/api/breaches/{breach_id}")
 @require_capability("sentinel.breach.manage")
 async def api_breach_delete(request: Request, breach_id: int):
+    _scoped_or_404(request, "breach", breach_id)
     ds.delete_breach(breach_id)
     return JSONResponse({"ok": True})
 
@@ -525,6 +546,7 @@ async def api_dsr_list(request: Request):
 @require_capability("sentinel.dsr.manage")
 async def api_dsr_create(request: Request):
     data = await _json_body(request)
+    _check_references(request, data)
     data["business_unit_id"] = request.state.user.get("business_unit_id")
     new_id = ds.create_dsr(data)
     return JSONResponse(ds.get_dsr(new_id), status_code=201)
@@ -533,18 +555,16 @@ async def api_dsr_create(request: Request):
 @router.get("/api/dsrs/{dsr_id}")
 @require_capability("sentinel.dsr.manage")
 async def api_dsr_get(request: Request, dsr_id: int):
-    d = ds.get_dsr(dsr_id, bu_scope=bu_scope_ids(request.state.user))
-    if not d:
-        raise HTTPException(404, "DSR not found")
-    return JSONResponse(d)
+    return JSONResponse(_scoped_or_404(request, "dsr", dsr_id))
 
 
 @router.put("/api/dsrs/{dsr_id}")
 @require_capability("sentinel.dsr.manage")
 async def api_dsr_update(request: Request, dsr_id: int):
+    current = _scoped_or_404(request, "dsr", dsr_id)
     data = await _json_body(request)
-    if not ds.update_dsr(dsr_id, data, bu_scope=bu_scope_ids(request.state.user)):
-        raise HTTPException(404, "DSR not found")
+    _check_references(request, data, current)
+    ds.update_dsr(dsr_id, data)
 
     # Check if DSR is now overdue and emit event
     dsr = ds.get_dsr(dsr_id)
@@ -576,8 +596,8 @@ async def api_dsr_update(request: Request, dsr_id: int):
 @router.delete("/api/dsrs/{dsr_id}")
 @require_capability("sentinel.dsr.manage")
 async def api_dsr_delete(request: Request, dsr_id: int):
-    if not ds.delete_dsr(dsr_id, bu_scope=bu_scope_ids(request.state.user)):
-        raise HTTPException(404, "DSR not found")
+    _scoped_or_404(request, "dsr", dsr_id)
+    ds.delete_dsr(dsr_id)
     return JSONResponse({"ok": True})
 
 
@@ -699,6 +719,7 @@ async def api_consent_list(request: Request):
     return JSONResponse(ds.list_consent(
         search=request.query_params.get("q"),
         status=request.query_params.get("status"),
+        bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
@@ -706,6 +727,8 @@ async def api_consent_list(request: Request):
 @require_capability("sentinel.consent.manage")
 async def api_consent_create(request: Request):
     data = await _json_body(request)
+    _check_references(request, data)
+    data["business_unit_id"] = request.state.user.get("business_unit_id")  # filed under its creator's unit, as a DSR is
     new_id = ds.create_consent(data)
     return JSONResponse(ds.get_consent(new_id), status_code=201)
 
@@ -713,16 +736,15 @@ async def api_consent_create(request: Request):
 @router.get("/api/consent/{consent_id}")
 @require_capability("sentinel.consent.manage")
 async def api_consent_get(request: Request, consent_id: int):
-    c = ds.get_consent(consent_id)
-    if not c:
-        raise HTTPException(404, "Consent record not found")
-    return JSONResponse(c)
+    return JSONResponse(_scoped_or_404(request, "consent", consent_id))
 
 
 @router.put("/api/consent/{consent_id}")
 @require_capability("sentinel.consent.manage")
 async def api_consent_update(request: Request, consent_id: int):
+    current = _scoped_or_404(request, "consent", consent_id)
     data = await _json_body(request)
+    _check_references(request, data, current)
     ds.update_consent(consent_id, data)
     return JSONResponse(ds.get_consent(consent_id))
 
@@ -730,6 +752,7 @@ async def api_consent_update(request: Request, consent_id: int):
 @router.delete("/api/consent/{consent_id}")
 @require_capability("sentinel.consent.manage")
 async def api_consent_delete(request: Request, consent_id: int):
+    _scoped_or_404(request, "consent", consent_id)
     ds.delete_consent(consent_id)
     return JSONResponse({"ok": True})
 
@@ -1150,22 +1173,20 @@ async def api_training_analyse_excel(request: Request, file: UploadFile = File(.
 @router.get("/api/dataflows")
 @require_capability("module.sentinel.access")
 async def api_dataflows_list(request: Request):
-    return JSONResponse(ds.list_dataflows())
+    return JSONResponse(ds.list_dataflows(bu_scope=bu_scope_ids(request.state.user)))
 
 
 @router.get("/api/dataflows/{flow_id}")
 @require_capability("module.sentinel.access")
 async def api_dataflows_detail(request: Request, flow_id: int):
-    row = ds.get_dataflow(flow_id)
-    if not row:
-        raise HTTPException(404, "Data flow not found")
-    return JSONResponse(row)
+    return JSONResponse(_scoped_or_404(request, "dataflow", flow_id))
 
 
 @router.post("/api/dataflows", status_code=201)
 @require_capability("sentinel.ropa.manage")
 async def api_dataflows_create(request: Request):
     data = await _json_body(request)
+    _check_references(request, data)
     new_id = ds.create_dataflow(data)
     return JSONResponse({"id": new_id}, status_code=201)
 
@@ -1173,7 +1194,9 @@ async def api_dataflows_create(request: Request):
 @router.put("/api/dataflows/{flow_id}")
 @require_capability("sentinel.ropa.manage")
 async def api_dataflows_update(request: Request, flow_id: int):
+    _scoped_or_404(request, "dataflow", flow_id)
     data = await _json_body(request)
+    _check_references(request, data)
     ds.update_dataflow(flow_id, data)
     return JSONResponse({"ok": True})
 
@@ -1181,6 +1204,7 @@ async def api_dataflows_update(request: Request, flow_id: int):
 @router.delete("/api/dataflows/{flow_id}")
 @require_capability("sentinel.ropa.manage")
 async def api_dataflows_delete(request: Request, flow_id: int):
+    _scoped_or_404(request, "dataflow", flow_id)
     ds.delete_dataflow(flow_id)
     return JSONResponse({"ok": True})
 
@@ -1224,7 +1248,7 @@ async def api_audit_list(request: Request):
 @router.get("/api/compliance-score")
 @require_capability("module.sentinel.access")
 async def api_compliance_score(request: Request):
-    return JSONResponse(ds.get_compliance_score())
+    return JSONResponse(ds.get_compliance_score(bu_scope=bu_scope_ids(request.state.user)))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1283,7 +1307,7 @@ async def api_audit_export(request: Request):
                 "Generated by One For All: Data Protection Sentinel Module\n"
             ))
         elif report_type == "compliance":
-            score = ds.get_compliance_score() or {"overall": 0, "grade": "N/A", "breakdown": {}}
+            score = ds.get_compliance_score(bu_scope=bu_scope) or {"overall": 0, "grade": "N/A", "breakdown": {}}
             zf.writestr(f"Compliance_Score_{date_str}.json", json.dumps(score, indent=2, default=str))
             zf.writestr("README.txt", (
                 "PRIVACY COMPLIANCE SCORE REPORT\n"
@@ -1320,7 +1344,7 @@ async def api_audit_export(request: Request):
             zf.writestr(f"Policy_Register_{date_str}.json", json.dumps(policies, indent=2, default=str))
 
             # Compliance score
-            score = ds.get_compliance_score() or {"overall": 0, "grade": "N/A", "breakdown": {}}
+            score = ds.get_compliance_score(bu_scope=bu_scope) or {"overall": 0, "grade": "N/A", "breakdown": {}}
             zf.writestr(f"Compliance_Score_{date_str}.json", json.dumps(score, indent=2, default=str))
 
             # README
@@ -1359,6 +1383,7 @@ async def api_lia_list(request: Request):
     return JSONResponse(ds.list_lia(
         ropa_id=int(request.query_params["ropa_id"]) if request.query_params.get("ropa_id") else None,
         result=request.query_params.get("result"),
+        bu_scope=bu_scope_ids(request.state.user),
     ))
 
 
@@ -1366,6 +1391,7 @@ async def api_lia_list(request: Request):
 @require_capability("sentinel.ropa.manage")
 async def api_lia_create(request: Request):
     data = await _json_body(request)
+    _check_references(request, data)
     data["created_by"] = request.state.user["id"]
     new_id = ds.create_lia(data)
     return JSONResponse(ds.get_lia(new_id), status_code=201)
@@ -1374,16 +1400,15 @@ async def api_lia_create(request: Request):
 @router.get("/api/lia/{lia_id}")
 @require_capability("module.sentinel.access")
 async def api_lia_get(request: Request, lia_id: int):
-    r = ds.get_lia(lia_id)
-    if not r:
-        raise HTTPException(404, "LIA not found")
-    return JSONResponse(r)
+    return JSONResponse(_scoped_or_404(request, "lia", lia_id))
 
 
 @router.put("/api/lia/{lia_id}")
 @require_capability("sentinel.ropa.manage")
 async def api_lia_update(request: Request, lia_id: int):
+    _scoped_or_404(request, "lia", lia_id)
     data = await _json_body(request)
+    _check_references(request, data)
     ds.update_lia(lia_id, data)
     return JSONResponse(ds.get_lia(lia_id))
 
@@ -1391,6 +1416,7 @@ async def api_lia_update(request: Request, lia_id: int):
 @router.delete("/api/lia/{lia_id}")
 @require_capability("sentinel.ropa.manage")
 async def api_lia_delete(request: Request, lia_id: int):
+    _scoped_or_404(request, "lia", lia_id)
     ds.delete_lia(lia_id)
     return JSONResponse({"ok": True})
 
@@ -1448,7 +1474,7 @@ async def api_jurisdiction_detail(request: Request, key: str):
         raise HTTPException(status_code=404, detail="Unknown jurisdiction")
     configs = ds.get_all_jurisdiction_configs()
     config = next((c for c in configs if c.get("jurisdiction_key") == key), None)
-    stats_list = ds.get_jurisdiction_stats()
+    stats_list = ds.get_jurisdiction_stats(bu_scope=bu_scope_ids(request.state.user))
     stat = next((s for s in stats_list if s["regulation"] == key),
                 {"ropa": 0, "breaches": 0, "dsrs": 0, "dpias": 0})
     return JSONResponse({"key": key, "rules": rules, "config": config, "stats": stat})
@@ -1478,7 +1504,7 @@ async def api_deactivate_jurisdiction(request: Request, key: str):
 @require_module("sentinel")
 async def api_jurisdiction_stats(request: Request):
     """Per-jurisdiction record counts across all sentinel entity types."""
-    return JSONResponse({"items": ds.get_jurisdiction_stats()})
+    return JSONResponse({"items": ds.get_jurisdiction_stats(bu_scope=bu_scope_ids(request.state.user))})
 
 
 @router.post("/api/ai/research")
@@ -1510,9 +1536,7 @@ async def api_ai_generate(request: Request, dpia_id: int):
     if not check_ai_rate_limit(uid):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(uid)
-    dpia = ds.get_dpia(dpia_id)
-    if not dpia:
-        raise HTTPException(404, "DPIA not found")
+    dpia = _scoped_or_404(request, "dpia", dpia_id)
     body = await _json_body(request)
     custom_instructions = body.get("custom_instructions", "")
     from modules.sentinel.ai_service import ai_generate_full_dpia
@@ -1552,9 +1576,7 @@ async def api_ai_score_ropa(request: Request, ropa_id: int):
     if not check_ai_rate_limit(uid):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(uid)
-    entry = ds.get_ropa(ropa_id)
-    if not entry:
-        raise HTTPException(404, "RoPA entry not found")
+    entry = _scoped_or_404(request, "ropa", ropa_id)
     from modules.sentinel.ai_service import ai_score_ropa
     result, err = await ai_score_ropa(entry)
     if err:
@@ -1599,9 +1621,7 @@ async def api_ai_breach_impact(request: Request, breach_id: int):
     if not check_ai_rate_limit(uid):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(uid)
-    breach = ds.get_breach(breach_id)
-    if not breach:
-        raise HTTPException(404, "Breach not found")
+    breach = _scoped_or_404(request, "breach", breach_id)
     from modules.sentinel.ai_service import ai_assess_breach
     text, err = await ai_assess_breach(breach)
     if err:
@@ -1618,9 +1638,7 @@ async def api_ai_dsr_draft(request: Request, dsr_id: int):
     if not check_ai_rate_limit(uid):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(uid)
-    dsr = ds.get_dsr(dsr_id, bu_scope=bu_scope_ids(request.state.user))
-    if not dsr:
-        raise HTTPException(404, "DSR not found")
+    dsr = _scoped_or_404(request, "dsr", dsr_id)
     from modules.sentinel.ai_service import ai_draft_dsr_response
     text, err = await ai_draft_dsr_response(dsr)
     if err:

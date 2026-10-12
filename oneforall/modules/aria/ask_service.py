@@ -746,7 +746,8 @@ async def ask(question: str, user: Optional[dict] = None,
         prior = list(conversation_history or [])[-6:]
         msgs = prior + [{"role": "user", "content": user_msg}]
         raw_text, _meta = await _call_ai(
-            _ASK_SYSTEM_PROMPT, user_msg, max_tokens=1200, messages=msgs
+            _ASK_SYSTEM_PROMPT, user_msg, max_tokens=1200, messages=msgs,
+            feature="aria.ask",
         )
         raw = raw_text.strip()
     except RuntimeError as exc:

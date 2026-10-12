@@ -10,12 +10,33 @@ from database import get_db
 log = logging.getLogger("oneforall.links")
 
 _VALID_MODULES = frozenset({
-    "aria", "grid", "bcm", "sentinel", "platform", "evidence", "erm", "orm",
+    "aria", "grid", "bcm", "sentinel", "platform", "evidence", "erm", "orm", "governance",
 })
-_VALID_RELATIONSHIPS = frozenset({
-    "related", "triggers", "evidence_for", "implements",
-    "mitigates", "escalated_to", "derived_from", "audits", "elevated_to",
-})
+
+# Each edge is stored once, in one direction, with an active verb: verb -> (label read from the source
+# side, label read from the target side). The target side of an edge shows the inverse label, so
+# "AIIA assesses application" reads "assessed by AIIA" on the application. The first nine verbs predate the AI
+# governance work; the rest are its typed edges.
+RELATIONSHIP_LABELS = {
+    "related":      ("related to", "related to"),
+    "triggers":     ("triggers", "triggered by"),
+    "evidence_for": ("is evidence for", "has evidence"),
+    "implements":   ("implements", "implemented by"),
+    "mitigates":    ("mitigates", "mitigated by"),
+    "escalated_to": ("escalated to", "escalated from"),
+    "derived_from": ("derived from", "source of"),
+    "audits":       ("audits", "audited by"),
+    "elevated_to":  ("elevated to", "elevated from"),
+    "uses_data":    ("uses data", "data used by"),
+    "provided_by":  ("provided by", "provides"),
+    "supports":     ("supports", "supported by"),
+    "assesses":     ("assesses", "assessed by"),
+    "covers":       ("covers", "covered by"),
+    "affects":      ("affects", "affected by"),
+    "impacts":      ("impacts", "impacted by"),
+    "depends_on":   ("depends on", "needed by"),
+}
+_VALID_RELATIONSHIPS = frozenset(RELATIONSHIP_LABELS)
 
 
 def create_cross_module_link(
@@ -28,9 +49,12 @@ def create_cross_module_link(
     relationship: str = "related",
     user_id: int = None,
     db=None,
+    provenance: str = "system",
 ) -> int | None:
     """
-    Insert a row into cross_module_links with validation.
+    Insert a row into cross_module_links with validation. This is the entry for links the platform makes
+    itself (an event handler, a workflow); people's links go through modules/governance/relationships.py, which
+    also checks who may see both ends. `provenance` says which: "system" for this path.
 
     If `db` is provided, use that connection (caller is responsible for commit/close).
     Otherwise, open a fresh connection, commit, and close it internally.
@@ -59,9 +83,9 @@ def create_cross_module_link(
             "INSERT INTO cross_module_links "
             "(source_module, source_type, source_id, "
             " target_module, target_type, target_id, "
-            " relationship, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id",
-            (*dedup_key, user_id),
+            " relationship, created_by, provenance) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id",
+            (*dedup_key, user_id, provenance),
         )
         row = cur.fetchone()
         if row is None:

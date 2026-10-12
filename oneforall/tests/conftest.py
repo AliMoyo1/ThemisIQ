@@ -16,6 +16,9 @@ import sys
 os.environ["DEBUG"] = "true"
 os.environ["SECRET_KEY"] = "test-secret-key-for-pytest-only"
 os.environ["DATABASE_URL"] = ""
+# AI Governance is dark by default in a deployment; the suites exercise it, so they start with it on. The tests of the
+# switch itself set the default and the stored choice explicitly.
+os.environ["AI_GOVERNANCE_DEFAULT_ENABLED"] = "true"
 
 # Make `oneforall/` importable when pytest is run from the repo root.
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -54,3 +57,20 @@ def test_db(tmp_path, monkeypatch):
         yield conn
     finally:
         conn.close()
+
+
+@pytest.fixture(autouse=True)
+def _no_stray_ai_usage_rows(monkeypatch):
+    """core/ai_policy.py appends a usage row for every model call. A test that runs the real client must not write into
+    whichever database happens to be configured; the tests of the usage log switch recording back on with their own."""
+    import core.ai_policy as ai_policy
+    monkeypatch.setattr(ai_policy, "_RECORDING", False)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_ai_rollout_cache():
+    """core/ai_rollout.py remembers each organization's answer for a short while; one test's answer must not reach the next."""
+    from core import ai_rollout
+    ai_rollout.clear_cache()
+    yield
+    ai_rollout.clear_cache()

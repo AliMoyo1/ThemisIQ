@@ -271,6 +271,13 @@ async def startup():
     except Exception as exc:
         log.warning("Evidence Campaigns scheduler failed to start: %s", exc)
 
+    # Start the event delivery sweeper (delivers stored events a crash or a failing handler left undelivered)
+    try:
+        from core.event_sweeper import start_scheduler as event_sweeper_start
+        event_sweeper_start()
+    except Exception as exc:
+        log.warning("Event delivery sweeper failed to start: %s", exc)
+
     # Migrate: add due_at column to workflow_actions (idempotent via IF NOT EXISTS)
     try:
         _db_wf = get_db()
@@ -361,6 +368,11 @@ async def shutdown():
     try:
         from modules.evidence_campaigns.scheduler import stop_scheduler as evidence_campaigns_stop
         evidence_campaigns_stop()
+    except Exception:
+        pass
+    try:
+        from core.event_sweeper import stop_scheduler as event_sweeper_stop
+        event_sweeper_stop()
     except Exception:
         pass
     log.info("ThemisIQ shutting down")
@@ -473,6 +485,7 @@ from modules.erm.routes import router as erm_router
 from modules.erm.routes_scenarios import router as erm_scenarios_router
 from modules.orm.routes import router as orm_router
 from modules.governance.routes import router as governance_router
+from modules.ai_governance.routes import router as ai_governance_router
 from modules.readiness.routes import router as readiness_router
 from modules.evidence_campaigns.routes import router as evidence_campaigns_router
 from modules.saved_views.routes import router as saved_views_router
@@ -498,6 +511,7 @@ app.include_router(erm_scenarios_router)
 app.include_router(erm_router)
 app.include_router(orm_router)
 app.include_router(governance_router)
+app.include_router(ai_governance_router)
 app.include_router(readiness_router)
 app.include_router(evidence_campaigns_router)
 app.include_router(saved_views_router)

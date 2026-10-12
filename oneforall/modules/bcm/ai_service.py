@@ -32,7 +32,7 @@ def review_plan(plan: dict) -> dict:
         "\"weaknesses\": [...], \"recommendations\": [...]}"
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=1024)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=1024, feature="bcm.review_plan")
         return safe_json_parse(text, _stub_review_plan(plan))
     except Exception as exc:
         log.error("AI plan review failed: %s", exc)
@@ -81,7 +81,7 @@ def suggest_incident_actions(incident: dict, active_regulations: list[str] | Non
         "Respond in JSON array: [{\"action\": ..., \"priority\": ..., \"rationale\": ...}]"
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=1024)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=1024, feature="bcm.suggest_incident_actions")
         return safe_json_parse(text, _stub_suggest_actions(incident))
     except Exception as exc:
         log.error("AI suggest actions failed: %s", exc)
@@ -147,6 +147,7 @@ def rag_ask(question: str) -> tuple[str, list[int]]:
                     "documents were found in the knowledge base."
                 ),
                 max_tokens=1024,
+                feature="bcm.rag_ask",
             )
             return text, []
         except Exception as exc:
@@ -167,7 +168,7 @@ def rag_ask(question: str) -> tuple[str, list[int]]:
         f"QUESTION: {_u(question)}"
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=1500)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=1500, feature="bcm.rag_ask")
         return text, cited_ids
     except Exception as exc:
         log.error("RAG ask failed: %s", exc)
@@ -197,6 +198,7 @@ def chat(history: list[dict]) -> str:
                 "and regulatory compliance. Be concise and actionable."
             ),
             max_tokens=2048,
+            feature="bcm.chat",
         )
     except Exception as exc:
         log.error("AI chat failed: %s", exc)
@@ -232,7 +234,7 @@ def generate_plan(scenario: str, scope: str, industry: str = "", extra_context: 
         "Use markdown formatting. Be specific and actionable."
     )
     try:
-        return create_message([{"role": "user", "content": prompt}], max_tokens=4096)
+        return create_message([{"role": "user", "content": prompt}], max_tokens=4096, feature="bcm.generate_plan")
     except Exception as exc:
         log.error("AI plan generation failed: %s", exc)
         return _stub_generate_plan(scenario, scope, industry)
@@ -272,7 +274,7 @@ def generate_board_narrative(stats: dict) -> str:
         "and recommended actions. Use professional tone."
     )
     try:
-        return create_message([{"role": "user", "content": prompt}], max_tokens=1024)
+        return create_message([{"role": "user", "content": prompt}], max_tokens=1024, feature="bcm.generate_board_narrative")
     except Exception as exc:
         log.error("AI board narrative failed: %s", exc)
         return _stub_board_narrative(stats)

@@ -16,6 +16,7 @@ import datetime as _dt
 import logging
 
 from config import settings
+from core import ai_rollout
 from core.rbac import user_modules as _user_modules, has_capability
 
 _log = logging.getLogger("oneforall.shell_ctx")
@@ -68,6 +69,13 @@ def _license_status(user) -> dict:
     }
 
 
+def _ai_return_id(request) -> str:
+    """The AI system a person came from (`aig_return`), only when it is a plain number, so it is safe in a link."""
+    params = getattr(request, "query_params", None)
+    value = params.get("aig_return", "") if params is not None else ""
+    return value if value.isdigit() and len(value) <= 9 else ""
+
+
 def shell_ctx(request, active_module: str = "platform",
               active_section: str = "", show_sidebar: bool = True) -> dict:
     """Return the dict of context variables the unified shell templates need."""
@@ -80,6 +88,11 @@ def shell_ctx(request, active_module: str = "platform",
         "show_sidebar": show_sidebar,
         "is_admin": has_capability(user, "platform.manage_users"),
         "is_super_admin": bool(user.get("is_super_admin")),
+        "can_manage_ai_policy": has_capability(user, "ai_governance.policy.manage"),
+        "can_ai_use": has_capability(user, "ai_use.view") and ai_rollout.is_enabled(user.get("org_id")),
+        "can_ai_pack": has_capability(user, "ai_pack.receive") and ai_rollout.is_enabled(user.get("org_id")),
+        "can_ai_literacy": has_capability(user, "ai_literacy.take") and ai_rollout.is_enabled(user.get("org_id")),
+        "ai_return_id": _ai_return_id(request) if has_capability(user, "ai_use.view") else "",
         "can_view_audit_log": has_capability(user, "platform.view_audit_log"),
         "can_governance_view": has_capability(user, "governance.entities.view"),
         "can_org_admin": has_capability(user, "platform.manage_org_users")

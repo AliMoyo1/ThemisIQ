@@ -12,6 +12,8 @@ mapped to the actual URL and the persona that can reach it.
 """
 import pytest
 
+from database import get_db, insert_returning_id
+
 
 ROUTES = [
     ("/", "super_admin"),
@@ -73,5 +75,34 @@ def test_acceptance_route_has_no_critical_or_serious_violations(
     assert not unexpected, (
         f"{route}: {len(unexpected)} unexpected critical/serious "
         "violation(s) not in KNOWN_FAILURES: "
-        + ", ".join(f"{v['id']} ({len(v['nodes'])} node(s))" for v in unexpected)
+        + ", ".join(
+            f"{v['id']} ({len(v['nodes'])} node(s)): "
+            + "; ".join(f"{n['target']}: {n.get('failureSummary', '')}" for n in v['nodes'])
+            for v in unexpected
+        )
     )
+
+
+def test_ai_governance_task_label_has_readable_contrast(login_as, live_app, run_axe):
+    db = get_db()
+    task_id = None
+    try:
+        task_id = insert_returning_id(
+            db,
+            "INSERT INTO task_board (title, module, priority, status) VALUES (%s, %s, %s, %s)",
+            ("Synthetic AI governance contrast check", "ai_governance", "high", "todo"),
+        )
+        db.commit()
+        page = login_as("super_admin")
+        page.goto(f"{live_app}/tasks")
+        page.wait_for_selector(".task-card:has-text('Synthetic AI governance contrast check') .tc-mod")
+        violations = [v for v in run_axe() if v["id"] == "color-contrast"]
+        assert not violations, [
+            {"target": n["target"], "failure": n.get("failureSummary", "")}
+            for v in violations for n in v["nodes"]
+        ]
+    finally:
+        if task_id is not None:
+            db.execute("DELETE FROM task_board WHERE id = %s", (task_id,))
+            db.commit()
+        db.close()

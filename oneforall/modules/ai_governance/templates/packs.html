@@ -1,0 +1,22 @@
+{% extends "base_shell.html" %}
+{% block title %}Review packs | AI Governance | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">AI review packs</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">AI review packs</h1>
+      <p class="aig-lede">Share a dated, read-only account of one AI use with one named person. Access ends at expiry or when the pack is withdrawn.</p>
+    </div>
+  </div>
+  <div id="aigPacks" data-application-id="{{ application_id }}" data-can-manage="{{ 1 if can_manage_pack else 0 }}"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_packs.js?v=1"></script>
+{% endblock %}

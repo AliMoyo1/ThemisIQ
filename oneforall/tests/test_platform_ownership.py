@@ -122,10 +122,14 @@ def test_every_kind_with_a_unit_names_its_table_and_the_column_exists(test_db):
     misspelt column, would silently stop placing rows."""
     from modules.governance.entity_scope import _KINDS
     for key, kind in _KINDS.items():
-        if kind.bu or kind.via_audit:
+        if kind.bu or kind.via_audit or kind.title:
             assert kind.table, key
             columns = {row[1] for row in test_db.execute(f"PRAGMA table_info({kind.table})").fetchall()}
-            assert (kind.bu or "audit_id") in columns, key
+            assert columns, f"{key}: no table {kind.table}"
+            if kind.bu or kind.via_audit:
+                assert (kind.bu or "audit_id") in columns, key
+            if kind.title:
+                assert kind.title in columns, key
         else:
             assert not kind.table, key
 

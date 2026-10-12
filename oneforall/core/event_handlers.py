@@ -2952,6 +2952,11 @@ def erm_data_breach_risk_creates_sentinel_breach(event_type, source_module, enti
         if existing:
             return
 
+        risk = db.execute("SELECT business_unit_id FROM erm_enterprise_risks WHERE id = %s",
+                          (erm_risk_id,)).fetchone()
+        if risk is None:
+            return
+
         title = payload.get("title", f"ERM Data Breach Risk #{erm_risk_id}")
         severity = (payload.get("severity") or "high").lower()
         # Map ERM likelihood/impact score to breach severity
@@ -2980,7 +2985,7 @@ def erm_data_breach_risk_creates_sentinel_breach(event_type, source_module, enti
             ),
             "notification_required": 1,
         }
-        breach_id = create_breach(breach_data)
+        breach_id = create_breach(breach_data, business_unit_id=risk["business_unit_id"])
 
         create_cross_module_link(
             "erm", "enterprise_risk", erm_risk_id,

@@ -987,7 +987,7 @@ def generate_board_pack_narrative(board_pack_id, actor=None):
         "Include at least one citation for every material claim."
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=1800)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=1800, feature="erm.generate_board_pack_narrative")
     except Exception as exc:
         log.error("P07 board pack narrative generation failed: %s", exc)
         return {"ok": False, "reason": "AI request failed"}

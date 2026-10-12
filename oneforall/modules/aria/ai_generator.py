@@ -13,7 +13,7 @@ from core.ai_client import create_message_full, wrap_user_input as _u
 
 
 async def _call_ai(system: str, user_msg: str, max_tokens: int = 4000,
-                   messages: list = None) -> tuple:
+                   messages: list = None, *, feature: str) -> tuple:
     """
     Dispatch to the configured AI provider via core.ai_client.
     Returns (text: str, meta: dict) where meta = {model, input_tokens, output_tokens}.
@@ -31,6 +31,7 @@ async def _call_ai(system: str, user_msg: str, max_tokens: int = 4000,
         msgs,
         system,
         max_tokens,
+        feature=feature,
     )
     text = result.pop("text")
     return text, result
@@ -245,7 +246,7 @@ async def generate_policy(framework: str, control_ref: str,
 Write the complete {doc_type} document now. Make it thorough, professional, and immediately usable as a working draft."""
 
     try:
-        text, meta = await _call_ai(POLICY_SYSTEM_PROMPT, user_prompt, max_tokens=4000)
+        text, meta = await _call_ai(POLICY_SYSTEM_PROMPT, user_prompt, max_tokens=4000, feature="aria.generate_policy")
         return {
             "success": True,
             "content": text,
@@ -299,7 +300,7 @@ Write a professional Gap Analysis Report with:
 Keep it concise but actionable."""
 
     try:
-        text, meta = await _call_ai(system, prompt, max_tokens=2000)
+        text, meta = await _call_ai(system, prompt, max_tokens=2000, feature="aria.generate_gap_analysis")
         return {"success": True, "content": text, "model": meta["model"]}
     except RuntimeError as e:
         return {"success": False, "error": str(e), "content": ""}

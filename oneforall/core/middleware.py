@@ -468,6 +468,7 @@ async def tenant_context_middleware(request: Request, call_next):
                 set_current_org(
                     user.get("org_id"),
                     is_super_admin=bool(user.get("is_super_admin")),
+                    user_id=user.get("id"),
                 )
         except Exception:
             pass

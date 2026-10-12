@@ -70,6 +70,10 @@ class Settings:
     SECRET_KEY: str = _resolve_secret_key()
     DB_PATH: str = os.getenv("DB_PATH", str(BASE_DIR / "data" / "oneforall.db"))
 
+    # AI Governance is shown to an organization only when its switch is on (core/ai_rollout.py). This is what an
+    # organization with no stored choice gets: off unless the deployment says otherwise.
+    AI_GOVERNANCE_DEFAULT_ENABLED: bool = os.getenv("AI_GOVERNANCE_DEFAULT_ENABLED", "false").lower() in ("1", "true", "yes", "on")
+
     # Fallback regulation key when no specific one is set on a record/event AND
     # no per-org primary jurisdiction is configured. Override per deployment.
     DEFAULT_REGULATION: str = os.getenv("DEFAULT_REGULATION", "GDPR")

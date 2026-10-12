@@ -17,8 +17,8 @@ from pathlib import Path
 from core.ai_client import create_message, is_configured, provider_name, safe_json_parse, wrap_user_input as _u
 
 
-def _call_ai(messages: list, system: str = "", max_tokens: int = 2000) -> str:
-    text = create_message(messages, system=system, max_tokens=max_tokens)
+def _call_ai(messages: list, system: str = "", max_tokens: int = 2000, *, feature: str) -> str:
+    text = create_message(messages, system=system, max_tokens=max_tokens, feature=feature)
     return re.sub(r"```json|```", "", text).strip()
 
 
@@ -42,7 +42,7 @@ def batch_risk_score(items: list, framework_name: str) -> dict:
             '{"1":{"risk_level":"High","evidence_required":2,'
             '"evidence_items":["Policy doc","Approval record"]}}'
         ),
-    }], max_tokens=4000)
+    }], max_tokens=4000, feature="grid.batch_risk_score")
     parsed = safe_json_parse(text, {})
     return {int(k): v for k, v in parsed.items()} if isinstance(parsed, dict) else {}
 
@@ -57,7 +57,7 @@ def parse_checklist_with_ai(raw_text: str, framework_name: str) -> list:
             '"description":"Desc","risk_level":"High","evidence_required":1,'
             '"evidence_items":["Item"]}]'
         ),
-    }], max_tokens=4000)
+    }], max_tokens=4000, feature="grid.parse_checklist_with_ai")
     parsed = safe_json_parse(text, [])
     if not isinstance(parsed, list):
         raise RuntimeError("AI returned invalid format")
@@ -85,7 +85,7 @@ def generate_gap_analysis(controls: list, framework_name: str) -> dict:
             '"recommendations":[{"priority":"High","action":"action","impact":"impact"}],'
             '"estimated_completion":"X weeks"}'
         ),
-    }])
+    }], feature="grid.generate_gap_analysis")
     return safe_json_parse(text, {
         "readiness_score": 0,
         "risk_summary": "Analysis unavailable",
@@ -105,7 +105,7 @@ def suggest_control_details(control_id: str, name: str, framework_name: str) -> 
             '"evidence_items":["Item 1","Item 2","Item 3"],'
             '"tips":"One practical tip"}'
         ),
-    }])
+    }], feature="grid.suggest_control_details")
     return safe_json_parse(text, {
         "description": "",
         "risk_level": "Medium",
@@ -132,7 +132,7 @@ def generate_report_narrative(audit_data: dict) -> dict:
             '"overall_status":"On Track|At Risk|Critical",'
             '"key_findings":["f1","f2","f3"],"conclusion":"1-2 sentences"}'
         ),
-    }], max_tokens=1500)
+    }], max_tokens=1500, feature="grid.generate_report_narrative")
     return safe_json_parse(text, {
         "executive_summary": "",
         "overall_status": "In Progress",
@@ -150,6 +150,7 @@ def ask_compliance_ai(question: str, context: dict | None = None) -> str:
             f"Be concise and practical. Context: {json.dumps(context or {})}"
         ),
         max_tokens=800,
+        feature="grid.ask_compliance_ai",
     )
 
 
@@ -409,7 +410,7 @@ def generate_incident_checklist(
     )
 
     try:
-        text = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
+        text = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000, feature="grid.generate_incident_checklist")
         items = safe_json_parse(text, None)
         if isinstance(items, list) and items:
             return items

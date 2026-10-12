@@ -1,0 +1,63 @@
+<div class="module-sidebar-header">
+  <div class="module-name">AI Governance</div>
+  <div class="module-desc">AI uses, their assessments and decisions</div>
+</div>
+<div class="sidebar-section">
+  <div class="sidebar-label">Navigation</div>
+  {% if can_ai_use %}
+  <a href="/ai-governance/" class="nav-item{% if active_section == 'inventory' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+    AI Systems
+  </a>
+  {% endif %}
+  {% if can_manage_pack or can_receive_pack %}
+  <a href="/ai-governance/packs" class="nav-item{% if active_section == 'packs' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M7 9h10M7 12h10M7 15h6"/></svg>
+    Review packs
+  </a>
+  {% endif %}
+  {% if can_literacy_take or can_literacy_manage or can_literacy_report %}
+  <a href="/ai-governance/literacy" class="nav-item{% if active_section == 'literacy' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+    AI literacy
+  </a>
+  {% endif %}
+  {% if can_platform_ai_manage %}
+  <a href="/ai-governance/platform-features" class="nav-item{% if active_section == 'platform_features' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12h8M12 8v8"/></svg>
+    Platform AI features
+  </a>
+  {% endif %}
+  {% if can_assess %}
+  <a href="/ai-governance/assessments" class="nav-item{% if active_section == 'assessments' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M4 4h9"/><path d="M4 9h5"/><path d="M4 14h5"/><path d="M4 19h12"/></svg>
+    Impact assessments
+  </a>
+  {% endif %}
+  {% if can_register %}
+  <a href="/ai-governance/register" class="nav-item{% if active_section == 'register' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+    Register an AI use
+  </a>
+  <a href="/ai-governance/requests" class="nav-item{% if active_section == 'requests' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    My requests
+  </a>
+  {% endif %}
+  {% if can_review or can_decide %}
+  <a href="/ai-governance/decisions" class="nav-item{% if active_section == 'decisions' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M5 7l7-4 7 4"/><path d="M5 7l-3 7a4 3 0 008 0z"/><path d="M19 7l-3 7a4 3 0 008 0z"/></svg>
+    Decisions
+  </a>
+  {% endif %}
+  {% if can_review %}
+  <a href="/ai-governance/regulatory" class="nav-item{% if active_section == 'regulatory' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+    Regulatory changes
+  </a>
+  <a href="/ai-governance/review" class="nav-item{% if active_section == 'review' %} active{% endif %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    Review requests
+  </a>
+  {% endif %}
+</div>

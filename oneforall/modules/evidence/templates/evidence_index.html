@@ -263,6 +263,7 @@
             {% if 'bcm' in user_modules %}<option value="bcm">Resilience</option>{% endif %}
             {% if 'sentinel' in user_modules %}<option value="sentinel">Privacy</option>{% endif %}
             {% if 'erm' in user_modules %}<option value="erm">Enterprise Risk</option>{% endif %}
+            {% if can_ai_use %}<option value="governance">AI Governance</option>{% endif %}
           </select>
         </div>
         <div>
@@ -296,13 +297,14 @@ var iconMap={policy:'📋',certificate:'🏅',screenshot:'🖼',report:'📊',
   control_assessment:'📊',audit_finding:'⚠️',audit_completion:'✅',
   non_conformance:'❌',risk_assessment:'🔴',incident_record:'🚨',breach_record:'🔓',
   dpia_record:'🛡️',dsr_overdue:'⏰',plan_approval:'✅'};
-var modColors={aria:'#7e8062',grid:'#1a6b3a',bcm:'#8a8a5b',sentinel:'#00a5c8',erm:'#dc3c50',platform:'#6b7280'};
+var modColors={aria:'#7e8062',grid:'#1a6b3a',bcm:'#8a8a5b',sentinel:'#00a5c8',erm:'#dc3c50',governance:'#0f766e',platform:'#6b7280'};
 var entityTypes={
   aria:['control','document','risk','framework'],
   grid:['audit','control','non_conformance'],
   bcm:['plan','incident','risk','bia','compliance_control'],
   sentinel:['ropa','dpia','breach','dsr','vendor'],
-  erm:['risk']
+  erm:['risk'],
+  governance:['application']
 };
 
 function escHtml(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/\"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -1135,7 +1137,7 @@ function loadEntityTypes(){
   if(mod&&entityTypes[mod]){
     var labels={nc:'Nonconformance',non_conformance:'Nonconformance',bia:'Business impact assessment',
       compliance_control:'Compliance control',ropa:'Processing activity',dpia:'Privacy impact assessment',
-      dsr:'Data subject request'};
+      dsr:'Data subject request',application:'AI system or application'};
     entityTypes[mod].forEach(function(t){var o=document.createElement('option');o.value=t;
       o.textContent=labels[t]||t.replace(/_/g,' ').replace(/^./,function(c){return c.toUpperCase();});sel.appendChild(o);});
   }

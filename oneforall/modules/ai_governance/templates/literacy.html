@@ -1,0 +1,22 @@
+{% extends "base_shell.html" %}
+{% block title %}AI literacy | AI Governance | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">AI literacy</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">AI literacy</h1>
+      <p class="aig-lede">Learn how to use AI responsibly in your role. Courses show when they are due and when your completion renews.</p>
+    </div>
+  </div>
+  <div id="aigLiteracy" data-can-take="{{ 1 if can_literacy_take else 0 }}"
+       data-can-manage="{{ 1 if can_literacy_manage else 0 }}"
+       data-can-report="{{ 1 if can_literacy_report else 0 }}"></div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_literacy.js?v=1"></script>
+{% endblock %}

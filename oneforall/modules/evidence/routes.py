@@ -20,7 +20,7 @@ from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from database import get_db, insert_returning_id, sql_date_offset, sql_current_date
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
-from modules.governance.data_service import bu_scope_ids
+from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, entity_scope_sql
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 log = logging.getLogger("oneforall.evidence")
@@ -1180,6 +1180,7 @@ async def api_evidence_suggest_links(request: Request, eid: int):
             [{"role": "user", "content": prompt}],
             system="You are a GRC evidence linking assistant. Respond ONLY with a JSON array, no other text.",
             max_tokens=800,
+            feature="evidence.api_evidence_suggest_links",
         )
         suggestions = safe_json_parse(raw)
         if not isinstance(suggestions, list):
@@ -1210,7 +1211,7 @@ async def api_evidence_suggest_links(request: Request, eid: int):
                 continue
             safe.append({
                 "module": key[0], "entity_type": key[1], "entity_id": target_id,
-                "entity_name": target[_ENTITY_RESOLVERS[key][1]],
+                "entity_name": target["title"],
                 "reason": str(suggestion.get("reason") or "")[:240],
             })
             seen.add(identity)
@@ -1316,82 +1317,37 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
 
 # ── Cross-Module Link Resolution ──────────────────────────────────────────
 
-# Mapping: (module, entity_type) → (table_name, name_column, url_template)
-# url_template uses {id} as placeholder for the entity_id
+# The record kinds an evidence item can be linked to. What each one is (table, title, deep link) and who may
+# open it (capability and business unit) comes from the shared registry in modules/governance/entity_scope.py,
+# the one place Related Items, search and the AI workspace use too, so the Vault cannot show a record that the
+# owning module would not.
+_VAULT_TARGETS = (
+    ("aria", "control"), ("aria", "document"), ("aria", "risk"), ("aria", "framework"),
+    ("grid", "audit"), ("grid", "control"), ("grid", "nc"),
+    ("bcm", "plan"), ("bcm", "incident"), ("bcm", "risk"), ("bcm", "bia"), ("bcm", "compliance_control"),
+    ("sentinel", "ropa"), ("sentinel", "dpia"), ("sentinel", "breach"), ("sentinel", "dsr"), ("sentinel", "vendor"),
+    ("erm", "risk"),
+    ("governance", "application"),  # proof for an AI use: shown on the Evidence tab of its workspace
+)
+# (module, entity_type) -> (table_name, name_column, url_template)
 _ENTITY_RESOLVERS: dict[tuple[str, str], tuple[str, str, str]] = {
-    ("aria", "control"):    ("controls", "name", "/aria/frameworks"),
-    ("aria", "document"):   ("aria_documents", "title", "/aria/documents?open={doc_id}"),
-    ("aria", "risk"):       ("aria_risks", "description", "/aria/risks"),
-    ("aria", "framework"):  ("frameworks", "name", "/aria/frameworks"),
-    ("grid", "audit"):      ("grid_audits", "name", "/grid/audits/{id}"),
-    ("grid", "control"):    ("grid_controls", "name", "/grid/controls"),
-    ("grid", "nc"):         ("grid_non_conformances", "title", "/grid/?open=nc:{id}"),
-    ("grid", "non_conformance"): ("grid_non_conformances", "title", "/grid/?open=nc:{id}"),
-    ("bcm", "plan"):        ("bcm_plans", "title", "/bcm/plans"),
-    ("bcm", "incident"):    ("bcm_incidents", "title", "/bcm/?open=incident:{id}"),
-    ("bcm", "risk"):        ("bcm_risks", "title", "/bcm/risks"),
-    ("bcm", "bia"):         ("bcm_bia_records", "process_name", "/bcm/bia"),
-    ("bcm", "compliance_control"): ("bcm_compliance_controls", "title", "/bcm/compliance"),
-    ("sentinel", "ropa"):   ("sentinel_ropa", "processing_name", "/sentinel/?open=ropa:{id}"),
-    ("sentinel", "dpia"):   ("sentinel_dpias", "title", "/sentinel/?open=dpia:{id}"),
-    ("sentinel", "breach"): ("sentinel_breaches", "title", "/sentinel/?open=breach:{id}"),
-    ("sentinel", "dsr"):    ("sentinel_dsr", "requester_name", "/sentinel/?open=dsr:{id}"),
-    ("sentinel", "vendor"): ("sentinel_vendors", "name", "/sentinel/vendors"),
-    ("erm", "risk"):        ("erm_enterprise_risks", "title", "/erm/register?open=risk:{id}"),
+    key: (_KINDS[key].table, _KINDS[key].title, _KINDS[key].url) for key in _VAULT_TARGETS
 }
-
-
-_TARGET_BU_COLUMNS = {
-    ("aria", "document"): "t.business_unit_id",
-    ("grid", "audit"): "t.business_unit_id",
-    ("grid", "control"): "a.business_unit_id",
-    ("grid", "nc"): "a.business_unit_id",
-    ("grid", "non_conformance"): "a.business_unit_id",
-    ("bcm", "plan"): "t.business_unit_id",
-    ("bcm", "incident"): "t.business_unit_id",
-    ("bcm", "bia"): "t.business_unit_id",
-    ("sentinel", "ropa"): "t.business_unit_id",
-    ("sentinel", "dpia"): "t.business_unit_id",
-    ("sentinel", "breach"): "t.business_unit_id",
-    ("sentinel", "dsr"): "t.business_unit_id",
-    ("erm", "risk"): "t.business_unit_id",
-}
+# Evidence links already stored under the other spelling of a non-conformance keep resolving.
+_ENTITY_RESOLVERS[("grid", "non_conformance")] = _ENTITY_RESOLVERS[("grid", "nc")]
 
 
 def _target_scope_sql(key, user):
-    joins = " JOIN grid_audits a ON a.id = t.audit_id" if key in {
-        ("grid", "control"), ("grid", "nc"), ("grid", "non_conformance")
-    } else ""
-    where, params = [], []
-    if not user.get("is_super_admin"):
-        if key[0] not in user_modules(user):
-            where.append("1 = 0")
-        if key == ("aria", "document"):
-            if not user.get("org_id"):
-                where.append("1 = 0")
-            else:
-                where.append("t.org_id = %s")
-                params.append(user["org_id"])
-        bu_col = _TARGET_BU_COLUMNS.get(key)
-        scope = bu_scope_ids(user)
-        if bu_col and scope is not None:
-            if scope:
-                where.append(f"({bu_col} IS NULL OR {bu_col} IN ({','.join('%s' for _ in scope)}))")
-                params.extend(scope)
-            else:
-                where.append(f"{bu_col} IS NULL")
-    return joins, where, params
+    """(joins, where list, params) limiting a query over the target's table, aliased t, to what the user may open."""
+    scope, params = entity_scope_sql(canonical_key(*key), user, "t")
+    return "", ([] if scope == "(1 = 1)" else [scope]), params
 
 
 def _visible_target(db, key, entity_id, user):
-    resolver = _ENTITY_RESOLVERS.get(key)
-    if not resolver or entity_id <= 0:
+    """{"title", "url"} of the target when the user may open it, else None (missing and hidden answer alike)."""
+    if key not in _ENTITY_RESOLVERS or entity_id <= 0:
         return None
-    joins, where, params = _target_scope_sql(key, user)
-    sql = f"SELECT t.* FROM {resolver[0]} t{joins} WHERE t.id = %s"
-    if where:
-        sql += " AND " + " AND ".join(where)
-    return db.execute(sql, (entity_id, *params)).fetchone()
+    return describe_record(db, canonical_key(*key), entity_id, user)
 
 
 @router.get("/api/resolve-links")
@@ -1452,14 +1408,10 @@ async def api_resolve_links(request: Request):
                 if not linked:
                     results.append(entry)
                     continue
-                _, name_col, url_tpl = resolver
-                row = _visible_target(db, (module, entity_type), entity_id, request.state.user)
-                if row:
-                    from urllib.parse import quote
-                    entry["name"] = row[name_col]
-                    entry["url"] = url_tpl.replace("{id}", str(entity_id)).replace(
-                        "{doc_id}", quote(row["doc_id"], safe="") if (module, entity_type) == ("aria", "document") else ""
-                    )
+                shown = _visible_target(db, (module, entity_type), entity_id, request.state.user)
+                if shown:
+                    entry["name"] = shown["title"]
+                    entry["url"] = shown["url"]
 
             results.append(entry)
     finally:
@@ -1482,34 +1434,12 @@ async def api_search_entities(request: Request):
     if module not in valid_modules:
         return JSONResponse({"error": "Invalid module"}, 400)
 
-    # Map (module, entity_type) → (table, name_col, id_col)
-    entity_map = {
-        ("aria", "control"): ("controls", "name", "id"),
-        ("aria", "document"): ("aria_documents", "title", "id"),
-        ("aria", "risk"): ("aria_risks", "description", "id"),
-        ("aria", "framework"): ("frameworks", "name", "id"),
-        ("grid", "audit"): ("grid_audits", "name", "id"),
-        ("grid", "control"): ("grid_controls", "name", "id"),
-        ("grid", "nc"): ("grid_non_conformances", "title", "id"),
-        ("grid", "non_conformance"): ("grid_non_conformances", "title", "id"),
-        ("bcm", "plan"): ("bcm_plans", "title", "id"),
-        ("bcm", "incident"): ("bcm_incidents", "title", "id"),
-        ("bcm", "risk"): ("bcm_risks", "title", "id"),
-        ("bcm", "bia"): ("bcm_bia_records", "process_name", "id"),
-        ("bcm", "compliance_control"): ("bcm_compliance_controls", "title", "id"),
-        ("sentinel", "ropa"): ("sentinel_ropa", "processing_name", "id"),
-        ("sentinel", "dpia"): ("sentinel_dpias", "title", "id"),
-        ("sentinel", "breach"): ("sentinel_breaches", "title", "id"),
-        ("sentinel", "dsr"): ("sentinel_dsr", "requester_name", "id"),
-        ("sentinel", "vendor"): ("sentinel_vendors", "name", "id"),
-        ("erm", "risk"): ("erm_enterprise_risks", "title", "id"),
-    }
-
     key = (module, entity_type)
-    if key not in entity_map:
+    if key not in _ENTITY_RESOLVERS:
         return JSONResponse({"error": "Unknown entity type"}, 400)
 
-    table, name_col, id_col = entity_map[key]
+    table, name_col, _ = _ENTITY_RESOLVERS[key]
+    id_col = "id"
     db = get_db()
     try:
         joins, where, params = _target_scope_sql(key, request.state.user)

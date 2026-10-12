@@ -1,0 +1,62 @@
+{% extends "base_shell.html" %}
+{% block title %}{{ pack.name }} | AI review pack | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<a href="/ai-governance/packs">Review packs</a> <span class="breadcrumb-current">{{ pack.name }}</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">{{ pack.name }}</h1>
+      <p class="aig-lede">{{ pack.application_name }} · Prepared {{ manifest.generated_at[:10] }} · Expires {{ pack.expires_at[:10] }}</p>
+    </div>
+    {% if manager or pack.allow_download %}
+    <a class="btn btn-secondary" href="/ai-governance/api/packs/{{ pack.id }}/export">Download JSON</a>
+    {% endif %}
+  </div>
+  <div class="aig-banner aig-banner-info">{{ manifest.disclaimer }}</div>
+  {% if manager and pack.state != 'open' %}<div class="aig-banner aig-banner-warn">This pack is {{ pack.state }}. Only managers can still read this record.</div>{% endif %}
+  {% if pack.purpose %}<p class="aig-muted">Purpose: {{ pack.purpose }}</p>{% endif %}
+  <dl class="aig-facts aig-pack-meta">
+    <div class="aig-fact"><dt>Issued by</dt><dd>{{ pack.issued_by or 'Not recorded' }}</dd></div>
+    {% if manager %}<div class="aig-fact"><dt>Recipient</dt><dd>{{ pack.recipient or 'Not recorded' }}</dd></div>{% endif %}
+    <div class="aig-fact"><dt>Issued</dt><dd>{{ pack.issued_at[:10] }}</dd></div>
+    <div class="aig-fact"><dt>Record hash</dt><dd class="aig-ref aig-pack-hash">{{ pack.hash }}</dd></div>
+  </dl>
+  {% if manifest.summary.not_shown %}
+  <div class="aig-banner aig-banner-warn">Not included because the preparer could not open or read: {{ manifest.summary.not_shown|join(', ') }}.</div>
+  {% endif %}
+  <nav class="aig-panel" aria-label="Sections in this pack">
+    <h2 class="aig-h3">In this pack</h2>
+    <ul class="aig-pack-index">
+      {% for section in manifest.sections %}<li><a href="#pack-section-{{ loop.index }}">{{ section.title }}</a></li>{% endfor %}
+    </ul>
+  </nav>
+  {% for section in manifest.sections %}
+  <section class="aig-panel" id="pack-section-{{ loop.index }}" aria-labelledby="pack-heading-{{ loop.index }}">
+    <div class="aig-pack-section-head"><h2 class="aig-h2" id="pack-heading-{{ loop.index }}">{{ section.title }}</h2><span class="aig-chip">{{ section.state|replace('_', ' ') }}</span></div>
+    {% if section.note %}<p class="aig-muted">{{ section.note }}</p>{% endif %}
+    {% if section['items'] %}
+    <ul class="aig-pack-items">
+      {% for item in section['items'] %}
+      <li>
+        <div class="aig-pack-item-head"><strong>{{ item.title }}</strong>{% if item.status %}<span class="aig-chip">{{ item.status }}</span>{% endif %}</div>
+        {% if item.when %}<div class="aig-muted">{{ item.when }}</div>{% endif %}
+        {% if item.lines %}<ul>{% for line in item.lines %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% elif not section.note %}<p class="aig-muted">Nothing recorded in this section at the time the pack was prepared.</p>{% endif %}
+  </section>
+  {% endfor %}
+  {% if manager %}
+  <section class="aig-panel" id="aigPackManage" data-pack-id="{{ pack.id }}" data-version="{{ pack.version }}" data-state="{{ pack.state }}" aria-label="Manage this pack"></section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_packs.js?v=1"></script>
+{% endblock %}

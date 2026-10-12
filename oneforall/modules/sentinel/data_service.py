@@ -148,6 +148,32 @@ def _generic_list(table, filters=None, order="updated_at DESC", limit=500, row_f
     return [fn(r) for r in rows]
 
 
+def unit_scope_sql(bu_scope, column="business_unit_id"):
+    """(" AND (<column> IS NULL OR <column> IN (...))", params) for a caller confined to `bu_scope` (bu_scope_ids):
+    the rule the lists below apply, in one place for the code that counts. ("", []) for None, a super administrator."""
+    if bu_scope is None:
+        return "", []
+    marks = ",".join(["%s"] * len(bu_scope))
+    return f" AND ({column} IS NULL OR {column} IN ({marks}))", list(bu_scope)
+
+
+# The Sentinel tables that carry a business unit. Everything else here is organization wide.
+_UNIT_TABLES = ("sentinel_ropa", "sentinel_dpias", "sentinel_breaches", "sentinel_dsr", "sentinel_consent")
+
+
+def _unit_counter(db, bu_scope):
+    """count(table, where) -> int, with the tables that sit in a unit limited to `bu_scope`."""
+    unit, unit_params = unit_scope_sql(bu_scope)
+
+    def count(table, where="1=1"):
+        scoped = table in _UNIT_TABLES
+        return db.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE ({where}){unit if scoped else ''}",
+            unit_params if scoped else [],
+        ).fetchone()[0]
+    return count
+
+
 # ── Row converters ───────────────────────────────────────────────────────────
 
 def _ropa_row(row):
@@ -191,12 +217,14 @@ _ROPA_FIELDS = [
 _ROPA_JSON = ["data_categories", "special_categories", "processors", "recipients", "security_measures"]
 
 
-def create_ropa(data):
+def create_ropa(data, business_unit_id=None):
     data.setdefault("processing_name", "Untitled Entry")
     data.setdefault("regulation", _primary_jurisdiction_key())
     data.setdefault("status", "active")
     data.setdefault("risk_level", "low")
-    return _generic_create("sentinel_ropa", _ROPA_FIELDS, data, ref_prefix="ROPA", json_fields=_ROPA_JSON)
+    data["business_unit_id"] = business_unit_id
+    return _generic_create("sentinel_ropa", _ROPA_FIELDS + ["business_unit_id"], data,
+                           ref_prefix="ROPA", json_fields=_ROPA_JSON)
 
 
 def update_ropa(ropa_id, data):
@@ -206,6 +234,25 @@ def get_ropa(ropa_id):
     return _generic_get("sentinel_ropa", ropa_id, _ropa_row)
 
 def delete_ropa(ropa_id):
+    """Raises ValueError (the route answers 409) while the delete would leave something wrong behind. A data flow that
+    names the entry would be left pointing at nothing (the foreign key refuses it anyway, as a 500). An LIA follows
+    its entry's unit through ropa_id, so for an entry that sits in a unit ON DELETE SET NULL would show it to every
+    unit; an entry that is organization wide changes nothing for its LIAs and is deleted as before."""
+    db = get_db()
+    try:
+        entry = db.execute("SELECT business_unit_id FROM sentinel_ropa WHERE id=%s", (ropa_id,)).fetchone()
+        flows = db.execute("SELECT COUNT(*) FROM sentinel_data_flows WHERE ropa_id=%s", (ropa_id,)).fetchone()[0]
+        lias = db.execute("SELECT COUNT(*) FROM sentinel_lia WHERE ropa_id=%s", (ropa_id,)).fetchone()[0]
+    finally:
+        db.close()
+    if flows:
+        raise ValueError(f"This RoPA entry still has {flows} data flow{'' if flows == 1 else 's'}. "
+                         "Delete them or link them to another entry first.")
+    if lias and entry and entry["business_unit_id"] is not None:
+        raise ValueError(f"This RoPA entry sits in a business unit and still has {lias} legitimate interest "
+                         f"assessment{'' if lias == 1 else 's'}. Deleting the entry would show "
+                         f"{'it' if lias == 1 else 'them'} to every unit; delete "
+                         f"{'it' if lias == 1 else 'them'} first.")
     _generic_delete("sentinel_ropa", ropa_id)
 
 
@@ -255,13 +302,17 @@ _DPIA_FIELDS = [
 _DPIA_JSON = ["data_categories", "special_cats", "risks"]
 
 
-def create_dpia(data):
+def create_dpia(data, business_unit_id=None):
+    """`business_unit_id` is the caller's to give, never read from `data` (what a client sent): a DPIA about a unit's
+    RoPA entry sits in that unit, so the copy is no wider than the entry it came from."""
     data.setdefault("title", "Untitled DPIA")
     data.setdefault("status", "draft")
     data.setdefault("regulation", _primary_jurisdiction_key())
     for f in _DPIA_JSON:
         data.setdefault(f, "[]")
-    return _generic_create("sentinel_dpias", _DPIA_FIELDS, data, ref_prefix="DPIA", json_fields=_DPIA_JSON)
+    data["business_unit_id"] = business_unit_id
+    return _generic_create("sentinel_dpias", _DPIA_FIELDS + ["business_unit_id"], data, ref_prefix="DPIA",
+                           json_fields=_DPIA_JSON)
 
 
 def update_dpia(dpia_id, data):
@@ -391,284 +442,6 @@ def list_dpias(search=None, regulation=None, status=None, limit=500, bu_scope=No
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# AIIA — AI Impact Assessments (PLAN-20)
-# ═════════════════════════════════════════════════════════════════════════════
-
-_AIIA_FIELDS = [
-    "title", "ai_system_name", "application_id", "department", "owner",
-    "system_description", "business_process", "deployment_env",
-    "third_party", "third_party_details", "outputs_decisions",
-    "influences_customers", "autonomy_level", "data_categories",
-    "sensitive_data", "stakeholders_direct", "stakeholders_indirect",
-    "mitigation_measures", "residual_classification",
-    "status", "ropa_id", "dpia_id", "business_unit_id", "created_by",
-]
-_AIIA_BOOL_FIELDS = ("third_party", "influences_customers", "sensitive_data")
-
-
-def _normalize_aiia_bools(data):
-    for f in _AIIA_BOOL_FIELDS:
-        if f in data:
-            data[f] = 1 if data[f] else 0
-
-
-def _aiia_row(row):
-    d = dict(row)
-    d["data_categories"] = _parse_json(d.get("data_categories"), [])
-    return d
-
-
-def _get_aiia_impacts(db, aiia_id):
-    """One row per currently-active dimension (an unscored placeholder if it
-    has no row yet) plus any existing scored rows for dimensions that are no
-    longer active -- history survives a deactivation or a rename-away."""
-    active_dims = [r["name"] for r in db.execute(
-        "SELECT name FROM sentinel_aiia_dimensions WHERE is_active=1 ORDER BY order_idx, name"
-    ).fetchall()]
-    existing = {r["dimension_name"]: dict(r) for r in db.execute(
-        "SELECT * FROM sentinel_aiia_impacts WHERE aiia_id=%s", (aiia_id,)
-    ).fetchall()}
-    rows = []
-    for name in active_dims:
-        if name in existing:
-            rows.append(existing.pop(name))
-        else:
-            rows.append({"aiia_id": aiia_id, "dimension_name": name, "applicable": 1,
-                         "description": None, "likelihood": None, "impact": None})
-    rows.extend(existing.values())
-    return rows
-
-
-def _save_aiia_impacts(db, aiia_id, impacts):
-    """Replace all impact rows. Each entry:
-    {dimension_name, applicable, description, likelihood, impact}."""
-    db.execute("DELETE FROM sentinel_aiia_impacts WHERE aiia_id=%s", (aiia_id,))
-    for imp in (impacts or []):
-        name = str(imp.get("dimension_name") or "").strip()
-        if not name:
-            continue
-        lik, impv = imp.get("likelihood"), imp.get("impact")
-        db.execute(
-            "INSERT INTO sentinel_aiia_impacts "
-            "(aiia_id, dimension_name, applicable, description, likelihood, impact) "
-            "VALUES (%s,%s,%s,%s,%s,%s)",
-            (aiia_id, name, 1 if imp.get("applicable", True) else 0,
-             imp.get("description"),
-             max(1, min(5, int(lik))) if lik not in (None, "") else None,
-             max(1, min(5, int(impv))) if impv not in (None, "") else None),
-        )
-
-
-def _compute_aiia_classification(db, impacts):
-    """Band of the highest L*I product among applicable, scored rows.
-    Returns 'unrated' when no ERM framework is active -- never silently
-    reuse resolve_band's generic fallback band for a classification the
-    user never actually chose. Returns None when nothing is scored yet."""
-    from modules.erm.data_service import get_active_framework_matrix, resolve_band
-    fw_matrix = get_active_framework_matrix(db)
-    if not fw_matrix["matrix"]:
-        return "unrated"
-    best, best_product = None, -1
-    for imp in (impacts or []):
-        if not imp.get("applicable", True):
-            continue
-        L, I = imp.get("likelihood"), imp.get("impact")
-        if L is None or I is None:
-            continue
-        product = int(L) * int(I)
-        if product > best_product:
-            best_product, best = product, (int(L), int(I))
-    if best is None:
-        return None
-    return resolve_band(fw_matrix, best[0], best[1])
-
-
-def create_aiia(data):
-    data.setdefault("title", "Untitled AI Impact Assessment")
-    data.setdefault("status", "draft")
-    data.setdefault("autonomy_level", "decision_support")
-    _normalize_aiia_bools(data)
-    if "data_categories" in data:
-        data["data_categories"] = _to_json(data["data_categories"])
-    impacts = data.pop("impacts", None)
-    now = _now()
-    db = get_db()
-    try:
-        params = {f: data.get(f) for f in _AIIA_FIELDS}
-        params["ref_number"] = _gen_ref("AIIA")
-        params["created_at"] = now
-        params["updated_at"] = now
-        cols = ["ref_number"] + _AIIA_FIELDS + ["created_at", "updated_at"]
-        new_id = insert_returning_id(
-            db,
-            f"INSERT INTO sentinel_aiia ({', '.join(cols)}) "
-            f"VALUES ({', '.join('%(' + c + ')s' for c in cols)})",
-            params,
-        )
-        if impacts is not None:
-            _save_aiia_impacts(db, new_id, impacts)
-            classification = _compute_aiia_classification(db, _get_aiia_impacts(db, new_id))
-            db.execute(
-                "UPDATE sentinel_aiia SET overall_classification=%s, updated_at=%s WHERE id=%s",
-                (classification, now, new_id),
-            )
-        db.commit()
-        return new_id
-    finally:
-        db.close()
-
-
-def update_aiia(aiia_id, data):
-    _normalize_aiia_bools(data)
-    if "data_categories" in data:
-        data["data_categories"] = _to_json(data["data_categories"])
-    impacts = data.pop("impacts", None)
-    now = _now()
-    db = get_db()
-    try:
-        sets, params = [], {}
-        for k, v in data.items():
-            if k in _AIIA_FIELDS:
-                sets.append(f"{k}=%({k})s")
-                params[k] = v
-        if impacts is not None:
-            _save_aiia_impacts(db, aiia_id, impacts)
-            classification = _compute_aiia_classification(db, _get_aiia_impacts(db, aiia_id))
-            sets.append("overall_classification=%(overall_classification)s")
-            params["overall_classification"] = classification
-        if sets:
-            params["updated_at"] = now
-            params["id"] = aiia_id
-            db.execute(
-                f"UPDATE sentinel_aiia SET {','.join(sets)}, updated_at=%(updated_at)s WHERE id=%(id)s",
-                params,
-            )
-        db.commit()
-    finally:
-        db.close()
-
-
-def get_aiia(aiia_id):
-    db = get_db()
-    try:
-        row = db.execute(
-            "SELECT a.*, r.ref_number AS ropa_ref, r.processing_name AS ropa_name, "
-            "d.ref_number AS dpia_ref, d.title AS dpia_title "
-            "FROM sentinel_aiia a "
-            "LEFT JOIN sentinel_ropa r ON r.id = a.ropa_id "
-            "LEFT JOIN sentinel_dpias d ON d.id = a.dpia_id "
-            "WHERE a.id=%s",
-            (aiia_id,),
-        ).fetchone()
-        if not row:
-            return None
-        result = _aiia_row(row)
-        result["impacts"] = _get_aiia_impacts(db, aiia_id)
-        return result
-    finally:
-        db.close()
-
-
-def delete_aiia(aiia_id):
-    db = get_db()
-    try:
-        db.execute("DELETE FROM sentinel_aiia_impacts WHERE aiia_id=%s", (aiia_id,))
-        db.execute("DELETE FROM sentinel_aiia WHERE id=%s", (aiia_id,))
-        db.commit()
-    finally:
-        db.close()
-
-
-def list_aiias(search=None, status=None, limit=500, bu_scope=None):
-    sql = (
-        "SELECT a.*, r.ref_number AS ropa_ref, d.ref_number AS dpia_ref "
-        "FROM sentinel_aiia a "
-        "LEFT JOIN sentinel_ropa r ON r.id = a.ropa_id "
-        "LEFT JOIN sentinel_dpias d ON d.id = a.dpia_id "
-        "WHERE 1=1"
-    )
-    params = []
-    if search:
-        sql += f" AND ({ci_like('a.title')} OR {ci_like('a.ai_system_name')})"
-        like = like_pattern(search)
-        params += [like, like]
-    if status:
-        sql += " AND a.status=%s"
-        params.append(status)
-    if bu_scope is not None:
-        ph = ",".join(["%s"] * len(bu_scope))
-        sql += f" AND (a.business_unit_id IN ({ph}) OR a.business_unit_id IS NULL)"
-        params.extend(bu_scope)
-    sql += " ORDER BY a.updated_at DESC LIMIT %s"
-    params.append(limit)
-    db = get_db()
-    try:
-        rows = db.execute(sql, params).fetchall()
-    finally:
-        db.close()
-    return [_aiia_row(r) for r in rows]
-
-
-def list_aiia_dimensions(include_inactive=True):
-    db = get_db()
-    try:
-        sql = "SELECT * FROM sentinel_aiia_dimensions"
-        if not include_inactive:
-            sql += " WHERE is_active=1"
-        sql += " ORDER BY order_idx, name"
-        rows = db.execute(sql).fetchall()
-    finally:
-        db.close()
-    return [dict(r) for r in rows]
-
-
-def save_aiia_dimensions(dimensions):
-    """Upsert the dimension list. Each entry: {id?, name, order_idx?,
-    is_active?}. Renaming an existing dimension propagates the new name
-    onto every historical sentinel_aiia_impacts row so scored history
-    follows it, instead of orphaning it under the old name. Dimensions
-    not mentioned in the payload are left untouched (this is an upsert,
-    not a destructive full-sync)."""
-    db = get_db()
-    try:
-        existing = {r["id"]: dict(r) for r in db.execute(
-            "SELECT * FROM sentinel_aiia_dimensions"
-        ).fetchall()}
-        existing_names = {r["name"].strip().lower(): r["id"] for r in existing.values()}
-        for dim in (dimensions or []):
-            dim_id = dim.get("id")
-            name = str(dim.get("name") or "").strip()
-            if not name:
-                raise ValueError("Dimension name is required")
-            order_idx = dim.get("order_idx", 0)
-            is_active = 1 if dim.get("is_active", True) else 0
-            collision_id = existing_names.get(name.lower())
-            if collision_id is not None and collision_id != dim_id:
-                raise ValueError(f"A dimension named '{name}' already exists")
-            if dim_id and dim_id in existing:
-                old_name = existing[dim_id]["name"]
-                db.execute(
-                    "UPDATE sentinel_aiia_dimensions SET name=%s, order_idx=%s, is_active=%s WHERE id=%s",
-                    (name, order_idx, is_active, dim_id),
-                )
-                if old_name != name:
-                    db.execute(
-                        "UPDATE sentinel_aiia_impacts SET dimension_name=%s WHERE dimension_name=%s",
-                        (name, old_name),
-                    )
-            else:
-                new_id = insert_returning_id(
-                    db,
-                    "INSERT INTO sentinel_aiia_dimensions (name, order_idx, is_active) VALUES (%s,%s,%s)",
-                    (name, order_idx, is_active),
-                )
-                existing_names[name.lower()] = new_id
-        db.commit()
-    finally:
-        db.close()
-
-
-# ═════════════════════════════════════════════════════════════════════════════
 # Breaches
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -681,7 +454,7 @@ _BREACH_FIELDS = [
 ]
 
 
-def create_breach(data):
+def create_breach(data, business_unit_id=None):
     data.setdefault("title", "Untitled Incident")
     data.setdefault("regulation", _primary_jurisdiction_key())
     data.setdefault("severity", "medium")
@@ -694,7 +467,9 @@ def create_breach(data):
             data["notify_deadline"] = (disc + timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
         except Exception:
             pass
-    return _generic_create("sentinel_breaches", _BREACH_FIELDS, data, ref_prefix="BRE", json_fields=["data_types"])
+    data["business_unit_id"] = business_unit_id
+    return _generic_create("sentinel_breaches", _BREACH_FIELDS + ["business_unit_id"], data,
+                           ref_prefix="BRE", json_fields=["data_types"])
 
 
 def update_breach(bid, data):
@@ -927,7 +702,7 @@ def list_notices(limit=200):
 _CONSENT_FIELDS = [
     "subject_id", "subject_name", "subject_email", "purpose", "regulation",
     "legal_basis", "consent_date", "expiry_date", "withdrawal_date", "status", "evidence", "notes",
-    "collection_method",
+    "collection_method", "business_unit_id",
 ]
 
 def create_consent(data):
@@ -945,7 +720,7 @@ def get_consent(cid):
 def delete_consent(cid):
     _generic_delete("sentinel_consent", cid)
 
-def list_consent(search=None, status=None, limit=500):
+def list_consent(search=None, status=None, limit=500, bu_scope=None):
     sql = "SELECT * FROM sentinel_consent WHERE 1=1"
     params = []
     if search:
@@ -955,6 +730,9 @@ def list_consent(search=None, status=None, limit=500):
     if status:
         sql += " AND status=%s"
         params.append(status)
+    unit, unit_params = unit_scope_sql(bu_scope)
+    sql += unit
+    params.extend(unit_params)
     sql += " ORDER BY created_at DESC LIMIT %s"
     params.append(limit)
     db = get_db()
@@ -1182,8 +960,21 @@ def get_dataflow(fid):
 def delete_dataflow(fid):
     _generic_delete("sentinel_data_flows", fid)
 
-def list_dataflows(limit=500):
-    return _generic_list("sentinel_data_flows", order="created_at DESC", limit=limit)
+def list_dataflows(limit=500, bu_scope=None):
+    """A data flow sits where its RoPA entry sits (organization wide without one), like an LIA."""
+    if bu_scope is None:
+        return _generic_list("sentinel_data_flows", order="created_at DESC", limit=limit)
+    unit, unit_params = unit_scope_sql(bu_scope, "r.business_unit_id")
+    db = get_db()
+    try:
+        rows = db.execute(
+            "SELECT f.* FROM sentinel_data_flows f LEFT JOIN sentinel_ropa r ON r.id=f.ropa_id "
+            f"WHERE 1=1{unit} ORDER BY f.created_at DESC LIMIT %s",
+            [*unit_params, limit],
+        ).fetchall()
+    finally:
+        db.close()
+    return [dict(r) for r in rows]
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1246,37 +1037,33 @@ def list_audit(limit=200, org_id=None):
 # Stats
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_stats():
+def get_stats(bu_scope=None):
+    """The dashboard counts. With `bu_scope` (bu_scope_ids) only what that caller can open is counted, so the numbers
+    agree with the lists; vendors, notices and the other kinds with no unit are counted as they are."""
     db = get_db()
     try:
-        ropa_total = db.execute("SELECT COUNT(*) FROM sentinel_ropa").fetchone()[0]
-        dpia_total = db.execute("SELECT COUNT(*) FROM sentinel_dpias").fetchone()[0]
-        dpia_draft = db.execute("SELECT COUNT(*) FROM sentinel_dpias WHERE status='draft'").fetchone()[0]
-        dpia_approved = db.execute("SELECT COUNT(*) FROM sentinel_dpias WHERE status='approved'").fetchone()[0]
-        breach_open = db.execute("SELECT COUNT(*) FROM sentinel_breaches WHERE status='open'").fetchone()[0]
-        breach_critical = db.execute("SELECT COUNT(*) FROM sentinel_breaches WHERE severity='critical'").fetchone()[0]
-        dsr_open = db.execute("SELECT COUNT(*) FROM sentinel_dsr WHERE status='open'").fetchone()[0]
-        dsr_overdue = db.execute(
-            f"SELECT COUNT(*) FROM sentinel_dsr WHERE status='open' AND deadline_date < {sql_current_date()}"
-        ).fetchone()[0]
-        vendor_total = db.execute("SELECT COUNT(*) FROM sentinel_vendors").fetchone()[0]
-        high_risk_ropa = db.execute(
-            "SELECT COUNT(*) FROM sentinel_ropa WHERE risk_level IN ('high','critical')"
-        ).fetchone()[0]
-        dpia_required = db.execute(
-            "SELECT COUNT(*) FROM sentinel_ropa WHERE dpia_required=1"
-        ).fetchone()[0]
-        consent_active = db.execute(
-            "SELECT COUNT(*) FROM sentinel_consent WHERE status='active'"
-        ).fetchone()[0]
-        notices_total = db.execute("SELECT COUNT(*) FROM sentinel_privacy_notices").fetchone()[0]
-        policy_total = db.execute("SELECT COUNT(*) FROM sentinel_policies").fetchone()[0]
-        training_total = db.execute("SELECT COUNT(*) FROM sentinel_training").fetchone()[0]
+        count = _unit_counter(db, bu_scope)
+        unit, unit_params = unit_scope_sql(bu_scope)
+        ropa_total = count("sentinel_ropa")
+        dpia_total = count("sentinel_dpias")
+        dpia_draft = count("sentinel_dpias", "status='draft'")
+        dpia_approved = count("sentinel_dpias", "status='approved'")
+        breach_open = count("sentinel_breaches", "status='open'")
+        breach_critical = count("sentinel_breaches", "severity='critical'")
+        dsr_open = count("sentinel_dsr", "status='open'")
+        dsr_overdue = count("sentinel_dsr", f"status='open' AND deadline_date < {sql_current_date()}")
+        vendor_total = count("sentinel_vendors")
+        high_risk_ropa = count("sentinel_ropa", "risk_level IN ('high','critical')")
+        dpia_required = count("sentinel_ropa", "dpia_required=1")
+        consent_active = count("sentinel_consent", "status='active'")
+        notices_total = count("sentinel_privacy_notices")
+        policy_total = count("sentinel_policies")
+        training_total = count("sentinel_training")
         by_reg = db.execute(
-            "SELECT regulation, COUNT(*) c FROM sentinel_ropa GROUP BY regulation"
+            f"SELECT regulation, COUNT(*) c FROM sentinel_ropa WHERE 1=1{unit} GROUP BY regulation", unit_params
         ).fetchall()
         risk_dist = db.execute(
-            "SELECT risk_level, COUNT(*) c FROM sentinel_ropa GROUP BY risk_level"
+            f"SELECT risk_level, COUNT(*) c FROM sentinel_ropa WHERE 1=1{unit} GROUP BY risk_level", unit_params
         ).fetchall()
     finally:
         db.close()
@@ -1344,7 +1131,8 @@ def delete_lia(lia_id):
     _generic_delete("sentinel_lia", lia_id)
 
 
-def list_lia(ropa_id=None, result=None, limit=200):
+def list_lia(ropa_id=None, result=None, limit=200, bu_scope=None):
+    """An LIA has no unit of its own: it sits where its RoPA entry sits, and is organization wide without one."""
     sql = "SELECT l.*, r.processing_name AS ropa_name FROM sentinel_lia l " \
           "LEFT JOIN sentinel_ropa r ON r.id=l.ropa_id WHERE 1=1"
     params = []
@@ -1354,6 +1142,9 @@ def list_lia(ropa_id=None, result=None, limit=200):
     if result:
         sql += " AND l.overall_result=%s"
         params.append(result)
+    unit, unit_params = unit_scope_sql(bu_scope, "r.business_unit_id")
+    sql += unit
+    params.extend(unit_params)
     sql += " ORDER BY l.updated_at DESC LIMIT %s"
     params.append(limit)
     db = get_db()
@@ -1478,14 +1269,20 @@ def update_jurisdiction_config(key: str, data: dict) -> None:
         db.close()
 
 
-def get_jurisdiction_stats() -> list[dict]:
-    """Per-jurisdiction record counts across ropa / breaches / dsrs / dpias."""
+def get_jurisdiction_stats(bu_scope=None) -> list[dict]:
+    """Per-jurisdiction record counts across ropa / breaches / dsrs / dpias, of what `bu_scope` can open."""
+    unit, unit_params = unit_scope_sql(bu_scope)
     db = get_db()
     try:
-        ropa_map   = {r[0]: r[1] for r in db.execute("SELECT regulation,COUNT(*) FROM sentinel_ropa GROUP BY regulation").fetchall() if r[0]}
-        breach_map = {r[0]: r[1] for r in db.execute("SELECT regulation,COUNT(*) FROM sentinel_breaches GROUP BY regulation").fetchall() if r[0]}
-        dsr_map    = {r[0]: r[1] for r in db.execute("SELECT regulation,COUNT(*) FROM sentinel_dsr GROUP BY regulation").fetchall() if r[0]}
-        dpia_map   = {r[0]: r[1] for r in db.execute("SELECT regulation,COUNT(*) FROM sentinel_dpias GROUP BY regulation").fetchall() if r[0]}
+        def per_regulation(table):
+            rows = db.execute(
+                f"SELECT regulation,COUNT(*) FROM {table} WHERE 1=1{unit} GROUP BY regulation", unit_params
+            ).fetchall()
+            return {r[0]: r[1] for r in rows if r[0]}
+        ropa_map = per_regulation("sentinel_ropa")
+        breach_map = per_regulation("sentinel_breaches")
+        dsr_map = per_regulation("sentinel_dsr")
+        dpia_map = per_regulation("sentinel_dpias")
     finally:
         db.close()
     all_keys = set(list(ropa_map) + list(breach_map) + list(dsr_map) + list(dpia_map))
@@ -1502,53 +1299,48 @@ def get_jurisdiction_stats() -> list[dict]:
     ]
 
 
-def get_compliance_score():
+def get_compliance_score(bu_scope=None):
+    """The score of what `bu_scope` (bu_scope_ids) can open; None, a super administrator, scores everything."""
     db = get_db()
     try:
+        count = _unit_counter(db, bu_scope)
         scores = {}
-        ropa_total = db.execute("SELECT COUNT(*) FROM sentinel_ropa").fetchone()[0]
-        ropa_complete = db.execute(
-            "SELECT COUNT(*) FROM sentinel_ropa WHERE purpose IS NOT NULL AND legal_basis IS NOT NULL "
-            "AND data_categories IS NOT NULL AND purpose!='' AND legal_basis!='' AND data_categories!=''"
-        ).fetchone()[0]
+        ropa_total = count("sentinel_ropa")
+        ropa_complete = count(
+            "sentinel_ropa",
+            "purpose IS NOT NULL AND legal_basis IS NOT NULL "
+            "AND data_categories IS NOT NULL AND purpose!='' AND legal_basis!='' AND data_categories!=''",
+        )
         scores["ropa_completeness"] = {
             "score": round(ropa_complete / ropa_total * 100) if ropa_total else 0,
             "label": "RoPA Completeness", "total": ropa_total, "done": ropa_complete,
         }
 
-        hr_ropa = db.execute(
-            "SELECT COUNT(*) FROM sentinel_ropa WHERE risk_level IN ('high','critical') OR dpia_required=1"
-        ).fetchone()[0]
-        hr_with_dpia = db.execute(
-            "SELECT COUNT(*) FROM sentinel_ropa WHERE (risk_level IN ('high','critical') OR dpia_required=1) AND dpia_id IS NOT NULL"
-        ).fetchone()[0]
+        hr_ropa = count("sentinel_ropa", "risk_level IN ('high','critical') OR dpia_required=1")
+        hr_with_dpia = count(
+            "sentinel_ropa", "(risk_level IN ('high','critical') OR dpia_required=1) AND dpia_id IS NOT NULL"
+        )
         scores["dpia_coverage"] = {
             "score": round(hr_with_dpia / hr_ropa * 100) if hr_ropa else 100,
             "label": "DPIA Coverage", "total": hr_ropa, "done": hr_with_dpia,
         }
 
-        breach_total = db.execute("SELECT COUNT(*) FROM sentinel_breaches").fetchone()[0]
-        breach_resolved = db.execute(
-            "SELECT COUNT(*) FROM sentinel_breaches WHERE status IN ('resolved','closed','contained')"
-        ).fetchone()[0]
+        breach_total = count("sentinel_breaches")
+        breach_resolved = count("sentinel_breaches", "status IN ('resolved','closed','contained')")
         scores["breach_response"] = {
             "score": round(breach_resolved / breach_total * 100) if breach_total else 100,
             "label": "Breach Resolution", "total": breach_total, "done": breach_resolved,
         }
 
-        dsr_total = db.execute("SELECT COUNT(*) FROM sentinel_dsr").fetchone()[0]
-        dsr_closed = db.execute(
-            "SELECT COUNT(*) FROM sentinel_dsr WHERE status IN ('closed','completed')"
-        ).fetchone()[0]
+        dsr_total = count("sentinel_dsr")
+        dsr_closed = count("sentinel_dsr", "status IN ('closed','completed')")
         scores["dsr_closure"] = {
             "score": round(dsr_closed / dsr_total * 100) if dsr_total else 100,
             "label": "DSR Closure", "total": dsr_total, "done": dsr_closed,
         }
 
-        vendor_total = db.execute("SELECT COUNT(*) FROM sentinel_vendors").fetchone()[0]
-        vendor_dpa = db.execute(
-            "SELECT COUNT(*) FROM sentinel_vendors WHERE dpa_status IN ('Active','Signed','Executed','Compliant')"
-        ).fetchone()[0]
+        vendor_total = count("sentinel_vendors")
+        vendor_dpa = count("sentinel_vendors", "dpa_status IN ('Active','Signed','Executed','Compliant')")
         scores["vendor_compliance"] = {
             "score": round(vendor_dpa / vendor_total * 100) if vendor_total else 100,
             "label": "Vendor DPA", "total": vendor_total, "done": vendor_dpa,

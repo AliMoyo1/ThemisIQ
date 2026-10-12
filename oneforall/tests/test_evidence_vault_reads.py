@@ -342,6 +342,17 @@ def test_bulk_import_creates_evidence_owned_by_the_importers_org(test_db, world,
     assert _get(ev.api_evidence_list(_req(auth, {**world.users.no_unit, "org_id": world.org2}, q="imported")))["total"] == 0
 
 
+def test_bulk_ropa_import_uses_the_importers_unit(test_db, world, auth):
+    importer = {**world.users.org1_admin, "business_unit_id": world.bu_a}
+    body = {"records": [{"title": "Imported activity", "processing_name": "Imported activity",
+                         "business_unit_id": world.bu_b}]}
+    result = _get(plat.api_bulk_import(_json_req(auth, importer, body), "ropa"))
+    assert result["imported"] == 1
+    row = test_db.execute("SELECT business_unit_id FROM sentinel_ropa WHERE processing_name = %s",
+                          ("Imported activity",)).fetchone()
+    assert row["business_unit_id"] == world.bu_a
+
+
 def test_bulk_import_failure_returns_a_clean_error_and_inserts_nothing(test_db, world, auth):
     # An importer id with no users row violates the uploaded_by foreign key.
     user = {**world.users.org1_admin, "id": 999}
