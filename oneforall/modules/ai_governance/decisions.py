@@ -380,6 +380,8 @@ def get_decisions(db, user, application_id: int) -> "dict | None":
     app = _app(db, user, application_id)
     if app is None:
         return None
+    from modules.ai_governance import oversight
+    oversight_status = oversight.summary_for_use(db, user, application_id)
     profile = service.get_profile(db, user, application_id)
     rows, open_request, standing = _standing_and_open(db, application_id)
     today = _today()
@@ -398,6 +400,7 @@ def get_decisions(db, user, application_id: int) -> "dict | None":
     revocable = standing is not None and standing["status"] in APPROVALS and not standing["revoked_at"]
     return {
         "application": {"id": app["id"], "name": app["name"], "active": bool(app["is_active"])},
+        "oversight": oversight_status,
         "state": state,
         "latest": by_id.get(standing["id"]) if standing is not None else None,
         "open_request": by_id.get(open_request["id"]) if open_request is not None else None,

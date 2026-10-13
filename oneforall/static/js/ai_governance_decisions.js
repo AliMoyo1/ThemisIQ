@@ -250,6 +250,23 @@
       if (actions.length) head.appendChild(el('div', { class: 'aig-actions' }, actions));
       body.appendChild(head);
 
+      if (data.oversight && data.oversight.tracks) {
+        var oversight = data.oversight.tracks;
+        var labels = { design: 'Design', operation: 'Operation' };
+        var summaries = ['design', 'operation'].map(function (track) {
+          var record = oversight[track];
+          var label = record.status === 'not_recorded' ? 'Not recorded' :
+            record.profile_changed ? 'Profile changed' : record.status === 'reviewed' ? 'Reviewed' : 'Draft';
+          return el('li', { text: labels[track] + ': ' + label });
+        });
+        body.appendChild(el('section', { class: 'aig-panel', 'aria-labelledby': 'aigDecOversight' }, [
+          el('h2', { id: 'aigDecOversight', class: 'aig-h3', text: 'Human oversight' }),
+          el('p', { class: 'aig-hint', text: 'Live arrangement status. It does not change the signed decision or establish legal conformity.' }),
+          el('ul', {}, summaries),
+          el('a', { class: 'btn btn-secondary btn-sm', href: '#oversight', text: 'Open oversight' })
+        ]));
+      }
+
       if (data.open_request) {
         var r = data.open_request;
         var box = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigDecOpen' }, [el('h2', { id: 'aigDecOpen', class: 'aig-h3', text: 'Waiting for a decision' }),

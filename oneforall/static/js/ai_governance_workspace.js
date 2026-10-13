@@ -6,7 +6,7 @@
   var AIGov = global.AIGov, el = AIGov.el;
 
   var TAB_TITLES = { overview: 'Overview', assessments: 'Assessments', risks_controls: 'Risks & controls', data_vendors: 'Data & vendors',
-    evidence: 'Evidence', decisions: 'Decisions', monitoring: 'Monitoring', activity: 'Activity' };
+    evidence: 'Evidence', oversight: 'Human oversight', decisions: 'Decisions', monitoring: 'Monitoring', activity: 'Activity' };
   var TAB_VERBS = { assessments: ['assesses'], risks_controls: ['covers', 'affects', 'impacts'],
     data_vendors: ['uses_data', 'provided_by', 'supports', 'depends_on'] };
   var KIND_NAMES = { 'sentinel/aiia': 'AI impact assessment', 'sentinel/dpia': 'DPIA', 'orm/aims': 'AI management assessment',
@@ -239,6 +239,13 @@
 
     function loadTab(tab) {
       AIGov.clear(panel);
+      if (tab === 'oversight') {
+        panel.removeAttribute('aria-busy');
+        AIGov.say(status, '');
+        AIGov.oversightPanel(panel, { applicationId: id, canReview: system.can.review,
+          canDecide: system.can.decide, viewerId: system.viewer_id });
+        return;
+      }
       if (tab === 'monitoring') {
         panel.removeAttribute('aria-busy');
         AIGov.say(status, '');

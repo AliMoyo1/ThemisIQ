@@ -1463,6 +1463,33 @@ CREATE TABLE IF NOT EXISTS ai_use_profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_profiles_next_review ON ai_use_profiles(next_review_at);
 
+-- G7: content-neutral human oversight arrangements. Review changes state, while each edit appends a new version.
+CREATE TABLE IF NOT EXISTS ai_oversight_heads (
+    application_id  INTEGER NOT NULL REFERENCES applications(id),
+    track           TEXT NOT NULL CHECK (track IN ('design', 'operation')),
+    content_version INTEGER NOT NULL DEFAULT 0,
+    revision        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (application_id, track)
+);
+CREATE TABLE IF NOT EXISTS ai_oversight_versions (
+    application_id      INTEGER NOT NULL REFERENCES applications(id),
+    track               TEXT NOT NULL CHECK (track IN ('design', 'operation')),
+    version             INTEGER NOT NULL,
+    profile_version     INTEGER NOT NULL,
+    responsible_user_id INTEGER REFERENCES users(id),
+    monitoring_method   TEXT NOT NULL DEFAULT '',
+    intervention_method TEXT NOT NULL DEFAULT '',
+    stop_procedure      TEXT NOT NULL DEFAULT '',
+    escalation_path     TEXT NOT NULL DEFAULT '',
+    status              TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'reviewed')),
+    authored_by         INTEGER NOT NULL REFERENCES users(id),
+    authored_at         TEXT NOT NULL,
+    reviewed_by         INTEGER REFERENCES users(id),
+    reviewed_at         TEXT,
+    PRIMARY KEY (application_id, track, version),
+    FOREIGN KEY (application_id, track) REFERENCES ai_oversight_heads(application_id, track)
+);
+
 -- What staff declare before a reviewer promotes it. Staff never write `applications`; the answers stay unconfirmed
 -- facts here until a reviewer accepts the request.
 CREATE TABLE IF NOT EXISTS ai_use_intake_requests (
@@ -2392,6 +2419,33 @@ CREATE TABLE IF NOT EXISTS ai_use_profiles (
     updated_at            TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ai_profiles_next_review ON ai_use_profiles(next_review_at);
+
+-- G7: content-neutral human oversight arrangements. Review changes state, while each edit appends a new version.
+CREATE TABLE IF NOT EXISTS ai_oversight_heads (
+    application_id  INTEGER NOT NULL REFERENCES applications(id),
+    track           TEXT NOT NULL CHECK (track IN ('design', 'operation')),
+    content_version INTEGER NOT NULL DEFAULT 0,
+    revision        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (application_id, track)
+);
+CREATE TABLE IF NOT EXISTS ai_oversight_versions (
+    application_id      INTEGER NOT NULL REFERENCES applications(id),
+    track               TEXT NOT NULL CHECK (track IN ('design', 'operation')),
+    version             INTEGER NOT NULL,
+    profile_version     INTEGER NOT NULL,
+    responsible_user_id INTEGER REFERENCES users(id),
+    monitoring_method   TEXT NOT NULL DEFAULT '',
+    intervention_method TEXT NOT NULL DEFAULT '',
+    stop_procedure      TEXT NOT NULL DEFAULT '',
+    escalation_path     TEXT NOT NULL DEFAULT '',
+    status              TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'reviewed')),
+    authored_by         INTEGER NOT NULL REFERENCES users(id),
+    authored_at         TEXT NOT NULL,
+    reviewed_by         INTEGER REFERENCES users(id),
+    reviewed_at         TEXT,
+    PRIMARY KEY (application_id, track, version),
+    FOREIGN KEY (application_id, track) REFERENCES ai_oversight_heads(application_id, track)
+);
 
 -- What staff declare before a reviewer promotes it. Staff never write `applications`; the answers stay unconfirmed
 -- facts here until a reviewer accepts the request.

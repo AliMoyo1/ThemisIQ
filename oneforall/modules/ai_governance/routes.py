@@ -17,7 +17,7 @@ from core.middleware import require_capability
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, tenant_context
-from modules.ai_governance import (assessments, controls, decisions, evaluations, explain, guidance, handlers, literacy, monitoring,  # noqa: F401  (handlers register themselves)
+from modules.ai_governance import (assessments, controls, decisions, evaluations, explain, guidance, handlers, literacy, monitoring, oversight,  # noqa: F401  (handlers register themselves)
                                    platform_features, quality, regulation, review_packs, rules, service, workspace)
 from modules.ai_governance.service import ServiceError
 
@@ -734,6 +734,43 @@ async def api_decision_condition(request: Request, condition_id: int):
     except ServiceError as exc:
         return _error(exc)
     return _transact(request, lambda db, user: decisions.set_condition(db, user, condition_id, body.get("met"), body.get("note")))
+
+
+# ── Human oversight arrangements (G7 content-neutral foundation) ──────────
+
+@router.get("/api/systems/{application_id}/oversight-people")
+@require_capability("ai_use.review")
+async def api_oversight_people(request: Request, application_id: int):
+    return _literacy_private(_read(request, lambda db, user: oversight.eligible_people(
+        db, user, application_id, request.query_params.get("q"))))
+
+
+@router.get("/api/systems/{application_id}/oversight/{track}")
+@require_capability("ai_use.view")
+async def api_oversight(request: Request, application_id: int, track: str):
+    return _literacy_private(_read(request, lambda db, user: oversight.get_arrangement(db, user, application_id, track)))
+
+
+@router.put("/api/systems/{application_id}/oversight/{track}")
+@require_capability("ai_use.review")
+async def api_oversight_save(request: Request, application_id: int, track: str):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _literacy_private(_error(exc))
+    return _literacy_private(_transact(request, lambda db, user: oversight.save_arrangement(
+        db, user, application_id, track, body.get("arrangement"), body.get("revision"))))
+
+
+@router.post("/api/systems/{application_id}/oversight/{track}/review")
+@require_capability("ai_use.decide")
+async def api_oversight_review(request: Request, application_id: int, track: str):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _literacy_private(_error(exc))
+    return _literacy_private(_transact(request, lambda db, user: oversight.review_arrangement(
+        db, user, application_id, track, body.get("revision"))))
 
 
 # ── Monitoring, evaluation records, regulatory impact, explanations (plans/ai-governance/08) ──

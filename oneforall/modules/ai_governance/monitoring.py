@@ -12,14 +12,14 @@ import logging
 from datetime import timedelta
 
 from core.timeutils import utcnow
-from modules.ai_governance import controls, decisions, evaluations, regulation, service
+from modules.ai_governance import controls, decisions, evaluations, oversight, regulation, service
 from modules.ai_governance.service import APP
 from modules.governance.entity_scope import describe_record
 
 log = logging.getLogger("oneforall.ai_governance")
 
 PROOF_SOON_DAYS = 30
-SOURCES = ("decision", "evaluations", "controls", "proof", "incidents", "regulation")
+SOURCES = ("decision", "oversight", "evaluations", "controls", "proof", "incidents", "regulation")
 
 
 def _source(name, title, state, items=None, note=None) -> dict:
@@ -45,6 +45,30 @@ def _decision(db, user, application_id) -> dict:
     attention = state["state"] in ("needs_re_review", "expired", "revoked", "rejected") or bool(got["open_request"])
     return _source("decision", "Decision", "attention" if attention else ("ok" if state["state"] != "none" else "not_measured"),
                    items, None if state["state"] != "none" else "No decision has been recorded for this use.")
+
+
+def _oversight(db, user, application_id) -> dict:
+    tracks = oversight.summary_for_use(db, user, application_id)["tracks"]
+    if all(track["status"] == "not_recorded" for track in tracks.values()):
+        return _source("oversight", "Human oversight", "not_measured",
+                       note="No design or operating arrangement has been recorded for this use.")
+    labels = {"design": "Design", "operation": "Operation"}
+    items = []
+    attention = False
+    for name, track in tracks.items():
+        if track["status"] == "not_recorded":
+            detail = "No arrangement recorded"
+        elif track["profile_changed"]:
+            detail = "AI profile changed; record a new version"
+        elif track["status"] == "draft":
+            detail = "Draft awaiting an independent review"
+        else:
+            detail = "Reviewed for the current AI profile"
+        attention |= detail != "Reviewed for the current AI profile"
+        items.append({"title": labels[name], "detail": detail,
+                      "url": f"/ai-governance/systems/{application_id}#oversight"})
+    return _source("oversight", "Human oversight", "attention" if attention else "ok", items,
+                   note="Internal review status; this is not a legal conformity decision.")
 
 
 def _evaluations(db, user, application_id) -> dict:
@@ -118,6 +142,7 @@ def get_monitoring(db, user, application_id: int) -> "dict | None":
         return None
     sections = [
         _guarded("decision", "Decision", lambda: _decision(db, user, application_id)),
+        _guarded("oversight", "Human oversight", lambda: _oversight(db, user, application_id)),
         _guarded("evaluations", "Evaluations", lambda: _evaluations(db, user, application_id)),
     ]
     try:

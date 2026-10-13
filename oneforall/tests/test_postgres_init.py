@@ -3553,3 +3553,35 @@ def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
         shared.close()
     assert _raw_rows("SELECT count(*) FROM tenant_g6bc.ai_literacy_completions") == [(1,)]
     assert _raw_rows("SELECT count(*) FROM public.platform_ai_features") == [(1,)]
+
+
+def test_g7_oversight_versions_are_tenant_scoped_on_real_postgres(pg):
+    from modules.ai_governance import oversight
+
+    pg.init_db()
+    org, _unit, ids, who = _ai_governance_world(pg, "g7oversight")
+    with pg.tenant_context(org, "g7oversight", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            # Provisioned tenant users have a public NULL unit in this fixture. Use an organization-wide app here;
+            # the focused SQLite cases cover assignments to a unit-scoped app.
+            app = pg.insert_returning_id(db,
+                "INSERT INTO applications (name, is_active) VALUES ('G7 use', 1)", ())
+            db.execute("INSERT INTO ai_use_profiles (application_id, version) VALUES (%s, 1)", (app,))
+            db.commit()
+            saved = oversight.save_arrangement(db, who["reviewer"], app, "operation", {
+                "responsible_user_id": ids["author"],
+                "monitoring_method": "Review outputs daily",
+                "intervention_method": "Reject a bad output",
+                "stop_procedure": "Disable the use",
+                "escalation_path": "Notify the incident owner",
+            }, 0)["oversight"]
+            db.commit()
+            assert saved["current"]["version"] == 1
+            reviewed = oversight.review_arrangement(db, who["second"], app, "operation", 1)["oversight"]
+            db.commit()
+            assert reviewed["current"]["status"] == "reviewed"
+        finally:
+            db.close()
+    assert _raw_rows("SELECT count(*) FROM tenant_g7oversight.ai_oversight_versions") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM public.ai_oversight_versions") == [(0,)]

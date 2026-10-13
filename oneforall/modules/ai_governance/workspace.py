@@ -196,6 +196,7 @@ def get_system(db, user, application_id: int) -> "dict | None":
     profile = service.get_profile(db, user, application_id)
     can_review = has_capability(user, "ai_use.review")
     return {
+        "viewer_id": user["id"],
         "application": {
             "id": app["id"], "name": app["name"], "description": app["description"],
             "hosting": rules.DEPLOYMENT.get(app["hosting"], app["hosting"]),
@@ -209,7 +210,8 @@ def get_system(db, user, application_id: int) -> "dict | None":
             "data_categories": rules.DATA_CATEGORIES, "affected_people": rules.AFFECTED_PEOPLE,
             "jurisdictions": rules.JURISDICTIONS, "tiers": rules.TIER_LABELS,
         },
-        "can": {"review": can_review, "packs": has_capability(user, "ai_pack.manage"),
+        "can": {"review": can_review, "decide": has_capability(user, "ai_use.decide"),
+                "packs": has_capability(user, "ai_pack.manage"),
                 "link": _can_link(db, user, application_id),
                 "assessments": may_view_kind(user, _AIIA), "evidence": may_view_kind(user, ("evidence", "item"))},
         "next_actions": _next_actions(dict(app), profile, can_review),

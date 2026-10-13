@@ -25,7 +25,7 @@ def states(world, name="dpo_a"):
 
 def test_a_new_use_measures_nothing_and_says_so_per_source(system):
     got, full = states(system, "dpo_a")
-    assert got == {"decision": "not_measured", "evaluations": "not_measured", "controls": "no_access", "proof": "no_access",
+    assert got == {"decision": "not_measured", "oversight": "not_measured", "evaluations": "not_measured", "controls": "no_access", "proof": "no_access",
                    "incidents": "not_measured", "regulation": "not_measured"}
     assert full["attention"] == [] and full["unavailable"] == []
     risk_owner, _ = states(system, "owner_a")

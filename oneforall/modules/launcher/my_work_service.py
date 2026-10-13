@@ -375,6 +375,48 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
         add("ai_condition", r["id"], "meet_condition", f"Condition due: {r['text']} ({r['name']})",
             f"/ai-governance/systems/{r['application_id']}#decisions", "open", due=r["due_date"], unit=r["business_unit_id"])
 
+    # Live oversight actions are read from current versions only. A draft is
+    # offered to another decider only when complete and bound to the current profile.
+    if has_capability(user, "ai_use.view") and (has_capability(user, "ai_use.review") or can_decide):
+        for r in db.execute(
+                "SELECT h.application_id, h.track, v.version, v.profile_version, v.status, v.authored_by, "
+                "v.responsible_user_id, v.monitoring_method, v.intervention_method, v.stop_procedure, "
+                "v.escalation_path, person.is_active AS person_active, person.deleted_at AS person_deleted, "
+                "p.version AS current_profile_version, a.name, a.owner_user_id, "
+                "a.business_unit_id FROM ai_oversight_heads h "
+                "JOIN ai_oversight_versions v ON v.application_id = h.application_id "
+                "AND v.track = h.track AND v.version = h.content_version "
+                "JOIN ai_use_profiles p ON p.application_id = h.application_id "
+                "JOIN applications a ON a.id = h.application_id "
+                "LEFT JOIN users person ON person.id = v.responsible_user_id "
+                f"WHERE a.is_active = 1 AND {app_scope} ORDER BY h.application_id, h.track LIMIT 100",
+                app_params).fetchall():
+            link = f"/ai-governance/systems/{r['application_id']}#oversight"
+            label = "Design" if r["track"] == "design" else "Operation"
+            kind = f"ai_oversight_{r['track']}"
+            stale = r["profile_version"] != r["current_profile_version"]
+            mine = r["authored_by"] == user["id"] or r["owner_user_id"] == user["id"]
+            complete = (all(r[field] for field in ("responsible_user_id", "monitoring_method",
+                                                    "intervention_method", "stop_procedure", "escalation_path"))
+                        and bool(r["person_active"]) and not r["person_deleted"])
+            if stale and mine and has_capability(user, "ai_use.review"):
+                add(kind, r["application_id"], "update_ai_oversight",
+                    f"Update {label.lower()} oversight after profile change: {r['name']}",
+                    link, "open", unit=r["business_unit_id"])
+            elif r["status"] == "draft" and not stale:
+                if not complete and r["authored_by"] == user["id"] and has_capability(user, "ai_use.review"):
+                    add(kind, r["application_id"], "complete_ai_oversight",
+                        f"Complete {label.lower()} oversight: {r['name']}",
+                        link, "open", unit=r["business_unit_id"])
+                elif complete and can_decide and r["authored_by"] != user["id"]:
+                    add(kind, r["application_id"], "review_ai_oversight",
+                        f"Review {label.lower()} oversight: {r['name']}",
+                        link, "open", unit=r["business_unit_id"])
+                elif complete and r["authored_by"] == user["id"]:
+                    add(kind, r["application_id"], "view",
+                        f"Waiting for {label.lower()} oversight review: {r['name']}",
+                        link, "waiting", unit=r["business_unit_id"])
+
     # regulatory changes proposed for a use, for the reviewer
     if has_capability(user, "ai_use.review"):
         for r in db.execute(

@@ -7,12 +7,11 @@ decision; every flag below defaults to the safe state.
 
 ## Handoff: where this stands and how to continue (updated 2026-10-12)
 
-Read this section first; everything after it is the evidence trail. It is written so an agent with none of the earlier
-conversation can continue. The owner's standing request, still in force: finish the AI Governance programme slice by slice,
-run the full suites only after a major stage, and be honest about what cannot be done on a laptop. Do not commit or push
-without an explicit request. G5 and G6a are complete in the working tree; the apply steps below are retained as a record and
-must not be repeated. G6b AI literacy and G6c platform feature oversight are built in the working tree. Their focused
-checks and the full G6 milestone lanes pass as recorded below. The production tenant-copy inspection found no old copies.
+Read this section first; everything after it is the evidence trail. The owner's standing request is to finish the AI
+Governance programme slice by slice, run full suites only after a major stage, and state what cannot be checked on a laptop.
+G5 and G6 apply steps below are retained as a record and must not be repeated. G6 was committed and pushed at `4384c79`;
+its milestone lanes passed as recorded below. The production tenant-copy inspection found no old copies. G7's content-neutral
+oversight foundation is verified in focused lanes; EU rule content still requires recorded legal approval.
 
 ### 1. State of each slice
 
@@ -22,9 +21,9 @@ checks and the full G6 milestone lanes pass as recorded below. The production te
 | G3, G3b, rollout switch, G4 | done | yes | milestone lanes below |
 | G5 monitoring, evaluation records, regulatory impact, Explain | done | yes | focused checks and the full G6 milestone lanes below pass |
 | G6a review packs | done | yes | focused checks and the full G6 milestone lanes below pass |
-| G6b AI literacy | done in the working tree | service, pages, API, My Work and quality wiring | focused checks and the full G6 milestone lanes below pass |
-| G6c platform AI features | done in the working tree | public-only operator notes, registry list, tenant usage metadata and page | focused checks and the full G6 milestone lanes below pass; production old-copy check found none |
-| G7, CISO briefs 01 to 06 | not started | | see section 8 |
+| G6b AI literacy | committed at `4384c79` | service, pages, API, My Work and quality wiring | focused checks and the full G6 milestone lanes below pass |
+| G6c platform AI features | committed at `4384c79` | public-only operator notes, registry list, tenant usage metadata and page | focused checks and the full G6 milestone lanes below pass; production old-copy check found none |
+| G7 content-neutral oversight foundation | built in the G7 worktree | versioned design and operation records, scoped person picker, workspace, Monitoring, Decisions and My Work | focused service, HTTP, browser and real PostgreSQL checks pass; no EU rule content enabled; see section 8 |
 
 ### G6b build record, 2026-10-12
 
@@ -258,9 +257,7 @@ env -u TEST_DATABASE_URL ../.venv/Scripts/python.exe -m pytest -p no:warnings -o
   guard needs a database name starting `themisiq_test_`, `THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1` and `TEST_DATABASE_URL`. The
   connection recipe is in the memory file `reference_test_environment.md`; do not print credentials in replies or files.
   **Remove it when the programme is finished**: `docker rm -f themisiq-pg-aigov`.
-- The working tree is on branch `claude/pg-layer-scope-and-findings` at `8039af4` (pushed). Everything since is uncommitted:
-  55 modified, 1 deleted (`tests/test_aiia.py`, its tests moved), 55 untracked paths. Nothing was committed or pushed
-  in this work. Several modified files predate this work and belong to other chats; stage by name, not by `git add -A`.
+- G7 uses a separate managed worktree starting at `4384c79`. Stage its files by name so other worktrees remain untouched.
 
 ### 8. What is not built, and what is waiting on the owner
 
@@ -277,8 +274,10 @@ env -u TEST_DATABASE_URL ../.venv/Scripts/python.exe -m pytest -p no:warnings -o
 
 **G7 (conditional EU content).** Blocked on decision 8: the rule content needs a recorded legal approval of the current rule
 version and effective dates, which cannot be given from here. Do not write obligation text, roles or deadlines from memory.
-The honest options are to wait for the approved content, or to build the empty versioned engine only if the owner asks for
-it. Nothing was started.
+The owner asked to start G7. The content-neutral human oversight foundation is built and verified with focused checks in a
+separate worktree (see `PLAN_G7_OVERSIGHT.md`). It records internal arrangements and review history, and connects live status
+to Monitoring, Decisions and My Work. It does not alter signed decision manifests. No EU applicability, obligation,
+deadline or compliance claim is enabled. The conditional EU content pilot remains blocked.
 
 **CISO assurance briefs.** Read of each, not built:
 
@@ -419,7 +418,7 @@ request, and the route refuses an application the writer cannot open.
 | G6b AI literacy | built and milestone verification passed (plan 09 section 5.2) | 8 shared G6b/G6c service and HTTP cases, 2 browser journeys and 1 real PostgreSQL case; full milestone lanes above |
 | G6c Platform AI features | built and milestone verification passed (plan 09 section 5.3) | Same focused set and full milestone lanes; the production read-only query found no old tenant copies |
 | G6 shadow AI discovery, component lineage, public trust | **not built, by design**: no authorized feed, no evidence of need, separate approval (plan 09 section 1) | |
-| G7 Conditional EU content | not started; blocked on a recorded legal approval of the rule content (see Handoff) | |
+| G7 Conditional EU content | content-neutral oversight foundation built and verified in focused lanes; EU rule pack blocked on recorded legal approval (see Handoff) | No rule text or deadline enabled |
 | CISO assurance briefs 01 to 06 | not started (see Handoff for a feasibility read of each) | |
 
 ## Change log
