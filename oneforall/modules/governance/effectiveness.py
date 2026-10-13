@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from core.best_effort import swallowed
 
 log = logging.getLogger("governance.effectiveness")
 
@@ -62,13 +63,14 @@ def _score_one_control(db, cid: int) -> dict:
                 "SELECT COUNT(*) FROM evidence_links el "
                 "JOIN evidence_items ei ON ei.id = el.evidence_id "
                 "WHERE el.entity_type = 'canonical_control' AND el.entity_id = %s "
+                "AND el.deleted_at IS NULL "
                 "AND ei.status = 'current' "
                 "AND (ei.expiry_date IS NULL OR ei.expiry_date > %s)",
                 (cid, today_str),
             ).fetchone()[0]
             factors["evidence_uploaded"] = 1 if ev_count > 0 else 0
         except Exception:
-            pass
+            swallowed("_score_one_control (evidence_links)")
 
         # Factor 2 — evidence_valid (15): no linked evidence expiring within 7 days
         if factors["evidence_uploaded"]:
@@ -77,13 +79,14 @@ def _score_one_control(db, cid: int) -> dict:
                     "SELECT COUNT(*) FROM evidence_links el "
                     "JOIN evidence_items ei ON ei.id = el.evidence_id "
                     "WHERE el.entity_type = 'canonical_control' AND el.entity_id = %s "
+                    "AND el.deleted_at IS NULL "
                     "AND ei.status = 'current' "
                     "AND ei.expiry_date IS NOT NULL AND ei.expiry_date <= %s",
                     (cid, cutoff_7d),
                 ).fetchone()[0]
                 factors["evidence_valid"] = 1 if expiring_soon == 0 else 0
             except Exception:
-                pass
+                swallowed("_score_one_control (evidence_links)")
 
         # Factor 3 — audit_passed (20): completed grid_audit within last 365 days
         try:
@@ -97,7 +100,7 @@ def _score_one_control(db, cid: int) -> dict:
             ).fetchone()[0]
             factors["audit_passed"] = 1 if audit_count > 0 else 0
         except Exception:
-            pass
+            swallowed("_score_one_control (grid_controls)")
 
         # Factor 4 — tested_recently (15): last_tested_at within test_frequency_days
         try:
@@ -130,6 +133,7 @@ def _score_one_control(db, cid: int) -> dict:
             ).fetchone()[0]
             factors["no_recent_incidents"] = 1 if incident_count == 0 else 0
         except Exception:
+            swallowed("_score_one_control (orm_events)")
             factors["no_recent_incidents"] = 1  # no incidents found = pass
 
     except Exception as exc:
@@ -239,4 +243,5 @@ def get_control_score(db, cid: int) -> dict | None:
         ).fetchone()
         return dict(row) if row else None
     except Exception:
+        swallowed("get_control_score (control_effectiveness_scores)")
         return None

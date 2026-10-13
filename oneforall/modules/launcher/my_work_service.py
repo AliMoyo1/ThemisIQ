@@ -303,6 +303,158 @@ def _privacy_deadlines(db, user, scope):
     return result
 
 
+def _ai_governance_work(db, user: dict, scope) -> list[dict]:
+    """AI Governance as the person meets it: decisions to make or waiting on, requests to review or to fix, conditions
+    that fall due and approvals that need a new decision. Read through the same unit scope as the module's own pages."""
+    from core import ai_rollout
+    from modules.governance.entity_scope import entity_scope_sql
+    if not ai_rollout.is_enabled(user.get("org_id")):
+        return []
+    items = []
+    org = user.get("org_id")
+    app_scope, app_params = entity_scope_sql(("governance", "application"), user, "a")
+
+    def add(entity_type, entity_id, action, title, link, bucket, due=None, unit=None, priority="medium"):
+        items.append({
+            "source_module": "ai_governance", "entity_type": entity_type, "entity_id": entity_id, "action": action,
+            "title": title, "due_date": due, "priority": priority, "org_id": org, "business_unit_id": unit,
+            "link": link, "section": _section_for(bucket, due)})
+
+    if has_capability(user, "ai_literacy.take"):
+        from modules.ai_governance import literacy
+        for course in literacy.my_courses(db, user)["items"]:
+            if course["state"] in ("to_do", "overdue", "expired"):
+                add("ai_literacy_course", course["id"], "complete_ai_literacy",
+                    f"Complete AI literacy: {course['title']}",
+                    f"/ai-governance/literacy/{course['id']}", "open",
+                    due=course["due_at"][:10] if course["due_at"] else None,
+                    priority="high" if course["state"] in ("overdue", "expired") else "medium")
+
+    # decisions waiting
+    can_decide = has_capability(user, "ai_use.decide")
+    separation = ai_rollout.separation_required(org)
+    for r in db.execute(
+            "SELECT d.id, d.application_id, d.requested_by, d.business_unit_id, a.name, a.owner_user_id "
+            "FROM ai_use_decisions d JOIN applications a ON a.id = d.application_id "
+            f"WHERE d.status = 'proposed' AND {app_scope} ORDER BY d.id LIMIT 100", app_params).fetchall():
+        mine = r["requested_by"] == user["id"] or r["owner_user_id"] == user["id"]
+        link = f"/ai-governance/systems/{r['application_id']}#decisions"
+        if can_decide and not (separation and mine):
+            add("ai_decision", r["id"], "decide_ai_use", f"Decide: {r['name']}", link, "open", unit=r["business_unit_id"], priority="high")
+        elif mine:
+            add("ai_decision_waiting", r["id"], "view", f"Waiting for a decision: {r['name']}", link, "waiting", unit=r["business_unit_id"])
+
+    # approvals that need a new decision, for the owner and the deciders
+    for r in db.execute(
+            "SELECT d.id, d.application_id, d.expires_at, d.decided_at, d.profile_fingerprint, d.tier, d.business_unit_id, a.name, a.owner_user_id, "
+            "p.fingerprint AS now_fingerprint, p.provisional_tier, p.adopted_tier FROM ai_use_decisions d "
+            "JOIN applications a ON a.id = d.application_id JOIN ai_use_profiles p ON p.application_id = d.application_id "
+            "WHERE d.status IN ('approved', 'approved_with_conditions') AND d.revoked_at IS NULL AND a.is_active = 1 "
+            "AND d.id = (SELECT MAX(x.id) FROM ai_use_decisions x WHERE x.application_id = d.application_id "
+            "AND x.status IN ('approved', 'approved_with_conditions', 'rejected')) "
+            f"AND {app_scope} ORDER BY d.id LIMIT 100", app_params).fetchall():
+        if not (r["owner_user_id"] == user["id"] or can_decide):
+            continue
+        from modules.ai_governance import rules
+        tier_now = rules.effective_tier(r["provisional_tier"], r["adopted_tier"])
+        expired = bool(r["expires_at"]) and str(r["expires_at"])[:10] < _today()
+        from modules.ai_governance import decisions as _decisions
+        if (r["now_fingerprint"] != r["profile_fingerprint"] or tier_now != r["tier"] or expired
+                or _decisions.reopening_facts(db, r["application_id"], r["decided_at"])):
+            add("ai_re_review", r["id"], "request_decision", f"Needs a new decision: {r['name']}",
+                f"/ai-governance/systems/{r['application_id']}#decisions", "open", unit=r["business_unit_id"])
+
+    # conditions that fall due: the owner's and the asker's
+    for r in db.execute(
+            "SELECT c.id, c.text, c.due_date, d.application_id, d.requested_by, d.business_unit_id, a.name, a.owner_user_id "
+            "FROM ai_use_decision_conditions c JOIN ai_use_decisions d ON d.id = c.decision_id "
+            "JOIN applications a ON a.id = d.application_id "
+            "WHERE c.status = 'open' AND c.due_date IS NOT NULL AND d.revoked_at IS NULL "
+            f"AND (a.owner_user_id = %s OR d.requested_by = %s) AND {app_scope} ORDER BY c.due_date LIMIT 100",
+            [user["id"], user["id"], *app_params]).fetchall():
+        add("ai_condition", r["id"], "meet_condition", f"Condition due: {r['text']} ({r['name']})",
+            f"/ai-governance/systems/{r['application_id']}#decisions", "open", due=r["due_date"], unit=r["business_unit_id"])
+
+    # Live oversight actions are read from current versions only. A draft is
+    # offered to another decider only when complete and bound to the current profile.
+    if has_capability(user, "ai_use.view") and (has_capability(user, "ai_use.review") or can_decide):
+        for r in db.execute(
+                "SELECT h.application_id, h.track, v.version, v.profile_version, v.status, v.authored_by, "
+                "v.responsible_user_id, v.monitoring_method, v.intervention_method, v.stop_procedure, "
+                "v.escalation_path, person.is_active AS person_active, person.deleted_at AS person_deleted, "
+                "p.version AS current_profile_version, a.name, a.owner_user_id, "
+                "a.business_unit_id FROM ai_oversight_heads h "
+                "JOIN ai_oversight_versions v ON v.application_id = h.application_id "
+                "AND v.track = h.track AND v.version = h.content_version "
+                "JOIN ai_use_profiles p ON p.application_id = h.application_id "
+                "JOIN applications a ON a.id = h.application_id "
+                "LEFT JOIN users person ON person.id = v.responsible_user_id "
+                f"WHERE a.is_active = 1 AND {app_scope} ORDER BY h.application_id, h.track LIMIT 100",
+                app_params).fetchall():
+            link = f"/ai-governance/systems/{r['application_id']}#oversight"
+            label = "Design" if r["track"] == "design" else "Operation"
+            kind = f"ai_oversight_{r['track']}"
+            stale = r["profile_version"] != r["current_profile_version"]
+            mine = r["authored_by"] == user["id"] or r["owner_user_id"] == user["id"]
+            complete = (all(r[field] for field in ("responsible_user_id", "monitoring_method",
+                                                    "intervention_method", "stop_procedure", "escalation_path"))
+                        and bool(r["person_active"]) and not r["person_deleted"])
+            if stale and mine and has_capability(user, "ai_use.review"):
+                add(kind, r["application_id"], "update_ai_oversight",
+                    f"Update {label.lower()} oversight after profile change: {r['name']}",
+                    link, "open", unit=r["business_unit_id"])
+            elif r["status"] == "draft" and not stale:
+                if not complete and r["authored_by"] == user["id"] and has_capability(user, "ai_use.review"):
+                    add(kind, r["application_id"], "complete_ai_oversight",
+                        f"Complete {label.lower()} oversight: {r['name']}",
+                        link, "open", unit=r["business_unit_id"])
+                elif complete and can_decide and r["authored_by"] != user["id"]:
+                    add(kind, r["application_id"], "review_ai_oversight",
+                        f"Review {label.lower()} oversight: {r['name']}",
+                        link, "open", unit=r["business_unit_id"])
+                elif complete and r["authored_by"] == user["id"]:
+                    add(kind, r["application_id"], "view",
+                        f"Waiting for {label.lower()} oversight review: {r['name']}",
+                        link, "waiting", unit=r["business_unit_id"])
+
+    # regulatory changes proposed for a use, for the reviewer
+    if has_capability(user, "ai_use.review"):
+        for r in db.execute(
+                "SELECT i.id, i.business_unit_id, u.title, a.name FROM ai_regulatory_impacts i "
+                "JOIN regulatory_updates u ON u.id = i.update_id JOIN applications a ON a.id = i.application_id "
+                f"WHERE i.status = 'candidate' AND {app_scope} ORDER BY i.id LIMIT 100", app_params).fetchall():
+            add("ai_regulatory_review", r["id"], "review_regulatory_change", f"Review regulatory change: {r['title']} ({r['name']})",
+                "/ai-governance/regulatory", "open", unit=r["business_unit_id"])
+
+    # intake requests: for the reviewer, waiting; for the author, sent back
+    if has_capability(user, "ai_use.review"):
+        where, params = _bu_filter("r.business_unit_id", scope)
+        for r in db.execute(
+                "SELECT r.id, r.payload, r.business_unit_id FROM ai_use_intake_requests r "
+                f"WHERE r.status = 'submitted' AND r.submitted_by != %s AND {where} ORDER BY r.submitted_at LIMIT 100",
+                [user["id"], *params]).fetchall():
+            add("ai_intake_review", r["id"], "review_ai_request", f"Review AI use request: {_intake_name(r['payload'])}",
+                "/ai-governance/review", "open", unit=r["business_unit_id"])
+    for r in db.execute(
+            "SELECT r.id, r.payload, r.business_unit_id FROM ai_use_intake_requests r "
+            "WHERE r.status = 'returned' AND r.submitted_by = %s ORDER BY r.updated_at DESC LIMIT 50", (user["id"],)).fetchall():
+        add("ai_intake_returned", r["id"], "update_ai_request", f"Update your AI use request: {_intake_name(r['payload'])}",
+            f"/ai-governance/requests/{r['id']}", "open", unit=r["business_unit_id"])
+    return items
+
+
+def _intake_name(payload) -> str:
+    try:
+        return (json.loads(payload or "{}").get("name") or "An AI use").strip()
+    except (TypeError, ValueError):
+        return "An AI use"
+
+
+def _today() -> str:
+    from core.timeutils import utcnow
+    return utcnow().strftime("%Y-%m-%d")
+
+
 def _item_key(item: dict) -> tuple:
     return (SECTIONS.index(item["section"]), item["due_date"] or "9999-99-99",
             item["source_module"], str(item["entity_id"]), item["entity_type"])
@@ -345,6 +497,7 @@ def get_my_work(user: dict, *, source: str = "", section: str = "",
         ("orm_reviews", "orm", lambda: _orm_reviews(db, user, scope)),
         ("bcm_incidents", "bcm", lambda: _bcm_incidents(db, user, scope)),
         ("privacy_deadlines", "sentinel", lambda: _privacy_deadlines(db, user, scope)),
+        ("ai_governance", None, lambda: _ai_governance_work(db, user, scope)),
     ]
     all_items = []
     source_states = []

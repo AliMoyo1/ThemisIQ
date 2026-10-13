@@ -28,6 +28,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from database import get_db_background as get_db, sql_date_offset  # scheduler: fail-fast, never block UI
 from core.email import send_email as _core_send_email
+from core.best_effort import swallowed
 
 log = logging.getLogger("sentinel.scheduler")
 TZ = "Africa/Harare"
@@ -73,7 +74,7 @@ def _notify_user(user_id: int, module: str, title: str, message: str, link: str 
         )
         db.commit()
     except Exception:
-        pass
+        swallowed("_notify_user (notifications)")
     finally:
         db.close()
 
@@ -93,7 +94,7 @@ def _notify_admins(module: str, title: str, message: str, link: str = ""):
             )
         db.commit()
     except Exception:
-        pass
+        swallowed("_notify_admins (users)")
     finally:
         db.close()
 
@@ -236,7 +237,7 @@ def _mark_breach_notified(bid: int, level: str) -> None:
         db.execute(f"UPDATE sentinel_breaches SET {col}=1 WHERE id=%s", (bid,))
         db.commit()
     except Exception:
-        pass
+        swallowed("_mark_breach_notified (sentinel_breaches)")
     finally:
         db.close()
 

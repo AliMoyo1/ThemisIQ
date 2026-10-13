@@ -23,6 +23,7 @@ templates = Jinja2Templates(directory=["modules/bcm/templates", "templates"])
 from modules.bcm import data_service as ds
 from modules.bcm import exercise_service as exs
 from modules.governance.data_service import bu_scope_ids
+from core.best_effort import swallowed
 
 def _uid(request: Request) -> int:
     return request.state.user["id"]
@@ -442,7 +443,7 @@ async def api_plan_detail(request: Request, plan_id: int):
             "FROM evidence_items e "
             "JOIN evidence_links el ON e.id=el.evidence_id "
             "WHERE el.module='bcm' AND el.entity_type='plan' AND el.entity_id=%s "
-            "AND e.status != 'archived' ORDER BY e.created_at DESC",
+            "AND el.deleted_at IS NULL AND e.status != 'archived' ORDER BY e.created_at DESC",
             (plan_id,),
         ).fetchall()]
     finally:
@@ -622,7 +623,7 @@ async def api_incident_detail(request: Request, inc_id: int):
             "FROM evidence_items e "
             "JOIN evidence_links el ON e.id=el.evidence_id "
             "WHERE el.module='bcm' AND el.entity_type='incident' AND el.entity_id=%s "
-            "AND e.status != 'archived' ORDER BY e.created_at DESC",
+            "AND el.deleted_at IS NULL AND e.status != 'archived' ORDER BY e.created_at DESC",
             (inc_id,),
         ).fetchall()]
     finally:
@@ -803,7 +804,7 @@ async def api_incident_plan_link_delete(request: Request, inc_id: int, link_id: 
 @require_capability("module.bcm.access")
 async def api_vault_evidence_search(request: Request):
     q = request.query_params.get("q", "")
-    return JSONResponse(ds.search_vault_items(q))
+    return JSONResponse(ds.search_vault_items(request.state.user, q))
 
 
 @router.get("/api/incidents/{inc_id}/vault-evidence")
@@ -849,6 +850,7 @@ async def api_incident_ai_suggest(request: Request, inc_id: int):
         ).fetchall()
         active_regs = [r["name"] for r in fw_rows]
     except Exception:
+        swallowed("api_incident_ai_suggest (frameworks)")
         active_regs = []
     try:
         suggestions = ai.suggest_incident_actions(inc, active_regulations=active_regs if active_regs else None)
@@ -949,7 +951,7 @@ async def api_vendor_cross_module(request: Request, vid: int):
     from core.vendor_link import get_cross_module_profile
     db = get_db()
     try:
-        return JSONResponse(get_cross_module_profile(db, v["canonical_id"]))
+        return JSONResponse(get_cross_module_profile(db, v["canonical_id"], request.state.user))
     finally:
         db.close()
 

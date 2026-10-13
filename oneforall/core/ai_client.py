@@ -4,6 +4,10 @@ Unified AI client for ThemisIQ.
 All modules call create_message() instead of directly using provider SDKs.
 Supports: anthropic, openrouter, deepseek, gemini, openai, ollama.
 Provider is selected via AI_PROVIDER env var (default: anthropic).
+
+This file is the only place that talks to a provider. Every entry point takes a `feature` (a key of
+core.ai_policy.FEATURES) and asks the organization's AI policy before the call and records the outcome after it
+(core/ai_policy.py); tests/test_ai_call_guard.py keeps it that way.
 """
 import json
 import logging
@@ -15,6 +19,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from config import settings
+from core import ai_policy
 
 log = logging.getLogger(__name__)
 
@@ -101,15 +106,18 @@ def get_capability_state():
     key is present, not whether the provider is currently reachable
     (a real call failing at use time is DEGRADED territory, handled by
     each caller's own existing error handling, not this function)."""
-    from core.capability_state import available, not_configured
+    from core.capability_state import available, disabled_by_policy, not_configured
 
-    if is_configured():
-        return available()
-    return not_configured(
-        reason_code="ai_provider_key_missing",
-        message="AI features have not been configured.",
-        remediation_route="/admin",
-    )
+    if not is_configured():
+        return not_configured(
+            reason_code="ai_provider_key_missing",
+            message="AI features have not been configured.",
+            remediation_route="/admin",
+        )
+    blocked = ai_policy.org_state(_provider())
+    if blocked:
+        return disabled_by_policy(reason_code=f"ai_policy_{blocked[0]}", message=blocked[1])
+    return available()
 
 
 def provider_name() -> str:
@@ -300,6 +308,9 @@ def create_message(
     system: str = "",
     max_tokens: int = 2000,
     model: str = "",
+    *,
+    feature: str = "",
+    sources: list = None,
 ) -> str:
     """
     Send a chat completion request to the configured AI provider.
@@ -309,14 +320,18 @@ def create_message(
         system: optional system prompt
         max_tokens: max response tokens
         model: override model name (default: from config)
+        feature: which platform feature is calling (a key of core.ai_policy.FEATURES); the organization's AI
+            policy is checked against it and the call is recorded under it
+        sources: optional "module/type/id" references of the records in the prompt, kept in the usage record
 
     Returns:
         The assistant's response text.
 
     Raises:
-        RuntimeError on API errors or missing configuration.
+        core.ai_policy.AIPolicyError (a RuntimeError) when the organization's policy forbids the call, before the
+        provider is contacted. RuntimeError on API errors or missing configuration.
     """
-    return _dispatch(messages, system, max_tokens, model)["text"]
+    return _dispatch(messages, system, max_tokens, model, feature=feature, sources=sources)["text"]
 
 
 def create_message_full(
@@ -324,6 +339,9 @@ def create_message_full(
     system: str = "",
     max_tokens: int = 2000,
     model: str = "",
+    *,
+    feature: str = "",
+    sources: list = None,
 ) -> dict:
     """
     Like create_message(), but also returns model/token usage metadata
@@ -335,12 +353,34 @@ def create_message_full(
         usage (Gemini, Ollama) - matches prior behaviour of those callers.
 
     Raises:
+        AIPolicyError when the organization's policy forbids the call (see create_message).
         RuntimeError on API errors or missing configuration.
     """
-    return _dispatch(messages, system, max_tokens, model)
+    return _dispatch(messages, system, max_tokens, model, feature=feature, sources=sources)
 
 
-def _dispatch(messages, system, max_tokens, model) -> dict:
+def _guarded(feature, sources, call) -> dict:
+    """Run one provider call under the organization's AI policy and record what happened. A refusal raises before the
+    provider is contacted; a failure or a success is recorded and then returned or re-raised as it was."""
+    ticket = ai_policy.authorize(feature, provider=_provider(), sources=sources)
+    started = time.monotonic()
+    try:
+        result = call()
+    except Exception as exc:
+        ai_policy.record_usage(ticket, "error", reason=type(exc).__name__,
+                               duration_ms=int((time.monotonic() - started) * 1000))
+        raise
+    ai_policy.record_usage(
+        ticket, "ok", model=str(result.get("model") or ""), input_tokens=result.get("input_tokens") or 0,
+        output_tokens=result.get("output_tokens") or 0, duration_ms=int((time.monotonic() - started) * 1000))
+    return result
+
+
+def _dispatch(messages, system, max_tokens, model, *, feature="", sources=None) -> dict:
+    return _guarded(feature, sources, lambda: _dispatch_to_provider(messages, system, max_tokens, model))
+
+
+def _dispatch_to_provider(messages, system, max_tokens, model) -> dict:
     p = _provider()
     model = model or _model_for_provider(p)
 
@@ -659,6 +699,9 @@ def create_message_web_search(
     model: str = "",
     max_searches: int = 8,
     allowed_domains: list = None,
+    *,
+    feature: str = "",
+    sources: list = None,
 ) -> dict:
     """
     Grounded call using the active provider's server-side web search tool.
@@ -688,11 +731,17 @@ def create_message_web_search(
          "input_tokens": int, "output_tokens": int}
 
     Raises:
+        AIPolicyError when the organization's policy forbids the call (see create_message).
         RuntimeError if the provider does not support this path, no API key
         is configured, the API reports web search is disabled, or no
         verifiable citations are returned. Callers can then fall back to a
         clearly-labelled knowledge-only scan.
     """
+    return _guarded(feature, sources, lambda: _web_search_to_provider(
+        messages, system, max_tokens, model, max_searches, allowed_domains))
+
+
+def _web_search_to_provider(messages, system, max_tokens, model, max_searches, allowed_domains) -> dict:
     p = _provider()
     system = _GRC_GUARDRAIL + "\n\n" + (system or "") if system else _GRC_GUARDRAIL
     if p == "openrouter":

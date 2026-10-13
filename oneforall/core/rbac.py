@@ -268,6 +268,35 @@ CAPABILITIES: dict[str, set[str]] = {
     "orm.kri.manage":            {SUPER_ADMIN, RISK_OWNER},
     "orm.report.generate":       {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
     "orm.ai.use":                {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
+
+    # ── AI Governance (plans/ai-governance, ledger 05) ────────────────
+    # Anyone on staff may declare an AI use and see AI systems inside their own business unit scope; only a
+    # narrow set reviews, links and decides. Review is the five governance.entities.manage roles plus the DPO.
+    # Decide excludes the org admin: a decision is a compliance judgement, not a tenant administration task.
+    "ai_use.submit":             set(ALL_ROLES) - {EXTERNAL_AUDITOR},
+    "ai_use.view":               set(ALL_ROLES) - {EXTERNAL_AUDITOR},
+    "ai_use.review":             {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
+    "ai_use.link":               {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
+    "ai_use.decide":             {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO},
+    # Review packs (plans/ai-governance/09). Issuing and revoking sit with the people who decide uses. Receiving also covers
+    # the audit roles, who need no other AI governance access to read a pack addressed to them.
+    "ai_pack.manage":            {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO},
+    "ai_pack.receive":           {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO, AUDIT_LEAD, AUDITOR, EXTERNAL_AUDITOR},
+    # AI literacy: everyone but an outside auditor may be assigned and complete a course; defining courses and reading who
+    # has completed them are separate rights.
+    "ai_literacy.take":          set(ALL_ROLES) - {EXTERNAL_AUDITOR},
+    "ai_literacy.manage":        {SUPER_ADMIN, ORG_ADMIN, DPO, GRC_OFFICER, COMPLIANCE_MGR},
+    "ai_literacy.report":        {SUPER_ADMIN, ORG_ADMIN, DPO, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER},
+    # The platform's own AI features: platform operators only.
+    "ai_governance.platform.manage": {SUPER_ADMIN},
+    "ai_governance.policy.manage": {SUPER_ADMIN, ORG_ADMIN},
+    # The AI impact assessment, moved from Sentinel into AI Governance (plans/ai-governance/06). View and manage are the
+    # union of the privacy team (module.sentinel.access, sentinel.dpia.manage) and the people who review AI uses
+    # (ai_use.review). Configure changes how every assessment is scored, so it stays with the privacy team plus the
+    # organization admin.
+    "ai_assessment.view":        {SUPER_ADMIN, DPO, PRIVACY_ANALYST, COMPLIANCE_MGR, GRC_OFFICER, RISK_OWNER, ORG_ADMIN},
+    "ai_assessment.manage":      {SUPER_ADMIN, DPO, PRIVACY_ANALYST, COMPLIANCE_MGR, GRC_OFFICER, RISK_OWNER, ORG_ADMIN},
+    "ai_assessment.configure":   {SUPER_ADMIN, DPO, PRIVACY_ANALYST, ORG_ADMIN},
 }
 
 

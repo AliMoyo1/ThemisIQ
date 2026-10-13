@@ -18,6 +18,7 @@ from modules.launcher._route_helpers import (
 )
 from modules.sentinel.data_service import get_setting  # org policy (settings table)
 from core.mfa import mfa_required_for
+from core.best_effort import swallowed
 
 router = APIRouter()
 
@@ -197,6 +198,7 @@ async def profile_page(request: Request):
         ).fetchall()
         session_count = len(sessions)
     except Exception:
+        swallowed("profile_page (sessions)")
         sessions = []
         session_count = 0
     finally:

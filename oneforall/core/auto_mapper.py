@@ -256,7 +256,7 @@ async def _ai_classify_pair(ctrl_a: dict, ctrl_b: dict) -> tuple[str, float]:
             f'"{ctrl_b.get("name","")}" — {ctrl_b.get("description","")}\n\n'
             'Return exactly: {"match":"equivalent"|"related"|"none","confidence":0.0-1.0}'
         )
-        text, err = await call_ai(system, user, max_tokens=120)
+        text, err = await call_ai(system, user, max_tokens=120, feature="core.auto_map_controls")
         if err or not text:
             return "none", 0.0
         # Extract JSON robustly

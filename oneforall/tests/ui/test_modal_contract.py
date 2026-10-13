@@ -23,7 +23,7 @@ import pytest
 MODALS = [
     ("compliance_manager", "/tasks", 'button:has-text("New Task")', "newTaskModal"),
     ("compliance_manager", "/reports", 'button:has-text("+ New Report")', "newReportModal"),
-    ("risk_owner", "/risk-register", 'button:has-text("+ New Risk")', "newRiskModal"),
+    ("super_admin", "/risk-register", 'button:has-text("+ New Risk")', "newRiskModal"),  # registering is the administrator's
     ("compliance_manager", "/calendar", 'button:has-text("Add Event")', "eventModal"),
     ("super_admin", "/admin/api-keys", 'button:has-text("+ Generate Key")', "newKeyModal"),
     ("super_admin", "/admin/webhooks", 'button:has-text("+ New Webhook")', "newWhModal"),

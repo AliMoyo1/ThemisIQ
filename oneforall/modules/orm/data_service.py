@@ -6,6 +6,7 @@ event workflow, SLA tracking, and RCSA.
 from datetime import datetime, timedelta
 from core.timeutils import utcnow
 from database import get_db, insert_returning_id
+from core.best_effort import swallowed
 
 
 def _dict(row):
@@ -417,6 +418,7 @@ def get_sla_overdue_count():
         ).fetchone()
         return row[0] if row else 0
     except Exception:
+        swallowed("get_sla_overdue_count (orm_events)")
         return 0
     finally:
         db.close()
@@ -859,6 +861,7 @@ def has_active_bcm_incident():
         ).fetchone()
         return row is not None
     except Exception:
+        swallowed("has_active_bcm_incident (bcm_incidents)")
         return False
     finally:
         db.close()
@@ -873,6 +876,7 @@ def has_active_sentinel_breach():
         ).fetchone()
         return row is not None
     except Exception:
+        swallowed("has_active_sentinel_breach (sentinel_breaches)")
         return False
     finally:
         db.close()

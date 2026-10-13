@@ -12,28 +12,10 @@ from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, user_modules, user_capabilities,
     ROLE_LABELS, shell_ctx, templates, shell_templates, get_db,
     _json_body,)
+from core.best_effort import swallowed
+from modules.launcher.scoped_metrics import scoped_count, table_scope
 
 router = APIRouter()
-
-
-# ── Health check (no auth required — used by load balancers / orchestrators) ──
-
-@router.get("/health")
-async def health_check():
-    """Liveness + readiness probe. Returns DB connectivity status."""
-    db = get_db()
-    try:
-        db.execute("SELECT 1").fetchone()
-        db_ok = True
-    except Exception:
-        db_ok = False
-    finally:
-        db.close()
-    status = "ok" if db_ok else "degraded"
-    return JSONResponse(
-        {"status": status, "db": db_ok, "version": "1.0"},
-        status_code=200 if db_ok else 503,
-    )
 
 
 # ── Module info for launcher tiles ──────────────────────────────────────────
@@ -127,6 +109,159 @@ def _org_scope_filter(user):
     return " WHERE al.org_id = %s", (caller_org_id,)
 
 
+def _appetite_breaches(db, user):
+    """Appetite categories whose worst open risk is over the limit, judged over the ERM risks this user can see.
+    The limits are organization configuration; only the risks they are held against are scoped."""
+    scope, params = table_scope("erm_enterprise_risks", user, "e")
+    return db.execute(
+        "SELECT COUNT(*) FROM erm_risk_appetite a "
+        "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
+        f"       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted') AND {scope}) > a.max_score",
+        params,
+    ).fetchone()[0]
+
+
+def _scoped_command_stats(db, user):
+    """BU-visible signals for callers who cannot see the organization-wide view."""
+    count = lambda table, condition="": scoped_count(db, user, table, condition)
+    controls = count("controls")
+    compliant = count("controls", "status IN ('Implemented','Approved')")
+    evidence = count("evidence_items")
+    expiring = count("evidence_items", "status = 'current' AND expiry_date IS NOT NULL "
+                     f"AND expiry_date <= {sql_date_offset('+30 days')} "
+                     f"AND expiry_date >= {sql_current_date()}")
+    fscope, fp = table_scope("frameworks", user)
+    frameworks = db.execute(
+        f"SELECT name FROM frameworks WHERE is_active = 1 AND {fscope} ORDER BY name", fp
+    ).fetchall()
+    task_scope, task_params = table_scope("task_board", user, "t")
+    tasks = db.execute(
+        "SELECT t.id, t.title AS item, t.module, t.due_date AS due, t.priority, "
+        "u.full_name AS assigned_name FROM task_board t "
+        "LEFT JOIN users u ON t.assigned_to = u.id "
+        f"WHERE {task_scope} AND t.status != 'done' AND t.due_date IS NOT NULL "
+        f"AND t.due_date < {sql_current_date()} ORDER BY t.due_date LIMIT 20",
+        task_params,
+    ).fetchall()
+    overdue_items = [
+        {"id": f"TASK-{r['id']}", "item": r["item"], "module": r["module"] or "platform",
+         "assigned": r["assigned_name"] or "", "due": r["due"], "sla": "breached",
+         "priority": r["priority"] or "medium"} for r in tasks
+    ]
+    sla_scope, sla_params = table_scope("sla_instances", user, "si")
+    overdue_items += [
+        {"id": f"SLA-{r['id']}", "item": r["item"] or "SLA Action", "module": r["module"] or "",
+         "assigned": "", "due": r["due"] or "", "sla": r["sla"], "priority": "high"}
+        for r in db.execute(
+            "SELECT si.id, si.entity_type AS item, si.entity_module AS module, si.resolution_due AS due, "
+            "CASE WHEN si.breached = 1 THEN 'breached' ELSE 'at_risk' END AS sla "
+            "FROM sla_instances si WHERE si.status = 'active' "
+            f"AND (si.breached = 1 OR si.resolution_due < {sql_current_timestamp()}) AND {sla_scope} "
+            "ORDER BY si.resolution_due ASC LIMIT 20", sla_params,
+        ).fetchall()
+    ]
+    overdue_items.sort(key=lambda x: x["due"] or "9999")
+    overdue_items = overdue_items[:20]
+    bscope, bp = table_scope("sentinel_breaches", user)
+    breaches = db.execute(
+        "SELECT id, ref_number, title, severity, regulation, notify_deadline, authority_notified "
+        "FROM sentinel_breaches WHERE status NOT IN ('closed','resolved') "
+        f"AND notify_deadline IS NOT NULL AND {bscope} ORDER BY notify_deadline", bp,
+    ).fetchall()
+    from modules.sentinel.jurisdictions import JURISDICTION_RULES
+    alerts = []
+    for r in breaches:
+        jur = JURISDICTION_RULES.get(r["regulation"] or "GDPR", {})
+        alerts.append({
+            "id": r["id"], "ref": r["ref_number"], "title": r["title"],
+            "severity": r["severity"], "regulation": r["regulation"] or "GDPR",
+            "authority": jur.get("authority_short", "DPA"),
+            "breach_hours": jur.get("breach_hours", 72),
+            "deadline": r["notify_deadline"],
+            "authority_notified": bool(r["authority_notified"]),
+        })
+    health = []
+    for key, name, table, ok in (
+        ("aria", "Governance", "controls", "status IN ('Implemented','Approved')"),
+        ("grid", "Audit", "grid_audits", "status IN ('Completed','Complete')"),
+        ("bcm", "Resilience", "bcm_plans", "status = 'approved'"),
+        ("sentinel", "Privacy", "sentinel_breaches", "status = 'closed'"),
+        ("erm", "Enterprise Risk", "erm_enterprise_risks", "status = 'closed'"),
+        ("orm", "Operations Risk", "orm_events", "status IN ('resolved','closed')"),
+    ):
+        scope, _ = table_scope(table, user)
+        if scope == "(1 = 0)":
+            continue
+        total = count(table)
+        healthy = count(table, ok)
+        health.append({"key": key, "name": name,
+                       "pct": round(healthy / total * 100) if total else
+                              (100 if key in {"sentinel", "erm", "orm"} else 0)})
+    activity = [dict(r) for r in db.execute(
+        "SELECT action AS text, module, created_at FROM audit_log "
+        "WHERE user_id = %s ORDER BY created_at DESC LIMIT 6", (user["id"],)
+    ).fetchall()]
+    rscope, rp = table_scope("erm_enterprise_risks", user)
+    risk_rows = db.execute(
+        f"SELECT likelihood, impact FROM erm_enterprise_risks WHERE {rscope} "
+        "AND status != 'closed'", rp,
+    ).fetchall()
+    risk_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for r in risk_rows:
+        score = (r["likelihood"] or 0) * (r["impact"] or 0)
+        level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
+        risk_counts[level] += 1
+    # The widget opens the risk register page, so it counts what that page counts: the platform risks in
+    # scope as well as the enterprise ones (api_risk_stats).
+    pscope, pp = table_scope("risk_register", user)
+    for r in db.execute(
+        f"SELECT risk_level, COUNT(*) AS c FROM risk_register WHERE {pscope} AND status != 'closed' "
+        "GROUP BY risk_level", pp,
+    ).fetchall():
+        if r["risk_level"] in risk_counts:
+            risk_counts[r["risk_level"]] += r["c"]
+    sla_met = count("sla_instances", "status IN ('completed','resolved') AND breached = 0")
+    sla_breached = count("sla_instances", "breached = 1")
+    sla_at_risk = count("sla_instances", "status = 'active' AND breached = 0")
+    sla_resolved = sla_met + sla_breached
+    critical_breaches = count("sentinel_breaches", "status NOT IN ('closed','resolved') "
+                              "AND severity = 'critical'")
+    high_breaches = count("sentinel_breaches", "status NOT IN ('closed','resolved') "
+                          "AND severity = 'high'")
+    return {
+        "compliance_pct": round(compliant / controls * 100) if controls else 0,
+        "compliance_trend": "Current visible records", "active_projects": len(frameworks),
+        "projects_list": " · ".join(r["name"] for r in frameworks[:5]),
+        "overdue_count": count("task_board", "status != 'done' AND due_date IS NOT NULL "
+                               f"AND due_date < {sql_current_date()}")
+                         + count("sla_instances", "breached = 1 AND status = 'active'"),
+        "overdue_trend": "Current visible records", "evidence_count": evidence,
+        "evidence_trend": "Current visible records", "evidence_target": max(evidence, 1),
+        "evidence_expiring": expiring, "module_health": health,
+        "sla": {"pct": round(sla_met / sla_resolved * 100) if sla_resolved else 100, "met": sla_met,
+                "at_risk": sla_at_risk, "breached": sla_breached},
+        "activity": activity, "overdue_items": overdue_items, "risk_counts": risk_counts,
+        "workflow_active": count("workflow_instances", "status = 'active'"),
+        "sentinel_open_breaches": critical_breaches + high_breaches,
+        "sentinel_breach_severity": ("critical" if critical_breaches else "high" if high_breaches else None),
+        "breach_alerts": alerts, "erm_appetite_breaches": _appetite_breaches(db, user),
+        "orm_open_events": count("orm_events", "status IN ('open','investigating') "
+                                 f"AND created_at >= {sql_date_ts('-30 days')}"),
+        "bcm_active_incidents": count("bcm_incidents", "status NOT IN ('closed','resolved')"),
+        "erm_critical_high": count("erm_enterprise_risks", "qualitative_score IN ('critical','high') "
+                                   "AND status NOT IN ('closed','accepted')"),
+        "grid_open_findings": count("grid_controls", "status NOT IN "
+                                    "('compliant','not_applicable','closed')"),
+        "upcoming_reviews": count("erm_enterprise_risks", "review_date IS NOT NULL "
+                                   f"AND review_date <= {sql_date_offset('+30 days')} "
+                                   "AND status NOT IN ('closed','accepted')")
+                            + count("bcm_plans", "last_reviewed IS NOT NULL "
+                                    f"AND last_reviewed <= {sql_date_offset('-335 days')}"),
+        "ims_active_frameworks": len(frameworks),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 # ── Command Centre Stats API ────────────────────────────────────────────────
 
 @router.get("/api/command-centre/stats")
@@ -136,6 +271,8 @@ async def api_command_centre_stats(request: Request):
     user = request.state.user
     db = get_db()
     try:
+        if not user.get("is_super_admin"):
+            return _JSONResp(_scoped_command_stats(db, user))
         # ── Overall compliance (ARIA controls) ──
         total_controls = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
         compliant_controls = db.execute(
@@ -219,7 +356,7 @@ async def api_command_centre_stats(request: Request):
             # Only include if user has erm access (always include in stats, visibility filtered by template)
             module_health.append({"key": "erm", "name": "Enterprise Risk", "pct": erm_pct})
         except Exception:
-            pass  # ERM tables may not exist in all deployments
+            swallowed("api_command_centre_stats (erm_risk_appetite)")  # ERM tables may not exist in all deployments
 
         # ORM — % of events resolved
         try:
@@ -230,7 +367,7 @@ async def api_command_centre_stats(request: Request):
             orm_pct = round((orm_closed / max(1, orm_total)) * 100) if orm_total else 100
             module_health.append({"key": "orm", "name": "Operations Risk", "pct": orm_pct})
         except Exception:
-            pass  # ORM tables may not exist in all deployments
+            swallowed("api_command_centre_stats (orm_events)")  # ORM tables may not exist in all deployments
 
         # ── SLA performance ──
         sla_met = db.execute(
@@ -315,7 +452,7 @@ async def api_command_centre_stats(request: Request):
                     "priority": "high",
                 })
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (erm_regulatory_obligations)")
 
         # ORM overdue events (open/investigating past resolved date)
         try:
@@ -335,7 +472,7 @@ async def api_command_centre_stats(request: Request):
                     "priority": "medium",
                 })
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (orm_events)")
 
         overdue_items.sort(key=lambda x: x["due"] or "9999")
         overdue_items = overdue_items[:20]
@@ -396,7 +533,7 @@ async def api_command_centre_stats(request: Request):
                 )
             db.commit()
         except Exception:
-            pass  # snapshot write failure must not break the response
+            swallowed("api_command_centre_stats (analytics_snapshots)")  # snapshot write failure must not break the response
 
         # ── Open risk counts (for risk register widget) ──
         risk_rows = db.execute(
@@ -426,7 +563,7 @@ async def api_command_centre_stats(request: Request):
                                         else "high" if (s_row and s_row["sev"] == 1)
                                         else None)
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (sentinel_breaches)")
 
         # Sentinel: breach notification countdown alerts
         breach_alerts = []
@@ -454,18 +591,14 @@ async def api_command_centre_stats(request: Request):
                     "authority_notified": bool(r["authority_notified"]),
                 })
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (sentinel_breaches)")
 
         # ERM: appetite breach count
         erm_appetite_breaches = 0
         try:
-            erm_appetite_breaches = db.execute(
-                "SELECT COUNT(*) FROM erm_risk_appetite a "
-                "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
-                "       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted')) > a.max_score"
-            ).fetchone()[0]
+            erm_appetite_breaches = _appetite_breaches(db, user)
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (erm_risk_appetite)")
 
         # ORM: open events (last 30 days)
         orm_open_events = 0
@@ -476,7 +609,7 @@ async def api_command_centre_stats(request: Request):
                 f"AND created_at >= {sql_date_ts('-30 days')}"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (orm_events)")
 
         # BCM: active incidents
         bcm_active_incidents = 0
@@ -486,7 +619,7 @@ async def api_command_centre_stats(request: Request):
                 "WHERE status NOT IN ('closed','resolved')"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (bcm_incidents)")
 
         # ── IMS stats (from aria_control_mappings) ────────────────────────
         ims_integrated_controls = 0
@@ -511,7 +644,7 @@ async def api_command_centre_stats(request: Request):
                 "SELECT COUNT(*) FROM frameworks WHERE is_active=1"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (controls)")
 
         # ERM: critical/high open risks
         erm_critical_high = 0
@@ -522,7 +655,7 @@ async def api_command_centre_stats(request: Request):
                 "AND status NOT IN ('closed','accepted')"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (erm_enterprise_risks)")
 
         # GRID: open audit findings
         grid_open_findings = 0
@@ -532,25 +665,25 @@ async def api_command_centre_stats(request: Request):
                 "WHERE status NOT IN ('compliant','not_applicable','closed')"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (grid_controls)")
 
         # Upcoming reviews (risks or plans due in next 30 days)
         upcoming_reviews = 0
         try:
             upcoming_reviews += db.execute(
                 "SELECT COUNT(*) FROM erm_enterprise_risks "
-                f"WHERE review_date IS NOT NULL AND review_date <= {sql_date_ts('+30 days')} "
+                f"WHERE review_date IS NOT NULL AND review_date <= {sql_date_offset('+30 days')} "
                 "AND status NOT IN ('closed','accepted')"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (erm_enterprise_risks)")
         try:
             upcoming_reviews += db.execute(
                 "SELECT COUNT(*) FROM bcm_plans "
-                f"WHERE last_reviewed IS NOT NULL AND last_reviewed <= {sql_date_ts('-335 days')}"
+                f"WHERE last_reviewed IS NOT NULL AND last_reviewed <= {sql_date_offset('-335 days')}"
             ).fetchone()[0]
         except Exception:
-            pass
+            swallowed("api_command_centre_stats (bcm_plans)")
 
     finally:
         db.close()
@@ -613,6 +746,24 @@ async def api_my_dashboard_data(request: Request):
     data = {"role": role, "role_label": ROLE_LABELS.get(role, role)}
 
     try:
+        if not user.get("is_super_admin"):
+            scoped = _scoped_command_stats(db, user)
+            data.update(scoped)
+            data["pending_actions"] = db.execute(
+                "SELECT COUNT(*) FROM workflow_actions WHERE assigned_to = %s AND status = 'pending'",
+                (uid,),
+            ).fetchone()[0]
+            data["unread_notifications"] = db.execute(
+                "SELECT COUNT(*) FROM notifications WHERE user_id = %s AND is_read = 0",
+                (uid,),
+            ).fetchone()[0]
+            data["sla_breaches"] = scoped_count(db, user, "sla_instances", "breached = 1 AND status = 'active'")
+            scope, params = table_scope("risk_register", user)
+            data["risks"] = {r["risk_level"]: r["c"] for r in db.execute(
+                f"SELECT risk_level, COUNT(*) as c FROM risk_register WHERE {scope} AND status != 'closed' "
+                "GROUP BY risk_level", params
+            ).fetchall()}
+            return _JSONResp(data)
         # Pending workflow actions for this user
         data["pending_actions"] = db.execute(
             "SELECT COUNT(*) FROM workflow_actions WHERE assigned_to = %s AND status = 'pending'", (uid,)
@@ -888,6 +1039,8 @@ async def api_predictive_risk(request: Request, background_tasks: BackgroundTask
       - history          : last 7 predictions for sparkline
       - cached           : true if returned from cache
     """
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     from core.predictive_risk import (
         collect_telemetry, compute_delta_p,
         build_advisory_prompt, ADVISORY_SYSTEM_PROMPT,
@@ -922,6 +1075,7 @@ async def api_predictive_risk(request: Request, background_tasks: BackgroundTask
                     ADVISORY_SYSTEM_PROMPT,
                     build_advisory_prompt(metrics, result),
                     max_tokens=600,
+                    feature="launcher.api_predictive_risk",
                 )
             except Exception as exc:
                 import logging
@@ -984,6 +1138,8 @@ async def api_predictive_risk(request: Request, background_tasks: BackgroundTask
 @require_auth
 async def api_predictive_risk_acknowledge(request: Request):
     """Mark the latest active prediction as acknowledged by the current user."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     uid = request.state.user["id"]
     db = get_db()
     try:
@@ -1005,6 +1161,8 @@ async def api_predictive_risk_acknowledge(request: Request):
 @require_auth
 async def api_advisories_today(request: Request):
     """Return today's unacknowledged advisories (lazy-compose if missing)."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"advisories": []})
     uid = request.state.user["id"]
     db = get_db()
     try:
@@ -1040,6 +1198,8 @@ async def api_advisories_today(request: Request):
 @require_auth
 async def api_advisory_acknowledge(request: Request, aid: int):
     """Acknowledge a single advisory."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Not found"}, status_code=404)
     uid = request.state.user["id"]
     db = get_db()
     try:

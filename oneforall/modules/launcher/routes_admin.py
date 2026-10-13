@@ -18,6 +18,8 @@ from modules.launcher._route_helpers import (
     EMPLOYEE, ALL_ROLES, ROLE_LABELS,
     csv, io, json_lib, Response,
     _json_body,)
+from core.sql_like import ci_like, like_pattern
+from core.best_effort import swallowed
 
 router = APIRouter()
 
@@ -74,6 +76,7 @@ def _user_reference_counts(db, uid: int) -> dict:
                 tuple([uid] * len(cols)),
             ).fetchone()[0]
         except Exception:
+            swallowed("_user_reference_counts")
             n = 0
         if n:
             counts[label] = counts.get(label, 0) + n
@@ -906,11 +909,11 @@ async def admin_api_logs(request: Request):
             where_clauses.append("al.module = %s")
             params.append(module)
         if action:
-            where_clauses.append("al.action LIKE %s")
-            params.append(f"%{action}%")
+            where_clauses.append(ci_like("al.action"))
+            params.append(like_pattern(action))
         if user_filter:
-            where_clauses.append("(al.username LIKE %s OR u.full_name LIKE %s)")
-            params.extend([f"%{user_filter}%", f"%{user_filter}%"])
+            where_clauses.append(f"({ci_like('al.username')} OR {ci_like('u.full_name')})")
+            params.extend([like_pattern(user_filter)] * 2)
         if date_from:
             where_clauses.append("al.created_at >= %s")
             params.append(date_from)
@@ -935,7 +938,8 @@ async def admin_api_logs(request: Request):
 
         # Get distinct modules for filter dropdown (scoped to visible logs).
         modules = db.execute(
-            f"SELECT DISTINCT al.module FROM audit_log al WHERE {where_sql} AND al.module IS NOT NULL ORDER BY al.module",
+            f"SELECT DISTINCT al.module FROM audit_log al LEFT JOIN users u ON al.user_id = u.id "
+            f"WHERE {where_sql} AND al.module IS NOT NULL ORDER BY al.module",
             params
         ).fetchall()
     finally:
@@ -1601,6 +1605,136 @@ async def api_connectors_test_whatsapp(request: Request):
 # ── Org security policy (MFA enforcement) ────────────────────────────────────
 
 _VALID_MFA_POLICIES = ("off", "admins", "all")
+
+
+# ── AI policy (AI governance G1c) ───────────────────────────────────────────
+
+def _ai_policy_scope(user: dict, requested):
+    """(org_id, slug or None): the organization whose AI policy is read or changed. An organization administrator
+    always means their own (the request is already bound to its schema); a platform administrator has none and
+    names one, whose schema is then bound for the work."""
+    if user.get("is_super_admin"):
+        if requested is None:
+            raise HTTPException(status_code=400, detail="Choose an organization.")
+        db = get_db()
+        try:
+            org = db.execute("SELECT id, slug FROM organizations WHERE id=%s", (requested,)).fetchone()
+        finally:
+            db.close()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found.")
+        return org["id"], org["slug"]
+    if not user.get("org_id"):
+        raise HTTPException(status_code=400, detail="This account belongs to no organization.")
+    return user["org_id"], None
+
+
+def _ai_policy_view(org_id: int, can_switch: bool = False) -> dict:
+    from core import ai_client, ai_policy, ai_rollout
+    stored = ai_policy.get_policy(org_id)
+    return {
+        "org_id": org_id,
+        "governance": {"enabled": ai_rollout.is_enabled(org_id, fresh=True), "chosen": ai_rollout.is_set(org_id),
+                       "default": ai_rollout.default_enabled(), "can_change": can_switch,
+                       "separation_required": ai_rollout.separation_required(org_id)},
+        "configured": stored is not None,
+        "policy": {**ai_policy.default_policy(), **(stored or {})},
+        "active_provider": ai_client._provider(),
+        "providers": list(ai_policy.PROVIDERS),
+        "categories": ai_policy.CATEGORIES,
+        "features": [{"id": fid, "label": label, "categories": list(cats)}
+                     for fid, (label, cats) in ai_policy.FEATURES.items()],
+        "usage": {**ai_policy.usage_summary(org_id), "allowance_used": ai_policy.tokens_used_this_month(org_id)},
+    }
+
+
+@router.get("/admin/ai-policy", response_class=HTMLResponse)
+@_require_cap("ai_governance.policy.manage")
+async def admin_ai_policy_page(request: Request):
+    """Which providers and kinds of data ThemisIQ's AI features may use for this organization, and what they used."""
+    ctx = shell_ctx(request, active_module="platform", active_section="ai-policy")
+    return shell_templates.TemplateResponse(request, "admin_ai_policy.html", ctx)
+
+
+@router.get("/api/admin/ai-policy")
+@_require_cap("ai_governance.policy.manage")
+async def api_ai_policy_get(request: Request, org_id: int = None):
+    from contextlib import nullcontext
+    from database import tenant_context
+    scope_org, slug = _ai_policy_scope(request.state.user, org_id)
+    with (tenant_context(scope_org, slug, is_super_admin=False) if slug else nullcontext()):
+        return _JSONResp(_ai_policy_view(scope_org, bool(request.state.user.get("is_super_admin"))))
+
+
+@router.put("/api/admin/ai-policy")
+@_require_cap("ai_governance.policy.manage")
+async def api_ai_policy_put(request: Request, org_id: int = None):
+    from contextlib import nullcontext
+    from core import ai_policy
+    from database import tenant_context
+    try:
+        submitted = ai_policy.parse_submitted_policy(await request.json())
+    except ValueError as exc:
+        return _JSONResp({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception:
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status_code=400)
+    user = request.state.user
+    scope_org, slug = _ai_policy_scope(user, org_id)
+    with (tenant_context(scope_org, slug, is_super_admin=False) if slug else nullcontext()):
+        before = ai_policy.get_policy(scope_org)
+        saved = ai_policy.save_policy(scope_org, submitted, user_id=user["id"])
+        view = _ai_policy_view(scope_org, bool(user.get("is_super_admin")))
+    changed = sorted(k for k in submitted if before is None or before.get(k) != saved.get(k))
+    log_audit(user, "platform", "ai_policy_updated", "organization", scope_org,
+              details="changed: " + (", ".join(changed) or "nothing") + ("" if before else " (first policy)"),
+              org_id=scope_org)
+    return _JSONResp({"ok": True, **view})
+
+
+@router.put("/api/admin/ai-governance")
+@_require_cap("ai_governance.policy.manage")
+async def api_ai_governance_switch(request: Request, org_id: int = None):
+    """Turn AI Governance on or off for an organization. A platform administrator's decision: it controls what an
+    organization is shown, not what it may do."""
+    from core import ai_rollout
+    user = request.state.user
+    if not user.get("is_super_admin"):
+        return _JSONResp({"ok": False, "error": "Only a platform administrator turns AI Governance on or off."}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status_code=400)
+    if not isinstance(body, dict) or not isinstance(body.get("enabled"), bool):
+        return _JSONResp({"ok": False, "error": "Send {\"enabled\": true} or {\"enabled\": false}."}, status_code=400)
+    scope_org, _slug = _ai_policy_scope(user, org_id)
+    before = ai_rollout.is_enabled(scope_org, fresh=True)
+    ai_rollout.set_enabled(scope_org, body["enabled"])
+    log_audit(user, "platform", "ai_governance_switched", "organization", scope_org,
+              details=f"{'on' if before else 'off'} -> {'on' if body['enabled'] else 'off'}", org_id=scope_org)
+    return _JSONResp({"ok": True, "governance": {"enabled": body["enabled"], "chosen": True,
+                                                  "default": ai_rollout.default_enabled(), "can_change": True}})
+
+
+@router.put("/api/admin/ai-decision-separation")
+@_require_cap("ai_governance.policy.manage")
+async def api_ai_decision_separation(request: Request, org_id: int = None):
+    """Whether a decision on an AI use needs someone other than the person who asked and the system's owner. On unless an
+    organization turns it off, because one person may be its whole compliance function. Audited, and recorded on every
+    decision made while it is off."""
+    from core import ai_rollout
+    user = request.state.user
+    try:
+        body = await request.json()
+    except Exception:
+        return _JSONResp({"ok": False, "error": "Invalid JSON body."}, status_code=400)
+    if not isinstance(body, dict) or not isinstance(body.get("required"), bool):
+        return _JSONResp({"ok": False, "error": "Send {\"required\": true} or {\"required\": false}."}, status_code=400)
+    scope_org, _slug = _ai_policy_scope(user, org_id)
+    before = ai_rollout.separation_required(scope_org)
+    ai_rollout.set_separation(scope_org, body["required"])
+    log_audit(user, "platform", "ai_decision_separation_changed", "organization", scope_org,
+              details=f"{'on' if before else 'off'} -> {'on' if body['required'] else 'off'}", org_id=scope_org)
+    return _JSONResp({"ok": True, "separation_required": body["required"]})
 
 
 @router.get("/api/admin/security-settings")

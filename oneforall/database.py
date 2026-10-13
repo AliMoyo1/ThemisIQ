@@ -48,6 +48,7 @@ _pg_pool_lock = threading.Lock()
 _current_tenant: ContextVar = ContextVar("current_tenant", default=None)
 _current_org_id: ContextVar = ContextVar("current_org_id", default=None)
 _current_is_super: ContextVar = ContextVar("current_is_super", default=False)
+_current_user_id: ContextVar = ContextVar("current_user_id", default=None)
 
 
 def set_current_tenant(slug: str):
@@ -65,10 +66,16 @@ def get_current_org() -> "int | None":
     return _current_org_id.get()
 
 
-def set_current_org(org_id: "int | None", is_super_admin: bool = False):
+def get_current_user_id() -> "int | None":
+    """The signed-in user of the current request (None in a background job): who an AI call is made for."""
+    return _current_user_id.get()
+
+
+def set_current_org(org_id: "int | None", is_super_admin: bool = False, user_id: "int | None" = None):
     """Set the org context for RLS enforcement in the current async context."""
     _current_org_id.set(org_id)
     _current_is_super.set(is_super_admin)
+    _current_user_id.set(user_id)
 
 
 def list_active_tenants() -> "list[tuple[int, str]]":
@@ -237,6 +244,12 @@ def _pg_script_statements(sql: str) -> tuple[str, ...]:
     )
 
 
+_SAVEPOINT_STATEMENT = re.compile(
+    r"^\s*(?:(SAVEPOINT)|(RELEASE)(?:\s+SAVEPOINT)?|(ROLLBACK)\s+TO(?:\s+SAVEPOINT)?)\s+(\w+)\s*;?\s*$",
+    re.IGNORECASE,
+)
+
+
 class _PgConnWrapper:
     """Mimics the sqlite3.Connection interface over a pooled psycopg2 connection.
 
@@ -246,6 +259,7 @@ class _PgConnWrapper:
 
     def __init__(self, pgconn):
         self._conn = pgconn
+        self._savepoints: list[str] = []  # open savepoint names, innermost last
 
     def _is_alive(self) -> bool:
         """Check whether the pooled connection is still usable."""
@@ -258,6 +272,7 @@ class _PgConnWrapper:
 
     def execute(self, sql: str, params=None):
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        savepoint_stmt = _SAVEPOINT_STATEMENT.match(sql) if isinstance(sql, str) else None
         # Pass None (not empty tuple) when no params so psycopg2 skips
         # its % formatter — literal LIKE '%value%' in SQL would otherwise crash.
         try:
@@ -267,12 +282,32 @@ class _PgConnWrapper:
             # Roll back so subsequent queries on this connection don't all fail
             # with "current transaction is aborted". Re-raise so callers still
             # see the original exception (their try/except blocks still fire).
-            try:
-                self._conn.rollback()
-            except Exception:
-                pass
+            # Exception: inside an open savepoint the caller's ROLLBACK TO
+            # SAVEPOINT recovers the transaction, and a full rollback here would
+            # destroy that savepoint and every uncommitted write before it. A
+            # failing savepoint statement itself is never recoverable.
+            if savepoint_stmt is not None or not self._savepoints:
+                self._savepoints.clear()
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    pass
             raise
+        if savepoint_stmt is not None:
+            self._track_savepoint(savepoint_stmt)
         return _NormCursor(cur)
+
+    def _track_savepoint(self, stmt):
+        name = stmt.group(4).lower()
+        if stmt.group(1):  # SAVEPOINT name
+            self._savepoints.append(name)
+            return
+        for i in range(len(self._savepoints) - 1, -1, -1):
+            if self._savepoints[i] == name:
+                # RELEASE drops the named savepoint and all later ones;
+                # ROLLBACK TO drops only the later ones.
+                del self._savepoints[i + (1 if stmt.group(3) else 0):]
+                return
 
     def executemany(self, sql: str, seq):
         cur = self._conn.cursor()
@@ -292,26 +327,38 @@ class _PgConnWrapper:
         slug='public' keeps the default public schema (used by the default org
         so existing data needs no migration). Any other slug resolves to
         tenant_{slug} with public as fallback (for shared tables like users).
+
+        This and the two RLS setters below commit straight away. PostgreSQL
+        undoes a SET together with the transaction it ran in, and execute()
+        rolls the whole transaction back on any error, so an uncommitted scope
+        would silently revert to the pooled connection's previous one and a
+        caller that caught the error would carry on in the wrong schema. Work
+        already pending in the transaction is committed with them, so bind the
+        scope before writing, as get_db() does.
         """
         if slug == "public":
             cur = self._conn.cursor()
             cur.execute("SET search_path TO public")
+            self.commit()
             return
         safe = re.sub(r"[^a-z0-9_]", "", slug.lower())
         cur = self._conn.cursor()
         cur.execute(f"SET search_path TO tenant_{safe}, public")
+        self.commit()
 
     def set_rls_context(self, org_id: "int | None", is_super: bool = False):
         """Set session variables used by RLS policies.
 
-        Uses SET (session-level, not LOCAL) so the value survives COMMIT within
-        a single handler that calls commit() mid-flight. _clear_rls_context()
-        in close() resets them before the connection returns to the pool.
+        Uses SET (session-level, not LOCAL) and commits at once, so the value
+        survives both COMMIT and ROLLBACK within a single handler.
+        _clear_rls_context() in close() resets them before the connection
+        returns to the pool.
         """
         cur = self._conn.cursor()
         cur.execute("SET app.current_org_id = %s", (str(org_id) if org_id else '',))
         cur.execute("SET app.is_super_admin = %s", ('true' if is_super else 'false',))
         cur.execute("SET app.bypass_rls = 'false'")
+        self.commit()
 
     def set_rls_bypass(self):
         """Grant unrestricted access to RLS-protected tables for this connection."""
@@ -319,6 +366,7 @@ class _PgConnWrapper:
         cur.execute("SET app.bypass_rls = 'true'")
         cur.execute("SET app.current_org_id = ''")
         cur.execute("SET app.is_super_admin = 'false'")
+        self.commit()
 
     def _clear_rls_context(self):
         """Restore every session-level tenant/security setting.
@@ -335,13 +383,16 @@ class _PgConnWrapper:
         cur.execute("SET app.bypass_rls = 'false'")
 
     def commit(self):
+        self._savepoints.clear()
         self._conn.commit()
 
     def rollback(self):
+        self._savepoints.clear()
         self._conn.rollback()
 
     def close(self):
         pool = _get_pg_pool()
+        self._savepoints.clear()
         try:
             # First discard the caller's open/aborted transaction. Then reset
             # all session-level tenant state in a fresh transaction and COMMIT
@@ -788,6 +839,18 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
 CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
 
+-- One row per handler of an event, so a retry runs only the handlers that have not succeeded yet.
+CREATE TABLE IF NOT EXISTS event_deliveries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    handler     TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    attempts    INTEGER NOT NULL DEFAULT 0,
+    last_error  TEXT,
+    updated_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE (event_id, handler)
+);
+
 -- ── Notifications ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notifications (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -807,6 +870,27 @@ CREATE TABLE IF NOT EXISTS settings (
     value   TEXT,
     updated_at TEXT DEFAULT (datetime('now'))
 );
+
+-- ── AI usage (AI governance G1c) ────────────────────────────────────────────
+-- One row per model call or refusal, written by core/ai_policy.py: who, which feature, which provider, how much.
+-- Metadata only; a prompt and a model answer are never stored here.
+CREATE TABLE IF NOT EXISTS ai_usage_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id        INTEGER,
+    user_id       INTEGER,
+    feature       TEXT NOT NULL,
+    provider      TEXT,
+    model         TEXT,
+    status        TEXT NOT NULL,
+    reason        TEXT,
+    categories    TEXT,
+    sources       TEXT,
+    input_tokens  INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    duration_ms   INTEGER DEFAULT 0,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_org_created ON ai_usage_log(org_id, created_at);
 
 -- ── Evidence Repository ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS evidence_items (
@@ -1340,6 +1424,344 @@ CREATE INDEX IF NOT EXISTS idx_da_bu ON data_assets(business_unit_id);
 CREATE INDEX IF NOT EXISTS idx_da_app ON data_assets(application_id);
 CREATE INDEX IF NOT EXISTS idx_da_classification ON data_assets(classification);
 
+-- ── AI governance (G2): one application, one AI profile ─────────────────────
+-- An AI use is an `applications` row with a profile here. The profile owns the stable facts about the use; the
+-- AIIA, RoPA and DPIA stay with their own modules and are linked, never copied.
+CREATE TABLE IF NOT EXISTS ai_use_profiles (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id        INTEGER NOT NULL UNIQUE REFERENCES applications(id),
+    purpose               TEXT,
+    capability_type       TEXT,
+    intended_users        TEXT,
+    affected_people       TEXT,
+    autonomy              TEXT,
+    deployment            TEXT,
+    provider_note         TEXT,
+    data_categories       TEXT,
+    jurisdictions         TEXT,
+    external_access       INTEGER,
+    affects_decisions     INTEGER,
+    human_oversight       TEXT,
+    target_launch         TEXT,
+    review_cadence_months INTEGER,
+    last_reviewed_at      TEXT,
+    next_review_at        TEXT,
+    provisional_tier      TEXT,
+    tier_rule_version     TEXT,
+    tier_reasons          TEXT,
+    adopted_tier          TEXT,
+    adopted_tier_reason   TEXT,
+    adopted_by            INTEGER REFERENCES users(id),
+    adopted_at            TEXT,
+    fingerprint           TEXT,
+    material_changed_at   TEXT,
+    version               INTEGER NOT NULL DEFAULT 1,
+    created_by            INTEGER REFERENCES users(id),
+    created_at            TEXT DEFAULT (datetime('now')),
+    updated_by            INTEGER REFERENCES users(id),
+    updated_at            TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_profiles_next_review ON ai_use_profiles(next_review_at);
+
+-- G7: content-neutral human oversight arrangements. Review changes state, while each edit appends a new version.
+CREATE TABLE IF NOT EXISTS ai_oversight_heads (
+    application_id  INTEGER NOT NULL REFERENCES applications(id),
+    track           TEXT NOT NULL CHECK (track IN ('design', 'operation')),
+    content_version INTEGER NOT NULL DEFAULT 0,
+    revision        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (application_id, track)
+);
+CREATE TABLE IF NOT EXISTS ai_oversight_versions (
+    application_id      INTEGER NOT NULL REFERENCES applications(id),
+    track               TEXT NOT NULL CHECK (track IN ('design', 'operation')),
+    version             INTEGER NOT NULL,
+    profile_version     INTEGER NOT NULL,
+    responsible_user_id INTEGER REFERENCES users(id),
+    monitoring_method   TEXT NOT NULL DEFAULT '',
+    intervention_method TEXT NOT NULL DEFAULT '',
+    stop_procedure      TEXT NOT NULL DEFAULT '',
+    escalation_path     TEXT NOT NULL DEFAULT '',
+    status              TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'reviewed')),
+    authored_by         INTEGER NOT NULL REFERENCES users(id),
+    authored_at         TEXT NOT NULL,
+    reviewed_by         INTEGER REFERENCES users(id),
+    reviewed_at         TEXT,
+    PRIMARY KEY (application_id, track, version),
+    FOREIGN KEY (application_id, track) REFERENCES ai_oversight_heads(application_id, track)
+);
+
+-- What staff declare before a reviewer promotes it. Staff never write `applications`; the answers stay unconfirmed
+-- facts here until a reviewer accepts the request.
+CREATE TABLE IF NOT EXISTS ai_use_intake_requests (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id            INTEGER,
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    submitted_by      INTEGER NOT NULL REFERENCES users(id),
+    status            TEXT NOT NULL DEFAULT 'draft',
+    payload           TEXT NOT NULL DEFAULT '{}',
+    version           INTEGER NOT NULL DEFAULT 1,
+    application_id    INTEGER REFERENCES applications(id),
+    provisional_tier  TEXT,
+    tier_rule_version TEXT,
+    review_note       TEXT,
+    reviewed_by       INTEGER REFERENCES users(id),
+    reviewed_at       TEXT,
+    submitted_at      TEXT,
+    source_ref        TEXT,
+    idempotency_key   TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_intake_queue ON ai_use_intake_requests(status, business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_ai_intake_author ON ai_use_intake_requests(submitted_by, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_intake_idempotency ON ai_use_intake_requests(submitted_by, idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+
+-- ── AI governance (G3): guidance, judgements and dismissals ─────────────────
+-- A reviewer's judgement that a required step does not apply, with the facts it was judged against. Stored beside the
+-- rule version so a later change to the use, or to the rules, shows it as out of date instead of silently standing.
+CREATE TABLE IF NOT EXISTS ai_use_step_overrides (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    step_key        TEXT NOT NULL,
+    reason          TEXT NOT NULL,
+    rule_version    TEXT,
+    fingerprint     TEXT,
+    set_by          INTEGER REFERENCES users(id),
+    set_at          TEXT DEFAULT (datetime('now')),
+    UNIQUE (application_id, step_key)
+);
+
+-- A quality finding a reviewer set aside, with why. It applies only while the finding's fingerprint is unchanged and
+-- it has not expired; it never changes the record the finding is about.
+CREATE TABLE IF NOT EXISTS ai_use_finding_dismissals (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    finding_key     TEXT NOT NULL,
+    fingerprint     TEXT NOT NULL,
+    reason          TEXT NOT NULL,
+    dismissed_by    INTEGER REFERENCES users(id),
+    dismissed_at    TEXT DEFAULT (datetime('now')),
+    expires_at      TEXT,
+    UNIQUE (application_id, finding_key)
+);
+
+-- ── AI governance (G4): decisions on an AI use ──────────────────────────────
+-- One row per request for a decision. The request is written first; the outcome is set once (the status, who, why, and
+-- the frozen manifest of what it was signed on), and a revocation once. A later change to the use never edits a row: the
+-- state is derived by comparing the row with the use as it is. At most one request is open for an application.
+CREATE TABLE IF NOT EXISTS ai_use_decisions (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id       INTEGER NOT NULL REFERENCES applications(id),
+    status               TEXT NOT NULL DEFAULT 'proposed',
+    requested_by         INTEGER REFERENCES users(id),
+    requested_at         TEXT,
+    request_note         TEXT,
+    business_unit_id     INTEGER REFERENCES business_units(id),
+    decided_by           INTEGER REFERENCES users(id),
+    decided_at           TEXT,
+    rationale            TEXT,
+    expires_at           TEXT,
+    profile_version      INTEGER,
+    profile_fingerprint  TEXT,
+    tier                 TEXT,
+    rule_version         TEXT,
+    manifest             TEXT,
+    manifest_hash        TEXT,
+    override_reason      TEXT,
+    separation_enforced  INTEGER NOT NULL DEFAULT 1,
+    revoked_at           TEXT,
+    revoked_by           INTEGER REFERENCES users(id),
+    revoked_reason       TEXT,
+    version              INTEGER NOT NULL DEFAULT 1,
+    created_at           TEXT DEFAULT (datetime('now')),
+    updated_at           TEXT DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_decision_open ON ai_use_decisions(application_id) WHERE status = 'proposed';
+CREATE INDEX IF NOT EXISTS idx_ai_decisions_application ON ai_use_decisions(application_id, id);
+CREATE INDEX IF NOT EXISTS idx_ai_decisions_queue ON ai_use_decisions(status, business_unit_id);
+
+-- The named conditions of an approval. The decision keeps the text as signed; whether a condition was met is tracked here.
+CREATE TABLE IF NOT EXISTS ai_use_decision_conditions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    decision_id  INTEGER NOT NULL REFERENCES ai_use_decisions(id) ON DELETE CASCADE,
+    position     INTEGER NOT NULL DEFAULT 1,
+    text         TEXT NOT NULL,
+    due_date     TEXT,
+    status       TEXT NOT NULL DEFAULT 'open',
+    met_by       INTEGER REFERENCES users(id),
+    met_at       TEXT,
+    note         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ai_decision_conditions ON ai_use_decision_conditions(decision_id);
+
+-- ── Regulatory Inbox (T4.2-lite): manually posted regulatory updates ──────
+CREATE TABLE IF NOT EXISTS regulatory_updates (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    framework_name      TEXT NOT NULL,
+    title               TEXT NOT NULL,
+    summary             TEXT,
+    source_url          TEXT,
+    effective_date      TEXT,
+    affected_refs       TEXT,
+    severity            TEXT DEFAULT 'info',
+    status              TEXT DEFAULT 'open',
+    ai_summary          TEXT,
+    matched_count       INTEGER,
+    processed_at        TEXT,
+    created_by          INTEGER,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_regupd_status ON regulatory_updates(status);
+
+-- ── AI governance (G5): evaluation records and regulatory impact ────────────
+-- A recorded evaluation run. ThemisIQ does not run the evaluation and keeps no prompts or answers: it keeps what was
+-- evaluated, against what, by whom, the numbers, and a reading of them computed when the run was recorded.
+CREATE TABLE IF NOT EXISTS ai_evaluation_runs (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id    INTEGER NOT NULL REFERENCES applications(id),
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    name              TEXT NOT NULL,
+    test_set_name     TEXT,
+    test_set_version  TEXT,
+    rubric_version    TEXT,
+    subject_version   TEXT NOT NULL,
+    evaluator         TEXT NOT NULL,
+    status            TEXT NOT NULL,
+    result_state      TEXT NOT NULL,
+    started_at        TEXT,
+    finished_at       TEXT,
+    thresholds        TEXT,
+    scores            TEXT,
+    cases_total       INTEGER,
+    cases_failed      INTEGER,
+    retention         TEXT NOT NULL DEFAULT 'none',
+    artifact_id       INTEGER,
+    notes             TEXT,
+    recorded_by       INTEGER REFERENCES users(id),
+    recorded_at       TEXT,
+    review_outcome    TEXT,
+    reviewed_by       INTEGER REFERENCES users(id),
+    reviewed_at       TEXT,
+    review_note       TEXT,
+    review_task_id    INTEGER,
+    version           INTEGER NOT NULL DEFAULT 1,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_evaluation_application ON ai_evaluation_runs(application_id, recorded_at);
+
+-- A change in the Regulatory Inbox proposed as relevant to an AI use, and what a person decided about it.
+CREATE TABLE IF NOT EXISTS ai_regulatory_impacts (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    update_id           INTEGER NOT NULL REFERENCES regulatory_updates(id) ON DELETE CASCADE,
+    application_id      INTEGER NOT NULL REFERENCES applications(id),
+    business_unit_id    INTEGER REFERENCES business_units(id),
+    status              TEXT NOT NULL DEFAULT 'candidate',
+    basis               TEXT,
+    update_fingerprint  TEXT,
+    reviewed_by         INTEGER REFERENCES users(id),
+    reviewed_at         TEXT,
+    review_note         TEXT,
+    task_id             INTEGER,
+    version             INTEGER NOT NULL DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now')),
+    UNIQUE (update_id, application_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ai_regulatory_queue ON ai_regulatory_impacts(status, business_unit_id);
+
+-- ── AI governance (G6): review packs and AI literacy ────────────────────────
+-- A frozen, named, read-only account of one AI use, issued to one signed-in person with an expiry. The manifest is the
+-- account; its hash is checked on every open. People's names and free text are in it only when the author chose so.
+CREATE TABLE IF NOT EXISTS ai_review_packs (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id     INTEGER NOT NULL REFERENCES applications(id),
+    application_name   TEXT NOT NULL,
+    business_unit_id   INTEGER REFERENCES business_units(id),
+    name               TEXT NOT NULL,
+    purpose            TEXT,
+    status             TEXT NOT NULL DEFAULT 'issued',
+    recipient_user_id  INTEGER NOT NULL REFERENCES users(id),
+    allow_download     INTEGER NOT NULL DEFAULT 0,
+    include_people     INTEGER NOT NULL DEFAULT 0,
+    include_notes      INTEGER NOT NULL DEFAULT 0,
+    expires_at         TEXT NOT NULL,
+    manifest           TEXT NOT NULL,
+    manifest_hash      TEXT NOT NULL,
+    generated_at       TEXT NOT NULL,
+    issued_by          INTEGER REFERENCES users(id),
+    issued_at          TEXT NOT NULL,
+    revoked_by         INTEGER REFERENCES users(id),
+    revoked_at         TEXT,
+    revoke_reason      TEXT,
+    version            INTEGER NOT NULL DEFAULT 1,
+    created_at         TEXT DEFAULT (datetime('now')),
+    updated_at         TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_pack_application ON ai_review_packs(application_id, issued_at);
+CREATE INDEX IF NOT EXISTS idx_ai_pack_recipient ON ai_review_packs(recipient_user_id, status);
+CREATE TABLE IF NOT EXISTS ai_review_pack_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    pack_id     INTEGER NOT NULL REFERENCES ai_review_packs(id) ON DELETE CASCADE,
+    user_id     INTEGER REFERENCES users(id),
+    action      TEXT NOT NULL,
+    reason      TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_pack_events ON ai_review_pack_events(pack_id, created_at);
+
+-- A course in AI literacy. The working copy (body, questions, pass mark) is edited freely; publishing copies it into an
+-- immutable version row, and a completion belongs to one version.
+CREATE TABLE IF NOT EXISTS ai_literacy_courses (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    title              TEXT NOT NULL,
+    summary            TEXT,
+    body               TEXT,
+    questions          TEXT,
+    pass_mark          INTEGER,
+    audience_roles     TEXT,
+    audience_owners    INTEGER NOT NULL DEFAULT 0,
+    business_unit_id   INTEGER REFERENCES business_units(id),
+    renewal_months     INTEGER NOT NULL DEFAULT 12,
+    due_days           INTEGER NOT NULL DEFAULT 30,
+    status             TEXT NOT NULL DEFAULT 'draft',
+    current_version    INTEGER NOT NULL DEFAULT 0,
+    retake_from        INTEGER NOT NULL DEFAULT 0,
+    published_at       TEXT,
+    created_by         INTEGER REFERENCES users(id),
+    version            INTEGER NOT NULL DEFAULT 1,
+    created_at         TEXT DEFAULT (datetime('now')),
+    updated_at         TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS ai_literacy_versions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id     INTEGER NOT NULL REFERENCES ai_literacy_courses(id) ON DELETE CASCADE,
+    version       INTEGER NOT NULL,
+    title         TEXT NOT NULL,
+    body          TEXT NOT NULL,
+    questions     TEXT,
+    pass_mark     INTEGER,
+    retake        INTEGER NOT NULL DEFAULT 1,
+    published_by  INTEGER REFERENCES users(id),
+    published_at  TEXT,
+    UNIQUE (course_id, version)
+);
+CREATE TABLE IF NOT EXISTS ai_literacy_completions (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id         INTEGER NOT NULL REFERENCES ai_literacy_courses(id) ON DELETE CASCADE,
+    course_version    INTEGER NOT NULL,
+    user_id           INTEGER NOT NULL REFERENCES users(id),
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    outcome           TEXT NOT NULL,
+    score             INTEGER,
+    completed_at      TEXT NOT NULL,
+    expires_at        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ai_literacy_completions_user ON ai_literacy_completions(user_id, course_id);
+CREATE INDEX IF NOT EXISTS idx_ai_literacy_completions_course ON ai_literacy_completions(course_id, course_version, user_id);
+
 -- ── Rate Limit Attempts ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rate_limit_attempts (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1382,25 +1804,22 @@ CREATE TABLE IF NOT EXISTS demo_requests (
 CREATE INDEX IF NOT EXISTS idx_demo_requests_email   ON demo_requests(email);
 CREATE INDEX IF NOT EXISTS idx_demo_requests_created ON demo_requests(created_at);
 
--- ── Regulatory Inbox (T4.2-lite): manually posted regulatory updates ──────
-CREATE TABLE IF NOT EXISTS regulatory_updates (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    framework_name      TEXT NOT NULL,
-    title               TEXT NOT NULL,
-    summary             TEXT,
-    source_url          TEXT,
-    effective_date      TEXT,
-    affected_refs       TEXT,
-    severity            TEXT DEFAULT 'info',
-    status              TEXT DEFAULT 'open',
-    ai_summary          TEXT,
-    matched_count       INTEGER,
-    processed_at        TEXT,
-    created_by          INTEGER,
-    created_at          TEXT DEFAULT (datetime('now')),
-    updated_at          TEXT DEFAULT (datetime('now'))
+-- Operator notes on ThemisIQ's own AI call sites. Shared/public only.
+-- Tenant schemas must not hold independent copies of this oversight record.
+CREATE TABLE IF NOT EXISTS platform_ai_features (
+    feature_key        TEXT PRIMARY KEY,
+    owner              TEXT,
+    provider_note      TEXT,
+    known_limitations  TEXT,
+    incident_path      TEXT,
+    deployment         TEXT NOT NULL DEFAULT 'in_service',
+    review_due         TEXT,
+    last_reviewed_at   TEXT,
+    last_reviewed_by   INTEGER REFERENCES users(id),
+    version            INTEGER NOT NULL DEFAULT 1,
+    updated_at         TEXT DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_regupd_status ON regulatory_updates(status);
+
 """
 
 # Per-tenant platform tables: created in every tenant schema by provision_tenant_schema().
@@ -1426,6 +1845,27 @@ CREATE TABLE IF NOT EXISTS settings (
     value   TEXT,
     updated_at TEXT DEFAULT (datetime('now'))
 );
+
+-- ── AI usage (AI governance G1c) ────────────────────────────────────────────
+-- One row per model call or refusal, written by core/ai_policy.py: who, which feature, which provider, how much.
+-- Metadata only; a prompt and a model answer are never stored here.
+CREATE TABLE IF NOT EXISTS ai_usage_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id        INTEGER,
+    user_id       INTEGER,
+    feature       TEXT NOT NULL,
+    provider      TEXT,
+    model         TEXT,
+    status        TEXT NOT NULL,
+    reason        TEXT,
+    categories    TEXT,
+    sources       TEXT,
+    input_tokens  INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    duration_ms   INTEGER DEFAULT 0,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_org_created ON ai_usage_log(org_id, created_at);
 
 -- ── Evidence Repository ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS evidence_items (
@@ -1941,6 +2381,177 @@ CREATE INDEX IF NOT EXISTS idx_da_bu ON data_assets(business_unit_id);
 CREATE INDEX IF NOT EXISTS idx_da_app ON data_assets(application_id);
 CREATE INDEX IF NOT EXISTS idx_da_classification ON data_assets(classification);
 
+-- ── AI governance (G2): one application, one AI profile ─────────────────────
+-- An AI use is an `applications` row with a profile here. The profile owns the stable facts about the use; the
+-- AIIA, RoPA and DPIA stay with their own modules and are linked, never copied.
+CREATE TABLE IF NOT EXISTS ai_use_profiles (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id        INTEGER NOT NULL UNIQUE REFERENCES applications(id),
+    purpose               TEXT,
+    capability_type       TEXT,
+    intended_users        TEXT,
+    affected_people       TEXT,
+    autonomy              TEXT,
+    deployment            TEXT,
+    provider_note         TEXT,
+    data_categories       TEXT,
+    jurisdictions         TEXT,
+    external_access       INTEGER,
+    affects_decisions     INTEGER,
+    human_oversight       TEXT,
+    target_launch         TEXT,
+    review_cadence_months INTEGER,
+    last_reviewed_at      TEXT,
+    next_review_at        TEXT,
+    provisional_tier      TEXT,
+    tier_rule_version     TEXT,
+    tier_reasons          TEXT,
+    adopted_tier          TEXT,
+    adopted_tier_reason   TEXT,
+    adopted_by            INTEGER REFERENCES users(id),
+    adopted_at            TEXT,
+    fingerprint           TEXT,
+    material_changed_at   TEXT,
+    version               INTEGER NOT NULL DEFAULT 1,
+    created_by            INTEGER REFERENCES users(id),
+    created_at            TEXT DEFAULT (datetime('now')),
+    updated_by            INTEGER REFERENCES users(id),
+    updated_at            TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_profiles_next_review ON ai_use_profiles(next_review_at);
+
+-- G7: content-neutral human oversight arrangements. Review changes state, while each edit appends a new version.
+CREATE TABLE IF NOT EXISTS ai_oversight_heads (
+    application_id  INTEGER NOT NULL REFERENCES applications(id),
+    track           TEXT NOT NULL CHECK (track IN ('design', 'operation')),
+    content_version INTEGER NOT NULL DEFAULT 0,
+    revision        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (application_id, track)
+);
+CREATE TABLE IF NOT EXISTS ai_oversight_versions (
+    application_id      INTEGER NOT NULL REFERENCES applications(id),
+    track               TEXT NOT NULL CHECK (track IN ('design', 'operation')),
+    version             INTEGER NOT NULL,
+    profile_version     INTEGER NOT NULL,
+    responsible_user_id INTEGER REFERENCES users(id),
+    monitoring_method   TEXT NOT NULL DEFAULT '',
+    intervention_method TEXT NOT NULL DEFAULT '',
+    stop_procedure      TEXT NOT NULL DEFAULT '',
+    escalation_path     TEXT NOT NULL DEFAULT '',
+    status              TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'reviewed')),
+    authored_by         INTEGER NOT NULL REFERENCES users(id),
+    authored_at         TEXT NOT NULL,
+    reviewed_by         INTEGER REFERENCES users(id),
+    reviewed_at         TEXT,
+    PRIMARY KEY (application_id, track, version),
+    FOREIGN KEY (application_id, track) REFERENCES ai_oversight_heads(application_id, track)
+);
+
+-- What staff declare before a reviewer promotes it. Staff never write `applications`; the answers stay unconfirmed
+-- facts here until a reviewer accepts the request.
+CREATE TABLE IF NOT EXISTS ai_use_intake_requests (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id            INTEGER,
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    submitted_by      INTEGER NOT NULL REFERENCES users(id),
+    status            TEXT NOT NULL DEFAULT 'draft',
+    payload           TEXT NOT NULL DEFAULT '{}',
+    version           INTEGER NOT NULL DEFAULT 1,
+    application_id    INTEGER REFERENCES applications(id),
+    provisional_tier  TEXT,
+    tier_rule_version TEXT,
+    review_note       TEXT,
+    reviewed_by       INTEGER REFERENCES users(id),
+    reviewed_at       TEXT,
+    submitted_at      TEXT,
+    source_ref        TEXT,
+    idempotency_key   TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_intake_queue ON ai_use_intake_requests(status, business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_ai_intake_author ON ai_use_intake_requests(submitted_by, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_intake_idempotency ON ai_use_intake_requests(submitted_by, idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+
+-- ── AI governance (G3): guidance, judgements and dismissals ─────────────────
+-- A reviewer's judgement that a required step does not apply, with the facts it was judged against. Stored beside the
+-- rule version so a later change to the use, or to the rules, shows it as out of date instead of silently standing.
+CREATE TABLE IF NOT EXISTS ai_use_step_overrides (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    step_key        TEXT NOT NULL,
+    reason          TEXT NOT NULL,
+    rule_version    TEXT,
+    fingerprint     TEXT,
+    set_by          INTEGER REFERENCES users(id),
+    set_at          TEXT DEFAULT (datetime('now')),
+    UNIQUE (application_id, step_key)
+);
+
+-- A quality finding a reviewer set aside, with why. It applies only while the finding's fingerprint is unchanged and
+-- it has not expired; it never changes the record the finding is about.
+CREATE TABLE IF NOT EXISTS ai_use_finding_dismissals (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id  INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    finding_key     TEXT NOT NULL,
+    fingerprint     TEXT NOT NULL,
+    reason          TEXT NOT NULL,
+    dismissed_by    INTEGER REFERENCES users(id),
+    dismissed_at    TEXT DEFAULT (datetime('now')),
+    expires_at      TEXT,
+    UNIQUE (application_id, finding_key)
+);
+
+-- ── AI governance (G4): decisions on an AI use ──────────────────────────────
+-- One row per request for a decision. The request is written first; the outcome is set once (the status, who, why, and
+-- the frozen manifest of what it was signed on), and a revocation once. A later change to the use never edits a row: the
+-- state is derived by comparing the row with the use as it is. At most one request is open for an application.
+CREATE TABLE IF NOT EXISTS ai_use_decisions (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id       INTEGER NOT NULL REFERENCES applications(id),
+    status               TEXT NOT NULL DEFAULT 'proposed',
+    requested_by         INTEGER REFERENCES users(id),
+    requested_at         TEXT,
+    request_note         TEXT,
+    business_unit_id     INTEGER REFERENCES business_units(id),
+    decided_by           INTEGER REFERENCES users(id),
+    decided_at           TEXT,
+    rationale            TEXT,
+    expires_at           TEXT,
+    profile_version      INTEGER,
+    profile_fingerprint  TEXT,
+    tier                 TEXT,
+    rule_version         TEXT,
+    manifest             TEXT,
+    manifest_hash        TEXT,
+    override_reason      TEXT,
+    separation_enforced  INTEGER NOT NULL DEFAULT 1,
+    revoked_at           TEXT,
+    revoked_by           INTEGER REFERENCES users(id),
+    revoked_reason       TEXT,
+    version              INTEGER NOT NULL DEFAULT 1,
+    created_at           TEXT DEFAULT (datetime('now')),
+    updated_at           TEXT DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_decision_open ON ai_use_decisions(application_id) WHERE status = 'proposed';
+CREATE INDEX IF NOT EXISTS idx_ai_decisions_application ON ai_use_decisions(application_id, id);
+CREATE INDEX IF NOT EXISTS idx_ai_decisions_queue ON ai_use_decisions(status, business_unit_id);
+
+-- The named conditions of an approval. The decision keeps the text as signed; whether a condition was met is tracked here.
+CREATE TABLE IF NOT EXISTS ai_use_decision_conditions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    decision_id  INTEGER NOT NULL REFERENCES ai_use_decisions(id) ON DELETE CASCADE,
+    position     INTEGER NOT NULL DEFAULT 1,
+    text         TEXT NOT NULL,
+    due_date     TEXT,
+    status       TEXT NOT NULL DEFAULT 'open',
+    met_by       INTEGER REFERENCES users(id),
+    met_at       TEXT,
+    note         TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ai_decision_conditions ON ai_use_decision_conditions(decision_id);
+
 -- ── Regulatory Inbox (T4.2-lite): manually posted regulatory updates ──────
 CREATE TABLE IF NOT EXISTS regulatory_updates (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1960,6 +2571,154 @@ CREATE TABLE IF NOT EXISTS regulatory_updates (
     updated_at          TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_regupd_status ON regulatory_updates(status);
+
+-- ── AI governance (G5): evaluation records and regulatory impact ────────────
+-- A recorded evaluation run. ThemisIQ does not run the evaluation and keeps no prompts or answers: it keeps what was
+-- evaluated, against what, by whom, the numbers, and a reading of them computed when the run was recorded.
+CREATE TABLE IF NOT EXISTS ai_evaluation_runs (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id    INTEGER NOT NULL REFERENCES applications(id),
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    name              TEXT NOT NULL,
+    test_set_name     TEXT,
+    test_set_version  TEXT,
+    rubric_version    TEXT,
+    subject_version   TEXT NOT NULL,
+    evaluator         TEXT NOT NULL,
+    status            TEXT NOT NULL,
+    result_state      TEXT NOT NULL,
+    started_at        TEXT,
+    finished_at       TEXT,
+    thresholds        TEXT,
+    scores            TEXT,
+    cases_total       INTEGER,
+    cases_failed      INTEGER,
+    retention         TEXT NOT NULL DEFAULT 'none',
+    artifact_id       INTEGER,
+    notes             TEXT,
+    recorded_by       INTEGER REFERENCES users(id),
+    recorded_at       TEXT,
+    review_outcome    TEXT,
+    reviewed_by       INTEGER REFERENCES users(id),
+    reviewed_at       TEXT,
+    review_note       TEXT,
+    review_task_id    INTEGER,
+    version           INTEGER NOT NULL DEFAULT 1,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_evaluation_application ON ai_evaluation_runs(application_id, recorded_at);
+
+-- A change in the Regulatory Inbox proposed as relevant to an AI use, and what a person decided about it.
+CREATE TABLE IF NOT EXISTS ai_regulatory_impacts (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    update_id           INTEGER NOT NULL REFERENCES regulatory_updates(id) ON DELETE CASCADE,
+    application_id      INTEGER NOT NULL REFERENCES applications(id),
+    business_unit_id    INTEGER REFERENCES business_units(id),
+    status              TEXT NOT NULL DEFAULT 'candidate',
+    basis               TEXT,
+    update_fingerprint  TEXT,
+    reviewed_by         INTEGER REFERENCES users(id),
+    reviewed_at         TEXT,
+    review_note         TEXT,
+    task_id             INTEGER,
+    version             INTEGER NOT NULL DEFAULT 1,
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now')),
+    UNIQUE (update_id, application_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ai_regulatory_queue ON ai_regulatory_impacts(status, business_unit_id);
+
+-- ── AI governance (G6): review packs and AI literacy ────────────────────────
+-- A frozen, named, read-only account of one AI use, issued to one signed-in person with an expiry. The manifest is the
+-- account; its hash is checked on every open. People's names and free text are in it only when the author chose so.
+CREATE TABLE IF NOT EXISTS ai_review_packs (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id     INTEGER NOT NULL REFERENCES applications(id),
+    application_name   TEXT NOT NULL,
+    business_unit_id   INTEGER REFERENCES business_units(id),
+    name               TEXT NOT NULL,
+    purpose            TEXT,
+    status             TEXT NOT NULL DEFAULT 'issued',
+    recipient_user_id  INTEGER NOT NULL REFERENCES users(id),
+    allow_download     INTEGER NOT NULL DEFAULT 0,
+    include_people     INTEGER NOT NULL DEFAULT 0,
+    include_notes      INTEGER NOT NULL DEFAULT 0,
+    expires_at         TEXT NOT NULL,
+    manifest           TEXT NOT NULL,
+    manifest_hash      TEXT NOT NULL,
+    generated_at       TEXT NOT NULL,
+    issued_by          INTEGER REFERENCES users(id),
+    issued_at          TEXT NOT NULL,
+    revoked_by         INTEGER REFERENCES users(id),
+    revoked_at         TEXT,
+    revoke_reason      TEXT,
+    version            INTEGER NOT NULL DEFAULT 1,
+    created_at         TEXT DEFAULT (datetime('now')),
+    updated_at         TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_pack_application ON ai_review_packs(application_id, issued_at);
+CREATE INDEX IF NOT EXISTS idx_ai_pack_recipient ON ai_review_packs(recipient_user_id, status);
+CREATE TABLE IF NOT EXISTS ai_review_pack_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    pack_id     INTEGER NOT NULL REFERENCES ai_review_packs(id) ON DELETE CASCADE,
+    user_id     INTEGER REFERENCES users(id),
+    action      TEXT NOT NULL,
+    reason      TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_pack_events ON ai_review_pack_events(pack_id, created_at);
+
+-- A course in AI literacy. The working copy (body, questions, pass mark) is edited freely; publishing copies it into an
+-- immutable version row, and a completion belongs to one version.
+CREATE TABLE IF NOT EXISTS ai_literacy_courses (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    title              TEXT NOT NULL,
+    summary            TEXT,
+    body               TEXT,
+    questions          TEXT,
+    pass_mark          INTEGER,
+    audience_roles     TEXT,
+    audience_owners    INTEGER NOT NULL DEFAULT 0,
+    business_unit_id   INTEGER REFERENCES business_units(id),
+    renewal_months     INTEGER NOT NULL DEFAULT 12,
+    due_days           INTEGER NOT NULL DEFAULT 30,
+    status             TEXT NOT NULL DEFAULT 'draft',
+    current_version    INTEGER NOT NULL DEFAULT 0,
+    retake_from        INTEGER NOT NULL DEFAULT 0,
+    published_at       TEXT,
+    created_by         INTEGER REFERENCES users(id),
+    version            INTEGER NOT NULL DEFAULT 1,
+    created_at         TEXT DEFAULT (datetime('now')),
+    updated_at         TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS ai_literacy_versions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id     INTEGER NOT NULL REFERENCES ai_literacy_courses(id) ON DELETE CASCADE,
+    version       INTEGER NOT NULL,
+    title         TEXT NOT NULL,
+    body          TEXT NOT NULL,
+    questions     TEXT,
+    pass_mark     INTEGER,
+    retake        INTEGER NOT NULL DEFAULT 1,
+    published_by  INTEGER REFERENCES users(id),
+    published_at  TEXT,
+    UNIQUE (course_id, version)
+);
+CREATE TABLE IF NOT EXISTS ai_literacy_completions (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id         INTEGER NOT NULL REFERENCES ai_literacy_courses(id) ON DELETE CASCADE,
+    course_version    INTEGER NOT NULL,
+    user_id           INTEGER NOT NULL REFERENCES users(id),
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    outcome           TEXT NOT NULL,
+    score             INTEGER,
+    completed_at      TEXT NOT NULL,
+    expires_at        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ai_literacy_completions_user ON ai_literacy_completions(user_id, course_id);
+CREATE INDEX IF NOT EXISTS idx_ai_literacy_completions_course ON ai_literacy_completions(course_id, course_version, user_id);
+
 """
 
 _ARIA_TABLES = """
@@ -4498,6 +5257,19 @@ CREATE TABLE IF NOT EXISTS aims_risk_controls (
     created_at          TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_aims_rc_risk ON aims_risk_controls(risk_id);
+
+-- ── AI governance (G3): which canonical control an AI control corresponds to ─
+-- Confirmed by a reviewer, never inferred. The proof held for the canonical control is then shown against the AI control.
+CREATE TABLE IF NOT EXISTS ai_control_mappings (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    ai_control_id         INTEGER NOT NULL REFERENCES ai_control_catalogue(id) ON DELETE CASCADE,
+    canonical_control_id  INTEGER NOT NULL REFERENCES canonical_controls(id) ON DELETE CASCADE,
+    note                  TEXT,
+    created_by            INTEGER REFERENCES users(id),
+    created_at            TEXT DEFAULT (datetime('now')),
+    UNIQUE (ai_control_id, canonical_control_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ai_control_mappings_canonical ON ai_control_mappings(canonical_control_id);
 """
 
 # ── PostgreSQL schema variants ─────────────────────────────────────────────────
@@ -4672,6 +5444,14 @@ _COLUMN_MIGRATIONS = [
         # (e.g. a publication_key) so a crash/lease-reclaim replay of the
         # same logical event never re-runs handlers/webhooks a second time.
         ("events", "dedup_key", "TEXT"),
+        # AI governance G1b: delivery that survives a crash. The row is written with the source change (see
+        # core.events.enqueue) or just before the handlers run; a sweeper retries what has not been delivered,
+        # with a cap, then marks it dead for an administrator. org_id says which tenant the handlers act in.
+        ("events", "attempts", "INTEGER DEFAULT 0"),
+        ("events", "last_error", "TEXT"),
+        ("events", "next_attempt_at", "TEXT"),
+        ("events", "dead_lettered_at", "TEXT"),
+        ("events", "org_id", "INTEGER"),
         # PLAN-35 T11 review fix: correlates a side effect back to the exact
         # event occurrence that created it, so a dedup_key replay (which
         # now reruns a handler that never finished, not just a handler that
@@ -4998,8 +5778,47 @@ _COLUMN_MIGRATIONS = [
         # PRIVACY_ANALYST). No backfill available (no user-id column on this
         # table either). Existing rows stay NULL.
         ("sentinel_dsr", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # Consent records hold the subject's name and e-mail address, as DSRs do, and were readable by every
+        # sentinel.consent.manage holder in every unit. Filed under the creator's unit from now on; rows from before
+        # stay NULL (organization wide), as the DSR ones did.
+        ("sentinel_consent", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         # PLAN-36 P07: freeze scope on immutable board-pack snapshots.
         ("erm_board_packs", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # Ownership of the legacy platform risk register and of SLA clocks and workflow instances, which the
+        # dashboards and reports could not scope by unit before. NULL is organization wide, as everywhere
+        # else; _backfill_owner_units places the rows that already exist, once.
+        ("risk_register",      "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("sla_instances",      "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        ("workflow_instances", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
+        # Relationship service (AI governance G1a). A link made before provenance was recorded has a NULL
+        # provenance and counts as confirmed, which is how it was always shown; a candidate link (proposed by
+        # a rule or an import) stays out of every list until a permitted person confirms it.
+        ("cross_module_links", "provenance", "TEXT"),
+        ("cross_module_links", "status", "TEXT DEFAULT 'confirmed'"),
+        ("cross_module_links", "confirmed_by", "INTEGER REFERENCES users(id)"),
+        ("cross_module_links", "confirmed_at", "TEXT"),
+        ("cross_module_links", "note", "TEXT"),
+        # AI governance G2: retire an application instead of deleting it, an application reference on AIMS
+        # assessments, and the event a notification came from (so a retried delivery tells nobody twice)
+        ("applications", "retired_reason", "TEXT"),
+        ("applications", "retired_at", "TEXT"),
+        ("applications", "retired_by", "INTEGER REFERENCES users(id)"),
+        ("aims_assessments", "application_id", "INTEGER REFERENCES applications(id)"),
+        ("notifications", "source_event_id", "INTEGER"),
+        ("ai_use_profiles", "material_changed_at", "TEXT"),
+        # AI governance G3b: the AI impact assessment carries a version, so two people editing it cannot overwrite each other
+        ("sentinel_aiia", "version", "INTEGER NOT NULL DEFAULT 1"),
+        # "Uses AI or embedded AI?" on a vendor and on a business process: yes, no or unknown, with who said so and why
+        ("canonical_vendors", "uses_ai", "TEXT"),
+        ("canonical_vendors", "uses_ai_note", "TEXT"),
+        ("canonical_vendors", "uses_ai_source", "TEXT"),
+        ("canonical_vendors", "uses_ai_set_by", "INTEGER REFERENCES users(id)"),
+        ("canonical_vendors", "uses_ai_set_at", "TEXT"),
+        ("business_processes", "uses_ai", "TEXT"),
+        ("business_processes", "uses_ai_note", "TEXT"),
+        ("business_processes", "uses_ai_source", "TEXT"),
+        ("business_processes", "uses_ai_set_by", "INTEGER REFERENCES users(id)"),
+        ("business_processes", "uses_ai_set_at", "TEXT"),
 ]
 
 
@@ -5031,6 +5850,49 @@ def _backfill_board_pack_business_units(conn) -> None:
             )
 
 
+_OWNER_BACKFILL_KEY = "ownership.backfill.v1"
+# table, then the columns naming the record a row is about and the user who created it (None: not recorded)
+_OWNED_TABLES = (
+    ("risk_register",      "source_module", "source_entity_type", "source_entity_id", "created_by"),
+    ("workflow_instances", "entity_module", "entity_type",        "entity_id",        "started_by"),
+    ("sla_instances",      "entity_module", "entity_type",        "entity_id",        None),
+)
+
+
+def _backfill_owner_units(conn) -> None:
+    """Place the platform risks, workflow instances and SLA clocks that were created before they carried
+    a business unit, by the rule a new row follows (entity_scope.owner_unit): the unit of the record the
+    row is about, else its creator's, else none (organization wide).
+
+    Runs ONCE per schema, recorded by a row in that schema's `settings`: running it again would hand
+    a row to a user who has since changed unit. A failure leaves no marker and is retried at the next
+    start; it never blocks startup. Rows nobody can be found for stay NULL and are only counted here."""
+    import logging
+    from core.best_effort import attempt
+    from modules.governance.entity_scope import owner_unit
+    if conn.execute("SELECT 1 FROM settings WHERE key = %s", (_OWNER_BACKFILL_KEY,)).fetchone():
+        return
+    placed = unplaced = 0
+    with attempt(conn, "backfill of business units on risks, SLA clocks and workflow instances"):
+        for table, module, kind, ident, creator in _OWNED_TABLES:
+            rows = conn.execute(
+                f"SELECT id, {module}, {kind}, {ident}, {creator or 'NULL'} FROM {table} "
+                "WHERE business_unit_id IS NULL"
+            ).fetchall()
+            for row in rows:
+                unit = owner_unit(conn, row[1], row[2], row[3], user_id=row[4])
+                if unit is None:
+                    unplaced += 1
+                    continue
+                conn.execute(f"UPDATE {table} SET business_unit_id = %s WHERE id = %s", (unit, row[0]))
+                placed += 1
+        conn.execute("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
+                     (_OWNER_BACKFILL_KEY, "done"))
+        logging.getLogger("oneforall.migrations").info(
+            "Placed %d platform risks, SLA clocks and workflow instances in a business unit; "
+            "%d left organization wide.", placed, unplaced)
+
+
 def _run_sqlite_alters(conn):
     """SQLite-only: ALTER TABLE ADD COLUMN for schema evolution and UNIQUE index creation."""
     for table, column, definition in _COLUMN_MIGRATIONS:
@@ -5047,6 +5909,7 @@ def _run_sqlite_alters(conn):
     )
     # Baseline-only packs remain organization-wide (NULL).
     _backfill_board_pack_business_units(conn)
+    _backfill_owner_units(conn)
     conn.commit()
 
     # ── Create indexes that depend on migrated columns ──
@@ -5070,6 +5933,10 @@ def _run_sqlite_alters(conn):
         # checkpoint), duplicated in _run_pg_alters() below for the same
         # reason as the two indexes directly above.
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
+        # AI governance G2: one notification per person per event (duplicated in _run_pg_alters below)
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_event_user ON notifications(source_event_id, user_id) WHERE source_event_id IS NOT NULL",
+        # AI governance G3b: which assessments are about a system (duplicated in _run_pg_alters below)
+        "CREATE INDEX IF NOT EXISTS idx_aiia_application ON sentinel_aiia(application_id)",
         # PLAN-35 T11 review fix: also correctness constraints (a dedup_key
         # replay's idempotency for these two specific, previously
         # non-idempotent event side effects), duplicated in _run_pg_alters()
@@ -5108,6 +5975,8 @@ def _run_sqlite_alters(conn):
         "CREATE INDEX IF NOT EXISTS idx_email_reminders_due     ON email_reminders(remind_at, is_sent)",
         # P1 concurrency fix — make canonical_vendors dedup and cross_module_links dedup atomic.
         # Wrapped in the loop's try/except so existing duplicate data does not break startup.
+        # SQLite only: PostgreSQL gets both through _ensure_pg_canonical_vendor_name_index and
+        # _ensure_pg_link_dedup_index (called from _run_pg_alters), which merge existing duplicates first.
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_canonical_vendors_name_uq "
         "ON canonical_vendors(lower(trim(name)))",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_xlinks_dedup_uq "
@@ -6411,6 +7280,101 @@ def _seed_baseline_data(conn):
             pass
 
 
+def _ensure_pg_link_dedup_index(conn) -> None:
+    """cross_module_links is one row per edge. The unique index behind that, and behind every ON CONFLICT DO
+    NOTHING on the table, was created only by the SQLite path (_POST_MIGRATION_INDEXES), so PostgreSQL stored an
+    edge as many times as it was linked. Collapse the exact duplicates that exist (keeping the oldest row of each
+    edge), then enforce the index. Runs in the public schema and in every tenant schema, and is skipped once the
+    index is there."""
+    import logging as _log
+    log = _log.getLogger("oneforall.migrations")
+    try:
+        if conn.execute(
+            "SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'idx_xlinks_dedup_uq'"
+        ).fetchone():
+            return
+        removed = conn.execute(
+            "DELETE FROM cross_module_links a USING cross_module_links b WHERE a.id > b.id "
+            "AND a.source_module = b.source_module AND a.source_type = b.source_type AND a.source_id = b.source_id "
+            "AND a.target_module = b.target_module AND a.target_type = b.target_type AND a.target_id = b.target_id "
+            "AND a.relationship = b.relationship"
+        ).rowcount
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_xlinks_dedup_uq ON cross_module_links("
+            "source_module, source_type, source_id, target_module, target_type, target_id, relationship)"
+        )
+        conn.commit()
+        if removed:
+            log.warning("Collapsed %d duplicate cross_module_links rows (kept the oldest of each edge)", removed)
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        log.warning("Could not enforce one row per cross-module link (duplicates remain possible): %s", exc)
+
+
+# Every column that holds a canonical_vendors.id. The first three are foreign keys, so a duplicate that any of them
+# still names cannot be deleted. applications.vendor_id has no foreign key: only this list keeps it from pointing at a
+# vanished row. tests/test_postgres_init.py fails when a foreign key into canonical_vendors is missing from here.
+_CANONICAL_VENDOR_REFS = (
+    ("sentinel_vendors", "canonical_id"),
+    ("grid_vendors", "canonical_id"),
+    ("bcm_vendors", "canonical_id"),
+    ("applications", "vendor_id"),
+)
+# The descriptive columns a merge can fill. risk_level and status always hold a value (they default), so the kept
+# row's stay.
+_CANONICAL_VENDOR_FILL = ("contact_name", "contact_email", "website", "country", "services", "notes")
+
+
+def _ensure_pg_canonical_vendor_name_index(conn) -> None:
+    """canonical_vendors is one row per company: core.vendor_link.ensure_canonical finds a name by lower(trim(name))
+    and, when two creates race, relies on the unique index on that expression to reject the loser. That index was
+    created only by the SQLite path (_POST_MIGRATION_INDEXES), so PostgreSQL could hold two rows for one company.
+    Unlike cross_module_links the duplicates cannot just be deleted, vendor records and applications point at them.
+    For each name the oldest row is kept, everything that named a duplicate is repointed to it, a descriptive field
+    only a duplicate had is carried over, and then the duplicates go and the index is created, all in one
+    transaction. Runs in the public schema and in every tenant schema, and is skipped once the index is there."""
+    import logging as _log
+    log = _log.getLogger("oneforall.migrations")
+    # (duplicate id, id of the oldest row of that name) for every row that is not the oldest of its name
+    pairs = (
+        "(SELECT d.id AS dup_id, k.keep_id FROM canonical_vendors d "
+        "JOIN (SELECT lower(trim(name)) AS norm, min(id) AS keep_id FROM canonical_vendors GROUP BY 1) k "
+        "ON k.norm = lower(trim(d.name)) AND d.id <> k.keep_id)"
+    )
+    try:
+        if conn.execute(
+            "SELECT 1 FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'idx_canonical_vendors_name_uq'"
+        ).fetchone():
+            return
+        for table, column in _CANONICAL_VENDOR_REFS:
+            conn.execute(f"UPDATE {table} SET {column} = p.keep_id FROM {pairs} p WHERE {table}.{column} = p.dup_id")
+        # The oldest duplicate that has a value fills a NULL or empty field of the kept row; the kept row's own wins.
+        conn.execute(
+            "UPDATE canonical_vendors k SET "
+            + ", ".join(f"{c} = COALESCE(NULLIF(k.{c}, ''), s.{c}, k.{c})" for c in _CANONICAL_VENDOR_FILL)
+            + " FROM (SELECT p.keep_id, "
+            + ", ".join(f"(array_agg(c.{c} ORDER BY c.id) FILTER (WHERE c.{c} <> ''))[1] AS {c}"
+                        for c in _CANONICAL_VENDOR_FILL)
+            + f" FROM {pairs} p JOIN canonical_vendors c ON c.id = p.dup_id GROUP BY p.keep_id) s WHERE k.id = s.keep_id"
+        )
+        merged = conn.execute(f"DELETE FROM canonical_vendors WHERE id IN (SELECT dup_id FROM {pairs} p)").rowcount
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_canonical_vendors_name_uq ON canonical_vendors(lower(trim(name)))"
+        )
+        conn.commit()
+        if merged:
+            log.warning("Merged %d duplicate canonical_vendors rows into the oldest row of each name", merged)
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        log.warning("Could not enforce one canonical vendor per name (duplicates remain possible): %s", exc)
+
+
 def _run_pg_alters(conn) -> None:
     """PG equivalent of _run_sqlite_alters: adds schema-evolution columns using ADD COLUMN IF NOT EXISTS."""
     for table, column, definition in _COLUMN_MIGRATIONS:
@@ -6426,6 +7390,7 @@ def _run_pg_alters(conn) -> None:
         _backfill_board_pack_business_units(conn)
     except Exception:
         pass
+    _backfill_owner_units(conn)
     conn.commit()
     # PLAN-35: correctness constraints on version-keyed evidence columns that
     # were just added above. _run_sqlite_alters' _POST_MIGRATION_INDEXES has
@@ -6435,6 +7400,8 @@ def _run_pg_alters(conn) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_evidence_items_policy_version ON evidence_items(aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_grid_evidence_control_version ON grid_evidence_files(control_id, aria_policy_version_id) WHERE aria_policy_version_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_event_user ON notifications(source_event_id, user_id) WHERE source_event_id IS NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_aiia_application ON sentinel_aiia(application_id)",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_reminder_key ON task_board(reminder_key) WHERE reminder_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",
@@ -6450,6 +7417,8 @@ def _run_pg_alters(conn) -> None:
         except Exception:
             pass
     conn.commit()
+    _ensure_pg_link_dedup_index(conn)
+    _ensure_pg_canonical_vendor_name_index(conn)
 
     # PLAN-35 acceptance fix: restore and validate every policy-version FK.
     # This includes the three draft FKs deliberately stripped by
@@ -6728,21 +7697,18 @@ def provision_tenant_schema(slug: str) -> None:
         pg_conn = pool.getconn()
         wrapper = _PgConnWrapper(pg_conn)
     pg_conn.autocommit = False
-    # Provisioning needs full access to public schema tables (users, licenses).
-    wrapper.set_rls_bypass()
     conn = wrapper
     try:
+        # Provisioning needs full access to public schema tables (users, licenses).
+        wrapper.set_rls_bypass()
         from psycopg2 import sql as psql
         pg_conn.cursor().execute(psql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(psql.Identifier(schema_name)))
         conn.commit()
         pg_conn.cursor().execute(psql.SQL("SET search_path TO {}, public").format(psql.Identifier(schema_name)))
         _apply_tenant_schema_ddl(conn)
     finally:
-        try:
-            pg_conn.rollback()
-        except Exception:
-            pass
-        pool.putconn(pg_conn)
+        # close() resets search_path and every app.* setting before the pool sees the connection again.
+        wrapper.close()
 
 
 def _migrate_all_tenant_schemas() -> None:
@@ -6772,9 +7738,9 @@ def _migrate_all_tenant_schemas() -> None:
         pg_conn = pool.getconn()
         wrapper = _PgConnWrapper(pg_conn)
     pg_conn.autocommit = False
-    wrapper.set_rls_bypass()
     conn = wrapper
     try:
+        wrapper.set_rls_bypass()
         cur = pg_conn.cursor()
         cur.execute(
             "SELECT schema_name FROM information_schema.schemata "
@@ -6797,11 +7763,8 @@ def _migrate_all_tenant_schemas() -> None:
                 log.warning("Could not migrate tenant schema %s (skipped): %s",
                             schema_name, exc)
     finally:
-        try:
-            pg_conn.rollback()
-        except Exception:
-            pass
-        pool.putconn(pg_conn)
+        # close() resets search_path and every app.* setting before the pool sees the connection again.
+        wrapper.close()
 
 
 def init_db():

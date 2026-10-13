@@ -4,6 +4,7 @@ Evidence Repository — Cross-module evidence vault.
 Upload, tag, search, and link evidence to controls/audits/frameworks
 across ARIA, GRID, BCM, and Sentinel modules.
 """
+import logging
 import os
 import uuid
 import hashlib
@@ -13,13 +14,16 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from core.best_effort import swallowed
 from core.middleware import require_auth, require_capability
 from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
 from database import get_db, insert_returning_id, sql_date_offset, sql_current_date
-from modules.governance.data_service import bu_scope_ids
+from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
+from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, entity_scope_sql
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
+log = logging.getLogger("oneforall.evidence")
 
 # PLAN-36 P06: registers this list's exact query-param names (matching
 # GET /api/items below) as the allowlist a saved view may store for this
@@ -36,6 +40,7 @@ _register_view_schema(
 
 EVIDENCE_DIR = Path(os.getenv("EVIDENCE_DIR", "data/evidence"))
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
+_PAGE_SIZES = (25, 50)
 
 # Known magic-byte signatures keyed by extension: list of (signature, offset) pairs.
 # Only extensions with reliable binary headers are listed; text formats (.txt/.csv/etc.) are omitted.
@@ -74,22 +79,12 @@ async def _json_body(request: Request) -> dict:
 
 
 def _scoped_evidence_item(db, eid: int, user: dict):
-    """Fetch an evidence row only if it belongs to the caller's organization
-    (or the caller is a platform super admin) -- returns None both when the
-    id doesn't exist and when it belongs to another org, so a 404 built from
-    this never confirms another org's id is real. Same fail-closed shape as
-    _get_webhook_for_admin (modules/launcher/routes_admin.py)."""
-    row = db.execute("SELECT * FROM evidence_items WHERE id = %s", (eid,)).fetchone()
-    if not row:
-        return None
-    if user.get("is_super_admin"):
-        return row
-    if row["org_id"] is None or row["org_id"] != user.get("org_id"):
-        return None
-    scope = bu_scope_ids(user)
-    if scope is not None and row["business_unit_id"] is not None and row["business_unit_id"] not in scope:
-        return None
-    return row
+    """Fetch an evidence row only if the caller may see it (org and business unit scope, super admin
+    unrestricted). None for a missing id and an out-of-scope id alike, so a 404 never confirms an id."""
+    scope_sql, scope_params = evidence_scope_sql(user)
+    return db.execute(
+        f"SELECT e.* FROM evidence_items e WHERE e.id = %s AND {scope_sql}", [eid, *scope_params]
+    ).fetchone()
 
 
 # ── SPA Page ────────────────────────────────────────────────────────────────
@@ -108,66 +103,74 @@ async def evidence_page(request: Request):
 @router.get("/api/items")
 @require_auth
 async def api_evidence_list(request: Request):
-    """List evidence items with optional filters."""
+    """List one page of evidence items: {items, total, page, page_size, pages}."""
+    qp = request.query_params
+    try:
+        page_size = int(qp.get("page_size", ""))
+    except ValueError:
+        page_size = _PAGE_SIZES[0]
+    if page_size not in _PAGE_SIZES:
+        page_size = _PAGE_SIZES[0]
+    try:
+        page = max(1, int(qp.get("page", "1")))
+    except ValueError:
+        page = 1
+
+    scope_sql, scope_params = evidence_scope_sql(request.state.user)
+    search_sql, search_params = evidence_search_sql(qp.get("q", ""))
+    where = [scope_sql, search_sql]
+    params = [*scope_params, *search_params]
+    if qp.get("category"):
+        where.append("e.category = %s")
+        params.append(qp["category"])
+    if qp.get("module"):
+        where.append(
+            "e.id IN (SELECT evidence_id FROM evidence_links WHERE module = %s AND deleted_at IS NULL)"
+        )
+        params.append(qp["module"])
+
+    view = qp.get("view", "")
+    if view == "archived":
+        where.append("e.status = 'archived'")
+    elif view == "superseded":
+        where.append("e.status = 'superseded'")
+    elif view == "expiring":
+        where.append(
+            "e.status = 'current' AND e.expiry_date IS NOT NULL "
+            f"AND e.expiry_date <= {sql_date_offset('+30 days')} AND e.expiry_date > {sql_current_date()}"
+        )
+    elif view == "unlinked":
+        where.append(current_library_sql())
+        where.append(
+            "NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id AND el.deleted_at IS NULL)"
+        )
+    else:
+        where.append("e.status != 'archived'")
+        if qp.get("status"):
+            where.append("e.status = %s")
+            params.append(qp["status"])
+        else:
+            where.append("e.status != 'superseded'")
+
+    where_sql = " AND ".join(where)
     db = get_db()
     try:
-        category = request.query_params.get("category", "")
-        status = request.query_params.get("status", "")
-        search = request.query_params.get("q", "")
-        module = request.query_params.get("module", "")
-
-        user = request.state.user
-        where = ["1=1"]
-        params = []
-        if not user.get("is_super_admin"):
-            where.append("e.org_id = %s")
-            params.append(user.get("org_id"))
-        scope = bu_scope_ids(user)
-        if scope is not None:
-            marks = ",".join(["%s"] * len(scope)) if scope else "NULL"
-            where.append(f"(e.business_unit_id IS NULL OR e.business_unit_id IN ({marks}))")
-            params.extend(scope)
-        if category:
-            where.append("e.category = %s")
-            params.append(category)
-        if search:
-            where.append("(e.title LIKE %s OR e.tags LIKE %s OR e.description LIKE %s)")
-            params.extend([f"%{search}%"] * 3)
-        if module:
-            where.append("e.id IN (SELECT evidence_id FROM evidence_links WHERE module = %s)")
-            params.append(module)
-
-        view = request.query_params.get("view", "")
-        if view == "archived":
-            where.append("e.status = 'archived'")
-        elif view == "expiring":
-            where.append("e.status != 'archived'")
-            where.append(
-                f"e.expiry_date IS NOT NULL AND e.expiry_date <= {sql_date_offset('+30 days')} "
-                f"AND e.expiry_date > {sql_current_date()} AND e.status = 'current'"
-            )
-        elif view == "unlinked":
-            where.append("e.status != 'archived'")
-            where.append(
-                "NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id)"
-            )
-        else:
-            where.append("e.status != 'archived'")
-            if status:
-                where.append("e.status = %s")
-                params.append(status)
-
-        where_sql = " AND ".join(where)
+        total = db.execute(f"SELECT COUNT(*) FROM evidence_items e WHERE {where_sql}", params).fetchone()[0]
+        pages = max(1, -(-total // page_size))
+        page = min(page, pages)
         rows = db.execute(
             f"SELECT e.*, u.full_name as uploaded_by_name, "
-            f"(SELECT COUNT(*) FROM evidence_links el WHERE el.evidence_id = e.id) as link_count "
+            f"(SELECT COUNT(*) FROM evidence_links el WHERE el.evidence_id = e.id AND el.deleted_at IS NULL) as link_count "
             f"FROM evidence_items e LEFT JOIN users u ON e.uploaded_by = u.id "
-            f"WHERE {where_sql} ORDER BY e.updated_at DESC LIMIT 200",
-            params
+            f"WHERE {where_sql} ORDER BY e.updated_at DESC, e.id DESC LIMIT %s OFFSET %s",
+            [*params, page_size, (page - 1) * page_size],
         ).fetchall()
     finally:
         db.close()
-    return JSONResponse([dict(r) for r in rows])
+    return JSONResponse({
+        "items": [dict(r) for r in rows], "total": total,
+        "page": page, "page_size": page_size, "pages": pages,
+    })
 
 
 @router.post("/api/items", status_code=201)
@@ -352,6 +355,37 @@ async def api_evidence_get(request: Request, eid: int):
     return JSONResponse(result)
 
 
+def _canonical_controls_linked_to(db, evidence_ids):
+    """Canonical controls with a live link to any of these items. Read it before the change:
+    archiving or deleting an item removes the links this looks for."""
+    if not evidence_ids:
+        return []
+    marks = ",".join(["%s"] * len(evidence_ids))
+    rows = db.execute(
+        "SELECT DISTINCT entity_id FROM evidence_links WHERE entity_type = 'canonical_control' "
+        f"AND deleted_at IS NULL AND evidence_id IN ({marks})",
+        list(evidence_ids),
+    ).fetchall()
+    return [r[0] for r in rows]
+
+
+def _rescore_controls(control_ids):
+    """Rescore these canonical controls once the change that affects them has committed, so the
+    stored score (and the ERM residual risk worked out from it) does not wait for the 03:00 UTC
+    job. A failure is logged and never raised: the user's action already succeeded."""
+    if not control_ids:
+        return
+    from modules.governance.effectiveness import recompute_controls_by_ids
+    db = get_db()
+    try:
+        recompute_controls_by_ids(db, sorted(set(control_ids)))
+        db.commit()
+    except Exception as exc:
+        log.warning("Control rescore after an evidence change failed: %s", exc)
+    finally:
+        db.close()
+
+
 @router.put("/api/items/bulk-archive")
 @require_auth
 async def api_evidence_bulk_archive(request: Request):
@@ -389,7 +423,10 @@ async def api_evidence_bulk_archive(request: Request):
             return False, "Already archived."
         return True, None
 
+    touched_controls = []
+
     def _execute(db, actor, eid):
+        touched_controls.extend(_canonical_controls_linked_to(db, [eid]))
         db.execute(
             "UPDATE evidence_items SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
             (eid,),
@@ -409,6 +446,7 @@ async def api_evidence_bulk_archive(request: Request):
         )
     finally:
         db.close()
+    _rescore_controls(touched_controls)
     return JSONResponse({"ok": True, **result})
 
 
@@ -435,8 +473,13 @@ async def api_evidence_update(request: Request, eid: int):
         db.execute(f"UPDATE evidence_items SET {', '.join(sets)} WHERE id = %s", vals)
         recompute_confidence(db, eid)
         db.commit()
+        # Status and expiry decide whether the item still counts towards a control's score.
+        touched_controls = (
+            _canonical_controls_linked_to(db, [eid]) if ("status" in data or "expiry_date" in data) else []
+        )
     finally:
         db.close()
+    _rescore_controls(touched_controls)
     return JSONResponse({"success": True})
 
 
@@ -451,6 +494,7 @@ async def api_evidence_delete(request: Request, eid: int):
     try:
         if not _scoped_evidence_item(db, eid, user):
             raise HTTPException(404, "Evidence not found")
+        touched_controls = _canonical_controls_linked_to(db, [eid])
         db.execute(
             "UPDATE evidence_items SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
             (eid,),
@@ -463,6 +507,7 @@ async def api_evidence_delete(request: Request, eid: int):
         db.commit()
     finally:
         db.close()
+    _rescore_controls(touched_controls)
     from core.middleware import log_audit
     log_audit(user, "evidence", "Archived evidence and removed all links", "evidence", eid)
     return JSONResponse({"success": True})
@@ -503,12 +548,14 @@ async def api_evidence_permanent_delete(request: Request, eid: int):
             return JSONResponse({"error": "Not found"}, 404)
         if item["status"] != "archived":
             return JSONResponse({"error": "Only archived items can be permanently deleted"}, 400)
+        touched_controls = _canonical_controls_linked_to(db, [eid])
         db.execute("DELETE FROM evidence_links WHERE evidence_id = %s", (eid,))
         db.execute("UPDATE evidence_items SET parent_id = NULL WHERE parent_id = %s", (eid,))
         db.execute("DELETE FROM evidence_items WHERE id = %s", (eid,))
         db.commit()
     finally:
         db.close()
+    _rescore_controls(touched_controls)
     if item["file_path"]:
         try:
             fp = (EVIDENCE_DIR / item["file_path"]).resolve()
@@ -1048,7 +1095,9 @@ async def api_evidence_link_delete(request: Request, lid: int):
     """Soft-delete an evidence link (preserves audit trail)."""
     db = get_db()
     try:
-        link_row = db.execute("SELECT evidence_id FROM evidence_links WHERE id = %s", (lid,)).fetchone()
+        link_row = db.execute(
+            "SELECT evidence_id, entity_type, entity_id FROM evidence_links WHERE id = %s", (lid,)
+        ).fetchone()
         if not link_row or not _scoped_evidence_item(db, link_row["evidence_id"], request.state.user):
             raise HTTPException(404, "Link not found")
         db.execute(
@@ -1060,6 +1109,8 @@ async def api_evidence_link_delete(request: Request, lid: int):
         db.commit()
     finally:
         db.close()
+    if link_row["entity_type"] == "canonical_control":
+        _rescore_controls([link_row["entity_id"]])
     return JSONResponse({"success": True})
 
 
@@ -1129,6 +1180,7 @@ async def api_evidence_suggest_links(request: Request, eid: int):
             [{"role": "user", "content": prompt}],
             system="You are a GRC evidence linking assistant. Respond ONLY with a JSON array, no other text.",
             max_tokens=800,
+            feature="evidence.api_evidence_suggest_links",
         )
         suggestions = safe_json_parse(raw)
         if not isinstance(suggestions, list):
@@ -1159,7 +1211,7 @@ async def api_evidence_suggest_links(request: Request, eid: int):
                 continue
             safe.append({
                 "module": key[0], "entity_type": key[1], "entity_id": target_id,
-                "entity_name": target[_ENTITY_RESOLVERS[key][1]],
+                "entity_name": target["title"],
                 "reason": str(suggestion.get("reason") or "")[:240],
             })
             seen.add(identity)
@@ -1204,20 +1256,20 @@ async def api_evidence_for_entity(request: Request):
     entity_id = request.query_params.get("entity_id", "")
     if not all([module, entity_type, entity_id]):
         return JSONResponse({"error": "module, entity_type, entity_id required"}, status_code=400)
-    user = request.state.user
+    try:
+        entity_id = int(entity_id)
+    except ValueError:
+        return JSONResponse({"error": "entity_id must be an integer"}, status_code=400)
+    scope_sql, scope_params = evidence_scope_sql(request.state.user)
     db = get_db()
     try:
-        where = "el.module = %s AND el.entity_type = %s AND el.entity_id = %s AND e.status != 'archived'"
-        params = [module, entity_type, int(entity_id)]
-        if not user.get("is_super_admin"):
-            where += " AND e.org_id = %s"
-            params.append(user.get("org_id"))
         rows = db.execute(
             "SELECT e.*, el.id as link_id FROM evidence_items e "
             "JOIN evidence_links el ON e.id = el.evidence_id "
-            f"WHERE {where} "
-            "ORDER BY e.updated_at DESC",
-            params
+            "WHERE el.module = %s AND el.entity_type = %s AND el.entity_id = %s "
+            f"AND el.deleted_at IS NULL AND e.status != 'archived' AND {scope_sql} "
+            "ORDER BY e.updated_at DESC, e.id DESC",
+            [module, entity_type, entity_id, *scope_params],
         ).fetchall()
     finally:
         db.close()
@@ -1239,25 +1291,18 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
     if mod not in valid_modules:
         return JSONResponse({"error": "Invalid module"}, status_code=400)
 
-    user = request.state.user
+    scope_sql, scope_params = evidence_scope_sql(request.state.user)
     db = get_db()
     try:
-        where = (
-            "el.module = %s AND el.entity_type = %s AND el.entity_id = %s "
-            "AND e.tags LIKE '%%auto%%' AND e.status != 'archived'"
-        )
-        params = [mod, etype, entity_id]
-        if not user.get("is_super_admin"):
-            where += " AND e.org_id = %s"
-            params.append(user.get("org_id"))
         rows = db.execute(
             "SELECT e.id, e.title, e.description, e.category, e.tags, "
             "e.status, e.created_at, e.updated_at, el.id as link_id "
             "FROM evidence_items e "
             "JOIN evidence_links el ON e.id = el.evidence_id "
-            f"WHERE {where} "
-            "ORDER BY e.created_at DESC",
-            params,
+            "WHERE el.module = %s AND el.entity_type = %s AND el.entity_id = %s "
+            f"AND el.deleted_at IS NULL AND e.tags LIKE '%%auto%%' AND e.status != 'archived' AND {scope_sql} "
+            "ORDER BY e.created_at DESC, e.id DESC",
+            [mod, etype, entity_id, *scope_params],
         ).fetchall()
     finally:
         db.close()
@@ -1272,82 +1317,37 @@ async def api_auto_evidence(request: Request, module: str, entity_type: str, ent
 
 # ── Cross-Module Link Resolution ──────────────────────────────────────────
 
-# Mapping: (module, entity_type) → (table_name, name_column, url_template)
-# url_template uses {id} as placeholder for the entity_id
+# The record kinds an evidence item can be linked to. What each one is (table, title, deep link) and who may
+# open it (capability and business unit) comes from the shared registry in modules/governance/entity_scope.py,
+# the one place Related Items, search and the AI workspace use too, so the Vault cannot show a record that the
+# owning module would not.
+_VAULT_TARGETS = (
+    ("aria", "control"), ("aria", "document"), ("aria", "risk"), ("aria", "framework"),
+    ("grid", "audit"), ("grid", "control"), ("grid", "nc"),
+    ("bcm", "plan"), ("bcm", "incident"), ("bcm", "risk"), ("bcm", "bia"), ("bcm", "compliance_control"),
+    ("sentinel", "ropa"), ("sentinel", "dpia"), ("sentinel", "breach"), ("sentinel", "dsr"), ("sentinel", "vendor"),
+    ("erm", "risk"),
+    ("governance", "application"),  # proof for an AI use: shown on the Evidence tab of its workspace
+)
+# (module, entity_type) -> (table_name, name_column, url_template)
 _ENTITY_RESOLVERS: dict[tuple[str, str], tuple[str, str, str]] = {
-    ("aria", "control"):    ("controls", "name", "/aria/frameworks"),
-    ("aria", "document"):   ("aria_documents", "title", "/aria/documents?open={doc_id}"),
-    ("aria", "risk"):       ("aria_risks", "description", "/aria/risks"),
-    ("aria", "framework"):  ("frameworks", "name", "/aria/frameworks"),
-    ("grid", "audit"):      ("grid_audits", "name", "/grid/audits/{id}"),
-    ("grid", "control"):    ("grid_controls", "name", "/grid/controls"),
-    ("grid", "nc"):         ("grid_non_conformances", "title", "/grid/?open=nc:{id}"),
-    ("grid", "non_conformance"): ("grid_non_conformances", "title", "/grid/?open=nc:{id}"),
-    ("bcm", "plan"):        ("bcm_plans", "title", "/bcm/plans"),
-    ("bcm", "incident"):    ("bcm_incidents", "title", "/bcm/?open=incident:{id}"),
-    ("bcm", "risk"):        ("bcm_risks", "title", "/bcm/risks"),
-    ("bcm", "bia"):         ("bcm_bia_records", "process_name", "/bcm/bia"),
-    ("bcm", "compliance_control"): ("bcm_compliance_controls", "title", "/bcm/compliance"),
-    ("sentinel", "ropa"):   ("sentinel_ropa", "processing_name", "/sentinel/?open=ropa:{id}"),
-    ("sentinel", "dpia"):   ("sentinel_dpias", "title", "/sentinel/?open=dpia:{id}"),
-    ("sentinel", "breach"): ("sentinel_breaches", "title", "/sentinel/?open=breach:{id}"),
-    ("sentinel", "dsr"):    ("sentinel_dsr", "requester_name", "/sentinel/?open=dsr:{id}"),
-    ("sentinel", "vendor"): ("sentinel_vendors", "name", "/sentinel/vendors"),
-    ("erm", "risk"):        ("erm_enterprise_risks", "title", "/erm/register?open=risk:{id}"),
+    key: (_KINDS[key].table, _KINDS[key].title, _KINDS[key].url) for key in _VAULT_TARGETS
 }
-
-
-_TARGET_BU_COLUMNS = {
-    ("aria", "document"): "t.business_unit_id",
-    ("grid", "audit"): "t.business_unit_id",
-    ("grid", "control"): "a.business_unit_id",
-    ("grid", "nc"): "a.business_unit_id",
-    ("grid", "non_conformance"): "a.business_unit_id",
-    ("bcm", "plan"): "t.business_unit_id",
-    ("bcm", "incident"): "t.business_unit_id",
-    ("bcm", "bia"): "t.business_unit_id",
-    ("sentinel", "ropa"): "t.business_unit_id",
-    ("sentinel", "dpia"): "t.business_unit_id",
-    ("sentinel", "breach"): "t.business_unit_id",
-    ("sentinel", "dsr"): "t.business_unit_id",
-    ("erm", "risk"): "t.business_unit_id",
-}
+# Evidence links already stored under the other spelling of a non-conformance keep resolving.
+_ENTITY_RESOLVERS[("grid", "non_conformance")] = _ENTITY_RESOLVERS[("grid", "nc")]
 
 
 def _target_scope_sql(key, user):
-    joins = " JOIN grid_audits a ON a.id = t.audit_id" if key in {
-        ("grid", "control"), ("grid", "nc"), ("grid", "non_conformance")
-    } else ""
-    where, params = [], []
-    if not user.get("is_super_admin"):
-        if key[0] not in user_modules(user):
-            where.append("1 = 0")
-        if key == ("aria", "document"):
-            if not user.get("org_id"):
-                where.append("1 = 0")
-            else:
-                where.append("t.org_id = %s")
-                params.append(user["org_id"])
-        bu_col = _TARGET_BU_COLUMNS.get(key)
-        scope = bu_scope_ids(user)
-        if bu_col and scope is not None:
-            if scope:
-                where.append(f"({bu_col} IS NULL OR {bu_col} IN ({','.join('%s' for _ in scope)}))")
-                params.extend(scope)
-            else:
-                where.append(f"{bu_col} IS NULL")
-    return joins, where, params
+    """(joins, where list, params) limiting a query over the target's table, aliased t, to what the user may open."""
+    scope, params = entity_scope_sql(canonical_key(*key), user, "t")
+    return "", ([] if scope == "(1 = 1)" else [scope]), params
 
 
 def _visible_target(db, key, entity_id, user):
-    resolver = _ENTITY_RESOLVERS.get(key)
-    if not resolver or entity_id <= 0:
+    """{"title", "url"} of the target when the user may open it, else None (missing and hidden answer alike)."""
+    if key not in _ENTITY_RESOLVERS or entity_id <= 0:
         return None
-    joins, where, params = _target_scope_sql(key, user)
-    sql = f"SELECT t.* FROM {resolver[0]} t{joins} WHERE t.id = %s"
-    if where:
-        sql += " AND " + " AND ".join(where)
-    return db.execute(sql, (entity_id, *params)).fetchone()
+    return describe_record(db, canonical_key(*key), entity_id, user)
 
 
 @router.get("/api/resolve-links")
@@ -1408,14 +1408,10 @@ async def api_resolve_links(request: Request):
                 if not linked:
                     results.append(entry)
                     continue
-                _, name_col, url_tpl = resolver
-                row = _visible_target(db, (module, entity_type), entity_id, request.state.user)
-                if row:
-                    from urllib.parse import quote
-                    entry["name"] = row[name_col]
-                    entry["url"] = url_tpl.replace("{id}", str(entity_id)).replace(
-                        "{doc_id}", quote(row["doc_id"], safe="") if (module, entity_type) == ("aria", "document") else ""
-                    )
+                shown = _visible_target(db, (module, entity_type), entity_id, request.state.user)
+                if shown:
+                    entry["name"] = shown["title"]
+                    entry["url"] = shown["url"]
 
             results.append(entry)
     finally:
@@ -1438,34 +1434,12 @@ async def api_search_entities(request: Request):
     if module not in valid_modules:
         return JSONResponse({"error": "Invalid module"}, 400)
 
-    # Map (module, entity_type) → (table, name_col, id_col)
-    entity_map = {
-        ("aria", "control"): ("controls", "name", "id"),
-        ("aria", "document"): ("aria_documents", "title", "id"),
-        ("aria", "risk"): ("aria_risks", "description", "id"),
-        ("aria", "framework"): ("frameworks", "name", "id"),
-        ("grid", "audit"): ("grid_audits", "name", "id"),
-        ("grid", "control"): ("grid_controls", "name", "id"),
-        ("grid", "nc"): ("grid_non_conformances", "title", "id"),
-        ("grid", "non_conformance"): ("grid_non_conformances", "title", "id"),
-        ("bcm", "plan"): ("bcm_plans", "title", "id"),
-        ("bcm", "incident"): ("bcm_incidents", "title", "id"),
-        ("bcm", "risk"): ("bcm_risks", "title", "id"),
-        ("bcm", "bia"): ("bcm_bia_records", "process_name", "id"),
-        ("bcm", "compliance_control"): ("bcm_compliance_controls", "title", "id"),
-        ("sentinel", "ropa"): ("sentinel_ropa", "processing_name", "id"),
-        ("sentinel", "dpia"): ("sentinel_dpias", "title", "id"),
-        ("sentinel", "breach"): ("sentinel_breaches", "title", "id"),
-        ("sentinel", "dsr"): ("sentinel_dsr", "requester_name", "id"),
-        ("sentinel", "vendor"): ("sentinel_vendors", "name", "id"),
-        ("erm", "risk"): ("erm_enterprise_risks", "title", "id"),
-    }
-
     key = (module, entity_type)
-    if key not in entity_map:
+    if key not in _ENTITY_RESOLVERS:
         return JSONResponse({"error": "Unknown entity type"}, 400)
 
-    table, name_col, id_col = entity_map[key]
+    table, name_col, _ = _ENTITY_RESOLVERS[key]
+    id_col = "id"
     db = get_db()
     try:
         joins, where, params = _target_scope_sql(key, request.state.user)
@@ -1478,6 +1452,7 @@ async def api_search_entities(request: Request):
         sql += f" ORDER BY t.{name_col} LIMIT 50"
         rows = db.execute(sql, params).fetchall()
     except Exception:
+        swallowed("api_search_entities")
         return JSONResponse({"error": "Entity search unavailable"}, status_code=503)
     finally:
         db.close()
@@ -1511,6 +1486,7 @@ async def api_evidence_coverage(request: Request):
         ("erm", "risk", ("risk",)),
     ]
     coverage = {}
+    scope_sql, scope_params = evidence_scope_sql(user)
     db = get_db()
     try:
         for module, entity_type, link_types in checks:
@@ -1537,19 +1513,8 @@ async def api_evidence_coverage(request: Request):
             if target_where:
                 linked_sql += " AND " + " AND ".join(target_where)
                 linked_params.extend(target_params)
-            if not user.get("is_super_admin"):
-                if not user.get("org_id"):
-                    linked_sql += " AND 1 = 0"
-                else:
-                    linked_sql += " AND e.org_id = %s"
-                    linked_params.append(user["org_id"])
-                scope = bu_scope_ids(user)
-                if scope is not None:
-                    if scope:
-                        linked_sql += f" AND (e.business_unit_id IS NULL OR e.business_unit_id IN ({','.join('%s' for _ in scope)}))"
-                        linked_params.extend(scope)
-                    else:
-                        linked_sql += " AND e.business_unit_id IS NULL"
+            linked_sql += f" AND {scope_sql}"
+            linked_params.extend(scope_params)
             with_evidence = db.execute(linked_sql, linked_params).fetchone()[0]
             data = coverage.setdefault(module, {"total": 0, "with_evidence": 0, "entities": []})
             data["total"] += total
@@ -1571,73 +1536,56 @@ async def api_evidence_coverage(request: Request):
 @require_auth
 async def api_evidence_stats(request: Request):
     """Evidence repository statistics with per-module breakdown."""
-    user = request.state.user
-    # "recently_added" below returns real title/category/file_name, not just
-    # a count -- this whole endpoint needs the same org scope as `list`, not
-    # just its aggregate-looking fields.
-    org_filter = ""
-    org_params: list = []
-    if not user.get("is_super_admin"):
-        org_filter = " AND org_id = %s"
-        org_params = [user.get("org_id")]
+    scope_sql, scope_params = evidence_scope_sql(request.state.user)
+    library = current_library_sql()
+    live_link = "el.deleted_at IS NULL"
 
     db = get_db()
     try:
         total = db.execute(
-            f"SELECT COUNT(*) FROM evidence_items WHERE status != 'archived'{org_filter}",
-            org_params,
+            f"SELECT COUNT(*) FROM evidence_items e WHERE {library} AND {scope_sql}", scope_params,
         ).fetchone()[0]
         by_category = db.execute(
-            f"SELECT category, COUNT(*) as c FROM evidence_items WHERE status != 'archived'{org_filter} "
-            "GROUP BY category",
-            org_params,
+            f"SELECT e.category, COUNT(*) as c FROM evidence_items e WHERE {library} AND {scope_sql} "
+            "GROUP BY e.category",
+            scope_params,
         ).fetchall()
         expiring_soon = db.execute(
-            "SELECT COUNT(*) FROM evidence_items WHERE status = 'current' "
-            f"AND expiry_date IS NOT NULL AND expiry_date <= {sql_date_offset('+30 days')} "
-            f"AND expiry_date > {sql_current_date()}{org_filter}",
-            org_params,
+            "SELECT COUNT(*) FROM evidence_items e WHERE e.status = 'current' "
+            f"AND e.expiry_date IS NOT NULL AND e.expiry_date <= {sql_date_offset('+30 days')} "
+            f"AND e.expiry_date > {sql_current_date()} AND {scope_sql}",
+            scope_params,
         ).fetchone()[0]
-        if user.get("is_super_admin"):
-            total_links = db.execute("SELECT COUNT(*) FROM evidence_links").fetchone()[0]
-        else:
-            total_links = db.execute(
-                "SELECT COUNT(*) FROM evidence_links el "
-                "JOIN evidence_items e ON el.evidence_id = e.id WHERE e.org_id = %s",
-                (user.get("org_id"),),
-            ).fetchone()[0]
+        total_links = db.execute(
+            "SELECT COUNT(*) FROM evidence_links el JOIN evidence_items e ON el.evidence_id = e.id "
+            f"WHERE {live_link} AND {library} AND {scope_sql}",
+            scope_params,
+        ).fetchone()[0]
         unlinked = db.execute(
-            "SELECT COUNT(*) FROM evidence_items e WHERE e.status != 'archived' "
-            f"{org_filter.replace('org_id', 'e.org_id')} "
-            "AND NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id)",
-            org_params,
+            f"SELECT COUNT(*) FROM evidence_items e WHERE {library} AND {scope_sql} "
+            f"AND NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id AND {live_link})",
+            scope_params,
         ).fetchone()[0]
-        # Per-module breakdown
         by_module = db.execute(
             "SELECT el.module, COUNT(DISTINCT el.evidence_id) as c "
-            "FROM evidence_links el "
-            "JOIN evidence_items e ON el.evidence_id = e.id "
-            f"WHERE e.status != 'archived' AND el.deleted_at IS NULL{org_filter.replace('org_id', 'e.org_id')} "
-            "GROUP BY el.module",
-            org_params,
+            "FROM evidence_links el JOIN evidence_items e ON el.evidence_id = e.id "
+            f"WHERE {library} AND {live_link} AND {scope_sql} GROUP BY el.module",
+            scope_params,
         ).fetchall()
-        # Expiring within 7 days
         expiring_7 = db.execute(
-            "SELECT COUNT(*) FROM evidence_items WHERE status = 'current' "
-            f"AND expiry_date IS NOT NULL AND expiry_date <= {sql_date_offset('+7 days')} "
-            f"AND expiry_date > {sql_current_date()}{org_filter}",
-            org_params,
+            "SELECT COUNT(*) FROM evidence_items e WHERE e.status = 'current' "
+            f"AND e.expiry_date IS NOT NULL AND e.expiry_date <= {sql_date_offset('+7 days')} "
+            f"AND e.expiry_date > {sql_current_date()} AND {scope_sql}",
+            scope_params,
         ).fetchone()[0]
-        # Recently added (last 5 non-archived)
         recent_rows = db.execute(
-            "SELECT id, title, category, file_name, created_at "
-            f"FROM evidence_items WHERE status != 'archived'{org_filter} "
-            "ORDER BY created_at DESC LIMIT 5",
-            org_params,
+            "SELECT e.id, e.title, e.category, e.file_name, e.created_at "
+            f"FROM evidence_items e WHERE {library} AND {scope_sql} "
+            "ORDER BY e.created_at DESC, e.id DESC LIMIT 5",
+            scope_params,
         ).fetchall()
         archived_count = db.execute(
-            f"SELECT COUNT(*) FROM evidence_items WHERE status = 'archived'{org_filter}",
-            org_params,
+            f"SELECT COUNT(*) FROM evidence_items e WHERE e.status = 'archived' AND {scope_sql}", scope_params,
         ).fetchone()[0]
     finally:
         db.close()

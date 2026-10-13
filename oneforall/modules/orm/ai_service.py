@@ -31,7 +31,7 @@ def analyze_event(event: dict) -> dict:
         '"preventive_action": "<action to prevent recurrence>"}'
     )
     try:
-        text = create_message([{"role": "user", "content": prompt}], max_tokens=800)
+        text = create_message([{"role": "user", "content": prompt}], max_tokens=800, feature="orm.analyze_event")
         return safe_json_parse(text, _stub_analyze(event))
     except Exception as exc:
         log.error("ORM analyze failed: %s", exc)
@@ -58,7 +58,7 @@ def generate_trend_narrative(stats: dict) -> str:
         "key incidents, and operational risk outlook. Professional tone."
     )
     try:
-        return create_message([{"role": "user", "content": prompt}], max_tokens=1000)
+        return create_message([{"role": "user", "content": prompt}], max_tokens=1000, feature="orm.generate_trend_narrative")
     except Exception as exc:
         log.error("ORM trend narrative failed: %s", exc)
         return _stub_trend_narrative(stats)
@@ -92,7 +92,7 @@ def chat(history: list, stats: dict = None) -> str:
     if stats:
         system += f"\n\nCurrent ORM stats: {json.dumps(stats, default=str)}"
     try:
-        return create_message(history, system=system, max_tokens=2048)
+        return create_message(history, system=system, max_tokens=2048, feature="orm.chat")
     except Exception as exc:
         log.error("ORM chat failed: %s", exc)
         return "Sorry, I encountered an error. Please try again."

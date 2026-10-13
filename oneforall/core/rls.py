@@ -34,14 +34,17 @@ _STMTS = [
     "DROP POLICY IF EXISTS tenant_isolation ON public.users",
     f"CREATE POLICY tenant_isolation ON public.users USING {_USING}",
 
-    # audit_log - SELECT restricted by org; writes are unrestricted so system
-    # events can be logged without org context
+    # audit_log - SELECT (and any UPDATE or DELETE) restricted by org; INSERT is
+    # unrestricted so system events can be logged without org context. The write
+    # policy used to be FOR ALL USING (true), and permissive policies are OR-ed,
+    # so it also let every role read every organization's entries; it is now
+    # INSERT only (tests/test_postgres_init.py checks both halves).
     "ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE public.audit_log FORCE ROW LEVEL SECURITY",
     "DROP POLICY IF EXISTS tenant_isolation_select ON public.audit_log",
     "DROP POLICY IF EXISTS tenant_isolation_write ON public.audit_log",
     f"CREATE POLICY tenant_isolation_select ON public.audit_log FOR SELECT USING {_USING}",
-    "CREATE POLICY tenant_isolation_write ON public.audit_log FOR ALL USING (true) WITH CHECK (true)",
+    "CREATE POLICY tenant_isolation_write ON public.audit_log FOR INSERT WITH CHECK (true)",
 
     # licenses
     "ALTER TABLE public.licenses ENABLE ROW LEVEL SECURITY",

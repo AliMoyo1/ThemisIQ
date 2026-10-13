@@ -1,0 +1,23 @@
+{% extends "base_shell.html" %}
+{% block title %}Regulatory changes | AI Governance | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="aig-breadcrumb"><a href="/ai-governance/">AI Systems</a></span> <span class="breadcrumb-current">Regulatory changes</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">Regulatory changes</h1>
+      <p class="aig-lede">Changes posted to the Regulatory Inbox that may concern an AI use, proposed by the use's intended jurisdictions. A person confirms or dismisses each one.</p>
+    </div>
+  </div>
+  <div id="aigRegulatory"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_monitoring.js?v=2"></script>
+<script>AIGov.regulatoryQueue(document.getElementById('aigRegulatory'));</script>
+{% endblock %}

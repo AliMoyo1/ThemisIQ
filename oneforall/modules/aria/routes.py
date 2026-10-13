@@ -47,6 +47,8 @@ templates = Jinja2Templates(directory=["modules/aria/templates", "templates"])
 templates.env.globals["has_capability"] = has_capability
 templates.env.globals["has_role"] = has_role
 from core.timeutils import format_dt as _format_dt
+from core.sql_like import ci_like, like_pattern
+from core.best_effort import swallowed
 templates.env.filters["format_dt"] = _format_dt
 templates.env.globals["ROLE_LABELS"] = ROLE_LABELS
 templates.env.filters["tojson"] = lambda v: Markup(json.dumps(
@@ -358,7 +360,7 @@ async def frameworks_list(request: Request):
                     "docs": dr["cnt"], "ctrls_covered": dr["ctrl_covered"]
                 }
         except Exception:
-            pass
+            swallowed("frameworks_list (aria_documents)")
 
         # Evidence counts per framework
         ev_counts = {}
@@ -368,12 +370,13 @@ async def frameworks_list(request: Request):
                 "FROM evidence_links el "
                 "JOIN controls c ON c.id = el.entity_id "
                 "WHERE el.module = 'aria' AND el.entity_type = 'control' "
+                "AND el.deleted_at IS NULL "
                 "GROUP BY c.framework_id"
             ).fetchall()
             for er in ev_rows:
                 ev_counts[er["framework_id"]] = er["ev_count"]
         except Exception:
-            pass
+            swallowed("frameworks_list (evidence_links)")
 
         # IMS mapping counts per framework (how many controls are mapped to another fw)
         mapped_counts = {}
@@ -389,7 +392,7 @@ async def frameworks_list(request: Request):
             for mr in map_rows:
                 mapped_counts[mr["framework_id"]] = mr["mapped"]
         except Exception:
-            pass
+            swallowed("frameworks_list (controls)")
 
         fw_list = []
         fw_ids = [fw["id"] for fw in frameworks]
@@ -436,7 +439,7 @@ async def frameworks_list(request: Request):
                     "mapped_controls": total_mapped,
                 }
             except Exception:
-                pass
+                swallowed("frameworks_list (aria_control_mappings)")
     finally:
         db.close()
     return _aria_render(request, "frameworks.html", {
@@ -480,6 +483,7 @@ async def framework_detail(request: Request, fw_id: int,
         q = ("SELECT c.*, "
              "(SELECT COUNT(*) FROM evidence_links el "
              " WHERE el.module='aria' AND el.entity_type='control' AND el.entity_id=c.id"
+             " AND el.deleted_at IS NULL"
              ") AS evidence_count "
              "FROM controls c WHERE c.framework_id=%s")
         params = [fw_id]
@@ -493,8 +497,8 @@ async def framework_detail(request: Request, fw_id: int,
             q += " AND c.category=%s"
             params.append(category)
         if search:
-            q += " AND (c.name LIKE %s OR c.ref LIKE %s OR c.description LIKE %s)"
-            params += ["%" + search + "%", "%" + search + "%", "%" + search + "%"]
+            q += f" AND ({ci_like('c.name')} OR {ci_like('c.ref')} OR {ci_like('c.description')})"
+            params += [like_pattern(search)] * 3
         q += " ORDER BY c.ref"
         controls = db.execute(q, params).fetchall()
 
@@ -865,8 +869,8 @@ async def documents_page(request: Request,
             q += " AND doc_type=%s"
             params.append(doc_type)
         if search:
-            q += " AND (title LIKE %s OR control_ref LIKE %s OR owner LIKE %s)"
-            params += ["%" + search + "%"] * 3
+            q += f" AND ({ci_like('title')} OR {ci_like('control_ref')} OR {ci_like('owner')})"
+            params += [like_pattern(search)] * 3
         q += " ORDER BY framework, doc_id"
         docs = [dict(r) for r in db.execute(q, params).fetchall()]
 
@@ -1473,7 +1477,7 @@ def _schedule_review_reminder(db, doc_int_id: int, doc_id: str, title: str,
             if row:
                 email = (row["email"] or "").strip()
         except Exception:
-            pass
+            swallowed("_schedule_review_reminder (users)")
     if not email:
         return
     from datetime import date, timedelta
@@ -2328,7 +2332,7 @@ async def api_ims_status(request: Request):
                 for dr in doc_rows:
                     doc_refs.add((dr["framework"], dr["control_ref"]))
             except Exception:
-                pass
+                swallowed("api_ims_status (aria_documents)")
         finally:
             db.close()
 
@@ -2924,9 +2928,8 @@ async def ask_page(request: Request):
     # ── Stats for the header strip ─────────────────────────────────────────
     db2 = get_db()
     try:
-        total_indexed = db2.execute(
-            "SELECT COUNT(*) FROM aria_ask_index"
-        ).fetchone()[0]
+        from modules.aria.ask_service import indexed_count
+        total_indexed = indexed_count(user)
         total_asked = db2.execute(
             "SELECT COUNT(*) FROM aria_ask_log WHERE username=%s",
             (user["username"],)
@@ -2948,6 +2951,7 @@ async def ask_page(request: Request):
             "SELECT name FROM frameworks WHERE is_active=1 ORDER BY name"
         ).fetchall()
     except Exception:
+        swallowed("ask_page (aria_ask_log)")
         total_indexed = 0; total_asked = 0; covered_pct = 0
         helpful_pct = None; frameworks_list = []
     finally:

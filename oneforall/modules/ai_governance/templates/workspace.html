@@ -1,0 +1,28 @@
+{% extends "base_shell.html" %}
+{% block title %}{{ application_name }} | AI Systems | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="aig-breadcrumb"><a href="/ai-governance/">AI Systems</a></span> <span class="breadcrumb-current">{{ application_name }}</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">{{ application_name }}</h1>
+      <div id="aigHeader"></div>
+    </div>
+  </div>
+  <div id="aigWorkspace"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_decisions.js?v=2"></script>
+<script src="/static/js/ai_governance_monitoring.js?v=2"></script>
+<script src="/static/js/ai_governance_oversight.js?v=1"></script>
+<script src="/static/js/ai_governance_workspace.js?v=6"></script>
+<script>
+  AIGov.workspace(document.getElementById('aigWorkspace'), { applicationId: {{ application_id }} });
+</script>
+{% endblock %}

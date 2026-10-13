@@ -3,6 +3,7 @@ Launcher sub-router: Platform utilities -- Calendar, Analytics, Bulk import/expo
 Task board, Trainer, Reminders, Notifications, Global search.
 """
 import json as json_lib
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Request
@@ -10,17 +11,22 @@ from fastapi.responses import HTMLResponse, Response
 
 from database import sql_date_offset
 from core.security import sanitize_text, sanitize_short, validate_int, validate_choice, validate_date
+from core.sql_like import ci_like, like_pattern
 
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
     require_capability as _require_cap,
     shell_ctx, shell_templates, settings, get_db,
     _json_body,)
-from modules.aria.policy_access import document_scope_sql
+from modules.evidence.scope import current_library_sql, evidence_search_sql
 from modules.governance.data_service import bu_scope_ids
+from core.links import RELATIONSHIP_LABELS
+from modules.governance import relationships
+from modules.governance.entity_scope import entity_scope_sql
 from modules.launcher.task_service import create_task_with_assignment_notification, validate_task_assignee
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -96,146 +102,173 @@ async def api_notification_dismiss(request: Request, nid: int):
 @router.get("/api/search")
 @require_auth
 async def api_global_search(request: Request):
-    """Search across all modules."""
+    """Search across all modules, showing only what the caller could open in each module."""
     q = sanitize_short(request.query_params.get("q", ""), 200)
     if not q or len(q) < 2:
         return _JSONResp({"results": []})
 
+    user = request.state.user
     db = get_db()
     results = []
-    search_term = f"%{q}%"
+    like_term = like_pattern(q)
+
+    def scope(key, alias=""):
+        """(" AND <scope>", params) for one kind; a kind the caller may not open matches nothing."""
+        sql, params = entity_scope_sql(key, user, alias)
+        return f" AND {sql}", list(params)
+
     try:
         # Unified controls
+        sc, sp = scope(("aria", "control"))
         for r in db.execute(
             "SELECT c.id, c.ref, c.name, f.name as framework_name "
             "FROM controls c JOIN frameworks f ON c.framework_id = f.id "
-            "WHERE c.name LIKE %s OR c.ref LIKE %s LIMIT 10",
-            (search_term, search_term)
+            f"WHERE ({ci_like('c.name')} OR {ci_like('c.ref')}){sc} LIMIT 10",
+            (like_term, like_term, *sp)
         ).fetchall():
             results.append({"module": "aria", "type": "control", "id": r["id"],
                             "title": r["ref"] + " - " + r["name"],
                             "subtitle": r["framework_name"], "link": f"/aria/?open=control:{r['id']}"})
 
-        # ARIA documents -- PLAN-35 T08 (section 10.2): this shared search
-        # had no org/BU scoping at all, so any authenticated user could
-        # find another organization's policy titles/doc_ids. Scoped the
-        # same way as the ARIA module's own document list/detail views.
-        _doc_scope_sql, _doc_scope_params = document_scope_sql(request.state.user)
+        # ARIA documents -- PLAN-35 T08 (section 10.2): scoped the same way as the ARIA
+        # module's own document list/detail views (organization and business unit).
+        sc, sp = scope(("aria", "document"))
         for r in db.execute(
             f"SELECT id, doc_id, title FROM aria_documents "
-            f"WHERE (title LIKE %s OR doc_id LIKE %s) AND {_doc_scope_sql} LIMIT 10",
-            (search_term, search_term, *_doc_scope_params)
+            f"WHERE ({ci_like('title')} OR {ci_like('doc_id')}){sc} LIMIT 10",
+            (like_term, like_term, *sp)
         ).fetchall():
             results.append({"module": "aria", "type": "document", "id": r["id"],
                             "title": r["title"], "subtitle": r["doc_id"], "link": f"/aria/?open=document:{r['id']}"})
 
         # Sentinel RoPA
+        sc, sp = scope(("sentinel", "ropa"))
         for r in db.execute(
-            "SELECT id, ref_number, processing_name FROM sentinel_ropa WHERE processing_name LIKE %s OR ref_number LIKE %s LIMIT 10",
-            (search_term, search_term)
+            "SELECT id, ref_number, processing_name FROM sentinel_ropa "
+            f"WHERE ({ci_like('processing_name')} OR {ci_like('ref_number')}){sc} LIMIT 10",
+            (like_term, like_term, *sp)
         ).fetchall():
             results.append({"module": "sentinel", "type": "ropa", "id": r["id"],
                             "title": r["processing_name"], "subtitle": r["ref_number"] or "", "link": f"/sentinel/?open=ropa:{r['id']}"})
 
         # GRID audits
+        sc, sp = scope(("grid", "audit"))
         for r in db.execute(
-            "SELECT id, name FROM grid_audits WHERE name LIKE %s LIMIT 10",
-            (search_term,)
+            f"SELECT id, name FROM grid_audits WHERE {ci_like('name')}{sc} LIMIT 10",
+            (like_term, *sp)
         ).fetchall():
             results.append({"module": "grid", "type": "audit", "id": r["id"],
                             "title": r["name"], "subtitle": "Audit", "link": f"/grid/?open=audit:{r['id']}"})
 
         # BCM plans
+        sc, sp = scope(("bcm", "plan"))
         for r in db.execute(
-            "SELECT id, title FROM bcm_plans WHERE title LIKE %s LIMIT 10",
-            (search_term,)
+            f"SELECT id, title FROM bcm_plans WHERE {ci_like('title')}{sc} LIMIT 10",
+            (like_term, *sp)
         ).fetchall():
             results.append({"module": "bcm", "type": "plan", "id": r["id"],
                             "title": r["title"], "subtitle": "BCM Plan", "link": f"/bcm/?open=plan:{r['id']}"})
 
         # Risk register
+        sc, sp = scope(("platform", "risk"))
         for r in db.execute(
-            "SELECT id, title, source_module FROM risk_register WHERE title LIKE %s LIMIT 10",
-            (search_term,)
+            f"SELECT id, title, source_module FROM risk_register WHERE {ci_like('title')}{sc} LIMIT 10",
+            (like_term, *sp)
         ).fetchall():
-            _sm = r.get("source_module", "")
+            _sm = r["source_module"] or ""
             _link = f"/erm/?open=risk:{r['id']}" if _sm != "orm" else f"/orm/?open=event:{r['id']}"
             results.append({"module": "platform", "type": "risk", "id": r["id"],
                             "title": r["title"], "subtitle": r["source_module"] or "Risk", "link": _link})
 
-        # Evidence
+        # Evidence: same scope and search rules as the Evidence Vault itself
+        _ev_scope_sql, _ev_scope_params = entity_scope_sql(("evidence", "item"), user, "e")
+        _ev_search_sql, _ev_search_params = evidence_search_sql(q)
         for r in db.execute(
-            "SELECT id, title, category FROM evidence_items WHERE title LIKE %s OR tags LIKE %s LIMIT 10",
-            (search_term, search_term)
+            f"SELECT e.id, e.title, e.category FROM evidence_items e "
+            f"WHERE {_ev_search_sql} AND {current_library_sql()} AND {_ev_scope_sql} "
+            f"ORDER BY e.updated_at DESC, e.id DESC LIMIT 10",
+            [*_ev_search_params, *_ev_scope_params]
         ).fetchall():
             results.append({"module": "platform", "type": "evidence", "id": r["id"],
                             "title": r["title"], "subtitle": r["category"], "link": f"/evidence/?open=item:{r['id']}"})
 
         # Sentinel breaches
+        sc, sp = scope(("sentinel", "breach"))
         for r in db.execute(
-            "SELECT id, ref_number, title, severity FROM sentinel_breaches WHERE title LIKE %s OR ref_number LIKE %s LIMIT 10",
-            (search_term, search_term)
+            "SELECT id, ref_number, title, severity FROM sentinel_breaches "
+            f"WHERE ({ci_like('title')} OR {ci_like('ref_number')}){sc} LIMIT 10",
+            (like_term, like_term, *sp)
         ).fetchall():
             results.append({"module": "sentinel", "type": "breach", "id": r["id"],
                             "title": r['title'], "subtitle": f"{r['ref_number']} — {r['severity'] or 'Breach'}",
                             "link": f"/sentinel/?open=breach:{r['id']}"})
 
         # Sentinel DPIAs
+        sc, sp = scope(("sentinel", "dpia"))
         for r in db.execute(
-            "SELECT id, ref_number, title FROM sentinel_dpias WHERE title LIKE %s OR ref_number LIKE %s LIMIT 10",
-            (search_term, search_term)
+            "SELECT id, ref_number, title FROM sentinel_dpias "
+            f"WHERE ({ci_like('title')} OR {ci_like('ref_number')}){sc} LIMIT 10",
+            (like_term, like_term, *sp)
         ).fetchall():
             results.append({"module": "sentinel", "type": "dpia", "id": r["id"],
                             "title": r["title"], "subtitle": r["ref_number"] or "DPIA", "link": f"/sentinel/?open=dpia:{r['id']}"})
 
         # Sentinel DSRs
+        sc, sp = scope(("sentinel", "dsr"))
         for r in db.execute(
-            "SELECT id, ref_number, requester_name, request_type FROM sentinel_dsr WHERE requester_name LIKE %s OR ref_number LIKE %s LIMIT 10",
-            (search_term, search_term)
+            "SELECT id, ref_number, requester_name, request_type FROM sentinel_dsr "
+            f"WHERE ({ci_like('requester_name')} OR {ci_like('ref_number')}){sc} LIMIT 10",
+            (like_term, like_term, *sp)
         ).fetchall():
             results.append({"module": "sentinel", "type": "dsr", "id": r["id"],
                             "title": r["requester_name"] or r["ref_number"],
                             "subtitle": f"{r['ref_number']} — {r['request_type'] or 'DSR'}", "link": f"/sentinel/?open=dsr:{r['id']}"})
 
         # Sentinel vendors
+        sc, sp = scope(("sentinel", "vendor"))
         for r in db.execute(
-            "SELECT id, name, type FROM sentinel_vendors WHERE name LIKE %s LIMIT 10",
-            (search_term,)
+            f"SELECT id, name, type FROM sentinel_vendors WHERE {ci_like('name')}{sc} LIMIT 10",
+            (like_term, *sp)
         ).fetchall():
             results.append({"module": "sentinel", "type": "vendor", "id": r["id"],
                             "title": r["name"], "subtitle": r["type"] or "Vendor", "link": f"/sentinel/?open=vendor:{r['id']}"})
 
         # ERM enterprise risks
+        sc, sp = scope(("erm", "risk"))
         for r in db.execute(
-            "SELECT id, title, category, status FROM erm_enterprise_risks WHERE title LIKE %s LIMIT 10",
-            (search_term,)
+            f"SELECT id, title, category, status FROM erm_enterprise_risks WHERE {ci_like('title')}{sc} LIMIT 10",
+            (like_term, *sp)
         ).fetchall():
             results.append({"module": "erm", "type": "risk", "id": r["id"],
                             "title": r['title'], "subtitle": f"{r['category'] or 'Risk'} — {r['status'] or ''}",
                             "link": f"/erm/?open=risk:{r['id']}"})
 
         # ERM regulatory obligations
+        sc, sp = scope(("erm", "obligation"))
         for r in db.execute(
-            "SELECT id, regulation_name, regulator, obligation FROM erm_regulatory_obligations WHERE regulation_name LIKE %s OR obligation LIKE %s LIMIT 10",
-            (search_term, search_term)
+            "SELECT id, regulation_name, regulator, obligation FROM erm_regulatory_obligations "
+            f"WHERE ({ci_like('regulation_name')} OR {ci_like('obligation')}){sc} LIMIT 10",
+            (like_term, like_term, *sp)
         ).fetchall():
             results.append({"module": "erm", "type": "obligation", "id": r["id"],
                             "title": r["regulation_name"], "subtitle": r["regulator"] or "Obligation",
                             "link": f"/erm/?open=obligation:{r['id']}"})
 
         # ORM events
+        sc, sp = scope(("orm", "event"))
         for r in db.execute(
-            "SELECT id, title, event_type, severity FROM orm_events WHERE title LIKE %s LIMIT 10",
-            (search_term,)
+            f"SELECT id, title, event_type, severity FROM orm_events WHERE {ci_like('title')}{sc} LIMIT 10",
+            (like_term, *sp)
         ).fetchall():
             results.append({"module": "orm", "type": "event", "id": r["id"],
                             "title": r['title'], "subtitle": f"{r['event_type'] or 'Event'} — {r['severity'] or ''}",
                             "link": f"/orm/?open=event:{r['id']}"})
 
         # ORM KRIs
+        sc, sp = scope(("orm", "kri"))
         for r in db.execute(
-            "SELECT id, name, description FROM orm_kris WHERE name LIKE %s LIMIT 10",
-            (search_term,)
+            f"SELECT id, name, description FROM orm_kris WHERE {ci_like('name')}{sc} LIMIT 10",
+            (like_term, *sp)
         ).fetchall():
             results.append({"module": "orm", "type": "kri", "id": r["id"],
                             "title": r["name"], "subtitle": "Key Risk Indicator", "link": f"/orm/?open=kri:{r['id']}"})
@@ -320,6 +353,8 @@ async def api_analytics_capture_snapshot(request: Request):
 @require_auth
 async def api_analytics_trends(request: Request):
     """Get trend data for specified metrics."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         metric = request.query_params.get("metric", "compliance_pct")
@@ -346,6 +381,8 @@ async def api_analytics_trends(request: Request):
 @require_auth
 async def api_analytics_current(request: Request):
     """Get current (latest) values for all metrics."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         rows = db.execute(
@@ -366,7 +403,9 @@ async def api_analytics_current(request: Request):
 @router.get("/api/bulk/export/{entity_type}")
 @require_auth
 async def api_bulk_export(request: Request, entity_type: str):
-    """Export entities as JSON."""
+    """Export entities as JSON. Whole tables, so only the administrator who may import them may export them."""
+    if not has_capability(request.state.user, "platform.manage_users"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         table_map = {
@@ -406,6 +445,11 @@ async def api_bulk_import(request: Request, entity_type: str):
 
     if entity_type not in ("controls", "risks", "evidence", "ropa"):
         return _JSONResp({"error": f"Import not supported for: {entity_type}"}, status_code=400)
+
+    # Same ownership rule as the Evidence Vault upload route.
+    evidence_org_id = None if request.state.user.get("is_super_admin") else request.state.user.get("org_id")
+    if entity_type == "evidence" and not request.state.user.get("is_super_admin") and not evidence_org_id:
+        return _JSONResp({"error": "Your account has no organization to import evidence for"}, status_code=403)
 
     # Validation pass: check types without touching the DB
     val_errors = []
@@ -452,20 +496,21 @@ async def api_bulk_import(request: Request, entity_type: str):
         elif entity_type == "evidence":
             for rec in records:
                 db.execute(
-                    "INSERT INTO evidence_items (title, description, category, tags, created_by) "
-                    "VALUES (%s,%s,%s,%s,%s)",
+                    "INSERT INTO evidence_items (title, description, category, tags, uploaded_by, org_id) "
+                    "VALUES (%s,%s,%s,%s,%s,%s)",
                     (rec.get("title", ""), rec.get("description", ""), rec.get("category", "policy"),
-                     rec.get("tags", ""), request.state.user["id"])
+                     rec.get("tags", ""), request.state.user["id"], evidence_org_id)
                 )
         elif entity_type == "ropa":
             for rec in records:
                 db.execute(
                     "INSERT INTO sentinel_ropa (ref_number, processing_name, purpose, legal_basis, "
-                    "data_subjects, data_categories, status) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                    "data_subjects, data_categories, status, business_unit_id) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
                     (rec.get("ref_number", ""), rec.get("processing_name") or rec.get("name", ""), rec.get("purpose", ""),
                      rec.get("legal_basis") or rec.get("lawful_basis", ""), rec.get("data_subjects", ""),
-                     rec.get("data_categories", ""), rec.get("status", "active"))
+                     rec.get("data_categories", ""), rec.get("status", "active"),
+                     request.state.user.get("business_unit_id"))
                 )
         db.commit()
     except Exception as e:
@@ -854,6 +899,7 @@ async def api_tasks_ai_prioritize(request: Request):
             [{"role": "user", "content": prompt}],
             system="You are a GRC task prioritization assistant. Respond ONLY with a JSON array.",
             max_tokens=1200,
+            feature="launcher.api_tasks_ai_prioritize",
         )
         ranked = safe_json_parse(raw)
         if not isinstance(ranked, list):
@@ -1566,6 +1612,7 @@ async def api_trainer_ask(request: Request):
                 [{"role": "user", "content": raw_question}],
                 system=_THEMIS_SYSTEM_PROMPT + ("\n\n" + context if context else ""),
                 max_tokens=400,
+                feature="launcher.api_trainer_ask",
             )
             ai_answer = ai_answer.strip()
             if ai_answer:
@@ -1865,187 +1912,106 @@ async def api_timeline(request: Request):
 # ═══════════════════════════════════════════════════════════════════════════════
 # RELATED ITEMS: Cross-Module Link API
 # ═══════════════════════════════════════════════════════════════════════════════
+# Which records can be linked, who may see a link and how it is stored all live in the relationship service
+# (modules/governance/relationships.py). These routes parse the request, commit, audit and shape the answer.
 
-# Maps (module, entity_type) to (table, title_column).
-# Table names are never interpolated from user input; only dict-lookup values used.
-_LINKABLE = {
-    ("erm",      "risk"):     ("erm_enterprise_risks",   "title"),
-    ("orm",      "event"):    ("orm_events",             "title"),
-    ("grid",     "audit"):    ("grid_audits",            "name"),
-    ("grid",     "nc"):       ("grid_non_conformances",  "title"),
-    ("sentinel", "breach"):   ("sentinel_breaches",      "title"),
-    ("sentinel", "ropa"):     ("sentinel_ropa",          "processing_name"),
-    ("sentinel", "dpia"):     ("sentinel_dpias",         "title"),
-    ("bcm",      "plan"):     ("bcm_plans",              "title"),
-    ("bcm",      "incident"): ("bcm_incidents",          "title"),
-    ("aria",     "document"): ("aria_documents",         "title"),
-    ("evidence", "item"):     ("evidence_items",         "title"),
-}
-
-# Must be a subset of core/links.py _VALID_RELATIONSHIPS
-_LINK_RELATIONSHIPS = frozenset({
-    "related", "triggers", "evidence_for", "implements",
-    "mitigates", "escalated_to", "derived_from", "audits", "elevated_to",
-})
+def _link_error(error):
+    return _JSONResp({"error": error.message}, status_code=error.status)
 
 
 @router.get("/api/links/{module}/{etype}/{eid}")
 @require_auth
 async def api_links_get(request: Request, module: str, etype: str, eid: int):
-    """Get all cross-module links for an entity, with resolved titles (single db connection)."""
-    org_id = request.state.user.get("org_id")
+    """Get the cross-module links for an entity, with resolved titles and deep links.
+
+    Only records the caller could open in their own module are listed, and only when the caller could open
+    the entity itself: anything else is left out entirely (no title, id or count), so the answer is the same as
+    for a record that does not exist."""
     db = get_db()
     try:
-        rows = db.execute(
-            "SELECT id, source_module, source_type, source_id, "
-            "       target_module, target_type, target_id, relationship "
-            "FROM cross_module_links "
-            "WHERE (source_module = %s AND source_type = %s AND source_id = %s) "
-            "   OR (target_module = %s AND target_type = %s AND target_id = %s) "
-            "ORDER BY created_at DESC",
-            (module, etype, eid, module, etype, eid),
-        ).fetchall()
-
-        # Collect all (other_module, other_type, other_id) for batch title lookup
-        sides = []
-        for r in rows:
-            if r["source_module"] == module and r["source_type"] == etype and r["source_id"] == eid:
-                sides.append((r["id"], r["target_module"], r["target_type"], r["target_id"], "outgoing", r["relationship"]))
-            else:
-                sides.append((r["id"], r["source_module"], r["source_type"], r["source_id"], "incoming", r["relationship"]))
-
-        # Batch: group by (other_module, other_type), fetch titles in one query per group
-        from collections import defaultdict
-        groups = defaultdict(list)
-        for link_id, om, ot, oid, direction, rel in sides:
-            groups[(om, ot)].append((link_id, oid, direction, rel))
-
-        title_map = {}  # (om, ot, oid) -> title
-        for (om, ot), items in groups.items():
-            key = (om, ot)
-            if key not in _LINKABLE:
-                continue
-            table, col = _LINKABLE[key]
-            ids = [x[1] for x in items]
-            placeholders = ",".join(["%s"] * len(ids))
-            query = f"SELECT id, {col} AS title FROM {table} WHERE id IN ({placeholders})"
-            params = list(ids)
-            if key == ("aria", "document"):
-                # PLAN-35 T08 (section 10.2): an out-of-scope linked policy
-                # keeps appearing as a link (id/module/type), but its title
-                # is withheld the same way the rest of ARIA withholds it.
-                scope_sql, scope_params = document_scope_sql(request.state.user)
-                query += f" AND {scope_sql}"
-                params += scope_params
-            title_rows = db.execute(query, params).fetchall()
-            for tr in title_rows:
-                title_map[(om, ot, tr["id"])] = tr["title"]
-
-        results = []
-        for link_id, om, ot, oid, direction, rel in sides:
-            results.append({
-                "link_id": link_id,
-                "module": om,
-                "entity_type": ot,
-                "entity_id": oid,
-                "title": title_map.get((om, ot, oid)),
-                "relationship": rel,
-                "direction": direction,
-            })
+        links = relationships.list_links(db, request.state.user, (module, etype), eid)
     finally:
         db.close()
+    return _JSONResp(links)
 
-    return _JSONResp(results)
+
+@router.get("/api/links/{module}/{etype}/{eid}/graph")
+@require_auth
+async def api_links_graph(request: Request, module: str, etype: str, eid: int):
+    """The records within a few confirmed links of one record, each one the caller may open (bounded)."""
+    try:
+        depth = int(request.query_params.get("depth", 2))
+    except ValueError:
+        depth = 2
+    db = get_db()
+    try:
+        graph = relationships.neighbours(db, request.state.user, (module, etype), eid, depth=depth)
+    finally:
+        db.close()
+    return _JSONResp(graph)
 
 
 @router.post("/api/links", status_code=201)
 @require_auth
 async def api_links_create(request: Request):
-    """Create a cross-module link between two linkable entities."""
+    """Create a cross-module link between two linkable entities the caller can open."""
     data = await _json_body(request)
-    sm = sanitize_short(data.get("source_module", ""))
-    st = sanitize_short(data.get("source_type", ""))
-    sid = validate_int(data.get("source_id"))
-    tm = sanitize_short(data.get("target_module", ""))
-    tt = sanitize_short(data.get("target_type", ""))
-    tid = validate_int(data.get("target_id"))
-    rel = validate_choice(data.get("relationship", "related"), _LINK_RELATIONSHIPS, "related")
-    uid = request.state.user["id"]
-    org_id = request.state.user.get("org_id")
-
-    if (sm, st) not in _LINKABLE:
-        return _JSONResp({"error": f"Unknown source entity: {sm}/{st}"}, status_code=400)
-    if (tm, tt) not in _LINKABLE:
-        return _JSONResp({"error": f"Unknown target entity: {tm}/{tt}"}, status_code=400)
-    if sid is None or tid is None:
-        return _JSONResp({"error": "Invalid entity id"}, status_code=400)
-    if sm == tm and st == tt and sid == tid:
-        return _JSONResp({"error": "Cannot link an entity to itself."}, status_code=400)
-
+    source = (sanitize_short(data.get("source_module", "")), sanitize_short(data.get("source_type", "")),
+              validate_int(data.get("source_id")))
+    target = (sanitize_short(data.get("target_module", "")), sanitize_short(data.get("target_type", "")),
+              validate_int(data.get("target_id")))
+    rel = validate_choice(data.get("relationship", "related"), RELATIONSHIP_LABELS, "related")
+    user = request.state.user
     db = get_db()
     try:
-        src_table = _LINKABLE[(sm, st)][0]
-        srow = db.execute(f"SELECT 1 FROM {src_table} WHERE id = %s", (sid,)).fetchone()
-        if not srow:
-            return _JSONResp({"error": f"Source entity not found: {sm}/{st}/{sid}"}, status_code=404)
-
-        tgt_table = _LINKABLE[(tm, tt)][0]
-        trow = db.execute(f"SELECT 1 FROM {tgt_table} WHERE id = %s", (tid,)).fetchone()
-        if not trow:
-            return _JSONResp({"error": f"Target entity not found: {tm}/{tt}/{tid}"}, status_code=404)
-
-        cur = db.execute(
-            "INSERT INTO cross_module_links "
-            "(source_module, source_type, source_id, "
-            " target_module, target_type, target_id, "
-            " relationship, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) "
-            "ON CONFLICT DO NOTHING RETURNING id",
-            (sm, st, sid, tm, tt, tid, rel, uid),
-        )
-        row = cur.fetchone()
-        if row is None:
-            existing = db.execute(
-                "SELECT id FROM cross_module_links "
-                "WHERE source_module=%s AND source_type=%s AND source_id=%s "
-                "AND target_module=%s AND target_type=%s AND target_id=%s "
-                "AND relationship=%s",
-                (sm, st, sid, tm, tt, tid, rel),
-            ).fetchone()
-            if existing:
-                return _JSONResp({"ok": True, "link_id": existing["id"]}, status_code=200)
-            return _JSONResp({"error": "Failed to insert link."}, status_code=500)
-
-        link_id = row["id"]
+        try:
+            result = relationships.create_link(db, user, source, target, rel, note=data.get("note") or "")
+        except relationships.LinkError as error:
+            db.rollback()
+            return _link_error(error)
         db.commit()
     finally:
         db.close()
+    relationships.audit(user, result)
+    return _JSONResp({"ok": True, "link_id": result["link_id"]}, status_code=201 if result["created"] else 200)
 
-    return _JSONResp({"ok": True, "link_id": link_id}, status_code=201)
+
+@router.post("/api/links/{link_id}/status")
+@require_auth
+async def api_links_status(request: Request, link_id: int):
+    """Confirm or reject a candidate link."""
+    data = await _json_body(request)
+    user = request.state.user
+    db = get_db()
+    try:
+        try:
+            result = relationships.set_link_status(db, user, link_id, data.get("status"))
+        except relationships.LinkError as error:
+            db.rollback()
+            return _link_error(error)
+        db.commit()
+    finally:
+        db.close()
+    relationships.audit(user, result)
+    return _JSONResp({"ok": True})
 
 
 @router.delete("/api/links/{link_id}")
 @require_auth
 async def api_links_delete(request: Request, link_id: int):
     """Delete a cross-module link. Only the creator or an admin may delete."""
-    uid = request.state.user["id"]
-    is_admin = has_capability(request.state.user, "platform.manage_users")
-
+    user = request.state.user
     db = get_db()
     try:
-        row = db.execute(
-            "SELECT created_by FROM cross_module_links WHERE id = %s",
-            (link_id,),
-        ).fetchone()
-        if not row:
-            return _JSONResp({"error": "Link not found."}, status_code=404)
-        if not is_admin and row["created_by"] != uid:
-            return _JSONResp({"error": "Access denied."}, status_code=403)
-        db.execute("DELETE FROM cross_module_links WHERE id = %s", (link_id,))
+        try:
+            result = relationships.remove_link(db, user, link_id)
+        except relationships.LinkError as error:
+            db.rollback()
+            return _link_error(error)
         db.commit()
     finally:
         db.close()
-
+    relationships.audit(user, result)
     return _JSONResp({"success": True})
 
 

@@ -65,10 +65,12 @@
     <div class="vd-title">Vendor Directory</div>
     <div class="vd-subtitle">Unified view of all third-party vendors across Privacy, Audit &amp; Resilience</div>
   </div>
+  {% if can_add_vendor %}
   <button class="btn btn-primary" onclick="vdOpenAddModal()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Vendor
   </button>
+  {% endif %}
 </div>
 
 <div class="vd-stats" id="vdStats">
@@ -104,6 +106,8 @@ function esc(s){var d=document.createElement('div');d.textContent=s||'';return d
 function rb(v){var m={critical:'rgba(220,38,38,.12)',high:'rgba(249,115,22,.12)',medium:'rgba(217,119,6,.12)',low:'rgba(22,163,74,.12)'};var t={critical:'#dc2626',high:'#f97316',medium:'#d97706',low:'#16a34a'};var k=(v||'medium').toLowerCase();return '<span style="background:'+(m[k]||m.medium)+';color:'+(t[k]||t.medium)+';padding:2px 8px;border-radius:5px;font-size:11px;font-weight:700;text-transform:capitalize">'+esc(k)+'</span>';}
 function dpaBadge(s){var c=s==='signed'?'present':s==='expired'?'danger':'warn';var ico=s==='signed'?'✓':s==='expired'?'✗':'⏳';return '<span class="vd-badge '+c+'">'+ico+' DPA '+(s||'pending')+'</span>';}
 
+var VD_CAN_FLAG_AI = {{ 'true' if can_flag_ai else 'false' }};
+var VD_AI_ON = {{ 'true' if can_ai_use else 'false' }};
 async function vdLoad(){
   document.getElementById('vdGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted)">Loading vendor directory...</div>';
   try{
@@ -194,6 +198,23 @@ async function vdOpenDrawer(canonicalId){
         return '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:7px;margin-bottom:5px;font-size:12px;font-weight:600;color:#dc2626"><span>⚠</span>'+esc(f.msg)+'</div>';
       }).join('')+'</div>';
     }
+    // AI use: does this vendor use AI, or embed it in what it sells us?
+    var aiLabels={yes:'Yes',no:'No',unknown:'Not sure'};
+    if(VD_AI_ON){
+    html+='<div class="vd-module-section">'+
+      '<div class="vd-module-head"><div class="vd-module-icon" style="background:rgba(15,118,110,.14)">AI</div><span>AI use</span></div>'+
+      '<div class="vd-kv"><span class="vd-kv-k">Uses AI or embedded AI?</span><span class="vd-kv-v">'+esc(aiLabels[c.uses_ai]||'Not asked yet')+'</span></div>'+
+      (c.uses_ai_note?'<div class="vd-kv"><span class="vd-kv-k">Note</span><span class="vd-kv-v" style="font-size:11px;max-width:220px;text-align:right">'+esc(c.uses_ai_note)+'</span></div>':'');
+    if(VD_CAN_FLAG_AI){
+      html+='<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
+        '<select id="vdUsesAi" aria-label="Uses AI or embedded AI?" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">'+
+          ['','yes','no','unknown'].map(function(v){return '<option value="'+v+'"'+((c.uses_ai||'')===v?' selected':'')+'>'+(v?aiLabels[v]:'Choose')+'</option>';}).join('')+'</select>'+
+        '<input id="vdUsesAiNote" aria-label="What does it do?" placeholder="What does it do? (optional)" value="'+esc(c.uses_ai_note||'')+'" style="flex:1;min-width:120px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">'+
+        '<button class="vd-add-btn" onclick="vdSaveUsesAi('+canonicalId+')">Save</button></div>'+
+        '<div id="vdUsesAiMsg" role="status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>';
+    }
+    html+='</div>';
+    }
     // Privacy / Sentinel
     html+='<div class="vd-module-section">'+
       '<div class="vd-module-head"><div class="vd-module-icon sentinel">🔒</div><span>Privacy (Sentinel)</span></div>';
@@ -245,6 +266,20 @@ async function vdOpenDrawer(canonicalId){
   }catch(e){
     drawer.innerHTML='<button class="vd-drawer-close" onclick="vdCloseDrawer()">×</button><div style="padding:40px;text-align:center;color:var(--muted)">Failed to load vendor profile.</div>';
   }
+}
+
+async function vdSaveUsesAi(canonicalId){
+  var answer=document.getElementById('vdUsesAi').value, note=document.getElementById('vdUsesAiNote').value;
+  var msg=document.getElementById('vdUsesAiMsg');
+  if(!answer){msg.textContent='Choose yes, no or not sure.';return;}
+  msg.textContent='Saving...';
+  try{
+    var r=await fetch('/ai-governance/api/flags/vendor/'+canonicalId,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({answer:answer,note:note,source:'Vendor directory'})});
+    var d=await r.json().catch(function(){return {};});
+    if(r.ok){await vdOpenDrawer(canonicalId);}
+    else{msg.textContent=d.error||d.detail||'Could not save.';}
+  }catch(e){msg.textContent='Network error.';}
 }
 
 function vdCloseDrawer(){

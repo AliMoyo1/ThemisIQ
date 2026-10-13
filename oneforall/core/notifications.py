@@ -11,6 +11,7 @@ import logging
 
 from core.outbound_http import send_outbound, OutboundURLError
 from config import settings
+from core.best_effort import swallowed
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ def _get_setting(key: str, default: str = "") -> str:
         finally:
             db.close()
     except Exception:
+        swallowed("_get_setting (settings)")
         return default
 
 

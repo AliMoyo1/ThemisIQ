@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 
 from core.timeutils import utcnow
+from core.best_effort import swallowed
 
 
 class SavedViewError(Exception):
@@ -257,6 +258,7 @@ def execute_bulk_action(db, actor: dict, *, module: str, action_name: str, recor
                 db.execute("RELEASE SAVEPOINT bulk_action_item")
                 applied.append(rid)
             except Exception:
+                swallowed(f"bulk action {module}.{action_name} on record {rid}")
                 db.execute("ROLLBACK TO SAVEPOINT bulk_action_item")
                 db.execute("RELEASE SAVEPOINT bulk_action_item")
                 skipped.append({"id": rid, "reason": "Could not apply this action. Retry or contact support."})

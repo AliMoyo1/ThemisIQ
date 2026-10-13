@@ -77,6 +77,7 @@ pytestmark = pytest.mark.skipif(
 psycopg2 = pytest.importorskip("psycopg2")
 from psycopg2 import sql  # noqa: E402
 import psycopg2.pool  # noqa: E402
+import psycopg2.errors  # noqa: E402
 import psycopg2.extras  # noqa: E402
 import psycopg2.extensions  # noqa: E402
 
@@ -703,6 +704,59 @@ def test_evidence_items_gets_org_id_column_and_rls_policy_on_real_postgres(pg):
                 role_admin.close()
 
 
+def test_evidence_vault_search_and_scope_run_on_real_postgres(pg):
+    """Evidence Vault Phase 1a (design/evidence-vault/PHASE-1A.md, T8): plain LIKE is case
+    sensitive on PostgreSQL but the shared Vault search is not, and the shared scope and
+    paged-list SQL must execute here, not only on SQLite."""
+    pg.init_db()
+    from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.execute(
+            "INSERT INTO organizations (name, slug, plan, status) "
+            "VALUES ('PG Vault Org', 'pg-vault-org', 'enterprise', 'active')"
+        )
+        conn.execute("INSERT INTO business_units (name, code, is_active) VALUES ('PG Vault Unit A', 'PGVA', 1)")
+        conn.execute("INSERT INTO business_units (name, code, is_active) VALUES ('PG Vault Unit B', 'PGVB', 1)")
+        conn.commit()
+        org = conn.execute("SELECT id FROM organizations WHERE slug='pg-vault-org'").fetchone()[0]
+        bu_a = conn.execute("SELECT id FROM business_units WHERE code='PGVA'").fetchone()[0]
+        bu_b = conn.execute("SELECT id FROM business_units WHERE code='PGVB'").fetchone()[0]
+        for title, bu in (("Access Review Q3", None), ("100% complete", None),
+                          ("Unit A policy", bu_a), ("Unit B policy", bu_b)):
+            conn.execute(
+                "INSERT INTO evidence_items (title, org_id, business_unit_id, status) VALUES (%s,%s,%s,'current')",
+                (title, org, bu),
+            )
+        conn.commit()
+
+        plain = conn.execute(
+            "SELECT COUNT(*) FROM evidence_items WHERE title LIKE %s", ("%access review%",)
+        ).fetchone()[0]
+        assert plain == 0, "plain LIKE was expected to be case sensitive on PostgreSQL"
+
+        def titles(user, term=""):
+            scope_sql, scope_params = evidence_scope_sql(user)
+            search_sql, search_params = evidence_search_sql(term)
+            rows = conn.execute(
+                "SELECT e.title FROM evidence_items e "
+                f"WHERE {current_library_sql()} AND {scope_sql} AND {search_sql} "
+                "ORDER BY e.updated_at DESC, e.id DESC LIMIT %s OFFSET %s",
+                [*scope_params, *search_params, 25, 0],
+            ).fetchall()
+            return {r["title"] for r in rows}
+
+        unit_a = {"org_id": org, "business_unit_id": bu_a, "is_super_admin": 0}
+        assert titles(unit_a, "ACCESS review") == {"Access Review Q3"}
+        assert titles(unit_a, "%") == {"100% complete"}
+        assert titles(unit_a) == {"Access Review Q3", "100% complete", "Unit A policy"}
+        assert titles({"org_id": None, "business_unit_id": None, "is_super_admin": 0}) == set()
+        assert len(titles({"is_super_admin": 1})) == 4
+    finally:
+        conn.close()
+
+
 def test_warm_replay_queries_execute_on_real_postgres(pg):
     """T04 (findings.md F05): scripts/warm_replay.py's queries were fixed
     for stale table/column names found on SQLite; this is the same
@@ -723,6 +777,486 @@ def test_warm_replay_queries_execute_on_real_postgres(pg):
         assert not failures, "Invalid warm-replay queries on real Postgres:\n" + "\n".join(failures)
     finally:
         conn.close()
+
+
+def test_global_search_ignores_case_and_treats_wildcards_literally_on_real_postgres(pg, monkeypatch):
+    """The topbar search used plain LIKE, which is case sensitive on PostgreSQL but not on SQLite
+    (so the suite never saw it) and let the user's own % and _ act as wildcards.
+    tests/test_global_search_like.py proves the rows on SQLite with case_sensitive_like on; this runs
+    the same route on real PostgreSQL, so every block's SQL executes here and the engine itself
+    gives the same answer."""
+    pg.init_db()
+    import asyncio
+    import json
+    import types
+
+    import core.middleware as middleware
+    import modules.launcher.routes_platform as plat
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.execute("INSERT INTO frameworks (name) VALUES ('PG Search Framework')")
+        framework_id = conn.execute("SELECT id FROM frameworks WHERE name='PG Search Framework'").fetchone()[0]
+        for statement, params in (
+            ("INSERT INTO controls (framework_id, ref, name) VALUES (%s,%s,%s)",
+             (framework_id, "PGS-1", "Annual Quartz Ledger control")),
+            ("INSERT INTO aria_documents (doc_id, framework, title) VALUES (%s,%s,%s)",
+             ("PGS-DOC-1", "ISO 27001", "Annual Quartz Ledger policy")),
+            ("INSERT INTO risk_register (title) VALUES (%s)", ("Annual Quartz Ledger gap",)),
+            ("INSERT INTO erm_regulatory_obligations (regulator, regulation_name, obligation) VALUES (%s,%s,%s)",
+             ("Regulator", "Data Act", "File the ANNUAL QUARTZ LEDGER each year")),
+        ):
+            conn.execute(statement, params)
+        for name in ("Acme Payroll", "Zq5% Ltd", "Zq50 Ltd", "Zq_b Ltd", "Zqxb Ltd",
+                     "Zq! Ltd", "Zq Ltd", "Zq:\\temp Ltd", "Zq:temp Ltd"):
+            conn.execute("INSERT INTO sentinel_vendors (name) VALUES (%s)", (name,))
+        conn.commit()
+
+        plain = conn.execute(
+            "SELECT COUNT(*) FROM sentinel_vendors WHERE name LIKE %s", ("%acme%",)
+        ).fetchone()[0]
+        assert plain == 0, "plain LIKE was expected to be case sensitive on PostgreSQL"
+    finally:
+        conn.close()
+
+    async def current_user(request):
+        return request.state.user
+
+    monkeypatch.setattr(middleware, "get_current_user", current_user)
+    admin = {"id": 1, "username": "pgsearch", "org_id": None, "business_unit_id": None,
+             "is_super_admin": 1, "roles": ["super_admin"]}
+
+    def hits(term):
+        request = types.SimpleNamespace(
+            state=types.SimpleNamespace(user=admin),
+            url=types.SimpleNamespace(path="/api/search"),
+            query_params={"q": term},
+        )
+        body = json.loads(asyncio.run(plat.api_global_search(request)).body)
+        return {(r["type"], r["title"]) for r in body["results"]}
+
+    for term in ("quartz ledger", "QUARTZ LEDGER", "qUaRtZ lEdGeR"):
+        assert hits(term) == {
+            ("control", "PGS-1 - Annual Quartz Ledger control"),
+            ("document", "Annual Quartz Ledger policy"),
+            ("risk", "Annual Quartz Ledger gap"),
+            ("obligation", "Data Act"),
+        }, term
+    assert hits("zq5%") == {("vendor", "Zq5% Ltd")}
+    assert hits("zq_b") == {("vendor", "Zq_b Ltd")}
+    assert hits("zq!") == {("vendor", "Zq! Ltd")}
+    assert hits("zq:\\temp") == {("vendor", "Zq:\\temp Ltd")}
+
+
+# ── Tenant/RLS session scope must survive a rolled-back transaction ──────────
+# get_db() and get_db_bypass_rls() apply the tenant search_path and the RLS
+# settings with session-level SET. PostgreSQL undoes a SET together with the
+# transaction it was issued in, and _PgConnWrapper.execute() rolls the whole
+# transaction back on any error. A call site that catches the error and keeps
+# using the same connection must still be in the same tenant and RLS scope.
+
+def _provision_scoped_org(database, slug: str) -> int:
+    """init_db(), an organizations row and a provisioned tenant schema.
+
+    The public schema gets a decoy sla_definitions row and the tenant schema
+    its own, so a connection that silently falls back to public is visible in
+    the data it reads and not only in its settings."""
+    database.init_db()
+    setup = database.get_db_bypass_rls()
+    try:
+        org_id = database.insert_returning_id(
+            setup,
+            "INSERT INTO organizations (name,slug) VALUES (%s,%s)",
+            (slug, slug),
+        )
+        setup.execute(
+            "INSERT INTO sla_definitions (name,module,entity_type) "
+            "VALUES ('public-decoy','bcm','incident')"
+        )
+        setup.commit()
+    finally:
+        setup.close()
+    database.provision_tenant_schema(slug)
+
+    with database.tenant_context(org_id, slug, is_super_admin=False):
+        scoped = database.get_db()
+        try:
+            scoped.execute(
+                "INSERT INTO sla_definitions (name,module,entity_type) "
+                "VALUES ('tenant-row','bcm','incident')"
+            )
+            scoped.commit()
+        finally:
+            scoped.close()
+    return org_id
+
+
+def _session_scope(db) -> dict:
+    """The connection's live tenant/RLS settings and its backend pid."""
+    row = db.execute(
+        "SELECT pg_backend_pid() AS pid, "
+        "current_setting('search_path') AS search_path, "
+        "current_setting('app.current_org_id', true) AS org_id, "
+        "current_setting('app.is_super_admin', true) AS is_super, "
+        "current_setting('app.bypass_rls', true) AS bypass"
+    ).fetchone()
+    return {k: row[k] for k in ("pid", "search_path", "org_id", "is_super", "bypass")}
+
+
+def _sla_names(db) -> list:
+    return [r["name"] for r in db.execute(
+        "SELECT name FROM sla_definitions ORDER BY name"
+    ).fetchall()]
+
+
+def _swallow_one_failed_statement(db) -> None:
+    """A statement PostgreSQL rejects, caught the way the app's
+    try/except-and-continue call sites catch it."""
+    with pytest.raises(psycopg2.errors.UndefinedTable):
+        db.execute("SELECT 1 FROM no_such_table_for_rollback_probe")
+
+
+def test_get_db_scope_survives_a_caught_failed_statement(pg):
+    org_id = _provision_scoped_org(pg, "rollbackscope")
+    with pg.tenant_context(org_id, "rollbackscope", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            before = _session_scope(db)
+            assert before["search_path"] == "tenant_rollbackscope, public"
+            assert before["org_id"] == str(org_id)
+            assert (before["is_super"], before["bypass"]) == ("false", "false")
+            assert _sla_names(db) == ["tenant-row"]
+
+            _swallow_one_failed_statement(db)
+
+            assert _session_scope(db) == before, (
+                "tenant/RLS session settings were reverted by the rollback that "
+                "followed a failed statement"
+            )
+            assert _sla_names(db) == ["tenant-row"], (
+                "after the failed statement the connection read the public schema"
+            )
+        finally:
+            db.close()
+
+
+def test_get_db_scope_survives_an_explicit_rollback(pg):
+    org_id = _provision_scoped_org(pg, "rollbackexplicit")
+    with pg.tenant_context(org_id, "rollbackexplicit", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            before = _session_scope(db)
+            _swallow_one_failed_statement(db)
+            db.rollback()  # the `except: db.rollback()` call-site pattern
+            assert _session_scope(db) == before
+            db.rollback()  # and a rollback with nothing left to roll back
+            assert _session_scope(db) == before
+            assert _sla_names(db) == ["tenant-row"]
+        finally:
+            db.close()
+
+
+def test_bypass_connection_keeps_bypass_after_a_caught_failed_statement(pg):
+    pg.init_db()
+    db = pg.get_db_bypass_rls()
+    try:
+        before = _session_scope(db)
+        assert before["bypass"] == "true"
+        _swallow_one_failed_statement(db)
+        assert _session_scope(db) == before, (
+            "a bypass connection lost app.bypass_rls after a failed statement"
+        )
+    finally:
+        db.close()
+
+
+def test_super_admin_target_scope_survives_a_caught_failed_statement(pg):
+    """_bind_target_org() re-binds the schema and RLS context after get_db()
+    has already returned, so the scope it sets lives in the caller's open
+    transaction too."""
+    from modules.launcher.routes_workflows import _bind_target_org
+
+    target_id = _provision_scoped_org(pg, "targetscope")
+    with pg.tenant_context(None, None, is_super_admin=True):
+        db = pg.get_db()
+        try:
+            assert _bind_target_org(db, target_id, {"is_super_admin": True})
+            before = _session_scope(db)
+            assert before["search_path"] == "tenant_targetscope, public"
+            assert before["org_id"] == str(target_id)
+            assert before["is_super"] == "true"
+            assert _sla_names(db) == ["tenant-row"]
+
+            _swallow_one_failed_statement(db)
+
+            assert _session_scope(db) == before, (
+                "the super-admin target scope was reverted by a failed statement"
+            )
+            assert _sla_names(db) == ["tenant-row"]
+        finally:
+            db.close()
+
+
+def test_closed_connection_returns_to_the_pool_with_clean_scope(pg):
+    """Guard for close(): whatever keeps the scope alive during a request must
+    not leak it to the next pool user, including after a failed statement."""
+    org_id = _provision_scoped_org(pg, "cleanscope")
+    with pg.tenant_context(org_id, "cleanscope", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            scoped_pid = _session_scope(db)["pid"]
+            _swallow_one_failed_statement(db)
+        finally:
+            db.close()
+
+    # Nothing is bound now, so get_db() applies nothing: what we read is
+    # exactly what close() left behind on the pooled connection.
+    again = pg.get_db()
+    try:
+        after = _session_scope(again)
+        assert after["pid"] == scoped_pid, "pool handed back a different backend"
+        assert after["search_path"] == "public"
+        assert after["org_id"] == ""
+        assert (after["is_super"], after["bypass"]) == ("false", "false")
+    finally:
+        again.close()
+
+
+def _bare_session_after(pg, monkeypatch, call):
+    """Run call(), then open a get_db() with no tenant or org bound.
+
+    Returns (backend pids the pool handed out during call(), that session's
+    state). The pids let the caller prove the bare session reused the
+    connection under test, since a different one would make the check vacuous.
+    """
+    pool = pg._get_pg_pool()
+    handed_out = []
+    real_getconn = pool.getconn
+
+    def spy(*args, **kwargs):
+        conn = real_getconn(*args, **kwargs)
+        handed_out.append(conn.get_backend_pid())
+        return conn
+
+    with monkeypatch.context() as patch:
+        patch.setattr(pool, "getconn", spy)
+        call()
+
+    db = pg.get_db()
+    try:
+        row = db.execute(
+            "SELECT pg_backend_pid() AS pid, "
+            "current_setting('search_path') AS search_path, "
+            "current_setting('app.bypass_rls', true) AS bypass_rls, "
+            "current_setting('app.current_org_id', true) AS org_id, "
+            "current_setting('app.is_super_admin', true) AS is_super"
+        ).fetchone()
+        return handed_out, dict(row.items())
+    finally:
+        db.close()
+
+
+def _assert_pool_connection_is_clean(handed_out, state):
+    assert state["pid"] == handed_out[0], (
+        "bare get_db() did not reuse the connection under test, "
+        "so this check would be vacuous"
+    )
+    assert state["search_path"] == "public"
+    assert state["bypass_rls"] == "false"
+    assert state["org_id"] == ""
+    assert state["is_super"] == "false"
+
+
+def test_provision_tenant_schema_returns_a_clean_connection_to_the_pool(pg, monkeypatch):
+    """provision_tenant_schema() sets RLS bypass and a tenant search_path, and
+    the DDL commits them, so its pooled connection must be reset before putconn().
+    The lane's user is a superuser, so assert on the settings, not on RLS rows."""
+    pg.init_db()
+    handed_out, state = _bare_session_after(
+        pg, monkeypatch, lambda: pg.provision_tenant_schema("contamorg")
+    )
+    _assert_pool_connection_is_clean(handed_out, state)
+
+
+def test_migrate_all_tenant_schemas_returns_a_clean_connection_to_the_pool(pg, monkeypatch):
+    """Same contract for the startup migration. It only commits its SETs when
+    there is a tenant schema to walk, so provision one first."""
+    pg.init_db()
+    pg.provision_tenant_schema("contamorg")
+    pg.get_db().close()  # reset whatever provisioning left, so only the migration is measured
+    handed_out, state = _bare_session_after(
+        pg, monkeypatch, pg._migrate_all_tenant_schemas
+    )
+    _assert_pool_connection_is_clean(handed_out, state)
+
+
+# ── Savepoints must survive a failed statement (PLAN_pg_savepoint_wrapper_fix.md) ──
+# _PgConnWrapper.execute() rolls the whole transaction back on any error. That
+# destroyed every open SAVEPOINT too, so the ROLLBACK TO SAVEPOINT in the two
+# call sites that use them (readiness rules, saved-view bulk actions) raised
+# InvalidSavepointSpecification and all earlier uncommitted work was lost.
+
+def _insert_org(database, slug: str) -> int:
+    setup = database.get_db_bypass_rls()
+    try:
+        org_id = database.insert_returning_id(
+            setup, "INSERT INTO organizations (name,slug) VALUES (%s,%s)", (slug, slug)
+        )
+        setup.commit()
+        return org_id
+    finally:
+        setup.close()
+
+
+def _setting(database, key: str):
+    check = database.get_db_bypass_rls()
+    try:
+        row = check.execute("SELECT value FROM settings WHERE key=%s", (key,)).fetchone()
+        return row["value"] if row else None
+    finally:
+        check.close()
+
+
+def test_a_failed_statement_inside_a_savepoint_keeps_the_work_before_it(pg):
+    pg.init_db()
+    db = pg.get_db_bypass_rls()
+    try:
+        db.execute("INSERT INTO settings (key, value) VALUES ('sp_before', 'kept')")
+        db.execute("SAVEPOINT probe")
+        db.execute("INSERT INTO settings (key, value) VALUES ('sp_inside', 'undone')")
+        _swallow_one_failed_statement(db)
+        db.execute("ROLLBACK TO SAVEPOINT probe")
+        db.execute("RELEASE SAVEPOINT probe")
+        db.commit()
+    finally:
+        db.close()
+    assert _setting(pg, "sp_before") == "kept"
+    assert _setting(pg, "sp_inside") is None
+
+
+def test_a_failed_statement_without_a_savepoint_still_rolls_the_transaction_back(pg):
+    pg.init_db()
+    db = pg.get_db_bypass_rls()
+    try:
+        db.execute("INSERT INTO settings (key, value) VALUES ('sp_none', 'lost')")
+        _swallow_one_failed_statement(db)
+        db.execute("SELECT 1")  # usable again without a manual rollback
+        db.commit()
+    finally:
+        db.close()
+    assert _setting(pg, "sp_none") is None
+
+
+def test_an_outer_rollback_to_savepoint_discards_the_inner_one_and_a_bad_one_is_unrecoverable(pg):
+    pg.init_db()
+    db = pg.get_db_bypass_rls()
+    try:
+        db.execute("INSERT INTO settings (key, value) VALUES ('sp_nested_base', 'lost')")
+        db.execute("SAVEPOINT outer_sp")
+        db.execute("SAVEPOINT inner_sp")
+        db.execute("ROLLBACK TO SAVEPOINT outer_sp")  # also destroys inner_sp
+        with pytest.raises(psycopg2.errors.InvalidSavepointSpecification):
+            db.execute("ROLLBACK TO SAVEPOINT inner_sp")
+        # A savepoint statement that itself fails cannot be recovered from: the
+        # wrapper must have rolled everything back so the connection is usable.
+        db.execute("SELECT 1")
+        db.commit()
+    finally:
+        db.close()
+    assert _setting(pg, "sp_nested_base") is None
+
+
+def test_scope_survives_a_failed_statement_inside_a_savepoint(pg):
+    org_id = _provision_scoped_org(pg, "spscope")
+    with pg.tenant_context(org_id, "spscope", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            before = _session_scope(db)
+            db.execute("SAVEPOINT scope_probe")
+            _swallow_one_failed_statement(db)
+            db.execute("ROLLBACK TO SAVEPOINT scope_probe")
+            db.execute("RELEASE SAVEPOINT scope_probe")
+            assert _session_scope(db) == before
+            assert _sla_names(db) == ["tenant-row"]
+        finally:
+            db.close()
+
+
+def test_readiness_run_keeps_earlier_findings_when_a_later_rule_fails(pg, monkeypatch):
+    from modules.readiness import data_service as readiness
+
+    pg.init_db()
+    org_id = _insert_org(pg, "readinessorg")
+    readiness._ensure_rules_imported()
+
+    def good_rule(db, org):
+        return [readiness.RawFinding(
+            rule_code="good_rule", severity="low", module="platform",
+            entity_type="probe", entity_id="1", message="written before the failure")]
+
+    def bad_rule(db, org):
+        db.execute("SELECT 1 FROM no_such_table_for_readiness_probe")
+        return []
+
+    monkeypatch.setattr(readiness, "_RULES", {"good_rule": good_rule, "bad_rule": bad_rule})
+    monkeypatch.setattr(readiness, "_RULE_MODULES", {})
+    db = pg.get_db_bypass_rls()
+    try:
+        counts = readiness.run_rules_for_org(db, org_id)
+    finally:
+        db.close()
+
+    assert counts["failed_rules"] == ["bad_rule"]
+    assert counts["new"] == 1
+    check = pg.get_db_bypass_rls()
+    try:
+        rows = check.execute(
+            "SELECT rule_code FROM readiness_findings WHERE org_id=%s", (org_id,)
+        ).fetchall()
+        assert [r["rule_code"] for r in rows] == ["good_rule"]
+    finally:
+        check.close()
+
+
+def test_bulk_action_applies_the_other_ids_when_one_fails(pg):
+    from modules.saved_views.data_service import execute_bulk_action
+
+    pg.init_db()
+    org_id = _insert_org(pg, "bulkorg")
+    setup = pg.get_db_bypass_rls()
+    try:
+        user_id = pg.insert_returning_id(
+            setup,
+            "INSERT INTO users (username,email,full_name,password_hash,org_id) VALUES (%s,%s,%s,%s,%s)",
+            ("bulkuser", "bulkuser@example.test", "Bulk User", "x", org_id),
+        )
+        setup.commit()
+    finally:
+        setup.close()
+    actor = {"id": user_id, "username": "bulkuser", "org_id": org_id}
+
+    def authorize(db, who, rid):
+        return True, None
+
+    def apply(db, who, rid):
+        db.execute("INSERT INTO settings (key, value) VALUES (%s, 'applied')", (f"bulk_probe_{rid}",))
+        if rid == 2:
+            db.execute("SELECT 1 FROM no_such_table_for_bulk_probe")
+
+    db = pg.get_db_bypass_rls()
+    try:
+        result = execute_bulk_action(
+            db, actor, module="probe", action_name="apply", record_ids=[1, 2, 3],
+            authorize_fn=authorize, execute_fn=apply,
+        )
+    finally:
+        db.close()
+
+    assert result["applied"] == [1, 3]
+    assert [item["id"] for item in result["skipped"]] == [2]
+    assert _setting(pg, "bulk_probe_1") == "applied"
+    assert _setting(pg, "bulk_probe_2") is None
+    assert _setting(pg, "bulk_probe_3") == "applied"
 
 
 def test_destructive_target_validator_rejects_unsafe_targets():
@@ -757,3 +1291,2313 @@ def test_fk_cycle_rewriter_is_exact_and_fails_closed_on_drift():
     )
     with pytest.raises(RuntimeError, match="copied_from_version_id"):
         database._break_pg_fk_cycle(drifted)
+
+
+# ── Ask ARIA index tenancy on real PostgreSQL ────────────────────────────────
+# SQLite cannot model what the ask index depends on here: an unqualified table
+# name resolving through search_path to the shared public schema, and the
+# ALTER TABLE upgrade of an existing PostgreSQL table. The same scoping rules
+# are covered on FTS5 by test_aria_ask_scoping.py.
+
+_PRE_SCOPING_ASK_INDEX_DDL = """CREATE TABLE public.aria_ask_index (
+    id           SERIAL PRIMARY KEY,
+    content_type TEXT NOT NULL DEFAULT '',
+    content_id   TEXT NOT NULL DEFAULT '',
+    title        TEXT NOT NULL DEFAULT '',
+    section      TEXT NOT NULL DEFAULT '',
+    body         TEXT NOT NULL DEFAULT '',
+    owner        TEXT NOT NULL DEFAULT '',
+    framework    TEXT NOT NULL DEFAULT '',
+    control_ref  TEXT NOT NULL DEFAULT '',
+    url_path     TEXT NOT NULL DEFAULT '',
+    body_tsv     tsvector GENERATED ALWAYS AS (
+        setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+        setweight(to_tsvector('english', coalesce(section, '')), 'B') ||
+        setweight(to_tsvector('english', coalesce(body, '')), 'C')
+    ) STORED
+)"""
+
+
+def _make_org(database, slug, provision=True):
+    """An organizations row, plus its tenant schema unless provision=False
+    (such an org lives in the public schema). Returns the org id."""
+    db = database.get_db_bypass_rls()
+    try:
+        org_id = database.insert_returning_id(
+            db,
+            "INSERT INTO organizations (name, slug, plan, status) "
+            "VALUES (%s, %s, 'enterprise', 'active')",
+            (slug, slug),
+        )
+        db.commit()
+    finally:
+        db.close()
+    if provision:
+        database.provision_tenant_schema(slug)
+    return org_id
+
+
+def _raw_rows(sql_text, params=None):
+    """Rows over a raw autocommit connection: independent of the app pool and
+    of any search_path, so every query names its schema."""
+    conn = _raw_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql_text, params)
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+
+def _add_aria_document(database, doc_id, org_id, body, business_unit_id=None, framework="ISO 27001"):
+    db = database.get_db()
+    try:
+        db.execute(
+            "INSERT INTO aria_documents (doc_id, framework, title, body, org_id, "
+            "business_unit_id, policy_workflow_managed, status, owner) "
+            "VALUES (%s, %s, %s, %s, %s, %s, 0, 'Approved', 'owner')",
+            (doc_id, framework, f"Title {doc_id}", body, org_id, business_unit_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def _ask_with_stub_model(question, user, monkeypatch):
+    """ask() with the AI call replaced. Returns everything sent to the model."""
+    import asyncio
+    import json
+    from modules.aria import ask_service
+
+    sent = []
+
+    async def fake_call_ai(system, user_msg, max_tokens=4000, messages=None, *, feature=None):
+        sent.append(f"{system}\n{user_msg}\n{json.dumps(messages)}")
+        return "Stub answer.", {}
+
+    monkeypatch.setattr(ask_service, "_call_ai", fake_call_ai)
+    asyncio.run(ask_service.ask(question, user=user))
+    return "\n".join(sent)
+
+
+def test_ask_index_write_from_a_tenant_stays_in_its_own_schema_on_real_postgres(pg, monkeypatch):
+    """A tenant with no aria_ask_index of its own used to resolve the
+    unqualified name through search_path to public.aria_ask_index. The
+    publication worker's reindex_document then deleted the default org's chunk
+    for the same DOC id and wrote the tenant's policy text into the default
+    org's index. Ids come from per-schema sequences (both start at DOC-0001),
+    so the default org's document post-filter accepted the foreign chunk."""
+    from modules.aria import ask_service
+
+    pg.init_db()
+    default_org = _make_org(pg, "askdefault", provision=False)
+    tenant_org = _make_org(pg, "asktenant")
+
+    def as_default_org():
+        # The default org runs against the public schema under slug 'public'.
+        return pg.tenant_context(default_org, "public", is_super_admin=False)
+
+    with as_default_org():
+        ask_service.init_index()  # public.aria_ask_index exists, as it does once the default org uses Ask
+        _add_aria_document(pg, "DOC-0001", default_org, "public handbook quarterly report")
+        ask_service.reindex_document("DOC-0001")
+    with pg.tenant_context(tenant_org, "asktenant", is_super_admin=False):
+        _add_aria_document(pg, "DOC-0001", tenant_org, "TENANTSECRET quarterly revenue forecast")
+        ask_service.reindex_document("DOC-0001")  # the publication worker's call
+
+    asker = {"id": 1, "org_id": default_org, "business_unit_id": None, "is_super_admin": False}
+    with as_default_org():
+        sent = _ask_with_stub_model("quarterly", asker, monkeypatch)
+    assert "public handbook" in sent, "the default org must still reach its own document"
+    assert "TENANTSECRET" not in sent
+
+    assert _raw_rows("SELECT to_regclass('tenant_asktenant.aria_ask_index') IS NOT NULL")[0][0]
+    assert _raw_rows(
+        "SELECT count(*) FROM public.aria_ask_index WHERE body LIKE %s", ("%TENANTSECRET%",)
+    )[0][0] == 0
+    assert _raw_rows(
+        "SELECT count(*) FROM tenant_asktenant.aria_ask_index WHERE body LIKE %s", ("%TENANTSECRET%",)
+    )[0][0] == 1
+
+
+def test_pre_scoping_ask_index_is_upgraded_in_place_on_real_postgres(pg):
+    from modules.aria import ask_service
+
+    pg.init_db()
+    org_id = _make_org(pg, "askupgrade", provision=False)
+    db = pg.get_db_bypass_rls()
+    try:
+        bu_id = pg.insert_returning_id(
+            db, "INSERT INTO public.business_units (name, is_active) VALUES ('Finance', 1)", ()
+        )
+        db.execute(
+            "INSERT INTO public.aria_documents (doc_id, framework, title, body, org_id, "
+            "business_unit_id, policy_workflow_managed, status, owner) "
+            "VALUES ('DOC-0001', 'ISO 27001', 'T', 'b', %s, %s, 0, 'Approved', 'o')",
+            (org_id, bu_id),
+        )
+        db.execute(_PRE_SCOPING_ASK_INDEX_DDL)
+        db.execute(
+            "INSERT INTO public.aria_ask_index (content_type, content_id, title, body) "
+            "VALUES ('document', 'DOC-0001', 'T', 'document chunk')"
+        )
+        db.execute(
+            "INSERT INTO public.aria_ask_index (content_type, content_id, title, body) "
+            "VALUES ('risk', 'RISK-0001', 'R', 'risk chunk')"
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    with pg.tenant_context(org_id, "public", is_super_admin=False):  # how default-org users run
+        ask_service.init_index()
+        ask_service.init_index()  # idempotent once upgraded
+
+    rows = _raw_rows(
+        "SELECT content_type, content_id, org_id, business_unit_id "
+        "FROM public.aria_ask_index ORDER BY id"
+    )
+    assert rows == [
+        ("document", "DOC-0001", org_id, bu_id),  # existing rows kept, document scope backfilled
+        ("risk", "RISK-0001", None, None),        # no source owner: stays unscoped until a rebuild
+    ]
+
+
+def test_ask_search_filters_in_sql_before_the_top_k_cut_on_real_postgres(pg):
+    from modules.aria import ask_service
+
+    pg.init_db()
+    org_x = _make_org(pg, "asksearchx", provision=False)
+    org_y = _make_org(pg, "asksearchy", provision=False)
+    asker = {"id": 1, "org_id": org_y, "business_unit_id": None, "is_super_admin": False}
+
+    with pg.tenant_context(org_y, "public", is_super_admin=False):  # both orgs share the public schema
+        ask_service.init_index()
+        db = pg.get_db()
+        try:
+            other_bu = pg.insert_returning_id(
+                db, "INSERT INTO business_units (name, is_active) VALUES ('Elsewhere', 1)", ()
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        for i in range(10):
+            _add_aria_document(pg, f"DOC-X{i:02d}", org_x, "backup backup backup backup restore backup")
+        _add_aria_document(
+            pg, "DOC-Y1", org_y,
+            "annual training onboarding travel visitors parking catering and once backup procedures",
+        )
+        _add_aria_document(pg, "DOC-Y2", org_y, "backup procedures for another unit", business_unit_id=other_bu)
+        for doc_id in [f"DOC-X{i:02d}" for i in range(10)] + ["DOC-Y1", "DOC-Y2"]:
+            ask_service.reindex_document(doc_id)
+
+        # Precondition: unscoped, org X's documents fill the top 8 and org Y's is cut.
+        unscoped = _raw_rows(
+            "SELECT content_id FROM public.aria_ask_index "
+            "WHERE body_tsv @@ to_tsquery('english', 'backup:*') "
+            "ORDER BY ts_rank_cd(body_tsv, to_tsquery('english', 'backup:*')) DESC LIMIT 8"
+        )
+        assert "DOC-Y1" not in {r[0] for r in unscoped}
+
+        # A user with no business unit sees org Y's organization-wide document only:
+        # not org X's, and not org Y's document in a unit outside their scope.
+        assert [c["content_id"] for c in ask_service.search("backup", user=asker)] == ["DOC-Y1"]
+        # The framework-filtered query finds nothing, so the unfiltered fallback runs
+        # (second query against the real server); it must stay scoped.
+        widened = ask_service.search("backup", framework_filter="SOC 2", user=asker)
+        assert [c["content_id"] for c in widened] == ["DOC-Y1"]
+
+
+def test_rebuild_all_in_a_tenant_stamps_controls_and_risks_with_it_on_real_postgres(pg):
+    from modules.aria import ask_service
+
+    pg.init_db()
+    org_id = _make_org(pg, "askrebuild")
+    with pg.tenant_context(org_id, "askrebuild", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            fw_id = pg.insert_returning_id(
+                db, "INSERT INTO frameworks (name) VALUES ('Ask rebuild framework')", ()
+            )
+            db.execute(
+                "INSERT INTO controls (framework_id, ref, name, description, category, owner) "
+                "VALUES (%s, 'ASK.1', 'Recovery drills', 'Quarterly drills', 'Resilience', 'owner')",
+                (fw_id,),
+            )
+            db.execute(
+                "INSERT INTO aria_risks (risk_id, framework, description, category, owner, "
+                "mitigation, status) VALUES ('RISK-0001', 'ISO 27001', 'Ransomware exposure', "
+                "'Cyber', 'owner', 'Offline backups', 'Open')"
+            )
+            db.commit()
+        finally:
+            db.close()
+        assert ask_service.rebuild_all() >= 2
+
+    rows = _raw_rows(
+        "SELECT content_type, org_id FROM tenant_askrebuild.aria_ask_index "
+        "WHERE control_ref = 'ASK.1' OR content_id = 'RISK-0001' ORDER BY content_type"
+    )
+    assert rows == [("control", org_id), ("risk", org_id)]
+
+
+def test_rebuild_ask_index_script_rebuilds_the_chosen_tenant_on_real_postgres(pg, capsys):
+    from scripts import rebuild_ask_index
+
+    pg.init_db()
+    org_id = _make_org(pg, "askscript")
+    with pg.tenant_context(org_id, "askscript", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            db.execute(
+                "INSERT INTO aria_risks (risk_id, framework, description, category, owner, "
+                "mitigation, status) VALUES ('RISK-0001', 'ISO 27001', 'Ransomware exposure', "
+                "'Cyber', 'owner', 'Offline backups', 'Open')"
+            )
+            db.commit()
+        finally:
+            db.close()
+
+    assert rebuild_ask_index.main(["--slug", "askscript"]) == 0
+    assert capsys.readouterr().out.startswith("askscript: ")
+    assert _raw_rows(
+        "SELECT org_id FROM tenant_askscript.aria_ask_index WHERE content_id = 'RISK-0001'"
+    ) == [(org_id,)]
+    assert rebuild_ask_index.main(["--slug", "no-such-org"]) == 2
+
+
+def test_rebuild_index_from_a_tenant_never_drops_the_shared_public_index_on_real_postgres(pg):
+    """DROP TABLE aria_ask_index resolves through search_path, so a tenant with no table of its
+    own used to drop the default organization's index from public."""
+    from modules.aria import ask_service
+
+    pg.init_db()
+    default_org = _make_org(pg, "dropdefault", provision=False)
+    tenant_org = _make_org(pg, "droptenant")
+    with pg.tenant_context(default_org, "public", is_super_admin=False):
+        ask_service.init_index()
+    with pg.tenant_context(tenant_org, "droptenant", is_super_admin=False):
+        ask_service.rebuild_index()
+    assert _raw_rows(
+        "SELECT to_regclass('public.aria_ask_index') IS NOT NULL, "
+        "to_regclass('tenant_droptenant.aria_ask_index') IS NOT NULL"
+    )[0] == (True, True)
+
+
+def test_deleting_an_org_user_survives_a_table_missing_from_its_cleanup_on_real_postgres(pg, monkeypatch):
+    """The user-deletion cleanup skips tables it cannot update. On PostgreSQL a skipped statement rolled
+    the whole transaction back, undoing the reassignments made before it, and the final DELETE then hit
+    a foreign key (events.created_by). Each optional step now runs in its own savepoint."""
+    import asyncio
+    import json
+    import types
+
+    import modules.launcher.routes_super_admin as super_admin
+
+    pg.init_db()
+    org_id = _make_org(pg, "deluser", provision=False)
+    conn = pg.get_db_bypass_rls()
+    try:
+        uid = pg.insert_returning_id(
+            conn,
+            "INSERT INTO users (username, email, full_name, password_hash, org_id) "
+            "VALUES ('doomed', 'doomed@example.test', 'Doomed', 'x', %s)",
+            (org_id,),
+        )
+        event = pg.insert_returning_id(
+            conn,
+            "INSERT INTO events (event_type, source_module, created_by) VALUES ('test.event', 'platform', %s)",
+            (uid,),
+        )  # events.created_by has a plain foreign key: the delete is blocked until it is reassigned
+        conn.execute("DROP TABLE IF EXISTS grid_share_links CASCADE")  # a schema that predates this table
+        conn.commit()
+    finally:
+        conn.close()
+
+    root = {"id": 0, "username": "root", "org_id": None, "business_unit_id": None, "is_super_admin": 1,
+            "roles": ["super_admin"]}
+
+    async def current_user(request):
+        return root
+
+    monkeypatch.setattr(super_admin, "get_current_user", current_user)
+    request = types.SimpleNamespace(state=types.SimpleNamespace(user=root),
+                                    url=types.SimpleNamespace(path="/x"), query_params={})
+    response = asyncio.run(super_admin.delete_org_user(request, org_id, uid))
+
+    assert response.status_code == 200 and json.loads(response.body) == {"ok": True}
+    assert _raw_rows("SELECT count(*) FROM users WHERE id = %s", (uid,))[0][0] == 0
+    assert _raw_rows("SELECT created_by FROM events WHERE id = %s", (event,)) == [(None,)]
+
+
+def test_scoped_search_and_related_items_run_on_real_postgres(pg, monkeypatch):
+    """The scope SQL (business unit lists, the grid audit subquery, the ARIA and Vault rules) must
+    parse and give the right rows on PostgreSQL, where the plain SQLite suite cannot show it:
+    a unit A user sees unit A and organization wide records, never unit B's, in topbar search and in
+    Related Items, and cannot link to a record they cannot open."""
+    import asyncio
+    import json
+    import types
+
+    import core.middleware as middleware
+    import modules.launcher.routes_platform as plat
+
+    pg.init_db()
+    org_id = _make_org(pg, "scopeorg", provision=False)
+    conn = pg.get_db_bypass_rls()
+    try:
+        unit = {
+            tag: pg.insert_returning_id(
+                conn, "INSERT INTO business_units (name, is_active) VALUES (%s, 1)", (f"PG Unit {tag}",)
+            )
+            for tag in ("A", "B")
+        }
+        user_ids = {
+            name: pg.insert_returning_id(
+                conn,
+                "INSERT INTO users (username, email, full_name, password_hash, org_id, business_unit_id) "
+                "VALUES (%s, %s, %s, 'x', %s, %s)",
+                (name, f"{name}@example.test", name, org_id, unit["A"]),
+            )
+            for name in ("scope_dpo", "scope_audit_lead")
+        }
+        rows = {}
+        for tag in ("A", "B"):
+            audit = pg.insert_returning_id(
+                conn, "INSERT INTO grid_audits (name, business_unit_id) VALUES (%s, %s)", (f"Scope audit {tag}", unit[tag])
+            )
+            rows["breach", tag] = pg.insert_returning_id(
+                conn,
+                "INSERT INTO sentinel_breaches (ref_number, title, business_unit_id) VALUES (%s, %s, %s)",
+                (f"BR-{tag}", f"Scope probe breach {tag}", unit[tag]),
+            )
+            rows["nc", tag] = pg.insert_returning_id(
+                conn, "INSERT INTO grid_non_conformances (audit_id, title) VALUES (%s, %s)",
+                (audit, f"Scope probe nc {tag}"),
+            )
+            rows["doc", tag] = pg.insert_returning_id(
+                conn,
+                "INSERT INTO aria_documents (doc_id, framework, title, org_id, business_unit_id, "
+                "policy_workflow_managed) VALUES (%s, 'ISO 27001', %s, %s, %s, 0)",
+                (f"SCOPE-{tag}", f"Scope probe policy {tag}", org_id, unit[tag]),
+            )
+            rows["evidence", tag] = pg.insert_returning_id(
+                conn,
+                "INSERT INTO evidence_items (title, org_id, business_unit_id, status) VALUES (%s, %s, %s, 'current')",
+                (f"Scope probe evidence {tag}", org_id, unit[tag]),
+            )
+        anchor = pg.insert_returning_id(conn, "INSERT INTO erm_enterprise_risks (title) VALUES ('Scope probe anchor risk')", ())
+        fresh_breach = pg.insert_returning_id(
+            conn,
+            "INSERT INTO sentinel_breaches (ref_number, title, business_unit_id) VALUES ('BR-A2', 'Scope probe breach A2', %s)",
+            (unit["A"],),
+        )
+        for kind, module, entity in (("breach", "sentinel", "breach"), ("nc", "grid", "nc"), ("doc", "aria", "document"),
+                                     ("evidence", "evidence", "item")):
+            for tag in ("A", "B"):
+                conn.execute(
+                    "INSERT INTO cross_module_links (source_module, source_type, source_id, target_module, "
+                    "target_type, target_id) VALUES ('erm', 'risk', %s, %s, %s, %s)",
+                    (anchor, module, entity, rows[kind, tag]),
+                )
+        conn.commit()
+    finally:
+        conn.close()
+
+    async def current_user(request):
+        return request.state.user
+
+    monkeypatch.setattr(middleware, "get_current_user", current_user)
+
+    def persona(name, role):
+        return {"id": user_ids[name], "username": name, "org_id": org_id, "business_unit_id": unit["A"],
+                "is_super_admin": 0, "roles": [role]}
+
+    dpo, lead = persona("scope_dpo", "dpo"), persona("scope_audit_lead", "audit_lead")
+
+    def request(user, query=None, payload=None):
+        req = types.SimpleNamespace(state=types.SimpleNamespace(user=user), url=types.SimpleNamespace(path="/x"),
+                                    query_params=query or {})
+        if payload is not None:
+            async def _json():
+                return payload
+
+            req.json = _json
+        return req
+
+    def call(coro):
+        response = asyncio.run(coro)
+        return response.status_code, json.loads(response.body)
+
+    _, body = call(plat.api_global_search(request(dpo, {"q": "Scope probe"})))
+    titles = {r["title"] for r in body["results"]}
+    assert {"Scope probe breach A", "Scope probe policy A", "Scope probe evidence A"} <= titles
+    assert not {t for t in titles if t.endswith(" B")}, titles
+
+    _, related = call(plat.api_links_get(request(dpo), "erm", "risk", anchor))
+    assert {r["title"] for r in related} == {
+        "Scope probe breach A", "Scope probe policy A", "Scope probe evidence A"}
+    _, related = call(plat.api_links_get(request(lead), "erm", "risk", anchor))
+    assert {r["title"] for r in related} == {"Scope probe nc A", "Scope probe policy A", "Scope probe evidence A"}
+
+    def link_to(user, breach_id):
+        return call(plat.api_links_create(request(user, payload={
+            "source_module": "erm", "source_type": "risk", "source_id": anchor,
+            "target_module": "sentinel", "target_type": "breach", "target_id": breach_id,
+            "relationship": "related"})))
+
+    assert link_to(dpo, rows["breach", "B"]) == link_to(dpo, 987654)  # unreachable looks exactly like missing
+    assert link_to(dpo, rows["breach", "B"])[0] == 404
+    status, made = link_to(dpo, fresh_breach)
+    assert status == 201 and made["ok"]
+    assert _raw_rows("SELECT user_id, entity_id FROM audit_log WHERE action = 'link_create'") == [
+        (user_ids["scope_dpo"], made["link_id"])]
+
+
+def test_ask_page_count_reads_the_tenants_own_index_on_real_postgres(pg):
+    from modules.aria import ask_service
+
+    pg.init_db()
+    default_org = _make_org(pg, "countdefault", provision=False)
+    tenant_org = _make_org(pg, "counttenant")
+    with pg.tenant_context(default_org, "public", is_super_admin=False):
+        ask_service.init_index()
+        _add_aria_document(pg, "DOC-0001", default_org, "public handbook quarterly report")
+        ask_service.reindex_document("DOC-0001")
+        default_user = {"org_id": default_org, "business_unit_id": None, "is_super_admin": False}
+        assert ask_service.indexed_count(default_user) == 1
+    with pg.tenant_context(tenant_org, "counttenant", is_super_admin=False):
+        tenant_user = {"org_id": tenant_org, "business_unit_id": None, "is_super_admin": False}
+        assert ask_service.indexed_count(tenant_user) == 0, "its own empty index, not the default org's"
+    assert _raw_rows("SELECT to_regclass('tenant_counttenant.aria_ask_index') IS NOT NULL")[0][0]
+
+
+def test_module_list_searches_ignore_case_on_real_postgres(pg, monkeypatch):
+    """PostgreSQL's LIKE is case sensitive; these searches used it (finding H3 of the PG audit)."""
+    import asyncio
+    import json
+    import types
+
+    import modules.bcm.data_service as bcm_ds
+    import modules.erm.data_service as erm_ds
+    import modules.launcher.routes_admin as admin_routes
+    import modules.sentinel.data_service as sentinel_ds
+    import core.middleware as middleware
+
+    pg.init_db()
+    conn = pg.get_db_bypass_rls()
+    try:
+        ropa = pg.insert_returning_id(
+            conn, "INSERT INTO sentinel_ropa (ref_number, processing_name) VALUES ('R-1', 'Quartz Ledger Payroll')", ())
+        pg.insert_returning_id(
+            conn, "INSERT INTO sentinel_ropa (ref_number, processing_name) VALUES ('R-2', 'Quartz 50 Ledger')", ())
+        statement = pg.insert_returning_id(
+            conn,
+            "INSERT INTO erm_risk_statements (category, cause, event, consequence, tags) "
+            "VALUES ('Cyber', 'c', 'e', 'q', 'Cyber,Ransomware')", ())
+        doc = pg.insert_returning_id(conn, "INSERT INTO bcm_documents (title) VALUES ('Plan')", ())
+        chunk = pg.insert_returning_id(
+            conn,
+            "INSERT INTO bcm_document_chunks (document_id, chunk_index, content) VALUES (%s, 0, 'Quartz recovery steps')",
+            (doc,))
+        log_id = pg.insert_returning_id(
+            conn,
+            "INSERT INTO audit_log (username, action, module) VALUES ('Alice.Smith', 'Exported Quartz Report', 'platform')",
+            ())
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert [r["id"] for r in sentinel_ds.list_ropa(search="QUARTZ 5% ledger")] == []
+    assert [r["id"] for r in sentinel_ds.list_ropa(search="quartz ledger")] == [ropa]
+    assert [r["id"] for r in erm_ds.list_statements(tags="ransomware")] == [statement]
+    assert [r["id"] for r in bcm_ds.search_chunks(["QUARTZ", "Recovery"])] == [chunk]
+
+    root = {"id": 0, "username": "root", "org_id": None, "business_unit_id": None, "is_super_admin": 1,
+            "roles": ["super_admin"]}
+
+    async def current_user(request):
+        return root
+
+    monkeypatch.setattr(middleware, "get_current_user", current_user)
+    for query in ({"action": "quartz report"}, {"user": "alice.smith"}):
+        request = types.SimpleNamespace(state=types.SimpleNamespace(user=root), url=types.SimpleNamespace(path="/x"),
+                                        query_params=query)
+        body = json.loads(asyncio.run(admin_routes.admin_api_logs(request)).body)
+        assert [row["id"] for row in body["logs"]] == [log_id], query
+
+
+def test_vault_rescoring_and_grid_reattach_run_on_real_postgres(pg):
+    import modules.evidence.routes as vault
+    import modules.governance.effectiveness as eff
+    import modules.grid.data_service as grid_ds
+
+    pg.init_db()
+    conn = pg.get_db_bypass_rls()
+    try:
+        control = pg.insert_returning_id(conn, "INSERT INTO canonical_controls (title) VALUES ('PG scored control')", ())
+        item = pg.insert_returning_id(conn, "INSERT INTO evidence_items (title, status) VALUES ('PG proof', 'current')", ())
+        link = pg.insert_returning_id(
+            conn,
+            "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id) "
+            "VALUES (%s, 'grid', 'canonical_control', %s)", (item, control))
+        audit = pg.insert_returning_id(conn, "INSERT INTO grid_audits (name) VALUES ('PG attach audit')", ())
+        grid_control = pg.insert_returning_id(
+            conn, "INSERT INTO grid_controls (audit_id, name) VALUES (%s, 'PG attach control')", (audit,))
+        eff.recompute_controls_by_ids(conn, [control])
+        conn.commit()
+        assert eff.get_control_score(conn, control)["score"] == 45
+        conn.execute("UPDATE evidence_links SET deleted_at = CURRENT_TIMESTAMP WHERE id = %s", (link,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    vault._rescore_controls([control])  # a fresh connection, after the change committed
+    assert _raw_rows("SELECT score FROM control_effectiveness_scores WHERE control_id = %s", (control,)) == [(10,)]
+
+    first = grid_ds.attach_vault_item_to_grid_control(grid_control, item, None)
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.execute(
+            "UPDATE evidence_links SET deleted_at = CURRENT_TIMESTAMP WHERE module = 'grid' AND entity_type = 'control'")
+        conn.commit()
+    finally:
+        conn.close()
+    assert grid_ds.attach_vault_item_to_grid_control(grid_control, item, None) == first
+    assert _raw_rows(
+        "SELECT count(*) FILTER (WHERE deleted_at IS NULL), count(*) FROM evidence_links "
+        "WHERE module = 'grid' AND entity_type = 'control' AND entity_id = %s", (grid_control,)) == [(1, 2)]
+
+
+# ── Row level security with a role that is NOT a superuser ───────────────────
+# The lane connects as a superuser, and a superuser bypasses RLS, so every other test here can only
+# check session settings. These switch the session to an ordinary role (SET ROLE) so the policies in
+# core/rls.py really filter rows.
+
+_RLS_PROBE_ROLE = "themisiq_rls_probe"
+
+
+def _rls_probe_world(pg):
+    """Two organizations with one evidence item each, plus the restricted role. Returns the org ids."""
+    pg.init_db()  # installs the policies
+    org_a = _make_org(pg, "rlsorga", provision=False)
+    org_b = _make_org(pg, "rlsorgb", provision=False)
+    admin = pg.get_db_bypass_rls()
+    try:
+        for org_id, label in ((org_a, "A"), (org_b, "B")):
+            admin.execute(
+                "INSERT INTO evidence_items (title, org_id, status) VALUES (%s, %s, 'current')",
+                (f"RLS item {label}", org_id),
+            )
+        admin.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '" + _RLS_PROBE_ROLE + "') THEN "
+            "CREATE ROLE " + _RLS_PROBE_ROLE + " NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$"
+        )
+        admin.execute("GRANT USAGE ON SCHEMA public TO " + _RLS_PROBE_ROLE)
+        admin.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        admin.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO " + _RLS_PROBE_ROLE)
+        admin.commit()
+    finally:
+        admin.close()
+    return org_a, org_b
+
+
+def _become_restricted(db):
+    """SET ROLE is transactional like every SET, so commit it: a later rollback must not undo it."""
+    db.execute("SET ROLE " + _RLS_PROBE_ROLE)
+    db.commit()
+
+
+def _release_role(db):
+    db.execute("RESET ROLE")
+    db.commit()
+    db.close()
+
+
+def _visible_titles(db):
+    return {r["title"] for r in db.execute("SELECT title FROM evidence_items").fetchall()}
+
+
+def test_rls_policies_filter_rows_by_organization_for_an_ordinary_role_on_real_postgres(pg):
+    org_a, org_b = _rls_probe_world(pg)
+
+    for org, expected in ((org_a, {"RLS item A"}), (org_b, {"RLS item B"})):
+        with pg.tenant_context(org, "public", is_super_admin=False):
+            db = pg.get_db()
+            try:
+                _become_restricted(db)
+                assert _visible_titles(db) == expected
+                assert db.execute("SELECT current_setting('is_superuser')").fetchone()[0] == "off"
+            finally:
+                _release_role(db)
+
+    with pg.tenant_context(org_a, "public", is_super_admin=True):  # the super admin flag opens every row
+        db = pg.get_db()
+        try:
+            _become_restricted(db)
+            assert _visible_titles(db) == {"RLS item A", "RLS item B"}
+        finally:
+            _release_role(db)
+
+    db = pg.get_db_bypass_rls()  # authentication and provisioning
+    try:
+        _become_restricted(db)
+        assert _visible_titles(db) == {"RLS item A", "RLS item B"}
+    finally:
+        _release_role(db)
+
+
+def test_rls_rejects_a_write_for_another_organization_on_real_postgres(pg):
+    org_a, org_b = _rls_probe_world(pg)
+    with pg.tenant_context(org_a, "public", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            _become_restricted(db)
+            db.execute("INSERT INTO evidence_items (title, org_id, status) VALUES ('mine', %s, 'current')", (org_a,))
+            db.commit()
+            with pytest.raises(psycopg2.errors.InsufficientPrivilege):
+                db.execute(
+                    "INSERT INTO evidence_items (title, org_id, status) VALUES ('theirs', %s, 'current')", (org_b,)
+                )
+            assert _visible_titles(db) == {"RLS item A", "mine"}
+        finally:
+            _release_role(db)
+    assert _raw_rows("SELECT count(*) FROM evidence_items WHERE title = 'theirs'")[0][0] == 0
+
+
+def test_rls_scope_survives_a_failed_statement_and_does_not_reach_the_next_borrower_on_real_postgres(pg):
+    """The wrapper rolls the transaction back when a statement fails, which used to undo the
+    organization setting and leave a caller who caught the error reading with no scope at all; and a
+    connection returned to the pool must not carry its organization to whoever borrows it next."""
+    org_a, _ = _rls_probe_world(pg)
+
+    # Turn the pooled connection into the ordinary role first and hand it back (close() resets the
+    # scope but not the role), so the organization setting below is not committed along with SET ROLE.
+    prepared = pg.get_db()
+    _become_restricted(prepared)
+    prepared.close()
+
+    with pg.tenant_context(org_a, "public", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            assert db.execute("SELECT current_user").fetchone()[0] == _RLS_PROBE_ROLE, "same pooled connection"
+            assert _visible_titles(db) == {"RLS item A"}
+            with pytest.raises(psycopg2.errors.UndefinedTable):
+                db.execute("SELECT * FROM a_table_that_is_not_there")
+            assert _visible_titles(db) == {"RLS item A"}, "still scoped to the organization after the failure"
+        finally:
+            _release_role(db)
+
+    # The same pooled connection comes back with no organization at all: nothing is visible.
+    stranger = pg.get_db()
+    try:
+        _become_restricted(stranger)
+        assert _visible_titles(stranger) == set(), "the previous borrower's organization must be gone"
+    finally:
+        _release_role(stranger)
+
+
+def test_a_backup_code_cannot_be_spent_twice_on_real_postgres(pg, monkeypatch):
+    """The compare-and-set write needs a real row count; this runs it on PostgreSQL, with a competing
+    request squeezed in between the check and the write."""
+    import core.mfa as mfa
+
+    pg.init_db()
+    conn = pg.get_db_bypass_rls()
+    try:
+        uid = pg.insert_returning_id(
+            conn,
+            "INSERT INTO users (username, email, full_name, password_hash) VALUES ('mfa_pg', 'mfa_pg@example.test', 'M', 'x')",
+            (),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    _secret, codes = mfa.start_enrollment(uid)
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.execute("UPDATE user_mfa SET is_enabled = 1 WHERE user_id = %s", (uid,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    assert mfa.verify_code(uid, codes[0]) is True
+    assert mfa.verify_code(uid, codes[0]) is False
+
+    real_checkpw = mfa.bcrypt.checkpw
+    competing = []
+
+    def checkpw(plain, hashed):
+        ok = real_checkpw(plain, hashed)
+        if ok and not competing:
+            competing.append(True)
+            assert mfa.verify_code(uid, codes[1]) is True  # another request spends the same code first
+        return ok
+
+    monkeypatch.setattr(mfa.bcrypt, "checkpw", checkpw)
+    assert mfa.verify_code(uid, codes[1]) is False
+
+
+def test_scoped_dashboard_and_reports_run_on_real_postgres(pg):
+    """Cross-module metrics must parse on PostgreSQL and exclude sibling BU rows."""
+    from modules.launcher.scoped_metrics import scoped_count
+    from modules.launcher.routes_dashboard import _scoped_command_stats
+    from modules.launcher.routes_reports import _report_result
+
+    pg.init_db()
+    org = _make_org(pg, "metric_scope", provision=False)
+    db = pg.get_db_bypass_rls()
+    try:
+        units = {}
+        for tag in ("A", "B"):
+            units[tag] = pg.insert_returning_id(
+                db, "INSERT INTO business_units (name, is_active) VALUES (%s, 1)", (tag,),
+            )
+            db.execute(
+                "INSERT INTO sentinel_breaches "
+                "(ref_number, title, status, business_unit_id) VALUES (%s, %s, 'open', %s)",
+                (f"BR-{tag}", f"Private breach {tag}", units[tag]),
+            )
+            db.execute(
+                "INSERT INTO grid_audits (name, status, business_unit_id) "
+                "VALUES (%s, 'Planning', %s)", (f"Private audit {tag}", units[tag]),
+            )
+            db.execute(
+                "INSERT INTO evidence_items (title, org_id, business_unit_id, status) "
+                "VALUES (%s, %s, %s, 'current')", (f"Private evidence {tag}", org, units[tag]),
+            )
+            db.execute(
+                "INSERT INTO erm_enterprise_risks "
+                "(title, likelihood, impact, business_unit_id) VALUES (%s, 4, 4, %s)",
+                (f"Private risk {tag}", units[tag]),
+            )
+        db.commit()
+        user = {"id": 999, "org_id": org, "business_unit_id": units["A"],
+                "is_super_admin": 0, "roles": ["dpo"]}
+        assert scoped_count(db, user, "sentinel_breaches") == 1
+        assert _report_result(db, user, "privacy_overview")["breaches_open"] == 1
+        assert _report_result(db, user, "executive_brief")["audits_active"] == 1
+        risk_report = _report_result(db, user, "risk_report")
+        assert risk_report["total_open"] == 1
+        assert "Private risk B" not in str(risk_report)
+        stats = _scoped_command_stats(db, user)
+        assert stats["evidence_count"] == 1
+        assert stats["sentinel_open_breaches"] == 0
+        assert "Private breach B" not in str(stats)
+    finally:
+        db.close()
+
+
+# ── Ownership of platform risks, SLA clocks and workflow instances (platform risk / SLA / workflow scope) ──
+
+_OWNED_TABLES = ("risk_register", "sla_instances", "workflow_instances")
+_OWNER_MARKER = "ownership.backfill.v1"
+
+
+def _pg_one(sql_text, params=None):
+    """Run one statement on a raw autocommit connection and return its first column (None when it has none)."""
+    conn = _raw_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql_text, params)
+            row = cur.fetchone() if cur.description else None
+            return row[0] if row else None
+    finally:
+        conn.close()
+
+
+def _legacy_owner_world(schema, org_id, shift):
+    """In `schema` (public or tenant_x): a unit, a breach in it, and the rows of the three tables that predate
+    ownership. `shift` pre-burns that many unit ids so a lookup in the wrong schema would give a wrong id.
+    Returns the unit id, the ids of the rows, and the id of a user with no unit."""
+    for _ in range(shift):
+        _pg_one(f"INSERT INTO {schema}.business_units (name, is_active) VALUES ('filler', 1) RETURNING id")
+    unit = _pg_one(f"INSERT INTO {schema}.business_units (name, is_active) VALUES ('Owner unit', 1) RETURNING id")
+    breach = _pg_one(f"INSERT INTO {schema}.sentinel_breaches (ref_number, title, business_unit_id) "
+                     "VALUES ('BR-OWN', 'Owned breach', %s) RETURNING id", (unit,))
+    suffix = schema.replace("tenant_", "")
+    creator = _pg_one("INSERT INTO public.users (username, email, full_name, password_hash, org_id, business_unit_id) "
+                      "VALUES (%s, %s, 'c', 'x', %s, %s) RETURNING id",
+                      (f"creator_{suffix}", f"creator_{suffix}@example.test", org_id, unit))
+    loner = _pg_one("INSERT INTO public.users (username, email, full_name, password_hash, org_id) "
+                    "VALUES (%s, %s, 'l', 'x', %s) RETURNING id",
+                    (f"loner_{suffix}", f"loner_{suffix}@example.test", org_id))
+    risk = lambda created_by, entity=(None, None, None): _pg_one(  # noqa: E731
+        f"INSERT INTO {schema}.risk_register (title, source_module, source_entity_type, source_entity_id, created_by) "
+        "VALUES ('Old risk', %s, %s, %s, %s) RETURNING id", (*entity, created_by))
+    definition = _pg_one(f"INSERT INTO {schema}.workflow_definitions (name, steps_json, created_by) "
+                         "VALUES ('Old flow', '[]', %s) RETURNING id", (creator,))
+    sla_definition = _pg_one(f"INSERT INTO {schema}.sla_definitions (name, module, entity_type) "
+                             "VALUES ('Old SLA', 'sentinel', 'breach') RETURNING id")
+    rows = {
+        "risk_from_record": risk(None, ("sentinel", "breach", breach)),
+        "risk_from_creator": risk(creator, ("aria", "risk", 5)),
+        "risk_unplaceable": risk(loner),
+        "flow_from_creator": _pg_one(
+            f"INSERT INTO {schema}.workflow_instances (definition_id, entity_module, entity_type, entity_id, "
+            "started_by, org_id) VALUES (%s, 'grid', 'finding', 9, %s, %s) RETURNING id", (definition, creator, org_id)),
+        "clock_from_record": _pg_one(
+            f"INSERT INTO {schema}.sla_instances (definition_id, org_id, entity_module, entity_type, entity_id) "
+            "VALUES (%s, %s, 'sentinel', 'breach', %s) RETURNING id", (sla_definition, org_id, breach)),
+    }
+    return unit, rows, loner
+
+
+def _owner_of(schema, table, row_id):
+    return _pg_one(f"SELECT business_unit_id FROM {schema}.{table} WHERE id = %s", (row_id,))
+
+
+def test_ownership_reaches_public_and_every_tenant_schema_and_is_placed_once_on_real_postgres(pg):
+    """The column migration, the one-time placement of existing rows and the marker all run per schema.
+    Unit ids differ by schema on purpose, so a lookup that read the wrong schema's tables would be caught."""
+    pg.init_db()
+    public_org = _make_org(pg, "ownpublic", provision=False)
+    org_one = _make_org(pg, "ownone")
+    org_two = _make_org(pg, "owntwo")
+    schemas = {"public": (public_org, 0), "tenant_ownone": (org_one, 2), "tenant_owntwo": (org_two, 5)}
+
+    found = _raw_rows(
+        "SELECT table_schema, table_name FROM information_schema.columns WHERE column_name = 'business_unit_id' "
+        "AND table_name = ANY(%s) AND table_schema = ANY(%s)", (list(_OWNED_TABLES), list(schemas)))
+    assert len(found) == 3 * len(schemas), found
+
+    world = {}
+    for schema, (org_id, shift) in schemas.items():
+        _pg_one(f"DELETE FROM {schema}.settings WHERE key = %s RETURNING 1", (_OWNER_MARKER,))
+        world[schema] = _legacy_owner_world(schema, org_id, shift)
+    assert len({unit for unit, _, _ in world.values()}) == 3
+
+    pg.init_db()  # the upgrade: public through _run_pg_alters, every tenant through _migrate_all_tenant_schemas
+    for schema, (unit, rows, _) in world.items():
+        assert _owner_of(schema, "risk_register", rows["risk_from_record"]) == unit, schema
+        assert _owner_of(schema, "risk_register", rows["risk_from_creator"]) == unit, schema
+        assert _owner_of(schema, "risk_register", rows["risk_unplaceable"]) is None, schema
+        assert _owner_of(schema, "workflow_instances", rows["flow_from_creator"]) == unit, schema
+        assert _owner_of(schema, "sla_instances", rows["clock_from_record"]) == unit, schema
+        assert _pg_one(f"SELECT count(*) FROM {schema}.settings WHERE key = %s", (_OWNER_MARKER,)) == 1, schema
+
+    # Once: a user who is given a unit later does not inherit the rows nobody could place.
+    for schema, (unit, rows, loner) in world.items():
+        _pg_one("UPDATE public.users SET business_unit_id = %s WHERE id = %s RETURNING 1", (unit, loner))
+    pg.init_db()
+    for schema, (unit, rows, _) in world.items():
+        assert _owner_of(schema, "risk_register", rows["risk_unplaceable"]) is None, schema
+
+
+def test_a_failing_placement_does_not_stop_startup_and_is_retried_on_real_postgres(pg, monkeypatch):
+    """Inside the migration transaction a failure is rolled back to its savepoint: the columns and the other
+    migrations survive, no marker is written, and the next start places the rows."""
+    import modules.governance.entity_scope as scope
+
+    pg.init_db()
+    org = _make_org(pg, "ownretry", provision=False)
+    _pg_one("DELETE FROM public.settings WHERE key = %s RETURNING 1", (_OWNER_MARKER,))
+    unit, rows, _ = _legacy_owner_world("public", org, 0)
+
+    real = scope.owner_unit
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("lookup failed")
+
+    monkeypatch.setattr(scope, "owner_unit", broken)
+    pg.init_db()  # must not raise
+    monkeypatch.setattr(scope, "owner_unit", real)
+    assert _pg_one("SELECT count(*) FROM public.settings WHERE key = %s", (_OWNER_MARKER,)) == 0
+    assert _owner_of("public", "risk_register", rows["risk_from_record"]) is None
+    assert _column_exists(pg, "risk_register", "business_unit_id")
+
+    pg.init_db()
+    assert _owner_of("public", "risk_register", rows["risk_from_record"]) == unit
+    assert _pg_one("SELECT count(*) FROM public.settings WHERE key = %s", (_OWNER_MARKER,)) == 1
+
+
+def test_owners_scope_and_the_restored_cards_run_on_real_postgres(pg, monkeypatch):
+    """The unit rule for the three tables, the organization predicate on the two instance tables, the appetite
+    subquery, the record lookups (a table, a grid audit join, the ARIA organization rule) and the register
+    detail query must parse and give the right rows on PostgreSQL."""
+    import asyncio
+    import json
+    import types
+
+    from fastapi import HTTPException
+
+    import core.middleware as middleware
+    from modules.governance.entity_scope import owner_unit, record_unit
+    from modules.launcher import routes_risks
+    from modules.launcher.routes_dashboard import _scoped_command_stats
+    from modules.launcher.routes_reports import _report_result
+    from modules.launcher.scoped_metrics import scoped_count
+
+    pg.init_db()
+    org = _make_org(pg, "ownscope", provision=False)
+    other = _make_org(pg, "ownscopeother", provision=False)
+    db = pg.get_db_bypass_rls()
+    try:
+        unit = {tag: pg.insert_returning_id(db, "INSERT INTO business_units (name, is_active) VALUES (%s, 1)", (tag,))
+                for tag in ("A", "B")}
+        sla_def = pg.insert_returning_id(
+            db, "INSERT INTO sla_definitions (name, module, entity_type) VALUES ('SLA', 'sentinel', 'breach')", ())
+        flow_def = pg.insert_returning_id(
+            db, "INSERT INTO workflow_definitions (name, steps_json) VALUES ('Flow', '[]')", ())
+        risk, clock, flow = {}, {}, {}
+        for tag, level in (("A", "critical"), ("B", "critical")):
+            risk[tag] = pg.insert_returning_id(
+                db, "INSERT INTO risk_register (title, likelihood, impact, risk_level, source_module, business_unit_id) "
+                    "VALUES (%s, 5, 4, %s, 'sentinel', %s)", (f"Owned risk {tag}", level, unit[tag]))
+            clock[tag] = pg.insert_returning_id(
+                db, "INSERT INTO sla_instances (definition_id, org_id, entity_module, entity_type, status, breached, "
+                    "resolution_due, business_unit_id) VALUES (%s, %s, 'sentinel', 'breach', 'active', 1, "
+                    "'2000-01-01 00:00:00', %s)", (sla_def, org, unit[tag]))
+            flow[tag] = pg.insert_returning_id(
+                db, "INSERT INTO workflow_instances (definition_id, org_id, status, business_unit_id) "
+                    "VALUES (%s, %s, 'active', %s)", (flow_def, org, unit[tag]))
+        # another organization's rows, no unit: a restricted user must never count them
+        db.execute("INSERT INTO sla_instances (definition_id, org_id, status, breached) VALUES (%s, %s, 'active', 1)",
+                   (sla_def, other))
+        db.execute("INSERT INTO workflow_instances (definition_id, org_id, status) VALUES (%s, %s, 'active')",
+                   (flow_def, other))
+        for tag, score in (("A", 5), ("B", 2)):
+            db.execute("INSERT INTO erm_enterprise_risks (title, category, likelihood, impact, business_unit_id) "
+                       "VALUES (%s, 'operational', %s, 4, %s)", (f"ERM {tag}", score, unit[tag]))
+        db.execute("INSERT INTO erm_risk_appetite (category, max_score) VALUES ('operational', 10)")
+        audit = pg.insert_returning_id(db, "INSERT INTO grid_audits (name, business_unit_id) VALUES ('Audit A', %s)",
+                                       (unit["A"],))
+        nc = pg.insert_returning_id(db, "INSERT INTO grid_non_conformances (audit_id, title) VALUES (%s, 'NC')", (audit,))
+        document = pg.insert_returning_id(
+            db, "INSERT INTO aria_documents (doc_id, framework, title, org_id, business_unit_id, "
+                "policy_workflow_managed) VALUES ('OWN-1', 'ISO 27001', 'Owned policy', %s, %s, 0)", (org, unit["A"]))
+        db.commit()
+
+        owner_a = {"id": 901, "org_id": org, "business_unit_id": unit["A"], "is_super_admin": 0, "roles": ["risk_owner"]}
+        owner_b = {**owner_a, "id": 902, "business_unit_id": unit["B"]}
+        admin = {"id": 903, "org_id": org, "business_unit_id": None, "is_super_admin": 1, "roles": ["super_admin"]}
+
+        assert scoped_count(db, owner_a, "risk_register") == 1
+        assert scoped_count(db, owner_b, "risk_register") == 1
+        assert scoped_count(db, owner_a, "sla_instances") == 1 and scoped_count(db, owner_a, "workflow_instances") == 1
+        assert scoped_count(db, admin, "sla_instances") == 3 and scoped_count(db, admin, "workflow_instances") == 3
+
+        stats = _scoped_command_stats(db, owner_a)
+        assert stats["sla"] == {"pct": 0, "met": 0, "at_risk": 0, "breached": 1}
+        assert stats["workflow_active"] == 1
+        assert stats["erm_appetite_breaches"] == 1          # A's ERM risk 5x4=20 > 10
+        assert _scoped_command_stats(db, owner_b)["erm_appetite_breaches"] == 0   # B's is 2x4=8
+        assert stats["risk_counts"]["critical"] == 2        # the platform risk and the ERM one, unit A only
+        assert [r["id"] for r in stats["overdue_items"] if r["id"].startswith("SLA-")] == [f"SLA-{clock['A']}"]
+
+        assert _report_result(db, owner_a, "sla_performance")["breached"] == 1
+        assert _report_result(db, owner_a, "executive_brief")["sla_breaches"] == 1
+        assert _report_result(db, owner_a, "risk_report")["total_open"] == 2
+        assert "Owned risk B" not in str(_report_result(db, owner_a, "risk_report"))
+
+        assert record_unit(db, "sentinel", "breach", 99999) == (False, None)
+        lead_a, lead_b = {**owner_a, "roles": ["audit_lead"]}, {**owner_b, "roles": ["audit_lead"]}
+        assert record_unit(db, "grid", "non_conformance", nc, lead_a) == (True, unit["A"])
+        assert record_unit(db, "grid", "non_conformance", nc, lead_b) == (False, None)
+        assert owner_unit(db, "aria", "policy", document, user={**owner_a, "roles": ["dpo"]}) == unit["A"]
+        assert owner_unit(db, "aria", "policy", document, user={**owner_b, "roles": ["dpo"]}) == unit["B"]  # not B's
+    finally:
+        db.close()
+
+    async def signed_in(request):
+        return request.state.user
+
+    monkeypatch.setattr(middleware, "get_current_user", signed_in)
+
+    def detail(user, rid):
+        request = types.SimpleNamespace(state=types.SimpleNamespace(user=user), url=types.SimpleNamespace(path="/api/risks"))
+        try:
+            return asyncio.run(routes_risks.api_risk_get(request, rid)).status_code
+        except HTTPException as refused:
+            return refused.status_code
+
+    assert detail(owner_a, risk["A"]) == 200 and detail(owner_a, risk["B"]) == 404
+    assert detail(owner_b, risk["B"]) == 200 and detail(admin, risk["A"]) == 200
+    opened = asyncio.run(routes_risks.api_risk_get(
+        types.SimpleNamespace(state=types.SimpleNamespace(user=owner_a), url=types.SimpleNamespace(path="/api/risks")),
+        risk["A"]))
+    assert json.loads(opened.body)["business_unit_id"] == unit["A"]
+
+
+def _foreign_keys_to_business_units_in(schema):
+    """(table, column) for every foreign key in `schema` that points at that schema's own business_units."""
+    return {(table, column) for table, column in _raw_rows(
+        "SELECT t.relname, a.attname FROM pg_constraint c "
+        "JOIN pg_class t ON t.oid = c.conrelid "
+        "JOIN pg_namespace tn ON tn.oid = t.relnamespace "
+        "JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) "
+        "WHERE c.contype = 'f' AND tn.nspname = %s AND c.confrelid = (%s || '.business_units')::regclass",
+        (schema, schema))}
+
+
+def test_delete_business_unit_checks_every_foreign_key_to_a_business_unit_on_real_postgres(pg):
+    """The schema scan of tests/test_governance_delete_guards.py, read from pg_constraint, in the public schema and in
+    a tenant schema. Then the refusal itself, which PostgreSQL would otherwise answer with a ForeignKeyViolation."""
+    from contextlib import nullcontext
+
+    import modules.governance.data_service as gov
+
+    pg.init_db()
+    org = _make_org(pg, "bufks")
+    checked = set(gov._BU_REFERENCES)
+    for schema in ("public", "tenant_bufks"):
+        in_schema = _foreign_keys_to_business_units_in(schema) - {("business_units", "parent_id")}  # children: counted first
+        assert in_schema, f"{schema}: the schema scan found no foreign keys to business_units"
+        assert not in_schema - checked, f"{schema}: delete_business_unit does not check {sorted(in_schema - checked)}"
+
+    def a_unit(with_exercise):
+        db = pg.get_db()
+        try:
+            unit = pg.insert_returning_id(db, "INSERT INTO business_units (name, is_active) VALUES ('Unit', 1)", ())
+            if with_exercise:
+                db.execute("INSERT INTO bcm_exercises (title, business_unit_id) VALUES ('Drill', %s)", (unit,))
+            db.commit()
+            return unit
+        finally:
+            db.close()
+
+    for scope in (nullcontext(), pg.tenant_context(org, "bufks", is_super_admin=False)):
+        with scope:
+            assert gov.delete_business_unit(a_unit(with_exercise=True)) is False
+            assert gov.delete_business_unit(a_unit(with_exercise=False)) is True
+
+
+# ── Event delivery (AI governance G1b) ───────────────────────────────────────
+
+def test_event_delivery_retries_and_dead_letters_inside_the_right_tenant_on_real_postgres(pg):
+    """events and event_deliveries live in the shared schema; the handlers they run write into a tenant. Covers the
+    upsert of a delivery row, the lease claim, a sweep that binds the event's own tenant, the dead letter and the
+    retry, on PostgreSQL where the timestamp columns are real timestamps and the retry columns are text."""
+    import core.events as events
+
+    pg.init_db()
+    org = _make_org(pg, "evtorg")
+    assert _raw_rows(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name IN ('events', 'event_deliveries') "
+        "AND table_schema = 'tenant_evtorg'") == [(0,)], "the event tables are shared, not copied into tenants"
+    assert _raw_rows(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name IN ('events', 'event_deliveries') "
+        "AND table_schema = 'public'") == [(2,)]
+
+    event_type = "test.g1b.pg"
+    state = {"fail": True, "writes": 0}
+
+    def writes_into_the_tenant(**kw):
+        if state["fail"]:
+            raise RuntimeError("downstream is down")
+        db = pg.get_db()
+        try:
+            db.execute("INSERT INTO business_units (name, is_active) VALUES (%s, 1)", (f"made by event {kw['event_id']}",))
+            db.commit()
+            state["writes"] += 1
+        finally:
+            db.close()
+
+    events.on(event_type)(writes_into_the_tenant)
+    try:
+        with pg.tenant_context(org, "evtorg", is_super_admin=False):
+            event_id = events.emit(event_type, "test", "thing", 3, {"k": "v"})
+        stored = _raw_rows("SELECT status, attempts, org_id, next_attempt_at IS NOT NULL FROM public.events WHERE id = %s",
+                           (event_id,))
+        assert stored == [("failed", 1, org, True)]
+        assert _raw_rows("SELECT status, attempts FROM public.event_deliveries WHERE event_id = %s "
+                         "AND handler LIKE '%%writes_into%%'", (event_id,)) == [("failed", 1)]
+        assert _raw_rows("SELECT status FROM public.event_deliveries WHERE event_id = %s AND handler = 'webhook'",
+                         (event_id,)) == [("ok",)], "the webhook handoff is recorded apart from the handlers"
+
+        def make_due():
+            conn = _raw_conn()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE public.events SET next_attempt_at = '2000-01-01 00:00:00' WHERE id = %s", (event_id,))
+            finally:
+                conn.close()
+
+        # Retries that keep failing end in a dead letter.
+        for _ in range(events.MAX_ATTEMPTS - 1):
+            make_due()
+            events.deliver_pending()
+        assert _raw_rows("SELECT status, attempts, dead_lettered_at IS NOT NULL FROM public.events WHERE id = %s",
+                         (event_id,)) == [("dead", events.MAX_ATTEMPTS, True)]
+        assert [e["id"] for e in events.list_dead()] == [event_id]
+        assert _raw_rows("SELECT count(*) FROM tenant_evtorg.business_units WHERE name LIKE 'made by event%'") == [(0,)]
+
+        # The cause is fixed: a retry from the operator's side runs it in the event's own tenant, outside any request.
+        state["fail"] = False
+        assert events.retry_dead(event_id) is True
+        assert events.deliver_pending()["delivered"] == 1
+        assert _raw_rows("SELECT status, next_attempt_at FROM public.events WHERE id = %s", (event_id,)) == [
+            ("processed", None)]
+        assert _raw_rows("SELECT count(*) FROM tenant_evtorg.business_units WHERE name = %s",
+                         (f"made by event {event_id}",)) == [(1,)], "written by the sweep into the tenant schema"
+        assert _raw_rows("SELECT count(*) FROM public.business_units WHERE name LIKE 'made by event%'") == [(0,)]
+        assert state["writes"] == 1
+        assert events.deliver_pending()["delivered"] == 0, "delivered once"
+        assert _raw_rows("SELECT status FROM public.event_deliveries WHERE event_id = %s AND handler LIKE '%%writes_into%%'",
+                         (event_id,)) == [("ok",)]
+    finally:
+        events._handlers.get(event_type, []).clear()
+
+
+def test_an_enqueued_event_commits_with_the_source_change_and_only_one_sweeper_claims_it_on_real_postgres(pg):
+    import core.events as events
+
+    pg.init_db()
+    org = _make_org(pg, "evtenq")
+    event_type = "test.g1b.pg_enqueue"
+    seen = []
+    events.on(event_type)(lambda **kw: seen.append(kw["entity_id"]))
+    try:
+        with pg.tenant_context(org, "evtenq", is_super_admin=False):
+            db = pg.get_db()
+            try:
+                db.execute("INSERT INTO business_units (name, is_active) VALUES ('Source change', 1)")
+                rolled_back = events.enqueue(db, event_type, "test", "thing", 11)
+                db.rollback()
+                db.execute("INSERT INTO business_units (name, is_active) VALUES ('Source change', 1)")
+                kept = events.enqueue(db, event_type, "test", "thing", 12, dedup_key="pg-enq-1")
+                assert events.enqueue(db, event_type, "test", "thing", 12, dedup_key="pg-enq-1") == kept
+                db.commit()
+            finally:
+                db.close()
+        assert _raw_rows("SELECT count(*) FROM public.events WHERE id = %s", (rolled_back,)) == [(0,)]
+        assert _raw_rows("SELECT status, org_id FROM public.events WHERE id = %s", (kept,)) == [("pending", org)]
+        assert events.deliver_pending()["delivered"] == 0, "the caller's grace has not passed"
+
+        conn = _raw_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE public.events SET next_attempt_at = '2000-01-01 00:00:00' WHERE id = %s", (kept,))
+        finally:
+            conn.close()
+        assert events._claim(kept) is True
+        assert events._claim(kept) is False, "the lease holds against a second sweeper"
+        conn = _raw_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE public.events SET next_attempt_at = '2000-01-01 00:00:00' WHERE id = %s", (kept,))
+        finally:
+            conn.close()
+        assert events.deliver_pending()["delivered"] == 1
+        assert seen == [12]
+    finally:
+        events._handlers.get(event_type, []).clear()
+
+
+# ── Relationship service (AI governance G1a) ─────────────────────────────────
+
+def test_typed_ai_edges_candidates_and_scope_run_inside_a_tenant_on_real_postgres(pg):
+    """The relationship service on PostgreSQL in a tenant schema: typed edges between an application and its AIIA
+    and data asset, the inverse label on the target side, a candidate that stays hidden until confirmed, a rejected
+    edge linked again, and both ends scoped by business unit with an unreachable record answering like a missing one."""
+    from core import rbac
+    from modules.governance import relationships as rel
+
+    pg.init_db()
+    org = _make_org(pg, "relorg")
+    conn = pg.get_db_bypass_rls()
+    try:  # users are shared; their unit is the tenant's, carried on the session user below
+        users = {name: pg.insert_returning_id(
+            conn, "INSERT INTO users (username, email, full_name, password_hash, org_id) VALUES (%s, %s, %s, 'x', %s)",
+            (name, f"{name}@example.test", name, org)) for name in ("rel_dpo", "rel_owner")}
+        conn.commit()
+    finally:
+        conn.close()
+    app_ref = ("governance", "application")
+
+    with pg.tenant_context(org, "relorg", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            unit = {tag: pg.insert_returning_id(db, "INSERT INTO business_units (name, is_active) VALUES (%s, 1)", (f"Rel {tag}",))
+                    for tag in ("A", "B")}
+
+            def persona(name, role):
+                return {"id": users[name], "username": name, "org_id": org, "business_unit_id": unit["A"],
+                        "is_super_admin": 0, "roles": [role]}
+
+            dpo, owner = persona("rel_dpo", rbac.DPO), persona("rel_owner", rbac.EMPLOYEE)
+            app_a = pg.insert_returning_id(db, "INSERT INTO applications (name, business_unit_id, owner_user_id) "
+                                               "VALUES ('Rel app A', %s, %s)", (unit["A"], users["rel_owner"]))
+            app_b = pg.insert_returning_id(db, "INSERT INTO applications (name, business_unit_id) VALUES ('Rel app B', %s)",
+                                           (unit["B"],))
+            aiia = pg.insert_returning_id(db, "INSERT INTO sentinel_aiia (ref_number, title, business_unit_id) "
+                                              "VALUES ('AIIA-R', 'Rel aiia', %s)", (unit["A"],))
+            asset = pg.insert_returning_id(db, "INSERT INTO data_assets (name, business_unit_id) VALUES ('Rel asset', %s)",
+                                           (unit["A"],))
+            process = pg.insert_returning_id(db, "INSERT INTO business_processes (name, business_unit_id) "
+                                                 "VALUES ('Rel process', %s)", (unit["A"],))
+            db.commit()
+
+            # Typed edges, stored once in one direction, read back with the label of each side.
+            assessed = rel.create_link(db, dpo, ("sentinel", "aiia", aiia), ("governance", "application", app_a), "assesses")
+            using = rel.create_link(db, dpo, ("governance", "application", app_a), ("governance", "data_asset", asset),
+                                    "uses_data")
+            db.commit()
+            assert assessed["created"] and using["created"]
+            shown = {(r["entity_type"], r["relationship"]): r for r in rel.list_links(db, dpo, app_ref, app_a)}
+            assert shown[("aiia", "assesses")]["label"] == "assessed by" and shown[("aiia", "assesses")]["direction"] == "incoming"
+            assert shown[("data_asset", "uses_data")]["label"] == "uses data"
+            assert shown[("aiia", "assesses")]["title"] == "Rel aiia"
+            assert shown[("aiia", "assesses")]["provenance"] == "manual"
+
+            # A typed verb joins only the kinds it was made for.
+            with pytest.raises(rel.LinkError) as wrong_way:
+                rel.create_link(db, dpo, ("governance", "application", app_a), ("sentinel", "aiia", aiia), "assesses")
+            assert wrong_way.value.status == 400
+            db.rollback()
+
+            # The other unit's record looks exactly like a missing one.
+            with pytest.raises(rel.LinkError) as hidden:
+                rel.create_link(db, dpo, ("sentinel", "aiia", aiia), ("governance", "application", app_b), "assesses")
+            with pytest.raises(rel.LinkError) as missing:
+                rel.create_link(db, dpo, ("sentinel", "aiia", aiia), ("governance", "application", 987654), "assesses")
+            db.rollback()
+            assert (hidden.value.status, hidden.value.message) == (missing.value.status, missing.value.message) == (
+                404, "Entity not found.")
+            assert rel.list_links(db, dpo, app_ref, app_b) == [], "an application the viewer cannot open lists nothing"
+
+            # A candidate stays out of the list until a permitted person confirms it.
+            candidate = rel.create_link(db, dpo, ("governance", "application", app_a), ("governance", "process", process),
+                                        "supports", provenance="system_candidate")
+            db.commit()
+            assert [r["entity_type"] for r in rel.list_links(db, dpo, app_ref, app_a)].count("process") == 0
+            assert [r["status"] for r in rel.list_links(db, dpo, app_ref, app_a, include_candidates=True)
+                    if r["entity_type"] == "process"] == ["candidate"]
+            rel.set_link_status(db, dpo, candidate["link_id"], "confirmed")
+            db.commit()
+            assert [r["status"] for r in rel.list_links(db, dpo, app_ref, app_a) if r["entity_type"] == "process"] == ["confirmed"]
+
+            # A rejected edge linked again by a person is confirmed again, not left rejected.
+            rel.set_link_status(db, dpo, candidate["link_id"], "rejected")
+            db.commit()
+            assert not [r for r in rel.list_links(db, dpo, app_ref, app_a, include_candidates=True)
+                        if r["entity_type"] == "process"]
+            again = rel.create_link(db, dpo, ("governance", "application", app_a), ("governance", "process", process),
+                                    "supports")
+            db.commit()
+            assert again["created"] and again["link_id"] == candidate["link_id"]
+            assert rel.create_link(db, dpo, ("governance", "application", app_a), ("governance", "process", process),
+                                   "supports")["created"] is False, "linking what is linked returns the edge"
+
+            # An application edge needs the AI use link capability or ownership of the application.
+            by_owner = rel.create_link(db, owner, ("governance", "application", app_a), ("governance", "process", process),
+                                       "depends_on")
+            db.commit()
+            assert by_owner["created"], "its owner may link without the capability"
+            stranger = persona("rel_dpo", rbac.EMPLOYEE)
+            with pytest.raises(rel.LinkError) as refused:
+                rel.create_link(db, stranger, ("governance", "application", app_a), ("governance", "data_asset", asset),
+                                "related")
+            db.rollback()
+            assert refused.value.status == 403
+
+            # The neighbourhood is bounded and carries both directions.
+            around = rel.neighbours(db, dpo, app_ref, app_a, depth=2)
+            assert {n["entity_type"] for n in around["nodes"]} == {"application", "aiia", "data_asset", "process"}
+            assert len(around["edges"]) == 4 and around["truncated"] is False
+
+            removed = rel.remove_link(db, dpo, using["link_id"])
+            db.commit()
+            assert removed["audit"][0] == "link_delete"
+            assert not [r for r in rel.list_links(db, dpo, app_ref, app_a) if r["entity_type"] == "data_asset"]
+        finally:
+            db.close()
+
+    assert _raw_rows("SELECT count(*) FROM tenant_relorg.cross_module_links") == [(3,)], "edges live in the tenant schema"
+    assert _raw_rows("SELECT count(*) FROM public.cross_module_links") == [(0,)]
+
+
+def test_duplicate_links_are_collapsed_and_one_row_per_edge_is_enforced_on_real_postgres(pg):
+    """The unique index behind `ON CONFLICT DO NOTHING` on cross_module_links was only ever created on SQLite, so
+    PostgreSQL stored an edge as many times as it was linked. A fresh database has the index in the shared schema and
+    in a tenant; an existing database that lacks it has its exact duplicates collapsed (oldest kept) and then enforced."""
+    from contextlib import nullcontext
+
+    pg.init_db()
+    org = _make_org(pg, "xlinkorg")
+    for schema in ("public", "tenant_xlinkorg"):
+        assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = %s AND indexname = 'idx_xlinks_dedup_uq'",
+                         (schema,)) == [(1,)], f"{schema}: a new database has the unique index"
+
+    edge = ("erm", "risk", 1, "grid", "audit", 2, "related")
+    other = ("erm", "risk", 1, "grid", "audit", 3, "related")
+    insert = ("INSERT INTO cross_module_links (source_module, source_type, source_id, target_module, target_type, "
+              "target_id, relationship) VALUES (%s, %s, %s, %s, %s, %s, %s)")
+    for schema, scope in (("public", nullcontext()), ("tenant_xlinkorg", pg.tenant_context(org, "xlinkorg", is_super_admin=False))):
+        with scope:
+            db = pg.get_db()
+            try:
+                db.execute("DROP INDEX IF EXISTS idx_xlinks_dedup_uq")  # an older database, as production has it
+                first, second, third = (pg.insert_returning_id(db, insert, edge) for _ in range(3))
+                kept_other = pg.insert_returning_id(db, insert, other)
+                db.commit()
+                assert second > first and third > second
+
+                pg._ensure_pg_link_dedup_index(db)
+                assert [r["id"] for r in db.execute("SELECT id FROM cross_module_links ORDER BY id").fetchall()] == [
+                    first, kept_other], f"{schema}: the exact duplicates went, the oldest and the different edge stayed"
+
+                with pytest.raises(pg.IntegrityError):
+                    db.execute(insert, edge)
+                db.rollback()
+                # And the service's own insert now reports the repeat instead of storing it again.
+                assert db.execute(insert + " ON CONFLICT DO NOTHING RETURNING id", edge).fetchone() is None
+                db.commit()
+                pg._ensure_pg_link_dedup_index(db)  # a second run changes nothing
+                assert db.execute("SELECT count(*) FROM cross_module_links").fetchone()[0] == 2
+            finally:
+                db.close()
+
+
+def test_duplicate_canonical_vendors_are_merged_and_one_row_per_name_is_enforced_on_real_postgres(pg, caplog):
+    """idx_canonical_vendors_name_uq, which core.vendor_link.ensure_canonical relies on to survive two concurrent
+    creates, was only ever created on SQLite, so PostgreSQL could hold two rows for one company. A new database has the
+    index in the shared schema and in a tenant. An existing one that lacks it has each name's duplicates merged into the
+    oldest row (every vendor record and application that used a duplicate follows it, a contact field only a duplicate
+    had is kept) and then enforced."""
+    import logging
+    from contextlib import nullcontext
+
+    from core.vendor_link import ensure_canonical
+
+    pg.init_db()
+    org = _make_org(pg, "canonvend")
+    for schema in ("public", "tenant_canonvend"):
+        assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = %s "
+                         "AND indexname = 'idx_canonical_vendors_name_uq'", (schema,)) == [(1,)], \
+            f"{schema}: a new database has the unique index"
+        # A foreign key into canonical_vendors that the merge does not repoint would make its delete fail.
+        foreign = {(table, column) for table, column in _raw_rows(
+            "SELECT t.relname, a.attname FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid "
+            "JOIN pg_namespace n ON n.oid = t.relnamespace "
+            "JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) "
+            "WHERE c.contype = 'f' AND n.nspname = %s AND c.confrelid = (%s || '.canonical_vendors')::regclass",
+            (schema, schema))}
+        assert foreign and foreign <= set(pg._CANONICAL_VENDOR_REFS), \
+            f"{schema}: the merge does not repoint {sorted(foreign - set(pg._CANONICAL_VENDOR_REFS))}"
+
+    vendor = "INSERT INTO canonical_vendors (name, contact_name, contact_email, website, country) VALUES (%s, %s, %s, %s, %s)"
+    for schema, scope in (("public", nullcontext()),
+                          ("tenant_canonvend", pg.tenant_context(org, "canonvend", is_super_admin=False))):
+        with scope:
+            db = pg.get_db()
+            try:
+                db.execute("DROP INDEX IF EXISTS idx_canonical_vendors_name_uq")  # an older database, as production has it
+                # One company stored three times (case and spacing differ), and one that is not a duplicate.
+                keep = pg.insert_returning_id(db, vendor, ("Acme Corp", "Ada", None, "", None))
+                first = pg.insert_returning_id(db, vendor, ("acme corp ", "Not Ada", "ops@acme.example",
+                                                           "https://acme.example", None))
+                second = pg.insert_returning_id(db, vendor, ("ACME CORP", None, "other@acme.example", None, "ZW"))
+                beta = pg.insert_returning_id(db, vendor, ("Beta Ltd", None, "hi@beta.example", None, None))
+                sentinel = pg.insert_returning_id(
+                    db, "INSERT INTO sentinel_vendors (name, canonical_id) VALUES ('Acme Corp', %s)", (first,))
+                grid = pg.insert_returning_id(
+                    db, "INSERT INTO grid_vendors (name, canonical_id) VALUES ('Acme Corp', %s)", (second,))
+                bcm = pg.insert_returning_id(
+                    db, "INSERT INTO bcm_vendors (name, canonical_id) VALUES ('Acme Corp', %s)", (keep,))
+                apps = [pg.insert_returning_id(db, "INSERT INTO applications (name, vendor_id) VALUES (%s, %s)", pair)
+                        for pair in (("CRM", first), ("Billing", second), ("Intranet", None), ("Payroll", beta))]
+                db.commit()
+                assert keep < first < second < beta
+
+                caplog.clear()
+                with caplog.at_level(logging.WARNING, logger="oneforall.migrations"):
+                    pg._ensure_pg_canonical_vendor_name_index(db)
+                assert "Merged 2 duplicate canonical_vendors rows" in caplog.text, schema
+
+                rows = db.execute("SELECT id, name, contact_name, contact_email, website, country "
+                                  "FROM canonical_vendors ORDER BY id").fetchall()
+                assert [(r["id"], r["name"]) for r in rows] == [(keep, "Acme Corp"), (beta, "Beta Ltd")], \
+                    f"{schema}: the oldest row of the name stayed and the other company was left alone"
+                assert (rows[0]["contact_name"], rows[0]["contact_email"], rows[0]["website"], rows[0]["country"]) == (
+                    "Ada", "ops@acme.example", "https://acme.example", "ZW"), \
+                    f"{schema}: its own value wins, a missing or blank one comes from the oldest duplicate that has it"
+                assert rows[1]["contact_email"] == "hi@beta.example"
+                for table, row_id in (("sentinel_vendors", sentinel), ("grid_vendors", grid), ("bcm_vendors", bcm)):
+                    assert db.execute(f"SELECT canonical_id FROM {table} WHERE id = %s", (row_id,)).fetchone()[0] == keep, \
+                        f"{schema}: {table} follows the vendor it named to the surviving row"
+                assert [r[0] for r in db.execute("SELECT vendor_id FROM applications WHERE id = ANY(%s) ORDER BY id",
+                                                 (apps,)).fetchall()] == [keep, keep, None, beta], \
+                    f"{schema}: applications.vendor_id has no foreign key, so it must be repointed too"
+
+                assert db.execute("SELECT count(*) FROM pg_indexes WHERE schemaname = current_schema() "
+                                  "AND indexname = 'idx_canonical_vendors_name_uq'").fetchone()[0] == 1
+                with pytest.raises(pg.IntegrityError):
+                    db.execute("INSERT INTO canonical_vendors (name) VALUES (%s)", ("  aCME corp",))
+                db.rollback()
+                # And the service's own find-or-create resolves any spelling to the surviving row.
+                assert ensure_canonical(db, "  ACME corp ") == keep
+                db.commit()
+                caplog.clear()
+                with caplog.at_level(logging.WARNING, logger="oneforall.migrations"):
+                    pg._ensure_pg_canonical_vendor_name_index(db)  # a second run changes nothing
+                assert not caplog.records
+                assert db.execute("SELECT count(*) FROM canonical_vendors").fetchone()[0] == 2
+            finally:
+                db.close()
+
+
+def test_a_canonical_vendor_merge_that_cannot_finish_is_undone_and_logged_on_real_postgres(pg, monkeypatch, caplog):
+    """A column the merge does not repoint (here bcm_vendors, as a foreign key added later would be) makes the delete of a
+    duplicate fail. The whole merge is undone, the failure is logged, and the connection stays usable, so startup goes on."""
+    import logging
+
+    pg.init_db()
+    monkeypatch.setattr(pg, "_CANONICAL_VENDOR_REFS", tuple(
+        pair for pair in pg._CANONICAL_VENDOR_REFS if pair[0] != "bcm_vendors"))
+    db = pg.get_db()
+    try:
+        db.execute("DROP INDEX IF EXISTS idx_canonical_vendors_name_uq")
+        keep = pg.insert_returning_id(db, "INSERT INTO canonical_vendors (name) VALUES ('Acme Corp')", ())
+        dup = pg.insert_returning_id(db, "INSERT INTO canonical_vendors (name) VALUES ('ACME corp')", ())
+        sentinel = pg.insert_returning_id(
+            db, "INSERT INTO sentinel_vendors (name, canonical_id) VALUES ('Acme Corp', %s)", (dup,))
+        db.execute("INSERT INTO bcm_vendors (name, canonical_id) VALUES ('Acme Corp', %s)", (dup,))
+        db.commit()
+
+        with caplog.at_level(logging.WARNING, logger="oneforall.migrations"):
+            pg._ensure_pg_canonical_vendor_name_index(db)  # must not raise
+        assert "Could not enforce one canonical vendor per name" in caplog.text
+
+        assert [r["id"] for r in db.execute("SELECT id FROM canonical_vendors ORDER BY id").fetchall()] == [keep, dup]
+        assert db.execute("SELECT canonical_id FROM sentinel_vendors WHERE id = %s", (sentinel,)).fetchone()[0] == dup, \
+            "the repoint that ran before the failing delete was undone with it"
+        assert db.execute("SELECT count(*) FROM pg_indexes WHERE schemaname = current_schema() "
+                          "AND indexname = 'idx_canonical_vendors_name_uq'").fetchone()[0] == 0
+        assert db.execute("SELECT 1").fetchone()[0] == 1
+    finally:
+        db.close()
+
+
+def test_audit_log_reads_are_organization_scoped_and_writes_stay_open_for_an_ordinary_role_on_real_postgres(pg):
+    """core/rls.py promises that audit_log SELECT is restricted by organization while any request can still write an
+    entry (system events have no organization). Both halves, with a role that is subject to the policies."""
+    org_a, org_b = _rls_probe_world(pg)
+    admin = pg.get_db_bypass_rls()
+    try:
+        for org_id, label in ((org_a, "A"), (org_b, "B")):
+            admin.execute("INSERT INTO audit_log (org_id, module, action, details) VALUES (%s, 'test', 'probe', %s)",
+                          (org_id, f"audit row {label}"))
+        admin.commit()
+    finally:
+        admin.close()
+
+    def visible(db):
+        return {r["details"] for r in db.execute("SELECT details FROM audit_log WHERE action = 'probe'").fetchall()}
+
+    for org, expected in ((org_a, {"audit row A"}), (org_b, {"audit row B"})):
+        with pg.tenant_context(org, "public", is_super_admin=False):
+            db = pg.get_db()
+            try:
+                _become_restricted(db)
+                assert visible(db) == expected, "an organization reads only its own audit entries"
+            finally:
+                _release_role(db)
+
+    with pg.tenant_context(org_a, "public", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            _become_restricted(db)
+            db.execute("INSERT INTO audit_log (module, action, details) VALUES ('test', 'probe', 'system event')")
+            db.commit()  # an entry with no organization is still accepted
+        finally:
+            _release_role(db)
+    assert _raw_rows("SELECT count(*) FROM audit_log WHERE details = 'system event'") == [(1,)]
+
+
+# ── AI policy and usage (AI governance G1c) ──────────────────────────────────
+
+def test_ai_policy_allowance_and_usage_run_inside_each_tenant_on_real_postgres(pg, monkeypatch):
+    """The policy is a JSON setting and the usage log a table, both in the tenant's own schema. On PostgreSQL the upsert
+    of the setting, the month's token sum over a real timestamp column and the per-tenant separation have to hold."""
+    import core.ai_client as ai_client
+    import core.ai_policy as ai_policy
+
+    pg.init_db()
+    org_a, org_b = _make_org(pg, "aipola"), _make_org(pg, "aipolb")
+    monkeypatch.setattr(ai_policy, "_RECORDING", True)
+    monkeypatch.setattr(ai_client, "_provider", lambda: "anthropic")
+    monkeypatch.setattr(ai_client, "is_configured", lambda: True)
+    contacted = []
+
+    def provider(messages, system, max_tokens, model):
+        contacted.append(1)
+        return {"text": "ok", "model": "m", "input_tokens": 30, "output_tokens": 12}
+
+    monkeypatch.setattr(ai_client, "_dispatch_to_provider", provider)
+
+    def call(feature):
+        return ai_client.create_message([{"role": "user", "content": "x"}], feature=feature)
+
+    with pg.tenant_context(org_a, "aipola", is_super_admin=False):
+        ai_policy.save_policy(org_a, {"categories": ["business"], "monthly_token_budget": 60})
+        ai_policy.save_policy(org_a, {"categories": ["business"], "monthly_token_budget": 60}, user_id=None)  # an upsert
+        assert call("aria.ask") == "ok" and call("aria.ask") == "ok"        # 42 used, then 84: the cap is checked before a call
+        with pytest.raises(ai_policy.AIPolicyError) as over:
+            call("aria.ask")
+        assert over.value.reason == "budget_exhausted"
+        with pytest.raises(ai_policy.AIPolicyError) as kind:
+            call("sentinel.ai_chat")
+        assert kind.value.reason == "category_not_allowed"
+        assert ai_policy.tokens_used_this_month(org_a) == 84
+        summary = ai_policy.usage_summary(org_a)
+        assert (summary["calls"], summary["refused"], summary["tokens"]) == (2, 2, 84)
+
+    with pg.tenant_context(org_b, "aipolb", is_super_admin=False):
+        assert ai_policy.get_policy(org_b) is None, "another tenant's policy does not exist here"
+        assert call("sentinel.ai_chat") == "ok"
+        assert ai_policy.usage_summary(org_b)["calls"] == 1
+
+    assert len(contacted) == 3, "refusals never reached the provider"
+    assert _raw_rows("SELECT count(*) FROM tenant_aipola.settings WHERE key = %s", (f"ai.policy.org{org_a}",)) == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aipolb.settings WHERE key LIKE 'ai.policy.%'") == [(0,)]
+    assert _raw_rows("SELECT status, count(*) FROM tenant_aipola.ai_usage_log GROUP BY status ORDER BY status") == [
+        ("ok", 2), ("refused", 2)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aipolb.ai_usage_log") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM public.ai_usage_log WHERE org_id IN (%s, %s)", (org_a, org_b)) == [(0,)]
+
+    # A call with no organization is platform scope and lands in the shared schema.
+    assert call("launcher.api_trainer_ask") == "ok"
+    assert _raw_rows("SELECT org_id, feature, status FROM public.ai_usage_log") == [(None, "launcher.api_trainer_ask", "ok")]
+
+    with pg.tenant_context(org_a, "aipola", is_super_admin=False):
+        ai_policy.save_policy(org_a, {"enabled": False})
+        assert ai_client.get_capability_state().state == "disabled_by_policy"
+
+
+# ── AI governance intake, inventory and workspace (G2) ───────────────────────
+
+def _ai_governance_world(pg, slug, provision=True):
+    """An organization with one unit, an author and two reviewers; returns (org, unit, users, personas).
+
+    A provisioned organization keeps its data in its own schema, where users (a shared table) cannot be assigned a
+    unit that only exists there; an unprovisioned one lives in the shared schema and its users do carry the unit."""
+    from core import rbac
+
+    org = _make_org(pg, slug, provision=provision)
+    conn = pg.get_db_bypass_rls()
+    try:
+        unit = None
+        if not provision:
+            unit = pg.insert_returning_id(conn, "INSERT INTO business_units (name, is_active) VALUES ('AI unit', 1)", ())
+        ids = {name: pg.insert_returning_id(
+            conn, "INSERT INTO users (username, email, full_name, password_hash, org_id, business_unit_id) VALUES (%s, %s, %s, 'x', %s, %s)",
+            (f"{slug}_{name}", f"{slug}_{name}@example.test", name, org, unit)) for name in ("author", "reviewer", "second")}
+        for name, role in (("author", rbac.EMPLOYEE), ("reviewer", rbac.DPO), ("second", rbac.DPO)):
+            conn.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (ids[name], role))
+        conn.commit()
+    finally:
+        conn.close()
+    if provision:
+        with pg.tenant_context(org, slug, is_super_admin=False):
+            db = pg.get_db()
+            try:
+                unit = pg.insert_returning_id(db, "INSERT INTO business_units (name, is_active) VALUES ('AI unit', 1)", ())
+                db.commit()
+            finally:
+                db.close()
+    roles = {"author": rbac.EMPLOYEE, "reviewer": rbac.DPO, "second": rbac.DPO}
+    personas = {name: {"id": ids[name], "username": f"{slug}_{name}", "org_id": org, "business_unit_id": unit,
+                       "is_super_admin": 0, "roles": [roles[name]]} for name in ids}
+    return org, unit, ids, personas
+
+
+_AI_GOOD = {"name": "PG summarizer", "purpose": "Summarize tickets", "deployment": "vendor_service", "provider_name": "Acme AI",
+            "data_categories": ["internal"], "intended_users": "Agents", "affected_people": ["none"], "autonomy": "assist_only",
+            "affects_decisions": False, "external_access": False}
+
+
+def test_ai_intake_review_inventory_and_workspace_run_inside_a_tenant_on_real_postgres(pg):
+    from modules.ai_governance import service, workspace
+    from modules.ai_governance.service import ServiceError
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "aigov")
+    author, reviewer = who["author"], who["reviewer"]
+    for index in ("uq_ai_intake_idempotency", "uq_notifications_event_user"):  # the per-tenant migration made both
+        assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aigov' AND indexname = %s", (index,)) == [(1,)], index
+
+    with pg.tenant_context(org, "aigov", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            first = service.create_draft(db, author, _AI_GOOD, idempotency_key="pg-form-1")
+            db.commit()
+            again = service.create_draft(db, author, _AI_GOOD, idempotency_key="pg-form-1")
+            db.commit()
+            assert first["created"] and again["created"] is False and again["intake"]["id"] == first["intake"]["id"]
+            intake = first["intake"]
+
+            saved = service.save_draft(db, author, intake["id"], {"purpose": "Summarize support tickets"}, intake["version"])
+            db.commit()
+            with pytest.raises(ServiceError) as stale:
+                service.save_draft(db, author, intake["id"], {"purpose": "Lost"}, intake["version"])
+            db.rollback()
+            assert stale.value.status == 409
+            sent = service.submit(db, author, intake["id"], saved["intake"]["version"])
+            db.commit()
+            assert sent["intake"]["status"] == "submitted"
+            assert [r["id"] for r in service.review_queue(db, reviewer)] == [intake["id"]]
+            with pytest.raises(ServiceError):
+                service.get_intake(db, {**who["second"], "business_unit_id": None, "roles": [who["second"]["roles"][0]]}, intake["id"])
+            db.rollback()
+        finally:
+            db.close()
+
+    # Two reviewers accept the same request at the same moment: the second waits on the row, then finds the work done.
+    import threading
+
+    version = sent["intake"]["version"]
+    held, release, outcomes = threading.Event(), threading.Event(), {}
+
+    def accept(name, hold):
+        with pg.tenant_context(org, "aigov", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                result = service.approve(conn, who[name], intake["id"], version, new_application={"vendor_name": "Acme AI"})
+                if hold:
+                    held.set()
+                    release.wait(15)
+                conn.commit()
+                outcomes[name] = result
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback()
+                outcomes[name] = exc
+            finally:
+                conn.close()
+
+    first_thread = threading.Thread(target=accept, args=("reviewer", True))
+    first_thread.start()
+    assert held.wait(15)
+    second_thread = threading.Thread(target=accept, args=("second", False))
+    second_thread.start()
+    second_thread.join(1.0)
+    assert second_thread.is_alive(), "the second reviewer is waiting on the claimed row"
+    release.set()
+    first_thread.join(15)
+    second_thread.join(15)
+    won, lost = outcomes["reviewer"], outcomes["second"]
+    assert not isinstance(won, Exception) and not isinstance(lost, Exception), outcomes
+    assert won["created_application"] is True and lost.get("already") is True and lost["application_id"] == won["application_id"]
+    assert _raw_rows("SELECT count(*) FROM tenant_aigov.applications WHERE name = 'PG summarizer'") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aigov.ai_use_profiles") == [(1,)]
+    assert _raw_rows("SELECT status, application_id FROM tenant_aigov.ai_use_intake_requests") == [("approved", won["application_id"])]
+    assert _raw_rows("SELECT count(*) FROM public.ai_use_intake_requests") == [(0,)], "requests live in the tenant's own schema"
+
+    app = won["application_id"]
+    with pg.tenant_context(org, "aigov", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            listed = workspace.list_systems(db, reviewer, q="summar", page_size=10)
+            assert [i["name"] for i in listed["items"]] == ["PG summarizer"] and listed["total"] == 1
+            assert workspace.list_systems(db, reviewer, q="%")["total"] == 0, "a wildcard is just a character"
+            assert workspace.list_systems(db, reviewer, state="needs_action")["total"] == 0
+            assert workspace.filter_choices(db, reviewer)["business_units"] == [{"id": unit, "name": "AI unit"}]
+            shown = workspace.get_system(db, author, app)
+            assert shown["profile"]["tier"] == "lower" and shown["application"]["hosting"] == "A vendor's AI service that we call"
+            for tab in workspace.TABS:
+                got = workspace.get_tab(db, reviewer, app, tab)
+                assert got is not None and all(section["state"] != "unavailable" for section in got["sections"]), tab
+
+            profile = service.get_profile(db, reviewer, app)
+            edited = service.update_profile(db, reviewer, app, {"data_categories": ["personal"]}, profile["version"])
+            db.commit()
+            assert edited["profile"]["tier"] == "moderate" and edited["events"]
+            adopted = service.adopt_tier(db, reviewer, app, "elevated", "Customer facing.", edited["profile"]["version"])
+            db.commit()
+            assert adopted["profile"]["tier"] == "elevated"
+            retired = service.retire(db, reviewer, app, "Contract ended.")
+            db.commit()
+            assert workspace.list_systems(db, reviewer)["total"] == 0 and workspace.list_systems(db, reviewer, state="retired")["total"] == 1
+            assert retired["events"]
+        finally:
+            db.close()
+    assert _raw_rows("SELECT is_active, retired_reason FROM tenant_aigov.applications WHERE id = %s", (app,)) == [(0, "Contract ended.")]
+
+
+def test_ai_use_notifications_are_sent_once_per_person_per_event_on_real_postgres(pg):
+    import modules.ai_governance.handlers  # noqa: F401
+    from core import events
+    from modules.ai_governance import service
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "aigovn", provision=False)
+    with pg.tenant_context(org, "public", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            created = service.create_draft(db, who["author"], _AI_GOOD)
+            db.commit()
+            row = created["intake"]
+            sent = service.submit(db, who["author"], row["id"], row["version"])
+            db.commit()
+            service.deliver(sent)
+            event = sent["events"][0]
+        finally:
+            db.close()
+    told = lambda: _raw_rows(  # noqa: E731
+        "SELECT user_id FROM public.notifications WHERE module = 'ai_governance' ORDER BY user_id")
+    assert told() == sorted([(ids["reviewer"],), (ids["second"],)]), "both reviewers, not the author"
+
+    conn = _raw_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM public.event_deliveries WHERE event_id = %s", (event,))
+            cur.execute("UPDATE public.events SET status = 'pending' WHERE id = %s", (event,))
+    finally:
+        conn.close()
+    with pg.tenant_context(org, "public", is_super_admin=False):
+        events.deliver(event)
+    assert told() == sorted([(ids["reviewer"],), (ids["second"],)]), "delivered again, told nobody twice"
+    assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE indexname = 'uq_notifications_event_user' AND schemaname = 'public'") == [(1,)]
+
+
+def test_ai_guidance_controls_and_quality_checks_run_inside_a_tenant_on_real_postgres(pg):
+    from core import rbac
+    from modules.ai_governance import controls, guidance, quality, service
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "aiguide")
+    reviewer = who["reviewer"]  # a DPO: no right to Operations risk
+    owner = {**who["reviewer"], "roles": [rbac.RISK_OWNER]}  # a risk owner: reviews AI uses and reads AI management records
+    assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aiguide' "
+                     "AND indexname = 'idx_ai_control_mappings_canonical'") == [(1,)]
+    for table, column in (("ai_use_profiles", "material_changed_at"), ("ai_use_step_overrides", "fingerprint"),
+                          ("ai_use_finding_dismissals", "expires_at"), ("ai_control_mappings", "canonical_control_id")):
+        assert _raw_rows("SELECT count(*) FROM information_schema.columns WHERE table_schema = 'tenant_aiguide' "
+                         "AND table_name = %s AND column_name = %s", (table, column)) == [(1,)], (table, column)
+
+    with pg.tenant_context(org, "aiguide", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            row = service.create_draft(db, who["author"], _AI_GOOD)["intake"]
+            db.commit()
+            sent = service.submit(db, who["author"], row["id"], row["version"])
+            db.commit()
+            app = service.approve(db, reviewer, row["id"], sent["intake"]["version"], new_application={"vendor_name": "Acme AI"})["application_id"]
+            db.commit()
+
+            # The checklist reads each owning module's own tables, scoped, inside the tenant's schema.
+            steps = {s["key"]: s for s in guidance.get_checklist(db, reviewer, app)["steps"]}
+            assert (steps["aiia"]["state"], steps["vendor"]["state"]) == ("not_started", "in_progress")
+            assert steps["aims"]["state"] == "no_access" and steps["aiia"]["records"] == []
+            db.execute("INSERT INTO sentinel_aiia (ref_number, title, application_id, business_unit_id, status) VALUES (%s, %s, %s, %s, 'completed')",
+                       ("AIIA-PG-1", "PG impact", app, unit))
+            db.commit()
+            steps = {s["key"]: s for s in guidance.get_checklist(db, reviewer, app)["steps"]}
+            assert steps["aiia"]["state"] == "complete" and steps["aiia"]["records"][0]["title"] == "AIIA-PG-1: PG impact"
+
+            # A judgement is one row however often it is set again; the profile remembers when a covered fact changed.
+            guidance.set_step_not_applicable(db, reviewer, app, "vendor", "Built by us under licence.")
+            guidance.set_step_not_applicable(db, reviewer, app, "vendor", "Built by us under licence, reviewed again.")
+            db.commit()
+            assert db.execute("SELECT count(*), max(reason) FROM ai_use_step_overrides WHERE application_id = %s", (app,)).fetchone()[0] == 1
+            profile = service.get_profile(db, reviewer, app)
+            assert profile["material_changed_at"] is None
+            service.update_profile(db, reviewer, app, {"deployment": "embedded_vendor"}, profile["version"])
+            db.commit()
+            changed = service.get_profile(db, reviewer, app)
+            assert changed["material_changed_at"]
+            vendor = next(s for s in guidance.get_checklist(db, reviewer, app)["steps"] if s["key"] == "vendor")
+            assert vendor["override"]["out_of_date"] is True and vendor["effective"] == "required"
+            guidance.clear_step_judgement(db, reviewer, app, "vendor")
+            db.commit()
+
+            # Quality checks: a finding, its dismissal as an upsert, and its reopening.
+            db.execute("UPDATE applications SET owner_user_id = NULL WHERE id = %s", (app,))
+            db.commit()
+            key = f"owner_missing:application:{app}"
+            found = {f["key"]: f for f in quality.evaluate(db, reviewer, app)["findings"]}
+            assert key in found and found[key]["dismissed"] is None
+            quality.dismiss(db, reviewer, app, key, "The owner is being named this week.", expires_at="2999-01-01")
+            quality.dismiss(db, reviewer, app, key, "The owner is being named next week.")
+            db.commit()
+            assert db.execute("SELECT count(*) FROM ai_use_finding_dismissals WHERE application_id = %s", (app,)).fetchone()[0] == 1
+            shown = {f["key"]: f for f in quality.evaluate(db, reviewer, app)["findings"]}[key]
+            assert shown["dismissed"]["reason"] == "The owner is being named next week." and shown["dismissed"]["expires_at"] is None
+            quality.reopen(db, reviewer, app, key)
+            db.commit()
+            assert {f["key"]: f for f in quality.evaluate(db, reviewer, app)["findings"]}[key]["dismissed"] is None
+
+            # AI controls: the catalogue, the mapping (made once however often it is confirmed) and the proof held in the Vault.
+            aims = pg.insert_returning_id(
+                db, "INSERT INTO aims_assessments (ref, title, business_unit_id, application_id, status) VALUES (%s, %s, %s, %s, 'draft')",
+                ("AIMS-PG-1", "PG management", unit, app))
+            ai_control = pg.insert_returning_id(
+                db, "INSERT INTO ai_control_catalogue (ref, title, business_unit_id) VALUES (%s, %s, %s)",
+                ("AC-PG-1", "Human oversight of model output", unit))
+            db.execute("INSERT INTO aims_risks (assessment_id, risk_description, catalogue_control_id, in_scope, implemented) VALUES (%s, %s, %s, 1, 1)",
+                       (aims, "oversight", ai_control))
+            canonical = pg.insert_returning_id(
+                db, "INSERT INTO canonical_controls (ref, title, is_active) VALUES (%s, %s, 1)", ("CC-PG-1", "Human oversight of automated output"))
+            evidence = pg.insert_returning_id(db, "INSERT INTO evidence_items (title, status, org_id, business_unit_id, version) "
+                                                  "VALUES (%s, 'current', %s, %s, 2)", ("Oversight procedure", org, unit))
+            db.execute("INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id) VALUES (%s, 'grid', 'canonical_control', %s)",
+                       (evidence, canonical))
+            db.commit()
+
+            assert [c["id"] for c in controls.search_canonical(db, owner, "OVERSIGHT")] == [canonical], "case does not matter"
+            assert controls.search_canonical(db, owner, "%") == [] and controls.search_canonical(db, owner, "o") == []
+            assert [c["id"] for c in controls.suggest_mappings(db, owner, ai_control)] == [canonical]
+            assert controls.map_control(db, owner, ai_control, canonical)["created"] is True
+            assert controls.map_control(db, owner, ai_control, canonical)["created"] is False
+            db.commit()
+            only = controls.use_controls(db, owner, app)
+            assert len(only) == 1 and only[0]["mapped"] is True
+            assert only[0]["proof"]["current"] == 1 and only[0]["proof"]["items"][0]["title"] == "Oversight procedure"
+            assert controls.use_controls(db, reviewer, app) == [], "no right to Operations risk"
+            controls.unmap_control(db, owner, ai_control, canonical)
+            db.commit()
+            assert controls.use_controls(db, owner, app)[0]["proof"]["current"] == 0
+        finally:
+            db.close()
+
+
+def test_ai_assessments_run_inside_a_tenant_on_real_postgres(pg):
+    from modules.ai_governance import assessments
+    from modules.ai_governance.service import ServiceError
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "aiassess")
+    dpo = who["reviewer"]
+    assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aiassess' AND indexname = 'idx_aiia_application'") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM information_schema.columns WHERE table_schema = 'tenant_aiassess' "
+                     "AND table_name = 'sentinel_aiia' AND column_name = 'version'") == [(1,)]
+
+    with pg.tenant_context(org, "aiassess", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            app = pg.insert_returning_id(db, "INSERT INTO applications (name, business_unit_id, is_active) VALUES (%s, %s, 1)", ("PG model", unit))
+            db.commit()
+            made = assessments.create_assessment(db, dpo, {
+                "title": "PG assessment", "application_id": app, "status": "in_progress", "data_categories": ["Personal"],
+                "impacts": [{"dimension_name": "Financial", "applicable": 1, "likelihood": 3, "impact": 4}]})
+            db.commit()
+            row = made["assessment"]
+            assert row["business_unit_id"] == unit and row["application"]["name"] == "PG model" and row["overall_classification"]
+            assert row["version"] == 1 and row["data_categories"] == ["Personal"] and made["events"] == []
+
+            # The list joins the system through its own scope, filters in SQL and pages.
+            listed = assessments.list_assessments(db, dpo, q="PG ASSESS", linked="any", status="in_progress", application_id=app)
+            assert [i["id"] for i in listed["items"]] == [row["id"]] and listed["items"][0]["application"]["name"] == "PG model"
+            assert assessments.list_assessments(db, dpo, q="%")["total"] == 0, "a wildcard is just a character"
+            assert assessments.list_assessments(db, dpo, linked="none")["total"] == 0
+
+            # A version check that holds in the database, and one event when it first completes.
+            done = assessments.update_assessment(db, dpo, row["id"], {"status": "completed"}, 1)
+            db.commit()
+            assert done["assessment"]["version"] == 2 and len(done["events"]) == 1
+            with pytest.raises(ServiceError) as stale:
+                assessments.update_assessment(db, dpo, row["id"], {"title": "Lost"}, 1)
+            db.rollback()
+            assert stale.value.status == 409 and stale.value.extra["current_version"] == 2
+
+            # Renaming a dimension carries its history; a collision changes nothing.
+            dims = {d["name"]: d for d in assessments.list_dimensions(db, dpo)}
+            assessments.save_dimensions(db, dpo, [{"id": dims["Financial"]["id"], "name": "Financial exposure", "order_idx": 1, "is_active": True}])
+            db.commit()
+            names = {i["dimension_name"]: i for i in assessments.get_assessment(db, dpo, row["id"])["impacts"]}
+            assert names["Financial exposure"]["likelihood"] == 3 and "Financial" not in names
+            with pytest.raises(ServiceError) as clash:
+                assessments.save_dimensions(db, dpo, [{"id": dims["Operational"]["id"], "name": "financial exposure"}])
+            db.rollback()
+            assert clash.value.status == 409
+
+            # The privacy pickers and the delete rule.
+            db.execute("INSERT INTO sentinel_ropa (ref_number, processing_name, business_unit_id) VALUES ('ROPA-PG', 'Payroll run', %s)", (unit,))
+            db.commit()
+            assert [r["ref"] for r in assessments.link_options(db, dpo, "ropa", "PAYROLL")] == ["ROPA-PG"]
+            approved = assessments.update_assessment(db, dpo, row["id"], {"status": "approved"}, 2)
+            db.commit()
+            with pytest.raises(ServiceError) as kept:
+                assessments.delete_assessment(db, dpo, row["id"])
+            db.rollback()
+            assert kept.value.status == 409
+            reopened = assessments.update_assessment(db, dpo, row["id"], {"status": "in_progress"}, approved["assessment"]["version"])
+            db.commit()
+            assessments.delete_assessment(db, dpo, row["id"])
+            db.commit()
+            assert reopened["assessment"]["status"] == "in_progress"
+        finally:
+            db.close()
+    assert _raw_rows("SELECT count(*) FROM tenant_aiassess.sentinel_aiia") == [(0,)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aiassess.sentinel_aiia_impacts") == [(0,)]
+
+
+def test_ai_decisions_hold_one_open_request_and_one_winner_on_real_postgres(pg):
+    import threading
+
+    from modules.ai_governance import decisions, guidance, service
+    from modules.ai_governance.service import ServiceError
+    from modules.launcher import my_work_service
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "aidecide")
+    author, reviewer, second = who["author"], who["reviewer"], who["second"]
+    for index in ("uq_ai_decision_open", "idx_ai_decisions_application", "idx_ai_decision_conditions"):
+        assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aidecide' AND indexname = %s", (index,)) == [(1,)], index
+
+    with pg.tenant_context(org, "aidecide", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            row = service.create_draft(db, author, _AI_GOOD)["intake"]
+            db.commit()
+            sent = service.submit(db, author, row["id"], row["version"])
+            db.commit()
+            app = service.approve(db, reviewer, row["id"], sent["intake"]["version"], new_application={"vendor_name": "Acme AI"})["application_id"]
+            db.commit()
+            guidance.set_step_not_applicable(db, reviewer, app, "vendor", "Built by us under licence.")
+            db.commit()
+        finally:
+            db.close()
+
+    # The same person asks twice at the same moment (a double click, a retry): one request opens, the other gets it back.
+    gate, results = threading.Barrier(2), {}
+
+    def ask(name, person):
+        with pg.tenant_context(org, "aidecide", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                gate.wait(10)
+                done = decisions.request_decision(conn, person, app, f"ask {name}")
+                conn.commit()
+                results[name] = done
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback()
+                results[name] = exc
+            finally:
+                conn.close()
+
+    threads = [threading.Thread(target=ask, args=("first", author)), threading.Thread(target=ask, args=("again", author))]
+    [t.start() for t in threads]
+    [t.join(20) for t in threads]
+    assert not any(isinstance(r, Exception) for r in results.values()), results
+    assert sorted(r["created"] for r in results.values()) == [False, True]
+    assert len({r["decision"]["id"] for r in results.values()}) == 1
+    assert _raw_rows("SELECT count(*) FROM tenant_aidecide.ai_use_decisions WHERE status = 'proposed'") == [(1,)]
+    decision_id = results["first"]["decision"]["id"]
+
+    # Two deciders sign at the same moment on the same brief: one wins, the other is told it was decided.
+    with pg.tenant_context(org, "aidecide", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            shown = decisions.get_brief(db, reviewer, app)["hash"]
+            assert decisions.get_brief(db, second, app)["hash"] == shown, "both are shown the same facts"
+            queue = decisions.list_queue(db, reviewer)
+            assert [r["id"] for r in queue["requests"]] == [decision_id]
+            items = my_work_service._ai_governance_work(db, reviewer, None)
+            assert [i["entity_type"] for i in items] == ["ai_decision"]
+        finally:
+            db.close()
+
+    held, release, outcomes = threading.Event(), threading.Event(), {}
+
+    def sign(name, person, hold):
+        with pg.tenant_context(org, "aidecide", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                result = decisions.decide(conn, person, decision_id, "approve", rationale=f"Approved by {name}.",
+                                          brief=shown, expected_version=1)
+                if hold:
+                    held.set()
+                    release.wait(15)
+                conn.commit()
+                outcomes[name] = result
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback()
+                outcomes[name] = exc
+            finally:
+                conn.close()
+
+    first = threading.Thread(target=sign, args=("reviewer", reviewer, True))
+    first.start()
+    assert held.wait(15)
+    late = threading.Thread(target=sign, args=("second", second, False))
+    late.start()
+    late.join(1.0)
+    assert late.is_alive(), "the second decider is waiting on the row the first has claimed"
+    release.set()
+    first.join(15)
+    late.join(15)
+    won, lost = outcomes["reviewer"], outcomes["second"]
+    assert not isinstance(won, Exception) and won["decision"]["status"] == "approved"
+    assert isinstance(lost, ServiceError) and lost.status == 409, outcomes
+    assert _raw_rows("SELECT status, decided_by, version FROM tenant_aidecide.ai_use_decisions") == [("approved", ids["reviewer"], 2)]
+
+    # The standing state and a covered change, read inside the tenant.
+    with pg.tenant_context(org, "aidecide", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            assert decisions.get_decisions(db, author, app)["state"]["state"] == "approved"
+            profile = service.get_profile(db, reviewer, app)
+            service.update_profile(db, reviewer, app, {"purpose": "A changed purpose"}, profile["version"])
+            db.commit()
+            state = decisions.get_decisions(db, author, app)
+            assert state["state"]["state"] == "needs_re_review" and state["latest"]["id"] == decision_id
+            assert [r["application_id"] for r in decisions.list_queue(db, reviewer)["re_reviews"]] == [app]
+            assert [i["entity_type"] for i in my_work_service._ai_governance_work(db, author, None)] == ["ai_re_review"]
+        finally:
+            db.close()
+
+
+def test_ai_evaluations_regulation_and_monitoring_run_inside_a_tenant_on_real_postgres(pg):
+    from modules.ai_governance import decisions, evaluations, guidance, monitoring, regulation, service
+
+    run = {"name": "Citation check", "test_set_name": "aria-citations", "test_set_version": "v3", "rubric_version": "r2",
+           "subject_version": "assistant 2026-09", "evaluator": "deterministic", "status": "completed",
+           "started_at": "2026-10-01", "finished_at": "2026-10-01 10:30:00",
+           "scores": {"citation_validity": 97.5, "no_match": 100}, "thresholds": {"citation_validity": 95}}
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "aimon")
+    author, reviewer, second = who["author"], who["reviewer"], who["second"]
+    for index in ("idx_ai_evaluation_application", "idx_ai_regulatory_queue"):
+        assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aimon' AND indexname = %s", (index,)) == [(1,)], index
+
+    with pg.tenant_context(org, "aimon", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            row = service.create_draft(db, author, _AI_GOOD)["intake"]
+            db.commit()
+            sent = service.submit(db, author, row["id"], row["version"])
+            db.commit()
+            app = service.approve(db, reviewer, row["id"], sent["intake"]["version"], new_application={"vendor_name": "Acme AI"})["application_id"]
+            db.commit()
+            profile = service.get_profile(db, reviewer, app)
+            service.update_profile(db, reviewer, app, {"jurisdictions": ["EU"]}, profile["version"])
+            guidance.set_step_not_applicable(db, reviewer, app, "vendor", "Built by us under licence.")
+            db.commit()
+
+            # evaluation records: the reading is computed, the list orders and compares, a failure raises one event
+            good = evaluations.record_run(db, reviewer, app, run)
+            bad = evaluations.record_run(db, reviewer, app, {**run, "name": "Worse", "scores": {"citation_validity": 70, "no_match": 100},
+                                                            "finished_at": "2026-10-05 09:00:00"})
+            db.commit()
+            assert (good["run"]["state"], bad["run"]["state"], len(bad["events"])) == ("passed", "failed", 1)
+            listed = evaluations.list_runs(db, author, app)
+            assert [r["name"] for r in listed["runs"]] == ["Worse", "Citation check"] and listed["comparison"]["dimensions"][0]["change"] == -27.5
+            accepted = evaluations.review_run(db, reviewer, good["run"]["id"], "accepted", None, 1)
+            db.commit()
+            assert accepted["run"]["review_outcome"] == "accepted"
+
+            # regulatory impact: candidates are proposed once, confirmed into one task
+            db.execute("INSERT INTO regulatory_updates (framework_name, title, status, severity, effective_date) "
+                       "VALUES ('EU AI Act', 'Guidance on prohibited practices', 'open', 'high', '2026-12-01')")
+            db.commit()
+            assert regulation.refresh(db, reviewer)["created"] == 1
+            db.commit()
+            assert regulation.refresh(db, reviewer)["created"] == 0
+            db.commit()
+            item = regulation.list_queue(db, reviewer)["items"][0]
+            done = regulation.review(db, reviewer, item["id"], "confirm", "EU customers.", item["version"])
+            db.commit()
+            assert done["item"]["status"] == "confirmed" and len(done["events"]) == 1
+            assert db.execute("SELECT COUNT(*) FROM task_board WHERE title LIKE 'Regulatory change%'").fetchone()[0] == 1
+
+            # monitoring reads all of it, and a decision reopens on what was recorded after it was signed
+            watched = monitoring.get_monitoring(db, reviewer, app)
+            assert {"evaluations", "regulation"} <= set(watched["attention"])
+            asked = decisions.request_decision(db, author, app, None)
+            db.commit()
+            shown = decisions.get_brief(db, second, app)["hash"]
+            signed = decisions.decide(db, second, asked["decision"]["id"], "approve", brief=shown, expected_version=1)
+            db.commit()
+            assert signed["decision"]["status"] == "approved"
+            # what was recorded before the signing stands behind it; only what is recorded after reopens it
+            db.execute("UPDATE ai_use_decisions SET decided_at = '2026-06-01 00:00:00' WHERE id = %s", (asked["decision"]["id"],))
+            db.execute("UPDATE ai_evaluation_runs SET recorded_at = '2026-05-01 00:00:00'")
+            db.execute("UPDATE ai_regulatory_impacts SET reviewed_at = '2026-05-01 00:00:00'")
+            db.commit()
+            assert decisions.get_decisions(db, author, app)["state"]["state"] == "approved"
+            evaluations.record_run(db, reviewer, app, {**run, "name": "After signing", "scores": {"citation_validity": 60, "no_match": 100}})
+            db.commit()
+            reopened = decisions.get_decisions(db, author, app)["state"]
+            assert reopened["state"] == "needs_re_review" and any("evaluation failed" in r for r in reopened["reasons"])
+        finally:
+            db.close()
+
+
+def test_ai_review_pack_issue_open_revoke_and_issuer_right_on_real_postgres(pg):
+    from core import rbac
+    from modules.ai_governance import review_packs, service
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "aipack")
+    shared = pg.get_db_bypass_rls()
+    try:
+        recipient_id = pg.insert_returning_id(
+            shared, "INSERT INTO users (username, email, full_name, password_hash, org_id) VALUES (%s, %s, %s, 'x', %s)",
+            ("aipack_auditor", "aipack_auditor@example.test", "Pack auditor", org))
+        shared.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (recipient_id, rbac.EXTERNAL_AUDITOR))
+        shared.commit()
+    finally:
+        shared.close()
+    recipient = {"id": recipient_id, "username": "aipack_auditor", "org_id": org, "business_unit_id": None,
+                 "is_super_admin": 0, "roles": [rbac.EXTERNAL_AUDITOR]}
+    assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aipack' "
+                     "AND indexname = 'idx_ai_pack_recipient'") == [(1,)]
+    with pg.tenant_context(org, "aipack", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            draft = service.create_draft(db, who["author"], _AI_GOOD)["intake"]
+            db.commit()
+            sent = service.submit(db, who["author"], draft["id"], draft["version"])
+            db.commit()
+            app = service.approve(db, who["reviewer"], draft["id"], sent["intake"]["version"],
+                                  new_application={"vendor_name": "Acme AI"})["application_id"]
+            # This fixture cannot persist a tenant-only unit id in shared users. Keep the use
+            # organization wide so the reloaded issuer has the same scope as their session.
+            db.execute("UPDATE applications SET business_unit_id = NULL WHERE id = %s", (app,))
+            db.commit()
+            opts = {"name": "PG AI review", "recipient_id": recipient_id, "expires_days": 14}
+            shown = review_packs.preview(db, who["reviewer"], app, opts)
+            assert shown["problems"] == {} and shown["recipient"]["id"] == recipient_id
+            made = review_packs.issue(db, who["reviewer"], app, opts, shown["hash"])
+            db.commit()
+            pack_id = made["pack"]["id"]
+            pack_row = db.execute("SELECT * FROM ai_review_packs WHERE id = %s", (pack_id,)).fetchone()
+            assert review_packs._issuer_problem(db, pack_row) is None, review_packs._issuer_problem(db, pack_row)
+            assert review_packs.list_mine(db, recipient)["packs"][0]["id"] == pack_id
+            opened = review_packs.open_pack(db, recipient, pack_id)
+            db.commit()
+            assert opened["manifest"]["hash"] == made["pack"]["hash"]
+            assert review_packs.access_history(db, who["reviewer"], pack_id)["events"][0]["action"] == "viewed"
+            assert review_packs.open_pack(db, who["author"], pack_id)["http"] == 404
+            db.commit()
+            revoked = review_packs.revoke(db, who["reviewer"], pack_id, "Audit ended", made["pack"]["version"])
+            db.commit()
+            assert revoked["pack"]["state"] == "revoked"
+            assert review_packs.list_mine(db, recipient)["packs"] == []
+            assert review_packs.open_pack(db, recipient, pack_id)["http"] == 404
+            db.commit()
+
+            again = review_packs.preview(db, who["reviewer"], app, opts)
+            other = review_packs.issue(db, who["reviewer"], app, opts, again["hash"])["pack"]["id"]
+            db.commit()
+            db.execute("DELETE FROM user_roles WHERE user_id = %s", (ids["reviewer"],))
+            db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (ids["reviewer"], rbac.EMPLOYEE))
+            db.commit()
+            assert review_packs.list_mine(db, recipient)["packs"] == []
+            assert review_packs.open_pack(db, recipient, other)["http"] == 404
+            db.commit()
+        finally:
+            db.close()
+    assert _raw_rows("SELECT count(*) FROM tenant_aipack.ai_review_packs") == [(2,)]
+    assert _raw_rows("SELECT count(*) FROM public.ai_review_packs") == [(0,)]
+
+
+def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
+    from datetime import timedelta
+    from core import rbac
+    from core.ai_policy import FEATURES
+    from core.timeutils import utcnow
+    from modules.ai_governance import literacy, platform_features
+
+    pg.init_db()
+    org, _unit, ids, who = _ai_governance_world(pg, "g6bc")
+    feature = next(iter(FEATURES))
+    assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_g6bc' "
+                     "AND table_name = 'platform_ai_features'") == [(0,)]
+    assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' "
+                     "AND table_name = 'platform_ai_features'") == [(1,)]
+
+    with pg.tenant_context(org, "g6bc", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            created = literacy.create_course(db, who["reviewer"], {
+                "title": "PG responsible AI", "body": "Check output with a person.",
+                "audience_roles": [rbac.EMPLOYEE], "due_days": 30,
+            })["course"]
+            db.commit()
+            published = literacy.publish_course(db, who["reviewer"], created["id"], True,
+                                                 created["version"])["course"]
+            db.commit()
+            lesson = literacy.get_for_learning(db, who["author"], created["id"])["course"]
+            assert lesson["title"] == "PG responsible AI"
+            done = literacy.complete(db, who["author"], created["id"], [], True,
+                                     published["current_version"])["result"]
+            db.commit()
+            assert done["passed"] is True
+            assert literacy.complete(db, who["author"], created["id"], [], True,
+                                     published["current_version"])["result"]["already"] is True
+            db.commit()
+            db.execute("INSERT INTO ai_usage_log (org_id, feature, status) VALUES (%s, %s, 'ok')", (org, feature))
+            db.commit()
+        finally:
+            db.close()
+
+    shared = pg.get_db_bypass_rls()
+    try:
+        operator_id = pg.insert_returning_id(shared,
+            "INSERT INTO users (username, email, full_name, password_hash, is_super_admin) "
+            "VALUES ('g6bc_operator', 'g6bc_operator@example.test', 'Operator', 'x', 1)", ())
+        shared.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+                       (operator_id, rbac.SUPER_ADMIN))
+        shared.commit()
+        operator = {"id": operator_id, "is_super_admin": 1, "roles": [rbac.SUPER_ADMIN],
+                    "org_id": None, "business_unit_id": None}
+        due = (utcnow().date() + timedelta(days=30)).isoformat()
+        saved = platform_features.save_notes(shared, operator, feature, {
+            "owner": "Platform team", "provider_note": "Provider note",
+            "known_limitations": "Check output", "incident_path": "Contact security",
+            "deployment": "in_service", "review_due": due,
+        }, 0)
+        shared.commit()
+        assert saved["version"] == 1
+        listed = platform_features.list_features(shared, operator)
+        row = next(item for item in listed["items"] if item["key"] == feature)
+        assert row["owner"] == "Platform team"
+        assert row["usage"]["successful"] == 1
+        assert platform_features.mark_reviewed(shared, operator, feature, 1)["version"] == 2
+        shared.commit()
+    finally:
+        shared.close()
+    assert _raw_rows("SELECT count(*) FROM tenant_g6bc.ai_literacy_completions") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM public.platform_ai_features") == [(1,)]
+
+
+def test_g7_oversight_versions_are_tenant_scoped_on_real_postgres(pg):
+    from modules.ai_governance import oversight
+    from modules.ai_governance.service import ServiceError
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "g7oversight")
+    shared = pg.get_db_bypass_rls()
+    try:
+        # Users are shared, while the unit belongs to the provisioned tenant schema.
+        shared.execute("UPDATE users SET business_unit_id = %s WHERE id IN (%s, %s, %s)",
+                       (unit, ids["author"], ids["reviewer"], ids["second"]))
+        shared.commit()
+    finally:
+        shared.close()
+    with pg.tenant_context(org, "g7oversight", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            other_unit = pg.insert_returning_id(db,
+                "INSERT INTO business_units (name, is_active) VALUES ('Other AI unit', 1)", ())
+            app = pg.insert_returning_id(db,
+                "INSERT INTO applications (name, business_unit_id, is_active) VALUES ('G7 use', %s, 1)", (unit,))
+            hidden_app = pg.insert_returning_id(db,
+                "INSERT INTO applications (name, business_unit_id, is_active) VALUES ('Hidden G7 use', %s, 1)",
+                (other_unit,))
+            db.execute("INSERT INTO ai_use_profiles (application_id, version) VALUES (%s, 1)", (app,))
+            db.execute("INSERT INTO ai_use_profiles (application_id, version) VALUES (%s, 1)", (hidden_app,))
+            db.commit()
+            with pytest.raises(ServiceError) as hidden:
+                oversight.get_arrangement(db, who["reviewer"], hidden_app, "operation")
+            assert hidden.value.status == 404
+            saved = oversight.save_arrangement(db, who["reviewer"], app, "operation", {
+                "responsible_user_id": ids["author"],
+                "monitoring_method": "Review outputs daily",
+                "intervention_method": "Reject a bad output",
+                "stop_procedure": "Disable the use",
+                "escalation_path": "Notify the incident owner",
+            }, 0)["oversight"]
+            db.commit()
+            assert saved["current"]["version"] == 1
+            reviewed = oversight.review_arrangement(db, who["second"], app, "operation", 1)["oversight"]
+            db.commit()
+            assert reviewed["current"]["status"] == "reviewed"
+        finally:
+            db.close()
+    assert _raw_rows("SELECT count(*) FROM tenant_g7oversight.ai_oversight_versions") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM public.ai_oversight_versions") == [(0,)]

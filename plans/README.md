@@ -1,5 +1,7 @@
 # Execution Plans — ranked by leverage
 
+> **Current entry point (2026-10-07):** [Plan portfolio and dependency map](ROADMAP-2026-10.md). The rounds below are a historical execution record. Their status text and original file lists can be stale; reconcile the checkout and each plan's latest progress record before treating any item as shipped. The portfolio links the newer [connected compliance proposal](PLAN-37-connected-compliance-experience.md), [Evidence Vault plan](../design/evidence-vault/PLAN.md), [VerifyWise-inspired plans](verifywise-features/README.md), and [CISO Assistant-inspired plans](ciso-assistant-features/README.md).
+
 Each PLAN-*.md in this folder is self-contained: goal, exact files,
 ordered steps, edge cases, and verifiable acceptance criteria. They are
 written to be executed top-to-bottom without needing to ask questions.

@@ -5,6 +5,8 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 
 from database import insert_returning_id
+from modules.governance.entity_scope import owner_unit
+from modules.launcher.scoped_metrics import scoped_count, table_scope
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, shell_ctx, shell_templates, get_db,
     _json_body,)
@@ -27,6 +29,25 @@ def _validate_score(data: dict, key: str, default: int) -> int:
     return val
 
 
+def _active_unit(db, named):
+    """`named` when it is the id of an active business unit; anything else is a 400."""
+    active = (isinstance(named, int) and not isinstance(named, bool)
+              and db.execute("SELECT 1 FROM business_units WHERE id = %s AND is_active = 1", (named,)).fetchone())
+    if not active:
+        raise HTTPException(400, "business_unit_id must be the id of an active business unit")
+    return named
+
+
+def _owning_unit(db, data: dict, user: dict):
+    """The business unit a hand-made risk belongs to: the active unit the caller names, else the unit of
+    the record the risk is about, else the creator's own (none for a super administrator: organization wide)."""
+    named = data.get("business_unit_id")
+    if named in (None, ""):
+        return owner_unit(db, data.get("source_module"), data.get("source_entity_type"),
+                          data.get("source_entity_id"), user=user)
+    return _active_unit(db, named)
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # CROSS-MODULE RISK REGISTER
 # ═════════════════════════════════════════════════════════════════════════════
@@ -43,6 +64,7 @@ async def risk_register_page(request: Request):
 @require_auth
 async def api_risks_list(request: Request):
     """List all risks — unified view of risk_register + erm_enterprise_risks."""
+    user = request.state.user
     db = get_db()
     try:
         module   = request.query_params.get("module", "")
@@ -56,6 +78,10 @@ async def api_risks_list(request: Request):
         # erm_enterprise_risks rows tagged with register_source='erm'
         rr_where, rr_params = ["1=1"], []
         erm_where, erm_params = ["1=1"], []
+        rr_scope, rr_scope_params = table_scope("risk_register", user, "r")
+        erm_scope, erm_scope_params = table_scope("erm_enterprise_risks", user, "e")
+        rr_where.append(rr_scope); rr_params.extend(rr_scope_params)
+        erm_where.append(erm_scope); erm_params.extend(erm_scope_params)
 
         if module:
             if module == "erm":
@@ -133,6 +159,8 @@ async def api_risks_list(request: Request):
 @require_auth
 async def api_risk_create(request: Request):
     """Create a new risk entry."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     db = get_db()
     try:
@@ -140,12 +168,13 @@ async def api_risk_create(request: Request):
         impact = _validate_score(data, "impact", 3)
         score = likelihood * impact
         level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
+        unit = _owning_unit(db, data, request.state.user)
         rid = insert_returning_id(
             db,
             "INSERT INTO risk_register (title, description, source_module, source_entity_type, "
             "source_entity_id, category, likelihood, impact, risk_level, owner_id, treatment, "
-            "treatment_plan, status, review_date, created_by) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "treatment_plan, status, review_date, created_by, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 data.get("title", "Untitled Risk"),
                 data.get("description", ""),
@@ -160,6 +189,7 @@ async def api_risk_create(request: Request):
                 data.get("status", "open"),
                 data.get("review_date"),
                 request.state.user["id"],
+                unit,
             )
         )
         db.commit()
@@ -172,24 +202,30 @@ async def api_risk_create(request: Request):
 @require_auth
 async def api_risk_stats(request: Request):
     """Risk register statistics — unified (risk_register + erm_enterprise_risks)."""
+    user = request.state.user
     db = get_db()
     try:
+        rr_scope, rr_params = table_scope("risk_register", user)
+        erm_scope, erm_params = table_scope("erm_enterprise_risks", user)
         # Platform register
-        rr_total = db.execute("SELECT COUNT(*) FROM risk_register WHERE status != 'closed'").fetchone()[0]
+        rr_total = scoped_count(db, user, "risk_register", "status != 'closed'")
         rr_by_level = {r["risk_level"]: r["c"] for r in db.execute(
-            "SELECT risk_level, COUNT(*) as c FROM risk_register WHERE status != 'closed' GROUP BY risk_level"
+            f"SELECT risk_level, COUNT(*) as c FROM risk_register WHERE {rr_scope} "
+            "AND status != 'closed' GROUP BY risk_level", rr_params
         ).fetchall()}
         rr_by_module = {(r["source_module"] or "unassigned"): r["c"] for r in db.execute(
-            "SELECT source_module, COUNT(*) as c FROM risk_register WHERE status != 'closed' GROUP BY source_module"
+            f"SELECT source_module, COUNT(*) as c FROM risk_register WHERE {rr_scope} "
+            "AND status != 'closed' GROUP BY source_module", rr_params
         ).fetchall()}
         # ERM enterprise risks
-        erm_total = db.execute("SELECT COUNT(*) FROM erm_enterprise_risks WHERE status != 'closed'").fetchone()[0]
+        erm_total = scoped_count(db, user, "erm_enterprise_risks", "status != 'closed'")
         erm_by_level = {}
         for row in db.execute(
             "SELECT CASE WHEN (likelihood*impact)>=20 THEN 'critical' "
             "WHEN (likelihood*impact)>=12 THEN 'high' WHEN (likelihood*impact)>=6 THEN 'medium' "
             "ELSE 'low' END as lvl, COUNT(*) as c "
-            "FROM erm_enterprise_risks WHERE status != 'closed' GROUP BY lvl"
+            f"FROM erm_enterprise_risks WHERE {erm_scope} AND status != 'closed' GROUP BY lvl",
+            erm_params
         ).fetchall():
             erm_by_level[row["lvl"]] = row["c"]
 
@@ -201,7 +237,8 @@ async def api_risk_stats(request: Request):
         by_module["erm"] = by_module.get("erm", 0) + erm_total
 
         heat_data = db.execute(
-            "SELECT likelihood, impact, COUNT(*) as c FROM risk_register WHERE status != 'closed' GROUP BY likelihood, impact"
+            f"SELECT likelihood, impact, COUNT(*) as c FROM risk_register WHERE {rr_scope} "
+            "AND status != 'closed' GROUP BY likelihood, impact", rr_params
         ).fetchall()
     finally:
         db.close()
@@ -216,12 +253,13 @@ async def api_risk_stats(request: Request):
 @router.get("/api/risks/{rid}")
 @require_auth
 async def api_risk_get(request: Request, rid: int):
-    """Get a single risk with full details."""
+    """Get a single risk with full details (404, never 403, for one outside the caller's scope)."""
+    scope, params = table_scope("risk_register", request.state.user, "r")
     db = get_db()
     try:
         row = db.execute(
             "SELECT r.*, u.full_name as owner_name FROM risk_register r "
-            "LEFT JOIN users u ON r.owner_id = u.id WHERE r.id = %s", (rid,)
+            f"LEFT JOIN users u ON r.owner_id = u.id WHERE r.id = %s AND {scope}", (rid, *params)
         ).fetchone()
         if not row:
             raise HTTPException(404, "Risk not found")
@@ -234,12 +272,17 @@ async def api_risk_get(request: Request, rid: int):
 @require_auth
 async def api_risk_update(request: Request, rid: int):
     """Update a risk entry."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     db = get_db()
     try:
         allowed = ["title", "description", "category", "likelihood", "impact",
                    "owner_id", "treatment", "treatment_plan", "status", "review_date",
-                   "source_module", "source_entity_type", "source_entity_id"]
+                   "source_module", "source_entity_type", "source_entity_id", "business_unit_id"]
+        if "business_unit_id" in data:  # how a risk whose owner was never known is placed (null = organization wide)
+            data["business_unit_id"] = (None if data["business_unit_id"] in (None, "")
+                                        else _active_unit(db, data["business_unit_id"]))
         sets = []
         vals = []
         for k in allowed:
@@ -269,6 +312,8 @@ async def api_risk_update(request: Request, rid: int):
 @require_auth
 async def api_risk_delete(request: Request, rid: int):
     """Close/archive a risk."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         db.execute("UPDATE risk_register SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = %s", (rid,))

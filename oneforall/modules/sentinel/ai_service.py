@@ -13,7 +13,7 @@ import httpx
 from core.ai_client import create_message, safe_json_parse, wrap_user_input as _u
 
 
-async def call_ai(system: str, user: str, max_tokens: int = 4096):
+async def call_ai(system: str, user: str, max_tokens: int = 4096, *, feature: str):
     """Returns (text, error_message). Thin async wrapper around core.ai_client.
 
     core.ai_client is synchronous by design (used by sync ai_service.py callers
@@ -21,7 +21,8 @@ async def call_ai(system: str, user: str, max_tokens: int = 4096):
     """
     try:
         text = await asyncio.to_thread(
-            create_message, [{"role": "user", "content": user}], system, max_tokens
+            create_message, [{"role": "user", "content": user}], system, max_tokens,
+            feature=feature,
         )
         return text, None
     except httpx.HTTPStatusError as e:
@@ -444,7 +445,7 @@ Write a structured research report covering:
 8. Data subject rights implications under {regulation}
 
 Be specific, cite the law, and make this immediately useful for completing the DPIA.{_guidance_block(custom_instructions)}"""
-    return await call_ai(system, user, max_tokens=3000)
+    return await call_ai(system, user, max_tokens=3000, feature="sentinel.ai_research")
 
 
 async def ai_generate_full_dpia(dpia: dict, custom_instructions: str = ""):
@@ -480,7 +481,7 @@ Write a full DPIA with all sections: Executive Summary, Description of Processin
 Necessity & Proportionality, Data Subject Rights, Risk Assessment (with likelihood/severity matrix),
 Risk Mitigation (technical & organisational), Residual Risk, Consultation, Conclusion & Decision.
 Cite {regulation} throughout.{_guidance_block(custom_instructions)}"""
-    return await call_ai(system, user, max_tokens=6000)
+    return await call_ai(system, user, max_tokens=6000, feature="sentinel.ai_generate_full_dpia")
 
 
 async def ai_suggest_risks(activity: str, regulation: str, categories: list):
@@ -490,7 +491,7 @@ async def ai_suggest_risks(activity: str, regulation: str, categories: list):
     user = f"""For processing activity {_u(activity)} under {regulation} involving {_u(cats)},
 return a JSON array of 5 risks:
 [{{"desc":"Short risk description","likelihood":"High|Medium|Low","impact":"High|Medium|Low","mitigation":"Mitigation measure"}}]"""
-    text, err = await call_ai(system, user, max_tokens=800)
+    text, err = await call_ai(system, user, max_tokens=800, feature="sentinel.ai_suggest_risks")
     if err:
         return None, err
     result = safe_json_parse(text)
@@ -517,7 +518,7 @@ International transfers: {ropa.get('intl_transfers')}
 Regulation: {ropa.get('regulation', 'GDPR')}
 
 Return JSON: {{"risk_score": "low|medium|high|critical", "rationale": "2-3 sentence explanation", "dpia_required": true|false, "flags": ["flag1","flag2"]}}"""
-    text, err = await call_ai(system, user, max_tokens=500)
+    text, err = await call_ai(system, user, max_tokens=500, feature="sentinel.ai_score_ropa")
     if err:
         return None, err
     result = safe_json_parse(text)
@@ -549,7 +550,7 @@ Allowed legal basis options (choose exactly one, copy verbatim):
 {chr(10).join('- ' + o for o in options)}
 
 Return ONLY: {{"legal_basis": "<copy one option exactly as listed above>", "rationale": "<1-2 sentences>"}}"""
-    text, err = await call_ai(system, user, max_tokens=300)
+    text, err = await call_ai(system, user, max_tokens=300, feature="sentinel.ai_suggest_legal_basis")
     if err:
         return None, err
     result = safe_json_parse(text)
@@ -598,7 +599,7 @@ Provide:
 6. REGULATORY RISK — Potential fines/enforcement risk
 
 Be specific and practical."""
-    return await call_ai(system, user, max_tokens=2000)
+    return await call_ai(system, user, max_tokens=2000, feature="sentinel.ai_assess_breach")
 
 
 async def ai_draft_dsr_response(dsr: dict):
@@ -628,7 +629,7 @@ Write a professional response letter that:
 - Gives the timeline
 - Provides escalation/complaint options
 - Is properly formatted as a formal letter"""
-    return await call_ai(system, user, max_tokens=1500)
+    return await call_ai(system, user, max_tokens=1500, feature="sentinel.ai_draft_dsr_response")
 
 
 async def ai_generate_privacy_notice(data: dict):
@@ -666,7 +667,7 @@ Write a complete privacy notice with all required sections:
 10. How to contact us / Changes to this notice
 
 Use plain language. Organise with clear headings."""
-    return await call_ai(system, user, max_tokens=3000)
+    return await call_ai(system, user, max_tokens=3000, feature="sentinel.ai_generate_privacy_notice")
 
 
 async def ai_vendor_check(vendor: dict):
@@ -693,7 +694,7 @@ Provide:
 4. DUE DILIGENCE CHECKLIST — 5 things to verify
 5. TRANSFER MECHANISM — what safeguard is needed for cross-border transfers
 6. RECOMMENDATION — approve/approve with conditions/reject"""
-    return await call_ai(system, user, max_tokens=1500)
+    return await call_ai(system, user, max_tokens=1500, feature="sentinel.ai_vendor_check")
 
 
 async def ai_chat(message: str, regulation: str = None, history: list = None):
@@ -723,7 +724,7 @@ async def ai_chat(message: str, regulation: str = None, history: list = None):
     messages.append({"role": "user", "content": _u(message)})
 
     try:
-        text = await asyncio.to_thread(create_message, messages, system, 1500)
+        text = await asyncio.to_thread(create_message, messages, system, 1500, feature="sentinel.ai_chat")
         return text, None
     except httpx.HTTPStatusError as e:
         try:
@@ -759,4 +760,4 @@ Identify:
 4. PRIORITY ACTIONS — top 5 actions to become compliant
 5. TIMELINE — suggested implementation timeline
 6. QUICK WINS — what is already compliant"""
-    return await call_ai(system, user, max_tokens=2500)
+    return await call_ai(system, user, max_tokens=2500, feature="sentinel.ai_gap_analysis")

@@ -1,0 +1,29 @@
+{% extends "base_shell.html" %}
+{% block title %}AI Systems | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">AI Systems</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">AI Systems</h1>
+      <p class="aig-lede">Every use of AI in the organization that has been registered, with its owner, tier and next review. You see the uses in your business unit and the ones that belong to the whole organization.</p>
+    </div>
+    <div class="aig-head-actions">
+      {% if can_register %}<a class="btn btn-primary" href="/ai-governance/register">Register an AI use</a>{% endif %}
+      {% if can_review %}<a class="btn btn-secondary" href="/ai-governance/review">Review requests</a>{% endif %}
+    </div>
+  </div>
+  <div id="aigInventory"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_lists.js?v=1"></script>
+<script>
+  AIGov.inventory(document.getElementById('aigInventory'), { canRegister: {{ 'true' if can_register else 'false' }} });
+</script>
+{% endblock %}

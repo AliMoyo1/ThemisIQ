@@ -96,7 +96,8 @@ def _init_test_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             evidence_id INTEGER NOT NULL, module TEXT NOT NULL,
             entity_type TEXT NOT NULL, entity_id INTEGER NOT NULL,
-            linked_by INTEGER, created_at TEXT DEFAULT (datetime('now'))
+            linked_by INTEGER, created_at TEXT DEFAULT (datetime('now')),
+            deleted_at TEXT
         );
         CREATE TABLE IF NOT EXISTS control_effectiveness_scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

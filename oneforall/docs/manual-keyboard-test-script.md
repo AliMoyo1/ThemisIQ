@@ -88,10 +88,15 @@ These predate ModalManager and use a separate `DialogFocus` utility
 - **People Directory**: open a person's profile drawer, confirm the
   same Tab-trap/Escape/focus-restore behavior.
 - **Vendor Directory**: same, for a vendor profile.
-- **Sentinel**: open a RoPA (or DPIA/AIIA) record, switch between its
+- **Sentinel**: open a RoPA (or DPIA) record, switch between its
   internal tabs (Data/Systems/Risk) via Tab and Enter — confirm the tab
   buttons themselves are reachable and activatable, and that switching
   tabs doesn't strand focus somewhere invisible.
+- **AI Governance, impact assessments**: open an assessment from
+  `/ai-governance/assessments` (it moved here from Sentinel). Tab through
+  the four sections, score a dimension with the keyboard only, open the
+  "Choose" pickers for the AI system and for a RoPA, and confirm each
+  dialog traps Tab and Escape returns focus to the button that opened it.
 - **ARIA**: open the "Ask ARIA" floating widget via its button. Confirm
   the same Tab-trap/Escape/restore-to-launcher-button behavior, and that
   the initial focus lands in the question input specifically (not just

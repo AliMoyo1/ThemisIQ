@@ -284,6 +284,7 @@ def compose_briefing(db, today: str) -> int:
                         "Be direct and actionable."
                     ),
                     max_tokens=120,
+                    feature="core.compose_briefing",
                 )
             except Exception:
                 log.warning("AI narrative generation failed — continuing without it")
