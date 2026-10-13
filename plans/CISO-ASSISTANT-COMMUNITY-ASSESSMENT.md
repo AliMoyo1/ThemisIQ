@@ -1,7 +1,7 @@
 # CISO Assistant Community: feature assessment for ThemisIQ
 
-**Date:** 2026-10-07  
-**Status:** Assessment and product proposals only. No feature or deployment change is implied.  
+**Date:** 2026-10-07
+**Status:** Assessment and product proposals only. No feature or deployment change is implied.
 **Basis:** [CISO Assistant's repository](https://github.com/intuitem/ciso-assistant-community/), linked product documentation, its [Community/Pro comparison](https://intuitem.com/compare), and the ThemisIQ checkout and plans reviewed on this date. This is a documentation and source review, not a hands-on evaluation of a configured CISO Assistant instance or the live ThemisIQ tenant.
 
 **Build plans:** [CISO Assistant feature sequence](ciso-assistant-features/README.md) and the [cross-plan portfolio](ROADMAP-2026-10.md). The assessment below explains the original choice; those files own the proposed delivery slices. The supplied feature list was assessed separately on 2026-10-08 in the [attachment review](ciso-assistant-features/ATTACHMENT-REVIEW-2026-10-08.md), which advances framework-import discovery and separates accountless external invitations from signed-in respondent mode.
