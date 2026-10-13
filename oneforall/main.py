@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.gzip import GZipMiddleware
 
 from config import settings
-from database import init_db, get_db, OperationalError
+from database import init_db, get_db, get_db_bypass_rls, OperationalError
 from core.middleware import (
     security_headers_middleware, csrf_origin_middleware, tenant_context_middleware,
     cors_block_middleware, body_size_limit_middleware, SanitizeJsonMiddleware,
@@ -97,8 +97,8 @@ async def startup():
     except Exception as _e:
         log.warning("aria_ask_index init skipped: %s", _e)
 
-    # Auto-seed if no users exist
-    db = get_db()
+    # Bootstrap checks the global users table before any request has an RLS scope.
+    db = get_db_bypass_rls()
     try:
         count = db.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
     finally:
@@ -112,7 +112,7 @@ async def startup():
     # Ensure the default organisation exists and all users are assigned to it.
     # This is idempotent — safe to run on every startup.
     if settings.is_postgres():
-        db3 = get_db()
+        db3 = get_db_bypass_rls()
         try:
             org = db3.execute(
                 "SELECT id FROM organizations WHERE slug = 'public'"

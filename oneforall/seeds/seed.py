@@ -9,7 +9,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import get_db, init_db, insert_returning_id
+from database import get_db_bypass_rls, init_db, insert_returning_id
 from core.auth import hash_password
 from core.rbac import SUPER_ADMIN, COMPLIANCE_MGR, DPO, AUDIT_LEAD, BCM_MANAGER
 
@@ -140,7 +140,8 @@ def seed_controls():
 def run_seed():
     print("One For All - Seeding database...")
     init_db()
-    db = get_db()
+    # This script bootstraps users before there is a tenant or user RLS scope.
+    db = get_db_bypass_rls()
     try:
         seed_users(db)
         seed_frameworks(db)
