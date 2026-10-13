@@ -1,5 +1,5 @@
 {
-  "route_count": 1012,
+  "route_count": 1034,
   "entries": [
     {
       "path": "/openapi.json",
@@ -999,6 +999,329 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/literacy/courses",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.manage"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_courses",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/courses",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.manage"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/courses/{course_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.manage"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_course",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/courses/{course_id}",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.manage"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/courses/{course_id}/publish",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.manage"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_publish",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/courses/{course_id}/retire",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.manage"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_retire",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/coverage",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.report"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.report": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_coverage",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/coverage/{course_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.report"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.report": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_course_coverage",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/mine",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.take"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.take": [
+          "audit_lead",
+          "auditor",
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "org_admin",
+          "policy_approver",
+          "policy_author",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_mine",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/units",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.manage"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_units",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/{course_id}/complete",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.take"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.take": [
+          "audit_lead",
+          "auditor",
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "org_admin",
+          "policy_approver",
+          "policy_author",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_complete",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/literacy/{course_id}/learn",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.take"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.take": [
+          "audit_lead",
+          "auditor",
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "org_admin",
+          "policy_approver",
+          "policy_author",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_literacy_learn",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/ai-governance/api/pack-recipients",
       "methods": [
         "GET"
@@ -1223,6 +1546,66 @@
       },
       "license_modules_required": [],
       "name": "api_people",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/platform-features",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_governance.platform.manage"
+      ],
+      "roles_by_capability": {
+        "ai_governance.platform.manage": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_platform_features",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/platform-features/{feature_key}",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_governance.platform.manage"
+      ],
+      "roles_by_capability": {
+        "ai_governance.platform.manage": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_platform_feature_save",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/platform-features/{feature_key}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_governance.platform.manage"
+      ],
+      "roles_by_capability": {
+        "ai_governance.platform.manage": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_platform_feature_review",
       "maturity": "",
       "notes": ""
     },
@@ -2151,6 +2534,115 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/systems/{application_id}/oversight-people",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_oversight_people",
+      "maturity": "pilot-only",
+      "notes": "Scoped eligible-person search for G7 human oversight. Pilot acceptance is pending."
+    },
+    {
+      "path": "/ai-governance/api/systems/{application_id}/oversight/{track}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.view"
+      ],
+      "roles_by_capability": {
+        "ai_use.view": [
+          "audit_lead",
+          "auditor",
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "org_admin",
+          "policy_approver",
+          "policy_author",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_oversight",
+      "maturity": "pilot-only",
+      "notes": "Reads versioned human oversight arrangements. This does not determine legal conformity."
+    },
+    {
+      "path": "/ai-governance/api/systems/{application_id}/oversight/{track}",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_oversight_save",
+      "maturity": "pilot-only",
+      "notes": "Saves a new oversight draft version with scoped responsibility. Pilot acceptance is pending."
+    },
+    {
+      "path": "/ai-governance/api/systems/{application_id}/oversight/{track}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.decide"
+      ],
+      "roles_by_capability": {
+        "ai_use.decide": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_oversight_review",
+      "maturity": "pilot-only",
+      "notes": "Independent review of the current oversight version. Legal rule content remains disabled."
+    },
+    {
       "path": "/ai-governance/api/systems/{application_id}/packs",
       "methods": [
         "GET"
@@ -2660,6 +3152,93 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/literacy",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.take",
+        "ai_literacy.manage",
+        "ai_literacy.report"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.take": [
+          "audit_lead",
+          "auditor",
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "org_admin",
+          "policy_approver",
+          "policy_author",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ],
+        "ai_literacy.manage": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "super_admin"
+        ],
+        "ai_literacy.report": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "literacy_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/literacy/{course_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_literacy.take"
+      ],
+      "roles_by_capability": {
+        "ai_literacy.take": [
+          "audit_lead",
+          "auditor",
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "org_admin",
+          "policy_approver",
+          "policy_author",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "literacy_course_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/ai-governance/packs",
       "methods": [
         "GET"
@@ -2726,6 +3305,26 @@
       },
       "license_modules_required": [],
       "name": "pack_page",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/platform-features",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_governance.platform.manage"
+      ],
+      "roles_by_capability": {
+        "ai_governance.platform.manage": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "platform_features_page",
       "maturity": "",
       "notes": ""
     },

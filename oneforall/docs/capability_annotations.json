@@ -59,6 +59,22 @@
     "GET /readiness/api/findings": {
       "maturity": "gated",
       "notes": "Scoped data-readiness findings and licensed rule coverage. Build awaiting final regression validation."
+    },
+    "GET /ai-governance/api/systems/{application_id}/oversight-people": {
+      "maturity": "pilot-only",
+      "notes": "Scoped eligible-person search for G7 human oversight. Pilot acceptance is pending."
+    },
+    "GET /ai-governance/api/systems/{application_id}/oversight/{track}": {
+      "maturity": "pilot-only",
+      "notes": "Reads versioned human oversight arrangements. This does not determine legal conformity."
+    },
+    "PUT /ai-governance/api/systems/{application_id}/oversight/{track}": {
+      "maturity": "pilot-only",
+      "notes": "Saves a new oversight draft version with scoped responsibility. Pilot acceptance is pending."
+    },
+    "POST /ai-governance/api/systems/{application_id}/oversight/{track}/review": {
+      "maturity": "pilot-only",
+      "notes": "Independent review of the current oversight version. Legal rule content remains disabled."
     }
   }
 }

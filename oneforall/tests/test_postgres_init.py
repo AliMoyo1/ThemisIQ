@@ -3557,18 +3557,34 @@ def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
 
 def test_g7_oversight_versions_are_tenant_scoped_on_real_postgres(pg):
     from modules.ai_governance import oversight
+    from modules.ai_governance.service import ServiceError
 
     pg.init_db()
-    org, _unit, ids, who = _ai_governance_world(pg, "g7oversight")
+    org, unit, ids, who = _ai_governance_world(pg, "g7oversight")
+    shared = pg.get_db_bypass_rls()
+    try:
+        # Users are shared, while the unit belongs to the provisioned tenant schema.
+        shared.execute("UPDATE users SET business_unit_id = %s WHERE id IN (%s, %s, %s)",
+                       (unit, ids["author"], ids["reviewer"], ids["second"]))
+        shared.commit()
+    finally:
+        shared.close()
     with pg.tenant_context(org, "g7oversight", is_super_admin=False):
         db = pg.get_db()
         try:
-            # Provisioned tenant users have a public NULL unit in this fixture. Use an organization-wide app here;
-            # the focused SQLite cases cover assignments to a unit-scoped app.
+            other_unit = pg.insert_returning_id(db,
+                "INSERT INTO business_units (name, is_active) VALUES ('Other AI unit', 1)", ())
             app = pg.insert_returning_id(db,
-                "INSERT INTO applications (name, is_active) VALUES ('G7 use', 1)", ())
+                "INSERT INTO applications (name, business_unit_id, is_active) VALUES ('G7 use', %s, 1)", (unit,))
+            hidden_app = pg.insert_returning_id(db,
+                "INSERT INTO applications (name, business_unit_id, is_active) VALUES ('Hidden G7 use', %s, 1)",
+                (other_unit,))
             db.execute("INSERT INTO ai_use_profiles (application_id, version) VALUES (%s, 1)", (app,))
+            db.execute("INSERT INTO ai_use_profiles (application_id, version) VALUES (%s, 1)", (hidden_app,))
             db.commit()
+            with pytest.raises(ServiceError) as hidden:
+                oversight.get_arrangement(db, who["reviewer"], hidden_app, "operation")
+            assert hidden.value.status == 404
             saved = oversight.save_arrangement(db, who["reviewer"], app, "operation", {
                 "responsible_user_id": ids["author"],
                 "monitoring_method": "Review outputs daily",
