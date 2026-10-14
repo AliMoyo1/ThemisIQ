@@ -5,6 +5,7 @@ event workflow, SLA tracking, and RCSA.
 """
 from datetime import datetime, timedelta
 from core.timeutils import utcnow
+from core.change_watch import watched
 from database import get_db, insert_returning_id
 from core.best_effort import swallowed
 
@@ -112,6 +113,7 @@ def create_event(data):
         db.close()
 
 
+@watched("orm", "event")
 def update_event(event_id, data):
     db = get_db()
     try:
@@ -197,6 +199,7 @@ def create_kri(data):
         db.close()
 
 
+@watched("orm", "kri")
 def update_kri(kri_id, data, user_id=None):
     db = get_db()
     try:

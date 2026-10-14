@@ -443,6 +443,30 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
     return items
 
 
+def _change_reviews(db, user: dict) -> list[dict]:
+    """Connected records whose owner is asked to say whether a change elsewhere needs a second look."""
+    from modules.governance import change_signals
+    items = []
+    for entry in change_signals.list_open(db, user, limit=100):
+        title = f"Look again at {entry['target']['title']}: {entry['source']['title']} changed"
+        items.append({
+            "source_module": "governance", "entity_type": "change_review", "entity_id": entry["id"],
+            "action": "review_change", "title": title[:200], "due_date": None, "priority": "medium",
+            "org_id": user.get("org_id"), "business_unit_id": None,
+            "link": f"/governance/changes#target-{entry['id']}", "section": "needs_my_action"})
+    return items
+
+
+def _evidence_reviews(db, user: dict) -> list[dict]:
+    """Links between a file and a record that wait for a reviewer other than the person who attached them."""
+    from modules.evidence import proof
+    return [{
+        "source_module": "evidence", "entity_type": "link_review", "entity_id": r["link_id"], "action": "review_evidence",
+        "title": f"Review evidence: {r['title']} for {r['claim']}"[:200], "due_date": None, "priority": "medium",
+        "org_id": user.get("org_id"), "business_unit_id": None, "link": f"/evidence/?open=item:{r['evidence_id']}",
+        "section": "needs_my_action"} for r in proof.pending_reviews(db, user, limit=100)]
+
+
 def _intake_name(payload) -> str:
     try:
         return (json.loads(payload or "{}").get("name") or "An AI use").strip()
@@ -498,6 +522,8 @@ def get_my_work(user: dict, *, source: str = "", section: str = "",
         ("bcm_incidents", "bcm", lambda: _bcm_incidents(db, user, scope)),
         ("privacy_deadlines", "sentinel", lambda: _privacy_deadlines(db, user, scope)),
         ("ai_governance", None, lambda: _ai_governance_work(db, user, scope)),
+        ("change_reviews", None, lambda: _change_reviews(db, user)),
+        ("evidence_reviews", None, lambda: _evidence_reviews(db, user)),
     ]
     all_items = []
     source_states = []

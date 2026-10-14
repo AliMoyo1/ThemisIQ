@@ -6,19 +6,21 @@ describe a use, ai_use.review to review requests and edit profiles, ai_use.view 
 ai_use.link to link records. Every change runs in one transaction: it is committed only if the whole step worked, then
 audited, and its events are delivered.
 """
+import json
 import logging
 import re
 
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from core.middleware import require_capability
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, tenant_context
-from modules.ai_governance import (assessments, controls, decisions, evaluations, explain, guidance, handlers, literacy, monitoring, oversight,  # noqa: F401  (handlers register themselves)
-                                   platform_features, quality, regulation, review_packs, rules, service, workspace)
+from modules.ai_governance import (assessments, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
+                                   import_rules, imports, literacy, monitoring, outstanding, oversight, overview, platform_features,
+                                   precedents, quality, questions, regulation, review_packs, rules, service, workspace)
 from modules.ai_governance.service import ServiceError
 
 log = logging.getLogger("oneforall.ai_governance")
@@ -157,8 +159,21 @@ async def literacy_course_page(request: Request, course_id: int):
 
 @router.get("/", response_class=HTMLResponse)
 @require_capability("ai_use.view")
+async def overview_page(request: Request):
+    """The first screen: what needs action today (plans/2026-10-governance-rework/01 section 3)."""
+    return _page(request, "overview.html", "overview")
+
+
+@router.get("/systems", response_class=HTMLResponse)
+@require_capability("ai_use.view")
 async def inventory_page(request: Request):
     return _page(request, "inventory.html", "inventory")
+
+
+@router.get("/monitoring", response_class=HTMLResponse)
+@require_capability("ai_use.view")
+async def monitoring_page(request: Request):
+    return _page(request, "monitoring.html", "monitoring")
 
 
 @router.get("/systems/{application_id}", response_class=HTMLResponse)
@@ -262,6 +277,15 @@ async def intake_page(request: Request, intake_id: int):
 @require_capability("ai_use.review")
 async def review_page(request: Request):
     return _page(request, "review.html", "review")
+
+
+@router.get("/import", response_class=HTMLResponse)
+@require_capability("ai_use.review")
+async def import_page(request: Request):
+    """Bring in the responses of an external form (plans/2026-10-governance-rework/01 section 4)."""
+    response = _page(request, "import.html", "review")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ── Vocabulary and pickers ──────────────────────────────────────────────────
@@ -397,7 +421,7 @@ async def api_submit_request(request: Request, intake_id: int):
 @require_capability("ai_use.review")
 async def api_review_queue(request: Request):
     status = request.query_params.get("status") or "submitted"
-    if status not in ("submitted", "returned", "approved", "rejected"):
+    if status not in ("submitted", "returned", "approved", "rejected", "waiting"):
         return JSONResponse({"ok": False, "error": "Unknown status."}, status_code=400)
     return _read(request, lambda db, user: service.review_queue(db, user, status))
 
@@ -774,6 +798,260 @@ async def api_oversight_review(request: Request, application_id: int, track: str
 
 
 # ── Monitoring, evaluation records, regulatory impact, explanations (plans/ai-governance/08) ──
+
+# ── Importing the responses of an external form ─────────────────────────────
+
+def _private(response, status_code=None):
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/import/guide")
+@require_capability("ai_use.review")
+async def api_import_guide(request: Request):
+    return _private(JSONResponse({"ok": True, **imports.guide()}))
+
+
+@router.get("/api/import/template.csv")
+@require_capability("ai_use.review")
+async def api_import_template(request: Request):
+    return Response(import_rules.template_csv(), media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": 'attachment; filename="ai-use-intake-form-template.csv"', "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff"})
+
+
+@router.post("/api/import/preview")
+@require_capability("ai_use.review")
+async def api_import_preview(request: Request, file: UploadFile = File(...), source_system: str = Form(""),
+                             form_name: str = Form(""), export_date: str = Form(""), date_order: str = Form("iso"),
+                             business_unit_id: str = Form(""), mapping: str = Form("")):
+    data = await file.read(import_rules.MAX_FILE_BYTES + 1)
+    unit = None
+    if business_unit_id.strip():
+        if not business_unit_id.strip().isdigit() or len(business_unit_id.strip()) > 9:
+            return JSONResponse({"ok": False, "error": "Choose a business unit from the list."}, status_code=400)
+        unit = int(business_unit_id.strip())
+    chosen = None
+    if mapping.strip():
+        try:
+            chosen = json.loads(mapping)
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "The column mapping could not be read."}, status_code=400)
+        if not isinstance(chosen, dict):
+            return JSONResponse({"ok": False, "error": "The column mapping must be an object."}, status_code=400)
+    return _private(_transact(request, lambda db, user: imports.preview(
+        db, user, data=data, filename=file.filename or "", source_system=source_system, form_name=form_name,
+        export_date=export_date or None, mapping=chosen, date_order=date_order, business_unit_id=unit), 201))
+
+
+@router.get("/api/import/batches")
+@require_capability("ai_use.review")
+async def api_import_batches(request: Request):
+    return _private(_read(request, lambda db, user: imports.list_batches(db, user)))
+
+
+@router.get("/api/import/batches/{batch_id}")
+@require_capability("ai_use.review")
+async def api_import_batch(request: Request, batch_id: int):
+    return _private(_read(request, lambda db, user: imports.get_batch(db, user, batch_id)))
+
+
+@router.post("/api/import/batches/{batch_id}/confirm")
+@require_capability("ai_use.review")
+async def api_import_confirm(request: Request, batch_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: imports.confirm(db, user, batch_id, body.get("version"), body.get("rows"))))
+
+
+@router.post("/api/import/batches/{batch_id}/discard")
+@require_capability("ai_use.review")
+async def api_import_discard(request: Request, batch_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: imports.discard(db, user, batch_id, body.get("version"))))
+
+
+# ── The review desk: outstanding items, precedents, questions for the requester ──
+
+@router.get("/api/systems/{application_id}/outstanding")
+@require_capability("ai_use.view")
+async def api_outstanding(request: Request, application_id: int):
+    return _read(request, lambda db, user: outstanding.get_outstanding(db, user, application_id))
+
+
+@router.get("/api/systems/{application_id}/precedents")
+@require_capability("ai_use.review")
+async def api_use_precedents(request: Request, application_id: int):
+    return _read(request, lambda db, user: precedents.for_use(db, user, application_id))
+
+
+@router.get("/api/requests/{intake_id}/precedents")
+@require_capability("ai_use.review")
+async def api_request_precedents(request: Request, intake_id: int):
+    return _read(request, lambda db, user: precedents.for_request(db, user, intake_id))
+
+
+@router.put("/api/precedents")
+@require_capability("ai_use.review")
+async def api_precedent_verdict(request: Request):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: precedents.set_verdict(
+        db, user, body.get("subject_kind"), body.get("subject_id"), body.get("candidate_id"), body.get("verdict"), body.get("note")))
+
+
+@router.get("/api/requests/{intake_id}/questions")
+@require_capability("ai_use.view")
+async def api_questions(request: Request, intake_id: int):
+    return _read(request, lambda db, user: questions.list_questions(db, user, intake_id))
+
+
+@router.post("/api/requests/{intake_id}/questions")
+@require_capability("ai_use.review")
+async def api_questions_ask(request: Request, intake_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: questions.ask(db, user, intake_id, body.get("questions")), 201)
+
+
+@router.post("/api/requests/{intake_id}/questions/export")
+@require_capability("ai_use.review")
+async def api_questions_export(request: Request, intake_id: int):
+    return _private(_transact(request, lambda db, user: questions.export_text(db, user, intake_id)))
+
+
+@router.post("/api/questions/{question_id}/answer")
+@require_capability("ai_use.review")
+async def api_question_answer(request: Request, question_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: questions.answer(
+        db, user, question_id, body.get("answer"), body.get("source"), body.get("version")))
+
+
+@router.post("/api/questions/{question_id}/withdraw")
+@require_capability("ai_use.review")
+async def api_question_withdraw(request: Request, question_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: questions.withdraw(db, user, question_id, body.get("version")))
+
+
+# ── The response to a requester ─────────────────────────────────────────────
+
+@router.get("/api/systems/{application_id}/responses")
+@require_capability("ai_use.review")
+async def api_responses(request: Request, application_id: int):
+    return _private(_read(request, lambda db, user: external_responses.list_for_use(db, user, application_id)))
+
+
+@router.post("/api/systems/{application_id}/responses")
+@require_capability("ai_use.review")
+async def api_response_draft(request: Request, application_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: external_responses.create_draft(db, user, application_id, body.get("intake_id")), 201))
+
+
+@router.get("/api/responses/{response_id}")
+@require_capability("ai_use.review")
+async def api_response(request: Request, response_id: int):
+    return _private(_read(request, lambda db, user: external_responses.get_response(db, user, response_id)))
+
+
+@router.put("/api/responses/{response_id}")
+@require_capability("ai_use.review")
+async def api_response_edit(request: Request, response_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: external_responses.update_draft(db, user, response_id, body.get("fields"), body.get("version"))))
+
+
+@router.post("/api/responses/{response_id}/approve")
+@require_capability("ai_use.decide")
+async def api_response_approve(request: Request, response_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: external_responses.approve(db, user, response_id, body.get("version"))))
+
+
+@router.post("/api/responses/{response_id}/export")
+@require_capability("ai_use.review")
+async def api_response_export(request: Request, response_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    user = request.state.user
+    db = get_db()
+    try:
+        result = external_responses.export(db, user, response_id, body.get("format"))
+        db.commit()
+    except ServiceError as exc:
+        db.rollback()
+        return _error(exc)
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+    service.audit(user, result)
+    return Response(result["body"], media_type=result["media_type"], headers={
+        "Content-Disposition": f'attachment; filename="{result["filename"]}"', "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff"})
+
+
+@router.post("/api/responses/{response_id}/sent")
+@require_capability("ai_use.review")
+async def api_response_sent(request: Request, response_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: external_responses.mark_sent(
+        db, user, response_id, body.get("sent_at"), body.get("channel"), body.get("reference"), body.get("version"))))
+
+
+@router.post("/api/responses/{response_id}/withdraw")
+@require_capability("ai_use.review")
+async def api_response_withdraw(request: Request, response_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: external_responses.withdraw(db, user, response_id, body.get("reason"), body.get("version"))))
+
+
+@router.get("/api/overview")
+@require_capability("ai_use.view")
+async def api_overview(request: Request):
+    return _read(request, lambda db, user: overview.get_overview(db, user))
+
+
+@router.get("/api/portfolio")
+@require_capability("ai_use.view")
+async def api_portfolio(request: Request):
+    return _read(request, lambda db, user: monitoring.get_portfolio(db, user, focus=request.query_params.get("focus") or None))
+
 
 @router.get("/api/systems/{application_id}/monitoring")
 @require_capability("ai_use.view")

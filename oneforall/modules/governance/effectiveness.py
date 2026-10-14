@@ -65,6 +65,7 @@ def _score_one_control(db, cid: int) -> dict:
                 "WHERE el.entity_type = 'canonical_control' AND el.entity_id = %s "
                 "AND el.deleted_at IS NULL "
                 "AND ei.status = 'current' "
+                "AND COALESCE(el.review_status, 'pending') NOT IN ('returned', 'rejected', 'out_of_scope') "
                 "AND (ei.expiry_date IS NULL OR ei.expiry_date > %s)",
                 (cid, today_str),
             ).fetchone()[0]
@@ -81,6 +82,7 @@ def _score_one_control(db, cid: int) -> dict:
                     "WHERE el.entity_type = 'canonical_control' AND el.entity_id = %s "
                     "AND el.deleted_at IS NULL "
                     "AND ei.status = 'current' "
+                    "AND COALESCE(el.review_status, 'pending') NOT IN ('returned', 'rejected', 'out_of_scope') "
                     "AND ei.expiry_date IS NOT NULL AND ei.expiry_date <= %s",
                     (cid, cutoff_7d),
                 ).fetchone()[0]

@@ -12,6 +12,7 @@ tabs carry real ARIA tab semantics (role=tab/tabpanel, aria-selected).
 def test_stats_bar_cards_are_real_buttons_not_divs(login_as, live_app):
     page = login_as("super_admin")
     page.goto(f"{live_app}/evidence")
+    page.click("#evInsights > summary")
     page.wait_for_selector("#statsBar button")
     tags = page.eval_on_selector_all(
         "#statsBar > *", "els => els.map(e => e.tagName)"
@@ -28,6 +29,7 @@ def test_stats_bar_card_is_keyboard_operable(login_as, live_app):
     window.currentView stays 'all'. Restored, this passes."""
     page = login_as("super_admin")
     page.goto(f"{live_app}/evidence")
+    page.click("#evInsights > summary")
     page.wait_for_selector("#statsBar button")
     expiring_btn = page.locator("#statsBar button", has_text="Expiring 30d")
     expiring_btn.focus()
@@ -41,7 +43,7 @@ def test_recent_and_grid_cards_are_buttons(login_as, live_app):
     page = login_as("super_admin")
     page.goto(f"{live_app}/evidence")
     page.wait_for_load_state("networkidle")
-    # Grid view is the default; card wrapper must be a real button.
+    # The list is the default; the card wrapper of the cards view must still be a real button.
     page.wait_for_selector("#viewGrid button.card, #viewGrid .empty-state, #emptyState",
                             state="attached", timeout=5000)
 

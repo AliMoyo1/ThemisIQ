@@ -101,7 +101,7 @@ def test_the_journey_from_a_staff_draft_to_an_accepted_ai_system(login_as, live_
     page.click("button:has-text('Accept')")
     page.wait_for_selector(".aig-say-good:has-text('Accepted')")
 
-    page.goto(f"{live_app}/ai-governance/?q={unique.replace(' ', '+')}")
+    page.goto(f"{live_app}/ai-governance/systems?q={unique.replace(' ', '+')}")
     page.wait_for_selector(f"a:has-text('{unique}')")
     page.click(f"a:has-text('{unique}')")
     page.wait_for_selector(".aig-tab.is-current:has-text('Overview')")
@@ -115,14 +115,17 @@ def test_the_workspace_tabs_work_from_the_keyboard_and_say_what_they_cannot_show
     login_as("dpo")
     page.goto(f"{live_app}/ai-governance/review")
     page.click(f".aig-queue-item:has-text('{unique}')")
-    page.wait_for_selector("button:has-text('Accept')")
+    page.wait_for_selector(f"h2:has-text('{unique}')")
     page.click("button:has-text('Accept')")
     page.wait_for_selector(".aig-say-good:has-text('Accepted')")
-    page.goto(f"{live_app}/ai-governance/?q={unique.replace(' ', '+')}")
+    page.goto(f"{live_app}/ai-governance/systems?q={unique.replace(' ', '+')}")
     page.click(f"a:has-text('{unique}')")
     page.wait_for_selector(".aig-tab.is-current:has-text('Overview')")
 
     page.focus("#aigtab_overview")
+    page.keyboard.press("ArrowRight")
+    page.wait_for_selector(".aig-tab.is-current:has-text('Review desk')")
+    assert page.evaluate("document.activeElement.id") == "aigtab_review_desk"
     page.keyboard.press("ArrowRight")
     page.wait_for_selector(".aig-tab.is-current:has-text('Assessments')")
     assert page.evaluate("document.activeElement.id") == "aigtab_assessments"
@@ -147,9 +150,10 @@ def test_a_reviewer_adopts_a_tier_and_retires_the_use_from_its_workspace(login_a
     login_as("dpo")
     page.goto(f"{live_app}/ai-governance/review")
     page.click(f".aig-queue-item:has-text('{unique}')")
+    page.wait_for_selector(f"h2:has-text('{unique}')")
     page.click("button:has-text('Accept')")
     page.wait_for_selector(".aig-say-good:has-text('Accepted')")
-    page.goto(f"{live_app}/ai-governance/?q={unique.replace(' ', '+')}")
+    page.goto(f"{live_app}/ai-governance/systems?q={unique.replace(' ', '+')}")
     page.click(f"a:has-text('{unique}')")
     page.wait_for_selector("button:has-text('Adopt a tier')")
 
@@ -172,7 +176,7 @@ def test_staff_do_not_see_the_reviewers_page_or_its_buttons(login_as, live_app, 
     login_as("employee")
     response = page.goto(f"{live_app}/ai-governance/review")
     assert response.status == 403
-    page.goto(f"{live_app}/ai-governance/")
+    page.goto(f"{live_app}/ai-governance/systems")
     page.wait_for_selector("h1:has-text('AI Systems')")
     assert page.locator("a[href='/ai-governance/review']").count() == 0
     assert page.locator("a[href='/ai-governance/register']").count() >= 1
@@ -180,7 +184,7 @@ def test_staff_do_not_see_the_reviewers_page_or_its_buttons(login_as, live_app, 
 
 def test_the_inventory_filters_survive_a_reload_and_an_empty_result_offers_a_way_out(login_as, live_app, page):
     login_as("dpo")
-    page.goto(f"{live_app}/ai-governance/?q=zzz-no-such-use")
+    page.goto(f"{live_app}/ai-governance/systems?q=zzz-no-such-use")
     page.wait_for_selector(".aig-empty:has-text('No AI systems match these filters')")
     page.click("button:has-text('Clear filters')")
     page.wait_for_selector(".aig-table, .aig-empty:has-text('No AI systems are registered yet')")
@@ -188,7 +192,9 @@ def test_the_inventory_filters_survive_a_reload_and_an_empty_result_offers_a_way
 
 
 @pytest.mark.parametrize("path, who, ready", [
-    ("/ai-governance/", "dpo", "h1:has-text('AI Systems')"),
+    ("/ai-governance/", "dpo", ".aig-card"),
+    ("/ai-governance/systems", "dpo", "h1:has-text('AI Systems')"),
+    ("/ai-governance/monitoring", "dpo", "h1:has-text('Monitoring')"),
     ("/ai-governance/register", "employee", "#q_name"),
     ("/ai-governance/requests", "employee", "h1:has-text('My requests')"),
     ("/ai-governance/review", "dpo", "h1:has-text('Review requests')"),
@@ -201,7 +207,8 @@ def test_each_page_has_no_serious_accessibility_violations(login_as, live_app, p
     assert run_axe() == []
 
 
-@pytest.mark.parametrize("path, who", [("/ai-governance/", "dpo"), ("/ai-governance/register", "employee"), ("/ai-governance/review", "dpo")])
+@pytest.mark.parametrize("path, who", [("/ai-governance/", "dpo"), ("/ai-governance/systems", "dpo"), ("/ai-governance/monitoring", "dpo"),
+                                       ("/ai-governance/register", "employee"), ("/ai-governance/review", "dpo")])
 def test_each_page_fits_a_phone_without_sideways_scroll(login_as, live_app, page, path, who):
     login_as(who)
     page.set_viewport_size({"width": 375, "height": 812})
@@ -217,17 +224,17 @@ def _accepted_system(login_as, live_app, page, name):
     login_as("dpo")
     page.goto(f"{live_app}/ai-governance/review")
     page.click(f".aig-queue-item:has-text('{name}')")
-    page.wait_for_selector("button:has-text('Accept')")
+    page.wait_for_selector(f"h2:has-text('{name}')")  # the queue selects its first request itself: wait for this one
     page.click("button:has-text('Accept')")
     page.wait_for_selector(".aig-say-good:has-text('Accepted')")
-    page.goto(f"{live_app}/ai-governance/?q={name.replace(' ', '+')}")
+    page.goto(f"{live_app}/ai-governance/systems?q={name.replace(' ', '+')}")
     page.click(f"a:has-text('{name}')")
     page.wait_for_selector(".aig-tab.is-current:has-text('Overview')")
 
 
 def test_every_workspace_tab_has_no_serious_accessibility_violations(login_as, live_app, page, run_axe, unique):
     _accepted_system(login_as, live_app, page, unique)
-    for tab in ("overview", "assessments", "risks_controls", "data_vendors", "evidence", "decisions", "monitoring", "activity"):
+    for tab in ("overview", "review_desk", "assessments", "risks_controls", "data_vendors", "evidence", "decisions", "monitoring", "activity"):
         page.click(f"#aigtab_{tab}")
         page.wait_for_selector(f"#aigtab_{tab}[aria-selected='true']")
         page.wait_for_timeout(400)

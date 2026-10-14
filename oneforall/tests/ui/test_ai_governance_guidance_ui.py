@@ -103,7 +103,7 @@ def test_the_controls_panel_tells_no_access_from_none_recorded(login_as, live_ap
 
     page.context.clear_cookies()
     login_as("super_admin")
-    page.goto(f"{live_app}/ai-governance/?q={unique.replace(' ', '+')}")
+    page.goto(f"{live_app}/ai-governance/systems?q={unique.replace(' ', '+')}")
     page.click(f"a:has-text('{unique}')")
     page.click("#aigtab_risks_controls")
     page.wait_for_selector("text=No AI controls are recorded for this use")

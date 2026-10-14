@@ -18,9 +18,11 @@ from core.best_effort import swallowed
 from core.middleware import require_auth, require_capability
 from core.rbac import has_capability, user_modules
 from core.shell_context import shell_ctx
-from database import get_db, insert_returning_id, sql_date_offset, sql_current_date
+from core.sql_like import ci_like, like_pattern
+from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
+from modules.evidence import find as finder, inspector, proof
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
-from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, entity_scope_sql
+from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 log = logging.getLogger("oneforall.evidence")
@@ -78,6 +80,141 @@ async def _json_body(request: Request) -> dict:
     return sanitize_dict(body)
 
 
+_STATUSES = ("current", "superseded", "archived", "expired", "draft")
+_DAY_LABELS = {"expiry_date": "expiry date", "review_due_date": "review date", "period_start": "start of the period",
+               "period_end": "end of the period"}
+
+
+def _clean_day(value, what):
+    """(ISO day or None, problem). A blank value clears the date."""
+    if value in (None, ""):
+        return None, None
+    from datetime import datetime
+    try:
+        return datetime.strptime(str(value).strip()[:10], "%Y-%m-%d").strftime("%Y-%m-%d"), None
+    except ValueError:
+        return None, f"Write the {what} as YYYY-MM-DD."
+
+
+def _clean_owner(db, user: dict, value):
+    """(user id or None, problem). The owner is an active person of the caller's own organization."""
+    if value in (None, ""):
+        return None, None
+    try:
+        owner_id = int(value)
+    except (TypeError, ValueError):
+        return None, "Choose the owner from the people in your organization."
+    row = db.execute("SELECT org_id, is_active, deleted_at FROM users WHERE id = %s", (owner_id,)).fetchone()
+    if not row or not row["is_active"] or row["deleted_at"]:
+        return None, "Choose the owner from the people in your organization."
+    if not user.get("is_super_admin") and row["org_id"] != user.get("org_id"):
+        return None, "Choose the owner from the people in your organization."
+    return owner_id, None
+
+
+def _clean_field(db, user: dict, field: str, value):
+    """(value, problem) for one editable field of an item."""
+    if field in _DAY_LABELS:
+        return _clean_day(value, _DAY_LABELS[field])
+    if field == "status":
+        if value not in _STATUSES:
+            return None, "Choose one of: " + ", ".join(_STATUSES) + "."
+        return value, None
+    if field == "owner_user_id":
+        return _clean_owner(db, user, value)
+    return value, None
+
+
+_LIVE_ACTIVE = ("EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id AND el.deleted_at IS NULL "
+                "AND COALESCE(el.review_status, 'pending') != 'out_of_scope')")
+
+
+def _not_expired() -> str:
+    return f"(e.expiry_date IS NULL OR e.expiry_date > {sql_current_date()})"
+
+
+_VIEWS = ("all", "needs_filing", "unlinked", "for_review", "review_due", "recent", "expiring", "archived", "superseded")
+
+
+def _view_where(view: str, user: dict) -> tuple[list, list]:
+    """(clauses, params) of one library view. The list, its tab counts and the stats all take their rows from here, so a
+    number and the list it opens cannot disagree."""
+    if view == "archived":
+        return ["e.status = 'archived'"], []
+    if view == "superseded":
+        return ["e.status = 'superseded'"], []
+    if view == "expiring":
+        return ["e.status = 'current' AND e.expiry_date IS NOT NULL "
+                f"AND e.expiry_date <= {sql_date_offset('+30 days')} AND e.expiry_date > {sql_current_date()}"], []
+    if view in ("unlinked", "needs_filing"):
+        return [current_library_sql(), _not_expired(), f"NOT {_LIVE_ACTIVE}"], []
+    if view == "for_review":
+        if not has_capability(user, "evidence.link.review"):
+            return ["(1 = 0)"], []
+        return ["e.status = 'current'", _not_expired(), "(e.uploaded_by IS NULL OR e.uploaded_by != %s)",
+                "EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id AND el.deleted_at IS NULL "
+                "AND COALESCE(el.review_status, 'pending') = 'pending' AND (el.linked_by IS NULL OR el.linked_by != %s))"
+                ], [user["id"], user["id"]]
+    if view == "review_due":
+        return [current_library_sql(), "e.review_due_date IS NOT NULL",
+                f"e.review_due_date <= {sql_date_offset('+30 days')}"], []
+    if view == "recent":
+        # updated_at is a timestamp on PostgreSQL and text on SQLite: sql_date_ts gives the matching type for each
+        return [current_library_sql(), f"e.updated_at >= {sql_date_ts('-14 days')}"], []
+    return ["e.status != 'archived'", "e.status != 'superseded'"], []
+
+
+_PENDING_LINK = ("EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id AND el.deleted_at IS NULL "
+                 "AND COALESCE(el.review_status, 'pending') = 'pending')")
+_RETURNED_LINK = ("EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id AND el.deleted_at IS NULL "
+                  "AND COALESCE(el.review_status, 'pending') IN ('returned', 'rejected'))")
+
+
+def _state_where(state: str) -> list:
+    """Clauses for the one state a row shows (proof.item_state), so that filtering by a state returns exactly the rows that
+    say it. The five states partition the current files: expired first, then needs filing, returned, awaiting review."""
+    if state == "expired":
+        return [f"(e.status = 'expired' OR (e.status = 'current' AND e.expiry_date IS NOT NULL "
+                f"AND e.expiry_date <= {sql_current_date()}))"]
+    base = ["e.status = 'current'", _not_expired()]
+    if state == "needs_filing":
+        return base + [f"NOT {_LIVE_ACTIVE}"]
+    if state == "returned":
+        return base + [_LIVE_ACTIVE, _RETURNED_LINK]
+    if state == "awaiting_review":
+        return base + [_LIVE_ACTIVE, f"NOT {_RETURNED_LINK}", _PENDING_LINK]
+    if state == "accepted":
+        return base + [_LIVE_ACTIVE, f"NOT {_RETURNED_LINK}", f"NOT {_PENDING_LINK}"]
+    return []
+
+
+def _claims_for(db, user: dict, evidence_ids: list) -> dict:
+    """{evidence_id: {"claims": up to two {title, url, module, entity_type}, "more": n, "hidden": n}} for the records each
+    item supports. A record the caller may not open is only counted, never named."""
+    if not evidence_ids:
+        return {}
+    marks = ",".join(["%s"] * len(evidence_ids))
+    rows = db.execute(
+        f"SELECT evidence_id, module, entity_type, entity_id FROM evidence_links WHERE evidence_id IN ({marks}) "
+        "AND deleted_at IS NULL ORDER BY id", list(evidence_ids)).fetchall()
+    wanted = {}
+    for r in rows:
+        wanted.setdefault(canonical_key(r["module"], r["entity_type"]), set()).add(r["entity_id"])
+    shown = {key: describe_records(db, key, sorted(ids), user) for key, ids in wanted.items()}
+    out = {}
+    for r in rows:
+        entry = out.setdefault(r["evidence_id"], {"claims": [], "more": 0, "hidden": 0})
+        found = shown[canonical_key(r["module"], r["entity_type"])].get(r["entity_id"])
+        if found is None:
+            entry["hidden"] += 1
+        elif len(entry["claims"]) < 2:
+            entry["claims"].append({"title": found["title"], "url": found["url"], "module": r["module"],
+                                    "entity_type": r["entity_type"]})
+        else:
+            entry["more"] += 1
+    return out
+
+
 def _scoped_evidence_item(db, eid: int, user: dict):
     """Fetch an evidence row only if the caller may see it (org and business unit scope, super admin
     unrestricted). None for a missing id and an out-of-scope id alike, so a 404 never confirms an id."""
@@ -100,26 +237,46 @@ async def evidence_page(request: Request):
 
 # ── CRUD API ────────────────────────────────────────────────────────────────
 
+_SORTS = {
+    "updated": "e.updated_at DESC, e.id DESC",
+    "title": "LOWER(e.title) ASC, e.id DESC",
+    "review_due": "CASE WHEN e.review_due_date IS NULL THEN 1 ELSE 0 END, e.review_due_date ASC, e.id DESC",
+    "expiry": "CASE WHEN e.expiry_date IS NULL THEN 1 ELSE 0 END, e.expiry_date ASC, e.id DESC",
+}
+
+
 @router.get("/api/items")
 @require_auth
 async def api_evidence_list(request: Request):
-    """List one page of evidence items: {items, total, page, page_size, pages}."""
-    qp = request.query_params
+    """List one page of evidence items: {items, total, page, page_size, pages}. A row carries what the library shows: its
+    owner and review date, how its links stand, up to two claims it supports that the caller may open, and one state."""
+    return JSONResponse(_library_page(request.state.user, request.query_params))
+
+
+def _library_page(user: dict, qp, size: int = None) -> dict:
+    """One page of the library for `user` from list parameters (a mapping with .get). `size` overrides the page sizes the
+    list offers: Find evidence uses it to take the first few."""
     try:
         page_size = int(qp.get("page_size", ""))
     except ValueError:
         page_size = _PAGE_SIZES[0]
     if page_size not in _PAGE_SIZES:
         page_size = _PAGE_SIZES[0]
+    if size is not None:
+        page_size = size
     try:
         page = max(1, int(qp.get("page", "1")))
     except ValueError:
         page = 1
 
-    scope_sql, scope_params = evidence_scope_sql(request.state.user)
+    scope_sql, scope_params = evidence_scope_sql(user)
     search_sql, search_params = evidence_search_sql(qp.get("q", ""))
     where = [scope_sql, search_sql]
     params = [*scope_params, *search_params]
+    for word in str(qp.get("words") or "").split()[:finder.WORDS_MAX]:  # Find evidence: every word must match
+        word_sql, word_params = evidence_search_sql(word)
+        where.append(word_sql)
+        params += word_params
     if qp.get("category"):
         where.append("e.category = %s")
         params.append(qp["category"])
@@ -128,29 +285,29 @@ async def api_evidence_list(request: Request):
             "e.id IN (SELECT evidence_id FROM evidence_links WHERE module = %s AND deleted_at IS NULL)"
         )
         params.append(qp["module"])
+    owner = qp.get("owner", "")
+    if owner == "me":
+        where.append("e.owner_user_id = %s")
+        params.append(user["id"])
+    elif owner.isdigit():
+        where.append("e.owner_user_id = %s")
+        params.append(int(owner))
 
     view = qp.get("view", "")
-    if view == "archived":
-        where.append("e.status = 'archived'")
-    elif view == "superseded":
-        where.append("e.status = 'superseded'")
-    elif view == "expiring":
-        where.append(
-            "e.status = 'current' AND e.expiry_date IS NOT NULL "
-            f"AND e.expiry_date <= {sql_date_offset('+30 days')} AND e.expiry_date > {sql_current_date()}"
-        )
-    elif view == "unlinked":
-        where.append(current_library_sql())
-        where.append(
-            "NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id AND el.deleted_at IS NULL)"
-        )
-    else:
-        where.append("e.status != 'archived'")
+    view = view if view in _VIEWS else "all"
+    view_clauses, view_params = _view_where(view, user)
+    if view == "all":
+        # The default list hides archived and superseded rows unless a status asks for one.
         if qp.get("status"):
-            where.append("e.status = %s")
-            params.append(qp["status"])
-        else:
-            where.append("e.status != 'superseded'")
+            view_clauses = ["e.status != 'archived'", "e.status = %s"]
+            view_params = [qp["status"]]
+    where += view_clauses
+    params += view_params
+    state = qp.get("state", "")
+    if state in finder.STATES:
+        where += _state_where(state)
+    sort_key = qp.get("sort", "")
+    order = _SORTS.get(sort_key) or (_SORTS["review_due"] if view == "review_due" else _SORTS["updated"])
 
     where_sql = " AND ".join(where)
     db = get_db()
@@ -158,19 +315,115 @@ async def api_evidence_list(request: Request):
         total = db.execute(f"SELECT COUNT(*) FROM evidence_items e WHERE {where_sql}", params).fetchone()[0]
         pages = max(1, -(-total // page_size))
         page = min(page, pages)
+        live = "el.evidence_id = e.id AND el.deleted_at IS NULL"
         rows = db.execute(
-            f"SELECT e.*, u.full_name as uploaded_by_name, "
-            f"(SELECT COUNT(*) FROM evidence_links el WHERE el.evidence_id = e.id AND el.deleted_at IS NULL) as link_count "
-            f"FROM evidence_items e LEFT JOIN users u ON e.uploaded_by = u.id "
-            f"WHERE {where_sql} ORDER BY e.updated_at DESC, e.id DESC LIMIT %s OFFSET %s",
+            "SELECT e.*, u.full_name as uploaded_by_name, ou.full_name as owner_name, "
+            f"(SELECT COUNT(*) FROM evidence_links el WHERE {live}) as link_count, "
+            f"(SELECT COUNT(*) FROM evidence_links el WHERE {live} AND COALESCE(el.review_status, 'pending') = 'accepted') as links_accepted, "
+            f"(SELECT COUNT(*) FROM evidence_links el WHERE {live} AND COALESCE(el.review_status, 'pending') = 'pending') as links_pending, "
+            f"(SELECT COUNT(*) FROM evidence_links el WHERE {live} AND COALESCE(el.review_status, 'pending') IN ('returned', 'rejected')) as links_returned, "
+            f"(SELECT COUNT(*) FROM evidence_links el WHERE {live} AND COALESCE(el.review_status, 'pending') = 'out_of_scope') as links_out_of_scope "
+            "FROM evidence_items e LEFT JOIN users u ON e.uploaded_by = u.id LEFT JOIN users ou ON e.owner_user_id = ou.id "
+            f"WHERE {where_sql} ORDER BY {order} LIMIT %s OFFSET %s",
             [*params, page_size, (page - 1) * page_size],
         ).fetchall()
+        claims = _claims_for(db, user, [r["id"] for r in rows])
     finally:
         db.close()
-    return JSONResponse({
-        "items": [dict(r) for r in rows], "total": total,
-        "page": page, "page_size": page_size, "pages": pages,
-    })
+    today = proof.today()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item["state"] = proof.item_state(
+            status=item["status"], expiry_date=item.get("expiry_date"),
+            links_active=item["link_count"] - item["links_out_of_scope"], links_pending=item["links_pending"],
+            links_returned=item["links_returned"], on=today)
+        item["review_due"] = proof.due(item.get("review_due_date"), today, within_days=30)
+        shown = claims.get(item["id"], {"claims": [], "more": 0, "hidden": 0})
+        item["claims"], item["claims_more"], item["claims_hidden"] = shown["claims"], shown["more"], shown["hidden"]
+        items.append(item)
+    return {"items": items, "total": total, "page": page, "page_size": page_size, "pages": pages}
+
+
+@router.get("/api/inspector")
+@require_auth
+async def api_evidence_inspector(request: Request):
+    """Concrete defects in what the caller may open, most serious first, each with the rule and where to put it right."""
+    qp = request.query_params
+    rule = qp.get("rule") or None
+    if rule is not None and rule not in inspector.RULES:
+        return JSONResponse({"error": "Unknown check."}, status_code=400)
+    try:
+        limit = int(qp.get("limit", "50"))
+    except ValueError:
+        limit = 50
+    db = get_db()
+    try:
+        return JSONResponse(inspector.inspect(db, request.state.user, rule=rule, limit=limit))
+    finally:
+        db.close()
+
+
+@router.get("/api/items/{eid}/checks")
+@require_auth
+async def api_evidence_checks(request: Request, eid: int):
+    """The same checks for one file."""
+    db = get_db()
+    try:
+        if not _scoped_evidence_item(db, eid, request.state.user):
+            raise HTTPException(404, "Evidence not found")
+        return JSONResponse(inspector.inspect(db, request.state.user, evidence_id=eid))
+    finally:
+        db.close()
+
+
+@router.post("/api/find")
+@require_auth
+async def api_evidence_find(request: Request):
+    """Find evidence: a question in the caller's words becomes editable filters over the same scoped list, and up to five
+    files come back with why each matched. Read-only. `filters` (from an earlier answer, edited) skips the reading."""
+    data = await _json_body(request)
+    user = request.state.user
+    question = data.get("question")
+    if data.get("filters") is not None:
+        filters, mode, note = finder.clean_filters(data.get("filters")), "edited", None
+    else:
+        if not isinstance(question, str) or not question.strip():
+            return JSONResponse({"error": "Ask a question, for example: expired test reports that are mine."}, status_code=422)
+        if len(question) > finder.QUESTION_MAX:
+            return JSONResponse({"error": f"Keep the question to {finder.QUESTION_MAX} characters or fewer."}, status_code=422)
+        got = finder.parse(question, use_ai=bool(data.get("use_ai", True)))
+        filters, mode, note = got["filters"], got["mode"], got["note"]
+    qp = finder.list_params(filters)
+    page = _library_page(user, qp, size=finder.RESULT_LIMIT)
+    results = [{"id": r["id"], "title": r["title"], "version": r["version"], "state": r["state"],
+                "expiry_date": r.get("expiry_date"), "review_due_date": r.get("review_due_date"),
+                "owner_name": r.get("owner_name"), "claims": r["claims"], "claims_hidden": r["claims_hidden"],
+                "url": f"/evidence/?open=item:{r['id']}", "why": finder.reasons(r, filters)} for r in page["items"]]
+    return JSONResponse({"filters": filters, "mode": mode, "note": note, "total": page["total"], "results": results,
+                         "message": None if results else "No accessible match. Nothing you may open fits those filters.",
+                         "vocabulary": finder.vocabulary()})
+
+
+@router.get("/api/people")
+@require_auth
+async def api_evidence_people(request: Request):
+    """Colleagues to name as an owner: names only, the caller's own organization only, found by typing."""
+    user = request.state.user
+    q = (request.query_params.get("q") or "").strip()
+    db = get_db()
+    try:
+        sql, params = "SELECT id, full_name FROM users WHERE is_active = 1 AND deleted_at IS NULL", []
+        if user.get("org_id") is not None:
+            sql, params = sql + " AND org_id = %s", [user["org_id"]]
+        elif not user.get("is_super_admin"):
+            return JSONResponse({"items": []})
+        if q:
+            sql, params = sql + f" AND ({ci_like('full_name')} OR {ci_like('username')})", [*params, like_pattern(q), like_pattern(q)]
+        rows = db.execute(sql + " ORDER BY full_name LIMIT 30", params).fetchall()
+    finally:
+        db.close()
+    return JSONResponse({"items": [{"id": r["id"], "name": r["full_name"]} for r in rows]})
 
 
 @router.post("/api/items", status_code=201)
@@ -184,6 +437,10 @@ async def api_evidence_upload(
     tags: str = Form(""),
     replace_id: str = Form(""),
     expiry_date: str = Form(""),
+    owner_user_id: str = Form(""),
+    review_due_date: str = Form(""),
+    period_start: str = Form(""),
+    period_end: str = Form(""),
 ):
     """Upload a new evidence file."""
     user = request.state.user
@@ -194,6 +451,16 @@ async def api_evidence_upload(
     from core.sanitize import sanitize_str as _s
     title, description, category, tags = _s(title), _s(description), _s(category), _s(tags)
     expiry_date = _s(expiry_date)
+    days, problems = {}, []
+    for name, value in (("expiry_date", expiry_date), ("review_due_date", _s(review_due_date)),
+                        ("period_start", _s(period_start)), ("period_end", _s(period_end))):
+        days[name], problem = _clean_day(value, _DAY_LABELS[name])
+        if problem:
+            problems.append(problem)
+    if days["period_start"] and days["period_end"] and days["period_end"] < days["period_start"]:
+        problems.append("The period cannot end before it starts.")
+    if problems:
+        return JSONResponse({"error": " ".join(problems)}, status_code=422)
     if file.size and file.size > MAX_FILE_SIZE:
         raise HTTPException(413, "File too large (max 100MB)")
 
@@ -217,17 +484,23 @@ async def api_evidence_upload(
     # in another org must never confirm that org's document exists) ────────
     db = get_db()
     try:
-        if user.get("is_super_admin"):
-            existing = db.execute(
-                "SELECT id, title, status FROM evidence_items WHERE file_hash = %s AND status != 'archived'",
-                (file_hash,),
-            ).fetchone()
-        else:
-            existing = db.execute(
-                "SELECT id, title, status FROM evidence_items "
-                "WHERE file_hash = %s AND status != 'archived' AND org_id = %s",
+        dupe_scope, dupe_params = evidence_scope_sql(user)
+        existing = db.execute(
+            "SELECT e.id, e.title, e.status FROM evidence_items e "
+            f"WHERE e.file_hash = %s AND e.status != 'archived' AND {dupe_scope}",
+            [file_hash, *dupe_params],
+        ).fetchone()
+        if existing is None and not user.get("is_super_admin"):
+            held_elsewhere = db.execute(
+                "SELECT 1 FROM evidence_items WHERE file_hash = %s AND status != 'archived' AND org_id = %s",
                 (file_hash, org_id),
             ).fetchone()
+            if held_elsewhere:  # held where the caller may not look: say so, and never name it
+                return JSONResponse({
+                    "duplicate": True, "hidden": True, "file_hash": file_hash,
+                    "message": "This file is already in the Vault, in a place you cannot open, so it was not "
+                               "uploaded again. Ask the person who keeps that record to link it.",
+                }, status_code=409)
         if existing:
             return JSONResponse({
                 "duplicate": True,
@@ -304,26 +577,50 @@ async def api_evidence_upload(
                         (rid,),
                     )
 
-        exp = expiry_date.strip() if expiry_date else None
+        exp = days["expiry_date"]
+        owner, owner_problem = _clean_owner(db, user, owner_user_id) if str(owner_user_id).strip() else (None, None)
+        if owner_problem:
+            return JSONResponse({"error": owner_problem}, status_code=422)
+        if owner is None and parent_id is not None:
+            owner = parent_row["owner_user_id"]  # a new version keeps who answers for the file
+        if owner is None:
+            owner = _uid(request)
 
         eid = insert_returning_id(
             db,
             "INSERT INTO evidence_items (title, description, file_path, file_name, file_size, "
-            "file_hash, mime_type, category, tags, version, parent_id, uploaded_by, expiry_date, org_id) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "file_hash, mime_type, category, tags, version, parent_id, uploaded_by, expiry_date, org_id, "
+            "owner_user_id, review_due_date, period_start, period_end) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 display_title, description, str(stored_name), original_name,
                 len(content), file_hash, declared_mime,
                 category, tags, version_num, parent_id, _uid(request), exp, org_id,
+                owner, days["review_due_date"], days["period_start"], days["period_end"],
             )
         )
+        impact = None
+        touched_controls = []
+        if parent_id is not None:
+            touched_controls = _canonical_controls_linked_to(db, [parent_id])
+            impact = proof.carry_forward(db, user, parent_id, eid)
+            # The records the replaced version supported are told, and each owner says whether it needs a second look.
+            from modules.governance import change_signals
+            change_signals.publish(
+                db, source=("evidence", "item", eid), kind="evidence_replaced",
+                before={"version": parent_row["version"]}, after={"version": version_num}, fields={"version": "Version"},
+                actor_id=_uid(request), org_id=org_id,
+                extra_targets=[(r["module"], r["entity_type"], r["entity_id"]) for r in db.execute(
+                    "SELECT module, entity_type, entity_id FROM evidence_links WHERE evidence_id = %s AND deleted_at IS NULL",
+                    (parent_id,)).fetchall()])
         db.commit()
     finally:
         db.close()
+    _rescore_controls(touched_controls)
 
     return JSONResponse({
         "id": eid, "title": display_title, "version": version_num,
-        "file_hash": file_hash, "duplicate": False,
+        "file_hash": file_hash, "duplicate": False, "impact": impact,
     }, status_code=201)
 
 
@@ -336,22 +633,35 @@ async def api_evidence_get(request: Request, eid: int):
         if not _scoped_evidence_item(db, eid, request.state.user):
             raise HTTPException(404, "Evidence not found")
         item = db.execute(
-            "SELECT e.*, u.full_name as uploaded_by_name FROM evidence_items e "
-            "LEFT JOIN users u ON e.uploaded_by = u.id WHERE e.id = %s", (eid,)
+            "SELECT e.*, u.full_name as uploaded_by_name, ou.full_name as owner_name FROM evidence_items e "
+            "LEFT JOIN users u ON e.uploaded_by = u.id LEFT JOIN users ou ON e.owner_user_id = ou.id "
+            "WHERE e.id = %s", (eid,)
         ).fetchone()
         if not item:
             raise HTTPException(404, "Evidence not found")
         result = dict(item)
-        result["links"] = [dict(r) for r in db.execute(
-            "SELECT el.*, u.full_name as linked_by_name FROM evidence_links el "
-            "LEFT JOIN users u ON el.linked_by = u.id "
+        links = []
+        for r in db.execute(
+            "SELECT el.*, u.full_name as linked_by_name, ru.full_name as reviewed_by_name FROM evidence_links el "
+            "LEFT JOIN users u ON el.linked_by = u.id LEFT JOIN users ru ON el.reviewed_by = ru.id "
             "WHERE el.evidence_id = %s AND el.deleted_at IS NULL "
             "ORDER BY el.created_at DESC",
             (eid,)
-        ).fetchall()]
+        ).fetchall():
+            link = dict(r)
+            link["review_status"] = link.get("review_status") or "pending"
+            link["review_label"] = proof.OUTCOME_LABELS[link["review_status"]]
+            links.append(link)
+        result["links"] = links
     finally:
         db.close()
+    active = [l for l in links if l["review_status"] != "out_of_scope"]
+    result["state"] = proof.item_state(
+        status=result["status"], expiry_date=result.get("expiry_date"), links_active=len(active),
+        links_pending=sum(1 for l in active if l["review_status"] == "pending"),
+        links_returned=sum(1 for l in active if l["review_status"] in ("returned", "rejected")))
     result["can_delete"] = has_capability(request.state.user, "evidence.delete")
+    result["can_review_links"] = has_capability(request.state.user, "evidence.link.review")
     return JSONResponse(result)
 
 
@@ -459,13 +769,17 @@ async def api_evidence_update(request: Request, eid: int):
     try:
         if not _scoped_evidence_item(db, eid, request.state.user):
             raise HTTPException(404, "Evidence not found")
-        allowed = ["title", "description", "category", "tags", "status", "expiry_date"]
+        allowed = ["title", "description", "category", "tags", "status", "expiry_date", "owner_user_id",
+                   "review_due_date", "period_start", "period_end"]
         sets = []
         vals = []
         for k in allowed:
             if k in data:
+                value, problem = _clean_field(db, request.state.user, k, data[k])
+                if problem:
+                    return JSONResponse({"error": problem}, status_code=422)
                 sets.append(f"{k} = %s")
-                vals.append(data[k])
+                vals.append(value)
         if not sets:
             return JSONResponse({"error": "Nothing to update"}, status_code=400)
         sets.append("updated_at = CURRENT_TIMESTAMP")
@@ -1020,10 +1334,19 @@ async def api_evidence_link_create(request: Request, eid: int):
 
     db = get_db()
     try:
-        if not _scoped_evidence_item(db, eid, request.state.user):
+        item = _scoped_evidence_item(db, eid, request.state.user)
+        if not item:
             raise HTTPException(404, "Evidence not found")
         if not _visible_target(db, (module, entity_type), entity_id, request.state.user):
             raise HTTPException(404, "Link target not found")
+        if item["status"] in ("superseded", "archived"):
+            return JSONResponse({"error": "This version has been replaced or archived. Link the current version "
+                                          "instead."}, status_code=409)
+        already = db.execute(
+            "SELECT id FROM evidence_links WHERE evidence_id = %s AND module = %s AND entity_type = %s "
+            "AND entity_id = %s AND deleted_at IS NULL", (eid, module, entity_type, entity_id)).fetchone()
+        if already:
+            return JSONResponse({"id": already["id"], "existing": True}, status_code=201)
         lid = insert_returning_id(
             db,
             "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by) VALUES (%s,%s,%s,%s,%s)",
@@ -1087,6 +1410,43 @@ async def api_evidence_link_create(request: Request, eid: int):
     finally:
         db.close()
     return JSONResponse({"id": lid}, status_code=201)
+
+
+@router.post("/api/links/{lid}/review")
+@require_auth
+async def api_evidence_link_review(request: Request, lid: int):
+    """A reviewer's verdict on one link: accepted, returned, rejected, does not apply, or back to waiting."""
+    data = await _json_body(request)
+    user = request.state.user
+    db = get_db()
+    try:
+        done = proof.review_link(db, user, lid, data.get("outcome"), data.get("note"), data.get("expected_status"))
+        db.commit()
+    except proof.ReviewError as exc:
+        db.rollback()
+        return JSONResponse({"error": exc.message, **exc.extra}, status_code=exc.status)
+    finally:
+        db.close()
+    if done["entity_type"] == "canonical_control":
+        _rescore_controls([done["entity_id"]])
+    from core.middleware import log_audit
+    action, entity, entity_id, detail = done["audit"]
+    log_audit(user, "evidence", action, entity, entity_id, details=detail)
+    return JSONResponse({"link": done["link"]})
+
+
+@router.get("/api/items/{eid}/impact")
+@require_auth
+async def api_evidence_impact(request: Request, eid: int):
+    """What this version did to the claims the version it replaced was supporting."""
+    db = get_db()
+    try:
+        got = proof.impact(db, request.state.user, eid)
+    finally:
+        db.close()
+    if got is None:
+        raise HTTPException(404, "Evidence not found")
+    return JSONResponse(got)
 
 
 @router.delete("/api/links/{lid}")
@@ -1459,10 +1819,36 @@ async def api_search_entities(request: Request):
     return JSONResponse([dict(r) for r in rows])
 
 
+@router.get("/api/coverage/definitions")
+@require_auth
+async def api_evidence_coverage_definitions(request: Request):
+    """What each coverage measure means, so a number is never shown without its definition."""
+    return JSONResponse({
+        "as_of": proof.today(),
+        "denominator": "Records of this kind that you may open in the owning module. A record you cannot open is not counted.",
+        "measures": {
+            "linked": {
+                "label": "Has a live link",
+                "means": "At least one link to evidence that is not archived. The evidence may have expired or been replaced, "
+                         "and nobody has checked that it supports the record."},
+            "current": {
+                "label": "Has current proof",
+                "means": "At least one link to the current version of an item that has not expired and that a reviewer has "
+                         "not returned, rejected or ruled out. It still waits for a reviewer until it is accepted."},
+            "accepted": {
+                "label": "Accepted by a reviewer",
+                "means": "At least one current link that a reviewer of the record accepted for that version. A hash, a link "
+                         "count or the metadata health score never makes a link accepted."},
+        },
+        "exclusions": "Removed links, archived items, replaced versions and expired items never count as current proof.",
+    })
+
+
 @router.get("/api/coverage")
 @require_auth
 async def api_evidence_coverage(request: Request):
-    """Count linkable records and active evidence within the caller's scope."""
+    """For each module and kind of record the caller may open: how many have a live link, current proof, and an accepted
+    link. `with_evidence` and `pct` keep their old meaning (a live link); see /api/coverage/definitions."""
     user = request.state.user
     allowed_modules = set(user_modules(user))
     checks = [
@@ -1485,8 +1871,13 @@ async def api_evidence_coverage(request: Request):
         ("sentinel", "vendor", ("vendor",)),
         ("erm", "risk", ("risk",)),
     ]
+
+    def pct(part, whole):
+        return round(part / whole * 100) if whole else 0
+
     coverage = {}
     scope_sql, scope_params = evidence_scope_sql(user)
+    today = proof.today()
     db = get_db()
     try:
         for module, entity_type, link_types in checks:
@@ -1502,31 +1893,39 @@ async def api_evidence_coverage(request: Request):
             total = db.execute(total_sql, target_params).fetchone()[0]
 
             marks = ",".join("%s" for _ in link_types)
-            linked_sql = (
-                "SELECT COUNT(DISTINCT t.id)" + base
+            measured_sql = (
+                "SELECT COUNT(DISTINCT t.id), "
+                f"COUNT(DISTINCT CASE WHEN {proof.current_sql()} THEN t.id END), "
+                f"COUNT(DISTINCT CASE WHEN {proof.accepted_sql()} THEN t.id END)"
+                + base
                 + " JOIN evidence_links el ON el.entity_id = t.id"
                 + " JOIN evidence_items e ON e.id = el.evidence_id"
                 + f" WHERE el.module = %s AND el.entity_type IN ({marks})"
                 + " AND el.deleted_at IS NULL AND e.status != 'archived'"
             )
-            linked_params = [module, *link_types]
+            measured_params = [today, today, module, *link_types]
             if target_where:
-                linked_sql += " AND " + " AND ".join(target_where)
-                linked_params.extend(target_params)
-            linked_sql += f" AND {scope_sql}"
-            linked_params.extend(scope_params)
-            with_evidence = db.execute(linked_sql, linked_params).fetchone()[0]
-            data = coverage.setdefault(module, {"total": 0, "with_evidence": 0, "entities": []})
+                measured_sql += " AND " + " AND ".join(target_where)
+                measured_params.extend(target_params)
+            measured_sql += f" AND {scope_sql}"
+            measured_params.extend(scope_params)
+            row = db.execute(measured_sql, measured_params).fetchone()
+            linked, current, accepted = row[0], row[1], row[2]
+            data = coverage.setdefault(module, {"total": 0, "linked": 0, "current": 0, "accepted": 0, "entities": []})
             data["total"] += total
-            data["with_evidence"] += with_evidence
+            data["linked"] += linked
+            data["current"] += current
+            data["accepted"] += accepted
             data["entities"].append({
-                "type": entity_type,
-                "total": total,
-                "with_evidence": with_evidence,
-                "pct": round(with_evidence / total * 100) if total else 0,
+                "type": entity_type, "total": total, "linked": linked, "current": current, "accepted": accepted,
+                "with_evidence": linked, "pct": pct(linked, total),
+                "pct_linked": pct(linked, total), "pct_current": pct(current, total), "pct_accepted": pct(accepted, total),
             })
         for data in coverage.values():
-            data["pct"] = round(data["with_evidence"] / data["total"] * 100) if data["total"] else 0
+            data["with_evidence"] = data["linked"]
+            data["pct"] = data["pct_linked"] = pct(data["linked"], data["total"])
+            data["pct_current"] = pct(data["current"], data["total"])
+            data["pct_accepted"] = pct(data["accepted"], data["total"])
     finally:
         db.close()
     return JSONResponse(coverage)
@@ -1535,10 +1934,18 @@ async def api_evidence_coverage(request: Request):
 @router.get("/api/stats")
 @require_auth
 async def api_evidence_stats(request: Request):
-    """Evidence repository statistics with per-module breakdown."""
-    scope_sql, scope_params = evidence_scope_sql(request.state.user)
+    """Evidence repository statistics with per-module breakdown. The counts of the work views come from the predicates the
+    list uses, so each number is the length of the list it opens."""
+    user = request.state.user
+    scope_sql, scope_params = evidence_scope_sql(user)
     library = current_library_sql()
     live_link = "el.deleted_at IS NULL"
+
+    def counted(db, view):
+        clauses, extra = _view_where(view, user)
+        return db.execute(
+            f"SELECT COUNT(*) FROM evidence_items e WHERE {scope_sql} AND " + " AND ".join(clauses),
+            [*scope_params, *extra]).fetchone()[0]
 
     db = get_db()
     try:
@@ -1550,22 +1957,16 @@ async def api_evidence_stats(request: Request):
             "GROUP BY e.category",
             scope_params,
         ).fetchall()
-        expiring_soon = db.execute(
-            "SELECT COUNT(*) FROM evidence_items e WHERE e.status = 'current' "
-            f"AND e.expiry_date IS NOT NULL AND e.expiry_date <= {sql_date_offset('+30 days')} "
-            f"AND e.expiry_date > {sql_current_date()} AND {scope_sql}",
-            scope_params,
-        ).fetchone()[0]
+        expiring_soon = counted(db, "expiring")
         total_links = db.execute(
             "SELECT COUNT(*) FROM evidence_links el JOIN evidence_items e ON el.evidence_id = e.id "
             f"WHERE {live_link} AND {library} AND {scope_sql}",
             scope_params,
         ).fetchone()[0]
-        unlinked = db.execute(
-            f"SELECT COUNT(*) FROM evidence_items e WHERE {library} AND {scope_sql} "
-            f"AND NOT EXISTS (SELECT 1 FROM evidence_links el WHERE el.evidence_id = e.id AND {live_link})",
-            scope_params,
-        ).fetchone()[0]
+        needs_filing = counted(db, "needs_filing")
+        for_review = counted(db, "for_review")
+        review_due = counted(db, "review_due")
+        recent = counted(db, "recent")
         by_module = db.execute(
             "SELECT el.module, COUNT(DISTINCT el.evidence_id) as c "
             "FROM evidence_links el JOIN evidence_items e ON el.evidence_id = e.id "
@@ -1587,6 +1988,12 @@ async def api_evidence_stats(request: Request):
         archived_count = db.execute(
             f"SELECT COUNT(*) FROM evidence_items e WHERE e.status = 'archived' AND {scope_sql}", scope_params,
         ).fetchone()[0]
+        open_requests = 0
+        if user.get("org_id") is not None:
+            open_requests = db.execute(
+                "SELECT COUNT(*) FROM evidence_requests WHERE org_id = %s AND (assignee_id = %s OR reviewer_id = %s) "
+                "AND status IN ('requested', 'submitted', 'in_review', 'returned', 'overdue')",
+                (user["org_id"], user["id"], user["id"])).fetchone()[0]
     finally:
         db.close()
     result = {
@@ -1596,9 +2003,15 @@ async def api_evidence_stats(request: Request):
         "expiring_soon": expiring_soon,
         "expiring_7_days": expiring_7,
         "total_links": total_links,
-        "unlinked": unlinked,
+        "unlinked": needs_filing,
+        "needs_filing": needs_filing,
+        "for_review": for_review,
+        "review_due": review_due,
+        "recently_updated": recent,
+        "open_requests": open_requests,
         "recently_added": [dict(r) for r in recent_rows],
         "archived": archived_count,
     }
-    result["can_delete"] = has_capability(request.state.user, "evidence.delete")
+    result["can_delete"] = has_capability(user, "evidence.delete")
+    result["can_review_links"] = has_capability(user, "evidence.link.review")
     return JSONResponse(result)

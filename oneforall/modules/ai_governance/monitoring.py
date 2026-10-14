@@ -12,9 +12,9 @@ import logging
 from datetime import timedelta
 
 from core.timeutils import utcnow
-from modules.ai_governance import controls, decisions, evaluations, oversight, regulation, service
-from modules.ai_governance.service import APP
-from modules.governance.entity_scope import describe_record
+from modules.ai_governance import controls, decisions, evaluations, oversight, regulation, rules, service
+from modules.ai_governance.service import APP, ServiceError
+from modules.governance.entity_scope import describe_record, entity_scope_sql
 
 log = logging.getLogger("oneforall.ai_governance")
 
@@ -156,3 +156,98 @@ def get_monitoring(db, user, application_id: int) -> "dict | None":
                  _guarded("regulation", "Regulatory change", lambda: _regulation(db, user, application_id))]
     return {"sources": sections, "attention": [s["source"] for s in sections if s["state"] == "attention"],
             "unavailable": [s["source"] for s in sections if s["state"] == "unavailable"]}
+
+
+# ── The portfolio: every use with what needs looking at ─────────────────────
+
+PORTFOLIO_LIMIT = 500
+GAP_LABELS = {
+    "evaluation_failed": "The latest evaluation failed or did not finish",
+    "evaluation_stale": "The latest evaluation is out of date",
+    "oversight_attention": "A human oversight arrangement awaits review or changed with the profile",
+    "review_overdue": "The review date has been reached",
+    "material_change": "The standing decision needs a new review",
+    "condition_overdue": "A condition of the approval is overdue",
+}
+NOT_MEASURED_LABELS = {
+    "no_evaluation": "No evaluation with a pass or fail threshold has been recorded",
+    "no_oversight": "No human oversight arrangement has been recorded",
+}
+FOCUS = {"evaluation_oversight": ("evaluation_failed", "evaluation_stale", "oversight_attention"), "gaps": tuple(GAP_LABELS)}
+
+
+def get_portfolio(db, user, *, focus=None) -> dict:
+    """Every active use the viewer may open, each with the facts that need looking at and the facts nobody has measured.
+
+    A use with no evaluation or no oversight arrangement is listed as "not measured" and is never counted as passing.
+    `focus` narrows the list to `gaps`, to `evaluation_oversight` or to one gap kind; the counts are always for the whole
+    scope so a card and its list agree. Uses with something to look at come first. When more uses exist than the limit,
+    the state is `partial`."""
+    service._require(user, "ai_use.view")
+    if focus not in (None, "", "all", *FOCUS, *GAP_LABELS):
+        raise ServiceError(400, "Unknown focus.")
+    today = utcnow().strftime("%Y-%m-%d")
+    scope, params = entity_scope_sql(APP, user, "a")
+    rows = db.execute(
+        "SELECT a.id, a.name, a.business_unit_id, bu.name AS bu_name, u.full_name AS owner_name, p.provisional_tier, "
+        "p.adopted_tier, p.next_review_at, p.version AS profile_version, p.material_changed_at "
+        "FROM applications a JOIN ai_use_profiles p ON p.application_id = a.id "
+        "LEFT JOIN business_units bu ON bu.id = a.business_unit_id LEFT JOIN users u ON u.id = a.owner_user_id "
+        f"WHERE a.is_active = 1 AND {scope} ORDER BY a.name, a.id LIMIT %s", [*params, PORTFOLIO_LIMIT + 1]).fetchall()
+    truncated = len(rows) > PORTFOLIO_LIMIT
+    rows = rows[:PORTFOLIO_LIMIT]
+    ids = [r["id"] for r in rows]
+    latest, tracks = {}, {}
+    if ids:
+        marks = ",".join(["%s"] * len(ids))
+        for run in db.execute(
+                "SELECT application_id, result_state, finished_at, recorded_at FROM ai_evaluation_runs "
+                f"WHERE application_id IN ({marks}) ORDER BY COALESCE(finished_at, recorded_at) DESC, id DESC", ids).fetchall():
+            latest.setdefault(run["application_id"], run)
+        for t in db.execute(
+                "SELECT h.application_id, h.track, v.status, v.profile_version FROM ai_oversight_heads h "
+                "JOIN ai_oversight_versions v ON v.application_id = h.application_id AND v.track = h.track "
+                f"AND v.version = h.content_version WHERE h.application_id IN ({marks})", ids).fetchall():
+            tracks.setdefault(t["application_id"], []).append(t)
+    queue = decisions.list_queue(db, user)
+    changed = {r["application_id"] for r in queue["re_reviews"]}
+    overdue_conditions = {c["application_id"] for c in queue["conditions"] if c["overdue"]}
+
+    uses = []
+    counts = {key: 0 for key in (*GAP_LABELS, *NOT_MEASURED_LABELS)}
+    for r in rows:
+        flags, unmeasured = [], []
+        run = latest.get(r["id"])
+        if run is None or run["result_state"] == "ungated":
+            unmeasured.append("no_evaluation")
+        elif run["result_state"] in ("failed", "interrupted"):
+            flags.append("evaluation_failed")
+        elif evaluations.is_stale(run["finished_at"] or run["recorded_at"], r["material_changed_at"], today):
+            flags.append("evaluation_stale")
+        recorded = tracks.get(r["id"], [])
+        if not recorded:
+            unmeasured.append("no_oversight")
+        elif any(t["status"] == "draft" or t["profile_version"] != r["profile_version"] for t in recorded):
+            flags.append("oversight_attention")
+        if r["next_review_at"] and str(r["next_review_at"])[:10] <= today:
+            flags.append("review_overdue")
+        if r["id"] in changed:
+            flags.append("material_change")
+        if r["id"] in overdue_conditions:
+            flags.append("condition_overdue")
+        for key in (*flags, *unmeasured):
+            counts[key] += 1
+        tier = rules.effective_tier(r["provisional_tier"], r["adopted_tier"])
+        uses.append({"application_id": r["id"], "name": r["name"], "business_unit": r["bu_name"], "owner": r["owner_name"],
+                     "tier": tier, "tier_label": rules.TIER_LABELS[tier],
+                     "flags": [{"key": k, "label": GAP_LABELS[k]} for k in flags],
+                     "not_measured": [{"key": k, "label": NOT_MEASURED_LABELS[k]} for k in unmeasured],
+                     "url": f"/ai-governance/systems/{r['id']}#monitoring"})
+    with_gaps = sum(1 for u in uses if u["flags"])
+    in_focus = sum(1 for u in uses if any(f["key"] in FOCUS["evaluation_oversight"] for f in u["flags"]))
+    wanted = set(FOCUS.get(focus, (focus,))) if focus not in (None, "", "all") else None
+    shown = uses if wanted is None else [u for u in uses if wanted & {f["key"] for f in u["flags"]}]
+    shown.sort(key=lambda u: (-len(u["flags"]), u["name"].lower(), u["application_id"]))
+    return {"as_of": utcnow().strftime("%Y-%m-%d %H:%M:%S"), "state": "partial" if truncated else "measured",
+            "limit": PORTFOLIO_LIMIT, "total_uses": len(uses), "with_gaps": with_gaps, "evaluation_oversight": in_focus,
+            "counts": counts, "uses": shown, "focus": focus or "all"}

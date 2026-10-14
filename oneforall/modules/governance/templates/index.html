@@ -119,6 +119,7 @@
     {% if can_assign_bu %}
     <button class="gov-tab" data-tab="people" onclick="govSwitchTab('people')">People</button>
     {% endif %}
+    <a class="gov-tab" href="/governance/changes" style="text-decoration:none">Changes to look at</a>
   </div>
 
   <!-- Business Units -->
@@ -429,10 +430,10 @@ function govLoadBps(){
     var tbody = document.getElementById('bpTBody');
     if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No processes yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
-      var actions = CAN_MANAGE ? (
+      var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/process/'+r.id+'">Connected</a> ' + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditBp('+r.id+')">Edit</button> '+
         '<button class="gov-btn ghost small" onclick="govDeleteBp('+r.id+')">Delete</button>'
-      ) : '';
+      ) : '');
       var rto = r.rto_hours!=null ? r.rto_hours+'h' : '–';
       var rpo = r.rpo_hours!=null ? r.rpo_hours+'h' : '–';
       return '<tr>'
@@ -469,7 +470,7 @@ function govLoadApps(){
     var tbody = document.getElementById('appTBody');
     if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No applications yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
-      var actions = (GOV_AI_ON && r.has_ai_profile ? '<a class="gov-btn ghost small" href="/ai-governance/systems/'+r.id+'">AI workspace</a> ' : '') + (CAN_MANAGE ? (
+      var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/application/'+r.id+'">Connected</a> ' + (GOV_AI_ON && r.has_ai_profile ? '<a class="gov-btn ghost small" href="/ai-governance/systems/'+r.id+'">AI workspace</a> ' : '') + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditApp('+r.id+')">Edit</button> '+
         '<button class="gov-btn ghost small" onclick="govDeleteApp('+r.id+')">Delete</button>'
       ) : '');
@@ -598,10 +599,10 @@ function govLoadDas(){
     var tbody = document.getElementById('daTBody');
     if(!rows.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No data assets yet.</td></tr>'; return}
     tbody.innerHTML = rows.map(r=>{
-      var actions = CAN_MANAGE ? (
+      var actions = '<a class="gov-btn ghost small" href="/governance/connected/governance/data_asset/'+r.id+'">Connected</a> ' + (CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditDa('+r.id+')">Edit</button> '+
         '<button class="gov-btn ghost small" onclick="govDeleteDa('+r.id+')">Delete</button>'
-      ) : '';
+      ) : '');
       return '<tr>'
         + '<td><strong>'+esc(r.name)+'</strong>'+(r.description ? '<br><small style="color:var(--muted)">'+esc(r.description)+'</small>' : '')+'</td>'
         + '<td>'+esc(r.category || '–')+'</td>'

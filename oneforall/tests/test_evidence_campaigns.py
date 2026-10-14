@@ -136,6 +136,40 @@ def test_reviewer_can_accept(test_db, scenario):
     assert result["reviewed_by"] == 2
 
 
+def _links_of(test_db, evidence_id=1):
+    return [dict(r) for r in test_db.execute(
+        "SELECT * FROM evidence_links WHERE evidence_id = %s AND deleted_at IS NULL ORDER BY id", (evidence_id,)).fetchall()]
+
+
+def test_accepting_a_request_records_the_reviewers_verdict_on_the_link_it_was_for(test_db, scenario):
+    reviewed = _submit_and_start_review(test_db, scenario)
+    assert _links_of(test_db) == [], "submitting a file links nothing by itself"
+    svc.decide_request(test_db, scenario["reviewer"], scenario["request"]["id"], decision="accept",
+                       notes="Covers the audit period.", expected_lock_version=reviewed["lock_version"])
+    [link] = _links_of(test_db)
+    assert (link["module"], link["entity_type"], link["entity_id"]) == ("grid", "control", 42)
+    assert (link["review_status"], link["reviewed_by"], link["review_note"], link["linked_by"]) == (
+        "accepted", 2, "Covers the audit period.", 1)
+
+
+def test_returning_a_request_turns_down_a_link_that_exists_and_creates_none(test_db, scenario):
+    reviewed = _submit_and_start_review(test_db, scenario)
+    test_db.execute("INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by, review_status) "
+                    "VALUES (1, 'grid', 'control', 42, 1, 'accepted')")
+    test_db.commit()
+    svc.decide_request(test_db, scenario["reviewer"], scenario["request"]["id"], decision="return",
+                       notes="Wrong period.", expected_lock_version=reviewed["lock_version"])
+    [link] = _links_of(test_db)
+    assert (link["review_status"], link["reviewed_by"], link["review_note"]) == ("returned", 2, "Wrong period.")
+
+
+def test_returning_a_request_with_nothing_linked_creates_no_link(test_db, scenario):
+    reviewed = _submit_and_start_review(test_db, scenario)
+    svc.decide_request(test_db, scenario["reviewer"], scenario["request"]["id"], decision="return",
+                       notes="Wrong period.", expected_lock_version=reviewed["lock_version"])
+    assert _links_of(test_db) == []
+
+
 def test_someone_who_is_not_the_reviewer_cannot_decide(test_db, scenario):
     reviewed = _submit_and_start_review(test_db, scenario)
     with pytest.raises(svc.ForbiddenError):

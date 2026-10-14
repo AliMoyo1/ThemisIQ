@@ -1,0 +1,27 @@
+{% extends "base_shell.html" %}
+{% block title %}AI Governance | ThemisIQ{% endblock %}
+{% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">AI Governance</span>{% endblock %}
+{% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="aig-page">
+  <div class="aig-head">
+    <div>
+      <h1 class="aig-h1">AI Governance</h1>
+      <p class="aig-lede">What needs action today, what changed since a decision, and what has nothing measured yet. Every number says what it counts and opens the list it came from.</p>
+    </div>
+    <div class="aig-head-actions">
+      {% if can_register %}<a class="btn btn-primary" href="/ai-governance/register">Register an AI use</a>{% endif %}
+      <a class="btn btn-secondary" href="/ai-governance/systems">AI systems</a>
+    </div>
+  </div>
+  <div id="aigOverview"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/ai_governance_common.js?v=1"></script>
+<script src="/static/js/ai_governance_overview.js?v=1"></script>
+<script>AIGov.overview(document.getElementById('aigOverview'));</script>
+{% endblock %}

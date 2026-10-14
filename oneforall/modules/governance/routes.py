@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from database import get_db
 
-from core.middleware import require_capability
+from core.middleware import require_auth, require_capability
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
 from modules.governance import data_service as ds
@@ -55,6 +55,86 @@ async def _json_body(request: Request) -> dict:
     from core.sanitize import sanitize_dict
     return sanitize_dict(body)
 
+
+# ── Connected view and changes to look at ────────────────────────────────────
+
+import re as _re
+
+_SEGMENT = _re.compile(r"^[a-z][a-z_]{0,39}$")
+
+
+def _shown_or_404(request: Request, module: str, entity_type: str, entity_id: int):
+    from modules.governance import entity360
+    if not (_SEGMENT.match(module) and _SEGMENT.match(entity_type)):
+        raise HTTPException(404, "Not found")
+    db = get_db()
+    try:
+        got = entity360.get_connected(db, request.state.user, module, entity_type, entity_id)
+    finally:
+        db.close()
+    if got is None:
+        raise HTTPException(404, "Not found")
+    return got
+
+
+@router.get("/connected/{module}/{entity_type}/{entity_id}", response_class=HTMLResponse)
+@require_auth
+async def connected_page(request: Request, module: str, entity_type: str, entity_id: int):
+    _shown_or_404(request, module, entity_type, entity_id)
+    return templates.TemplateResponse(request, "connected.html", {
+        "user": request.state.user, "page_kind": "entity", "page_title": "Connected view", "module": module,
+        "entity_type": entity_type, "entity_id": entity_id, **shell_ctx(request, active_module="governance")})
+
+
+@router.get("/api/connected/{module}/{entity_type}/{entity_id}")
+@require_auth
+async def api_connected(request: Request, module: str, entity_type: str, entity_id: int):
+    response = JSONResponse(_shown_or_404(request, module, entity_type, entity_id))
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/changes", response_class=HTMLResponse)
+@require_auth
+async def changes_page(request: Request):
+    return templates.TemplateResponse(request, "connected.html", {
+        "user": request.state.user, "page_kind": "changes", "page_title": "Changes to look at",
+        **shell_ctx(request, active_module="governance")})
+
+
+@router.get("/api/changes")
+@require_auth
+async def api_changes(request: Request):
+    from modules.governance import change_signals
+    db = get_db()
+    try:
+        items = change_signals.list_open(db, request.state.user)
+    finally:
+        db.close()
+    response = JSONResponse({"items": items})
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.post("/api/changes/{target_id}/decide")
+@require_auth
+async def api_change_decide(request: Request, target_id: int):
+    from modules.governance import change_signals
+    body = await _json_body(request)
+    user = request.state.user
+    db = get_db()
+    try:
+        done = change_signals.decide(db, user, target_id, body.get("decision"), body.get("reason"))
+        db.commit()
+    except change_signals.SignalError as exc:
+        db.rollback()
+        return JSONResponse({"error": exc.message}, status_code=exc.status)
+    finally:
+        db.close()
+    from core.middleware import log_audit
+    action, entity, entity_id, detail = done["audit"]
+    log_audit(user, "governance", action, entity, entity_id, details=detail)
+    return JSONResponse({"ok": True, "status": done["status"], "task_id": done["task_id"]})
 
 # ── SPA ──────────────────────────────────────────────────────────────────────
 

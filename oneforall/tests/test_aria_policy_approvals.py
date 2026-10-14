@@ -502,3 +502,45 @@ def test_two_concurrent_deciders_exactly_one_wins(tmp_path, monkeypatch):
     ).fetchone()[0]
     assert jobs == 1, "exactly one publication job must exist even though two decisions were attempted"
     verify_db.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Change signals: approving a version tells the records connected to the policy
+# ─────────────────────────────────────────────────────────────────────────
+
+def _connected_application(test_db, document_id):
+    app = test_db.execute(
+        "INSERT INTO applications (name, business_unit_id, criticality, is_active) VALUES ('Policy-bound system', 100, 'medium', 1)"
+    ).lastrowid
+    test_db.execute(
+        "INSERT INTO cross_module_links (source_module, source_type, source_id, target_module, target_type, target_id, "
+        "relationship, provenance, status) VALUES ('governance', 'application', %s, 'aria', 'document', %s, 'governed_by', "
+        "'manual', 'confirmed')", (app, document_id))
+    test_db.commit()
+    return app
+
+
+def test_approving_a_policy_version_tells_the_records_connected_to_it(test_db, scenario):
+    import json
+    document_id = scenario["confirmed"]["document_id"]
+    app = _connected_application(test_db, document_id)
+    approval = svc.submit_for_approval(
+        test_db, scenario["author"], scenario["confirmed"]["version_id"], scenario["approver_id"], "note", "req-1", 1)
+    assert test_db.execute("SELECT COUNT(*) FROM change_signals").fetchone()[0] == 0, "submitting changes nothing in force"
+    svc.decide_approval(test_db, _actor(test_db, scenario["approver_id"]), approval["id"], "approve", "ok", approval["lock_version"])
+    [signal] = test_db.execute("SELECT * FROM change_signals").fetchall()
+    assert (signal["source_module"], signal["source_type"], signal["source_id"], signal["change_kind"]) == (
+        "aria", "document", document_id, "policy_approved")
+    assert signal["changed_by"] == scenario["approver_id"]
+    assert [(c["field"], c["before"], c["after"]) for c in json.loads(signal["changes"])] == [
+        ("status", "Under Review", "Approved")], "version 1.0 was already the version of record"
+    targets = test_db.execute("SELECT target_module, target_type, target_id, status FROM change_signal_targets").fetchall()
+    assert [tuple(t) for t in targets] == [("governance", "application", app, "open")]
+
+
+def test_rejecting_a_policy_version_tells_nobody(test_db, scenario):
+    _connected_application(test_db, scenario["confirmed"]["document_id"])
+    approval = svc.submit_for_approval(
+        test_db, scenario["author"], scenario["confirmed"]["version_id"], scenario["approver_id"], "note", "req-1", 1)
+    svc.decide_approval(test_db, _actor(test_db, scenario["approver_id"]), approval["id"], "reject", "not yet", approval["lock_version"])
+    assert test_db.execute("SELECT COUNT(*) FROM change_signals").fetchone()[0] == 0

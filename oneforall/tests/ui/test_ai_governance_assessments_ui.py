@@ -193,7 +193,7 @@ def test_staff_do_not_see_the_assessments_or_the_way_in(login_as, live_app, page
     login_as("employee")
     assert page.goto(f"{live_app}/ai-governance/assessments").status == 403
     assert page.goto(f"{live_app}/ai-governance/assessments/new").status == 403
-    page.goto(f"{live_app}/ai-governance/")
+    page.goto(f"{live_app}/ai-governance/systems")
     page.wait_for_selector("h1:has-text('AI Systems')")
     assert page.locator("a[href='/ai-governance/assessments']").count() == 0
 

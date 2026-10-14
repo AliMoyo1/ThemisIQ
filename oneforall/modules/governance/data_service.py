@@ -12,6 +12,7 @@ import json
 from config import settings
 from database import get_db, insert_returning_id
 from core.timeutils import utcnow
+from core.change_watch import watched
 from core.best_effort import is_missing_relation, swallowed
 
 
@@ -173,7 +174,7 @@ _BU_REFERENCES = tuple((table, "business_unit_id") for table in (
     "aria_policy_publication_jobs", "aria_policy_versions",
     "bcm_exercises", "calendar_events", "erm_board_packs", "erm_scenarios",
     "evidence_campaigns", "evidence_requests", "people_directory",
-    "readiness_findings", "sentinel_dsr", "sentinel_consent", "ai_use_intake_requests", "ai_use_decisions", "ai_evaluation_runs", "ai_regulatory_impacts", "ai_review_packs", "ai_literacy_courses", "ai_literacy_completions",
+    "readiness_findings", "sentinel_dsr", "sentinel_consent", "ai_use_intake_requests", "ai_use_decisions", "ai_evaluation_runs", "ai_regulatory_impacts", "ai_review_packs", "ai_literacy_courses", "ai_literacy_completions", "ai_import_batches", "ai_external_responses",
     "user_business_unit_assignments",
 )) + (
     ("business_unit_transfers", "from_business_unit_id"),
@@ -665,6 +666,7 @@ def create_business_process(data: dict) -> int:
 def update_business_process(bp_id: int, data: dict) -> bool:
     db = get_db()
     try:
+        before = db.execute("SELECT * FROM business_processes WHERE id=%s", (bp_id,)).fetchone()
         db.execute(
             "UPDATE business_processes SET name=%s, code=%s, description=%s, "
             "business_unit_id=%s, department_id=%s, owner_user_id=%s, "
@@ -683,6 +685,14 @@ def update_business_process(bp_id: int, data: dict) -> bool:
              1 if data.get("is_active", 1) else 0,
              _now(), bp_id),
         )
+        if before is not None:
+            # What a recovery target or a criticality means to the records connected to this process: tell their owners.
+            from modules.governance import change_signals
+            change_signals.publish_process_change(db, bp_id, dict(before), {
+                "criticality": data.get("criticality", "medium"),
+                "rto_hours": data.get("rto_hours"), "rpo_hours": data.get("rpo_hours"),
+                "business_unit_id": data.get("business_unit_id"), "owner_user_id": data.get("owner_user_id"),
+                "is_active": 1 if data.get("is_active", 1) else 0})
         db.commit()
         return True
     finally:
@@ -761,9 +771,10 @@ def create_application(data: dict) -> int:
 def update_application(app_id: int, data: dict) -> bool:
     db = get_db()
     try:
-        current = db.execute("SELECT is_active FROM applications WHERE id=%s", (app_id,)).fetchone()
+        current = db.execute("SELECT * FROM applications WHERE id=%s", (app_id,)).fetchone()
         if current is None:
             return False
+        before = dict(current)
         active = (1 if data.get("is_active") else 0) if "is_active" in data else current["is_active"]
         db.execute(
             "UPDATE applications SET name=%s, description=%s, application_type=%s, "
@@ -788,6 +799,13 @@ def update_application(app_id: int, data: dict) -> bool:
             else:
                 db.execute("UPDATE applications SET retired_reason=%s, retired_at=%s WHERE id=%s",
                            ("Marked inactive in Governance settings", _now(), app_id))
+        # A change to what an application is, where it runs or who provides it matters to the records connected to it.
+        from modules.governance import change_signals
+        change_signals.publish_application_change(db, app_id, before, {
+            "criticality": data.get("criticality", "medium"),
+            "hosting": data.get("hosting") or None, "vendor_id": data.get("vendor_id"),
+            "application_type": data.get("application_type") or None, "business_unit_id": data.get("business_unit_id"),
+            "owner_user_id": data.get("owner_user_id"), "is_active": active})
         db.commit()
         return True
     finally:
@@ -889,6 +907,7 @@ def create_data_asset(data: dict) -> int:
         db.close()
 
 
+@watched("governance", "data_asset")
 def update_data_asset(asset_id: int, data: dict) -> bool:
     db = get_db()
     try:

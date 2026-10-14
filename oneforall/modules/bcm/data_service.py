@@ -9,6 +9,7 @@ coverage mapping, plan reviews, chat messages, and reminders.
 import json
 from datetime import datetime
 from core.timeutils import utcnow
+from core.change_watch import watched
 
 from database import get_db, insert_returning_id
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
@@ -99,6 +100,7 @@ def create_bia(data):
         db.close()
 
 
+@watched("bcm", "bia")
 def update_bia(bia_id, data):
     db = get_db()
     try:
@@ -420,6 +422,7 @@ def create_risk(data):
         db.close()
 
 
+@watched("bcm", "risk")
 def update_risk(risk_id, data):
     db = get_db()
     try:
@@ -501,6 +504,7 @@ def create_plan(data):
         db.close()
 
 
+@watched("bcm", "plan")
 def update_plan(plan_id, data):
     db = get_db()
     try:
@@ -589,6 +593,7 @@ def create_incident(data):
         db.close()
 
 
+@watched("bcm", "incident")
 def update_incident(inc_id, data, bu_scope=None):
     """No-ops (returns False) if inc_id is outside bu_scope, mirroring
     get_incident's fail-closed check -- callers must treat False as
@@ -917,6 +922,7 @@ def create_exercise(data):
         db.close()
 
 
+@watched("bcm", "exercise")
 def update_exercise(ex_id, data):
     db = get_db()
     try:
@@ -995,6 +1001,7 @@ def create_vendor(data):
         db.close()
 
 
+@watched("bcm", "vendor")
 def update_vendor(vid, data):
     db = get_db()
     try:

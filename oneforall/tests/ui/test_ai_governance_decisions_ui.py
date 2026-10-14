@@ -23,7 +23,7 @@ def _ask(page, note="Ready for the pilot."):
 def _as_decider(login_as, live_app, page, name):
     page.context.clear_cookies()
     login_as("super_admin")
-    page.goto(f"{live_app}/ai-governance/?q={name.replace(' ', '+')}")
+    page.goto(f"{live_app}/ai-governance/systems?q={name.replace(' ', '+')}")
     page.click(f"a:has-text('{name}')")
     page.wait_for_selector(".aig-tab.is-current:has-text('Overview')")
     _open_decisions(page)

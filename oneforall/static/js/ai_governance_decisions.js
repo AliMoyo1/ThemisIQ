@@ -354,6 +354,16 @@
             el('td', {}, [AIGov.chip(r.label, 'warn'), el('ul', {}, r.reasons.map(function (x) { return el('li', { text: x }); }))]),
             el('td', { text: when(r.decided_at) })]);
         }))])]));
+      body.appendChild(el('h2', { id: 'conditions', class: 'aig-h2', text: 'Approved with open conditions' }));
+      var conditions = data.conditions || [];
+      if (!conditions.length) body.appendChild(el('div', { class: 'aig-empty', text: 'No approval has an open condition.' }));
+      else body.appendChild(el('div', { class: 'aig-tablewrap' }, [el('table', { class: 'aig-table' }, [
+        el('thead', {}, [el('tr', {}, ['AI system', 'Open conditions', 'Overdue', 'Next due'].map(function (h) { return el('th', { scope: 'col', text: h }); }))]),
+        el('tbody', {}, conditions.map(function (c) {
+          return el('tr', {}, [el('td', {}, [el('a', { href: c.url, text: c.name })]), el('td', { text: String(c.open) }),
+            el('td', {}, [c.overdue ? AIGov.chip(String(c.overdue) + ' overdue', 'bad') : el('span', { class: 'aig-muted', text: 'None' })]),
+            el('td', { text: c.next_due || 'No date set' })]);
+        }))])]));
     }).catch(function (err) { AIGov.say(status, AIGov.errorText(err), 'bad'); });
   };
 }(window));

@@ -191,6 +191,14 @@ def tell_about_revocation(*, payload=None, event_id=None, user_id=None, **kw):
         db.close()
 
 
+def _standing_approval(db, application_id):
+    """The approval that is in force for this use: the latest decision that stands, if it is an approval and not revoked."""
+    return db.execute(
+        "SELECT d.id FROM ai_use_decisions d WHERE d.application_id = %s AND d.status IN ('approved', 'approved_with_conditions') "
+        "AND d.revoked_at IS NULL AND d.id = (SELECT MAX(x.id) FROM ai_use_decisions x WHERE x.application_id = d.application_id "
+        "AND x.status IN ('approved', 'approved_with_conditions', 'rejected'))", (application_id,)).fetchone()
+
+
 @events.on(events.AI_USE_MATERIAL_CHANGE)
 def tell_about_re_review(*, payload=None, event_id=None, org_id=None, user_id=None, **kw):
     """A fact an approval covered changed: the owner and the deciders hear that it needs a new decision."""
@@ -198,10 +206,7 @@ def tell_about_re_review(*, payload=None, event_id=None, org_id=None, user_id=No
     db = get_db()
     try:
         application_id = (payload or {}).get("application_id")
-        standing = db.execute(
-            "SELECT d.id FROM ai_use_decisions d WHERE d.application_id = %s AND d.status IN ('approved', 'approved_with_conditions') "
-            "AND d.revoked_at IS NULL AND d.id = (SELECT MAX(x.id) FROM ai_use_decisions x WHERE x.application_id = d.application_id "
-            "AND x.status IN ('approved', 'approved_with_conditions', 'rejected'))", (application_id,)).fetchone()
+        standing = _standing_approval(db, application_id)
         app = _application(db, application_id) if standing else None
         if app is None:
             return  # nothing was approved, so there is nothing to re-review
@@ -213,6 +218,66 @@ def tell_about_re_review(*, payload=None, event_id=None, org_id=None, user_id=No
             _notify(db, event_id, person, "An approved AI use needs a new decision",
                     f"{app['name']} changed in a way the approval covered.", _system_link(app))
         db.commit()
+    finally:
+        db.close()
+
+
+# ── What the records connected to an AI use are told ────────────────────────
+
+_STANDING_LABEL = {"approved": "Approved", "approved_with_conditions": "Approved with conditions", "rejected": "Not approved",
+                   None: "No decision"}
+
+
+def _tell_connected_records(db, application_id, kind, before, after, user_id, org_id) -> None:
+    """A processing record, an assessment, a control, an audit or a risk connected to this AI use is told what changed, and
+    its owner decides whether it matters. Nothing in any of them is changed here, and a failure is logged, not raised."""
+    from modules.governance import change_signals
+    change_signals.publish(db, source=("governance", "application", application_id), kind=kind,
+                           before={"state": before}, after={"state": after}, fields={"state": "AI use"},
+                           actor_id=user_id, org_id=org_id)
+    db.commit()
+
+
+@events.on(events.AI_DECISION_MADE)
+def tell_connected_records_about_a_decision(*, payload=None, user_id=None, org_id=None, **kw):
+    db = get_db()
+    try:
+        row = _decision(db, (payload or {}).get("decision_id"))
+        if row is None or row["status"] not in _STANDING_LABEL:
+            return  # a return for changes is not a standing outcome
+        earlier = db.execute(
+            "SELECT status FROM ai_use_decisions WHERE application_id = %s AND id < %s AND revoked_at IS NULL "
+            "AND status IN ('approved', 'approved_with_conditions', 'rejected') ORDER BY id DESC LIMIT 1",
+            (row["application_id"], row["id"])).fetchone()
+        _tell_connected_records(db, row["application_id"], "ai_use_decided",
+                                _STANDING_LABEL[earlier["status"] if earlier else None], _STANDING_LABEL[row["status"]],
+                                user_id, org_id)
+    finally:
+        db.close()
+
+
+@events.on(events.AI_DECISION_REVOKED)
+def tell_connected_records_about_a_revocation(*, payload=None, user_id=None, org_id=None, **kw):
+    db = get_db()
+    try:
+        row = _decision(db, (payload or {}).get("decision_id"))
+        if row is None:
+            return
+        _tell_connected_records(db, row["application_id"], "ai_use_revoked",
+                                _STANDING_LABEL.get(row["status"], row["status"]), "Approval revoked", user_id, org_id)
+    finally:
+        db.close()
+
+
+@events.on(events.AI_USE_MATERIAL_CHANGE)
+def tell_connected_records_about_a_changed_use(*, payload=None, user_id=None, org_id=None, **kw):
+    db = get_db()
+    try:
+        application_id = (payload or {}).get("application_id")
+        if application_id is None or _standing_approval(db, application_id) is None:
+            return  # nothing was approved, so no approval was covering what changed
+        _tell_connected_records(db, application_id, "ai_use_changed", "As the approval described it",
+                                "Changed since", user_id, org_id)
     finally:
         db.close()
 

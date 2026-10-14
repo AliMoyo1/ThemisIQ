@@ -9,11 +9,13 @@ sentence. A source that fails to answer says it is unavailable and is never show
 """
 import json
 import logging
+from datetime import timedelta
 
 from core.rbac import has_capability
 from core.sql_like import ci_like, like_pattern
 from core.timeutils import utcnow
 from modules.ai_governance import rules
+from modules.evidence import proof
 from modules.ai_governance import service
 from modules.ai_governance.service import APP, ServiceError
 from modules.governance import relationships
@@ -23,7 +25,8 @@ log = logging.getLogger("oneforall.ai_governance")
 
 PAGE_MAX = 100
 TABS = ("overview", "assessments", "risks_controls", "data_vendors", "evidence", "decisions", "monitoring", "activity")
-STATES = ("active", "retired", "needs_action", "review_due", "all")
+STATES = ("active", "retired", "needs_action", "review_due", "review_soon", "all")
+REVIEW_SOON_DAYS = 30  # "review_soon" is every review date reached or falling inside this many days
 _SORTS = {
     "name": "a.name, a.id",
     "tier": "COALESCE(p.adopted_tier, p.provisional_tier), a.name",
@@ -96,6 +99,9 @@ def list_systems(db, user, *, q=None, owner_id=None, bu_id=None, vendor_id=None,
     elif state == "review_due":
         where.append("a.is_active = 1 AND p.next_review_at IS NOT NULL AND p.next_review_at <= %s")
         params.append(today)
+    elif state == "review_soon":
+        where.append("a.is_active = 1 AND p.next_review_at IS NOT NULL AND p.next_review_at <= %s")
+        params.append((utcnow() + timedelta(days=REVIEW_SOON_DAYS)).strftime("%Y-%m-%d"))
     if q:
         where.append(f"({ci_like('a.name')} OR {ci_like('p.purpose')})")
         params += [like_pattern(q), like_pattern(q)]
@@ -183,6 +189,17 @@ def _next_actions(app, profile, can_review) -> list:
     return [dict(a, mine=can_review) for a in actions]
 
 
+def _source_request(db, user, application_id):
+    """The request this use was accepted from, for a reviewer who may open it: its questions to the requester live there."""
+    if not has_capability(user, "ai_use.review"):
+        return None
+    row = db.execute("SELECT * FROM ai_use_intake_requests WHERE application_id = %s ORDER BY id DESC LIMIT 1",
+                     (application_id,)).fetchone()
+    if row is None or not service._visible_to_reviewer(user, row):
+        return None
+    return {"id": row["id"], "revision": row["revision"], "imported": row["source_kind"] == "import"}
+
+
 def get_system(db, user, application_id: int) -> "dict | None":
     """The application, its profile and the facts every tab shares. None when the viewer may not open it."""
     service._require(user, "ai_use.view")
@@ -215,6 +232,7 @@ def get_system(db, user, application_id: int) -> "dict | None":
                 "link": _can_link(db, user, application_id),
                 "assessments": may_view_kind(user, _AIIA), "evidence": may_view_kind(user, ("evidence", "item"))},
         "next_actions": _next_actions(dict(app), profile, can_review),
+        "source_request": _source_request(db, user, application_id),
         "tabs": list(TABS),
     }
 
@@ -363,17 +381,27 @@ def _evidence(db, user, application_id) -> list:
     def build():
         scope, params = entity_scope_sql(("evidence", "item"), user, "e")
         rows = db.execute(
-            "SELECT e.id, e.title, e.status, e.expiry_date, e.version, e.updated_at FROM evidence_links l "
+            "SELECT e.id, e.title, e.status, e.expiry_date, e.version, e.updated_at, l.review_status FROM evidence_links l "
             "JOIN evidence_items e ON e.id = l.evidence_id WHERE l.module = 'governance' AND l.entity_type = 'application' "
             f"AND l.entity_id = %s AND l.deleted_at IS NULL AND {scope} ORDER BY e.updated_at DESC LIMIT 100",
             [application_id, *params]).fetchall()
         today = _today()
         items = []
         for r in rows:
-            expired = bool(r["expiry_date"]) and str(r["expiry_date"])[:10] < today
+            expired = bool(r["expiry_date"]) and str(r["expiry_date"])[:10] <= today
             detail = ", ".join(part for part in (f"Version {r['version']}" if r["version"] else "",
                                                  f"expires {str(r['expiry_date'])[:10]}" if r["expiry_date"] else "") if part)
-            items.append(_item(r["title"], f"/evidence/?open=item:{r['id']}", status="Expired" if expired else (r["status"] or "current"),
+            # What the file proves for this use: a replaced or expired version proves nothing now; otherwise the reviewer's
+            # verdict on this link, which is "waiting" until a reviewer has said.
+            if r["status"] == "superseded":
+                shown = "Replaced by a newer version"
+            elif expired:
+                shown = "Expired"
+            elif r["status"] == "archived":
+                shown = "Archived"
+            else:
+                shown = proof.OUTCOME_LABELS[r["review_status"] or "pending"]
+            items.append(_item(r["title"], f"/evidence/?open=item:{r['id']}", status=shown,
                                subtitle=detail or None, source="Evidence Vault", updated_at=r["updated_at"]))
         return _section("Attached evidence", items, note=None if items else "No evidence is attached to this use yet.")
 

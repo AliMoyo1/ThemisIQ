@@ -3485,6 +3485,394 @@ def test_ai_review_pack_issue_open_revoke_and_issuer_right_on_real_postgres(pg):
     assert _raw_rows("SELECT count(*) FROM public.ai_review_packs") == [(0,)]
 
 
+def test_ai_forms_import_review_desk_and_responses_run_inside_a_tenant_on_real_postgres(pg):
+    import threading
+
+    from modules.ai_governance import (decisions, external_responses, guidance, import_rules, imports, monitoring, outstanding,
+                                       overview, precedents, questions, service)
+
+    headers = [g["question"] for g in import_rules.FIELD_GUIDE if g["target"] != "response_id"]
+    by_question = {g["question"]: g["target"] for g in import_rules.FIELD_GUIDE}
+
+    def export_of(**changes):
+        values = {"name": "Imported helper", "purpose": "Summarize support tickets", "requester_name": "Pat Requester",
+                  "requester_email": "pat@outside.example", "requester_organization": "Support", "provider_name": "Acme AI",
+                  "deployment": "A vendor's AI service that we call", "intended_users": "Support agents",
+                  "data_categories": "Internal business information", "affects_decisions": "No", "target_launch": "2026-12-01"}
+        values.update(changes)
+        lines = [",".join(f'"{h}"' for h in headers),
+                 ",".join('"' + str(values.get(by_question[h], "")).replace('"', '""') + '"' for h in headers)]
+        return "\r\n".join(lines).encode("utf-8")
+
+    def preview(db, person, **changes):
+        done = imports.preview(db, person, data=export_of(**changes), filename="responses.csv", source_system="google_forms",
+                               form_name="AI use intake")
+        db.commit()
+        return done["batch"]
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "aidesk")
+    author, reviewer, second = who["author"], who["reviewer"], who["second"]
+    assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aidesk' AND indexname = 'uq_ai_intake_source'") == [(1,)]
+    for table in ("ai_import_batches", "ai_precedent_verdicts", "ai_request_questions", "ai_external_responses"):
+        assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_aidesk' "
+                         "AND table_name = %s", (table,)) == [(1,)], table
+
+    with pg.tenant_context(org, "aidesk", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            # A preview creates nothing; confirming creates one draft authored by the importer, with the owner the specialist chose.
+            first = preview(db, reviewer)
+            assert first["rows"][0]["outcome"] == "new"
+            assert db.execute("SELECT COUNT(*) FROM ai_use_intake_requests").fetchone()[0] == 0
+            made = imports.confirm(db, reviewer, first["id"], first["version"], {"2": {"owner_user_id": author["id"]}})
+            db.commit()
+            assert made["summary"]["created"] == 1 and len(made["created"]) == 1
+            request_id = made["created"][0]["intake_id"]
+
+            # The same export again is a duplicate and creates nothing.
+            again = preview(db, reviewer)
+            assert again["rows"][0]["outcome"] == "duplicate"
+            nothing = imports.confirm(db, reviewer, again["id"], again["version"])
+            db.commit()
+            assert nothing["summary"]["duplicates"] == 1 and nothing["created"] == []
+            assert db.execute("SELECT COUNT(*) FROM ai_use_intake_requests").fetchone()[0] == 1
+
+            # A correction is a new revision and supersedes the undecided draft; the earlier request is never edited.
+            fixed = preview(db, reviewer, purpose="Summarize and route support tickets")
+            assert fixed["rows"][0]["outcome"] == "revision"
+            revised = imports.confirm(db, reviewer, fixed["id"], fixed["version"], {"2": {"owner_user_id": author["id"]}})
+            db.commit()
+            assert revised["summary"]["revised"] == 1
+            assert [r[0] for r in db.execute("SELECT status FROM ai_use_intake_requests ORDER BY id").fetchall()] == ["superseded", "draft"]
+            request_id = revised["created"][0]["intake_id"]
+        finally:
+            db.close()
+
+    # Two specialists confirm previews of the same new response at the same moment: one request, and neither gets an error.
+    with pg.tenant_context(org, "aidesk", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            left, right = preview(db, reviewer, name="Raced helper"), preview(db, second, name="Raced helper")
+        finally:
+            db.close()
+    gate, results = threading.Barrier(2), {}
+
+    def confirm_raced(name, person, batch):
+        with pg.tenant_context(org, "aidesk", is_super_admin=False):
+            conn = pg.get_db()
+            try:
+                gate.wait(10)
+                results[name] = imports.confirm(conn, person, batch["id"], batch["version"])
+                conn.commit()
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback()
+                results[name] = exc
+            finally:
+                conn.close()
+
+    threads = [threading.Thread(target=confirm_raced, args=("left", reviewer, left)),
+               threading.Thread(target=confirm_raced, args=("right", second, right))]
+    [t.start() for t in threads]
+    [t.join(30) for t in threads]
+    assert not any(isinstance(r, Exception) for r in results.values()), results
+    assert sorted(r["summary"]["created"] for r in results.values()) == [0, 1]
+    assert sorted(r["summary"]["duplicates"] for r in results.values()) == [0, 1]
+    assert _raw_rows("SELECT count(*) FROM tenant_aidesk.ai_use_intake_requests WHERE source_kind = 'import' "
+                     "AND status != 'superseded'") == [(2,)]
+
+    with pg.tenant_context(org, "aidesk", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            # Questions for a requester with no account: a request with an open one is waiting, and answering ends the wait.
+            sent = service.submit(db, reviewer, request_id, db.execute(
+                "SELECT version FROM ai_use_intake_requests WHERE id = %s", (request_id,)).fetchone()[0])
+            db.commit()
+            assert sent["intake"]["status"] == "submitted"
+            asked = questions.ask(db, second, request_id, ["Which vendor contract covers this?"])
+            db.commit()
+            assert service.review_count(db, second, "waiting") == 1 and questions.waiting_ids(db, second) == [request_id]
+            assert "1. Which vendor contract covers this?" in questions.export_text(db, second, request_id)["text"]
+            questions.answer(db, second, asked["questions"][0]["id"], "Contract ACME-2026.", "Email from Pat", 1)
+            db.commit()
+            assert service.review_count(db, second, "waiting") == 0
+
+            accepted = service.approve(db, second, request_id, sent["intake"]["version"], new_application={})
+            db.commit()
+            app = accepted["application_id"]
+            twin = service.create_draft(db, author, {**_AI_GOOD, "name": "Imported helper pilot", "provider_name": "Acme AI",
+                                                      "purpose": "Summarize support tickets"})["intake"]
+            db.commit()
+            twin_sent = service.submit(db, author, twin["id"], twin["version"])
+            db.commit()
+            twin_app = service.approve(db, second, twin["id"], twin_sent["intake"]["version"], new_application={})["application_id"]
+            db.commit()
+
+            # Precedents: a similar use is a candidate until a specialist says what it is, and that links nothing.
+            found = precedents.for_use(db, second, app)
+            assert [c["id"] for c in found["bands"]["possible_match"]] == [twin_app], found["bands"]
+            precedents.set_verdict(db, second, "application", app, twin_app, "related", "Same vendor, another team.")
+            db.commit()
+            again_found = precedents.for_use(db, second, app)
+            assert [c["id"] for c in again_found["bands"]["related_precedent"]] == [twin_app]
+            assert again_found["bands"]["related_precedent"][0]["verdict"]["verdict"] == "related"
+
+            # Outstanding items read every source inside the tenant; none may come back unreadable.
+            left_to_do = outstanding.get_outstanding(db, second, app)
+            assert left_to_do["unavailable"] == [] and left_to_do["ready_for_decision"] is False
+            assert {line["key"] for line in left_to_do["lines"]} >= {"facts", "owner", "evaluation", "oversight", "decision"}
+
+            # The specialist views read in the tenant and none of their cards is an unreadable source.
+            home = overview.get_overview(db, second)
+            assert home["cards"] and all(card["state"] != "unavailable" for card in home["cards"]), home["cards"]
+            watched = monitoring.get_portfolio(db, second)
+            assert watched["state"] == "measured" and {row["application_id"] for row in watched["uses"]} >= {app, twin_app}
+
+            # A response rests on a signed decision: drafted by one person, approved by another, frozen, exported, recorded as sent.
+            guidance.set_step_not_applicable(db, second, app, "vendor", "Built by us under licence.")
+            db.commit()
+            asked_decision = decisions.request_decision(db, reviewer, app, None)
+            db.commit()
+            brief = decisions.get_brief(db, second, app)
+            signed = decisions.decide(
+                db, second, asked_decision["decision"]["id"], "approve", rationale="Approved.", brief=brief["hash"], expected_version=1,
+                override_reason="The remaining reviews are booked for next month." if brief["needs_override"] else None)
+            db.commit()
+            assert signed["decision"]["status"] == "approved"
+
+            listed = external_responses.list_for_use(db, reviewer, app)
+            assert listed["can_draft"] is True and listed["responses"] == []
+            drafted = external_responses.create_draft(db, reviewer, app)
+            db.commit()
+            draft = drafted["response"]
+            assert draft["requester"]["name"] == "Pat Requester" and draft["outcome"] == "approved" and draft["revision"] == 1
+            edited = external_responses.update_draft(
+                db, reviewer, draft["id"], {"summary": "Approved for the support team.", "response_date": "2026-10-20"}, draft["version"])
+            db.commit()
+            with pytest.raises(service.ServiceError) as same_person:
+                external_responses.approve(db, reviewer, draft["id"], edited["response"]["version"])
+            db.rollback()
+            assert same_person.value.status in (403, 409)
+            approved = external_responses.approve(db, second, draft["id"], edited["response"]["version"])
+            db.commit()
+            assert approved["response"]["status"] == "approved" and len(approved["response"]["content_hash"]) == 64
+            pdf = external_responses.export(db, second, draft["id"], "pdf")
+            db.commit()
+            assert pdf["body"][:4] == b"%PDF"
+            current = external_responses.get_response(db, second, draft["id"])["response"]
+            assert current["status"] == "exported" and current["export_count"] == 1
+            sent_now = external_responses.mark_sent(db, second, draft["id"], "2026-10-21", "Email to the requester", None, current["version"])
+            db.commit()
+            assert sent_now["response"]["status"] == "sent" and sent_now["response"]["sent_channel"] == "Email to the requester"
+            assert external_responses.list_for_use(db, reviewer, app)["responses"][0]["stands"] is True
+        finally:
+            db.close()
+
+    assert _raw_rows("SELECT status, export_count FROM tenant_aidesk.ai_external_responses") == [("sent", 1)]
+    assert _raw_rows("SELECT count(*) FROM tenant_aidesk.ai_precedent_verdicts") == [(1,)]
+    for table in ("ai_import_batches", "ai_precedent_verdicts", "ai_request_questions", "ai_external_responses"):
+        assert _raw_rows(f"SELECT count(*) FROM public.{table}") == [(0,)], table
+
+
+def test_evidence_proof_review_versions_and_library_run_inside_a_tenant_on_real_postgres(pg, monkeypatch):
+    import asyncio
+    import json
+    import types
+
+    import core.middleware as middleware
+    import modules.evidence.routes as ev
+    from modules.evidence import proof
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "evproof")
+    attacher, reviewer, second = who["author"], who["reviewer"], who["second"]
+    for column in ("review_status", "reviewed_by", "reviewed_at", "review_note", "carried_from_link_id"):
+        assert _raw_rows("SELECT count(*) FROM information_schema.columns WHERE table_schema = 'tenant_evproof' "
+                         "AND table_name = 'evidence_links' AND column_name = %s", (column,)) == [(1,)], column
+    for column in ("owner_user_id", "review_due_date", "period_start", "period_end"):
+        assert _raw_rows("SELECT count(*) FROM information_schema.columns WHERE table_schema = 'tenant_evproof' "
+                         "AND table_name = 'evidence_items' AND column_name = %s", (column,)) == [(1,)], column
+
+    async def current_user(request):
+        return request.state.user
+
+    monkeypatch.setattr(middleware, "get_current_user", current_user)
+
+    def call(handler, user, *args, **query):
+        request = types.SimpleNamespace(state=types.SimpleNamespace(user=user), url=types.SimpleNamespace(path="/x"),
+                                        query_params=query)
+        return json.loads(asyncio.run(handler(request, *args)).body)
+
+    with pg.tenant_context(org, "evproof", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            def risk(title, business_unit=None):
+                return pg.insert_returning_id(db, "INSERT INTO erm_enterprise_risks (title, business_unit_id) VALUES (%s, %s)",
+                                              (title, business_unit))
+
+            def item(title, **more):
+                fields = {"title": title, "org_id": org, "uploaded_by": ids["author"], "owner_user_id": ids["author"],
+                          "status": "current", **more}
+                return pg.insert_returning_id(
+                    db, f"INSERT INTO evidence_items ({', '.join(fields)}) VALUES ({', '.join(['%s'] * len(fields))})",
+                    tuple(fields.values()))
+
+            def link(evidence_id, target, status=None, by=None):
+                return pg.insert_returning_id(
+                    db, "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by, review_status) "
+                        "VALUES (%s, 'erm', 'risk', %s, %s, %s)", (evidence_id, target, by or ids["author"], status))
+
+            claim_a, claim_b, claim_c = risk("PG claim A"), risk("PG claim B"), risk("PG claim C")
+            report = item("PG signed test report")
+            waiting = link(report, claim_a)
+            replaced = item("PG replaced report", status="superseded")
+            link(replaced, claim_b, status="accepted")
+            lapsed = item("PG lapsed report", expiry_date="2020-01-01")
+            link(lapsed, claim_c, status="accepted")
+            unfiled = item("PG unfiled report", review_due_date=proof.today())
+            db.commit()
+
+            # A reviewer accepts; someone with no right to review cannot; a stale view is told so.
+            with pytest.raises(proof.ReviewError) as own:
+                proof.review_link(db, attacher, waiting, "accepted")
+            db.rollback()
+            assert own.value.status == 403
+            done = proof.review_link(db, reviewer, waiting, "accepted", "Covers the period.", expected_status="pending")
+            db.commit()
+            assert done["link"]["review_status"] == "accepted"
+            with pytest.raises(proof.ReviewError) as stale:
+                proof.review_link(db, second, waiting, "returned", "No.", expected_status="pending")
+            db.rollback()
+            assert stale.value.status == 409 and stale.value.extra["status_now"] == "accepted"
+
+            # The three measures count the same claims differently, on this engine.
+            cov = call(ev.api_evidence_coverage, reviewer)
+            entity = next(e for e in cov["erm"]["entities"] if e["type"] == "risk")
+            assert (entity["total"], entity["linked"], entity["current"], entity["accepted"]) == (3, 3, 1, 1), entity
+
+            # The library: a row says its state and claims; the work views and stats agree.
+            listed = call(ev.api_evidence_list, reviewer)
+            rows = {r["title"]: r for r in listed["items"]}
+            assert rows["PG signed test report"]["state"]["key"] == "accepted"
+            assert rows["PG signed test report"]["claims"][0]["title"] == "PG claim A"
+            assert rows["PG lapsed report"]["state"]["key"] == "expired"
+            assert rows["PG unfiled report"]["state"]["key"] == "needs_filing" and rows["PG unfiled report"]["review_due"] is True
+            assert "PG replaced report" not in rows, "a replaced version is not in the default list"
+            stats = call(ev.api_evidence_stats, reviewer)
+            for view, key in (("needs_filing", "needs_filing"), ("review_due", "review_due"), ("recent", "recently_updated"),
+                              ("for_review", "for_review")):
+                assert call(ev.api_evidence_list, reviewer, view=view)["total"] == stats[key], view
+            assert stats["needs_filing"] == 1 and stats["review_due"] == 1
+
+            # The inspector and Find evidence run their SQL on this engine too.
+            from modules.evidence import inspector
+            assert "expired_in_use" in {f["rule"] for f in inspector.inspect(db, reviewer)["findings"]}
+            ask = types.SimpleNamespace(state=types.SimpleNamespace(user=reviewer), url=types.SimpleNamespace(path="/x"),
+                                        query_params={})
+
+            async def question():
+                return {"question": "expired report", "use_ai": False}
+            ask.json = question
+            answer = json.loads(asyncio.run(ev.api_evidence_find(ask)).body)
+            assert answer["mode"] == "rules" and [r["title"] for r in answer["results"]] == ["PG lapsed report"]
+
+            # The person who attached a file or link is not its reviewer, even holding the right to review.
+            own_file = item("PG reviewer's own file", uploaded_by=ids["reviewer"])
+            own_link = link(own_file, risk("PG claim D"), by=ids["reviewer"])
+            db.commit()
+            with pytest.raises(proof.ReviewError) as same:
+                proof.review_link(db, reviewer, own_link, "accepted")
+            db.rollback()
+            assert same.value.status == 403
+
+            # A new version proposes its links and never inherits the verdict.
+            newer = item("PG signed test report v2", version=2, parent_id=report)
+            db.execute("UPDATE evidence_items SET status = 'superseded' WHERE id = %s", (report,))
+            carried = proof.carry_forward(db, reviewer, report, newer)
+            db.commit()
+            assert carried == {"considered": 1, "carried": 1, "not_carried": 0}
+            row = db.execute("SELECT review_status, carried_from_link_id FROM evidence_links WHERE evidence_id = %s", (newer,)).fetchone()
+            assert (row["review_status"], row["carried_from_link_id"]) == (None, waiting)
+            seen = proof.impact(db, reviewer, newer)
+            assert seen["summary"] == {"claims": 1, "proposed": 1, "awaiting_review": 1, "accepted_again": 0, "not_carried": 0}
+            assert [(c["title"], c["was"], c["now"]) for c in seen["claims"]] == [("PG claim A", "accepted", "pending")]
+
+            # A decision on a collection request is the same verdict, written on this engine too.
+            request_row = {"evidence_id": unfiled, "module": "erm", "entity_type": "risk", "entity_id": str(claim_c),
+                           "assignee_id": ids["author"]}
+            made = proof.record_request_decision(db, request_row, reviewer, True, "Accepted for the request.")
+            db.commit()
+            verdict = db.execute("SELECT review_status, reviewed_by, linked_by FROM evidence_links WHERE id = %s", (made,)).fetchone()
+            assert (verdict["review_status"], verdict["reviewed_by"], verdict["linked_by"]) == ("accepted", ids["reviewer"], ids["author"])
+        finally:
+            db.close()
+    assert _raw_rows("SELECT count(*) FROM public.evidence_links WHERE carried_from_link_id IS NOT NULL") == [(0,)]
+
+
+def test_change_signals_and_the_connected_view_run_inside_a_tenant_on_real_postgres(pg):
+    from modules.governance import change_signals, entity360
+    from modules.sentinel import data_service as sentinel
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "chsig")
+    reviewer = who["reviewer"]
+    for table in ("change_signals", "change_signal_targets"):
+        assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_chsig' "
+                         "AND table_name = %s", (table,)) == [(1,)], table
+
+    with pg.tenant_context(org, "chsig", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            app = pg.insert_returning_id(
+                db, "INSERT INTO applications (name, business_unit_id, criticality, hosting, owner_user_id, is_active) "
+                    "VALUES ('PG app', %s, 'medium', 'saas', %s, 1)", (unit, ids["author"]))
+            process = pg.insert_returning_id(
+                db, "INSERT INTO business_processes (name, business_unit_id, criticality, is_active) VALUES ('PG process', %s, 'high', 1)",
+                (unit,))
+            vendor = pg.insert_returning_id(db, "INSERT INTO sentinel_vendors (name, risk_level) VALUES ('PG vendor', 'medium')", ())
+            for target, relationship in ((("governance", "process", process), "supports"), (("sentinel", "vendor", vendor), "provided_by")):
+                db.execute("INSERT INTO cross_module_links (source_module, source_type, source_id, target_module, target_type, "
+                           "target_id, relationship, provenance, status) VALUES ('governance', 'application', %s, %s, %s, %s, %s, "
+                           "'manual', 'confirmed')", (app, target[0], target[1], target[2], relationship))
+            db.commit()
+
+            before = {"name": "PG app", "criticality": "medium", "hosting": "saas"}
+            after = {"name": "PG app", "criticality": "critical", "hosting": "saas"}
+            signal = change_signals.publish_application_change(db, app, before, after)
+            db.commit()
+            assert signal is not None
+            assert change_signals.publish_application_change(db, app, before, after) is None, "the same change is one signal"
+            db.commit()
+
+            seen = change_signals.list_open(db, reviewer)
+            assert {e["target"]["title"] for e in seen} == {"PG process", "PG vendor"}
+            assert all(e["source"]["title"] == "PG app" and e["can_review"] for e in seen)
+            confirmed = change_signals.decide(db, reviewer, next(e["id"] for e in seen if e["target"]["title"] == "PG process"),
+                                              "confirmed", "Recovery targets may not hold.")
+            db.commit()
+            assert confirmed["task_id"]
+            dismissed = change_signals.decide(db, reviewer, next(e["id"] for e in seen if e["target"]["title"] == "PG vendor"),
+                                              "dismissed", "Provider unchanged.")
+            db.commit()
+            assert dismissed["status"] == "dismissed" and change_signals.list_open(db, reviewer) == []
+
+            view = entity360.get_connected(db, reviewer, "governance", "application", app)
+            assert view["entity"]["title"] == "PG app" and view["unavailable"] == []
+            assert {i["title"] for s in view["connections"] for i in s["items"]} == {"PG process", "PG vendor"}
+            assert len(view["changes"]["items"]) == 2
+
+            # a vendor edited through its own module's data service tells the application that is provided by it
+            sentinel.update_vendor(vendor, {"risk_level": "high"})
+            vendor_signal = db.execute("SELECT change_kind, source_module, source_id FROM change_signals "
+                                       "WHERE change_kind = 'vendor_changed'").fetchone()
+            assert (vendor_signal["change_kind"], vendor_signal["source_module"], vendor_signal["source_id"]) == (
+                "vendor_changed", "sentinel", vendor)
+            assert [e["target"]["title"] for e in change_signals.list_open(db, reviewer)] == ["PG app"]
+        finally:
+            db.close()
+    assert _raw_rows("SELECT count(*) FROM public.change_signals") == [(0,)]
+
+
 def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
     from datetime import timedelta
     from core import rbac

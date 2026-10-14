@@ -1517,6 +1517,145 @@ CREATE INDEX IF NOT EXISTS idx_ai_intake_author ON ai_use_intake_requests(submit
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_intake_idempotency ON ai_use_intake_requests(submitted_by, idempotency_key)
     WHERE idempotency_key IS NOT NULL;
 
+-- ── AI governance (rework 1B): importing the responses of an external form ──────────────────────────────────
+-- A batch is one export, read and previewed by a specialist. While it waits for confirmation it holds the processed
+-- rows (and the unmapped columns that were shown); confirming creates the requests and drops what was only shown.
+CREATE TABLE IF NOT EXISTS ai_import_batches (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id           INTEGER,
+    business_unit_id INTEGER REFERENCES business_units(id),
+    source_system    TEXT NOT NULL,
+    form_name        TEXT NOT NULL,
+    export_date      TEXT,
+    mapping          TEXT NOT NULL DEFAULT '{}',
+    mapping_version  TEXT,
+    date_order       TEXT NOT NULL DEFAULT 'iso',
+    file_name        TEXT,
+    file_sha256      TEXT NOT NULL,
+    file_kind        TEXT,
+    row_count        INTEGER NOT NULL DEFAULT 0,
+    headers          TEXT NOT NULL DEFAULT '[]',
+    status           TEXT NOT NULL DEFAULT 'previewed',
+    rows             TEXT NOT NULL DEFAULT '[]',
+    counts           TEXT NOT NULL DEFAULT '{}',
+    imported_by      INTEGER NOT NULL REFERENCES users(id),
+    version          INTEGER NOT NULL DEFAULT 1,
+    created_at       TEXT DEFAULT (datetime('now')),
+    confirmed_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ai_import_batches ON ai_import_batches(status, business_unit_id);
+
+-- A specialist's verdict on a precedent candidate: the same use, a related one, or not related. It links, merges and
+-- approves nothing; it only records what a person concluded about two records they could open.
+CREATE TABLE IF NOT EXISTS ai_precedent_verdicts (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                   INTEGER,
+    subject_kind             TEXT NOT NULL,
+    subject_id               INTEGER NOT NULL,
+    candidate_application_id INTEGER NOT NULL REFERENCES applications(id),
+    verdict                  TEXT NOT NULL,
+    note                     TEXT,
+    decided_by               INTEGER REFERENCES users(id),
+    decided_at               TEXT,
+    UNIQUE (subject_kind, subject_id, candidate_application_id)
+);
+
+-- What a specialist needs a requester to answer. The requester has no account: the questions leave as text and the
+-- answer is entered by a specialist with where it came from.
+CREATE TABLE IF NOT EXISTS ai_request_questions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id        INTEGER,
+    intake_id     INTEGER NOT NULL REFERENCES ai_use_intake_requests(id),
+    position      INTEGER NOT NULL DEFAULT 1,
+    text          TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'open',
+    asked_by      INTEGER REFERENCES users(id),
+    asked_at      TEXT,
+    answer        TEXT,
+    answer_source TEXT,
+    answered_by   INTEGER REFERENCES users(id),
+    answered_at   TEXT,
+    version       INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_ai_request_questions ON ai_request_questions(intake_id, status);
+
+-- The response to a requester. A draft is edited freely; approving freezes the content under a hash; an export and the
+-- record that it was sent are separate facts, because a download is not a delivery.
+CREATE TABLE IF NOT EXISTS ai_external_responses (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id            INTEGER,
+    application_id    INTEGER NOT NULL REFERENCES applications(id),
+    intake_id         INTEGER REFERENCES ai_use_intake_requests(id),
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    revision          INTEGER NOT NULL DEFAULT 1,
+    supersedes_id     INTEGER,
+    status            TEXT NOT NULL DEFAULT 'draft',
+    outcome           TEXT NOT NULL,
+    decision_id       INTEGER NOT NULL,
+    decision_date     TEXT,
+    summary           TEXT,
+    scope_text        TEXT,
+    requester_actions TEXT NOT NULL DEFAULT '[]',
+    conditions        TEXT NOT NULL DEFAULT '[]',
+    review_due        TEXT,
+    response_date     TEXT,
+    requester         TEXT NOT NULL DEFAULT '{}',
+    source_reference  TEXT,
+    content           TEXT,
+    content_hash      TEXT,
+    drafted_by        INTEGER REFERENCES users(id),
+    drafted_at        TEXT,
+    approved_by       INTEGER REFERENCES users(id),
+    approved_at       TEXT,
+    exported_by       INTEGER REFERENCES users(id),
+    exported_at       TEXT,
+    export_count      INTEGER NOT NULL DEFAULT 0,
+    sent_by           INTEGER REFERENCES users(id),
+    sent_at           TEXT,
+    sent_channel      TEXT,
+    sent_reference    TEXT,
+    withdrawn_by      INTEGER REFERENCES users(id),
+    withdrawn_at      TEXT,
+    withdraw_reason   TEXT,
+    version           INTEGER NOT NULL DEFAULT 1,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_external_responses ON ai_external_responses(application_id, revision);
+
+-- A change to a record that other records depend on (an application's criticality, a process's recovery targets, a vendor's
+-- risk level, a file replaced by a new version). One row per change; each connected record gets a target row that its owner
+-- confirms or dismisses. Nothing here edits the connected record, and no title of the changed record is stored.
+CREATE TABLE IF NOT EXISTS change_signals (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id         INTEGER,
+    source_module  TEXT NOT NULL,
+    source_type    TEXT NOT NULL,
+    source_id      INTEGER NOT NULL,
+    change_kind    TEXT NOT NULL,
+    changes        TEXT NOT NULL,
+    changed_by     INTEGER REFERENCES users(id),
+    created_at     TEXT,
+    dedup_key      TEXT NOT NULL,
+    UNIQUE (dedup_key)
+);
+CREATE INDEX IF NOT EXISTS idx_change_signals_source ON change_signals(source_module, source_type, source_id);
+CREATE TABLE IF NOT EXISTS change_signal_targets (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    signal_id      INTEGER NOT NULL REFERENCES change_signals(id) ON DELETE CASCADE,
+    org_id         INTEGER,
+    target_module  TEXT NOT NULL,
+    target_type    TEXT NOT NULL,
+    target_id      INTEGER NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'open',
+    decided_by     INTEGER REFERENCES users(id),
+    decided_at     TEXT,
+    reason         TEXT,
+    task_id        INTEGER,
+    UNIQUE (signal_id, target_module, target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_change_targets_open ON change_signal_targets(status, target_module, target_type, target_id);
+
 -- ── AI governance (G3): guidance, judgements and dismissals ─────────────────
 -- A reviewer's judgement that a required step does not apply, with the facts it was judged against. Stored beside the
 -- rule version so a later change to the use, or to the rules, shows it as out of date instead of silently standing.
@@ -2473,6 +2612,145 @@ CREATE INDEX IF NOT EXISTS idx_ai_intake_queue ON ai_use_intake_requests(status,
 CREATE INDEX IF NOT EXISTS idx_ai_intake_author ON ai_use_intake_requests(submitted_by, status);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_intake_idempotency ON ai_use_intake_requests(submitted_by, idempotency_key)
     WHERE idempotency_key IS NOT NULL;
+
+-- ── AI governance (rework 1B): importing the responses of an external form ──────────────────────────────────
+-- A batch is one export, read and previewed by a specialist. While it waits for confirmation it holds the processed
+-- rows (and the unmapped columns that were shown); confirming creates the requests and drops what was only shown.
+CREATE TABLE IF NOT EXISTS ai_import_batches (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id           INTEGER,
+    business_unit_id INTEGER REFERENCES business_units(id),
+    source_system    TEXT NOT NULL,
+    form_name        TEXT NOT NULL,
+    export_date      TEXT,
+    mapping          TEXT NOT NULL DEFAULT '{}',
+    mapping_version  TEXT,
+    date_order       TEXT NOT NULL DEFAULT 'iso',
+    file_name        TEXT,
+    file_sha256      TEXT NOT NULL,
+    file_kind        TEXT,
+    row_count        INTEGER NOT NULL DEFAULT 0,
+    headers          TEXT NOT NULL DEFAULT '[]',
+    status           TEXT NOT NULL DEFAULT 'previewed',
+    rows             TEXT NOT NULL DEFAULT '[]',
+    counts           TEXT NOT NULL DEFAULT '{}',
+    imported_by      INTEGER NOT NULL REFERENCES users(id),
+    version          INTEGER NOT NULL DEFAULT 1,
+    created_at       TEXT DEFAULT (datetime('now')),
+    confirmed_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ai_import_batches ON ai_import_batches(status, business_unit_id);
+
+-- A specialist's verdict on a precedent candidate: the same use, a related one, or not related. It links, merges and
+-- approves nothing; it only records what a person concluded about two records they could open.
+CREATE TABLE IF NOT EXISTS ai_precedent_verdicts (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id                   INTEGER,
+    subject_kind             TEXT NOT NULL,
+    subject_id               INTEGER NOT NULL,
+    candidate_application_id INTEGER NOT NULL REFERENCES applications(id),
+    verdict                  TEXT NOT NULL,
+    note                     TEXT,
+    decided_by               INTEGER REFERENCES users(id),
+    decided_at               TEXT,
+    UNIQUE (subject_kind, subject_id, candidate_application_id)
+);
+
+-- What a specialist needs a requester to answer. The requester has no account: the questions leave as text and the
+-- answer is entered by a specialist with where it came from.
+CREATE TABLE IF NOT EXISTS ai_request_questions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id        INTEGER,
+    intake_id     INTEGER NOT NULL REFERENCES ai_use_intake_requests(id),
+    position      INTEGER NOT NULL DEFAULT 1,
+    text          TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'open',
+    asked_by      INTEGER REFERENCES users(id),
+    asked_at      TEXT,
+    answer        TEXT,
+    answer_source TEXT,
+    answered_by   INTEGER REFERENCES users(id),
+    answered_at   TEXT,
+    version       INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_ai_request_questions ON ai_request_questions(intake_id, status);
+
+-- The response to a requester. A draft is edited freely; approving freezes the content under a hash; an export and the
+-- record that it was sent are separate facts, because a download is not a delivery.
+CREATE TABLE IF NOT EXISTS ai_external_responses (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id            INTEGER,
+    application_id    INTEGER NOT NULL REFERENCES applications(id),
+    intake_id         INTEGER REFERENCES ai_use_intake_requests(id),
+    business_unit_id  INTEGER REFERENCES business_units(id),
+    revision          INTEGER NOT NULL DEFAULT 1,
+    supersedes_id     INTEGER,
+    status            TEXT NOT NULL DEFAULT 'draft',
+    outcome           TEXT NOT NULL,
+    decision_id       INTEGER NOT NULL,
+    decision_date     TEXT,
+    summary           TEXT,
+    scope_text        TEXT,
+    requester_actions TEXT NOT NULL DEFAULT '[]',
+    conditions        TEXT NOT NULL DEFAULT '[]',
+    review_due        TEXT,
+    response_date     TEXT,
+    requester         TEXT NOT NULL DEFAULT '{}',
+    source_reference  TEXT,
+    content           TEXT,
+    content_hash      TEXT,
+    drafted_by        INTEGER REFERENCES users(id),
+    drafted_at        TEXT,
+    approved_by       INTEGER REFERENCES users(id),
+    approved_at       TEXT,
+    exported_by       INTEGER REFERENCES users(id),
+    exported_at       TEXT,
+    export_count      INTEGER NOT NULL DEFAULT 0,
+    sent_by           INTEGER REFERENCES users(id),
+    sent_at           TEXT,
+    sent_channel      TEXT,
+    sent_reference    TEXT,
+    withdrawn_by      INTEGER REFERENCES users(id),
+    withdrawn_at      TEXT,
+    withdraw_reason   TEXT,
+    version           INTEGER NOT NULL DEFAULT 1,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ai_external_responses ON ai_external_responses(application_id, revision);
+
+-- A change to a record that other records depend on (an application's criticality, a process's recovery targets, a vendor's
+-- risk level, a file replaced by a new version). One row per change; each connected record gets a target row that its owner
+-- confirms or dismisses. Nothing here edits the connected record, and no title of the changed record is stored.
+CREATE TABLE IF NOT EXISTS change_signals (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id         INTEGER,
+    source_module  TEXT NOT NULL,
+    source_type    TEXT NOT NULL,
+    source_id      INTEGER NOT NULL,
+    change_kind    TEXT NOT NULL,
+    changes        TEXT NOT NULL,
+    changed_by     INTEGER REFERENCES users(id),
+    created_at     TEXT,
+    dedup_key      TEXT NOT NULL,
+    UNIQUE (dedup_key)
+);
+CREATE INDEX IF NOT EXISTS idx_change_signals_source ON change_signals(source_module, source_type, source_id);
+CREATE TABLE IF NOT EXISTS change_signal_targets (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    signal_id      INTEGER NOT NULL REFERENCES change_signals(id) ON DELETE CASCADE,
+    org_id         INTEGER,
+    target_module  TEXT NOT NULL,
+    target_type    TEXT NOT NULL,
+    target_id      INTEGER NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'open',
+    decided_by     INTEGER REFERENCES users(id),
+    decided_at     TEXT,
+    reason         TEXT,
+    task_id        INTEGER,
+    UNIQUE (signal_id, target_module, target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_change_targets_open ON change_signal_targets(status, target_module, target_type, target_id);
 
 -- ── AI governance (G3): guidance, judgements and dismissals ─────────────────
 -- A reviewer's judgement that a required step does not apply, with the facts it was judged against. Stored beside the
@@ -5692,6 +5970,19 @@ _COLUMN_MIGRATIONS = [
         ("evidence_items",         "verified_by", "INTEGER REFERENCES users(id)"),
         ("evidence_items",         "verified_at", "TEXT"),
         ("evidence_items",         "confidence_score", "INTEGER"),
+        # Proof semantics (plans/2026-10-governance-rework/02): a reviewer's verdict on one link, and where a link was
+        # proposed from when a new version replaced the one it was first made for. NULL review_status is waiting.
+        ("evidence_links",         "review_status", "TEXT"),
+        ("evidence_links",         "reviewed_by", "INTEGER REFERENCES users(id)"),
+        ("evidence_links",         "reviewed_at", "TEXT"),
+        ("evidence_links",         "review_note", "TEXT"),
+        ("evidence_links",         "carried_from_link_id", "INTEGER"),
+        # What the library shows beside a file: who answers for it, when it is next looked at (not the same as
+        # expiry), and the period it describes.
+        ("evidence_items",         "owner_user_id", "INTEGER REFERENCES users(id)"),
+        ("evidence_items",         "review_due_date", "TEXT"),
+        ("evidence_items",         "period_start", "TEXT"),
+        ("evidence_items",         "period_end", "TEXT"),
         ("task_board",             "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         ("people_directory",       "business_unit_id", "INTEGER REFERENCES business_units(id)"),
         # ── Governance Graph T1.2: canonical control linkage + user BU ────────
@@ -5819,6 +6110,16 @@ _COLUMN_MIGRATIONS = [
         ("business_processes", "uses_ai_source", "TEXT"),
         ("business_processes", "uses_ai_set_by", "INTEGER REFERENCES users(id)"),
         ("business_processes", "uses_ai_set_at", "TEXT"),
+        # AI governance rework 1B: a request that came from an external form export keeps where it came from, who asked
+        # (an outside requester's own facts, never an account), which revision of that response it is, and the
+        # fingerprint that makes importing the same response twice a no-op
+        ("ai_use_intake_requests", "source_kind", "TEXT DEFAULT 'manual'"),
+        ("ai_use_intake_requests", "import_batch_id", "INTEGER"),
+        ("ai_use_intake_requests", "source_key", "TEXT"),
+        ("ai_use_intake_requests", "source_fingerprint", "TEXT"),
+        ("ai_use_intake_requests", "requester", "TEXT"),
+        ("ai_use_intake_requests", "revision", "INTEGER NOT NULL DEFAULT 1"),
+        ("ai_use_intake_requests", "supersedes_id", "INTEGER"),
 ]
 
 
@@ -5893,6 +6194,26 @@ def _backfill_owner_units(conn) -> None:
             "%d left organization wide.", placed, unplaced)
 
 
+_EVIDENCE_OWNER_KEY = "evidence.owner.backfill.v1"
+
+
+def _backfill_evidence_owner(conn) -> None:
+    """A file that existed before the Vault named an owner is answered for by the person who uploaded it. Runs ONCE per
+    schema (a marker row in `settings`), so it never hands a file back to an uploader after someone changed its owner. A
+    file with no known uploader stays without an owner, and the assurance inspector says so."""
+    import logging
+    from core.best_effort import attempt
+    if conn.execute("SELECT 1 FROM settings WHERE key = %s", (_EVIDENCE_OWNER_KEY,)).fetchone():
+        return
+    with attempt(conn, "backfill of owners on evidence items"):
+        moved = conn.execute(
+            "UPDATE evidence_items SET owner_user_id = uploaded_by "
+            "WHERE owner_user_id IS NULL AND uploaded_by IS NOT NULL").rowcount
+        conn.execute("INSERT INTO settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
+                     (_EVIDENCE_OWNER_KEY, "done"))
+        logging.getLogger("oneforall.migrations").info("Named the uploader as owner of %s evidence item(s).", moved)
+
+
 def _run_sqlite_alters(conn):
     """SQLite-only: ALTER TABLE ADD COLUMN for schema evolution and UNIQUE index creation."""
     for table, column, definition in _COLUMN_MIGRATIONS:
@@ -5910,6 +6231,7 @@ def _run_sqlite_alters(conn):
     # Baseline-only packs remain organization-wide (NULL).
     _backfill_board_pack_business_units(conn)
     _backfill_owner_units(conn)
+    _backfill_evidence_owner(conn)
     conn.commit()
 
     # ── Create indexes that depend on migrated columns ──
@@ -5937,6 +6259,9 @@ def _run_sqlite_alters(conn):
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_event_user ON notifications(source_event_id, user_id) WHERE source_event_id IS NOT NULL",
         # AI governance G3b: which assessments are about a system (duplicated in _run_pg_alters below)
         "CREATE INDEX IF NOT EXISTS idx_aiia_application ON sentinel_aiia(application_id)",
+        # AI governance rework 1B: one request per response and revision, even when two imports race (duplicated in
+        # _run_pg_alters below)
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_intake_source ON ai_use_intake_requests(source_key, source_fingerprint) WHERE source_key IS NOT NULL",
         # PLAN-35 T11 review fix: also correctness constraints (a dedup_key
         # replay's idempotency for these two specific, previously
         # non-idempotent event side effects), duplicated in _run_pg_alters()
@@ -7391,6 +7716,7 @@ def _run_pg_alters(conn) -> None:
     except Exception:
         pass
     _backfill_owner_units(conn)
+    _backfill_evidence_owner(conn)
     conn.commit()
     # PLAN-35: correctness constraints on version-keyed evidence columns that
     # were just added above. _run_sqlite_alters' _POST_MIGRATION_INDEXES has
@@ -7402,6 +7728,7 @@ def _run_pg_alters(conn) -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_events_dedup_key ON events(dedup_key) WHERE dedup_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_event_user ON notifications(source_event_id, user_id) WHERE source_event_id IS NOT NULL",
         "CREATE INDEX IF NOT EXISTS idx_aiia_application ON sentinel_aiia(application_id)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_intake_source ON ai_use_intake_requests(source_key, source_fingerprint) WHERE source_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_source_event ON task_board(source_event_id) WHERE source_event_id IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_board_reminder_key ON task_board(reminder_key) WHERE reminder_key IS NOT NULL",
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_workflow_instances_defn_event ON workflow_instances(definition_id, source_event_id) WHERE source_event_id IS NOT NULL",

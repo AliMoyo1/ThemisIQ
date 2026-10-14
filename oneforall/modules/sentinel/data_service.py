@@ -10,6 +10,7 @@ import random
 import string
 from datetime import datetime, timedelta
 from core.timeutils import utcnow, to_dt
+from core.change_watch import watched
 from database import get_db, insert_returning_id, sql_current_date
 from core.sql_like import ci_like, like_pattern
 
@@ -194,6 +195,11 @@ def _dpia_row(row):
 def _breach_row(row):
     d = dict(row)
     d["data_types"] = _parse_json(d.get("data_types"), [])
+    try:
+        from modules.sentinel.jurisdictions import breach_clock
+        d["clock"] = breach_clock(d.get("regulation"), d.get("discovery_date"))
+    except Exception:  # the record is still shown; only the explanation is missing
+        d["clock"] = None
     return d
 
 
@@ -227,6 +233,7 @@ def create_ropa(data, business_unit_id=None):
                            ref_prefix="ROPA", json_fields=_ROPA_JSON)
 
 
+@watched("sentinel", "ropa")
 def update_ropa(ropa_id, data):
     _generic_update("sentinel_ropa", set(_ROPA_FIELDS), data, ropa_id, json_fields=_ROPA_JSON)
 
@@ -315,6 +322,7 @@ def create_dpia(data, business_unit_id=None):
                            json_fields=_DPIA_JSON)
 
 
+@watched("sentinel", "dpia")
 def update_dpia(dpia_id, data):
     _generic_update("sentinel_dpias", set(_DPIA_FIELDS), data, dpia_id, json_fields=_DPIA_JSON)
 
@@ -454,6 +462,18 @@ _BREACH_FIELDS = [
 ]
 
 
+def _notify_deadline(regulation, discovery_date):
+    """The indicative notification deadline counted from the recorded discovery date by the configured rule, or None when
+    there is no trigger (no discovery date) or no rule for the regulation: no clock is invented for either."""
+    from modules.sentinel.jurisdictions import breach_clock, get_breach_deadline_hours
+    if breach_clock(regulation, discovery_date)["state"] in ("no_trigger", "no_rule"):
+        return None
+    start = to_dt(str(discovery_date)[:10])
+    if start is None:
+        return None
+    return (start + timedelta(hours=get_breach_deadline_hours(regulation))).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def create_breach(data, business_unit_id=None):
     data.setdefault("title", "Untitled Incident")
     data.setdefault("regulation", _primary_jurisdiction_key())
@@ -461,10 +481,7 @@ def create_breach(data, business_unit_id=None):
     data.setdefault("status", "open")
     if data.get("discovery_date"):
         try:
-            from modules.sentinel.jurisdictions import get_breach_deadline_hours
-            hours = get_breach_deadline_hours(data.get("regulation", "GDPR"))
-            disc = to_dt(data["discovery_date"][:10])
-            data["notify_deadline"] = (disc + timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+            data["notify_deadline"] = _notify_deadline(data.get("regulation", "GDPR"), data["discovery_date"])
         except Exception:
             pass
     data["business_unit_id"] = business_unit_id
@@ -472,7 +489,19 @@ def create_breach(data, business_unit_id=None):
                            ref_prefix="BRE", json_fields=["data_types"])
 
 
+@watched("sentinel", "breach")
 def update_breach(bid, data):
+    # The deadline follows its trigger and its rule. It used to be set once, at creation, so an edited discovery date or
+    # regulation left the old deadline running. An explicit deadline in the update is kept as given.
+    if ("discovery_date" in data or "regulation" in data) and "notify_deadline" not in data:
+        current = get_breach(bid) or {}
+        data = dict(data)
+        try:
+            data["notify_deadline"] = _notify_deadline(
+                data.get("regulation", current.get("regulation")) or "GDPR",
+                data.get("discovery_date", current.get("discovery_date")))
+        except Exception:
+            data.pop("notify_deadline", None)
     _generic_update("sentinel_breaches", set(_BREACH_FIELDS), data, bid, json_fields=["data_types"])
 
 def get_breach(bid):
@@ -534,6 +563,7 @@ def create_dsr(data):
     return _generic_create("sentinel_dsr", _DSR_FIELDS, data, ref_prefix="DSR")
 
 
+@watched("sentinel", "dsr")
 def update_dsr(dsr_id, data, bu_scope=None):
     """No-ops (returns False) if dsr_id is outside bu_scope, mirroring
     get_dsr's fail-closed check -- callers must treat False as
@@ -636,6 +666,7 @@ def create_vendor(data):
     return _generic_create("sentinel_vendors", _VENDOR_FIELDS, data, json_fields=["data_types"])
 
 
+@watched("sentinel", "vendor")
 def update_vendor(vid, data):
     _generic_update("sentinel_vendors", set(_VENDOR_FIELDS), data, vid, json_fields=["data_types"])
 

@@ -1073,9 +1073,12 @@
   function emptyRow(colspan,msg){return '<tr><td colspan="'+colspan+'" style="text-align:center;padding:32px;color:var(--muted)">'+esc(msg||'No records found')+'</td></tr>';}
 
   /* ── Regulatory countdown helpers (SENT-15, SENT-16) ── */
-  function breachCountdown(notify_deadline, status){
+  function breachCountdown(notify_deadline, status, clock){
     if(status&&(status==='resolved'||status==='closed'||status==='contained'))
       return '<span class="cd-ok">Resolved</span>';
+    // No trigger or no rule: say so, and never show a running countdown.
+    if(clock&&(clock.state==='no_trigger'||clock.state==='no_rule'))
+      return '<span style="color:var(--muted);font-size:11px" title="'+esc(clock.label).replace(/"/g,'&quot;')+'">Clock not started</span>';
     if(!notify_deadline) return '<span style="color:var(--muted);font-size:11px">—</span>';
     var now=new Date();
     var due=new Date(notify_deadline);
@@ -2381,7 +2384,7 @@
       breachCache=items;
       if(!items.length){body.innerHTML=emptyRow(6,'No breaches recorded');return;}
       body.innerHTML=items.map(function(b){
-        return '<tr><td><span class="item-id">'+esc(b.reference||'BR-'+b.id)+'</span></td><td>'+esc(b.title||b.description||'')+'</td><td>'+riskBadge(b.severity||b.risk_level)+'</td><td>'+statusBadge(b.status)+'</td><td>'+fmtDate(b.reported_date||b.created_at)+'</td><td>'+breachCountdown(b.notify_deadline,b.status)+'</td><td>'+actionBtns('snEditBreach('+b.id+')','snDeleteRecord(\'breach\','+b.id+')')+'</td></tr>';
+        return '<tr><td><span class="item-id">'+esc(b.reference||'BR-'+b.id)+'</span></td><td>'+esc(b.title||b.description||'')+'</td><td>'+riskBadge(b.severity||b.risk_level)+'</td><td>'+statusBadge(b.status)+'</td><td>'+fmtDate(b.reported_date||b.created_at)+'</td><td>'+breachCountdown(b.notify_deadline,b.status,b.clock)+'</td><td>'+actionBtns('snEditBreach('+b.id+')','snDeleteRecord(\'breach\','+b.id+')')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(6,'Failed to load breaches');}
   };

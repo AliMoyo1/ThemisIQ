@@ -68,6 +68,7 @@ FEATURES = {
     "erm.scan_emerging_risks":             ("Horizon scan from model knowledge", ("business",)),
     "erm.generate_board_pack_narrative":   ("Board pack narrative", ("business",)),
     "evidence.api_evidence_suggest_links": ("Suggest where evidence belongs", ("business", "evidence")),
+    "evidence.find_evidence":              ("Read a question into evidence filters", ("business",)),
     "governance.run_drift_check":          ("Governance drift check", ("business",)),
     "grid.batch_risk_score":               ("Score audit risks in bulk", ("business",)),
     "grid.parse_checklist_with_ai":        ("Read an audit checklist", ("business",)),

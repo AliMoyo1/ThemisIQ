@@ -581,6 +581,12 @@ async def update_control(request: Request, ctrl_id: int,
             old_status = old["status"] or ""
             log_audit(user, "aria", "Updated control to '" + str(status) + "'",
                       "control", ctrl_id, old_status)
+            # The records connected to this control are told what changed in it; each owner decides whether it matters.
+            from modules.governance import change_signals
+            fresh = db.execute("SELECT * FROM controls WHERE id=%s", (ctrl_id,)).fetchone()
+            if fresh is not None:
+                change_signals.publish_record_change(db, ("aria", "control"), ctrl_id, dict(old), dict(fresh))
+                db.commit()
 
             # Emit control updated event when status changes
             if status and status != old_status:

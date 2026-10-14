@@ -99,6 +99,14 @@ def fingerprint(answers: dict) -> str:
 
 # ── Intake requests ─────────────────────────────────────────────────────────
 
+def _json_object(raw) -> "dict | None":
+    try:
+        value = json.loads(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def _intake(row) -> dict:
     try:
         answers = json.loads(row["payload"] or "{}")
@@ -111,6 +119,9 @@ def _intake(row) -> dict:
         "submitted_by": row["submitted_by"], "reviewed_by": row["reviewed_by"], "source_ref": row["source_ref"],
         "submitted_at": _text(row["submitted_at"]), "reviewed_at": _text(row["reviewed_at"]),
         "created_at": _text(row["created_at"]), "updated_at": _text(row["updated_at"]),
+        # where a request came from: typed in by the author, or read from an external form's export
+        "source_kind": row["source_kind"] or "manual", "requester": _json_object(row["requester"]),
+        "revision": row["revision"] or 1, "supersedes_id": row["supersedes_id"], "import_batch_id": row["import_batch_id"],
     }
 
 
@@ -224,6 +235,21 @@ def create_draft(db, user, raw_answers, idempotency_key=None, source_ref=None) -
             "audit": [("ai_use_draft_created", "ai_use_intake", new_id, "draft created")], "events": []}
 
 
+def create_imported_draft(db, user, answers: dict, *, requester: dict, batch_id: int, source_key, fingerprint,
+                          revision: int, supersedes_id, unit) -> "int | None":
+    """A draft made from one response of an imported export (imports.confirm). The importing specialist is its author of
+    record and the requester's own facts are kept apart. The owner may stay open: an import never invents one. None means
+    the same response was imported at the same moment by someone else: the unique source index kept the first one."""
+    _require(user, "ai_use.review")
+    return insert_returning_id(
+        db,
+        "INSERT INTO ai_use_intake_requests (org_id, business_unit_id, submitted_by, status, payload, source_kind, "
+        "import_batch_id, source_key, source_fingerprint, requester, revision, supersedes_id) "
+        "VALUES (%s, %s, %s, 'draft', %s, 'import', %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+        (user.get("org_id"), unit, user["id"], json.dumps(answers), batch_id, source_key, fingerprint,
+         json.dumps(requester or {}), revision, supersedes_id))
+
+
 def _compare_and_set(db, intake_id: int, expected_version, statuses: tuple, **sets) -> bool:
     """One atomic step that only applies to the version the person was looking at, in an allowed status."""
     if isinstance(expected_version, bool) or not isinstance(expected_version, int):
@@ -290,18 +316,73 @@ def list_mine(db, user, status=None) -> list:
     return _with_names(db, [_intake(r) for r in db.execute(sql + " ORDER BY updated_at DESC, id DESC LIMIT 200", params).fetchall()])
 
 
-def review_queue(db, user, status="submitted", limit=100) -> list:
-    """Requests a reviewer may see: their organization's, inside their business-unit scope."""
-    _require(user, "ai_use.review")
-    sql, params = "SELECT * FROM ai_use_intake_requests WHERE status = %s", [status]
+def _review_scope(user, status=None) -> tuple:
+    """The WHERE clause and parameters of the requests (in `status`, or in any) a reviewer may see: their organization's,
+    inside their business-unit scope. One place, so a queue and the count of it cannot disagree."""
+    sql, params = (" WHERE status = %s", [status]) if status not in (None, "waiting") else (" WHERE 1 = 1", [])
     if user.get("org_id") is not None:
         sql, params = sql + " AND org_id = %s", [*params, user["org_id"]]
     scope = bu_scope_ids(user)
     if scope is not None:
         sql += f" AND (business_unit_id IS NULL OR business_unit_id IN ({','.join(['%s'] * len(scope))}))"
         params += list(scope)
-    rows = db.execute(sql + " ORDER BY submitted_at, id LIMIT %s", [*params, max(1, min(int(limit), 200))]).fetchall()
+    if status == "waiting":  # sent back to the requester, or carrying a question nobody has answered yet
+        sql += (" AND (status = 'returned' OR (status IN ('draft', 'submitted') AND id IN "
+                "(SELECT intake_id FROM ai_request_questions WHERE status = 'open')))")
+    return sql, params
+
+
+def review_queue(db, user, status="submitted", limit=100) -> list:
+    """Requests a reviewer may see: their organization's, inside their business-unit scope."""
+    _require(user, "ai_use.review")
+    where, params = _review_scope(user, status)
+    rows = db.execute("SELECT * FROM ai_use_intake_requests" + where + " ORDER BY submitted_at, id LIMIT %s",
+                      [*params, max(1, min(int(limit), 200))]).fetchall()
     return _with_names(db, [_intake(r) for r in rows])
+
+
+def review_count(db, user, status="submitted") -> int:
+    """How many requests are in the reviewer's queue for `status` (the length of `review_queue` without its limit)."""
+    _require(user, "ai_use.review")
+    where, params = _review_scope(user, status)
+    return db.execute("SELECT COUNT(*) FROM ai_use_intake_requests" + where, params).fetchone()[0]
+
+
+def review_submitted_at(db, user, status="submitted") -> list:
+    """When each request in the reviewer's queue for `status` was submitted, for ageing. The same scope as the queue."""
+    _require(user, "ai_use.review")
+    where, params = _review_scope(user, status)
+    return [str(r[0]) for r in db.execute("SELECT submitted_at FROM ai_use_intake_requests" + where + " AND submitted_at IS NOT NULL",
+                                          params).fetchall()]
+
+
+def funnel_counts(db, user, since: str) -> dict:
+    """How the requests submitted since `since` (a timestamp string) moved on, inside the reviewer's scope: submitted,
+    triaged (a reviewer acted), accepted into the inventory, accepted with a completed impact assessment, accepted with a
+    standing decision. Each is read from the records, never inferred."""
+    _require(user, "ai_use.review")
+    where, params = _review_scope(user)
+    accepted = "r.status = 'approved' AND r.application_id IS NOT NULL"
+    row = db.execute(
+        "SELECT COUNT(*) AS submitted, "
+        "SUM(CASE WHEN r.reviewed_at IS NOT NULL THEN 1 ELSE 0 END) AS triaged, "
+        f"SUM(CASE WHEN {accepted} THEN 1 ELSE 0 END) AS accepted, "
+        f"SUM(CASE WHEN {accepted} AND EXISTS (SELECT 1 FROM sentinel_aiia i WHERE i.application_id = r.application_id "
+        "AND i.status IN ('completed', 'approved')) THEN 1 ELSE 0 END) AS assessed, "
+        f"SUM(CASE WHEN {accepted} AND EXISTS (SELECT 1 FROM ai_use_decisions d WHERE d.application_id = r.application_id "
+        "AND d.status IN ('approved', 'approved_with_conditions', 'rejected')) THEN 1 ELSE 0 END) AS decided "
+        "FROM ai_use_intake_requests r" + where + " AND r.status != 'superseded' AND r.submitted_at IS NOT NULL "
+        "AND r.submitted_at >= %s",
+        [*params, since]).fetchone()
+    return {k: int(row[k] or 0) for k in ("submitted", "triaged", "accepted", "assessed", "decided")}
+
+
+def mine_counts(db, user) -> dict:
+    """The caller's own requests by status. Nobody else's are counted."""
+    _require(user, "ai_use.submit")
+    rows = db.execute("SELECT status, COUNT(*) AS n FROM ai_use_intake_requests WHERE submitted_by = %s GROUP BY status",
+                      (user["id"],)).fetchall()
+    return {r["status"]: r["n"] for r in rows}
 
 
 def return_to_author(db, user, intake_id: int, note, expected_version) -> dict:

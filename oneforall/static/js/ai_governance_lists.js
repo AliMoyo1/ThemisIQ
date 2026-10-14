@@ -120,7 +120,7 @@
 
     var stateSelect = AIGov.select([
       { id: 'active', name: 'Active' }, { id: 'needs_action', name: 'Needs attention' }, { id: 'review_due', name: 'Review due' },
-      { id: 'retired', name: 'Retired' }, { id: 'all', name: 'All' }], current.state);
+      { id: 'review_soon', name: 'Review due soon' }, { id: 'retired', name: 'Retired' }, { id: 'all', name: 'All' }], current.state);
     stateSelect.addEventListener('change', function () { current.state = stateSelect.value; current.page = 1; load(); });
     controls.state = stateSelect;
     filterBar.appendChild(AIGov.field('aigf_state', 'Show', stateSelect).row);
@@ -138,8 +138,9 @@
 
   // ── My requests ───────────────────────────────────────────────────────────
 
-  var STATUS_LABEL = { draft: 'Draft', submitted: 'Waiting for review', returned: 'Needs your changes', approved: 'Accepted', rejected: 'Not accepted' };
-  var STATUS_KIND = { draft: 'muted', submitted: 'info', returned: 'warn', approved: 'good', rejected: 'bad' };
+  var STATUS_LABEL = { draft: 'Draft', submitted: 'Waiting for review', returned: 'Needs your changes', approved: 'Accepted', rejected: 'Not accepted',
+    superseded: 'Replaced by a correction' };
+  var STATUS_KIND = { draft: 'muted', submitted: 'info', returned: 'warn', approved: 'good', rejected: 'bad', superseded: 'muted' };
   AIGov.statusChip = function (status) { return AIGov.chip(STATUS_LABEL[status] || status, STATUS_KIND[status]); };
 
   AIGov.requests = function (root) {
@@ -163,6 +164,8 @@
         var name = row.answers.name || 'Untitled draft';
         var cells = [
           el('td', {}, [el('a', { href: '/ai-governance/requests/' + row.id, text: name }),
+            row.source_kind === 'import' ? AIGov.chip('Imported from a form', 'info') : null,
+            row.revision > 1 ? AIGov.chip('Revision ' + row.revision, 'warn') : null,
             row.status === 'returned' && row.review_note ? el('div', { class: 'aig-hint', text: 'Reviewer: ' + row.review_note }) : null,
             row.status === 'rejected' && row.review_note ? el('div', { class: 'aig-hint', text: 'Reason: ' + row.review_note }) : null]),
           el('td', {}, [AIGov.statusChip(row.status)]),
@@ -187,9 +190,16 @@
 
   AIGov.review = function (root) {
     var vocab = {}, units = {};
-    var queue = el('div', { class: 'aig-queue', role: 'group', 'aria-label': 'Requests waiting for review' });
+    // Which queue: new requests, or those sent back and waiting for the requester's answer.
+    var queueStatus = new URLSearchParams(global.location.search).get('status') === 'waiting' ? 'waiting' : 'submitted';
+    var queue = el('div', { class: 'aig-queue', role: 'group', 'aria-label': queueStatus === 'waiting' ? 'Requests waiting for information' : 'Requests waiting for review' });
     var detail = el('div', { class: 'aig-detail', tabindex: '-1' });
     var status = el('div', { class: 'aig-say', role: 'status' });
+    root.appendChild(el('nav', { class: 'aig-tabs', 'aria-label': 'Request queues' }, [
+      el('a', { class: 'aig-tab' + (queueStatus === 'submitted' ? ' is-current' : ''), href: '/ai-governance/review',
+        'aria-current': queueStatus === 'submitted' ? 'page' : null, text: 'New' }),
+      el('a', { class: 'aig-tab' + (queueStatus === 'waiting' ? ' is-current' : ''), href: '/ai-governance/review?status=waiting',
+        'aria-current': queueStatus === 'waiting' ? 'page' : null, text: 'Waiting for information' })]));
     root.appendChild(status);
     root.appendChild(el('div', { class: 'aig-split' }, [queue, detail]));
     var selected = null;
@@ -206,11 +216,11 @@
 
     function loadQueue(keepSelection, keepStatus) {
       if (!keepStatus) AIGov.say(status, 'Loading...');
-      AIGov.api('/ai-governance/api/review/queue').then(function (data) {
+      AIGov.api('/ai-governance/api/review/queue' + AIGov.qs({ status: queueStatus === 'waiting' ? 'waiting' : '' })).then(function (data) {
         if (!keepStatus) AIGov.say(status, '');
         AIGov.clear(queue);
         if (!data.items.length) {
-          queue.appendChild(el('p', { class: 'aig-empty', text: 'Nothing is waiting for review.' }));
+          queue.appendChild(el('p', { class: 'aig-empty', text: queueStatus === 'waiting' ? 'No request is waiting for information.' : 'Nothing is waiting for review.' }));
           AIGov.clear(detail);
           selected = null;
           return;
@@ -223,22 +233,37 @@
             AIGov.tierChip(row.screening.tier, null)]);
           queue.appendChild(button);
         });
-        if (keepSelection && selected && data.items.some(function (r) { return r.id === selected; })) select(selected);
-        else if (!selected) select(data.items[0].id);
+        if (keepSelection && selected && data.items.some(function (r) { return r.id === selected; })) select(selected, keepStatus);
+        else if (!selected) select(data.items[0].id, keepStatus);
       }).catch(function (err) { AIGov.say(status, AIGov.errorText(err), 'bad'); });
     }
 
-    function select(id) {
+    // Only the latest choice may draw: a slower answer for an earlier choice must not replace the request now shown.
+    var choice = 0;
+
+    // `keepStatus` leaves the line above the queue alone: after a decision it says what happened, and the next request
+    // being shown must not wipe that out.
+    function select(id, keepStatus) {
       selected = id;
+      var mine = ++choice;
       [].forEach.call(queue.children, function (item, index) { item.classList.toggle('is-selected', false); });
-      AIGov.say(status, '');
+      if (!keepStatus) AIGov.say(status, '');
+      // The request that was shown a moment ago must not keep buttons that would decide it while another one loads.
+      AIGov.clear(detail);
+      detail.setAttribute('aria-busy', 'true');
+      detail.appendChild(el('p', { class: 'aig-muted', text: 'Loading the request...' }));
       Promise.all([AIGov.api('/ai-governance/api/requests/' + id),
         AIGov.api('/ai-governance/api/review/requests/' + id + '/duplicates')]).then(function (parts) {
+        if (mine !== choice) return;
+        detail.removeAttribute('aria-busy');
         renderDetail(parts[0].intake, parts[1].items || []);
         [].forEach.call(queue.querySelectorAll('.aig-queue-item'), function (btn) { btn.classList.remove('is-selected'); });
         var index = [].map.call(queue.children, function (c) { return c; });
         index.forEach(function (c) { if (c.textContent.indexOf(parts[0].intake.answers.name || 'Untitled') === 0) c.classList.add('is-selected'); });
-      }).catch(function (err) { AIGov.say(status, AIGov.errorText(err), 'bad'); });
+      }).catch(function (err) {
+        if (mine === choice) { detail.removeAttribute('aria-busy'); AIGov.clear(detail); }
+        AIGov.say(status, AIGov.errorText(err), 'bad');
+      });
     }
 
     function fact(label, value) {
@@ -249,8 +274,19 @@
       AIGov.clear(detail);
       var a = intake.answers, screening = intake.screening;
       detail.appendChild(el('h2', { class: 'aig-h2', text: a.name || 'Untitled' }));
-      detail.appendChild(el('p', { class: 'aig-muted', text: 'Submitted by ' + (intake.author_name || 'someone') + ' on ' + AIGov.date(intake.submitted_at)
+      detail.appendChild(el('p', { class: 'aig-muted', text: (intake.source_kind === 'import' ? 'Imported by ' : 'Submitted by ')
+        + (intake.author_name || 'someone') + ' on ' + AIGov.date(intake.submitted_at)
         + (intake.business_unit_id && units[intake.business_unit_id] ? ', ' + units[intake.business_unit_id] : '') }));
+      if (intake.source_kind === 'import' && intake.requester) {
+        var rq = intake.requester;
+        detail.appendChild(el('section', { class: 'aig-panel', 'aria-labelledby': 'aigReqH' }, [
+          el('h3', { id: 'aigReqH', class: 'aig-h3', text: 'Who asked' }),
+          el('p', { class: 'aig-muted', text: 'This came from an external form. The requester has no account and no access.'
+            + (intake.revision > 1 ? ' It is revision ' + intake.revision + ' of the same response.' : '') }),
+          el('dl', { class: 'aig-facts aig-facts-inline' }, [fact('Requester', rq.name), fact('Contact', rq.email),
+            fact('Organization or team', rq.organization), fact('Form', rq.source_form),
+            fact('Owner named in the form', rq.owner_named_in_form)])]));
+      }
       detail.appendChild(el('dl', { class: 'aig-facts' }, [
         fact('Purpose', a.purpose), fact('Owner', intake.owner_name), fact('How it is provided', labelled(vocab, 'deployment', a.deployment)),
         fact('Provider', a.provider_name), fact('Intended users', a.intended_users), fact('Planned use', a.planned_use),
@@ -277,6 +313,10 @@
         })));
       } else { dupBox.appendChild(el('p', { class: 'aig-muted', text: 'No similar application you can see.' })); }
       detail.appendChild(dupBox);
+
+      // The review desk for a request: similar uses already in the inventory, and what the requester has been asked.
+      AIGov.precedentsPanel(detail, { subjectKind: 'request', subjectId: intake.id, canReview: true });
+      AIGov.questionsPanel(detail, { intakeId: intake.id, canAsk: true });
 
       if (intake.status !== 'submitted') {
         detail.appendChild(el('p', { class: 'aig-muted', text: 'This request is ' + (STATUS_LABEL[intake.status] || intake.status).toLowerCase() + '.' }));
