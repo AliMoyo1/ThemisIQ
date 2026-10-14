@@ -92,6 +92,8 @@ def shell_ctx(request, active_module: str = "platform",
         "can_ai_use": has_capability(user, "ai_use.view") and ai_rollout.is_enabled(user.get("org_id")),
         "can_ai_pack": has_capability(user, "ai_pack.receive") and ai_rollout.is_enabled(user.get("org_id")),
         "can_ai_literacy": has_capability(user, "ai_literacy.take") and ai_rollout.is_enabled(user.get("org_id")),
+        # Super administrators can open AI Governance while an organization's rollout switch is off.
+        "can_ai_admin_nav": bool(user.get("is_super_admin")) and has_capability(user, "ai_use.view"),
         "ai_return_id": _ai_return_id(request) if has_capability(user, "ai_use.view") else "",
         "can_view_audit_log": has_capability(user, "platform.view_audit_log"),
         "can_governance_view": has_capability(user, "governance.entities.view"),
