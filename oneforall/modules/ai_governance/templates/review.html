@@ -1,7 +1,7 @@
 {% extends "base_shell.html" %}
 {% block title %}Review AI use requests | ThemisIQ{% endblock %}
 {% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
-{% block breadcrumb %}<span class="aig-breadcrumb"><a href="/ai-governance/">AI Systems</a></span> <span class="breadcrumb-current">Review requests</span>{% endblock %}
+{% block breadcrumb %}<span class="aig-breadcrumb"><a href="/ai-governance/">AI Governance</a></span> <span class="breadcrumb-current">Review requests</span>{% endblock %}
 {% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
 
 {% block content %}
@@ -11,6 +11,7 @@
       <h1 class="aig-h1">Review requests</h1>
       <p class="aig-lede">AI uses that staff have described and sent for review. Accepting one adds it to the inventory, either as a new application or linked to one that already exists. You see the requests from your business unit and the ones for the whole organization.</p>
     </div>
+    <div class="aig-head-actions"><a class="btn btn-secondary" href="/ai-governance/import">Import form responses</a></div>
   </div>
   <div id="aigReview"></div>
 </div>
@@ -18,6 +19,7 @@
 
 {% block extra_scripts %}
 <script src="/static/js/ai_governance_common.js?v=1"></script>
-<script src="/static/js/ai_governance_lists.js?v=1"></script>
+<script src="/static/js/ai_governance_review_desk.js?v=1"></script>
+<script src="/static/js/ai_governance_lists.js?v=6"></script>
 <script>AIGov.review(document.getElementById('aigReview'));</script>
 {% endblock %}

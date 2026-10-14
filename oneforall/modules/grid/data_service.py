@@ -10,6 +10,7 @@ import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 from core.timeutils import utcnow, to_dt
+from core.change_watch import watched
 
 from database import get_db, insert_returning_id, sql_current_date, get_current_org
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
@@ -470,6 +471,7 @@ def _assert_not_locked(audit_id, db=None):
         raise ValueError("Audit is locked and cannot be modified")
 
 
+@watched("grid", "audit")
 def update_audit(aid, data):
     db = get_db()
     try:
@@ -597,6 +599,7 @@ def create_controls_bulk(audit_id, framework_id, controls):
     finally:
         db.close()
 
+@watched("grid", "control")
 def update_control(cid, data):
     db = get_db()
     try:
@@ -1014,6 +1017,7 @@ def create_nc(data):
     finally:
         db.close()
 
+@watched("grid", "nc")
 def update_nc(ncid, data, bu_scope=None):
     """No-ops (returns False) if ncid's parent audit is outside bu_scope,
     mirroring get_nc's fail-closed check -- callers must treat False as
@@ -1320,6 +1324,7 @@ def create_vendor(data):
     finally:
         db.close()
 
+@watched("grid", "vendor")
 def update_vendor(vid, data):
     db = get_db()
     try:

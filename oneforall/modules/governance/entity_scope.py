@@ -169,6 +169,11 @@ def is_linkable(key) -> bool:
     return bool(kind and kind.table and kind.title)
 
 
+def kind_table(key) -> str:
+    """The table that holds the records of a registered kind."""
+    return _KINDS[key].table
+
+
 def linkable_keys() -> list:
     return sorted(key for key, kind in _KINDS.items() if kind.table and kind.title)
 

@@ -49,7 +49,7 @@ def test_every_item_is_reachable_through_the_pager(login_as, live_app, synthetic
             page.click("#evNextPage")
             _status_is(page, f"Showing {(n - 1) * 25 + 1} to {min(n * 25, PROBES)} of {PROBES}")
         assert page.get_attribute("#evNextPage", "aria-disabled") == "true"
-        assert page.locator("#evidenceGrid", has_text="Pagination probe 001").count() == 1
+        assert page.locator("#evidenceTable", has_text="Pagination probe 001").count() == 1
 
         page.click("#evPrevPage")
         _status_is(page, f"Showing 201 to 225 of {PROBES}")

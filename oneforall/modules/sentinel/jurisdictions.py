@@ -379,6 +379,35 @@ def get_breach_deadline_hours(regulation: str) -> int:
     return j.get("breach_hours") or 72
 
 
+def breach_clock(regulation, discovery_date) -> dict:
+    """What the notification clock of one breach can honestly say, from its trigger and its rule.
+
+    state "no_trigger"  the discovery date is not recorded: no clock is running, whatever else is on the record
+          "no_rule"     the regulation is not one this platform has a rule for: no deadline is calculated
+          "asap"        the regulation sets no fixed hours ("as soon as practicable"): any figure shown is an internal target
+          "indicative"  hours after the recorded discovery date under the configured rule
+
+    Every deadline here is indicative: it counts from the recorded date by the configured rule, and the privacy specialist
+    decides what the legal trigger and obligation are. The platform does not state a legal conclusion."""
+    if not discovery_date:
+        return {"state": "no_trigger", "hours": None, "basis": None,
+                "label": "Not started: the discovery date is not recorded, so no deadline is calculated."}
+    rule = JURISDICTION_RULES.get(regulation)
+    if rule is None:
+        return {"state": "no_rule", "hours": None, "basis": None,
+                "label": f"No rule is configured for {regulation or 'this regulation'}, so no deadline is calculated."}
+    if rule.get("breach_asap"):
+        return {"state": "asap", "hours": None, "basis": f"{regulation}: as soon as practicable",
+                "label": f"{regulation} sets no fixed hours (as soon as practicable). Any countdown is an internal target, not a legal deadline."}
+    hours = rule.get("breach_hours")
+    if not hours:
+        return {"state": "no_rule", "hours": None, "basis": None,
+                "label": f"No notification period is configured for {regulation}, so no deadline is calculated."}
+    return {"state": "indicative", "hours": hours, "basis": f"{hours} hours after the recorded discovery date under {regulation}",
+            "label": f"Indicative: {hours} hours after the recorded discovery date under {regulation}. "
+                     "A privacy specialist confirms the legal trigger and obligation."}
+
+
 def get_dsr_deadline_days(regulation: str) -> int:
     """Days from receipt to DSR response deadline. Defaults to 30."""
     j = JURISDICTION_RULES.get(regulation, {})

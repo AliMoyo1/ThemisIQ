@@ -9,6 +9,7 @@ import re
 from datetime import datetime, timedelta
 from difflib import get_close_matches
 from core.timeutils import utcnow
+from core.change_watch import watched
 from database import get_db, insert_returning_id, sql_now_offset, sql_now_ts, sql_days_between, sql_date_offset, sql_date_ts, sql_current_date
 from core.sql_like import ci_like, like_pattern
 
@@ -906,6 +907,7 @@ def recompute_residuals_for_control(db, control_id):
             )
 
 
+@watched("erm", "risk")
 def update_enterprise_risk(risk_id, data):
     db = get_db()
     try:

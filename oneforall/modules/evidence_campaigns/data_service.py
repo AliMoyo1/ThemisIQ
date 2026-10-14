@@ -380,6 +380,9 @@ def decide_request(db, actor: dict, request_id: int, *, decision: str, notes: st
     if getattr(updated, "rowcount", 1) == 0:
         raise StaleVersionError()
     _record_event(db, request_id, "in_review", new_status, actor["id"], notes)
+    # The decision on a submission is also the reviewer's verdict on the file for the record it was asked for.
+    from modules.evidence import proof
+    proof.record_request_decision(db, request, actor, new_status == "accepted", notes or "")
     _notify(db, request["assignee_id"], "evidence_campaigns",
             "Evidence accepted" if new_status == "accepted" else "Evidence returned",
             notes or (f"\"{request['title']}\" was {new_status}."),

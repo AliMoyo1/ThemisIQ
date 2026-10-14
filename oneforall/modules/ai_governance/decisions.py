@@ -492,13 +492,28 @@ def list_queue(db, user) -> dict:
                                "state": state["state"], "label": STATE_LABELS[state["state"]], "reasons": state["reasons"],
                                "decision_id": r["id"], "decided_at": service._text(r["decided_at"]),
                                "url": f"/ai-governance/systems/{r['application_id']}#decisions"})
+    open_conditions = []
+    if standing:
+        by_decision = {r["id"]: r for r in standing}
+        marks = ",".join(["%s"] * len(by_decision))
+        for c in db.execute(
+                "SELECT decision_id, COUNT(*) AS n_open, MIN(due_date) AS next_due, "
+                "SUM(CASE WHEN due_date IS NOT NULL AND due_date < %s THEN 1 ELSE 0 END) AS n_overdue "
+                f"FROM ai_use_decision_conditions WHERE status = 'open' AND decision_id IN ({marks}) GROUP BY decision_id",
+                [today, *by_decision]).fetchall():
+            d = by_decision[c["decision_id"]]
+            open_conditions.append({
+                "application_id": d["application_id"], "name": app_names.get(d["application_id"]), "decision_id": d["id"],
+                "open": c["n_open"], "overdue": int(c["n_overdue"] or 0), "next_due": str(c["next_due"] or "")[:10] or None,
+                "url": f"/ai-governance/systems/{d['application_id']}#decisions"})
+        open_conditions.sort(key=lambda e: (e["next_due"] is None, e["next_due"] or "", e["name"] or ""))
     can_decide = has_capability(user, "ai_use.decide")
     return {
         "requests": [{"id": r["id"], "application_id": r["application_id"], "name": r["name"],
                       "requested_by": names.get(r["requested_by"]), "requested_at": service._text(r["requested_at"]),
                       "note": r["request_note"], "url": f"/ai-governance/systems/{r['application_id']}#decisions",
                       "yours": r["requested_by"] == user["id"] or r["owner_user_id"] == user["id"]} for r in requests],
-        "re_reviews": re_reviews, "can_decide": can_decide}
+        "re_reviews": re_reviews, "conditions": open_conditions, "can_decide": can_decide}
 
 
 # ── Changing ────────────────────────────────────────────────────────────────

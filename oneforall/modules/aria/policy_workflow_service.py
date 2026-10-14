@@ -1330,6 +1330,13 @@ def decide_approval(db, actor: dict, approval_id: int, decision: str, comments: 
             "status='Approved', reviewed_by=%s, reviewed_at=%s, updated_at=%s WHERE id=%s",
             (version["id"], version["version"], version["body"], actor["id"], now, now, doc["id"]),
         )
+        # The records connected to this policy are told that a new version is in force; each owner decides whether it matters.
+        from modules.governance import change_signals
+        change_signals.publish(
+            db, source=("aria", "document", doc["id"]), kind="policy_approved",
+            before={"version": doc.get("version"), "status": doc.get("status")},
+            after={"version": version["version"], "status": "Approved"},
+            fields={"version": "Version", "status": "Status"}, actor_id=actor["id"], org_id=doc.get("org_id"))
         publication_key = f"org{doc['org_id']}-version{version['id']}"
         db.execute(
             "INSERT INTO aria_policy_publication_jobs "

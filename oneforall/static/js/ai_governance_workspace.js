@@ -5,8 +5,9 @@
 
   var AIGov = global.AIGov, el = AIGov.el;
 
-  var TAB_TITLES = { overview: 'Overview', assessments: 'Assessments', risks_controls: 'Risks & controls', data_vendors: 'Data & vendors',
-    evidence: 'Evidence', oversight: 'Human oversight', decisions: 'Decisions', monitoring: 'Monitoring', activity: 'Activity' };
+  var TAB_TITLES = { overview: 'Overview', review_desk: 'Review desk', assessments: 'Assessments', risks_controls: 'Risks & controls',
+    data_vendors: 'Data & vendors', evidence: 'Evidence', oversight: 'Human oversight', decisions: 'Decisions', monitoring: 'Monitoring',
+    activity: 'Activity' };
   var TAB_VERBS = { assessments: ['assesses'], risks_controls: ['covers', 'affects', 'impacts'],
     data_vendors: ['uses_data', 'provided_by', 'supports', 'depends_on'] };
   var KIND_NAMES = { 'sentinel/aiia': 'AI impact assessment', 'sentinel/dpia': 'DPIA', 'orm/aims': 'AI management assessment',
@@ -25,13 +26,18 @@
     if (!TAB_TITLES[current]) current = 'overview';
     root.appendChild(tablist); root.appendChild(status); root.appendChild(panel);
 
+    // The review desk is for reviewers: what it loads needs the right to review.
+    function tabOrder() {
+      return Object.keys(TAB_TITLES).filter(function (tab) { return tab !== 'review_desk' || (system && system.can.review); });
+    }
+
     function renderTabs() {
       AIGov.clear(tablist);
-      Object.keys(TAB_TITLES).forEach(function (tab) {
+      tabOrder().forEach(function (tab) {
         tablist.appendChild(el('button', { type: 'button', role: 'tab', id: 'aigtab_' + tab, class: 'aig-tab' + (tab === current ? ' is-current' : ''),
           'aria-selected': tab === current ? 'true' : 'false', 'aria-controls': 'aigpanel', tabindex: tab === current ? '0' : '-1', text: TAB_TITLES[tab],
           on: { click: function () { open(tab); }, keydown: function (event) {
-            var order = Object.keys(TAB_TITLES), at = order.indexOf(tab), next = null;
+            var order = tabOrder(), at = order.indexOf(tab), next = null;
             if (event.key === 'ArrowRight') next = order[(at + 1) % order.length];
             else if (event.key === 'ArrowLeft') next = order[(at + order.length - 1) % order.length];
             else if (event.key === 'Home') next = order[0];
@@ -256,6 +262,17 @@
         panel.removeAttribute('aria-busy');
         AIGov.say(status, '');
         AIGov.decisionsPanel(panel, { applicationId: id, name: system.application.name, onChanged: refresh });
+        return;
+      }
+      if (tab === 'review_desk') {
+        panel.removeAttribute('aria-busy');
+        AIGov.say(status, '');
+        AIGov.outstandingPanel(panel, { applicationId: id });
+        AIGov.precedentsPanel(panel, { subjectKind: 'application', subjectId: id, canReview: system.can.review });
+        if (system.source_request) {
+          AIGov.questionsPanel(panel, { intakeId: system.source_request.id, canAsk: system.can.review });
+        }
+        AIGov.responsesPanel(panel, { applicationId: id });
         return;
       }
       AIGov.say(status, 'Loading...');
@@ -592,7 +609,13 @@
     AIGov.say(status, 'Loading...');
     Promise.all([refresh(), AIGov.api('/ai-governance/api/link-kinds')]).then(function (parts) {
       kinds = parts[1].items;
+      if (current === 'review_desk' && !system.can.review) current = 'overview';
       open(current);
+      // Links from other panels point at a tab of this page by its hash.
+      global.addEventListener('hashchange', function () {
+        var tab = (global.location.hash || '#overview').slice(1);
+        if (tab !== current && tabOrder().indexOf(tab) >= 0) open(tab);
+      });
     }).catch(function (err) { AIGov.say(status, AIGov.errorText(err), 'bad'); });
   };
 }(window));

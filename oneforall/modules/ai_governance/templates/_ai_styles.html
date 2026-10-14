@@ -163,3 +163,24 @@
 .aig-platform-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .aig-platform-note{white-space:pre-wrap;overflow-wrap:anywhere}
 .aig-platform-dialog .aig-field textarea{min-height:82px;width:100%}
+/* Overview cards and the portfolio (plans/2026-10-governance-rework/01) */
+.aig-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:12px 0 18px}
+.aig-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;min-width:0;display:flex;flex-direction:column;gap:4px}
+.aig-card-unavailable{border-color:var(--bad)}
+.aig-card-not_measured,.aig-card-partial,.aig-card-stale{border-style:dashed}
+.aig-card-label{font-size:13px;font-weight:700;color:var(--text);margin:0}
+.aig-card-value{margin:2px 0;min-height:40px;display:flex;align-items:center;gap:8px}
+.aig-card-number{font-size:32px;font-weight:800;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
+.aig-card-facts{font-size:13px;color:var(--text);margin:0}
+.aig-card-note{font-size:12px;color:var(--text-mid);margin:0}
+.aig-card-def{font-size:12px;color:var(--muted);margin:0}
+.aig-card-link{font-size:13px;font-weight:600;margin-top:auto;padding-top:6px}
+.aig-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px;align-items:start}
+.aig-funnel{list-style:none;padding:0!important;margin:0 0 6px;display:flex;flex-direction:column;gap:8px}
+.aig-funnel-stage{display:grid;grid-template-columns:minmax(120px,1.2fr) 40px minmax(60px,1fr);gap:10px;align-items:center;font-size:13px}
+.aig-funnel-stage .aig-muted{grid-column:2 / -1}
+.aig-funnel-count{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+.aig-aging{margin-top:4px}
+.aig-aging caption{text-align:left;padding:0 0 8px}
+meter{width:100%;height:12px}
+

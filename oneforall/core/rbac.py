@@ -217,6 +217,12 @@ CAPABILITIES: dict[str, set[str]] = {
 
     # ── Evidence Vault capabilities ─────────────────────────────
     "evidence.delete":            {SUPER_ADMIN, COMPLIANCE_MGR},
+    # Saying that a version of an item supports a claim. The person who attached the file never reviews it, and the
+    # reviewer must also be able to open the claim.
+    "evidence.link.review":       {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD, DPO, BCM_MANAGER, RISK_OWNER},
+    # Deciding that a record connected to a changed one needs a second look, or does not (a connected record's own owner
+    # may decide without this).
+    "governance.change.review":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER, AUDIT_LEAD, DPO, BCM_MANAGER, RISK_OWNER, ORG_ADMIN},
 
     # ── PLAN-36 P05: evidence collection campaigns ───────────────
     # Submitting/starting-review on one's own assigned/reviewer-of request

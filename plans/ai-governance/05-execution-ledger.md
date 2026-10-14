@@ -5,13 +5,20 @@ skipped, and what stays switched off. A slice is marked built only with evidence
 `claude/pg-layer-scope-and-findings`, baseline commit `8039af4` (pushed). Nothing in this ledger is a production release
 decision; every flag below defaults to the safe state.
 
-## Handoff: where this stands and how to continue (updated 2026-10-12)
+## Handoff: where this stands and how to continue (reconciled 2026-10-14)
 
 Read this section first; everything after it is the evidence trail. The owner's standing request is to finish the AI
 Governance programme slice by slice, run full suites only after a major stage, and state what cannot be checked on a laptop.
 G5 and G6 apply steps below are retained as a record and must not be repeated. G6 was committed and pushed at `4384c79`;
 its milestone lanes passed as recorded below. The production tenant-copy inspection found no old copies. G7's content-neutral
-oversight foundation is verified in focused lanes; EU rule content still requires recorded legal approval.
+oversight foundation was merged to `master` on 2026-10-13 (PR #6, `dfaa357`) together with G1 to G6, after a startup repair
+(PR #8, `fe1b12f`) and a navigation fix (PR #9, `f855c9d`); `origin/master` is `f770d33`, which the owner's VPS output
+reported healthy on 2026-10-14. EU rule content still requires recorded legal approval.
+
+**What comes next is the specialist rework programme** in [`plans/2026-10-governance-rework/`](../2026-10-governance-rework/README.md)
+(planning documents 01 to 06, written 2026-10-14). Its implementation record is
+[07-implementation-ledger.md](../2026-10-governance-rework/07-implementation-ledger.md). This ledger keeps the history of G1 to G7
+and is not rewritten for that work; the rework links back here.
 
 ### 1. State of each slice
 
@@ -23,7 +30,7 @@ oversight foundation is verified in focused lanes; EU rule content still require
 | G6a review packs | done | yes | focused checks and the full G6 milestone lanes below pass |
 | G6b AI literacy | committed at `4384c79` | service, pages, API, My Work and quality wiring | focused checks and the full G6 milestone lanes below pass |
 | G6c platform AI features | committed at `4384c79` | public-only operator notes, registry list, tenant usage metadata and page | focused checks and the full G6 milestone lanes below pass; production old-copy check found none |
-| G7 content-neutral oversight foundation | built in the G7 worktree | versioned design and operation records, scoped person picker, workspace, Monitoring, Decisions and My Work | focused service, HTTP, browser and real PostgreSQL checks pass; no EU rule content enabled; see section 8 |
+| G7 content-neutral oversight foundation | merged to `master` (PR #6, `dfaa357`, 2026-10-13); in the release reported healthy at `f770d33` | versioned design and operation records, scoped person picker, workspace, Monitoring, Decisions and My Work | focused service, HTTP, browser and real PostgreSQL checks passed; a full disposable PostgreSQL lane passed; the local full backend run had two ARIA policy failures outside G7 that passed on focused rerun; no EU rule content enabled; see section 8 and the 2026-10-13 change log entries |
 
 ### G6b build record, 2026-10-12
 
@@ -257,7 +264,12 @@ env -u TEST_DATABASE_URL ../.venv/Scripts/python.exe -m pytest -p no:warnings -o
   guard needs a database name starting `themisiq_test_`, `THEMISIQ_ALLOW_DESTRUCTIVE_PG_TESTS=1` and `TEST_DATABASE_URL`. The
   connection recipe is in the memory file `reference_test_environment.md`; do not print credentials in replies or files.
   **Remove it when the programme is finished**: `docker rm -f themisiq-pg-aigov`.
-- G7 uses a separate managed worktree starting at `4384c79`. Stage its files by name so other worktrees remain untouched.
+- G7 was built in a separate Codex worktree and is merged; that worktree (`C:\Users\isadmin\.codex\worktrees\g7-oversight`) and
+  `.worktrees/ai-governance-nav` are no longer part of this work. Stage files by name so other worktrees remain untouched.
+- The local checkout was fast-forwarded to `origin/master` (`f770d33`) on 2026-10-14. It carries no uncommitted application
+  change of its own; three plan files modified by another chat (`plans/PLAN-37-connected-compliance-experience.md`,
+  `plans/ROADMAP-2026-10.md`, `plans/verifywise-features/README.md`) and several untracked planning, test-output and database
+  files remain and must not be staged.
 
 ### 8. What is not built, and what is waiting on the owner
 
@@ -339,8 +351,8 @@ before rollout.
 | 10 | AI Governance entry points | A per-organization switch (`core/ai_rollout.py`), off unless `AI_GOVERNANCE_DEFAULT_ENABLED` says otherwise, set by a platform administrator on the AI Policy page. It hides the navigation link, the "Uses AI?" questions and the Vault target. It is a visibility control, not a security control: capability and unit scope decide what a person may do whether it is on or off. The AI impact assessments are not behind it, because they are functionality that already existed. |
 | 11 | Separation of duties on decisions | On by default: the decider is neither the person who asked nor the system's owner. An organization administrator may turn it off (one person may be the whole function); the choice is audited and each decision made while it is off carries that fact. |
 | 12 | What reopens an approval (G5 amendment of decision 5, applied) | Besides a changed profile fact, a tier change, an expired approval and expired signed proof: an evaluation recorded as failed or interrupted after the decision was signed, and a regulatory change confirmed for the use after it was signed. What was recorded before the signing stands behind it. |
-| 13 | Review packs (G6a, written, not applied) | One named, signed-in person of the same organization per pack, 1 to 90 days (default 30), preview hash must match at issue, names and free text out unless chosen, download off unless chosen, never a certification wording. Issuing needs `ai_pack.manage` (the deciders' set); receiving also covers auditor, audit lead and external auditor. Adopted by default; to confirm. |
-| 14 | AI literacy and the platform's own AI features (G6b and G6c, designed only) | Literacy is its own small domain inside AI Governance; BCM attestations and Sentinel training stay where they are and are never counted as AI course completions. The platform feature inventory is operator only and stores notes, never customer content. Adopted by default; to confirm. |
+| 13 | Review packs (G6a, built and verified) | One named, signed-in person of the same organization per pack, 1 to 90 days (default 30), preview hash must match at issue, names and free text out unless chosen, download off unless chosen, never a certification wording. Issuing needs `ai_pack.manage` (the deciders' set); receiving also covers auditor, audit lead and external auditor. Adopted by default; to confirm. |
+| 14 | AI literacy and the platform's own AI features (G6b and G6c, built and verified; the rework programme proposes moving learner work to a separate staff project, see the 2026-10-14 entry) | Literacy is its own small domain inside AI Governance; BCM attestations and Sentinel training stay where they are and are never counted as AI course completions. The platform feature inventory is operator only and stores notes, never customer content. Adopted by default; to confirm. |
 
 ### Field ownership (profile, application, AIIA, RoPA, DPIA)
 
@@ -392,6 +404,7 @@ What the code now creates, in the shared schema and, through the existing runner
 | Canonical vendors (spawned session, integrated) | none | PostgreSQL unique index on `canonical_vendors` names, created after a merge of duplicates that repoints every holder including `applications.vendor_id` (no foreign key). Data migration: read the log of the first start |
 | G5 (applied in working tree) | `ai_evaluation_runs`, `ai_regulatory_impacts` | in both DDL blocks; both in the business unit reference guard. PostgreSQL requires `regulatory_updates` before `ai_regulatory_impacts` because of its foreign key |
 | G6 (schema applied) | `ai_review_packs`, `ai_review_pack_events`, `ai_literacy_courses`, `ai_literacy_versions`, `ai_literacy_completions` (tenant), `platform_ai_features` (public schema only in current DDL) | Applied once with `handoff/patch_g6_core.py`; G6a, G6b and G6c passed focused verification. The three tables with a unit are in the business unit reference guard |
+| G7 | `ai_oversight_heads` (one row per use and track: `design` or `operation`), `ai_oversight_versions` (append only content versions bound to a profile version, with `draft` or `reviewed` status and separate author and reviewer) | none on existing tables; no new capability (the routes use `ai_use.view`, `ai_use.review` and `ai_use.decide`); the capability inventory gained four routes |
 
 A migration that touches data: on the first PostgreSQL start `_ensure_pg_link_dedup_index` deletes exact duplicate rows of
 `cross_module_links` (same source, target and verb), keeping the oldest, then creates the unique index. It logs how many it
@@ -418,10 +431,54 @@ request, and the route refuses an application the writer cannot open.
 | G6b AI literacy | built and milestone verification passed (plan 09 section 5.2) | 8 shared G6b/G6c service and HTTP cases, 2 browser journeys and 1 real PostgreSQL case; full milestone lanes above |
 | G6c Platform AI features | built and milestone verification passed (plan 09 section 5.3) | Same focused set and full milestone lanes; the production read-only query found no old tenant copies |
 | G6 shadow AI discovery, component lineage, public trust | **not built, by design**: no authorized feed, no evidence of need, separate approval (plan 09 section 1) | |
-| G7 Conditional EU content | content-neutral oversight foundation built and verified in focused lanes; EU rule pack blocked on recorded legal approval (see Handoff) | No rule text or deadline enabled |
+| G7 Conditional EU content | content-neutral human oversight foundation built, verified in focused and PostgreSQL lanes and merged to `master` (PR #6); EU rule pack still blocked on recorded legal approval (see Handoff) | `tests/test_ai_governance_oversight.py`, `_oversight_routes.py`, `tests/ui/test_ai_governance_oversight_ui.py`, one real PostgreSQL case for tenant unit scope; no rule text or deadline enabled. The pilot runbook in `PLAN_G7_OVERSIGHT.md` has not been run |
 | CISO assurance briefs 01 to 06 | not started (see Handoff for a feasibility read of each) | |
 
 ## Change log
+
+### 2026-10-14, ledger reconciliation and the specialist rework programme
+
+- Fast-forwarded the local branch from `4384c79` to `origin/master` (`f770d33`); nothing was committed, pushed or deployed
+  by this step. Corrected the labels that had gone stale: decision rows 13 and 14 (built, not "written" or "designed only"),
+  the G7 slice row, the G7 worktree note, and the migration inventory (G7 tables). The change log below had no entry for G7 or
+  for the release; those follow.
+- Another session wrote the specialist rework programme on 2026-10-14 (`plans/2026-10-governance-rework/`, documents 01 to
+  06, planning only). It does not reset G1 to G7. Where it changes an earlier product decision it says so; the two that touch
+  this ledger are the move of learner AI literacy out of the specialist navigation (history and APIs kept until a consumer
+  review) and the Google or Microsoft Forms export as the first external request path. Its implementation record is
+  `plans/2026-10-governance-rework/07-implementation-ledger.md`.
+- Not verified here: production row counts for the G7 tables, any live use of the oversight arrangements, and the G7 pilot
+  runbook. The last browser lane result of the G7 branch was not recorded when its pull request opened.
+
+### 2026-10-13, release: startup repair and navigation
+
+- The production restart at `dfaa357` failed while seeding users. Startup counted `public.users` before any request had an
+  RLS scope, saw zero rows, and tried to insert the bootstrap users, which PostgreSQL rejected under the users policy. The
+  previous commit was healthy after rollback. By the branch history this was the first start from `master` of code that includes
+  the connection layer of `9ead959` (it reached `master` with PR #6); whether the previous code had the same blind spot was not
+  established.
+- PR #8 (`fe1b12f`): startup's global user count and default organization bootstrap, and `seeds/seed.py`, use
+  `get_db_bypass_rls()`; request connections stay scoped. The diff touches those three call sites only.
+- PR #9 (`f855c9d`): a super administrator sees AI Governance in the module navigation while an organization's rollout switch
+  is off (`can_ai_admin_nav`). Capability and unit scope are unchanged.
+- The owner's VPS output reported `f770d33` healthy on 2026-10-14. A health response is not evidence that tenant data or
+  authorization are right; no tenant journey was recorded.
+
+### 2026-10-13, G7 human oversight foundation
+
+- `modules/ai_governance/oversight.py` and four routes under `/ai-governance/api/systems/{id}/oversight`. Two content-neutral
+  tracks per use, `design` and `operation`. Each names a responsible person and records how people observe, intervene, stop
+  and escalate. A save appends an immutable content version bound to the profile version it was written against; a second
+  person may mark that version reviewed, never its author; a stale browser revision is refused. A later profile edit makes
+  both tracks read as changed and asks for a new reviewed version; earlier versions stay visible to scoped viewers.
+- The person picker offers only people who can open that use. A hidden use answers like a missing one. Status appears in the
+  workspace, Monitoring, a live link in Decisions that does not alter a signed brief or its digest, and My Work.
+- The workspace says that recording an arrangement is not a legal conformity decision. EU rule text, effective dates,
+  classifications and obligations stay disabled until a legal or content owner records an approved rule version.
+- Verified: focused service, HTTP, browser and disposable PostgreSQL cases, a PostgreSQL case for a provisioned tenant's
+  business unit scope, and the full disposable PostgreSQL lane. The local full backend run had two ARIA policy failures outside
+  G7 that passed on focused rerun. The CI Linux backend coverage job reached 80 percent and then its 20 minute limit, so the
+  limit was raised to 40 minutes.
 
 ### 2026-10-12, G5 monitoring and evaluation records
 
