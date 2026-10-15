@@ -6244,6 +6244,13 @@ _COLUMN_MIGRATIONS = [
         # is the default and keeps the earlier behaviour (everyone in scope is told in the app).
         ("ai_use_intake_requests", "assigned_reviewer_id", "INTEGER REFERENCES users(id)"),
         ("ai_use_decisions", "assigned_decider_id", "INTEGER REFERENCES users(id)"),
+        # BCM incident acknowledgement and escalation (plans/2026-10-governance-rework/13): when the commander must
+        # acknowledge by, who did and when, and when the alternates were told. No due time means no clock, which is how an
+        # incident declared before this change and a low severity incident are left.
+        ("bcm_incidents", "ack_due_at", "TEXT"),
+        ("bcm_incidents", "acknowledged_at", "TEXT"),
+        ("bcm_incidents", "acknowledged_by", "INTEGER REFERENCES users(id)"),
+        ("bcm_incidents", "escalated_at", "TEXT"),
 ]
 
 

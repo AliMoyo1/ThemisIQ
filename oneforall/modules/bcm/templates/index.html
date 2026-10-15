@@ -868,6 +868,39 @@
     var label=(s||'unknown').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
     return '<span class="badge '+(m[(s||'').toLowerCase()]||'badge-draft')+'">'+esc(label)+'</span>';
   }
+  // The acknowledgement clock of a live incident (modules/bcm/escalation.py). Each badge carries its own colours so that
+  // its contrast does not depend on the theme.
+  var bcmCanManageIncidents={{ 'true' if bcm_can_manage_incidents else 'false' }};
+  var bcmUserId={{ user.id }};
+  function incLive(inc){return ['resolved','closed'].indexOf((inc.status||'').toLowerCase())<0;}
+  function ackTime(v){
+    if(!v) return '';
+    var d=new Date(String(v).replace(' ','T')+'Z');
+    return isNaN(d.getTime())?'':d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  }
+  function ackBadge(inc){
+    if(!incLive(inc)) return '';
+    var look={
+      awaiting:['Acknowledge by '+ackTime(inc.ack_due_at),'#1e293b','#f1f5f9','#cbd5e1'],
+      overdue:['Acknowledgement overdue','#991b1b','#fef2f2','#fca5a5'],
+      escalated:['Not acknowledged: escalated','#991b1b','#fef2f2','#fca5a5'],
+      acknowledged:['Acknowledged','#166534','#f0fdf4','#86efac']
+    }[inc.ack_state];
+    if(!look) return '';
+    return '<span class="badge" data-ack="'+esc(inc.ack_state)+'" style="color:'+look[1]+';background:'+look[2]+';border:1px solid '+look[3]+'">'+esc(look[0])+'</span>';
+  }
+  function ackLine(inc){
+    if(!incLive(inc)||!inc.ack_state||inc.ack_state==='none') return '';
+    var st=inc.ack_state,text;
+    if(st==='awaiting') text='Acknowledge by '+ackTime(inc.ack_due_at)+' (a '+inc.ack_minutes+' minute window).';
+    else if(st==='overdue') text='Acknowledgement was due at '+ackTime(inc.ack_due_at)+'. The BCM managers are about to be told.';
+    else if(st==='escalated') text='Not acknowledged in time. The BCM managers were told at '+ackTime(inc.escalated_at)+'.';
+    else text='Acknowledged'+(inc.acknowledged_by_name?' by '+inc.acknowledged_by_name:'')+' at '+ackTime(inc.acknowledged_at)+'.';
+    var mine=inc.commander_user_id===bcmUserId||bcmCanManageIncidents;
+    var btn=(st!=='acknowledged'&&mine)?'<button class="btn btn-sm btn-primary" id="bcmAckBtn" onclick="bcmAcknowledge('+inc.id+')">Acknowledge</button>':'';
+    return '<div id="bcmAckLine" role="status" style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text)">'+
+      ackBadge(inc)+'<span>'+esc(text)+'</span>'+btn+'</div>';
+  }
   function riskBadge(level){
     var m={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'};
     var cls=m[(level||'').toLowerCase()]||'badge-low';
@@ -1649,7 +1682,7 @@
     body.innerHTML=filtered.map(function(i){
       var suggestBtn='<button class="btn-bcm-ai" onclick="bcmAiSuggestActions('+i.id+',this)" title="AI suggest next actions">🧠</button>';
       var consoleBtn='<button class="btn btn-sm btn-secondary" onclick="bcmOpenIncidentConsole('+i.id+')" title="Open command console" style="padding:4px 8px;font-size:11px">Console</button>';
-      return '<tr><td><span style="color:var(--accent);font-weight:600;cursor:pointer" onclick="bcmOpenIncidentConsole('+i.id+')">'+esc(i.title||'')+'</span></td><td>'+sevBadge(i.severity)+'</td><td>'+statusBadge(i.status)+'</td><td>'+fmtDate(i.declared_at||i.created_at)+'</td><td>'+esc(i.assigned_to||i.commander||'—')+'</td><td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'+consoleBtn+suggestBtn+actionBtns('bcmEditInc('+i.id+')','bcmDeleteRecord(\'incident\','+i.id+')')+'</div></td></tr>';
+      return '<tr><td><span style="color:var(--accent);font-weight:600;cursor:pointer" onclick="bcmOpenIncidentConsole('+i.id+')">'+esc(i.title||'')+'</span></td><td>'+sevBadge(i.severity)+'</td><td>'+statusBadge(i.status)+' '+ackBadge(i)+'</td><td>'+fmtDate(i.declared_at||i.created_at)+'</td><td>'+esc(i.assigned_to||i.commander||'—')+'</td><td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'+consoleBtn+suggestBtn+actionBtns('bcmEditInc('+i.id+')','bcmDeleteRecord(\'incident\','+i.id+')')+'</div></td></tr>';
     }).join('');
   }
   window.bcmFilterInc=function(status,chip){
@@ -2881,6 +2914,7 @@
           '<span>&#128197; '+fmtDate(inc.declared_at||inc.created_at)+'</span>'+
           (inc.affected_systems?'<span>&#128421; '+esc(inc.affected_systems)+'</span>':'')+
         '</div>'+
+        ackLine(inc)+
       '</div>'+
       '<div class="bcm-console-tabs">'+
         ['actions','timeline','decisions','stakeholders','plans','evidence'].map(function(t){
@@ -3216,6 +3250,21 @@
   };
 
   /* — Console action functions — */
+  window.bcmAcknowledge=async function(incId){
+    var btn=document.getElementById('bcmAckBtn');
+    if(btn) btn.disabled=true;
+    try{
+      await apiFetch('/bcm/api/incidents/'+incId+'/acknowledge',{method:'POST'});
+      var inc=await apiFetch('/bcm/api/incidents/'+incId);
+      _bcmConsoleInc=inc;
+      bcmRenderConsole(inc);
+      if(typeof showToast==='function') showToast('Incident acknowledged');
+      if(typeof bcmLoadIncidents==='function') bcmLoadIncidents();
+    }catch(e){
+      if(btn) btn.disabled=false;
+      if(typeof showToast==='function') showToast((e&&e.detail)||(e&&e.message)||'The incident could not be acknowledged','error');
+    }
+  };
   window.bcmToggleAction=async function(incId,actionId,isDone){
     try{
       await apiFetch('/bcm/api/incidents/'+incId+'/actions/'+actionId,{method:'PUT',body:{status:isDone?'done':'open'}});

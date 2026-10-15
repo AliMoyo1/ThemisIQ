@@ -158,6 +158,13 @@ def _still_open(db, row, user) -> bool:
         inc = db.execute("SELECT status, commander_user_id FROM bcm_incidents WHERE id = %s", (rid,)).fetchone()
         return bool(inc and (inc["status"] or "").lower() not in ("closed", "resolved")
                     and inc["commander_user_id"] == user["id"])
+    if kind == ("bcm", "escalation"):
+        from modules.bcm import escalation
+        inc = db.execute(
+            "SELECT status, acknowledged_at, business_unit_id FROM bcm_incidents WHERE id = %s", (rid,)).fetchone()
+        if not (inc and escalation.is_live(inc["status"]) and not inc["acknowledged_at"]):
+            return False
+        return escalation.can_open(user, {"business_unit_id": inc["business_unit_id"]})
     if kind == ("bcm", "exercise"):
         ex = db.execute("SELECT status, owner_id FROM bcm_exercises WHERE id = %s", (rid,)).fetchone()
         return bool(ex and (ex["status"] or "").lower() == "planned" and ex["owner_id"] == user["id"])

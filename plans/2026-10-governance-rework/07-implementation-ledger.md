@@ -64,6 +64,7 @@ here; the owner's VPS output reported the release healthy on 2026-10-14.
 | 6 E1 Sender safety and truthful status | 06 sections 2, 7, 8 | built, verified locally (SQLite, browser) | `tests/test_email_transport.py` (12), `tests/test_email_producers.py` (reminders, administration), `tests/ui/test_admin_email_truthful_status.py` (2) |
 | 6 E2 Outbox, templates and the pilot paths | 06 sections 3, 5, 6 | built, verified locally (SQLite, browser) | `tests/test_email_templates.py` (9), `tests/test_email_outbox.py` (18), `tests/test_email_producers.py` (36), `tests/ui/test_profile_email_preference.py` (3); the later cases are follow-up 11 |
 | 6 E3 Urgent cases and management summaries | 06 sections 4, 9 | built for Sentinel breach and request deadlines and the GRID weekly summary and, in follow-up 11, BCM incident and exercise mail, a named AI Governance reviewer and decider, the opt in My Work summary and quiet hours. Not built: a BCM escalation clock, an alternate contact, jurisdiction wording | `tests/test_ai_governance_assignment.py` (13), `tests/ui/test_bcm_incident_commander_ui.py` (1), `tests/ui/test_ai_governance_assignment_ui.py` (2), the files above; see Not done (6) |
+| 6 E3 BCM incident acknowledgement and escalation (follow-up 12) | 06 section 4; owner decision 3 | built; the focused tests pass (SQLite, browser); the full backend, PostgreSQL and browser lanes were still running when this was committed, see the stage table | `tests/test_bcm_escalation.py` (21), `tests/ui/test_bcm_incident_escalation_ui.py` (4), the PostgreSQL case |
 | 6 E4 Provider cutover | 06 section 7 | seams built in follow-up 11 (pause, comparison by provider, runbook [12](12-email-cutover-runbook.md)); the cutover is not possible, no managed sender identity exists | `tests/test_email_outbox.py`, `tests/ui/test_admin_email_truthful_status.py` |
 
 ## Change log
@@ -736,8 +737,9 @@ real message was sent.
 
 - **E4, the cutover itself**: it needs a managed sender identity (a domain with SPF, DKIM and DMARC, and an account). Nothing in
   the repository can create one. A pilot with a real mailbox and an inbox placement check has not happened.
-- **A BCM escalation clock and an alternate human contact**, and jurisdiction wording for Sentinel (owner decisions 3 and 7).
-  Plan owner and training owner are free text and stay unmailed.
+- **A BCM escalation clock and an alternate human contact** were built afterwards (follow-up 12). Jurisdiction wording for
+  Sentinel and its alternate contact are still open (owner decisions 3 and 7). Plan owner and training owner are free text
+  and stay unmailed.
 - **A tenant cannot override** the preferences, quiet hours or sender identity (owner decision 4); there is no purge of old
   outbox rows, no bounce or reply intake and no per minute rate limit.
 - **A named reviewer or decider is not asked to accept and is not chased.** Nothing nudges a person who has been named and
@@ -836,7 +838,70 @@ one on purpose. It is a confirmation of product defaults in chat; it is not a si
   commander has to acknowledge an incident, by severity, and who is next. Recommended starting point: acknowledgement
   windows of 15, 30 and 60 minutes for critical, high and medium incidents, and the BCM manager as the first alternate. The
   build is then: record the acknowledgement on the incident, escalate once by mail and in the app when the window ends, and
-  show the state on the incident. The privacy deadline clock stays a separate legal decision (owner decisions 3 and 7).
+  show the state on the incident. **Adopted by the owner ("go for it") and built as follow-up 12.** The privacy deadline
+  clock stays a separate legal decision (owner decisions 3 and 7).
+
+### 2026-10-15, follow-up 12: BCM incident acknowledgement and escalation
+
+**Built and committed on the branch `claude/plan-04-platform-truth` (the commit that adds `13-bcm-incident-escalation.md`; not pushed).** The owner answered "go for it" to the recommendation in "Decisions taken"
+(15, 30 and 60 minute windows, the BCM manager as the first alternate). The plan and its log are
+[13](13-bcm-incident-escalation.md). New: `modules/bcm/escalation.py`. Changed: `core/email_templates.py`
+(`bcm.escalation`; `bcm.incident` is version 2 and says how long the commander has), `core/email_outbox.py` (a send-time
+check), `core/event_handlers.py` (the incident a confirmed breach opens now starts a clock), `database.py` (four nullable
+columns on `bcm_incidents`), `modules/bcm/data_service.py`, `routes.py`, `scheduler.py` and the BCM page, and
+`docs/generated/capability_inventory.*` (regenerated, 1100 routes).
+
+**What a person gets.**
+
+- **A commander has a window.** 15 minutes for a critical incident, 30 for high, 60 for medium; low has none. The
+  commander's message says how long they have.
+- **The incident shows where the clock stands** (list and console): awaiting, overdue, escalated or acknowledged, and who
+  acknowledged and when. The named commander or a BCM manager acknowledges with a button. A person who declares an incident
+  and names themselves commander has acknowledged by doing so.
+- **When the window ends with no acknowledgement**, the BCM managers who can open the incident are told once: in the app and by
+  a critical email (a reference and a link, never a title). When none can open it, the organization's super administrators
+  who can are told. When nobody can, the administrators are told in the app, without the reference, that nobody who can
+  open the incident could be told, so the gap is a configuration to fix and not a silent one. The timeline of the incident
+  records the escalation and the acknowledgement.
+
+**Rules that hold** (the reasons are in [13](13-bcm-incident-escalation.md)).
+
+- **The clock restarts** when the commander changes or the incident is reopened, and **shortens** when the severity is
+  raised; lowering the severity never lengthens it. It stops at acknowledgement, resolution or closure.
+- **Once.** One escalation per clock, claimed by one conditional update, with the notices and the email requests written in the
+  same transaction: two workers, or a worker that dies, cannot send it twice or lose it.
+- **Nobody is told about an incident they cannot open**: the module's own unit rule decides, checked when the alternates are
+  chosen and again when the email is sent.
+- **Incidents declared before this change have no clock** and are never escalated.
+
+**Schema (additive).** `bcm_incidents.ack_due_at`, `acknowledged_at`, `acknowledged_by`, `escalated_at`, all nullable.
+
+**Found on the way.**
+
+- **The incident a confirmed Sentinel breach opens had no commander, no owner and no one asked to take it**, and carried the
+  tier names `major` and `significant`, which the BCM page does not offer. It now starts the same clock (the windows read
+  those two as high and medium), so a breach that becomes an incident cannot sit unacknowledged without the BCM managers
+  being told. The tier names themselves are not changed.
+
+**Checks.** Backend: `test_bcm_escalation.py` (21: the windows, the clock on declare, restart, raise and reopen, the job and
+its single claim, who is told and who is not, the fallbacks, the send-time check, the commander's message, the route and its
+scope, the breach incident), and the changed `test_email_producers.py` and `test_email_templates.py`. Browser:
+`test_bcm_incident_escalation_ui.py` (4, including an axe check of the new markup). PostgreSQL: a case is written (the columns in a
+tenant schema, the claim and the notices from that schema); its result and the full lanes are in the stage table, which
+was not yet written when this was committed.
+
+**Not done (follow-up 12).**
+
+- **One level only.** If the BCM manager does not act, nothing nudges them or tells anyone else: no second alternate, no
+  repeat.
+- **The windows are constants** (`WINDOWS` in `modules/bcm/escalation.py`), not set per organization or per incident type.
+- **An alternate with no unit sees only organization wide incidents** (the module's own rule), so a BCM manager who is not
+  placed in the incident's unit, or above it, is not told. The administrators are told that nobody could be; placing the
+  manager is the fix, and it is not made for them.
+- **Acknowledgement is a click.** A status change, a timeline post or an action does not count as one, and My Work does not
+  show the commander a due time for it.
+- **The privacy deadline clock and its alternate contact** are separate legal decisions (owner decisions 3 and 7) and are not
+  part of this.
 
 ## Stage verification (end of plan 02, 2026-10-14)
 

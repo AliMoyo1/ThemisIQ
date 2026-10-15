@@ -575,18 +575,24 @@ def get_incident(inc_id, bu_scope=None):
         db.close()
 
 
-def create_incident(data):
+def create_incident(data, actor_id=None):
+    """`actor_id` is the person declaring it: a person who names themselves commander has acknowledged by doing so."""
+    from modules.bcm import escalation
+    severity, status = data.get("severity", "medium"), data.get("status", "open")
+    clock = escalation.new_clock(severity, status, data.get("commander_user_id"), actor_id, utcnow())
     db = get_db()
     try:
         cur = insert_returning_id(db,
             """INSERT INTO bcm_incidents
                (title, description, severity, status, commander, affected_systems,
-                impact, assigned_to, declared_at, business_unit_id, commander_user_id)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (data.get("title"), data.get("description"), data.get("severity", "medium"),
-             data.get("status", "open"), data.get("commander"), data.get("affected_systems"),
+                impact, assigned_to, declared_at, business_unit_id, commander_user_id,
+                ack_due_at, acknowledged_at, acknowledged_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (data.get("title"), data.get("description"), severity,
+             status, data.get("commander"), data.get("affected_systems"),
              data.get("impact"), data.get("assigned_to"), data.get("declared_at"),
-             data.get("business_unit_id"), data.get("commander_user_id")))
+             data.get("business_unit_id"), data.get("commander_user_id"),
+             clock["ack_due_at"], clock["acknowledged_at"], clock["acknowledged_by"]))
         db.commit()
         return cur
     finally:
@@ -594,11 +600,15 @@ def create_incident(data):
 
 
 @watched("bcm", "incident")
-def update_incident(inc_id, data, bu_scope=None):
+def update_incident(inc_id, data, bu_scope=None, actor_id=None):
     """No-ops (returns False) if inc_id is outside bu_scope, mirroring
     get_incident's fail-closed check -- callers must treat False as
-    HTTPException(404), never apply data anyway."""
-    if bu_scope is not None and get_incident(inc_id, bu_scope=bu_scope) is None:
+    HTTPException(404), never apply data anyway.
+
+    The acknowledgement clock restarts here when the commander changes or the incident is reopened, and shortens when the
+    severity is raised (modules/bcm/escalation.py); `actor_id` is the person making the change."""
+    before = get_incident(inc_id, bu_scope=bu_scope)
+    if bu_scope is not None and before is None:
         return False
     db = get_db()
     try:
@@ -609,6 +619,11 @@ def update_incident(inc_id, data, bu_scope=None):
             if k in data:
                 fields.append(f"{k}=%s")
                 vals.append(data[k])
+        if before is not None:
+            from modules.bcm import escalation
+            for column, value in escalation.clock_after_update(before, data, actor_id, utcnow()).items():
+                fields.append(f"{column}=%s")
+                vals.append(value)
         if data.get("status") == "resolved" and "resolved_at" not in data:
             fields.append("resolved_at=%s")
             vals.append(_now())
@@ -619,6 +634,30 @@ def update_incident(inc_id, data, bu_scope=None):
             db.execute(f"UPDATE bcm_incidents SET {','.join(fields)} WHERE id=%s", vals)
             db.commit()
         return True
+    finally:
+        db.close()
+
+
+def acknowledge_incident(inc_id, user_id, now=None):
+    """Record that the incident was acknowledged by `user_id`. Returns "recorded", "already" (it was acknowledged before:
+    the first acknowledgement stands) or "closed" (it is resolved or closed, so there is nothing to acknowledge)."""
+    now = now or utcnow()
+    db = get_db()
+    try:
+        row = db.execute("SELECT status, acknowledged_at FROM bcm_incidents WHERE id=%s", (inc_id,)).fetchone()
+        if row is None or (row["status"] or "").strip().lower() in ("resolved", "closed"):
+            return "closed"
+        if row["acknowledged_at"]:
+            return "already"
+        stamp = now.strftime("%Y-%m-%d %H:%M:%S")
+        done = db.execute(
+            "UPDATE bcm_incidents SET acknowledged_at=%s, acknowledged_by=%s, updated_at=%s "
+            "WHERE id=%s AND acknowledged_at IS NULL", (stamp, user_id, stamp, inc_id))
+        if getattr(done, "rowcount", 0) != 1:
+            db.rollback()
+            return "already"
+        db.commit()
+        return "recorded"
     finally:
         db.close()
 

@@ -14,6 +14,10 @@ Jobs:
          - Checks bcm_training_modules with next_due within 7 days
          - Creates notifications + tasks for training owners
 
+  Job 4  Incident acknowledgement monitor  (every minute)
+         - Tells the BCM managers once about an incident whose commander did not acknowledge it in time
+           (modules/bcm/escalation.py: 15 minutes critical, 30 high, 60 medium)
+
 All jobs are safe to run repeatedly (idempotent: checks existing tasks before creating).
 """
 from __future__ import annotations
@@ -23,6 +27,7 @@ from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from database import get_db_background as get_db, sql_date_offset, list_active_tenants, tenant_context  # scheduler: fail-fast, never block UI
 from core.email import send_email as _core_send_email
@@ -283,6 +288,21 @@ def _training_due_check() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Job 4 — Incident acknowledgement
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _incident_escalation_check() -> None:
+    """Every minute: escalate the incidents whose acknowledgement window ended, in each organization."""
+    try:
+        from modules.bcm import escalation
+        escalated = escalation.run_all_tenants()
+        if escalated:
+            log.info("BCM incident escalation: %d incident(s) escalated", escalated)
+    except Exception as exc:
+        log.warning("BCM incident escalation check failed: %s", exc)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Scheduler start / stop
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -320,10 +340,21 @@ def start_scheduler() -> None:
         misfire_grace_time=300,
     )
 
+    # Incident acknowledgement: every minute, so an escalation is at most a minute late
+    _scheduler.add_job(
+        _incident_escalation_check,
+        IntervalTrigger(minutes=1),
+        id="bcm_incident_escalation",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=60,
+    )
+
     _scheduler.start()
     log.info(
         "BCM scheduler started — jobs: plan_review (Mon 07:00), "
-        "exercise_alert (Mon 08:00), training_due (daily 08:30)"
+        "exercise_alert (Mon 08:00), training_due (daily 08:30), incident_escalation (every minute)"
     )
 
 

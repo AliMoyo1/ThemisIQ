@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
+from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call, log_audit
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
 from database import get_db
@@ -23,6 +23,7 @@ templates = Jinja2Templates(directory=["modules/bcm/templates", "templates"])
 
 from modules.bcm import data_service as ds
 from modules.bcm import exercise_service as exs
+from modules.bcm import escalation
 from modules.governance.data_service import bu_scope_ids
 from core.best_effort import swallowed
 
@@ -67,20 +68,38 @@ def _named_commander(request: Request, value):
     return uid
 
 
-def _ask_commander_mail(incident_id: int, commander_id, actor_id: int) -> None:
-    """Ask the email outbox to tell a named incident commander (template bcm.incident: the reference and a link, never
-    the title or the impact). Best effort: the incident is already saved, and the person who named themselves is not
-    mailed about it."""
+def _ack_names(rows) -> dict:
+    """{user id: full name} for the people who acknowledged these incidents."""
+    ids = sorted({r.get("acknowledged_by") for r in rows if r.get("acknowledged_by")})
+    if not ids:
+        return {}
+    db = get_db()
+    try:
+        marks = ",".join(["%s"] * len(ids))
+        return {r["id"]: r["full_name"] for r in db.execute(
+            f"SELECT id, full_name FROM users WHERE id IN ({marks})", ids).fetchall()}
+    finally:
+        db.close()
+
+
+def _ask_commander_mail(incident_id: int, commander_id, actor_id: int, severity=None) -> None:
+    """Ask the email outbox to tell a named incident commander (template bcm.incident: the reference, how long they have
+    to acknowledge and a link, never the title or the impact). Best effort: the incident is already saved, and the person
+    who named themselves is not mailed about it."""
     if not commander_id or commander_id == actor_id:
         return
     try:
         from core import email_outbox
         from database import get_current_org
+        fields = {"reference": f"INC-{incident_id}"}
+        minutes = escalation.window_minutes(severity)
+        if minutes:
+            fields["minutes"] = minutes
         db = get_db()
         try:
             email_outbox.enqueue_safely(
                 db, "bcm.incident", recipient_user_id=commander_id, org_id=get_current_org(),
-                route=f"/bcm/?open=incident:{incident_id}", fields={"reference": f"INC-{incident_id}"},
+                route=f"/bcm/?open=incident:{incident_id}", fields=fields,
                 source=("bcm", "incident", incident_id), purpose="commander", threshold=str(commander_id))
             db.commit()
         finally:
@@ -118,6 +137,7 @@ async def bcm_spa(request: Request):
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
         "bcm_can_manage_exercises": has_capability(user, "bcm.exercise.manage"),
+        "bcm_can_manage_incidents": has_capability(user, "bcm.incident.manage"),
         "bcm_can_manage_dependencies": has_capability(user, "bcm.dependency.manage"),
         "bcm_can_manage_comms": has_capability(user, "bcm.plan.manage"),
         **shell_ctx(request, active_module="bcm"),
@@ -677,7 +697,9 @@ async def api_plan_review_create(request: Request, plan_id: int):
 @require_capability("module.bcm.access")
 async def api_incidents_list(request: Request):
     status = request.query_params.get("status")
-    return JSONResponse(ds.list_incidents(status=status, bu_scope=bu_scope_ids(request.state.user)))
+    rows = ds.list_incidents(status=status, bu_scope=bu_scope_ids(request.state.user))
+    names = _ack_names(rows)
+    return JSONResponse([escalation.with_state(r, names=names) for r in rows])
 
 
 @router.get("/api/incidents/{inc_id}")
@@ -686,6 +708,7 @@ async def api_incident_detail(request: Request, inc_id: int):
     inc = ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user))
     if not inc:
         raise HTTPException(404)
+    inc = escalation.with_state(inc, names=_ack_names([inc]))
     inc["updates"] = ds.list_incident_updates(inc_id)
     inc["actions"] = ds.list_incident_actions(inc_id)
     inc["decisions"] = ds.list_incident_decisions(inc_id)
@@ -715,8 +738,8 @@ async def api_incident_create(request: Request):
     body = await _json_body(request)
     body["business_unit_id"] = request.state.user.get("business_unit_id")
     body["commander_user_id"] = _named_commander(request, body.get("commander_user_id"))
-    iid = ds.create_incident(body)
-    _ask_commander_mail(iid, body["commander_user_id"], _uid(request))
+    iid = ds.create_incident(body, actor_id=_uid(request))
+    _ask_commander_mail(iid, body["commander_user_id"], _uid(request), body.get("severity", "medium"))
 
     # Emit incident declared event
     emit(
@@ -743,10 +766,11 @@ async def api_incident_update(request: Request, inc_id: int):
     if "commander_user_id" in body:
         body["commander_user_id"] = _named_commander(request, body["commander_user_id"])
         before = ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user))
-    if not ds.update_incident(inc_id, body, bu_scope=bu_scope_ids(request.state.user)):
+    if not ds.update_incident(inc_id, body, bu_scope=bu_scope_ids(request.state.user), actor_id=_uid(request)):
         raise HTTPException(404)
     if before is not None and before.get("commander_user_id") != body["commander_user_id"]:
-        _ask_commander_mail(inc_id, body["commander_user_id"], _uid(request))
+        _ask_commander_mail(inc_id, body["commander_user_id"], _uid(request),
+                            body.get("severity", before.get("severity")))
 
     # Emit incident resolved event when status changes to resolved
     new_status = (body.get("status") or "").lower()
@@ -765,6 +789,30 @@ async def api_incident_update(request: Request, inc_id: int):
             user_id=_uid(request),
         )
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/incidents/{inc_id}/acknowledge")
+@require_capability("module.bcm.access")
+async def api_incident_acknowledge(request: Request, inc_id: int):
+    """The named commander, or a person who manages incidents, acknowledges an incident: the clock stops and the BCM
+    managers are not told. The first acknowledgement stands; a second one changes nothing."""
+    user = request.state.user
+    inc = ds.get_incident(inc_id, bu_scope=bu_scope_ids(user))
+    if not inc:
+        raise HTTPException(404)
+    if inc.get("commander_user_id") != user["id"] and not has_capability(user, "bcm.incident.manage"):
+        raise HTTPException(403, "Only the named incident commander or a BCM manager can acknowledge an incident.")
+    outcome = ds.acknowledge_incident(inc_id, user["id"])
+    if outcome == "closed":
+        raise HTTPException(409, "This incident is already resolved or closed.")
+    if outcome == "recorded":
+        ds.create_incident_update(inc_id, _uname(request), "Acknowledged.")
+        log_audit(user, "bcm", "incident_acknowledged", "incident", inc_id, details="Incident acknowledged")
+    fresh = ds.get_incident(inc_id, bu_scope=bu_scope_ids(user)) or inc
+    fresh = escalation.with_state(fresh, names=_ack_names([fresh]))
+    return JSONResponse({"ok": True, "recorded": outcome == "recorded", "ack_state": fresh["ack_state"],
+                         "acknowledged_at": fresh.get("acknowledged_at"),
+                         "acknowledged_by_name": fresh.get("acknowledged_by_name")})
 
 
 @router.delete("/api/incidents/{inc_id}")

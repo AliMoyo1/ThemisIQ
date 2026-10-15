@@ -316,7 +316,7 @@ def test_a_named_incident_commander_is_told_and_only_while_the_incident_is_their
     rows = _outbox(w, "bcm.incident")
     assert [(r["recipient_user_id"], r["priority"], r["source_id"]) for r in rows] == [
         (w.people["cmdr"], "critical", incident)]
-    assert json.loads(rows[0]["fields_json"]) == {"reference": f"INC-{incident}"}, "no title, no impact"
+    assert json.loads(rows[0]["fields_json"]) == {"minutes": 30, "reference": f"INC-{incident}"},         "no title, no impact: the reference and how long a high severity incident has to be acknowledged"
 
     # handed to someone else before the first message went: the first is not sent, the second is
     status, _ = _admin_call(bcm.api_incident_update(_admin_request(w, {"commander_user_id": w.people["cmdr2"]}), incident))

@@ -1,5 +1,5 @@
 {
-  "route_count": 1099,
+  "route_count": 1100,
   "entries": [
     {
       "path": "/openapi.json",
@@ -8240,6 +8240,35 @@
       },
       "license_modules_required": [],
       "name": "api_incident_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/bcm/api/incidents/{inc_id}/acknowledge",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.bcm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.bcm.access"
+      ],
+      "roles_by_capability": {
+        "module.bcm.access": [
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "bcm"
+      ],
+      "name": "api_incident_acknowledge",
       "maturity": "",
       "notes": ""
     },

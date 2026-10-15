@@ -32,6 +32,7 @@ under "Decisions taken". A confirmed default is still not a phase sign-off.
 | Work counted against a person (*confirmed*) | Only assigned work; shared queues and notifications are not charged to anyone | Product owner | `my_work_service.get_team_work` | none | A shared item with nobody named is on nobody's line |
 | Summaries, quiet hours and tenant override (*confirmed*) | Per person, opt in, platform wide, fixed UTC offset; a tenant cannot override | Product owner, security | `user_preferences` keys `email.*`; `/api/my-email-preferences` | none | A zone with daylight saving needs the offset changed twice a year |
 | Named reviewer, decider and incident commander (*confirmed*) | Optional; nobody named stays in the app only; a commander is a user and the label stays | Product owner, module owners | three nullable columns; `/ai-governance/api/.../assign`, `/bcm/api/people` | additive | A named person who does nothing is not chased |
+| BCM acknowledgement windows and alternate (*confirmed*) | 15, 30 and 60 minutes for critical, high and medium; the BCM manager who can open the incident is the first alternate; once | Incident owner, product owner | four nullable columns on `bcm_incidents`; `POST /bcm/api/incidents/{id}/acknowledge` | additive | One level only; a manager with no unit is not told about a unit's incident |
 | Predictive trace and disputes (*confirmed*) | Frozen with the prediction; a dispute is a note | Risk governance owner | `ai_risk_prediction_notes`; `/api/predictive-risk/trace` | additive | Earlier predictions have no trace |
 
 ## 2. Baseline and contracts (Phase 0 outputs)
@@ -160,6 +161,7 @@ the other columns are here.
 | 4A to 4G | 4A to 4G | SQLite, browser, see the stage tables | Not done | Section 5 | None | Old runs are kept; the registry is read only | Ledger: Not done 4 |
 | 5 | This file | Documents only | Not applicable | Not applicable | None | Delete the file | None |
 | 6 E0 to E2 | Plan 06 | SQLite, browser, see the stage tables | A real mailbox pilot not done | Section 5 | None | Set the provider to console: nothing is sent and the in-app path is unchanged | Ledger: Not done 6 |
+| 12 | Follow-up 12 | SQLite, browser, real PostgreSQL, see the stage tables | Not done | Section 5 | None | Set no window: the job finds nothing due; the columns are ignored by older code | Ledger: Not done (follow-up 12) |
 | 11 (steps 1 to 6) | Follow-up 11 | SQLite, browser, real PostgreSQL, see the stage tables | Not done | Section 5 | None | Pause sending holds the queue; naming a person is optional and removable; the trace and the team view are read only | Ledger: Not done (4) and (6) |
 
 ## 9. Release order and responsibility

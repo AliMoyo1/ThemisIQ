@@ -35,8 +35,8 @@ ACTION_KINDS = {
 _REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/#\-]{0,39}$")
 
 # Numbers a template may state: a count of things, hours left, items overdue.
-_NUMBERS = ("count", "hours", "audits", "overdue")
-_FIELDS_IN_LEADS = ("kind", "reference", "due", "due_sentence", "hours", "hours_sentence", *_NUMBERS)
+_NUMBERS = ("count", "hours", "audits", "overdue", "minutes")
+_FIELDS_IN_LEADS = ("kind", "reference", "due", "due_sentence", "hours", "hours_sentence", "minutes_sentence", *_NUMBERS)
 
 
 class TemplateError(ValueError):
@@ -127,11 +127,17 @@ TEMPLATES = {t.key: t for t in (
         "readiness and participants.",
         ("reference", "due"), (), ("/bcm/",), "Open the exercise", "you own this exercise"),
     Template(
-        "bcm.incident", 1, CRITICAL, "The incident commander named on the incident",
+        "bcm.incident", 2, CRITICAL, "The incident commander named on the incident",
         "you are named incident commander",
-        "You are named as incident commander for incident {reference}. Open it in ThemisIQ to see what is needed and "
-        "keep the response updated.",
-        ("reference",), (), ("/bcm/",), "Open the incident", "you are the named incident commander"),
+        "You are named as incident commander for incident {reference}.{minutes_sentence} Open it in ThemisIQ to see "
+        "what is needed and keep the response updated.",
+        ("reference",), ("minutes",), ("/bcm/",), "Open the incident", "you are the named incident commander"),
+    Template(
+        "bcm.escalation", 1, CRITICAL, "The BCM managers who can open the incident",
+        "an incident has not been acknowledged",
+        "Nobody acknowledged incident {reference} within {minutes} minutes. Open it in ThemisIQ to take it over or to "
+        "name a commander.",
+        ("reference", "minutes"), (), ("/bcm/",), "Open the incident", "you are a BCM manager who can open this incident"),
     Template(
         "summary.mywork", 1, INFO, "A person who asked for a daily or weekly summary of what needs them",
         "your summary of what needs you",
@@ -223,6 +229,9 @@ def clean_fields(template: Template, fields: dict) -> dict:
     hours = out.get("hours")
     out["hours_sentence"] = (f" About {hours} hour(s) remained when this message was sent."
                              if hours not in (None, "") else "")
+    minutes = out.get("minutes")
+    out["minutes_sentence"] = (f" Acknowledge it in ThemisIQ within {minutes} minutes."
+                               if minutes not in (None, "") else "")
     return out
 
 

@@ -1874,16 +1874,20 @@ def breach_triggers_bcm_incident(event_type, source_module, entity_type,
         # Map Sentinel severity → BCM severity tier
         bcm_sev  = {"critical": "critical", "high": "major", "medium": "significant"}.get(severity, "major")
 
+        # An incident opened this way has no commander, so its acknowledgement clock starts now: if nobody takes it, the
+        # BCM managers are told (modules/bcm/escalation.py).
+        from core.timeutils import utcnow
+        from modules.bcm import escalation
         incident_id = insert_returning_id(db,
             "INSERT INTO bcm_incidents "
-            "(title, description, severity, status, started_at, created_at, updated_at) "
-            "VALUES (%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+            "(title, description, severity, status, started_at, created_at, updated_at, ack_due_at) "
+            "VALUES (%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s)",
             (
                 f"DATA BREACH: {title}",
                 f"Automatically escalated from Sentinel breach #{entity_id}. "
                 f"Severity: {severity}. Activate relevant BCM plan and initiate "
                 f"crisis communications protocol.",
-                bcm_sev, "open",
+                bcm_sev, "open", escalation.due_from(bcm_sev, utcnow()),
             ),
         )
         db.commit()

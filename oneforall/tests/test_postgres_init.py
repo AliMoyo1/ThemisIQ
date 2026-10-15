@@ -4159,3 +4159,58 @@ def test_the_predictive_trace_and_the_team_view_run_inside_a_tenant_on_real_post
 
     assert _raw_rows("SELECT count(*) FROM tenant_traceorg.ai_risk_prediction_notes") == [(1,)]
     assert _raw_rows("SELECT count(*) FROM public.ai_risk_prediction_notes") == [(0,)]
+
+
+def test_bcm_incident_acknowledgement_and_escalation_run_inside_a_tenant_on_real_postgres(pg):
+    """The four clock columns exist in a tenant schema; the job claims an overdue incident once, tells the BCM manager
+    who can open it in the app and by critical email from that schema, and an acknowledged incident is left alone."""
+    from datetime import timedelta
+
+    from core.timeutils import utcnow
+    from modules.bcm import data_service as ds
+    from modules.bcm import escalation
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "bcmesc")
+    columns = {r[0] for r in _raw_rows(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'tenant_bcmesc' "
+        "AND table_name = 'bcm_incidents'")}
+    assert {"ack_due_at", "acknowledged_at", "acknowledged_by", "escalated_at"} <= columns
+
+    shared = pg.get_db_bypass_rls()
+    try:
+        shared.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, 'bcm_manager')", (ids["second"],))
+        shared.execute("UPDATE users SET business_unit_id = %s WHERE id = %s", (unit, ids["second"]))
+        shared.commit()
+    finally:
+        shared.close()
+
+    with pg.tenant_context(org, "bcmesc", is_super_admin=False):
+        waiting = ds.create_incident({"title": "Plant room flooded", "description": "x", "severity": "critical",
+                                      "business_unit_id": unit}, actor_id=ids["author"])
+        acked = ds.create_incident({"title": "Badge system down", "description": "x", "severity": "critical",
+                                    "business_unit_id": unit, "commander_user_id": ids["reviewer"]},
+                                   actor_id=ids["reviewer"])
+        db = pg.get_db()
+        try:
+            row = db.execute("SELECT ack_due_at, acknowledged_at FROM bcm_incidents WHERE id = %s", (waiting,)).fetchone()
+            assert row["ack_due_at"] and row["acknowledged_at"] is None
+            assert db.execute("SELECT acknowledged_by FROM bcm_incidents WHERE id = %s",
+                              (acked,)).fetchone()["acknowledged_by"] == ids["reviewer"], "named themselves"
+
+            later = utcnow() + timedelta(minutes=16)
+            assert escalation.escalate_due(db, org, now=later) == 1
+            assert escalation.escalate_due(db, org, now=later + timedelta(minutes=5)) == 0, "once"
+            assert db.execute("SELECT escalated_at FROM bcm_incidents WHERE id = %s",
+                              (waiting,)).fetchone()["escalated_at"]
+        finally:
+            db.close()
+        assert ds.acknowledge_incident(waiting, ids["second"]) == "recorded"
+        assert ds.acknowledge_incident(waiting, ids["second"]) == "already"
+
+    assert _raw_rows("SELECT user_id, module FROM tenant_bcmesc.notifications WHERE module = 'bcm'") == [
+        (ids["second"], "bcm")]
+    rows = _raw_rows("SELECT template_key, recipient_user_id, priority, source_id FROM tenant_bcmesc.email_outbox")
+    assert rows == [("bcm.escalation", ids["second"], "critical", waiting)]
+    assert _raw_rows("SELECT count(*) FROM public.email_outbox") == [(0,)]
+    assert _raw_rows("SELECT count(*) FROM tenant_bcmesc.bcm_incident_updates WHERE incident_id = %s", (waiting,)) == [(2,)]

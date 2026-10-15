@@ -332,6 +332,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/bcm/api/incidents/{inc_id}` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
 | GET | `/bcm/api/incidents/{inc_id}` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | PUT | `/bcm/api/incidents/{inc_id}` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
+| POST | `/bcm/api/incidents/{inc_id}/acknowledge` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | GET | `/bcm/api/incidents/{inc_id}/actions` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | POST | `/bcm/api/incidents/{inc_id}/actions` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
 | DELETE | `/bcm/api/incidents/{inc_id}/actions/{action_id}` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |

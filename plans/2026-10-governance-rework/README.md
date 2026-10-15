@@ -31,6 +31,7 @@ proposal is never read as a release.
 | [09 Email inventory](09-email-inventory.md) | Every path that sends mail, what it claimed, its state now, and the decisions only the owner can make (plan 06, E0) |
 | [10 Completion record](10-completion-record.md) | The decision register, gates against evidence, migration inventory, security checks, verification results and the per slice record (plan 05 section 12) |
 | [11 Follow-up plan](11-follow-up-plan.md) | The items the first build of plans 04 to 06 reported as not built: what could be built, the defaults chosen, and the running log |
+| [13 BCM incident escalation](13-bcm-incident-escalation.md) | Acknowledgement windows by severity, the first alternate, the rules and the log of the build (follow-up 12) |
 | [12 Email cutover runbook](12-email-cutover-runbook.md) | Pause, switch, test and resume for the move to a managed sender identity (plan 06, E4). Nothing in it has been run |
 
 Where an older plan and this user-directed rework disagree, these documents state the changed product decision. An implementation still has to reconcile code, schema, live data, permissions, and historical plan links before changing behavior. Do not silently rewrite or delete the earlier plan.
