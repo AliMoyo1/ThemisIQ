@@ -2,7 +2,7 @@
 
 **Status:** Written 2026-10-15, after the owner said "Lets deal with this" about the five items the first build of plans 04 to 06
 reported as not built. This file is the plan and the running log for that work; the build record goes into
-[07](07-implementation-ledger.md) when each part is verified. Nothing here is committed.
+[07](07-implementation-ledger.md) when each part is verified. Committed as `cbf9372` on the branch `claude/plan-04-platform-truth` (not pushed).
 
 ## What can be built, and what cannot
 

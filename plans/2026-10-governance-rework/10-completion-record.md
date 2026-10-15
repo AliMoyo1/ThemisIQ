@@ -5,7 +5,7 @@
 where, and what is still open. It does not repeat the build detail, which is in [07](07-implementation-ledger.md) under the
 heading named in each row.
 
-**How to read the status words.** Used exactly as 05 section 12 separates them. *Built*: in the working tree. *Verified
+**How to read the status words.** Used exactly as 05 section 12 separates them. *Built*: in the branch's commit `cbf9372`, not pushed. *Verified
 locally*: the focused checks named passed on SQLite, on a disposable PostgreSQL 18 where the row says so, and in a browser
 where the row says so. *Pilot live* and *generally released*: nothing here is either. No source owner has signed any phase
 off, a pilot walkthrough with Ali Moyo and Vivian Tsongorera has not happened, and nothing was pushed or deployed.

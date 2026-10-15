@@ -7,8 +7,9 @@ fast-forwarded to `origin/master` (`f770d33`). The earlier AI Governance history
 
 **Status words** (from [05](05-delivery-and-acceptance.md) section 12, kept separate on purpose): *planned*, *built* (in the
 working tree), *verified locally* (focused checks named below passed on SQLite, and on a disposable PostgreSQL where stated),
-*pilot live*, *generally released*. Nothing in this file is *pilot live* or *generally released*. Nothing here is committed,
-pushed or deployed: the owner is asked at the end.
+*pilot live*, *generally released*. Nothing in this file is *pilot live* or *generally released*. Plans 01 to 03 were merged
+as pull request 10; plans 04 to 06 and follow-up 11 are committed as `cbf9372` on the branch `claude/plan-04-platform-truth`.
+Nothing here is pushed or deployed: that is the owner's step.
 
 ## Working rules for whoever continues
 
@@ -225,7 +226,7 @@ download are for the specialist to send.
 
 ### 2026-10-14, 2A and 2B: the Evidence Vault library and what a file proves
 
-**Built, in the working tree, not committed.** `modules/evidence/proof.py` (new), `modules/evidence/routes.py`,
+**Built, committed in `d20d202` and merged as pull request 10.** `modules/evidence/proof.py` (new), `modules/evidence/routes.py`,
 `modules/evidence/templates/evidence_index.html`, `modules/evidence_campaigns/data_service.py` (one hook),
 `modules/governance/effectiveness.py`, `core/rbac.py` (new capability `evidence.link.review`), `database.py` (nine additive
 columns), `docs/generated/capability_inventory.*` (regenerated, 1067 routes).
@@ -301,7 +302,7 @@ limit was hit.
 
 ### 2026-10-14, 3A to 3D: change signals, the connected view and Sentinel's breach clock
 
-**Built, in the working tree, not committed.** New: `modules/governance/change_signals.py`, `modules/governance/entity360.py`,
+**Built, committed in `d20d202` and merged as pull request 10.** New: `modules/governance/change_signals.py`, `modules/governance/entity360.py`,
 `core/change_watch.py`, `modules/governance/templates/connected.html`, `static/js/governance_connected.js`. Changed:
 `database.py` (two tables), `core/rbac.py` (capability `governance.change.review`), `modules/governance/routes.py`,
 `entity_scope.py` (one accessor), `data_service.py` and `templates/index.html`; the update functions of Sentinel, GRID, BCM,
@@ -422,7 +423,7 @@ Slices, in the order built: 4A (the registry, then the Command Centre, BCM and S
 
 ### 2026-10-14 and 15, 4A to 4G: platform truth, navigation and reports
 
-**Built, in the working tree, not committed** (branch `claude/plan-04-platform-truth`). New: `core/metric_registry.py`,
+**Built, committed as `cbf9372` on the branch `claude/plan-04-platform-truth` (local, not pushed).** New: `core/metric_registry.py`,
 `modules/launcher/command_metrics.py`, `modules/bcm/dashboard_metrics.py`, `modules/sentinel/dashboard_metrics.py`,
 `modules/launcher/report_snapshot.py`, `modules/launcher/report_builders.py`, `modules/launcher/search_service.py`,
 `modules/launcher/first_screen.py`, `core/ai_declarations.py`, `modules/launcher/templates/metrics.html`. Rewritten:
@@ -532,7 +533,7 @@ are labelled legacy.
 
 ### 2026-10-15, plan 06: email notifications and delivery (E0, E1, E2, and part of E3)
 
-**Built, in the working tree, not committed.** New: `core/email_templates.py` (the catalogue and its renderer),
+**Built, committed as `cbf9372` on the branch `claude/plan-04-platform-truth` (local, not pushed).** New: `core/email_templates.py` (the catalogue and its renderer),
 `core/email_outbox.py` (the outbox, its worker and `for_each_tenant`), `plans/2026-10-governance-rework/09-email-inventory.md`.
 Rewritten: `core/email.py` (the transport), `core/reminder_scheduler.py`, `modules/sentinel/scheduler.py`,
 `modules/evidence/scheduler.py`, `modules/grid/email_service.py`. Changed: `modules/grid/scheduler.py` (the mail jobs),
@@ -646,7 +647,7 @@ DNS record or server schedule was touched, and no real message was sent.
 
 ### 2026-10-15, follow-up 11: the items the first build of plans 04 to 06 left
 
-**Built, in the working tree, not committed.** After the first build the owner asked to deal with the five items it had
+**Built, committed as `cbf9372` on the branch `claude/plan-04-platform-truth` (local, not pushed).** After the first build the owner asked to deal with the five items it had
 reported as not built. The plan and its running log are [11](11-follow-up-plan.md); the cutover runbook is
 [12](12-email-cutover-runbook.md). New: `modules/launcher/summary_mail.py`, `modules/launcher/predictive_trace.py`,
 `modules/ai_governance/assignment.py`. Changed: `core/email_outbox.py` (pause, comparison by provider, preferences, quiet
@@ -907,8 +908,8 @@ full backend suite after the one test correction; a specialist walkthrough on pi
    VPS is the owner's step. The Docker container `themisiq-pg-aigov` (127.0.0.1:55433, database `themisiq_test_aigov`; recipe
    in the memory file `reference_test_environment.md`) was the PostgreSQL lane. It was removed on 2026-10-15 after the last
    run (72 of 72, after follow-up 11); recreate it from that recipe for the next lane.
-2. Plans 04, 05 and 06 are built in the working tree of the branch `claude/plan-04-platform-truth` (cut from `master` at
-   `a568b75`) and are **not committed**. Plan 04 is slices 4A to 4G; plan 05 is documents only
+2. Plans 04, 05 and 06 and follow-up 11 are built on the branch `claude/plan-04-platform-truth` (cut from `master` at
+   `a568b75`) and were committed locally as `cbf9372` on 2026-10-15 at the owner's request; they are **not pushed**. Plan 04 is slices 4A to 4G; plan 05 is documents only
    (`10-completion-record.md`); plan 06 is E0 to E2 and part of E3 (see Not done (4) and Not done (6)). Follow-up 11
    ([11](11-follow-up-plan.md)) added the E4 seams, BCM mail, a named AI reviewer and decider, summaries and quiet hours, the
    predictive trace and the manager's team view; its entry and stage table are above. Nothing in them is pilot live or
@@ -930,7 +931,9 @@ full backend suite after the one test correction; a specialist walkthrough on pi
    identity, and the BCM acknowledgement windows and alternate contact (a starting point is written there, not built).
 6. A specialist walkthrough on pilot data (Ali Moyo and Vivian Tsongorera) has not happened: nothing here has been seen by the
    people it is for. A mail pilot with a real mailbox has not happened either.
-7. Nothing was pushed or deployed by this work, and nothing was committed: the owner is asked at the end.
+7. Nothing was pushed or deployed by this work. Committed locally as `cbf9372` (2026-10-15, at the owner's request). What is
+   left for the owner: push the branch, open and merge the pull request on GitHub (this session's auto mode refuses to merge),
+   and deploy to the VPS.
 8. The browser lane depends on order and data. Two findings only appear after earlier tests have created records (the
    notification list, fixed, and the amber badge contrast on `/erm/register`, not fixed), and a machine that sleeps during a
    run produces a block of network errors that pass when run again. Run the files that failed on their own before reading
