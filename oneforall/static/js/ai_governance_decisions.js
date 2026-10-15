@@ -115,6 +115,30 @@
       });
     }
 
+    function assignDialog(request) {
+      AIGov.dialog('Name who decides', function (box, close) {
+        var select = el('select', {}, [el('option', { value: '', text: 'Nobody named' })]);
+        var out = el('div', { class: 'aig-say', role: 'status' });
+        box.appendChild(el('p', { class: 'aig-hint', text: 'The person named is told in the app and by email that a decision is asked '
+          + 'of them. It is not a decision, and anyone else who may decide still can.' }));
+        AIGov.api(API + '/decisions/' + request.id + '/assignees').then(function (data) {
+          (data.items || []).forEach(function (p) {
+            select.appendChild(el('option', { value: String(p.id), text: p.name,
+              selected: p.id === request.assigned_decider_id ? true : null }));
+          });
+        }).catch(function (err) { AIGov.say(out, AIGov.errorText(err), 'bad'); });
+        box.appendChild(AIGov.field('aigDecAssignee', 'Who decides', select).row);
+        box.appendChild(el('div', { class: 'aig-actions' }, [
+          el('button', { type: 'button', class: 'btn btn-primary', text: 'Save', on: { click: function () {
+            AIGov.say(out, 'Saving...');
+            AIGov.api(API + '/decisions/' + request.id + '/assign', 'POST',
+              { assignee_id: select.value ? parseInt(select.value, 10) : null })
+              .then(function () { close(); reload(); }).catch(function (err) { AIGov.say(out, AIGov.errorText(err), 'bad'); });
+          } } }), el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel', on: { click: close } })]));
+        box.appendChild(out);
+      });
+    }
+
     function decideDialog(request) {
       AIGov.dialog('Decide: ' + (config.name || 'this AI use'), function (box, close) {
         var loading = el('p', { class: 'aig-muted', text: 'Loading the brief...' });
@@ -272,7 +296,12 @@
         var box = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigDecOpen' }, [el('h2', { id: 'aigDecOpen', class: 'aig-h3', text: 'Waiting for a decision' }),
           el('p', { text: named('Asked', r.requested_by, r.requested_at) + '.' })]);
         if (r.request_note) box.appendChild(el('p', { text: 'Note: ' + r.request_note }));
+        box.appendChild(el('p', { class: 'aig-muted', id: 'aigDecNamed', text: r.assigned_decider
+          ? 'Named to decide: ' + r.assigned_decider + '. They were told in the app and by email.'
+          : 'Nobody is named. Everyone who may decide it sees it, in the app only.' }));
         var openActions = [];
+        if (can.assign) openActions.push(el('button', { type: 'button', class: 'btn btn-secondary', id: 'aigDecNameBtn',
+          text: r.assigned_decider ? 'Change who decides' : 'Name who decides', on: { click: function () { assignDialog(r); } } }));
         if (can.decide) openActions.push(el('button', { type: 'button', class: 'btn btn-primary', text: 'Review and decide', on: { click: function () { decideDialog(r); } } }));
         if (can.withdraw) openActions.push(el('button', { type: 'button', class: 'btn btn-ghost', text: 'Withdraw the request', on: { click: function () {
           AIGov.api(API + '/decisions/' + r.id + '/withdraw', 'POST', {}).then(reload).catch(fail);

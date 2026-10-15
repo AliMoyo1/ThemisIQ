@@ -19,6 +19,20 @@ The owning module keeps the record and its lifecycle. Dashboards, My Work, relat
 | [05 Delivery](05-delivery-and-acceptance.md) | Sequence, decisions, migration, acceptance, rollout | [Portfolio roadmap](../ROADMAP-2026-10.md), [PLAN-36](../PLAN-36-themisiq-stabilization-and-product-improvements/task_plan.md) |
 | [06 Email](06-email-notifications-and-delivery.md) | Temporary Gmail sender, role-based touch points, shared templates, delivery outcomes, fallback, service-identity cutover | Existing `core/email.py`, module schedulers and platform notifications |
 
+## Implementation records
+
+The documents above are the design. What was built from them, how it was checked, and what was left is kept apart so a
+proposal is never read as a release.
+
+| Record | What it holds |
+| --- | --- |
+| [07 Implementation ledger](07-implementation-ledger.md) | Slice status, a change log per slice with what was found on the way, the not done lists, stage verification and the handoff |
+| [08 Platform functions inventory](08-platform-functions-inventory.md) | Per platform function: who reads and writes what, under which gate, what was found and fixed (plan 04 section 8) |
+| [09 Email inventory](09-email-inventory.md) | Every path that sends mail, what it claimed, its state now, and the decisions only the owner can make (plan 06, E0) |
+| [10 Completion record](10-completion-record.md) | The decision register, gates against evidence, migration inventory, security checks, verification results and the per slice record (plan 05 section 12) |
+| [11 Follow-up plan](11-follow-up-plan.md) | The items the first build of plans 04 to 06 reported as not built: what could be built, the defaults chosen, and the running log |
+| [12 Email cutover runbook](12-email-cutover-runbook.md) | Pause, switch, test and resume for the move to a managed sender identity (plan 06, E4). Nothing in it has been run |
+
 Where an older plan and this user-directed rework disagree, these documents state the changed product decision. An implementation still has to reconcile code, schema, live data, permissions, and historical plan links before changing behavior. Do not silently rewrite or delete the earlier plan.
 
 ## Baseline observed in the code snapshot

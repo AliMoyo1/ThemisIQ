@@ -308,13 +308,11 @@ async def api_users_list(request: Request):
 @router.post("/api/ai/analyze/{event_id}")
 @require_capability("orm.ai.use")
 async def api_ai_analyze(request: Request, event_id: int):
-    ev = ds.get_event(event_id)
-    if not ev:
-        raise HTTPException(404)
+    ev = _event_in_scope_or_404(request, event_id)
     result = ai.analyze_event(ev)
-    # Save analysis back to the event
+    # The analysis fills fields the owner has left empty. It never replaces what a person wrote.
     update = {}
-    if result.get("root_cause_category"):
+    if result.get("root_cause_category") and not ev.get("root_cause_category"):
         update["root_cause_category"] = result["root_cause_category"]
     if result.get("corrective_action") and not ev.get("corrective_action"):
         update["corrective_action"] = result["corrective_action"]

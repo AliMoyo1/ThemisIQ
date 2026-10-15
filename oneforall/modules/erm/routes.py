@@ -1077,23 +1077,16 @@ async def api_ai_score_risk(request: Request, risk_id: int):
     if not check_ai_rate_limit(str(_uid(request))):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
-    r = ds.get_enterprise_risk(risk_id)
-    if not r:
-        raise HTTPException(404)
+    r = _check_risk_scope(request, risk_id)
     result = ai.score_risk(
         r.get("title", ""),
         r.get("description", ""),
         r.get("category", "")
     )
-    # Update the risk with AI-scored fields
-    update_data = {}
-    if "likelihood" in result:
-        update_data["likelihood"] = result["likelihood"]
-    if "impact" in result:
-        update_data["impact"] = result["impact"]
-    if update_data:
-        ds.update_enterprise_risk(risk_id, update_data)
-    return JSONResponse(result)
+    # A suggestion, not a change: the owner's score stays until a person with erm.risk.manage applies it
+    # through the ordinary update, which the register page offers after the person confirms.
+    return JSONResponse({**result, "applied": False,
+                         "current": {"likelihood": r.get("likelihood"), "impact": r.get("impact")}})
 
 
 @router.post("/api/ai/suggest-scores")
@@ -1382,9 +1375,7 @@ async def api_remediation_plan(request: Request, risk_id: int):
     if not check_ai_rate_limit(str(_uid(request))):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
-    risk = ds.get_enterprise_risk(risk_id)
-    if not risk:
-        raise HTTPException(404, "Risk not found")
+    risk = _check_risk_scope(request, risk_id)
     score = risk.get("inherent_score") or (risk.get("likelihood", 3) * risk.get("impact", 3))
     plan = ai.smart_remediation_plan(
         risk.get("title", ""), risk.get("description", ""),

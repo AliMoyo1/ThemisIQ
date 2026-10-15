@@ -18,7 +18,7 @@ from core.middleware import require_capability
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, tenant_context
-from modules.ai_governance import (assessments, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
+from modules.ai_governance import (assessments, assignment, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
                                    import_rules, imports, literacy, monitoring, outstanding, oversight, overview, platform_features,
                                    precedents, quality, questions, regulation, review_packs, rules, service, workspace)
 from modules.ai_governance.service import ServiceError
@@ -469,6 +469,23 @@ async def api_review_approve(request: Request, intake_id: int):
         adopted_tier=body.get("adopted_tier"), tier_reason=body.get("tier_reason"), note=body.get("note")))
 
 
+@router.get("/api/review/requests/{intake_id}/assignees")
+@require_capability("ai_use.review")
+async def api_review_assignees(request: Request, intake_id: int):
+    """The people who may be named as the reviewer of this request."""
+    return _read(request, lambda db, user: {"items": assignment.reviewers_for(db, user, intake_id)})
+
+
+@router.post("/api/review/requests/{intake_id}/assign")
+@require_capability("ai_use.review")
+async def api_review_assign(request: Request, intake_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: assignment.assign_reviewer(db, user, intake_id, body.get("assignee_id")))
+
+
 # ── The inventory and the workspace ─────────────────────────────────────────
 
 @router.get("/api/systems")
@@ -700,6 +717,23 @@ async def api_decision_request(request: Request, application_id: int):
     except ServiceError as exc:
         return _error(exc)
     return _transact(request, lambda db, user: decisions.request_decision(db, user, application_id, body.get("note")), 201)
+
+
+@router.get("/api/decisions/{decision_id}/assignees")
+@require_capability("ai_use.view")
+async def api_decision_assignees(request: Request, decision_id: int):
+    """The people who may be named to decide this request."""
+    return _read(request, lambda db, user: {"items": assignment.deciders_for(db, user, decision_id)})
+
+
+@router.post("/api/decisions/{decision_id}/assign")
+@require_capability("ai_use.view")
+async def api_decision_assign(request: Request, decision_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: assignment.assign_decider(db, user, decision_id, body.get("assignee_id")))
 
 
 @router.get("/api/decisions/{decision_id}/export")

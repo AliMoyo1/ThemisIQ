@@ -151,6 +151,26 @@ def _exercise_alert_check() -> None:
             _exercise_alert_check_tenant(org_id)
 
 
+def _ask_exercise_mail(db, org_id: int, owners: list) -> None:
+    """Ask the email outbox to tell the owner of each exercise a reminder was just made for (template bcm.exercise: a
+    reference, the date and a link). After the tasks are committed; a mail problem is recorded and goes no further."""
+    from core import email_outbox
+    from core.email_templates import iso_or_none
+    try:
+        for exercise_id, owner_id, scheduled in owners:
+            due = iso_or_none(scheduled)
+            if due:
+                email_outbox.enqueue_safely(
+                    db, "bcm.exercise", recipient_user_id=owner_id, org_id=org_id,
+                    route=f"/bcm/?open=exercise:{exercise_id}",
+                    fields={"reference": f"EX-{exercise_id}", "due": due},
+                    source=("bcm", "exercise", exercise_id), purpose="upcoming", threshold=due)
+        db.commit()
+    except Exception:
+        log.warning("BCM exercise mail was not asked for in organization %s", org_id, exc_info=True)
+        db.rollback()
+
+
 def _exercise_alert_check_tenant(org_id: int) -> None:
     db = get_db()
     try:
@@ -163,6 +183,7 @@ def _exercise_alert_check_tenant(org_id: int) -> None:
             (org_id,),
         ).fetchall()
         created = 0
+        owners = []
         for ex in rows:
             eid = ex["id"]
             if _task_exists(db, "EXERCISE UPCOMING:", "exercise", eid, include_done=True):
@@ -188,8 +209,10 @@ def _exercise_alert_check_tenant(org_id: int) -> None:
                     "VALUES (%s,'bcm',%s,%s,%s)",
                     (ex["owner_id"], "BCM exercise upcoming", name, f"/bcm/?open=exercise:{eid}"),
                 )
+                owners.append((eid, ex["owner_id"], ex["scheduled_date"]))
             created += 1
         db.commit()
+        _ask_exercise_mail(db, org_id, owners)
         log.info("BCM exercise reminders: org=%s created=%s", org_id, created)
     except Exception as exc:
         db.rollback()

@@ -5,20 +5,19 @@ Runs periodic compliance tasks on cron schedules (Africa/Harare = CAT = UTC+2).
 Ported from the original AuditSphere scheduler.js.
 
 IMPORTANT: Jobs only run on schedule, never on startup.
-All email calls have timeouts built into email_service.py (10 s per request).
+Mail is asked for through the email outbox (core/email_outbox.py), never sent from a job.
 """
 from __future__ import annotations
 
 import logging
-import math
 import os
 import shutil
 import subprocess
 import sys
 import urllib.parse
 import zipfile
-from datetime import date, datetime
-from core.timeutils import utcnow, to_dt
+from datetime import date, timedelta
+from core.timeutils import utcnow
 from pathlib import Path
 
 from config import settings
@@ -26,16 +25,9 @@ from config import settings
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from database import get_db_background as get_db, sql_now_offset, sql_date_offset, sql_current_date  # scheduler: fail-fast, never block UI
-from modules.grid.email_service import (
-    send_email,
-    reminder_email_html,
-    weekly_digest_html,
-    escalation_html,
-    expiry_alert_html,
-    nc_deadline_reminder_html,
-    nc_cap_escalation_html,
-)
+from database import get_db_background as get_db, sql_date_offset, sql_current_date  # scheduler: fail-fast, never block UI
+from core import email_outbox as outbox
+from core import email_templates as templates
 from core.best_effort import swallowed
 
 log = logging.getLogger("grid.scheduler")
@@ -45,212 +37,180 @@ _scheduler: BackgroundScheduler | None = None
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# Job 1 — Reminders (daily 08:00 CAT)
+# Mail jobs (1 to 4, 7, 8 and 9)
+#
+# A job decides who should be told and asks the outbox (core/email_outbox.py) for one message per person, action and
+# threshold. The outbox sends it and, at that moment, checks that the person is still active, may open the record and
+# that the work is still open. Nothing here records "notified" because a mail was attempted: the outbox row holds what
+# the provider said, and a second run asks for the same message and gets the one that exists.
+# Every job visits each organization in turn: a scheduler has no request to take a tenant from.
 # ═════════════════════════════════════════════════════════════════════════
+
+def _week(day: date) -> str:
+    year, week, _ = day.isocalendar()
+    return f"{year}-W{week:02d}"
+
+
+def _in_each_organization(name: str, job) -> None:
+    """Run job(db, org_id, today) once per organization on one short connection and commit what it asked for."""
+    def run(org_id):
+        db = get_db()
+        try:
+            asked = job(db, org_id, utcnow().date())
+            db.commit()
+            log.info("%s: %d message(s) asked for in organization %s", name, asked, org_id)
+        except Exception as exc:
+            db.rollback()
+            log.error("%s error in organization %s: %s", name, org_id, exc)
+        finally:
+            db.close()
+    outbox.for_each_tenant(run, name)
+
+
+def _escalation_recipients(db, org_id, audit_id, assignee_id) -> list:
+    """Who an overdue item is escalated to: the audit's lead when there is an active one who is not the assignee,
+    otherwise the administrators of the organization. Never every administrator of every organization, and never a
+    platform operator."""
+    if audit_id:
+        lead = db.execute(
+            "SELECT u.id FROM grid_audits a JOIN users u ON u.id = a.lead_id WHERE a.id = %s AND u.is_active = 1",
+            (audit_id,)).fetchone()
+        if lead and lead["id"] != assignee_id:
+            return [lead["id"]]
+    return [uid for uid in outbox.organization_people(db, org_id, outbox.ADMIN_ROLES) if uid != assignee_id]
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Job 1: Reminders (daily 08:00 CAT)
+# ═════════════════════════════════════════════════════════════════════════
+
+def _remind(db, org_id, today) -> int:
+    """One message per subscriber and control for each day, week or month, as the subscriber chose."""
+    periods = {"daily": today.isoformat(), "weekly": _week(today), "monthly": today.strftime("%Y-%m")}
+    rows = db.execute(
+        "SELECT r.user_id, r.control_id, r.frequency, c.due_date, c.audit_id "
+        "FROM grid_reminders r JOIN grid_controls c ON r.control_id = c.id "
+        "WHERE r.active = 1 AND c.status != 'Complete'").fetchall()
+    asked = 0
+    for r in rows:
+        period = periods.get((r["frequency"] or "weekly").lower())
+        if period and outbox.enqueue_safely(
+                db, "control.reminder", recipient_user_id=r["user_id"], org_id=org_id, route="/grid/controls",
+                fields={"reference": f"AU-{r['audit_id']}", "due": templates.iso_or_none(r["due_date"])},
+                source=("grid", "control", r["control_id"]), purpose="reminder", threshold=period):
+            asked += 1
+    return asked
+
 
 def process_reminders() -> None:
     log.info("Running reminders...")
-    db = get_db()
-    try:
-        rows = db.execute(f"""
-            SELECT r.id, r.frequency, r.last_sent,
-                   c.control_id AS ctrl_id, c.name AS control_name,
-                   c.due_date, c.status AS control_status,
-                   a.name AS audit_name,
-                   u.full_name AS user_name, u.email AS user_email
-            FROM grid_reminders r
-            JOIN grid_controls c  ON r.control_id = c.id
-            JOIN grid_audits   a  ON c.audit_id   = a.id
-            LEFT JOIN users    u  ON u.id          = r.user_id
-            WHERE r.active = 1 AND c.status != 'Complete'
-            AND (
-              (r.frequency = 'daily')
-              OR (r.frequency = 'weekly'  AND (r.last_sent IS NULL OR r.last_sent < {sql_now_offset('-6 days')}))
-              OR (r.frequency = 'monthly' AND (r.last_sent IS NULL OR r.last_sent < {sql_now_offset('-28 days')}))
-            )
-        """).fetchall()
-
-        sent = 0
-        for r in rows:
-            email = r["user_email"]
-            if not email:
-                continue
-            send_email(
-                to=email,
-                subject=f"[G.R.I.D AI] Reminder: {r['control_name']}",
-                body_html=reminder_email_html(
-                    control_name=r["control_name"],
-                    control_id=r["ctrl_id"] or "",
-                    due_date=r["due_date"] or "",
-                    audit_name=r["audit_name"] or "",
-                    recipient_name=r["user_name"] or "",
-                    frequency=r["frequency"] or "weekly",
-                ),
-            )
-            db.execute("UPDATE grid_reminders SET last_sent=%s WHERE id=%s",
-                        (utcnow().isoformat(), r["id"]))
-            sent += 1
-        db.commit()
-        log.info("Reminders done: %d sent", sent)
-    except Exception as exc:
-        log.error("Reminders error: %s", exc)
-    finally:
-        db.close()
+    _in_each_organization("GRID reminders", _remind)
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# Job 2 — Expiry Alerts (daily 08:30 CAT)
+# Job 2: Expiry alerts for evidence files attached to a control (daily 08:30 CAT)
 # ═════════════════════════════════════════════════════════════════════════
+
+def _expiring_files(db, org_id, today) -> int:
+    """The assignee of a control hears once per file and expiry date that the file expires within 30 days."""
+    rows = db.execute(
+        "SELECT ef.id, ef.control_id, ef.expires_at, c.assignee_id "
+        "FROM grid_evidence_files ef JOIN grid_controls c ON ef.control_id = c.id "
+        f"WHERE ef.expires_at IS NOT NULL AND ef.expires_at > {sql_current_date()} "
+        f"AND ef.expires_at <= {sql_date_offset('+30 days')} AND ef.status != 'Rejected' "
+        "AND c.assignee_id IS NOT NULL").fetchall()
+    asked = 0
+    for ef in rows:
+        due = templates.iso_or_none(ef["expires_at"])
+        if due and outbox.enqueue_safely(
+                db, "evidence.renew", recipient_user_id=ef["assignee_id"], org_id=org_id, route="/grid/controls",
+                fields={"reference": f"GE-{ef['id']}", "due": due},
+                source=("grid", "control", ef["control_id"]), purpose=f"expiry:{ef['id']}", threshold=due):
+            asked += 1
+    return asked
+
 
 def process_expiry_alerts() -> None:
     log.info("Running expiry alerts...")
-    db = get_db()
-    try:
-        rows = db.execute(f"""
-            SELECT ef.id, ef.original_name AS evidence_name, ef.expires_at,
-                   c.name AS control_name,
-                   u.full_name AS owner_name, u.email AS owner_email
-            FROM grid_evidence_files ef
-            JOIN grid_controls c ON ef.control_id = c.id
-            LEFT JOIN users    u ON c.assignee_id = u.id
-            WHERE ef.expires_at IS NOT NULL
-              AND ef.expires_at > {sql_current_date()}
-              AND ef.expires_at <= {sql_date_offset('+30 days')}
-              AND ef.expiry_notified = 0
-              AND ef.status != 'Rejected'
-        """).fetchall()
-
-        sent = 0
-        for ev in rows:
-            if not ev["owner_email"]:
-                continue
-            days_left = math.ceil(
-                (to_dt(ev["expires_at"]) - utcnow()).total_seconds() / 86400
-            )
-            send_email(
-                to=ev["owner_email"],
-                subject=f"[G.R.I.D AI] Evidence expiring in {days_left} days: {ev['evidence_name']}",
-                body_html=expiry_alert_html(
-                    recipient_name=ev["owner_name"] or "",
-                    evidence_name=ev["evidence_name"] or "",
-                    control_name=ev["control_name"] or "",
-                    expiry_date=ev["expires_at"] or "",
-                    days_until_expiry=days_left,
-                ),
-            )
-            db.execute("UPDATE grid_evidence_files SET expiry_notified=1 WHERE id=%s", (ev["id"],))
-            sent += 1
-        db.commit()
-        log.info("Expiry alerts done: %d sent", sent)
-    except Exception as exc:
-        log.error("Expiry alerts error: %s", exc)
-    finally:
-        db.close()
+    _in_each_organization("GRID expiry alerts", _expiring_files)
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# Job 3 — Escalations (daily 09:00 CAT)
+# Job 3: Escalations of overdue high-risk controls (daily 09:00 CAT)
 # ═════════════════════════════════════════════════════════════════════════
+
+def _escalate_controls(db, org_id, today) -> int:
+    """A control that has been overdue for a week is escalated once a week to the audit lead, or to the organization's
+    administrators when the audit has no lead."""
+    cutoff = (today - timedelta(days=7)).isoformat()
+    rows = db.execute(
+        "SELECT c.id, c.audit_id, c.due_date, c.assignee_id FROM grid_controls c "
+        "WHERE c.due_date < %s AND c.status != 'Complete' AND c.assignee_id IS NOT NULL "
+        "AND c.risk_level IN ('Critical', 'High') ORDER BY c.due_date LIMIT 200", (cutoff,)).fetchall()
+    asked = 0
+    for c in rows:
+        due = templates.iso_or_none(c["due_date"])
+        for uid in _escalation_recipients(db, org_id, c["audit_id"], c["assignee_id"]):
+            if outbox.enqueue_safely(
+                    db, "audit.escalation", recipient_user_id=uid, org_id=org_id, route="/grid/controls",
+                    fields={"reference": f"AU-{c['audit_id']}", "due": due},
+                    source=("grid", "control", c["id"]), purpose="escalation", threshold=f"overdue:{_week(today)}"):
+                asked += 1
+    return asked
+
 
 def process_escalations() -> None:
     log.info("Running escalations...")
-    db = get_db()
-    try:
-        rows = db.execute(f"""
-            SELECT c.id, c.control_id AS ctrl_id, c.name, c.due_date,
-                   c.risk_level, a.name AS audit_name,
-                   u.full_name AS owner_name, u.email AS owner_email,
-                   m.full_name AS manager_name, m.email AS manager_email
-            FROM grid_controls c
-            JOIN grid_audits a ON c.audit_id = a.id
-            LEFT JOIN users  u ON c.assignee_id = u.id
-            LEFT JOIN users m ON m.id IN (SELECT user_id FROM user_roles WHERE role_key IN ('super_admin','admin'))
-            WHERE c.due_date < {sql_date_offset('-7 days')}
-              AND c.status != 'Complete'
-              AND c.assignee_id IS NOT NULL
-              AND c.risk_level IN ('Critical', 'High')
-            LIMIT 20
-        """).fetchall()
-
-        seen: set[int] = set()
-        for ctrl in rows:
-            if not ctrl["manager_email"] or ctrl["id"] in seen:
-                continue
-            seen.add(ctrl["id"])
-            days_overdue = math.floor(
-                (utcnow() - to_dt(ctrl["due_date"])).total_seconds() / 86400
-            )
-            send_email(
-                to=ctrl["manager_email"],
-                subject=f"[G.R.I.D AI] ESCALATION: {ctrl['name']} — {days_overdue} days overdue",
-                body_html=escalation_html(
-                    manager_name=ctrl["manager_name"] or "",
-                    owner_name=ctrl["owner_name"] or "Unassigned",
-                    control_name=ctrl["name"] or "",
-                    control_id=ctrl["ctrl_id"] or str(ctrl["id"])[:8],
-                    days_overdue=days_overdue,
-                    audit_name=ctrl["audit_name"] or "",
-                ),
-            )
-        log.info("Escalations done: %d sent", len(seen))
-    except Exception as exc:
-        log.error("Escalations error: %s", exc)
-    finally:
-        db.close()
+    _in_each_organization("GRID escalations", _escalate_controls)
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# Job 4 — Weekly Digest (Mondays 07:00 CAT)
+# Job 4: Weekly summary (Mondays 07:00 CAT)
 # ═════════════════════════════════════════════════════════════════════════
+
+def _summaries(db, org_id, today) -> int:
+    """One weekly summary per subscriber who has an account, counting only the audits that person may open, so the
+    count and the list behind the link are the same set. A subscriber with no account, or who can open none of the
+    audits they chose, gets nothing."""
+    from modules.governance.entity_scope import describe_records
+    subs = db.execute(
+        "SELECT id, user_id, email, audit_ids FROM grid_digest_subscriptions WHERE active = 1").fetchall()
+    if not subs:
+        return 0
+    audits = [r["id"] for r in db.execute("SELECT id FROM grid_audits ORDER BY id").fetchall()]
+    asked = 0
+    for sub in subs:
+        account = None
+        if sub["user_id"]:
+            account = db.execute("SELECT * FROM users WHERE id = %s AND is_active = 1", (sub["user_id"],)).fetchone()
+        if account is None and sub["email"]:
+            account = db.execute(
+                "SELECT * FROM users WHERE LOWER(email) = LOWER(%s) AND is_active = 1", (sub["email"],)).fetchone()
+        if account is None:
+            continue
+        chosen = (sub["audit_ids"] or "all").strip()
+        wanted = audits
+        if chosen != "all":
+            ids = {x.strip() for x in chosen.split(",") if x.strip()}
+            wanted = [a for a in audits if str(a) in ids]
+        visible = sorted(describe_records(db, ("grid", "audit"), wanted, outbox.user_for_scope(db, account)))
+        if not visible:
+            continue
+        overdue = db.execute(
+            f"SELECT COUNT(*) FROM grid_controls WHERE audit_id IN ({','.join(['%s'] * len(visible))}) "
+            f"AND status != 'Complete' AND due_date IS NOT NULL AND due_date < {sql_current_date()}",
+            visible).fetchone()[0]
+        if outbox.enqueue_safely(
+                db, "summary.weekly", recipient_user_id=account["id"], org_id=org_id, route="/grid/",
+                fields={"audits": len(visible), "overdue": overdue}, source=("grid", "digest", sub["id"]),
+                purpose="weekly", threshold=_week(today)):
+            asked += 1
+    return asked
+
 
 def send_weekly_digest() -> None:
     log.info("Sending weekly digest...")
-    db = get_db()
-    try:
-        subs = db.execute("SELECT * FROM grid_digest_subscriptions WHERE active=1").fetchall()
-        if not subs:
-            log.info("No digest subscribers")
-            return
-
-        audits = [dict(r) for r in db.execute("""
-            SELECT a.id, a.name, f.name AS framework_name, a.audit_type,
-                   COUNT(c.id) AS total_controls,
-                   SUM(CASE WHEN c.status='Complete' THEN 1 ELSE 0 END) AS complete_controls,
-                   SUM(CASE WHEN c.due_date < CURRENT_DATE AND c.status!='Complete' THEN 1 ELSE 0 END) AS overdue_controls
-            FROM grid_audits a
-            JOIN grid_frameworks f ON a.framework_id = f.id
-            LEFT JOIN grid_controls c ON c.audit_id = a.id
-            GROUP BY a.id ORDER BY a.created_at DESC
-        """).fetchall()]
-
-        for a in audits:
-            total = a.get("total_controls") or 0
-            complete = a.get("complete_controls") or 0
-            a["completion_pct"] = round(complete / total * 100) if total > 0 else 0
-
-        for sub in subs:
-            sub = dict(sub)
-            audit_ids = sub.get("audit_ids", "all")
-            if audit_ids == "all":
-                filtered = audits
-            else:
-                id_set = {x.strip() for x in audit_ids.split(",")}
-                filtered = [a for a in audits if str(a["id"]) in id_set]
-
-            send_email(
-                to=sub["email"],
-                subject=f"[G.R.I.D AI] Weekly Compliance Digest — {date.today().strftime('%d/%m/%Y')}",
-                body_html=weekly_digest_html(
-                    recipient_name=sub.get("name", ""),
-                    audits=filtered,
-                ),
-            )
-
-        log.info("Weekly digest sent to %d subscriber(s)", len(subs))
-    except Exception as exc:
-        log.error("Weekly digest error: %s", exc)
-    finally:
-        db.close()
+    _in_each_organization("GRID weekly summary", _summaries)
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -386,159 +346,78 @@ def perform_backup() -> None:
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# Job 7 — NC Response Deadline Reminders (daily 08:15 CAT)
+# Job 7: Response deadlines of non-conformances (daily 08:15 CAT)
 # ═════════════════════════════════════════════════════════════════════════
+
+def _nc_deadlines(db, org_id, today) -> int:
+    """The assignee hears once when the response deadline is within 3 days, and once a week while it is overdue. A
+    corrected deadline is a new threshold and may be told again."""
+    rows = db.execute(
+        "SELECT nc.id, nc.audit_id, nc.assigned_to, nc.response_deadline FROM grid_non_conformances nc "
+        "WHERE nc.response_deadline IS NOT NULL AND nc.status != 'closed' "
+        "AND COALESCE(nc.cap_status, '') NOT IN ('Closed', 'Verification') AND nc.assigned_to IS NOT NULL").fetchall()
+    soon = (today + timedelta(days=3)).isoformat()
+    asked = 0
+    for nc in rows:
+        due = templates.iso_or_none(nc["response_deadline"])
+        if not due or due > soon:
+            continue
+        stage = "due" if due >= today.isoformat() else f"overdue:{_week(today)}"
+        if outbox.enqueue_safely(
+                db, "audit.deadline", recipient_user_id=nc["assigned_to"], org_id=org_id,
+                route=f"/grid/?open=nc:{nc['id']}", fields={"reference": f"AU-{nc['audit_id']}", "due": due},
+                source=("grid", "nc", nc["id"]), purpose="deadline", threshold=f"{due}|{stage}"):
+            asked += 1
+    return asked
+
 
 def process_nc_deadline_reminders() -> None:
-    """Email assignees whose NC response_deadline is within 3 days or past due."""
+    """Remind assignees whose NC response deadline is within 3 days or past."""
     log.info("Running NC deadline reminders...")
-    db = get_db()
-    try:
-        rows = db.execute(f"""
-            SELECT nc.id, nc.title, nc.severity, nc.response_deadline,
-                   nc.cap_status, nc.status,
-                   a.name AS audit_name,
-                   u.full_name AS owner_name, u.email AS owner_email
-            FROM grid_non_conformances nc
-            JOIN grid_audits a ON nc.audit_id = a.id
-            LEFT JOIN users  u ON nc.assigned_to = u.id
-            WHERE nc.response_deadline IS NOT NULL
-              AND nc.status != 'closed'
-              AND nc.cap_status NOT IN ('Closed', 'Verification')
-              AND nc.response_deadline <= {sql_date_offset('+3 days')}
-              AND nc.assigned_to IS NOT NULL
-        """).fetchall()
-
-        sent = 0
-        for nc in rows:
-            if not nc["owner_email"]:
-                continue
-            days = math.floor(
-                (to_dt(nc["response_deadline"]) - utcnow()).total_seconds() / 86400
-            )
-            send_email(
-                to=nc["owner_email"],
-                subject=f"[G.R.I.D AI] {'OVERDUE' if days < 0 else 'Deadline'}: {nc['title']}",
-                body_html=nc_deadline_reminder_html(
-                    owner_name=nc["owner_name"] or "",
-                    nc_title=nc["title"] or "",
-                    severity=nc["severity"] or "",
-                    response_deadline=nc["response_deadline"] or "",
-                    days_remaining=days,
-                    cap_status=nc["cap_status"] or "",
-                    audit_name=nc["audit_name"] or "",
-                ),
-            )
-            sent += 1
-        log.info("NC deadline reminders done: %d sent", sent)
-    except Exception as exc:
-        log.error("NC deadline reminders error: %s", exc)
-    finally:
-        db.close()
+    _in_each_organization("GRID NC deadline reminders", _nc_deadlines)
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# Job 8 — NC CAP Escalations (daily 09:15 CAT)
+# Job 8: Escalations of overdue non-conformances (daily 09:15 CAT)
 # ═════════════════════════════════════════════════════════════════════════
+
+def _escalate_findings(db, org_id, today) -> int:
+    """A major or critical finding that is a week past its due date is escalated once a week to the audit lead, or to
+    the administrators of the organization when the audit has no lead."""
+    cutoff = (today - timedelta(days=7)).isoformat()
+    rows = db.execute(
+        "SELECT nc.id, nc.audit_id, nc.assigned_to, nc.due_date FROM grid_non_conformances nc "
+        "WHERE nc.due_date IS NOT NULL AND nc.due_date < %s AND nc.status != 'closed' "
+        "AND COALESCE(nc.cap_status, '') NOT IN ('Closed', 'Verification') "
+        "AND nc.severity IN ('major', 'critical') ORDER BY nc.due_date LIMIT 200", (cutoff,)).fetchall()
+    asked = 0
+    for nc in rows:
+        due = templates.iso_or_none(nc["due_date"])
+        for uid in _escalation_recipients(db, org_id, nc["audit_id"], nc["assigned_to"]):
+            if outbox.enqueue_safely(
+                    db, "audit.escalation", recipient_user_id=uid, org_id=org_id,
+                    route=f"/grid/?open=nc:{nc['id']}", fields={"reference": f"AU-{nc['audit_id']}", "due": due},
+                    source=("grid", "nc", nc["id"]), purpose="escalation", threshold=f"overdue:{_week(today)}"):
+                asked += 1
+    return asked
+
 
 def process_nc_escalations() -> None:
-    """Escalate overdue NCs (due_date past 7+ days, not closed) to admins."""
+    """Escalate overdue NCs (a week or more past their due date, not closed)."""
     log.info("Running NC CAP escalations...")
-    db = get_db()
-    try:
-        rows = db.execute(f"""
-            SELECT nc.id, nc.title, nc.severity, nc.due_date,
-                   nc.cap_status, a.name AS audit_name,
-                   u.full_name AS owner_name,
-                   m.full_name AS manager_name, m.email AS manager_email
-            FROM grid_non_conformances nc
-            JOIN grid_audits a ON nc.audit_id = a.id
-            LEFT JOIN users  u ON nc.assigned_to = u.id
-            LEFT JOIN users m ON m.id IN (SELECT user_id FROM user_roles WHERE role_key IN ('super_admin','admin'))
-            WHERE nc.due_date IS NOT NULL
-              AND nc.due_date < {sql_date_offset('-7 days')}
-              AND nc.status != 'closed'
-              AND nc.cap_status NOT IN ('Closed', 'Verification')
-              AND nc.severity IN ('major', 'critical')
-            LIMIT 30
-        """).fetchall()
-
-        seen: set[int] = set()
-        for nc in rows:
-            if not nc["manager_email"] or nc["id"] in seen:
-                continue
-            seen.add(nc["id"])
-            days_overdue = math.floor(
-                (utcnow() - datetime.fromisoformat(nc["due_date"])).total_seconds() / 86400
-            )
-            send_email(
-                to=nc["manager_email"],
-                subject=f"[G.R.I.D AI] ESCALATION: {nc['title']} — {days_overdue} days overdue",
-                body_html=nc_cap_escalation_html(
-                    manager_name=nc["manager_name"] or "",
-                    owner_name=nc["owner_name"] or "Unassigned",
-                    nc_title=nc["title"] or "",
-                    severity=nc["severity"] or "",
-                    cap_status=nc["cap_status"] or "",
-                    days_overdue=days_overdue,
-                    audit_name=nc["audit_name"] or "",
-                    due_date=nc["due_date"] or "",
-                ),
-            )
-        log.info("NC CAP escalations done: %d sent", len(seen))
-    except Exception as exc:
-        log.error("NC CAP escalations error: %s", exc)
-    finally:
-        db.close()
+    _in_each_organization("GRID NC escalations", _escalate_findings)
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# Job 9 — Evidence Vault: Expiry Notifications (daily 08:45 CAT)
+# Job 9: Evidence Vault expiry (daily 08:45 CAT)
 # ═════════════════════════════════════════════════════════════════════════
 
 def process_vault_expiry_notifications() -> None:
-    """Email admins about evidence items expiring within 30 days."""
+    """The messages the Evidence scheduler also asks for, under the same key, so a person reached by both jobs is told
+    once (06 section 2: the evidence and GRID paths overlapped)."""
     log.info("Running vault expiry notifications...")
-    db = get_db()
-    try:
-        rows = db.execute(f"""
-            SELECT e.id, e.title, e.category, e.expiry_date,
-                   e.uploaded_by, u.full_name AS owner_name, u.email AS owner_email
-            FROM evidence_items e
-            LEFT JOIN users u ON e.uploaded_by = u.id
-            WHERE e.status = 'current'
-              AND e.expiry_date IS NOT NULL
-              AND e.expiry_date > {sql_current_date()}
-              AND e.expiry_date <= {sql_date_offset('+30 days')}
-            LIMIT 50
-        """).fetchall()
-
-        sent = 0
-        for ev in rows:
-            days_left = math.ceil(
-                (to_dt(ev["expiry_date"]) - utcnow()).total_seconds() / 86400
-            )
-            # Notify the uploader if they have an email
-            email = ev["owner_email"]
-            if not email:
-                continue
-            send_email(
-                to=email,
-                subject=f"[One For All] Evidence expiring in {days_left} days: {ev['title']}",
-                body_html=expiry_alert_html(
-                    recipient_name=ev["owner_name"] or "",
-                    evidence_name=ev["title"] or "",
-                    control_name=f"Vault item #{ev['id']} ({ev['category']})",
-                    expiry_date=ev["expiry_date"] or "",
-                    days_until_expiry=days_left,
-                ),
-            )
-            sent += 1
-        log.info("Vault expiry notifications done: %d sent", sent)
-    except Exception as exc:
-        log.error("Vault expiry notifications error: %s", exc)
-    finally:
-        db.close()
+    from modules.evidence.scheduler import enqueue_expiry_messages
+    _in_each_organization("Vault expiry notifications", enqueue_expiry_messages)
 
 
 # ═════════════════════════════════════════════════════════════════════════

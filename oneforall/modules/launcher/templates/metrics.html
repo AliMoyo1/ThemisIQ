@@ -1,0 +1,85 @@
+{% extends "platform_base.html" %}
+{% block title %}How each figure is defined - ThemisIQ{% endblock %}
+
+{% block head %}
+.metrics-lede{max-width:70ch;color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 18px}
+.metrics-group{margin:0 0 22px}
+.metrics-group h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 8px}
+.metrics-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
+.metrics-card h3{font-size:15px;margin:0 0 4px;color:var(--text)}
+.metrics-card dl{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;margin:8px 0 0;font-size:12.5px}
+.metrics-card dt{color:var(--muted)}
+.metrics-card dd{margin:0;color:var(--text)}
+.metrics-key{font-family:var(--mono);font-size:11px;color:var(--muted)}
+{% endblock %}
+
+{% block content %}
+<div class="mywork-header" style="margin-bottom:12px">
+  <div class="mywork-title" style="font-size:22px;font-weight:800">How each figure is defined
+    <span style="display:block;font-weight:400;font-size:14px;color:var(--muted);margin-top:2px">What a number counts, what it is a share of, which rows are left out, and where its rows are listed.</span>
+  </div>
+</div>
+<p class="metrics-lede">Every figure on a dashboard is read through your own access. A figure is shown only when it was measured:
+when nothing is recorded to measure it against it says so, and when it could not be read it is blank, never a zero.
+Only figures from modules you may open are listed here.</p>
+<div id="metricsFailed" role="alert" style="display:none;border-left:4px solid var(--red);padding:10px 14px;margin-bottom:12px">
+  <strong>The definitions could not be read just now.</strong>
+  <button type="button" class="btn btn-secondary btn-sm" id="metricsRetry" style="margin-left:10px">Try again</button>
+</div>
+<div id="metricsList" aria-live="polite"></div>
+
+<script>
+(function(){
+  var list = document.getElementById('metricsList');
+  var failed = document.getElementById('metricsFailed');
+  var GROUPS = [['cc', 'Command Centre'], ['bcm', 'Business continuity'], ['sentinel', 'Privacy'], ['vault', 'Evidence Vault']];
+  function el(tag, props, kids){
+    var n = document.createElement(tag);
+    Object.keys(props || {}).forEach(function(k){ if(k === 'text') n.textContent = props[k]; else n.setAttribute(k, props[k]); });
+    (kids || []).forEach(function(c){ if(c) n.appendChild(c); });
+    return n;
+  }
+  function row(dl, label, value){
+    if(value === null || value === undefined || value === '') return;
+    dl.appendChild(el('dt', {text: label})); dl.appendChild(el('dd', {text: value}));
+  }
+  function render(defs){
+    list.textContent = '';
+    GROUPS.forEach(function(g){
+      var items = defs.filter(function(d){ return d.key.indexOf(g[0] + '.') === 0; });
+      if(!items.length) return;
+      var wrap = el('section', {class: 'metrics-group'}, [el('h2', {text: g[1]})]);
+      items.forEach(function(d){
+        var dl = el('dl');
+        row(dl, 'Means', d.definition);
+        row(dl, 'Rows counted', d.eligibility);
+        row(dl, 'A share of', d.denominator);
+        row(dl, 'Window', d.window);
+        row(dl, 'Who sees what', d.scope);
+        row(dl, 'Refreshed', d.refresh);
+        row(dl, 'Left out', d.exclusions);
+        var card = el('div', {class: 'metrics-card'}, [
+          el('h3', {text: d.label}), el('div', {class: 'metrics-key', text: d.key}), dl]);
+        if(typeof d.drilldown === 'string' && d.drilldown.charAt(0) === '/'){
+          card.appendChild(el('a', {href: d.drilldown, text: d.exact ? 'Open the rows that are counted' : 'Open the module (the list is not filtered to these rows)', style: 'font-size:12.5px;display:inline-block;margin-top:8px'}));
+        }
+        wrap.appendChild(card);
+      });
+      list.appendChild(wrap);
+    });
+  }
+  async function load(){
+    failed.style.display = 'none';
+    try{
+      var data = await ApiClient.request('/api/metrics/definitions', {actionId: 'metrics.definitions'});
+      render(data.definitions || []);
+    }catch(e){
+      list.textContent = '';
+      failed.style.display = 'block';
+    }
+  }
+  document.getElementById('metricsRetry').addEventListener('click', load);
+  document.addEventListener('DOMContentLoaded', load);
+})();
+</script>
+{% endblock %}

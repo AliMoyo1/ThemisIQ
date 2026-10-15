@@ -322,7 +322,44 @@
         detail.appendChild(el('p', { class: 'aig-muted', text: 'This request is ' + (STATUS_LABEL[intake.status] || intake.status).toLowerCase() + '.' }));
         return;
       }
+      detail.appendChild(assignPanel(intake));
       detail.appendChild(decisionForm(intake, duplicates));
+    }
+
+    // Who reviews it. Nobody named is the default and keeps the request in everyone's queue, in the app only; naming one
+    // person tells that person in the app and by email. It does not stop anyone else from reviewing.
+    function assignPanel(intake) {
+      var box = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigAssignH' });
+      box.appendChild(el('h3', { id: 'aigAssignH', class: 'aig-h3', text: 'Who reviews it' }));
+      var now = el('p', { class: 'aig-muted' });
+      function show(name) {
+        now.textContent = name
+          ? 'Assigned to ' + name + '. They were told in the app and by email.'
+          : 'Nobody is named. Everyone who may review it sees it in the queue, in the app only.';
+      }
+      show(intake.assigned_reviewer_name);
+      box.appendChild(now);
+      var select = el('select', {}, [el('option', { value: '', text: 'Nobody named' })]);
+      var out = el('div', { class: 'aig-say', role: 'status' });
+      AIGov.api('/ai-governance/api/review/requests/' + intake.id + '/assignees').then(function (data) {
+        (data.items || []).forEach(function (p) {
+          select.appendChild(el('option', { value: String(p.id), text: p.name,
+            selected: p.id === intake.assigned_reviewer_id ? true : null }));
+        });
+      }).catch(function (err) { AIGov.say(out, AIGov.errorText(err), 'bad'); });
+      box.appendChild(AIGov.field('aigAssignee', 'Name the reviewer', select).row);
+      box.appendChild(el('div', { class: 'aig-actions' }, [el('button', { type: 'button', class: 'btn btn-secondary btn-sm',
+        text: 'Save', on: { click: function () {
+          AIGov.say(out, 'Saving...');
+          AIGov.api('/ai-governance/api/review/requests/' + intake.id + '/assign', 'POST',
+            { assignee_id: select.value ? parseInt(select.value, 10) : null }).then(function (data) {
+            intake.assigned_reviewer_id = data.intake.assigned_reviewer_id;
+            show(data.intake.assigned_reviewer_name);
+            AIGov.say(out, data.changed ? 'Saved.' : 'Nothing changed.', 'good');
+          }).catch(function (err) { AIGov.say(out, AIGov.errorText(err), 'bad'); });
+        } } })]));
+      box.appendChild(out);
+      return box;
     }
 
     function decisionForm(intake, duplicates) {

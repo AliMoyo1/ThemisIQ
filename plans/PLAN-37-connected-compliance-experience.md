@@ -6,6 +6,8 @@
 
 **Delivery navigation:** The [plan portfolio](ROADMAP-2026-10.md) sequences this programme with [Evidence Vault](../design/evidence-vault/PLAN.md), [VerifyWise-inspired features](verifywise-features/README.md), and [CISO Assistant-inspired assurance features](ciso-assistant-features/README.md). Those feature plans extend the journeys here without creating parallel records or changing this proposal's current status.
 
+**AI Governance build companion (2026-10-09):** The [AI Governance implementation programme](ai-governance/README.md) gives the AI-use workspace a domain contract, feature journeys, and release gates. PLAN-37 still owns the platform-wide permission, relationship, event, and AI-service foundations. The companion is planning only and does not change the historical findings or completion status below.
+
 ## 1. Product thesis
 
 The user should not have to know which module owns a task before starting it. They should be able to ask “We want to use an AI assistant with customer data”, “A critical vendor has failed”, or “What proof do we have for this control?” ThemisIQ should identify the relevant records and next steps, reuse existing information, and let the accountable people confirm decisions. A task has one owner and status even when several modules depend on it.

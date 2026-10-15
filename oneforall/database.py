@@ -1090,6 +1090,52 @@ CREATE TABLE IF NOT EXISTS report_runs (
 
 CREATE INDEX IF NOT EXISTS idx_report_runs_def ON report_runs(definition_id, started_at DESC);
 
+-- A reviewer's note or dispute of one figure of a frozen run. The run is never edited; these rows sit beside it.
+CREATE TABLE IF NOT EXISTS report_run_notes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id          INTEGER NOT NULL REFERENCES report_runs(id) ON DELETE CASCADE,
+    kind            TEXT NOT NULL DEFAULT 'note',
+    figure          TEXT,
+    body            TEXT NOT NULL,
+    author_id       INTEGER,
+    author_name     TEXT,
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_run_notes_run ON report_run_notes(run_id, id);
+
+-- One delivery of one message to one person (core/email_outbox.py). The dedupe key makes asking twice one message, and
+-- the state is a fact about mail only. A row holds a reference to the source record and the fields of a template, never
+-- the text of a message.
+CREATE TABLE IF NOT EXISTS email_outbox (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id            INTEGER,
+    dedupe_key        TEXT NOT NULL UNIQUE,
+    template_key      TEXT NOT NULL,
+    template_version  INTEGER NOT NULL DEFAULT 1,
+    priority          TEXT NOT NULL DEFAULT 'action',
+    recipient_user_id INTEGER NOT NULL,
+    source_module     TEXT NOT NULL,
+    source_type       TEXT NOT NULL,
+    source_id         INTEGER,
+    purpose           TEXT,
+    route             TEXT NOT NULL,
+    fields_json       TEXT,
+    status            TEXT NOT NULL DEFAULT 'queued',
+    attempts          INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at   TEXT,
+    leased_until      TEXT,
+    provider          TEXT,
+    sent_at           TEXT,
+    suppress_reason   TEXT,
+    last_error        TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_outbox_due ON email_outbox(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_recipient ON email_outbox(recipient_user_id, status);
+
 -- ── API Keys ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS api_keys (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2201,6 +2247,52 @@ CREATE TABLE IF NOT EXISTS report_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_report_runs_def ON report_runs(definition_id, started_at DESC);
+
+-- A reviewer's note or dispute of one figure of a frozen run. The run is never edited; these rows sit beside it.
+CREATE TABLE IF NOT EXISTS report_run_notes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id          INTEGER NOT NULL REFERENCES report_runs(id) ON DELETE CASCADE,
+    kind            TEXT NOT NULL DEFAULT 'note',
+    figure          TEXT,
+    body            TEXT NOT NULL,
+    author_id       INTEGER,
+    author_name     TEXT,
+    created_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_run_notes_run ON report_run_notes(run_id, id);
+
+-- One delivery of one message to one person (core/email_outbox.py). The dedupe key makes asking twice one message, and
+-- the state is a fact about mail only. A row holds a reference to the source record and the fields of a template, never
+-- the text of a message.
+CREATE TABLE IF NOT EXISTS email_outbox (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id            INTEGER,
+    dedupe_key        TEXT NOT NULL UNIQUE,
+    template_key      TEXT NOT NULL,
+    template_version  INTEGER NOT NULL DEFAULT 1,
+    priority          TEXT NOT NULL DEFAULT 'action',
+    recipient_user_id INTEGER NOT NULL,
+    source_module     TEXT NOT NULL,
+    source_type       TEXT NOT NULL,
+    source_id         INTEGER,
+    purpose           TEXT,
+    route             TEXT NOT NULL,
+    fields_json       TEXT,
+    status            TEXT NOT NULL DEFAULT 'queued',
+    attempts          INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at   TEXT,
+    leased_until      TEXT,
+    provider          TEXT,
+    sent_at           TEXT,
+    suppress_reason   TEXT,
+    last_error        TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_outbox_due ON email_outbox(status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_email_outbox_recipient ON email_outbox(recipient_user_id, status);
 
 -- ── Webhooks ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS webhooks (
@@ -4955,6 +5047,20 @@ CREATE TABLE IF NOT EXISTS ai_risk_predictions (
     is_active           INTEGER DEFAULT 1
 );
 
+-- A reviewer's dispute of one signal of a prediction. The prediction and the records behind it are never edited: the
+-- note sits beside the number it questions.
+CREATE TABLE IF NOT EXISTS ai_risk_prediction_notes (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    prediction_id  INTEGER NOT NULL REFERENCES ai_risk_predictions(id) ON DELETE CASCADE,
+    signal         TEXT NOT NULL,
+    body           TEXT NOT NULL,
+    author_id      INTEGER,
+    author_name    TEXT,
+    created_at     TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_risk_prediction_notes ON ai_risk_prediction_notes(prediction_id, id);
+
 -- ── ERM: Risk Rating Frameworks ────────────────────────────────────────────
 -- A named, swappable rating methodology (impact dimensions, likelihood,
 -- matrix bands, control effectiveness, taxonomy). Seeded per-tenant by
@@ -6120,6 +6226,24 @@ _COLUMN_MIGRATIONS = [
         ("ai_use_intake_requests", "requester", "TEXT"),
         ("ai_use_intake_requests", "revision", "INTEGER NOT NULL DEFAULT 1"),
         ("ai_use_intake_requests", "supersedes_id", "INTEGER"),
+        # Platform truth 4B: a saved report run holds a frozen envelope (result_json) with the hash of its exact text, and a
+        # run again links to the run before it. A row with no hash is a legacy run that was never frozen.
+        ("report_runs", "snapshot_hash", "TEXT"),
+        ("report_runs", "previous_run_id", "INTEGER"),
+        # Platform truth 4E: a critical prediction goes to the ERM inbox (erm_emerging_risks) for a person to review
+        ("ai_risk_predictions", "emerging_id", "INTEGER"),
+        # Email rework E1: a reminder says what the provider answered instead of being marked sent because it was
+        # only logged. attempts counts the tries that failed.
+        ("email_reminders", "delivery_status", "TEXT"),
+        ("email_reminders", "delivery_error", "TEXT"),
+        ("email_reminders", "attempts", "INTEGER DEFAULT 0"),
+        # Follow-up to plan 06: an incident names its commander as a person, so that person can be told by email. The
+        # free text commander column stays as a label.
+        ("bcm_incidents", "commander_user_id", "INTEGER REFERENCES users(id)"),
+        # Follow-up to plan 06: a request waiting for review, and a decision request, may name one person. Nobody named
+        # is the default and keeps the earlier behaviour (everyone in scope is told in the app).
+        ("ai_use_intake_requests", "assigned_reviewer_id", "INTEGER REFERENCES users(id)"),
+        ("ai_use_decisions", "assigned_decider_id", "INTEGER REFERENCES users(id)"),
 ]
 
 

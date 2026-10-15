@@ -122,12 +122,14 @@ def _intake(row) -> dict:
         # where a request came from: typed in by the author, or read from an external form's export
         "source_kind": row["source_kind"] or "manual", "requester": _json_object(row["requester"]),
         "revision": row["revision"] or 1, "supersedes_id": row["supersedes_id"], "import_batch_id": row["import_batch_id"],
+        "assigned_reviewer_id": row["assigned_reviewer_id"] if "assigned_reviewer_id" in row.keys() else None,
     }
 
 
 def _with_names(db, intakes: list) -> list:
     """Add the author's and the owner's name to requests that are about to be shown."""
-    ids = sorted({i for item in intakes for i in (item["submitted_by"], item["answers"].get("owner_user_id")) if i})
+    ids = sorted({i for item in intakes for i in (item["submitted_by"], item["answers"].get("owner_user_id"),
+                                                   item.get("assigned_reviewer_id")) if i})
     names = {}
     if ids:
         rows = db.execute(f"SELECT id, full_name FROM users WHERE id IN ({','.join(['%s'] * len(ids))})", ids).fetchall()
@@ -135,6 +137,7 @@ def _with_names(db, intakes: list) -> list:
     for item in intakes:
         item["author_name"] = names.get(item["submitted_by"])
         item["owner_name"] = names.get(item["answers"].get("owner_user_id"))
+        item["assigned_reviewer_name"] = names.get(item.get("assigned_reviewer_id"))
     return intakes
 
 

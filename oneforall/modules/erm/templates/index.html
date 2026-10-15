@@ -1468,7 +1468,25 @@ window.ermDeleteRisk=async function(id,registerSource){
     typeof showToast==='function'&&showToast('Risk deleted');
   }catch(e){typeof showToast==='function'&&showToast('Delete failed: '+(e.message||e),'error');}
 };
-window.ermAiScoreRisk=async function(id,btn){var orig=btn.textContent;btn.disabled=true;btn.textContent='…';try{var res=await apiFetch('/erm/api/ai/score-risk/'+id,{method:'POST'});btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('AI scored L'+res.likelihood+'×I'+res.impact+'='+(res.likelihood*res.impact));ermLoadRegister();}catch(e){btn.disabled=false;btn.textContent=orig;typeof showToast==='function'&&showToast('AI failed','error');}};
+// The assistant suggests a score; it is applied only when the person confirms it, through the ordinary update.
+window.ermAiScoreRisk=async function(id,btn){
+  var orig=btn.textContent;btn.disabled=true;btn.textContent='…';
+  try{
+    var res=await apiFetch('/erm/api/ai/score-risk/'+id,{method:'POST'});
+    btn.disabled=false;btn.textContent=orig;
+    var cur=res.current||{};
+    var msg='The AI assistant suggests likelihood '+res.likelihood+' and impact '+res.impact+' (score '+(res.likelihood*res.impact)+').'+
+      (res.rationale?'\n\n'+res.rationale:'')+
+      '\n\nThe risk is currently likelihood '+cur.likelihood+' and impact '+cur.impact+'. Apply the suggested score?';
+    if(!window.confirm(msg)){return;}
+    await apiFetch('/erm/api/risks/'+id,{method:'PUT',body:{likelihood:res.likelihood,impact:res.impact}});
+    typeof showToast==='function'&&showToast('Score updated to L'+res.likelihood+' x I'+res.impact);
+    ermLoadRegister();
+  }catch(e){
+    btn.disabled=false;btn.textContent=orig;
+    typeof showToast==='function'&&showToast((e&&e.detail)||'The AI assistant could not score this risk','error');
+  }
+};
 
 /* ── Risk Drawer ── */
 window.ermOpenRiskDrawer=async function(id){

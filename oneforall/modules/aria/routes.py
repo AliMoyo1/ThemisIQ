@@ -669,7 +669,7 @@ async def api_dashboard(request: Request):
     try:
         row = db.execute(
             "SELECT COUNT(*) as total, "
-            "SUM(CASE WHEN status IN ('Implemented','Approved') THEN 1 ELSE 0 END) as compliant "
+            "SUM(CASE WHEN status = 'Implemented' THEN 1 ELSE 0 END) as compliant "
             "FROM controls c JOIN frameworks f ON f.id=c.framework_id WHERE f.is_active=1"
         ).fetchone()
         total = row["total"] or 0

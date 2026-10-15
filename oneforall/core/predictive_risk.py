@@ -95,12 +95,27 @@ def _confidence(metrics: dict) -> float:
 
 # ── Telemetry collection ─────────────────────────────────────────────────────
 
+TRACE_LIMIT = 25   # records kept per signal; the count says how many contributed in all
+
+
+def _records(rows, weight=None) -> list:
+    """[{"id", "weight"}] of the heaviest records, so a reviewer can open what a signal was made from."""
+    out = [{"id": r["id"], "weight": round(weight(r), 3) if weight else None} for r in rows]
+    if weight:
+        out.sort(key=lambda r: -r["weight"])
+    return out[:TRACE_LIMIT]
+
+
 def collect_telemetry(db) -> dict:
     """
     Query all 6 signal sources and return raw metrics dict.
     All queries are wrapped in try/except so a missing table never crashes.
+
+    The dict also carries `trace`: for each signal the records it was made from (ids and weights, at most TRACE_LIMIT) and
+    the count, frozen with the prediction so that a reviewer can open them later (plan 04 acceptance scenario 5).
     """
     metrics = {}
+    trace = {}
 
     # ── B: Sentinel open breaches (severity-weighted + recency-decayed) ──────
     try:
@@ -108,13 +123,13 @@ def collect_telemetry(db) -> dict:
             # PostgreSQL: created_at is TIMESTAMPTZ, discovery_date is TEXT.
             # Must not COALESCE(text, timestamptz) directly — type mismatch fails.
             rows = db.execute(
-                "SELECT severity, "
+                "SELECT id, severity, "
                 "  EXTRACT(EPOCH FROM (NOW() - COALESCE(discovery_date::timestamptz, created_at))) / 86400 AS days_ago "
                 "FROM sentinel_breaches WHERE status != 'closed'"
             ).fetchall()
         else:
             rows = db.execute(
-                "SELECT severity, "
+                "SELECT id, severity, "
                 "  (julianday('now') - julianday(COALESCE(discovery_date, created_at))) AS days_ago "
                 "FROM sentinel_breaches WHERE status != 'closed'"
             ).fetchall()
@@ -122,6 +137,8 @@ def collect_telemetry(db) -> dict:
         metrics["breach_raw_count"] = len(rows)
         metrics["B"] = round(B, 3)
         metrics["breach_severities"] = [r["severity"] for r in rows]
+        trace["breaches"] = {"count": len(rows), "records": _records(
+            rows, lambda r: _sev_weight(r["severity"]) * _recency_decay(r["days_ago"] or 0))}
     except Exception as exc:
         log.warning("Telemetry B (breaches) failed: %s", exc)
         B = 0.0
@@ -131,13 +148,15 @@ def collect_telemetry(db) -> dict:
     # ── F: GRID open critical/major non-conformances ─────────────────────────
     try:
         nc_rows = db.execute(
-            "SELECT severity FROM grid_non_conformances "
+            "SELECT id, severity FROM grid_non_conformances "
             "WHERE status = 'open' AND severity IN ('critical','major','high')"
         ).fetchall()
         # Weight by severity, not just count
         F = sum(_sev_weight(r["severity"]) for r in nc_rows)
         metrics["nc_count"] = len(nc_rows)
         metrics["F"] = round(F, 3)
+        trace["non_conformances"] = {"count": len(nc_rows), "records": _records(
+            nc_rows, lambda r: _sev_weight(r["severity"]))}
     except Exception as exc:
         log.debug("Telemetry F (NCs) unavailable: %s", exc)
         F = 0.0
@@ -147,13 +166,15 @@ def collect_telemetry(db) -> dict:
     # ── E: BCM exercise staleness ─────────────────────────────────────────────
     try:
         ex_row = db.execute(
-            f"""SELECT CAST({sql_days_between("'now'", "scheduled_date")} AS REAL) AS days """
+            f"""SELECT id, CAST({sql_days_between("'now'", "scheduled_date")} AS REAL) AS days """
             "FROM bcm_exercises WHERE status = 'completed' "
             "ORDER BY scheduled_date DESC LIMIT 1"
         ).fetchone()
         days_since = float(ex_row["days"]) if ex_row and ex_row["days"] is not None else 365.0
         metrics["days_since_exercise"] = round(days_since, 1)
         E_norm = (days_since - 180.0) / 180.0
+        trace["bcm_staleness"] = {"count": 1 if ex_row else 0, "records": _records([ex_row]) if ex_row else [],
+                                  "none_found": ex_row is None}
     except Exception as exc:
         log.debug("Telemetry E (BCM) unavailable: %s", exc)
         days_since = 365.0
@@ -168,6 +189,10 @@ def collect_telemetry(db) -> dict:
         ).fetchone()[0]
         metrics["orm_recurring"] = int(orm_count)
         O = float(orm_count)
+        trace["orm_recurring"] = {"count": int(orm_count), "records": _records(db.execute(
+            "SELECT id FROM orm_events "
+            f"WHERE is_recurring = 1 AND created_at >= {sql_date_ts('-30 days')} ORDER BY id DESC LIMIT {TRACE_LIMIT}"
+        ).fetchall())}
     except Exception as exc:
         log.debug("Telemetry O (ORM) unavailable: %s", exc)
         O = 0.0
@@ -177,7 +202,7 @@ def collect_telemetry(db) -> dict:
     try:
         row = db.execute(
             "SELECT COUNT(*) AS total, "
-            "SUM(CASE WHEN status IN ('Implemented','Approved') THEN 1 ELSE 0 END) AS ok "
+            "SUM(CASE WHEN status = 'Implemented' THEN 1 ELSE 0 END) AS ok "
             "FROM controls"
         ).fetchone()
         total = row["total"] or 0
@@ -188,6 +213,9 @@ def collect_telemetry(db) -> dict:
         metrics["aria_compliant"] = ok
         metrics["compliance_pct"] = round(compliance_pct, 1)
         metrics["C"] = round(C_gap, 4)
+        trace["compliance_gap"] = {"count": total - ok, "of": total, "records": _records(db.execute(
+            "SELECT id FROM controls WHERE status != 'Implemented' "
+            f"ORDER BY id LIMIT {TRACE_LIMIT}").fetchall())}
     except Exception as exc:
         log.debug("Telemetry C (ARIA) unavailable: %s", exc)
         C_gap = 0.0
@@ -205,13 +233,55 @@ def collect_telemetry(db) -> dict:
         ).fetchone()[0]
         A = float(app_breaches)
         metrics["appetite_breaches"] = int(app_breaches)
+        trace["appetite_breaches"] = {"count": int(app_breaches), "categories": [r["category"] for r in db.execute(
+            "SELECT a.category FROM erm_risk_appetite a "
+            "WHERE (SELECT MAX(e.likelihood * e.impact) FROM erm_enterprise_risks e "
+            "       WHERE e.category = a.category AND e.status NOT IN ('closed', 'accepted')) > a.max_score "
+            f"ORDER BY a.category LIMIT {TRACE_LIMIT}").fetchall()], "records": []}
     except Exception as exc:
         log.debug("Telemetry A (ERM appetite) unavailable: %s", exc)
         A = 0.0
         metrics["appetite_breaches"] = 0
 
     metrics["collected_at"] = utcnow().isoformat()
+    metrics["trace"] = trace
     return metrics
+
+
+# What each signal is: the rule that makes a record count, the period, the weight in the formula and what it reads.
+# `key` matches signal_contributions and the trace stored with the telemetry. `kind` is the entity_scope registry key
+# of the records, or None when the signal is a figure and not a list of records.
+SIGNALS = {
+    "breaches": {
+        "label": "Open Sentinel breaches", "weight": "alpha", "metric": "B", "kind": ("sentinel", "breach"),
+        "rule": "Every breach whose status is not closed counts, by severity (critical 4, major 3, high 2, medium 1, "
+                "minor 0.75, low 0.5), and counts for less the older it is (half life about 14 days).",
+        "window": "All open breaches, aged from the discovery date"},
+    "non_conformances": {
+        "label": "Open GRID findings", "weight": "beta", "metric": "F", "kind": ("grid", "nc"),
+        "rule": "Every open finding of severity critical, major or high counts, weighted by severity.",
+        "window": "All open findings"},
+    "bcm_staleness": {
+        "label": "Days since the last continuity exercise", "weight": "gamma", "metric": "E_norm",
+        "kind": ("bcm", "exercise"),
+        "rule": "The days since the latest completed exercise, against a 180 day baseline. No completed exercise is "
+                "read as 365 days.",
+        "window": "The latest completed exercise"},
+    "orm_recurring": {
+        "label": "Recurring operational events", "weight": "delta", "metric": "orm_recurring", "kind": ("orm", "event"),
+        "rule": "Every operational event marked recurring and logged in the period counts once.",
+        "window": "The last 30 days"},
+    "compliance_gap": {
+        "label": "ARIA control gap", "weight": "epsilon", "metric": "C", "kind": ("aria", "control"),
+        "rule": "The share of controls whose status is not Implemented. A control with documentation but another "
+                "status is not implemented.",
+        "window": "All controls today"},
+    "appetite_breaches": {
+        "label": "ERM appetite breaches", "weight": "zeta", "metric": "appetite_breaches", "kind": None,
+        "rule": "Every risk category whose highest open risk score is above its appetite limit counts once.",
+        "window": "All open risks today"},
+}
+WEIGHTS = {"alpha": α, "beta": β, "gamma": γ, "delta": δ, "epsilon": ε, "zeta": ζ}
 
 
 # ── Math engine ───────────────────────────────────────────────────────────────

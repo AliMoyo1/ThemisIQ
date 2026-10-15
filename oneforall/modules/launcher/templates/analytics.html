@@ -273,15 +273,23 @@ function renderLiveMetrics(){
   if(!liveData){ el.innerHTML='<div class="an-loading" style="grid-column:1/-1">No live data available</div>'; return; }
 
   const d = liveData;
-  const compPct  = d.compliance_pct||0;
+  const compPct  = (d.compliance_pct===null||d.compliance_pct===undefined) ? null : d.compliance_pct;
   const risks    = (d.risk_counts?.critical||0)+(d.risk_counts?.high||0)+(d.risk_counts?.medium||0);
   const critRisk = d.risk_counts?.critical||0;
-  const slaPct   = d.sla?.pct ?? 100;
+  const slaPct   = (d.sla?.pct===null||d.sla?.pct===undefined) ? null : d.sla.pct;
   const evCount  = d.evidence_count||0;
   const wfActive = d.workflow_active||0;
 
   // Helper to build a metric card
   function metCard(label, value, suffix, barColor, barPct, deltaHtmlStr, textColor){
+    if(value===null){
+      return `<div class="an-metric">
+      <div class="an-metric-lbl">${esc(label)}</div>
+      <div class="an-metric-val" style="color:var(--muted)">&mdash;</div>
+      <div class="an-metric-delta neutral">Not measured: nothing is recorded to measure it against.</div>
+      <div class="an-metric-bar" style="width:0%"></div>
+    </div>`;
+    }
     return `<div class="an-metric">
       <div class="an-metric-lbl">${esc(label)}</div>
       <div class="an-metric-val" style="color:${textColor||'var(--text)'}">${esc(String(value))}${suffix?'<span style="font-size:14px;font-weight:600;color:var(--muted)">'+esc(suffix)+'</span>':''}</div>
@@ -298,7 +306,7 @@ function renderLiveMetrics(){
     metCard('Compliance', compPct, '%',
       compPct>=80?'var(--green-status)':compPct>=60?'var(--amber)':'var(--red)',
       compPct,
-      deltaHtml(compPct, snapMap.compliance_pct, false),
+      compPct===null?'':deltaHtml(compPct, snapMap.compliance_pct, false),
       compPct>=80?'var(--green-status)':compPct>=60?'var(--amber)':'var(--red)') +
 
     metCard('Open Risks', risks, '',
@@ -336,8 +344,9 @@ function renderModuleHealth(){
 
   const moduleKeys = ['aria','grid','bcm','sentinel','erm','orm','governance'];
   el.innerHTML = items.map(m=>{
-    const pct = parseInt(m.pct)||0;
-    const color = pct>=80?'var(--green-status)':pct>=60?'var(--amber)':'var(--red)';
+    const measured = m.pct!==null && m.pct!==undefined;
+    const pct = measured ? (parseInt(m.pct)||0) : 0;
+    const color = !measured?'var(--muted)':pct>=80?'var(--green-status)':pct>=60?'var(--amber)':'var(--red)';
     const modKey = moduleKeys.includes(m.key) ? m.key : 'platform';
     return `<div class="mh-row">
       <div class="mh-name">
@@ -346,7 +355,7 @@ function renderModuleHealth(){
       <div class="mh-track">
         <div class="mh-fill" style="width:${pct}%;background:${color}"></div>
       </div>
-      <div class="mh-pct" style="color:${color}">${pct}%</div>
+      <div class="mh-pct" style="color:${color}">${measured?pct+'%':'Not measured'}</div>
     </div>`;
   }).join('');
 }
@@ -539,8 +548,10 @@ function runInsightEngine(){
   if(ts) ts.textContent = `Generated at ${now}`;
 
   // 1. Overall compliance
-  const comp = d.compliance_pct||0;
-  if(comp >= 85){
+  const comp = (d.compliance_pct===null||d.compliance_pct===undefined) ? null : d.compliance_pct;
+  if(comp === null){
+    insights.push({sev:'blue', title:'Compliance is not measured yet.', body:'No control is recorded that you may open, so there is nothing to measure. Add a framework or controls to start.'});
+  } else if(comp >= 85){
     insights.push({sev:'green', title:'Compliance at '+comp+'%', body:'Above the 80% operational threshold. Continue control assurance programme.'});
   } else if(comp >= 70){
     insights.push({sev:'amber', title:'Compliance at '+comp+'%', body:'Approaching the 80% threshold. Review and accelerate implementation of '+Math.ceil((80-comp)/100*(d.compliance_pct||1))+' outstanding controls.'});
@@ -561,7 +572,7 @@ function runInsightEngine(){
   }
 
   // 3. SLA performance
-  const slaPct  = d.sla?.pct ?? 100;
+  const slaPct  = (d.sla?.pct===null||d.sla?.pct===undefined) ? null : d.sla.pct;
   const slaBr   = d.sla?.breached||0;
   const slaRisk = d.sla?.at_risk||0;
   if(slaBr > 0){
@@ -569,7 +580,11 @@ function runInsightEngine(){
   } else if(slaRisk > 2){
     insights.push({sev:'amber', title:slaRisk+' SLAs at risk', body:'Breach within 2 hours. Assign response owners immediately to avoid formal breaches.'});
   } else {
-    insights.push({sev:'green', title:'SLA compliance at '+slaPct+'%.', body:(slaBr===0?'No active breaches. ':'')+' Response and resolution deadlines on track.'});
+    if(slaPct === null){
+      insights.push({sev:'blue', title:'SLA compliance is not measured yet.', body:'No service clock has ended, so there is no on-time share to report.'});
+    } else {
+      insights.push({sev:'green', title:'SLA compliance at '+slaPct+'%.', body:(slaBr===0?'No active breaches. ':'')+' Response and resolution deadlines on track.'});
+    }
   }
 
   // 4. Evidence vault
@@ -582,7 +597,7 @@ function runInsightEngine(){
 
   // 5. Module health
   const mh = d.module_health||[];
-  const lowMod = mh.filter(m=>parseInt(m.pct)<60);
+  const lowMod = mh.filter(m=>m.pct!==null && m.pct!==undefined && parseInt(m.pct)<60);
   if(lowMod.length){
     insights.push({sev:'amber', title:lowMod.map(m=>m.name).join(', ')+' health below 60%.', body:'These modules have the most incomplete controls or unresolved findings. Prioritise in next sprint.'});
   }
@@ -665,7 +680,7 @@ window.askAnalytics = function(){
   // SLA
   else if(/sla|service level|breach/.test(q)){
     const sla = d?.sla||{};
-    response = `SLA performance: <strong>${sla.pct ?? 100}% on-time</strong>. Met: ${sla.met||0} | At risk: ${sla.at_risk||0} | Breached: ${sla.breached||0}. `+
+    response = `SLA performance: <strong>${(sla.pct===null||sla.pct===undefined)?'not measured (no service clock has ended)':sla.pct+'% on-time'}</strong>. Met: ${sla.met||0} | At risk: ${sla.at_risk||0} | Breached: ${sla.breached||0}. `+
       (sla.breached>0?'Navigate to Workflows → SLA → Breach Monitor to resolve active breaches.':'No active breaches.');
   }
 

@@ -269,7 +269,8 @@ def _conditions(db, decision_ids) -> dict:
 def _present(db, rows) -> list:
     """Decision rows as dicts with names and conditions, without the manifest (that is a call of its own)."""
     rows = list(rows)
-    names = _names(db, [i for r in rows for i in (r["requested_by"], r["decided_by"], r["revoked_by"])])
+    names = _names(db, [i for r in rows for i in (r["requested_by"], r["decided_by"], r["revoked_by"],
+                                                   r["assigned_decider_id"] if "assigned_decider_id" in r.keys() else None)])
     conditions = _conditions(db, [r["id"] for r in rows])
     out = []
     for r in rows:
@@ -284,6 +285,8 @@ def _present(db, rows) -> list:
             "override_reason": r["override_reason"], "separation_enforced": bool(r["separation_enforced"]),
             "manifest_hash": r["manifest_hash"], "revoked_at": service._text(r["revoked_at"]),
             "revoked_by": names.get(r["revoked_by"]), "revoked_reason": r["revoked_reason"],
+            "assigned_decider_id": r["assigned_decider_id"] if "assigned_decider_id" in r.keys() else None,
+            "assigned_decider": names.get(r["assigned_decider_id"] if "assigned_decider_id" in r.keys() else None),
             "conditions": [{**c, "met_by": met_names.get(c["met_by"])} for c in conditions.get(r["id"], [])]})
     return out
 
@@ -414,7 +417,8 @@ def get_decisions(db, user, application_id: int) -> "dict | None":
             "revoke": bool(can_decide_role and revocable),
             "withdraw": bool(open_request is not None and (open_request["requested_by"] == user["id"]
                                                            or has_capability(user, "ai_use.review"))),
-            "conditions": bool(owner or has_capability(user, "ai_use.review") or can_decide_role)}}
+            "conditions": bool(owner or has_capability(user, "ai_use.review") or can_decide_role),
+            "assign": bool(open_request is not None and (has_capability(user, "ai_use.review") or can_decide_role))}}
 
 
 def get_brief(db, user, application_id: int) -> "dict | None":

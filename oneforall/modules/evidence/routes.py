@@ -1849,7 +1849,12 @@ async def api_evidence_coverage_definitions(request: Request):
 async def api_evidence_coverage(request: Request):
     """For each module and kind of record the caller may open: how many have a live link, current proof, and an accepted
     link. `with_evidence` and `pct` keep their old meaning (a live link); see /api/coverage/definitions."""
-    user = request.state.user
+    return JSONResponse(coverage_for(request.state.user))
+
+
+def coverage_for(user) -> dict:
+    """The coverage of one person's scope: per module, how many records they may open and how many of those have a
+    live link, current proof and an accepted link. Read by the Evidence Vault and by the Command Centre."""
     allowed_modules = set(user_modules(user))
     checks = [
         ("aria", "control", ("control",)),
@@ -1928,7 +1933,7 @@ async def api_evidence_coverage(request: Request):
             data["pct_accepted"] = pct(data["accepted"], data["total"])
     finally:
         db.close()
-    return JSONResponse(coverage)
+    return coverage
 
 
 @router.get("/api/stats")

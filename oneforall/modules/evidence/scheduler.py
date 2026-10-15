@@ -1,23 +1,31 @@
 """
-Evidence Vault — Background scheduler.
+Evidence Vault: background scheduler.
 
 Jobs:
   Job 1  Evidence expiry monitor  (daily 09:00 UTC)
          - Alerts 30 days, 7 days, and 1 day before evidence expiry_date
          - Creates task_board items for evidence owners
          - Sends admin notifications
+         - Asks the email outbox to tell the uploader of each item that is about to expire
          - Idempotent: checks for existing open tasks before creating duplicates
+
+The job visits every organization in turn. A message carries the item reference, the date and a link, never the title of
+the item, and is sent by the outbox (core/email_outbox.py), which checks at that moment that the uploader is active, may
+open the item and that it is still current.
 """
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from database import get_db_background as get_db, sql_date_offset  # scheduler: fail-fast, never block UI
-from core.email import send_email as _core_send_email
+from database import get_db_background as get_db, sql_date_offset, sql_current_date  # scheduler: fail-fast, never block UI
+from core import email_outbox as outbox
+from core import email_templates as templates
 from core.best_effort import swallowed
+from core.timeutils import utcnow
 
 log = logging.getLogger("evidence.scheduler")
 TZ = "UTC"
@@ -28,12 +36,6 @@ _scheduler: BackgroundScheduler | None = None
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _send(*, to: str, subject: str, body_html: str) -> bool:
-    """Thin wrapper around core.email.send_email for backward compatibility."""
-    result = _core_send_email(to=to, subject=subject, body_html=body_html)
-    return result.get("ok", False)
-
 
 def _notify_admins(db, title: str, message: str) -> None:
     try:
@@ -66,16 +68,49 @@ def _task_exists(db, evidence_id: int, days_label: str) -> bool:
         return False
 
 
+def enqueue_expiry_messages(db, org_id, today=None) -> int:
+    """Ask the outbox to tell the owner of every current item that expires within 30 days (the uploader when a file
+    has no owner).
+
+    One message per item, owner, expiry date and bucket (30, 7 or 1 days left): a day the job did not run never loses a
+    threshold, a repeated run asks for the message that exists, and a renewed expiry date is a new reminder. The GRID job
+    that used to mail the same people asks through this function, so a person reached by both is told once."""
+    today = today or utcnow().date()
+    rows = db.execute(
+        "SELECT e.id, e.expiry_date, COALESCE(e.owner_user_id, e.uploaded_by) AS owner_id FROM evidence_items e "
+        "WHERE e.status = 'current' AND e.expiry_date IS NOT NULL "
+        "AND COALESCE(e.owner_user_id, e.uploaded_by) IS NOT NULL "
+        f"AND e.expiry_date >= {sql_current_date()} AND e.expiry_date <= {sql_date_offset('+30 days')}"
+    ).fetchall()
+    asked = 0
+    for ev in rows:
+        due = templates.iso_or_none(ev["expiry_date"])
+        if not due:
+            continue
+        days_left = (date.fromisoformat(due) - today).days
+        bucket = 1 if days_left <= 1 else (7 if days_left <= 7 else 30)
+        if outbox.enqueue_safely(
+                db, "evidence.renew", recipient_user_id=ev["owner_id"], org_id=org_id,
+                route=f"/evidence/?open=item:{ev['id']}", fields={"reference": f"EV-{ev['id']}", "due": due},
+                source=("evidence", "item", ev["id"]), purpose="expiry", threshold=f"d{bucket}:{due}"):
+            asked += 1
+    return asked
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Job — Evidence Expiry Check
+# Job: Evidence Expiry Check
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _expiry_check() -> None:
     """
     Daily: create tasks and notifications for evidence expiring in 30, 7, and 1 days.
-    Idempotent — won't duplicate if task already exists for that item + threshold.
+    Idempotent: won't duplicate if task already exists for that item + threshold.
     """
     log.info("Evidence: running expiry check")
+    outbox.for_each_tenant(_expiry_check_in, "Evidence expiry check")
+
+
+def _expiry_check_in(org_id: int) -> None:
     db = get_db()
     try:
         thresholds = [
@@ -87,10 +122,8 @@ def _expiry_check() -> None:
 
         for days, label, priority in thresholds:
             rows = db.execute(
-                "SELECT e.id, e.title, e.category, e.expiry_date, "
-                "       u.email AS owner_email, u.full_name AS owner_name "
+                "SELECT e.id, e.title, e.category, e.expiry_date "
                 "FROM evidence_items e "
-                "LEFT JOIN users u ON e.uploaded_by = u.id "
                 "WHERE e.status = 'current' "
                 f"  AND e.expiry_date = {sql_date_offset(f'+{days} days')} "
                 "ORDER BY e.title",
@@ -119,20 +152,8 @@ def _expiry_check() -> None:
                 )
                 total_created += 1
 
-                # Email owner if available
-                if ev.get("owner_email"):
-                    _send(
-                        to=ev["owner_email"],
-                        subject=f"[ThemisIQ] Evidence expiring {label}: {title}",
-                        body_html=(
-                            f"<p>Hello {ev.get('owner_name', 'there')},</p>"
-                            f"<p>The following evidence item in the ThemisIQ Evidence Vault "
-                            f"is expiring <strong>{label}</strong> (on {exp}):</p>"
-                            f"<p><strong>{title}</strong></p>"
-                            f"<p>Please review and renew this evidence or archive it if no longer required.</p>"
-                            f"<p><a href='/evidence/'>Open Evidence Vault</a></p>"
-                        ),
-                    )
+        # The uploader is told by email through the outbox, once per item, expiry date and bucket
+        mails = enqueue_expiry_messages(db, org_id)
 
         if total_created > 0:
             _notify_admins(
@@ -143,7 +164,7 @@ def _expiry_check() -> None:
             )
 
         db.commit()
-        log.info("Evidence expiry check: %d task(s) created", total_created)
+        log.info("Evidence expiry check: %d task(s) created, %d message(s) asked for", total_created, mails)
 
         # T1.3: recompute effectiveness for controls that have expiring evidence
         try:
@@ -171,7 +192,7 @@ def _expiry_check() -> None:
         except Exception as drift_exc:
             log.warning("Drift check failed: %s", drift_exc)
     except Exception as e:
-        log.warning("Evidence expiry check failed: %s", e)
+        log.warning("Evidence expiry check failed in organization %s: %s", org_id, e)
     finally:
         db.close()
 
@@ -196,7 +217,7 @@ def start_scheduler() -> None:
     )
 
     _scheduler.start()
-    log.info("Evidence scheduler started — expiry check daily at 09:00 UTC")
+    log.info("Evidence scheduler started: expiry check daily at 09:00 UTC")
 
 
 def stop_scheduler() -> None:

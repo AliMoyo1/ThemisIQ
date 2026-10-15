@@ -246,7 +246,7 @@ def get_framework_stats() -> dict:
         active = db.execute("SELECT COUNT(*) FROM frameworks WHERE is_active=1").fetchone()[0]
         total_controls = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
         compliant = db.execute(
-            "SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Compliant','Complete')"
+            "SELECT COUNT(*) FROM controls WHERE status = 'Implemented'"
         ).fetchone()[0]
         return {
             "total_frameworks": total,

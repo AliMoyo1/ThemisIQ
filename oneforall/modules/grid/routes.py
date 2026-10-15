@@ -20,14 +20,13 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from database import get_db, get_current_tenant, insert_returning_id
+from database import get_db, get_current_tenant, get_current_org, insert_returning_id
 from core.middleware import require_module, require_capability
 from core.sanitize import sanitize_str as _s
 from core.shell_context import shell_ctx
 from modules.grid import data_service as ds
 from modules.grid import ai_service as ai
 from modules.governance.data_service import bu_scope_ids
-from modules.grid.email_service import send_email, nc_alert_html
 from core.events import (
     emit, GRID_AUDIT_COMPLETED, GRID_FINDING_CREATED, GRID_NC_RAISED,
     GRID_POLICY_REQUESTED,
@@ -1111,40 +1110,31 @@ async def api_reminders_pending(request: Request, audit_id: int):
 # NON-CONFORMANCES
 # ═════════════════════════════════════════════════════════════════════════════
 
-def _send_nc_assignment_email(ncid: int, assigner_id: int | None = None) -> None:
-    """Fire-and-forget email to the assignee of an NC."""
+def _ask_nc_assignment_email(ncid: int) -> None:
+    """Ask the email outbox to tell the assignee of a finding (template audit.finding: the audit reference, the due date
+    and a link, not the title). Best effort: a mail problem never blocks the API response, and the finding is in the
+    person's work list either way. The outbox checks at the moment of sending that the person is active, may open the
+    finding and is still its assignee."""
     try:
+        from core import email_outbox
+        from core.email_templates import iso_or_none
+        from core.timeutils import utcnow
         nc = ds.get_nc(ncid)
         if not nc or not nc.get("assigned_to"):
             return
+        due = iso_or_none(nc.get("due_date") or nc.get("response_deadline"))
         db = get_db()
         try:
-            user = db.execute(
-                "SELECT full_name, email FROM users WHERE id=%s",
-                (nc["assigned_to"],)
-            ).fetchone()
-            assigner = db.execute(
-                "SELECT full_name FROM users WHERE id=%s",
-                (assigner_id,)
-            ).fetchone() if assigner_id else None
+            email_outbox.enqueue_safely(
+                db, "audit.finding", recipient_user_id=nc["assigned_to"], org_id=get_current_org(),
+                route=f"/grid/?open=nc:{ncid}", fields={"reference": f"AU-{nc['audit_id']}", "due": due},
+                source=("grid", "nc", ncid), purpose="assigned",
+                threshold=f"{nc['assigned_to']}|{due or ''}|{utcnow():%Y%m%d%H%M}")
+            db.commit()
         finally:
             db.close()
-        if not user or not user["email"]:
-            return
-        send_email(
-            to=user["email"],
-            subject=f"[G.R.I.D AI] NC Assigned: {nc.get('title', '')}",
-            body_html=nc_alert_html(
-                owner_name=user["full_name"] or "",
-                nc_title=nc.get("title", ""),
-                severity=nc.get("severity", ""),
-                due_date=nc.get("due_date") or nc.get("response_deadline") or "",
-                raised_by=(assigner["full_name"] if assigner else "") or "",
-                audit_name=nc.get("audit_name", ""),
-            ),
-        )
     except Exception:
-        swallowed("_send_nc_assignment_email (users)")  # Email is best-effort; never block the API response
+        swallowed("_ask_nc_assignment_email")  # Email is best-effort; never block the API response
 
 
 @router.get("/api/ncs")
@@ -1205,6 +1195,8 @@ async def api_ncs_create(request: Request):
         body["control_id"] = None
     ncid = _check_locked(ds.create_nc, body)
     ds.log_activity(_uid(request), "create_nc", "grid_non_conformances", ncid)
+    if body.get("assigned_to"):
+        _ask_nc_assignment_email(ncid)
 
     # Emit NC raised event
     nc_severity = body.get("severity", "minor")
@@ -1256,7 +1248,7 @@ async def api_ncs_update(request: Request, ncid: int):
     # Send assignment email if assigned_to changed to a new user
     if (new_assignee is not None and old_nc
             and new_assignee != old_nc.get("assigned_to") and new_assignee):
-        _send_nc_assignment_email(ncid, _uid(request))
+        _ask_nc_assignment_email(ncid)
     return JSONResponse({"ok": True})
 
 
@@ -1617,9 +1609,9 @@ async def api_share_create(request: Request):
 
         creator = request.state.user.get("full_name") or request.state.user.get("username", "")
 
-        send_email(
+        outcome = send_email(
             to=auditor_email,
-            subject=f"[G.R.I.D AI] Audit access: {audit_name}",
+            subject="ThemisIQ: audit access granted",
             body_html=audit_share_html(
                 auditor_name=body.get("auditor_name", ""),
                 audit_name=audit_name,
@@ -1628,6 +1620,8 @@ async def api_share_create(request: Request):
                 created_by=creator,
             ),
         )
+        # What the provider said, so the creator knows whether to pass the link on themselves
+        result["email_status"] = (outcome or {}).get("status") or "unknown"
 
     return JSONResponse(result, status_code=201)
 

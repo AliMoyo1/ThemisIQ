@@ -10,7 +10,10 @@ import json
 import logging
 from typing import Any
 
-from core.ai_client import create_message, is_configured, provider_name, safe_json_parse, wrap_user_input as _u
+from core.ai_client import (
+    AIUnavailable, UNREADABLE_MESSAGE, answer_json, create_message, is_configured, must_answer,
+    provider_name, safe_json_parse, wrap_user_input as _u,
+)
 
 log = logging.getLogger(__name__)
 
@@ -18,88 +21,54 @@ log = logging.getLogger(__name__)
 # ── Plan Review ──────────────────────────────────────────────────────────────
 
 def review_plan(plan: dict) -> dict:
-    if not is_configured():
-        return _stub_review_plan(plan)
-    prompt = (
-        "You are a business continuity expert. Review this plan and provide:\n"
-        "1. A quality score from 0-100\n"
-        "2. Up to 5 strengths\n"
-        "3. Up to 5 weaknesses\n"
-        "4. Up to 5 recommendations\n\n"
-        f"Plan title: {_u(plan.get('title', 'Untitled'))}\n"
-        f"Plan content:\n{_u(plan.get('content', '(empty)'))}\n\n"
-        "Respond in JSON: {\"score\": int, \"strengths\": [...], "
-        "\"weaknesses\": [...], \"recommendations\": [...]}"
-    )
-    try:
+    """A review of one plan. Raises AIUnavailable rather than return a review nobody made."""
+    with must_answer():
+        prompt = (
+            "You are a business continuity expert. Review this plan and provide:\n"
+            "1. A quality score from 0-100\n"
+            "2. Up to 5 strengths\n"
+            "3. Up to 5 weaknesses\n"
+            "4. Up to 5 recommendations\n\n"
+            f"Plan title: {_u(plan.get('title', 'Untitled'))}\n"
+            f"Plan content:\n{_u(plan.get('content', '(empty)'))}\n\n"
+            "Respond in JSON: {\"score\": int, \"strengths\": [...], "
+            "\"weaknesses\": [...], \"recommendations\": [...]}"
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=1024, feature="bcm.review_plan")
-        return safe_json_parse(text, _stub_review_plan(plan))
-    except Exception as exc:
-        log.error("AI plan review failed: %s", exc)
-        return _stub_review_plan(plan)
-
-
-def _stub_review_plan(plan: dict) -> dict:
-    return {
-        "score": 72,
-        "strengths": [
-            "Plan covers key recovery procedures",
-            "Clear roles and responsibilities defined",
-        ],
-        "weaknesses": [
-            "No communication plan for external stakeholders",
-            "Recovery time objectives not quantified",
-        ],
-        "recommendations": [
-            "Add external communication templates",
-            "Define measurable RTOs for each critical process",
-            "Schedule a tabletop exercise to validate the plan",
-        ],
-    }
+        got = answer_json(text, "score", "strengths", "weaknesses", "recommendations")
+        try:
+            score = int(got["score"])
+        except (TypeError, ValueError):
+            raise AIUnavailable(UNREADABLE_MESSAGE, "unreadable") from None
+        if not 0 <= score <= 100 or not all(isinstance(got[k], list) for k in ("strengths", "weaknesses", "recommendations")):
+            raise AIUnavailable(UNREADABLE_MESSAGE, "unreadable")
+        got["score"] = score
+        return got
 
 
 # ── Incident Action Suggestions ─────────────────────────────────────────────
 
 def suggest_incident_actions(incident: dict, active_regulations: list[str] | None = None) -> list[dict]:
-    if not is_configured():
-        return _stub_suggest_actions(incident)
-    reg_line = ""
-    if active_regulations:
-        reg_line = (
-            f"\nActive regulatory frameworks for this organisation: {', '.join(active_regulations)}. "
-            "Reference only these frameworks in your rationale — do not cite GDPR or other frameworks not in this list unless directly relevant."
+    with must_answer():
+        reg_line = ""
+        if active_regulations:
+            reg_line = (
+                f"\nActive regulatory frameworks for this organisation: {', '.join(active_regulations)}. "
+                "Reference only these frameworks in your rationale, and do not cite GDPR or other frameworks not in this list unless directly relevant."
+            )
+        prompt = (
+            "You are an incident commander. Given this incident, suggest 3-5 "
+            "immediate actions. Each action should have: action (str), "
+            "priority (high/medium/low), rationale (str).\n\n"
+            f"Incident: {_u(incident.get('title', 'Unknown'))}\n"
+            f"Type: {_u(incident.get('type', 'Unknown'))}\n"
+            f"Severity: {_u(incident.get('severity', 'Unknown'))}\n"
+            f"Description: {_u(incident.get('description', ''))}\n"
+            f"{reg_line}\n"
+            "Respond in JSON array: [{\"action\": ..., \"priority\": ..., \"rationale\": ...}]"
         )
-    prompt = (
-        "You are an incident commander. Given this incident, suggest 3-5 "
-        "immediate actions. Each action should have: action (str), "
-        "priority (high/medium/low), rationale (str).\n\n"
-        f"Incident: {_u(incident.get('title', 'Unknown'))}\n"
-        f"Type: {_u(incident.get('type', 'Unknown'))}\n"
-        f"Severity: {_u(incident.get('severity', 'Unknown'))}\n"
-        f"Description: {_u(incident.get('description', ''))}\n"
-        f"{reg_line}\n"
-        "Respond in JSON array: [{\"action\": ..., \"priority\": ..., \"rationale\": ...}]"
-    )
-    try:
         text = create_message([{"role": "user", "content": prompt}], max_tokens=1024, feature="bcm.suggest_incident_actions")
-        return safe_json_parse(text, _stub_suggest_actions(incident))
-    except Exception as exc:
-        log.error("AI suggest actions failed: %s", exc)
-        return _stub_suggest_actions(incident)
-
-
-def _stub_suggest_actions(incident: dict) -> list[dict]:
-    return [
-        {"action": "Activate the crisis management team",
-         "priority": "high",
-         "rationale": "Ensures coordinated response from the outset"},
-        {"action": "Notify affected stakeholders",
-         "priority": "high",
-         "rationale": "Regulatory and contractual notification requirements"},
-        {"action": "Begin impact assessment",
-         "priority": "medium",
-         "rationale": "Quantify the scope before committing recovery resources"},
-    ]
+        return answer_json(text, kind=list)
 
 
 # ── Document Chunking (for RAG) ─────────────────────────────────────────────
@@ -122,22 +91,21 @@ def chunk_text(content: str, max_chars: int = 1500) -> list[dict]:
 # ── RAG Question Answering ───────────────────────────────────────────────────
 
 def rag_ask(question: str) -> tuple[str, list[int]]:
-    if not is_configured():
-        return _stub_rag_ask(question)
+    """An answer drawn from the uploaded documents, with the chunks it cites. Raises AIUnavailable rather than return a
+    placeholder that would be saved as the answer."""
+    with must_answer():
+        from modules.bcm import data_service as ds
+        stop = {"the","a","an","is","are","was","were","what","which","how","does","do",
+                "in","of","for","on","to","and","or","with","this","that","it","be"}
+        keywords = [w.lower() for w in question.split() if len(w) > 2 and w.lower() not in stop]
 
-    from modules.bcm import data_service as ds
-    stop = {"the","a","an","is","are","was","were","what","which","how","does","do",
-            "in","of","for","on","to","and","or","with","this","that","it","be"}
-    keywords = [w.lower() for w in question.split() if len(w) > 2 and w.lower() not in stop]
+        chunks = []
+        if keywords:
+            chunks = ds.search_chunks(keywords[:3], limit=6)
+            if not chunks and len(keywords) > 1:
+                chunks = ds.search_chunks(keywords[:1], limit=6)
 
-    chunks = []
-    if keywords:
-        chunks = ds.search_chunks(keywords[:3], limit=6)
-        if not chunks and len(keywords) > 1:
-            chunks = ds.search_chunks(keywords[:1], limit=6)
-
-    if not chunks:
-        try:
+        if not chunks:
             text = create_message(
                 [{"role": "user", "content": _u(question)}],
                 system=(
@@ -150,37 +118,22 @@ def rag_ask(question: str) -> tuple[str, list[int]]:
                 feature="bcm.rag_ask",
             )
             return text, []
-        except Exception as exc:
-            log.error("RAG fallback failed: %s", exc)
-            return _stub_rag_ask(question)
 
-    context_parts = []
-    cited_ids = []
-    for c in chunks:
-        context_parts.append(f"[Chunk {c['id']}]\n{c['content']}")
-        cited_ids.append(c["id"])
-    context = "\n\n---\n\n".join(context_parts)
+        context_parts = []
+        cited_ids = []
+        for c in chunks:
+            context_parts.append(f"[Chunk {c['id']}]\n{c['content']}")
+            cited_ids.append(c["id"])
+        context = "\n\n---\n\n".join(context_parts)
 
-    prompt = (
-        f"Using the following excerpts from the organisation's BCM documents, "
-        f"answer the question below. Cite chunk numbers where relevant.\n\n"
-        f"DOCUMENTS:\n{context}\n\n"
-        f"QUESTION: {_u(question)}"
-    )
-    try:
+        prompt = (
+            f"Using the following excerpts from the organisation's BCM documents, "
+            f"answer the question below. Cite chunk numbers where relevant.\n\n"
+            f"DOCUMENTS:\n{context}\n\n"
+            f"QUESTION: {_u(question)}"
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=1500, feature="bcm.rag_ask")
         return text, cited_ids
-    except Exception as exc:
-        log.error("RAG ask failed: %s", exc)
-        return _stub_rag_ask(question)
-
-
-def _stub_rag_ask(question: str) -> tuple[str, list[int]]:
-    return (
-        f"This is a placeholder answer for: \"{question}\". "
-        f"Full RAG retrieval will be enabled once {provider_name()} API key is configured.",
-        [],
-    )
 
 
 # ── Chat ─────────────────────────────────────────────────────────────────────

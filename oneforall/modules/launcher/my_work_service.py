@@ -13,9 +13,12 @@ import binascii
 import json
 from modules.saved_views.data_service import register_view_schema
 
-register_view_schema("platform", "my_work", allowed_params={"source", "section", "q"})
+register_view_schema("platform", "my_work", allowed_params={"source", "section", "q", "group"})
 
-SECTIONS = ("needs_my_action", "waiting_on_others", "due_soon", "overdue", "recently_completed")
+SECTIONS = ("needs_my_action", "waiting_on_others", "due_soon", "overdue", "recently_changed", "recently_completed")
+# How the list can be grouped (plans/2026-10-governance-rework/04 section 3). Grouping is presentation only: it never
+# changes which items are returned or how they page.
+GROUPS = ("", "source", "business_unit", "parent")
 
 
 def _section_for(status_bucket: str, due_date: "str | None") -> str:
@@ -140,7 +143,7 @@ def _unread_notifications(db, user: dict) -> list[dict]:
             "due_date": None, "priority": "low",
             "org_id": user.get("org_id"), "business_unit_id": None,
             "link": r["link"] if (r["link"] or "").startswith("/") and not (r["link"] or "").startswith("//") else "/",
-            "section": "needs_my_action",
+            "section": "recently_changed",
         })
     return items
 
@@ -202,7 +205,7 @@ def _grid_ncs(db, user, scope):
     where, params = _bu_filter("a.business_unit_id", scope)
     rows = db.execute(
         "SELECT nc.id,nc.audit_id,nc.title,nc.severity,nc.due_date,nc.assigned_to,"
-        "a.business_unit_id FROM grid_non_conformances nc "
+        "a.business_unit_id,a.name AS audit_name FROM grid_non_conformances nc "
         "JOIN grid_audits a ON a.id=nc.audit_id "
         f"WHERE nc.status='open' AND (nc.assigned_to=%s OR a.lead_id=%s) AND {where} "
         "ORDER BY nc.due_date,nc.id LIMIT 100",
@@ -215,6 +218,7 @@ def _grid_ncs(db, user, scope):
         "org_id": user.get("org_id"), "business_unit_id": r["business_unit_id"],
         "link": f"/grid/?open=nc:{r['id']}", "section": _section_for(
             "open" if r["assigned_to"] == user["id"] else "waiting", r["due_date"]),
+        "context": {"kind": "audit", "id": r["audit_id"], "title": r["audit_name"]},
     } for r in rows]
 
 
@@ -314,11 +318,13 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
     org = user.get("org_id")
     app_scope, app_params = entity_scope_sql(("governance", "application"), user, "a")
 
-    def add(entity_type, entity_id, action, title, link, bucket, due=None, unit=None, priority="medium"):
+    def add(entity_type, entity_id, action, title, link, bucket, due=None, unit=None, priority="medium", use=None,
+            assigned=False):
         items.append({
             "source_module": "ai_governance", "entity_type": entity_type, "entity_id": entity_id, "action": action,
             "title": title, "due_date": due, "priority": priority, "org_id": org, "business_unit_id": unit,
-            "link": link, "section": _section_for(bucket, due)})
+            "link": link, "section": _section_for(bucket, due), "assigned": assigned,
+            "context": {"kind": "ai_use", "id": use[0], "title": use[1]} if use else None})
 
     if has_capability(user, "ai_literacy.take"):
         from modules.ai_governance import literacy
@@ -334,15 +340,22 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
     can_decide = has_capability(user, "ai_use.decide")
     separation = ai_rollout.separation_required(org)
     for r in db.execute(
-            "SELECT d.id, d.application_id, d.requested_by, d.business_unit_id, a.name, a.owner_user_id "
-            "FROM ai_use_decisions d JOIN applications a ON a.id = d.application_id "
+            "SELECT d.id, d.application_id, d.requested_by, d.business_unit_id, d.assigned_decider_id, a.name, "
+            "a.owner_user_id FROM ai_use_decisions d JOIN applications a ON a.id = d.application_id "
             f"WHERE d.status = 'proposed' AND {app_scope} ORDER BY d.id LIMIT 100", app_params).fetchall():
         mine = r["requested_by"] == user["id"] or r["owner_user_id"] == user["id"]
         link = f"/ai-governance/systems/{r['application_id']}#decisions"
-        if can_decide and not (separation and mine):
-            add("ai_decision", r["id"], "decide_ai_use", f"Decide: {r['name']}", link, "open", unit=r["business_unit_id"], priority="high")
+        named = r["assigned_decider_id"]
+        if can_decide and not (separation and mine) and named not in (None, user["id"]):
+            # someone else was named: this is their turn, and the others are not asked to act on it
+            add("ai_decision", r["id"], "view", f"Assigned to another decider: {r['name']}", link, "waiting",
+                unit=r["business_unit_id"], use=(r["application_id"], r["name"]))
+        elif can_decide and not (separation and mine):
+            add("ai_decision", r["id"], "decide_ai_use", f"Decide: {r['name']}", link, "open", unit=r["business_unit_id"],
+                priority="high", use=(r["application_id"], r["name"]), assigned=named == user["id"])
         elif mine:
-            add("ai_decision_waiting", r["id"], "view", f"Waiting for a decision: {r['name']}", link, "waiting", unit=r["business_unit_id"])
+            add("ai_decision_waiting", r["id"], "view", f"Waiting for a decision: {r['name']}", link, "waiting",
+                unit=r["business_unit_id"], use=(r["application_id"], r["name"]))
 
     # approvals that need a new decision, for the owner and the deciders
     for r in db.execute(
@@ -362,7 +375,8 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
         if (r["now_fingerprint"] != r["profile_fingerprint"] or tier_now != r["tier"] or expired
                 or _decisions.reopening_facts(db, r["application_id"], r["decided_at"])):
             add("ai_re_review", r["id"], "request_decision", f"Needs a new decision: {r['name']}",
-                f"/ai-governance/systems/{r['application_id']}#decisions", "open", unit=r["business_unit_id"])
+                f"/ai-governance/systems/{r['application_id']}#decisions", "open", unit=r["business_unit_id"],
+                use=(r["application_id"], r["name"]))
 
     # conditions that fall due: the owner's and the asker's
     for r in db.execute(
@@ -373,7 +387,8 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
             f"AND (a.owner_user_id = %s OR d.requested_by = %s) AND {app_scope} ORDER BY c.due_date LIMIT 100",
             [user["id"], user["id"], *app_params]).fetchall():
         add("ai_condition", r["id"], "meet_condition", f"Condition due: {r['text']} ({r['name']})",
-            f"/ai-governance/systems/{r['application_id']}#decisions", "open", due=r["due_date"], unit=r["business_unit_id"])
+            f"/ai-governance/systems/{r['application_id']}#decisions", "open", due=r["due_date"], unit=r["business_unit_id"],
+            use=(r["application_id"], r["name"]))
 
     # Live oversight actions are read from current versions only. A draft is
     # offered to another decider only when complete and bound to the current profile.
@@ -402,39 +417,44 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
             if stale and mine and has_capability(user, "ai_use.review"):
                 add(kind, r["application_id"], "update_ai_oversight",
                     f"Update {label.lower()} oversight after profile change: {r['name']}",
-                    link, "open", unit=r["business_unit_id"])
+                    link, "open", unit=r["business_unit_id"], use=(r["application_id"], r["name"]))
             elif r["status"] == "draft" and not stale:
                 if not complete and r["authored_by"] == user["id"] and has_capability(user, "ai_use.review"):
                     add(kind, r["application_id"], "complete_ai_oversight",
                         f"Complete {label.lower()} oversight: {r['name']}",
-                        link, "open", unit=r["business_unit_id"])
+                        link, "open", unit=r["business_unit_id"], use=(r["application_id"], r["name"]))
                 elif complete and can_decide and r["authored_by"] != user["id"]:
                     add(kind, r["application_id"], "review_ai_oversight",
                         f"Review {label.lower()} oversight: {r['name']}",
-                        link, "open", unit=r["business_unit_id"])
+                        link, "open", unit=r["business_unit_id"], use=(r["application_id"], r["name"]))
                 elif complete and r["authored_by"] == user["id"]:
                     add(kind, r["application_id"], "view",
                         f"Waiting for {label.lower()} oversight review: {r['name']}",
-                        link, "waiting", unit=r["business_unit_id"])
+                        link, "waiting", unit=r["business_unit_id"], use=(r["application_id"], r["name"]))
 
     # regulatory changes proposed for a use, for the reviewer
     if has_capability(user, "ai_use.review"):
         for r in db.execute(
-                "SELECT i.id, i.business_unit_id, u.title, a.name FROM ai_regulatory_impacts i "
+                "SELECT i.id, i.application_id, i.business_unit_id, u.title, a.name FROM ai_regulatory_impacts i "
                 "JOIN regulatory_updates u ON u.id = i.update_id JOIN applications a ON a.id = i.application_id "
                 f"WHERE i.status = 'candidate' AND {app_scope} ORDER BY i.id LIMIT 100", app_params).fetchall():
             add("ai_regulatory_review", r["id"], "review_regulatory_change", f"Review regulatory change: {r['title']} ({r['name']})",
-                "/ai-governance/regulatory", "open", unit=r["business_unit_id"])
+                "/ai-governance/regulatory", "open", unit=r["business_unit_id"], use=(r["application_id"], r["name"]))
 
     # intake requests: for the reviewer, waiting; for the author, sent back
     if has_capability(user, "ai_use.review"):
         where, params = _bu_filter("r.business_unit_id", scope)
         for r in db.execute(
-                "SELECT r.id, r.payload, r.business_unit_id FROM ai_use_intake_requests r "
+                "SELECT r.id, r.payload, r.business_unit_id, r.assigned_reviewer_id FROM ai_use_intake_requests r "
                 f"WHERE r.status = 'submitted' AND r.submitted_by != %s AND {where} ORDER BY r.submitted_at LIMIT 100",
                 [user["id"], *params]).fetchall():
+            if r["assigned_reviewer_id"] not in (None, user["id"]):
+                add("ai_intake_review", r["id"], "view", f"Assigned to another reviewer: {_intake_name(r['payload'])}",
+                    "/ai-governance/review", "waiting", unit=r["business_unit_id"])
+                continue
             add("ai_intake_review", r["id"], "review_ai_request", f"Review AI use request: {_intake_name(r['payload'])}",
-                "/ai-governance/review", "open", unit=r["business_unit_id"])
+                "/ai-governance/review", "open", unit=r["business_unit_id"],
+                assigned=r["assigned_reviewer_id"] == user["id"])
     for r in db.execute(
             "SELECT r.id, r.payload, r.business_unit_id FROM ai_use_intake_requests r "
             "WHERE r.status = 'returned' AND r.submitted_by = %s ORDER BY r.updated_at DESC LIMIT 50", (user["id"],)).fetchall():
@@ -479,6 +499,77 @@ def _today() -> str:
     return utcnow().strftime("%Y-%m-%d")
 
 
+_KIND = (("decide", "decide"), ("review", "review"), ("respond", "respond"), ("notify", "respond"),
+         ("resolve", "do"), ("update", "do"), ("complete", "do"), ("meet", "do"), ("renew", "renew"),
+         ("acknowledge", "acknowledge"), ("request", "decide"))
+_STATUTORY = ("notify_authority", "respond_to_dsr")
+_CONTEXT_LABELS = {"ai_use": "AI use", "audit": "Audit"}
+
+
+def _action_kind(action: str) -> str:
+    """One of decide, review, respond, do, renew, acknowledge or wait: what the person is being asked to do."""
+    for prefix, kind in _KIND:
+        if action.startswith(prefix):
+            return kind
+    return "wait" if action == "view" else "do"
+
+
+def _enrich(item: dict) -> dict:
+    """Every item carries who acts, what kind of action it is, the state of its source and why it is ranked as it is, so
+    that the list can be filtered and grouped without reading the title."""
+    section = item["section"]
+    bucket = "done" if section == "recently_completed" else "waiting" if section == "waiting_on_others" else "open"
+    if item["action"] in _STATUTORY:
+        basis = "A statutory deadline"
+    elif item["due_date"]:
+        basis = f"Due {str(item['due_date'])[:10]}"
+    else:
+        basis = f"Priority: {item['priority']}"
+    item.update(action_kind=_action_kind(item["action"]), source_state=bucket,
+                responsible="others" if bucket == "waiting" else "you", priority_basis=basis,
+                context=item.get("context"))
+    return item
+
+
+def _dedupe(items: list) -> list:
+    """The same obligation is shown once. An unread notification that points at the page of an item already listed adds
+    nothing to it, and the item says it was also notified. Two items with different owners stay two items."""
+    seen, out = set(), []
+    for item in items:
+        key = (item["source_module"], item["entity_type"], str(item["entity_id"]), item["action"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    by_link = {i["link"]: i for i in out if i["entity_type"] != "notification" and i["link"] != "/"}
+    kept = []
+    for item in out:
+        twin = by_link.get(item["link"]) if item["entity_type"] == "notification" else None
+        if twin is not None:
+            twin["also_notified"] = twin.get("also_notified", 0) + 1
+            continue
+        kept.append(item)
+    return kept
+
+
+_SOURCE_LABELS = {"aria": "ARIA", "grid": "GRID", "bcm": "BCM", "sentinel": "Sentinel", "erm": "ERM", "orm": "ORM",
+                  "evidence": "Evidence", "platform": "Platform", "ai_governance": "AI Governance",
+                  "governance": "Governance"}
+
+
+def _group_of(item: dict, how: str, unit_names: dict) -> tuple:
+    """(key, label) of the group an item belongs to."""
+    if how == "source":
+        return item["source_module"], _SOURCE_LABELS.get(item["source_module"], item["source_module"])
+    if how == "business_unit":
+        unit = item.get("business_unit_id")
+        return str(unit or 0), unit_names.get(unit) or "Whole organization"
+    ctx = item.get("context")
+    if ctx:
+        return f"{ctx['kind']}:{ctx['id']}", f"{_CONTEXT_LABELS.get(ctx['kind'], ctx['kind'])}: {ctx['title']}"
+    return "none", "No parent record"
+
+
 def _item_key(item: dict) -> tuple:
     return (SECTIONS.index(item["section"]), item["due_date"] or "9999-99-99",
             item["source_module"], str(item["entity_id"]), item["entity_type"])
@@ -500,16 +591,9 @@ def _decode_cursor(value: str | None) -> tuple | None:
     return tuple(key)
 
 
-def get_my_work(user: dict, *, source: str = "", section: str = "",
-                q: str = "", cursor: str | None = None, page_size: int = 50) -> dict:
-    """Federate live sources with stable keyset paging and personal filters."""
-    if section and section not in SECTIONS:
-        raise ValueError("Invalid section.")
-    if len(source) > 40 or len(q) > 100 or page_size < 1 or page_size > 100:
-        raise ValueError("Invalid filter.")
-    after = _decode_cursor(cursor)
-    db = get_db()
-    scope = bu_scope_ids(user)
+def _collect(db, user: dict, scope, only=None) -> tuple:
+    """(items, source_states): everything the sources hold for this person, read through the unit scope given.
+    `only` names the sources to read (all of them when None)."""
     sources = [
         ("aria_approvals", "aria", lambda: _aria_approvals(db, user)),
         ("evidence_expiry", None, lambda: _evidence_expiring(db, user)),
@@ -527,29 +611,55 @@ def get_my_work(user: dict, *, source: str = "", section: str = "",
     ]
     all_items = []
     source_states = []
+    for name, module, load in sources:
+        if only is not None and name not in only:
+            continue
+        if module and not _module_ok(user, module):
+            source_states.append({"source": name, "state": "disabled"})
+            continue
+        if name == "bcm_incidents" and not has_capability(user, "bcm.incident.update"):
+            continue
+        if name == "privacy_deadlines" and not has_capability(user, "sentinel.dsr.manage"):
+            continue
+        try:
+            items = load()
+            all_items.extend(items)
+            limited = (name in ("bcm_incidents", "privacy_deadlines")
+                       and not settings.is_postgres())
+            source_states.append({"source": name, "state": "scope_limited" if limited else "available",
+                                  "count": len(items),
+                                  "truncated": len(items) >= (50 if name == "notifications" else 100)})
+        except Exception:
+            db.rollback()
+            log.exception("My Work source failed: %s", name)
+            source_states.append({"source": name, "state": "degraded"})
+    return all_items, source_states
+
+
+def get_my_work(user: dict, *, source: str = "", section: str = "",
+                q: str = "", cursor: str | None = None, page_size: int = 50, group: str = "") -> dict:
+    """Federate live sources with stable keyset paging and personal filters."""
+    if section and section not in SECTIONS:
+        raise ValueError("Invalid section.")
+    if group not in GROUPS:
+        raise ValueError("Invalid grouping.")
+    if len(source) > 40 or len(q) > 100 or page_size < 1 or page_size > 100:
+        raise ValueError("Invalid filter.")
+    after = _decode_cursor(cursor)
+    db = get_db()
+    scope = bu_scope_ids(user)
+    unit_names = {}
     try:
-        for name, module, load in sources:
-            if module and not _module_ok(user, module):
-                source_states.append({"source": name, "state": "disabled"})
-                continue
-            if name == "bcm_incidents" and not has_capability(user, "bcm.incident.update"):
-                continue
-            if name == "privacy_deadlines" and not has_capability(user, "sentinel.dsr.manage"):
-                continue
+        all_items, source_states = _collect(db, user, scope)
+        if group == "business_unit":
             try:
-                items = load()
-                all_items.extend(items)
-                limited = (name in ("bcm_incidents", "privacy_deadlines")
-                           and not settings.is_postgres())
-                source_states.append({"source": name, "state": "scope_limited" if limited else "available",
-                                      "count": len(items),
-                                      "truncated": len(items) >= (50 if name == "notifications" else 100)})
+                unit_names = {r["id"]: r["name"] for r in db.execute("SELECT id, name FROM business_units").fetchall()}
             except Exception:
                 db.rollback()
-                log.exception("My Work source failed: %s", name)
-                source_states.append({"source": name, "state": "degraded"})
+                log.exception("My Work business unit names could not be read")
     finally:
         db.close()
+    all_items = [_enrich(item) for item in _dedupe(all_items)]
     sections = {name: [] for name in SECTIONS}
     for item in all_items:
         if item["due_date"] is not None:
@@ -563,6 +673,15 @@ def get_my_work(user: dict, *, source: str = "", section: str = "",
     if after is not None:
         visible = [item for item in visible if _item_key(item) > after]
     page = visible[:page_size]
+    groups = []
+    if group:
+        index = {}
+        for item in visible:
+            key, label = _group_of(item, group, unit_names)
+            index.setdefault(key, {"key": key, "label": label, "count": 0})["count"] += 1
+        for item in page:
+            item["group_key"] = _group_of(item, group, unit_names)[0]
+        groups = sorted(index.values(), key=lambda g: (-g["count"], g["label"]))
     for item in page:
         sections[item["section"]].append(item)
     next_cursor = None
@@ -570,4 +689,106 @@ def get_my_work(user: dict, *, source: str = "", section: str = "",
         raw = json.dumps(_item_key(page[-1]), separators=(",", ":")).encode("utf-8")
         next_cursor = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
     return {"sections": sections, "source_states": source_states, "pending_sources": [],
-            "counts": counts, "next_cursor": next_cursor, "total_count": sum(counts.values())}
+            "counts": counts, "next_cursor": next_cursor, "total_count": sum(counts.values()),
+            "group": group, "groups": groups}
+
+
+# ── The team view ───────────────────────────────────────────────────────────
+
+TEAM_LIMIT = 25   # people read for one request; the count says how many there are
+TEAM_TOP = 5      # overdue items named for each person
+# What is assigned to a person, as against a queue that anyone with the capability sees (evidence expiring, open
+# incidents, statutory deadlines, evidence waiting for any reviewer). Only assigned work is counted against a person,
+# so the same shared item is not charged to everyone on the team.
+_ASSIGNED_SOURCES = ("aria_approvals", "task_board", "workflow_actions", "grid_non_conformances", "erm_reviews",
+                     "orm_reviews", "change_reviews", "ai_governance")
+_ASSIGNED_AI = ("ai_literacy_course", "ai_condition", "ai_intake_returned", "ai_decision_waiting")
+_TEAM_SECTIONS = ("overdue", "due_soon", "needs_my_action", "waiting_on_others")
+_LICENSED_MODULES = ("aria", "grid", "bcm", "sentinel", "erm", "orm")
+
+
+def _may_name(viewer: dict, module: str) -> bool:
+    """True when the viewer could open records of this source, so that a title from it may be shown to them."""
+    if module in _LICENSED_MODULES:
+        return _module_ok(viewer, module)
+    if module == "ai_governance":
+        return has_capability(viewer, "ai_use.view")
+    return module == "platform"   # a source this function does not know is not named
+
+
+def team_units(db, user: dict, scope) -> list:
+    """Ids of the active units the person heads that lie inside their own scope, and of every active unit below them.
+    Heading a unit does not widen what a person may see: a unit outside their own scope is not part of the team."""
+    rows = db.execute("SELECT id, parent_id, head_user_id FROM business_units WHERE is_active = 1").fetchall()
+    children: dict = {}
+    for r in rows:
+        if r["parent_id"]:
+            children.setdefault(int(r["parent_id"]), []).append(int(r["id"]))
+    queue = [int(r["id"]) for r in rows
+             if r["head_user_id"] == user["id"] and (scope is None or int(r["id"]) in scope)]
+    found: list = []
+    while queue:
+        current = queue.pop()
+        if current in found:
+            continue
+        found.append(current)
+        queue.extend(children.get(current, []))
+    return sorted(found)
+
+
+def get_team_work(user: dict, unit_id: "int | None" = None) -> dict:
+    """The work assigned to each person in the units the viewer heads: four counts and the oldest overdue items.
+
+    Every item is read the way the person's own My Work reads it, then kept only when it lies in the viewer's own unit
+    scope, so the view never shows more than the viewer could see. A title from a module the viewer may not open is
+    counted and not named. Notifications and shared queues are not counted against anyone."""
+    from core.email_outbox import user_for_scope
+    db = get_db()
+    try:
+        scope = bu_scope_ids(user)
+        units = team_units(db, user, scope)
+        if not units:
+            return {"is_manager": False, "units": [], "members": [], "total_members": 0, "truncated": False}
+        names = {r["id"]: r["name"] for r in db.execute(
+            f"SELECT id, name FROM business_units WHERE id IN ({','.join(['%s'] * len(units))})", units).fetchall()}
+        chosen = units
+        if unit_id is not None:
+            if unit_id not in units:
+                raise ValueError("That unit is not one of yours.")
+            chosen = [unit_id]
+        where, params = ["business_unit_id IN (" + ",".join(["%s"] * len(chosen)) + ")", "is_active = 1",
+                         "deleted_at IS NULL", "id != %s"], [*chosen, user["id"]]
+        if user.get("org_id") is not None:
+            where.append("org_id = %s")
+            params.append(user["org_id"])
+        people = db.execute(
+            "SELECT id, username, email, full_name, org_id, is_super_admin, business_unit_id FROM users "
+            f"WHERE {' AND '.join(where)} ORDER BY full_name, id", params).fetchall()
+        members = []
+        for row in people[:TEAM_LIMIT]:
+            person = user_for_scope(db, row)
+            items, states = _collect(db, person, bu_scope_ids(person), only=_ASSIGNED_SOURCES)
+            mine = [_enrich(i) for i in _dedupe(items)
+                    if i["source_module"] != "ai_governance" or i.get("assigned") or i["entity_type"] in _ASSIGNED_AI]
+            # inside the viewer's own scope only
+            mine = [i for i in mine if scope is None or i["business_unit_id"] is None or i["business_unit_id"] in scope]
+            counts = {name: sum(i["section"] == name for i in mine) for name in _TEAM_SECTIONS}
+            overdue = sorted((i for i in mine if i["section"] == "overdue"), key=lambda i: str(i["due_date"] or ""))
+            named = [i for i in overdue if _may_name(user, i["source_module"])]
+            members.append({
+                "id": row["id"], "name": row["full_name"] or row["username"],
+                "unit": names.get(row["business_unit_id"]) or "", "counts": counts,
+                "overdue": [{"title": i["title"][:200], "due_date": str(i["due_date"] or "")[:10],
+                             "source": _SOURCE_LABELS.get(i["source_module"], i["source_module"]),
+                             "link": i["link"] if str(i["link"]).startswith("/") and not str(i["link"]).startswith("//") else "/"}
+                            for i in named[:TEAM_TOP]],
+                "overdue_not_listed": len(overdue) - min(len(named), TEAM_TOP),
+                "overdue_not_named": len(overdue) - len(named),
+                "incomplete": any(st["state"] == "degraded" for st in states)})
+        members.sort(key=lambda m: (-m["counts"]["overdue"], -m["counts"]["due_soon"], m["name"].casefold()))
+        totals = {name: sum(m["counts"][name] for m in members) for name in _TEAM_SECTIONS}
+        return {"is_manager": True, "units": [{"id": i, "name": names.get(i, "")} for i in units],
+                "unit_id": unit_id, "members": members, "totals": totals,
+                "total_members": len(people), "truncated": len(people) > TEAM_LIMIT}
+    finally:
+        db.close()

@@ -293,6 +293,10 @@
   </div>
 
   <!-- Getting Started banner -->
+  <div id="bcmUnavailable" class="card" role="alert" style="display:none;border-left:4px solid var(--red);padding:12px 16px;margin-bottom:12px;gap:12px;align-items:center;justify-content:space-between">
+    <span><strong>The programme figures could not be read just now.</strong> A dash means "not read", not zero.</span>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="loadDashboard()">Try again</button>
+  </div>
   <div id="bcmOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Business Continuity</h3>
@@ -985,51 +989,45 @@
   /* ════════════════════════════════════════════════════════════════════════
      DASHBOARD
      ════════════════════════════════════════════════════════════════════════ */
-  var fallback={
-    bia_coverage_pct:72,bia_trend:'+8% this quarter',plans:14,plans_trend:'3 under review',
-    open_incidents:2,incidents_trend:'1 declared today',exercise_pct:65,
-    bia_records:18,open_risks:9,exercises:6,
-    plan_status:[
-      {title:'HQ Business Continuity Plan',department:'Operations',status:'approved'},
-      {title:'IT Disaster Recovery Plan',department:'IT',status:'approved'},
-      {title:'Crisis Communications Plan',department:'Corporate',status:'review'},
-      {title:'Supply Chain Recovery Plan',department:'Procurement',status:'draft'},
-      {title:'Remote Working Contingency',department:'HR',status:'approved'}
-    ],
-    risk_distribution:{critical:2,high:3,medium:5,low:4},
-    recent_activity:[
-      {text:'BIA updated for Finance',time:'15 min ago'},
-      {text:'Incident #BCM-042 resolved',time:'2 hours ago'},
-      {text:'Tabletop exercise completed',time:'Yesterday'},
-      {text:'DR plan approved by CRO',time:'2 days ago'}
-    ],
-    active_incidents:[
-      {title:'Data centre cooling failure',severity:'critical',status:'active',declared_at:'2026-05-19T08:30:00',assigned:'James Wilson',impact:'Server room temperature rising'},
-      {title:'Vendor SaaS outage — Acme Corp',severity:'high',status:'investigating',declared_at:'2026-05-18T14:15:00',assigned:'Sarah Chen',impact:'CRM system unavailable'}
-    ]
-  };
-
+  // A figure is shown only when it was measured. When it could not be read, or there is nothing to measure, the card shows
+  // a dash and says which: never a zero or a sample in its place.
+  var bcmFailed=false;
+  function mHas(m){return !!m&&(m.state==='measured'||m.state==='partial'||m.state==='stale')&&m.value!==null&&m.value!==undefined;}
+  function mWords(m){
+    if(!m) return bcmFailed?'Unavailable just now. This is not a count of zero.':'Not available to you.';
+    if(m.state==='unavailable') return 'Unavailable just now. This is not a count of zero.';
+    if(m.state==='not_measured') return 'Not measured. '+(m.note||'');
+    if(m.state==='partial') return 'Partial: '+((m.sources&&m.sources.missing)||['a source']).join(', ')+' could not be read.';
+    return '';
+  }
   function populateStats(d){
-    var biaPct=d.bia_coverage_pct||0;
-    document.getElementById('bcmBiaPct').textContent=biaPct+'%';
-    document.getElementById('bcmBiaTrend').querySelector('span').textContent=d.bia_trend||'';
+    var mt=d.metrics||{};
+    var bia=mt['bcm.bia_with_plan'], plans=mt['bcm.plans'], inc=mt['bcm.active_incidents'], ex=mt['bcm.exercises_completed'];
+    var biaPct=mHas(bia)?bia.value:0;
+    document.getElementById('bcmBiaPct').textContent=mHas(bia)?biaPct+'%':'n/a';
+    document.getElementById('bcmBiaTrend').querySelector('span').textContent=mHas(bia)
+      ? bia.detail.covered+' of '+bia.detail.total+' analyses have a plan' : mWords(bia);
     document.getElementById('bcmBiaBar').style.width=biaPct+'%';
-    document.getElementById('bcmPlanCount').textContent=d.plans||0;
-    document.getElementById('bcmPlanTrend').querySelector('span').textContent=d.plans_trend||'';
-    var incCount=d.open_incidents||0;
-    document.getElementById('bcmIncidentCount').textContent=incCount;
-    document.getElementById('bcmIncidentTrend').querySelector('span').textContent=d.incidents_trend||'';
-    if(incCount===0) document.getElementById('bcmIncidentCount').style.color='var(--green-status)';
-    var exPct=d.exercise_pct||0;
-    document.getElementById('bcmExPct').textContent=exPct+'%';
+    document.getElementById('bcmPlanCount').textContent=mHas(plans)?plans.value:'n/a';
+    document.getElementById('bcmPlanTrend').querySelector('span').textContent=mHas(plans)
+      ? plans.detail.approved+' approved'+(plans.detail.in_review?', '+plans.detail.in_review+' in review':'') : mWords(plans);
+    var incCount=mHas(inc)?inc.value:0;
+    var incEl=document.getElementById('bcmIncidentCount');
+    incEl.textContent=mHas(inc)?incCount:'n/a';
+    document.getElementById('bcmIncidentTrend').querySelector('span').textContent=mHas(inc)
+      ? (inc.detail.all||0)+' recorded in total' : mWords(inc);
+    incEl.style.color=mHas(inc)&&incCount===0?'var(--green-status)':'';
+    var exPct=mHas(ex)?ex.value:0;
+    document.getElementById('bcmExPct').textContent=mHas(ex)?exPct+'%':'n/a';
     document.getElementById('bcmExBar').style.width=exPct+'%';
     var setNav=function(id,val){var el=document.getElementById(id);if(el)el.textContent=val;};
-    setNav('navBiaCount',d.bia_records||0);
-    setNav('navPlanCount',d.plans||0);
-    setNav('navExCount',d.exercises||0);
-    if(incCount>0){var badge=document.getElementById('navIncBadge');if(badge){badge.style.display='';badge.textContent=incCount;}}
+    setNav('navBiaCount',mHas(bia)?bia.detail.total:'');
+    setNav('navPlanCount',mHas(plans)?plans.value:'');
+    setNav('navExCount',mHas(ex)?ex.detail.total:'');
+    var badge=document.getElementById('navIncBadge');
+    if(badge){if(mHas(inc)&&incCount>0){badge.style.display='';badge.textContent=incCount;}else{badge.style.display='none';}}
     // Active plans alert banner
-    var activePlans=d.active_plans||0;
+    var activePlans=mHas(plans)?(plans.detail.activated||0):0;
     var alertEl=document.getElementById('activePlansAlert');
     if(alertEl){
       if(activePlans>0){
@@ -1040,29 +1038,32 @@
         alertEl.classList.remove('visible');
       }
     }
-    // Onboarding banner
+    // Onboarding banner: only when both counts were read and both are zero
     var ob=document.getElementById('bcmOnboardBanner');
-    if(ob&&!localStorage.getItem('hide_bcm_onboard')){ob.style.display=((d.plans||0)===0&&(d.open_incidents||0)===0)?'':'none';}
+    if(ob&&!localStorage.getItem('hide_bcm_onboard')){ob.style.display=(mHas(plans)&&plans.value===0&&mHas(inc)&&incCount===0)?'':'none';}
     // Quick-add link
     var qa=document.getElementById('bcmPlanCount');
-    if(qa&&(d.plans||0)===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();bcmRouter.navigate(\'/bcm/plans\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Create first plan</a>');}
+    if(qa&&mHas(plans)&&plans.value===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();bcmRouter.navigate(\'/bcm/plans\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Create first plan</a>');}
   }
   function populatePlanStatus(plans){
     var el=document.getElementById('bcmPlanStatus');
-    if(!plans||!plans.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No plans recorded</div>';return;}
+    if(plans===null||plans===undefined){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+(bcmFailed?'Not read just now':'Not available to you')+'</div>';return;}
+    if(!plans.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No plans recorded</div>';return;}
     el.innerHTML=plans.slice(0,6).map(function(p){
       var badge=p.is_active_plan?'<span class="live-badge">LIVE</span>':statusBadge(p.status);
       return '<div class="plan-item"><div><div class="plan-name">'+esc(p.title)+'</div><div class="plan-dept">'+esc(p.owner||'')+'</div></div>'+badge+'</div>';
     }).join('');
   }
   function populateRiskDonut(dist){
+    var known=!!dist;
+    dist=dist||{};
     var counts=[Math.max(0,dist.critical||0),Math.max(0,dist.high||0),
                 Math.max(0,dist.medium||0),Math.max(0,dist.low||0)];
     var total=counts.reduce(function(sum,n){return sum+n;},0);
     ['riskCritVal','riskHighVal','riskMedVal','riskLowVal'].forEach(function(id,i){
-      document.getElementById(id).textContent=counts[i];
+      document.getElementById(id).textContent=known?counts[i]:'n/a';
     });
-    document.getElementById('riskTotal').textContent=total;
+    document.getElementById('riskTotal').textContent=known?total:'n/a';
     var circ=2*Math.PI*50;
     function paint(){
       var offset=0;
@@ -1081,7 +1082,8 @@
   }
   function populateActivity(items){
     var el=document.getElementById('bcmRecentActivity');
-    if(!items||!items.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';return;}
+    if(items===null||items===undefined){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+(bcmFailed?'Not read just now':'Not available to you')+'</div>';return;}
+    if(!items.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';return;}
     el.innerHTML=items.map(function(a,i){
       var isLast=i===items.length-1;
       return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" style="box-shadow:0 0 0 2px var(--accent);border-color:var(--surface)"></div>'+(isLast?'':'<div class="tl-line"></div>')+'</div><div class="tl-content"><div class="tl-name">'+esc(a.text||a.description||'')+'</div><div class="tl-date">'+esc(a.time||timeAgoShort(a.created_at))+'</div></div></div>';
@@ -1089,7 +1091,8 @@
   }
   function populateIncidents(items){
     var body=document.getElementById('bcmIncidentBody');
-    if(!items||!items.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No active incidents — all clear</td></tr>';return;}
+    if(items===null||items===undefined){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">'+(bcmFailed?'The incidents could not be read just now. This is not an all clear.':'Not available to you')+'</td></tr>';return;}
+    if(!items.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No active incidents</td></tr>';return;}
     body.innerHTML=items.map(function(row){
       return '<tr style="cursor:pointer" onclick="bcmRouter.navigate(\'/bcm/incidents\')"><td style="font-weight:600">'+esc(row.title)+'</td><td>'+sevBadge(row.severity)+'</td><td>'+statusBadge(row.status)+'</td><td style="font-family:var(--mono);font-size:12px">'+fmtDate(row.declared_at)+'</td><td>'+esc(row.assigned||'—')+'</td><td style="font-size:12px;color:var(--muted);max-width:200px">'+esc(row.impact||'—')+'</td></tr>';
     }).join('');
@@ -1097,17 +1100,33 @@
 
   async function loadDashboard(){
     var data=null;
+    bcmFailed=false;
     try{var resp=await fetch('/bcm/api/dashboard');if(resp.ok) data=await resp.json();}catch(e){}
-    var d=data||fallback;
-    populateStats(d);
-    populatePlanStatus(d.plan_status);
-    populateRiskDonut(d.risk_distribution||fallback.risk_distribution);
-    populateActivity(d.recent_activity||fallback.recent_activity);
-    populateIncidents(d.active_incidents||fallback.active_incidents);
+    var banner=document.getElementById('bcmUnavailable');
+    if(!data||!data.metrics){
+      bcmFailed=true;
+      if(banner) banner.style.display='flex';
+      populateStats({metrics:{}});
+      populatePlanStatus(null);
+      populateRiskDonut(null);
+      populateActivity(null);
+      populateIncidents(null);
+      document.getElementById('bcmLastUpdated').textContent='not read';
+      bcmCheckSentinelBreach();
+      return;
+    }
+    if(banner) banner.style.display='none';
+    populateStats(data);
+    populatePlanStatus(data.plan_status);
+    var levels=data.metrics['bcm.risk_levels'];
+    populateRiskDonut(levels&&levels.detail?levels.detail:null);
+    populateActivity(data.recent_activity);
+    populateIncidents(data.active_incidents);
     document.getElementById('bcmLastUpdated').textContent='just now';
     // Sentinel cross-module: check for active data breach
     bcmCheckSentinelBreach();
   }
+  window.loadDashboard=loadDashboard;
 
   async function bcmCheckSentinelBreach(){
     try{
@@ -1778,47 +1797,40 @@
   window.bcmLoadReports=async function(){
     var el=document.getElementById('bcmReportSummary');
     try{
-      var data=await apiFetch('/bcm/api/dashboard');
-      var d=data||fallback;
+      var d=await apiFetch('/bcm/api/dashboard');
+      var mt=(d&&d.metrics)||{};
+      var cell=function(label,m,suffix,color){
+        var has=mHas(m);
+        return '<div title="'+escAttr(has?(m.definition||''):mWords(m))+'"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">'+label+
+          '</div><div style="font-size:24px;font-weight:800;color:'+(has?(color||'var(--text)'):'var(--muted)')+'">'+(has?m.value+(suffix||''):'n/a')+'</div>'+
+          (has?'':'<div style="font-size:11px;color:var(--muted)">'+esc(mWords(m))+'</div>')+'</div>';
+      };
+      var inc=mt['bcm.active_incidents'];
       el.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px">'+
-        '<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">BIA Coverage</div><div style="font-size:24px;font-weight:800;color:var(--text)">'+(d.bia_coverage_pct||0)+'%</div></div>'+
-        '<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Total Plans</div><div style="font-size:24px;font-weight:800;color:var(--text)">'+(d.plans||0)+'</div></div>'+
-        '<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Open Incidents</div><div style="font-size:24px;font-weight:800;color:'+(d.open_incidents>0?'var(--red)':'var(--green-status)')+'">'+(d.open_incidents||0)+'</div></div>'+
-        '<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Exercise Completion</div><div style="font-size:24px;font-weight:800;color:var(--text)">'+(d.exercise_pct||0)+'%</div></div>'+
-      '</div>';
-    }catch(e){el.innerHTML='<div style="color:var(--muted)">Failed to load programme summary</div>';}
+        cell('BIA Coverage',mt['bcm.bia_with_plan'],'%')+cell('Total Plans',mt['bcm.plans'])+
+        cell('Open Incidents',inc,'',mHas(inc)&&inc.value>0?'var(--red)':'var(--green-status)')+
+        cell('Exercise Completion',mt['bcm.exercises_completed'],'%')+'</div>';
+    }catch(e){el.innerHTML='<div style="color:var(--muted)">The programme summary could not be read just now. This is not an empty summary.</div>';}
   };
-  window.bcmGenReport=async function(type){
-    if(typeof showToast==='function') showToast('Generating '+type+' report…','info');
+  // A report button reports success only when a saved run exists. One call makes the run; the Reports page then opens it.
+  async function bcmQuickReport(reportType, working, ready, failed){
+    if(typeof showToast==='function') showToast(working,'info');
     try{
-      var defResp=await apiFetch('/api/reports/definitions',{method:'POST',body:{
-        name:'BCM '+type.charAt(0).toUpperCase()+type.slice(1)+' Report '+new Date().toLocaleDateString('en-GB'),
-        description:'Auto-generated BCM '+type+' report',
-        report_type:'bcm_'+type,
-        modules:'bcm',
-        parameters:{report_subtype:type}
-      }});
-      var id=defResp.id||defResp.definition_id;
-      if(id){await apiFetch('/api/reports/'+id+'/run',{method:'POST'});}
-      if(typeof showToast==='function') showToast('Report ready — opening Reports','success');
-      setTimeout(function(){window.location.href='/reports';},1500);
-    }catch(e){if(typeof showToast==='function') showToast('Report generation failed','error');}
+      var run=await apiFetch('/api/reports/quick-run',{method:'POST',body:{report_type:reportType}});
+      if(!run||!run.run_id) throw new Error('No saved run came back');
+      if(typeof showToast==='function') showToast(ready,'success');
+      window.location.href='/reports?run='+encodeURIComponent(run.run_id);
+    }catch(e){
+      if(typeof showToast==='function') showToast((e&&e.detail)||failed,'error');
+    }
+  }
+  window.bcmGenReport=function(type){
+    var kinds={coverage:'bcm_coverage',plans:'bcm_plans',incidents:'bcm_incidents',exercises:'bcm_exercises'};
+    if(!kinds[type]){if(typeof showToast==='function') showToast('That report is not available','error');return;}
+    return bcmQuickReport(kinds[type],'Generating '+type+' report…','Report ready, opening Reports','The report could not be generated');
   };
-  window.bcmExport=async function(){
-    if(typeof showToast==='function') showToast('Generating BCM export…','info');
-    try{
-      var defResp=await apiFetch('/api/reports/definitions',{method:'POST',body:{
-        name:'BCM Export '+new Date().toLocaleDateString('en-GB'),
-        description:'Full BCM module compliance export',
-        report_type:'bcm_summary',
-        modules:'bcm',
-        parameters:{}
-      }});
-      var id=defResp.id||defResp.definition_id;
-      if(id){await apiFetch('/api/reports/'+id+'/run',{method:'POST'});}
-      if(typeof showToast==='function') showToast('Export ready — opening Reports','success');
-      setTimeout(function(){window.location.href='/reports';},1500);
-    }catch(e){if(typeof showToast==='function') showToast('Export failed','error');}
+  window.bcmExport=function(){
+    return bcmQuickReport('bcm_summary','Generating BCM export…','Export ready, opening Reports','The export could not be generated');
   };
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -2534,6 +2546,7 @@
         {name:'status',label:'Status',type:'select',options:['active','investigating','contained','resolved','closed']},
         {name:'impact',label:'Impact Description',type:'textarea'},
         {name:'assigned_to',label:'Assigned To',type:'text'},
+        {name:'commander_user_id',label:'Incident commander (the person who is told by email)',type:'person'},
         {name:'declared_at',label:'Date Declared',type:'date'}
       ]
     },
@@ -2643,6 +2656,8 @@
           html+='<option value="'+escAttr(o)+'"'+sel+'>'+esc(o.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}))+'</option>';
         });
         html+='</select>';
+      } else if(f.type==='person'){
+        html+='<select id="bcmf_'+f.name+'" name="'+f.name+'"><option value="">Not named</option></select>';
       } else if(f.type==='textarea'){
         html+='<textarea id="bcmf_'+f.name+'" name="'+f.name+'" rows="3"'+(f.required?' required':'')+'>'+esc(val)+'</textarea>';
       } else {
@@ -2655,6 +2670,20 @@
       '<button type="submit" class="btn btn-primary">'+(isEdit?'Update':'Create')+'</button>'+
     '</div></form></div></div>';
     document.getElementById('bcmModalRoot').innerHTML=html;
+    def.fields.forEach(function(f){
+      if(f.type!=='person') return;
+      var sel=document.getElementById('bcmf_'+f.name);
+      if(!sel) return;
+      apiFetch('/bcm/api/people').then(function(list){
+        (list||[]).forEach(function(p){
+          var o=document.createElement('option');
+          o.value=String(p.id);
+          o.textContent=p.name;
+          if(isEdit && String(existing[f.name]||'')===String(p.id)) o.selected=true;
+          sel.appendChild(o);
+        });
+      }).catch(function(){ /* the field stays "Not named" */ });
+    });
   };
 
   window.bcmCloseModal=function(){document.getElementById('bcmModalRoot').innerHTML='';};
@@ -2665,7 +2694,7 @@
     var form=document.getElementById('bcmModalForm');
     var formData=new FormData(form);
     var body={};
-    formData.forEach(function(v,k){if(v)body[k]=v;});
+    formData.forEach(function(v,k){if(v||k==='commander_user_id')body[k]=v;});
     var url=def.apiBase;var method='POST';
     if(id){url=def.apiBase+'/'+id;method='PUT';}
     apiFetch(url,{method:method,body:body}).then(function(){

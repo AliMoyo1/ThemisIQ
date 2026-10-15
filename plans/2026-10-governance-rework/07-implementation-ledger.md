@@ -49,7 +49,21 @@ here; the owner's VPS output reported the release healthy on 2026-10-14.
 | 3C Sentinel breach clock | 03 section 6 | built, verified locally (SQLite) | `tests/test_sentinel_breach_clock.py` (9) |
 | 3D AI use signals and the other module kinds | 03 section 1 table | built, verified locally (SQLite) | inside `tests/test_change_signals.py`: one case per watched kind, and the decision, revocation and changed use handlers |
 | 3E ERM acceptance, jurisdiction cards, GRID and BCM file convergence, module homes | 03 sections 3 to 9 | not built | see Not done (3) |
-| 4 Platform truth, navigation and reports | 04 | planned | |
+| 4A Truthful dashboards and the metric registry | 04 section 2, 05 phase 1 slice A | built, verified locally (SQLite) | `tests/test_command_metrics.py` (7), `tests/test_dashboard_truth.py` (13) |
+| 4B Reports: real paths, frozen runs, presets, notes | 04 sections 2, 5, 05 phase 1 slice B | built, verified locally (SQLite, browser) | `tests/test_report_runs.py` (22), `tests/ui/test_reports_and_search_ui.py` (6) |
+| 4C My Work views, grouping, no duplicate actions | 04 section 3 | built, verified locally (SQLite, browser) | `tests/test_my_work_views.py` (6), `tests/ui/test_my_work_page.py` |
+| 4D Search, related items and disputed connections | 04 section 4 | built, verified locally (SQLite, browser) | `tests/test_search_facts.py` (7), `tests/test_entity_scope.py`, `tests/ui/test_reports_and_search_ui.py` |
+| 4E Platform functions, AI service declarations | 04 sections 6, 8 | built, verified locally (SQLite) | `tests/test_ai_declarations.py` (16), `tests/test_platform_functions.py` (3), `08-platform-functions-inventory.md` |
+| 4F Command Centre first screen and the metrics page | 04 sections 1, 7 | built, verified locally (SQLite, browser) | `tests/test_first_screen.py` (5), `tests/test_metrics_page.py` (3), `tests/ui/test_command_centre_first_screen.py` (2) |
+| 4G Acceptance scenarios | 04 section 9 | built, verified locally (SQLite); scenario 5 half covered | `tests/test_plan04_acceptance.py` (8) |
+| 4H Predictive trace and the manager's team view | 04 sections 3, 9 (follow-up 11, steps 5 and 6) | built, verified locally (SQLite, browser, real PostgreSQL) | `tests/test_predictive_trace.py` (19), `tests/test_my_work_team.py` (12), `tests/ui/test_predictive_trace_ui.py` (3), `tests/ui/test_my_work_team_ui.py` (3), the PostgreSQL case |
+| 4 Platform truth, navigation and reports | 04 | built, verified locally; see Not done (4) | the stage table below |
+| 5 Delivery and acceptance records | 05 | built (documents only) | `10-completion-record.md` |
+| 6 E0 Email inventory and decisions | 06 sections 2, 9 | built (from source; nothing read on a server) | `09-email-inventory.md` |
+| 6 E1 Sender safety and truthful status | 06 sections 2, 7, 8 | built, verified locally (SQLite, browser) | `tests/test_email_transport.py` (12), `tests/test_email_producers.py` (reminders, administration), `tests/ui/test_admin_email_truthful_status.py` (2) |
+| 6 E2 Outbox, templates and the pilot paths | 06 sections 3, 5, 6 | built, verified locally (SQLite, browser) | `tests/test_email_templates.py` (9), `tests/test_email_outbox.py` (18), `tests/test_email_producers.py` (36), `tests/ui/test_profile_email_preference.py` (3); the later cases are follow-up 11 |
+| 6 E3 Urgent cases and management summaries | 06 sections 4, 9 | built for Sentinel breach and request deadlines and the GRID weekly summary and, in follow-up 11, BCM incident and exercise mail, a named AI Governance reviewer and decider, the opt in My Work summary and quiet hours. Not built: a BCM escalation clock, an alternate contact, jurisdiction wording | `tests/test_ai_governance_assignment.py` (13), `tests/ui/test_bcm_incident_commander_ui.py` (1), `tests/ui/test_ai_governance_assignment_ui.py` (2), the files above; see Not done (6) |
+| 6 E4 Provider cutover | 06 section 7 | seams built in follow-up 11 (pause, comparison by provider, runbook [12](12-email-cutover-runbook.md)); the cutover is not possible, no managed sender identity exists | `tests/test_email_outbox.py`, `tests/ui/test_admin_email_truthful_status.py` |
 
 ## Change log
 
@@ -382,6 +396,447 @@ queue script; `modules/launcher/my_work_service.py` and `templates/my_work.html`
 - **The Related Items panel** (`static/js/related_items.js`) is loaded by the shell but mounted by no screen in this tree, so
   the connected view is reached from the AI system header, the Governance tables, My Work and the changes page, not from it.
 
+### 2026-10-14, plan 04: what was found before building
+
+Read from the source on the branch `claude/plan-04-platform-truth` (cut from `master` at `a568b75`), not from production:
+
+- **Three screens still invent numbers when a read fails.** `templates/command_centre.html` carries a `fallback` object (78%
+  compliance, "ISO 27001 . ISO 9001 . PCI DSS", seven named overdue actions) that is shown when `/api/command-centre/stats`
+  fails. `modules/bcm/templates/index.html` shows a made up plan list, risk spread, activity feed and two incidents when
+  `/bcm/api/dashboard` fails or omits a field, and again on its Reports view. `modules/sentinel/templates/index.html` shows
+  24 processing records, 72 per cent coverage, five named data subject requests and an activity feed, and when the read
+  succeeds it still computes coverage against a constant (`Math.max(count, 33)`).
+- **Zero stands in for "could not read".** The Command Centre API sets `sentinel_open_breaches`, `orm_open_events`,
+  `bcm_active_incidents` and the appetite count to `0` inside `except` blocks, shows module health as 100 per cent when a
+  module has nothing recorded, and has two near copies of the statistics (one for super administrators, one scoped).
+- **The BCM dashboard is not scoped.** `/bcm/api/dashboard` counts every unit's plans, incidents, exercises and analyses.
+- **Reports.** ARIA "Generate Report" shows "Report generated successfully" after two seconds without calling anything. The
+  five BCM report buttons post definitions of types the shared engine does not register (`bcm_coverage`, `bcm_plans`,
+  `bcm_incidents`, `bcm_exercises`, `bcm_summary`), so each ends in "Report generation failed". A saved run stores its
+  output only for a super administrator; for anyone else opening the run recomputes today's numbers and shows them under the
+  run's name.
+- **Search** covers fourteen kinds with their own scope but returns no status, date or business unit, and does not search AI
+  uses or the Governance structure.
+
+Slices, in the order built: 4A (the registry, then the Command Centre, BCM and Sentinel dashboards), 4B, 4C, 4D, 4E, 4F.
+
+### 2026-10-14 and 15, 4A to 4G: platform truth, navigation and reports
+
+**Built, in the working tree, not committed** (branch `claude/plan-04-platform-truth`). New: `core/metric_registry.py`,
+`modules/launcher/command_metrics.py`, `modules/bcm/dashboard_metrics.py`, `modules/sentinel/dashboard_metrics.py`,
+`modules/launcher/report_snapshot.py`, `modules/launcher/report_builders.py`, `modules/launcher/search_service.py`,
+`modules/launcher/first_screen.py`, `core/ai_declarations.py`, `modules/launcher/templates/metrics.html`. Rewritten:
+`modules/launcher/routes_reports.py` and `templates/reports.html`. Changed: `routes_dashboard.py`, `routes_platform.py`,
+`routes_my_work.py`, `my_work_service.py`, `scoped_metrics.py`, `templates/command_centre.html`, `analytics.html`,
+`my_work.html`, `base_shell.html`, `static/js/my_work.js`, `governance_connected.js`, `modules/bcm/{routes,ai_service}.py` and
+`templates/index.html`, `modules/sentinel/{routes.py,templates/index.html}`, `modules/erm/{routes,ai_service}.py` and
+`templates/index.html`, `modules/orm/{routes,ai_service}.py`, `modules/aria/{routes.py,templates/dashboard.html}`,
+`modules/evidence/routes.py` (`coverage_for`), `modules/governance/{relationships,entity360}.py`, `core/ai_client.py`,
+`core/predictive_risk.py`, `core/framework_service.py`, `main.py` (two exception handlers), `scripts/capability_inventory.py`.
+
+**What a person gets**, by slice.
+
+- **4A, a number says what it is.** Every Command Centre card carries a state. A figure that could not be read is
+  *unavailable*, never a zero; one with nothing to measure is *not measured*, never a good looking 100 per cent; a sum that lost
+  a source is *partial* and names it; a module the viewer may not open sends no metric at all. Each figure has a stable key, a
+  plain definition, a denominator and a drilldown (or the reason it has none) in `core/metric_registry.py`, and a control
+  counts as implemented only by the status the registry names, never because a document exists. The Command Centre no longer
+  has a fallback object (78 per cent compliance and seven named overdue actions when a read failed), and the legacy keys
+  `compliance_pct`, `sla.pct` and `module_health[].pct` are `null` when nothing is recorded. The BCM dashboard reads through the
+  viewer's units and its sample plans, risks, activity and incidents are gone, also from its Reports view. The Sentinel page
+  computes coverage against the real number of processing records, or says it is not measured, instead of against a constant.
+  Board narratives are given figures and never a record title.
+- **4B, a saved report is the document that was made.** A run keeps a canonical envelope (who, when, for which scope, which
+  sources were read and which could not be) and a SHA-256 of its exact text. Only the person it was generated for opens it; if
+  they lose access the output is hidden and the refusal is written to the audit log; a run changed in the database is refused;
+  a run saved before reports were frozen is labelled *legacy* and is never recomputed; running again makes a new run linked to
+  the one before it with a change summary. A source that could not be read is blank in the run, and the run says it is
+  incomplete. Reviewer notes and disputes sit in `report_run_notes`, beside the run, which is never edited. Seventeen report
+  types: the module reports, four presets (specialist, management, board, case) built over the same definitions, and the five
+  BCM types the buttons asked for (they were not registered, so each ended in "Report generation failed"). The ARIA Generate
+  Report button now makes a real run instead of announcing success after two seconds. The executive figures are a frozen run
+  even when the assistant is off; a narrative is a draft kept with its run and given only figures. CSV export is the frozen run
+  and text that looks like a formula is written as text.
+- **4C, My Work is one list of obligations.** An unread notification is a *change*, not an action (a new "Recently changed"
+  section); an item and the notification about it are one line that says it was also notified. Every item says what kind of
+  action it is, who acts and why it is ranked where it is. Grouping (none, by source, by unit, by parent such as the audit a
+  finding belongs to) is presentation only and names each group.
+- **4D, search says what a result is.** A result carries its status, date, unit and a short permitted snippet (the narrative
+  of a privacy record is never one), through the same unit scope as the result itself. AI uses and the Governance structure
+  are searchable. Search inside a case returns only connected records the viewer may open. A connection is shown as
+  recorded, suggested or disputed, and a disputed one is marked in the connected view.
+- **4E, AI use cases declare themselves, and a feature that needs the assistant does not make an answer up.**
+  `core/ai_declarations.py` declares 54 places that call a model (the task, what it reads and leaves out, who starts it, what
+  becomes of the answer, whether a person reviews it, and what happens when the assistant is not available); the AI
+  Governance platform features page shows it. A policy refusal reaches the person with its own sentence (403) and "the
+  assistant is not available" is a 503 with the reason. The defects found while declaring are listed below.
+- **4F, the Command Centre first screen** answers four questions (what needs me, what changed, what do I have to prove, what
+  can I report) from sources that exist, each read through the person's scope, one failing source blanking only its own
+  panel. `/metrics` lists the definitions of the figures of the modules the person may open.
+- **4G, acceptance.** `tests/test_plan04_acceptance.py` has one test per scenario of plan 04 section 9, written against what
+  a specialist sees.
+
+**Rules that hold.**
+
+- A source that failed is never a sample value and never a zero. A module the viewer may not open is not announced.
+- A report figure is read once, through the viewer's own scope, then frozen. Opening a run later never recomputes it.
+- Counts, lists, exports and the narrative for one person agree because they read through one scope helper.
+- AI writes nothing a person did not review, except the three places named under Not done (4), which are declared as such.
+- A prediction never creates a risk: a critical predictive alert goes to the ERM emerging-risk inbox for a person to review.
+
+**Schema (additive).** One table, `report_run_notes`; three columns: `report_runs.snapshot_hash`,
+`report_runs.previous_run_id`, `ai_risk_predictions.emerging_id`. Nothing existing is rewritten. Old runs keep their rows and
+are labelled legacy.
+
+**Found on the way.**
+
+- **A plan review that nobody made.** `POST /bcm/api/plans/{id}/reviews` returned a fixed score of 72 with canned strengths
+  when the assistant was off, and then failed to save it (a list was bound to a text column), so the button was broken in both
+  modes. It now saves a real review with its provider, checks the plan's unit, and does not run when the assistant is off.
+- **A risk score written over the owner's.** `POST /erm/api/ai/score-risk/{id}` wrote likelihood and impact for anyone holding
+  `erm.ai.use`, without a unit check, and wrote a canned 3 by 3 when the assistant was off. It now suggests a score and the
+  page asks the person to confirm it through the ordinary update, with its own capability and scope.
+- **Fabricated content.** `identify_risks_from_responses` returned "Risk identified from assessment" at 3 by 3, and the
+  operational event analysis wrote a canned root cause into the event, both with the assistant off. Now unavailable, and the
+  event analysis fills only empty fields, only in the person's unit.
+- **A prediction that made a risk** (above). **Policy refusals were swallowed** by services that caught every exception.
+- **The topbar search lost the colon** of `?open=control:12`. It now keeps any path on this site and refuses all else.
+- **Imported risks had no business unit**, so every imported risk was organization wide. They take the importer's unit.
+- **The capability inventory** listed seven mutation routes as sign-in only because `require_auth` wraps the capability
+  check. They are capability gated; the generator now sees through the wrapper.
+- **Em dash characters** introduced by this slice into templates and code were replaced (a rule of this repository).
+
+**Checks.** Backend: `test_command_metrics.py` (7), `test_dashboard_truth.py` (13), `test_report_runs.py` (22),
+`test_my_work_views.py` (6), `test_search_facts.py` (7), `test_ai_declarations.py` (16), `test_first_screen.py` (5),
+`test_metrics_page.py` (3), `test_platform_functions.py` (3), `test_plan04_acceptance.py` (8), plus the changed
+`test_entity_scope.py` and `test_platform_ownership_surfaces.py`. Browser: `tests/ui/test_reports_and_search_ui.py` (6),
+`test_command_centre_first_screen.py` (2), `test_my_work_page.py`. Full backend result: see the stage table.
+
+**Not done (4).**
+
+- **No grouping by vendor or process** in My Work (04 section 3): grouping is by source, unit and parent record only. The
+  manager's team view was built afterwards (follow-up 11, step 6).
+- **A predictive number's trace** (acceptance scenario 5, second half) was built afterwards (follow-up 11, step 5). A
+  prediction made before it carries no trace and says so.
+- **Report sharing, a review workflow with sign-off, and retention** of saved runs: a run is for one person and is kept.
+- **No per-record version stamps** in the envelope: it names the sources and the time, not each record's version.
+- **ERM and ORM dashboard statistics are not unit scoped** (`get_dashboard_stats`), so a unit manager's board narrative is
+  written from whole organization figures. A product decision with the ERM export scope note.
+- **Workflow authoring** is open to every signed-in user of the organization (08 inventory); which role authors workflows is a
+  product decision.
+- **Three places still write without a review step**: auto-mapping of controls, the regulatory drift check and checklist
+  import risk scoring (declared in `WRITES_WITHOUT_REVIEW`). The three chats and the three board narratives still return a
+  labelled placeholder when the assistant is off, not analysis.
+- **Analytics and the Vault coverage `pct`** still render zero where nothing is recorded; the registry figures do not.
+- **The Related Items panel** is still mounted by no screen (see Not done (3)).
+
+### 2026-10-15, plan 06: email notifications and delivery (E0, E1, E2, and part of E3)
+
+**Built, in the working tree, not committed.** New: `core/email_templates.py` (the catalogue and its renderer),
+`core/email_outbox.py` (the outbox, its worker and `for_each_tenant`), `plans/2026-10-governance-rework/09-email-inventory.md`.
+Rewritten: `core/email.py` (the transport), `core/reminder_scheduler.py`, `modules/sentinel/scheduler.py`,
+`modules/evidence/scheduler.py`, `modules/grid/email_service.py`. Changed: `modules/grid/scheduler.py` (the mail jobs),
+`modules/grid/routes.py` (finding assignment and the share result), `modules/launcher/routes_admin.py` and
+`templates/admin_email.html`, `routes_auth.py` and `templates/profile.html`, `task_service.py`, `main.py` (demo request),
+`database.py` (one table, three columns), `docs/generated/capability_inventory.*` (regenerated, 1090 routes).
+
+**What a person gets.**
+
+- **An administrator sees the truth about the sender** (Admin, Email Settings). The badge says *Configured* only when a host,
+  user and password exist, and says *Console only* or *Incomplete* otherwise. A password is a deployment secret
+  (`SMTP_PASS`, `MS_CLIENT_SECRET` in the service environment): the page explains that, disables the field, and refuses to
+  store a new one in the database unless the operator set `EMAIL_ALLOW_DB_SECRETS`. A copy stored by an earlier version is
+  still read so a running installation does not stop, is reported as obscured and not encrypted, and can be cleared with an
+  explicit, confirmed action once the secret has moved. The test message reports what happened in words that cannot be taken
+  for delivery (*the provider accepted it*, *nothing was sent*, or *the provider did not accept it*) and asks the
+  administrator to say whether it arrived. A delivery queue lists counts by state and what needs attention, with a button to
+  send a message again, and shows no recipient and no text.
+- **A message says one thing and links to it.** Eleven templates form the catalogue and ten have a producer: a task
+  assigned to someone else (`action.assigned`); a finding assigned (`audit.finding`), its response deadline
+  (`audit.deadline`) and its escalation (`audit.escalation`); a control reminder a person subscribed to
+  (`control.reminder`); evidence that is about to expire (`evidence.renew`, to the file's owner or, when it has none, its
+  uploader; asked for by the Evidence job, the GRID vault job and GRID evidence files); a privacy deadline and a request
+  deadline for the named privacy officers (`privacy.deadline`, `privacy.dsr`); a weekly audit summary (`summary.weekly`);
+  and `delivery.failure`, which tells the administrators of an organization, once a day, how many messages ended as a
+  permanent failure in the last seven days. `decision.ready` has no producer (see Not done (6)). Each message is a fixed
+  subject, a reference, a date, one link to the record, a plain text part and an HTML part that say the same thing, and why
+  the person received it. A message never carries a title, a name, a narrative or a token.
+- **A person can turn off mail about assigned actions** on their profile. The page says what is always sent.
+
+**Rules that hold.**
+
+- **Nothing is called sent that was not accepted.** Statuses are `provider_accepted`, `logged_only`, `suppressed` and `failed`;
+  `ok` is true for the first only. A console fallback, a missing credential and an address that is not an address are never
+  "sent". A reminder is marked sent only on acceptance, and one that was only logged stays due and says so.
+- **One message per action, person and threshold.** The outbox key is organization, source record, recipient, channel,
+  purpose and threshold, so a retried event, a second run of a job or two jobs that overlap ask for the same message and get
+  the one that exists. A corrected due date is a new threshold and is told again. A job that failed halfway is safe to run again.
+- **The recipient and the work are checked when the message is sent, not when it was asked for.** A person who left, has no
+  valid address, belongs to another organization, may not open the record, has turned action mail off, or no longer owns the
+  work is suppressed with the reason. A critical message (breach and request deadlines) is not turned off by a preference
+  and may pass the daily cap; its first failure tells the organization's administrators in the app at once, not after the
+  retries.
+- **A worker that dies does not lose a message.** A row a worker leased and never finished is sent again when its lease has
+  run out, and no database transaction is held open while the provider is called.
+- **A request never waits on mail.** The in-app notice and the source action are committed first; asking for the email is
+  best effort after that and can never undo them.
+- **Safe headers, verified TLS, no template from a caller.** Line breaks are removed from the recipient and subject, an
+  address must be one plain address, an error is stored as its class and code only (never the recipient or the server's
+  words), STARTTLS verifies the server, the From is the authenticated mailbox for Gmail, and the link is built from
+  `APP_URL` only when it is an HTTPS origin and a route the template allows. Without an origin the message has no link and
+  says where to look.
+- **Every scheduled mail job visits each organization in turn** (`for_each_tenant`, as not a super administrator), and a
+  platform operator is not part of an organization's staff for the people a job addresses.
+
+**Schema (additive).** One table, `email_outbox` (unique `dedupe_key`; it holds fields and a reference to the source, never
+the text of a message); three columns on `email_reminders`: `delivery_status`, `delivery_error`, `attempts`. No existing row is
+changed.
+
+**Found on the way.**
+
+- **No GRID mail was ever sent.** Every template raised `NameError` while rendering (`os` was never imported in
+  `email_service.py`), so the reminders, expiry alerts, escalations, digest and finding mails failed before any send; the jobs
+  catch and log. A second defect sat behind it: the escalation query joined every administrator of the database to every
+  control, so a "manager" was any administrator of any organization.
+- **The first user was the DPO.** `_get_dpo_email` fell back to the first active row of `users`. The breach "notified" flags
+  were set after a helper that returns nothing, so a failed or console-only send was recorded as delivered, and the link in
+  the message was `#`. The DSR mail named the data subject.
+- **A reminder was marked sent when it was only logged**, and when it had no address. Its HTML was built from unescaped title
+  and message, and a recurring one was rescheduled with a SQLite-only `datetime()` call.
+- **The demo request mail never left**: `send_email(body_text=...)` was called on a function that did not take it.
+- **Evidence expiry mail** interpolated the title and the owner's name unescaped and linked to the relative path `/evidence/`;
+  the GRID vault job was written to mail the same people every day for thirty days.
+- **STARTTLS did not verify the server**, a recipient with a line break could add a header, and the sender was the placeholder
+  `noreply@example.com` whatever mailbox authenticated.
+- **The scheduled jobs did not bind a tenant.** By the contract written in `database.list_active_tenants`, a connection with
+  no tenant bound stays on the public schema, so on PostgreSQL the GRID, Sentinel, Evidence and reminder jobs would have seen
+  none of an organization's rows. They now run once per organization. This is read from the code; it was not observed on the
+  deployed installation.
+- **The organization administrator role key is `org_admin`**; older role lists in the jobs used `admin` and `super_admin`
+  only, so an organization administrator was never told. The new paths use `ADMIN_ROLES`.
+
+**Checks.** Backend: `test_email_transport.py` (12, a fake SMTP server), `test_email_templates.py` (9),
+`test_email_outbox.py` (13), `test_email_producers.py` (26: the GRID jobs, vault expiry through both jobs, the finding and
+task assignment, the Sentinel jobs, the reminders, the administration routes, the people a job addresses, the failure
+report, the preference, the demo request). Browser:
+`tests/ui/test_admin_email_truthful_status.py` (2), `test_profile_email_preference.py` (2), and the existing Email Settings
+files (error detail, reset, accessibility, zoom, viewports) and the audit share journey, all passed. No mailbox, credential,
+DNS record or server schedule was touched, and no real message was sent.
+
+**Not done (6).**
+
+- **E3, urgent cases.** Sentinel breach and request deadlines now use the common contract, but the jurisdiction wording and
+  the alternate human contact are not approved (owner decisions 3 and 7 in `09-email-inventory.md`): the message states the
+  deadline the application recorded, and an administrator is told in the app when nobody is named. BCM incident mail was
+  built afterwards for a named commander (follow-up 11, step 3); a BCM escalation clock and an alternate contact were not.
+- **Management summaries across modules** were built afterwards as an opt in My Work summary (follow-up 11, step 2).
+- **AI Governance review and decision mail** was built afterwards for a named reviewer or decider (follow-up 11, step 4).
+  With nobody named it stays in the app only, as the plan requires.
+- **Preferences beyond action mail** were built afterwards: a daily or weekly summary and quiet hours (follow-up 11, step 2).
+  A tenant cannot override them (owner decision 4).
+- **Bounces and replies.** The Reply-To comes from `SMTP_REPLY_TO`; no bounce or reply intake exists. SPF, DKIM and DMARC are
+  a property of the real sending domain and were not checked.
+- **Rate limits per minute and per account**, and retention (a purge) of old outbox rows.
+- **Task updates and bulk assignment** do not notify at all (no in-app notice exists there either), so they send no mail.
+- **The audit share link** keeps its direct send (a recipient bound, signed in link). Its token expiry and revocation review
+  is open; the creator now sees `email_status`.
+- **E4, provider cutover**: no managed sender identity exists. Its seams (pause, comparison by provider, the runbook
+  [12](12-email-cutover-runbook.md)) were built afterwards (follow-up 11, step 1). **A pilot** with named recipients on a real
+  mailbox, a second mailbox provider and an inbox placement check has not happened.
+
+### 2026-10-15, follow-up 11: the items the first build of plans 04 to 06 left
+
+**Built, in the working tree, not committed.** After the first build the owner asked to deal with the five items it had
+reported as not built. The plan and its running log are [11](11-follow-up-plan.md); the cutover runbook is
+[12](12-email-cutover-runbook.md). New: `modules/launcher/summary_mail.py`, `modules/launcher/predictive_trace.py`,
+`modules/ai_governance/assignment.py`. Changed: `core/email_outbox.py` (pause, comparison by provider, preferences, quiet
+hours, the open checks for four more kinds), `core/email_templates.py` (`bcm.incident`, `bcm.exercise`, `summary.mywork`),
+`core/auth.py` (`licensed_modules_for`), `core/events.py`, `core/predictive_risk.py`, `database.py` (three nullable columns,
+one table), the BCM routes, data service, scheduler and page, the AI Governance service, decisions, handlers, routes and two
+scripts, `my_work_service.py` with its route, template and script, the profile and Email Settings pages, `routes_dashboard.py`
+with the Command Centre template, and `docs/generated/capability_inventory.*` (regenerated, 1099 routes).
+
+**What a person gets.**
+
+- **An administrator can pause the queue and compare providers** (Email Settings). Pause sending holds every message but a
+  critical one; held messages stay queued and a hold is not an attempt; the page shows a notice while paused and the
+  deliveries by provider for the last 30 days. The cutover runbook is [12](12-email-cutover-runbook.md). The cutover itself
+  needs a managed sender identity that does not exist: nothing was switched.
+- **A person can choose how much mail they get** (Profile). Action mail on or off; one by one or in a daily summary; a weekly
+  summary; quiet hours with a UTC offset in 15 minute steps. Mail that is not critical waits for the end of quiet hours
+  without using an attempt; critical mail ignores every choice. The My Work summary (`summary.mywork`) is opt in, is sent
+  after 07:00 local time at most once a day or week and never for zero, and its counts are the ones the person sees on My Work.
+- **A BCM incident can name its commander as a person**, from the organization's people who can open Business Continuity.
+  The commander is told by a critical message when named or changed, and only while the incident is open and they are still
+  its commander. The owner of a planned exercise is told once, 14 days out. The free text commander, plan owner and training
+  owner stay labels and are not mailed.
+- **A review request or a decision request can name who handles it.** Nobody named is as before: everyone in scope sees it in
+  the app and nobody is mailed. A reviewer can name the reviewer of a request, and a reviewer or decider can name the decider
+  of a decision request, from people who hold the capability, can open the use and are not its requester (nor, when
+  separation is required, its owner). The person named is told in the app and by mail and sees it as theirs on My Work;
+  everyone else sees it as waiting on that person. Naming someone else stops the earlier message.
+- **A platform administrator can ask why the predictive number is what it is** (Command Centre, "Why this number?"). Each
+  of the six signals shows its rule, its period, its weight, the figure it produced and the term it added, the records
+  behind it that the viewer may open, with links, and a place to dispute the signal. A record the viewer may not open, or
+  that no longer exists, is counted and not named. A dispute is a note beside the number: it edits nothing and does not change
+  the prediction. A signal that lowers the score (a recent exercise) says so instead of showing a share of the score.
+- **A person who heads a unit can see their team's work** (My Work, "My team's"): for each person, how many items are
+  overdue, due soon, to act on and waiting on others, and the five oldest overdue items with links.
+
+**Rules that hold.**
+
+- **Only assigned work is charged to a person.** Evidence expiring, open incidents, statutory deadlines, evidence waiting for
+  any reviewer and notifications are queues many people see; counting them against each person on a team would charge one
+  item to everyone. An AI decision or request counts for a person only when it is named to them.
+- **The team view never shows more than its viewer could see.** A team is the units the viewer heads that lie inside the
+  viewer's own scope (heading a unit does not widen scope), and every item is read through the viewer's own scope after the
+  person's. A title from a module the viewer may not open is counted and not named; a source the function does not know is
+  not named.
+- **The trace is frozen with the prediction**: record ids and weights, at most 25 per signal, and the count of all. It is
+  not a live recount, so it says what the number was made from when it was made. A prediction made before this change
+  carries no trace and says so.
+- **Naming a person adds no rights.** The person named must already hold the capability and be able to open the use; the
+  service checks it when naming and the sender checks it again when sending.
+- **Nothing is called sent that was not accepted**, as before: every new template goes through the same outbox, preferences,
+  suppression and status rules.
+
+**Schema (additive).** `bcm_incidents.commander_user_id`, `ai_use_intake_requests.assigned_reviewer_id`,
+`ai_use_decisions.assigned_decider_id` (nullable) and the table `ai_risk_prediction_notes`. Preferences are rows of
+`user_preferences`. No existing row is changed; the telemetry of a new prediction gains a `trace` key.
+
+**Found on the way.**
+
+- **`body` is a rich text key.** The request layer keeps HTML tags in any field named `body`, so a dispute passed through
+  with its markup; the note now strips tags where it is stored, and every viewer shows it as plain text.
+- **The predictive share of a negative term is an absolute value**, so a recent exercise showed as a percentage of the score
+  while lowering it. The trace labels it as lowering the score. The model also clips the sum at zero; the formula shown says so.
+- **The module header says breaches are counted over 30 days; the query has no window.** The trace states the rule the code has.
+- **My Work ran the title, source and basis of an item together on one line**, and its Load more button was never hidden (a
+  `hidden` attribute loses to a `display` rule). Both fixed in the template.
+- **The notification list could not be scrolled by keyboard once it held about seven rows** (it scrolls at 320 pixels; axe:
+  `scrollable-region-focusable`). It appeared only in a long browser session, where an administrator had collected enough
+  notices, and passed on an empty database. The list is now a focusable region with a name, and
+  `tests/ui/test_notification_list_keyboard.py` fails without that. The rows are still not individually focusable: that is a
+  larger change and is not done.
+- **Amber badges are below the contrast minimum** (`.badge-high` and `.badge-progress`: `#d97706` on `#fffbeb`, 10 pixel
+  bold, 3.07 to 1 against 4.5 to 1). The axe check of `/erm/register` failed after earlier tests had put such a badge on
+  the register and passes on an empty one, so it depends on the order and the data. **Not fixed**: the colours come from the
+  shell palette and changing them is a design decision for every page; recorded here instead.
+
+**Checks.** Backend: `test_email_outbox.py` (18), `test_email_producers.py` (36), `test_email_templates.py` (9),
+`test_email_transport.py` (12), `test_ai_governance_assignment.py` (13), `test_predictive_trace.py` (19),
+`test_my_work_team.py` (12), and the My Work service and views files. Browser: `test_profile_email_preference.py` (3),
+`test_bcm_incident_commander_ui.py` (1), `test_ai_governance_assignment_ui.py` (2), `test_admin_email_truthful_status.py` (2),
+`test_predictive_trace_ui.py` (3), `test_my_work_team_ui.py` (3), `test_notification_list_keyboard.py` (1). PostgreSQL: the outbox and jobs case, and one for the trace
+and the team view. Full lanes: see the stage table below. No mailbox, credential, DNS record or schedule was touched and no
+real message was sent.
+
+**Not done (follow-up 11).**
+
+- **E4, the cutover itself**: it needs a managed sender identity (a domain with SPF, DKIM and DMARC, and an account). Nothing in
+  the repository can create one. A pilot with a real mailbox and an inbox placement check has not happened.
+- **A BCM escalation clock and an alternate human contact**, and jurisdiction wording for Sentinel (owner decisions 3 and 7).
+  Plan owner and training owner are free text and stay unmailed.
+- **A tenant cannot override** the preferences, quiet hours or sender identity (owner decision 4); there is no purge of old
+  outbox rows, no bounce or reply intake and no per minute rate limit.
+- **A named reviewer or decider is not asked to accept and is not chased.** Nothing nudges a person who has been named and
+  does nothing; the item follows its own due dates and shows as overdue on their My Work and in the team view.
+- **The team view** reads 25 people a request (a unit can be chosen for a larger team), is based on the unit head (the schema
+  has no manager of a person), has no grouping by vendor or process and no trend.
+- **The trace** keeps 25 records a signal. A dispute is a note: it cannot be answered, closed or resolved and it notifies
+  nobody. Predictions made before the change are not back-filled.
+
+**Decisions taken (owner, 2026-10-15) and why.** The owner was shown the defaults this follow-up used and the two things
+code cannot do, and answered: "Go with your recommendations but explain them in the ledger". Each decision below is
+therefore adopted, not a default still waiting for an answer. The reasons are written down so that a later owner can change
+one on purpose. It is a confirmation of product defaults in chat; it is not a sign-off of a phase (see
+[10](10-completion-record.md)).
+
+1. **A team is the active people of the units a person heads, and of the units below them.**
+   - *Why.* The schema records one fact about who leads whom: `business_units.head_user_id`. A person has no "reports to".
+     Using the unit head needs no new schema, no data entry and no screen, and it follows the same unit tree that already
+     decides what every person may see, so the team and the scope cannot drift apart.
+   - *Cost.* A matrix organization is not described: someone who reports to a person outside their own unit is not on that
+     person's team. A unit with no head gives nobody a team view.
+   - *Change it by.* Adding a "reports to" field and reading it in `team_units` (one function). Nothing else depends on how a
+     team is found.
+2. **Heading a unit does not widen what the head may see**: a team is the units a person heads that already lie inside their
+   own scope.
+   - *Why.* Naming a head is an edit of the unit (`governance.entities.manage`: platform administrator, GRC officer,
+     compliance manager, risk owner, organization administrator), and nothing checks that the named person belongs to the
+     unit. If heading granted reach, anyone who may edit a unit could appoint themselves head of another and read what its
+     people are late on. The head stays a label; scope stays what the unit tree and the role say.
+   - *Cost.* A head who is not placed in the unit, or in a unit above it, sees no team until they are, and the page does not
+     say why: it simply does not offer the view.
+   - *Change it by.* Not without deciding who may name heads: the alternative is a higher capability for naming a head and
+     only then letting it widen scope.
+3. **Only work assigned to a person is counted against them.**
+   - *Why.* Much of My Work is a shared queue that everyone with a capability sees: evidence expiring, open incidents,
+     statutory privacy deadlines, evidence waiting for any reviewer, and any AI request or decision nobody is named for.
+     Counted per person, five people who may decide three pending decisions would show fifteen items, and one statutory
+     deadline would read as five people's lateness. A manager asks who is late on what they own; assigned work answers that.
+   - *What counts.* Tasks assigned to or created by the person, workflow decisions assigned to them, policy approvals, GRID
+     findings they are assigned or lead, ERM reviews they own or review, ORM events they own, change reviews, and AI items
+     that are theirs by name (a named reviewer or decider, a literacy course, a condition, a returned request).
+   - *Cost.* A shared item that is overdue with nobody named is on nobody's line in the team view. That is the reason naming
+     was built (decision 7): name someone for anything that matters. An "unassigned queue" row is the natural addition and
+     is not built.
+   - *Change it by.* Moving a source in or out of `_ASSIGNED_SOURCES` and `_ASSIGNED_AI` in `my_work_service.py`.
+4. **Summaries are opt in, per person.**
+   - *Why.* Whether a person wants a digest, and how often, is theirs to say; nothing arrives that they did not ask for,
+     which is the plan's rule for role scoped mail. It is opt in rather than on because the sender is still a temporary
+     account with a daily cap and no managed domain: switching on a new stream for everyone on the day of deployment would
+     spend that cap, and the sender's reputation, before the pilot has measured anything.
+   - *Cost.* Adoption depends on people finding the switch on their profile; nobody is reminded.
+   - *Change it by.* Defaulting `email.weekly` or `email.mode` on for a tenant is a small change once the sender is managed.
+5. **Quiet hours use a fixed UTC offset in 15 minute steps, not a named time zone.**
+   - *Why.* A named zone needs a time zone database and daylight saving rules in every worker and every test, and the region
+     the pilot runs in (UTC+2 all year in Zimbabwe) has no daylight saving, so a fixed offset is exact there. Critical mail
+     (breach and request deadlines, an incident commander) ignores quiet hours and every preference, so a late hour never
+     holds back a statutory message.
+   - *Cost.* A person in a zone with daylight saving must change their offset twice a year.
+   - *Change it by.* Replacing `local_now` and `quiet_until` in `core/email_outbox.py`; a named zone is the only thing that
+     would change in what is stored.
+6. **Preferences and quiet hours are platform wide; a tenant cannot override them** (owner decision 4 in
+   [09](09-email-inventory.md)).
+   - *Why.* An override needs an administrator screen, a rule for which wins between the tenant and the person, and per
+     tenant storage. There is one pilot tenant and the sender identity is the platform's anyway; building precedence rules
+     before a second tenant asks for them would be guessing.
+   - *Cost.* A tenant administrator cannot force a digest on, or switch one off, for their people.
+   - *Change it by.* Deciding the precedence first (the person over the tenant is the usual), then adding a tenant row
+     beside the person's in the `user_preferences` lookup.
+7. **Naming a reviewer or a decider is optional; nobody named is the earlier behaviour.**
+   - *Why.* The plan forbids mailing every person who might decide, and the data model had no named person. Optional naming
+     puts a specific person on the hook, and mails only them, without changing how any existing request is triaged. The
+     person named must already hold the capability, be able to open the use and not be its requester (nor its owner when
+     separation is required), so naming adds no right.
+   - *Cost.* An unnamed request still reaches nobody by mail, and a named person who does nothing is not chased.
+   - *Change it by.* Making naming required would need a default assignee rule per unit. Not recommended before the pilot has
+     shown how requests are really triaged.
+8. **An incident commander is a named user; the free text commander stays as a label.**
+   - *Why.* Mail needs an identity, and free text cannot safely be resolved to a person. Keeping the label loses nothing that
+     was typed. A commander is mailed as critical because an incident is time bound.
+   - *Cost.* Older incidents have only the label and are never mailed.
+9. **A prediction's trace is frozen with it, and a dispute is a note.**
+   - *Why.* A reviewer must be able to reproduce why the number was what it was when it was made; a live recount could
+     differ from the number it is meant to explain. A dispute records disagreement without letting anyone edit a model
+     output or a source record from the panel.
+   - *Cost.* Up to 25 record ids a signal are stored with each prediction; earlier predictions have no trace.
+
+**Recommendations for what code cannot do (owner action; nothing built).**
+
+- **The provider cutover (E4).** Recommended order: create a sending subdomain you control; publish SPF and DKIM and start
+  DMARC at `p=none`, moving to `quarantine` after a few weeks of clean reports; send as a service identity (a shared mailbox
+  or an API key), never as a person's mailbox; use Microsoft Graph if the organization already runs Microsoft 365, otherwise
+  SendGrid or an SMTP relay; run a pilot with named recipients and an inbox placement check; then follow
+  [12](12-email-cutover-runbook.md), keeping the temporary account as a fallback for a week or two. The application side is
+  ready: pause, test message, comparison by provider and the runbook.
+- **A BCM escalation clock and an alternate contact.** The application needs two facts only the owner has: how long a
+  commander has to acknowledge an incident, by severity, and who is next. Recommended starting point: acknowledgement
+  windows of 15, 30 and 60 minutes for critical, high and medium incidents, and the BCM manager as the first alternate. The
+  build is then: record the acknowledgement on the incident, escalate once by mail and in the app when the window ends, and
+  show the state on the incident. The privacy deadline clock stays a separate legal decision (owner decisions 3 and 7).
+
 ## Stage verification (end of plan 02, 2026-10-14)
 
 | Lane | Result |
@@ -404,19 +859,79 @@ queue script; `modules/launcher/my_work_service.py` and `templates/my_work.html`
 
 Not run: the full browser suite in one session, and a specialist walkthrough with pilot data (plan 05 section 10).
 
+## Stage verification (end of plan 04, 2026-10-15)
+
+| Lane | Result |
+| --- | --- |
+| Full backend, SQLite (`pytest --ignore=tests/ui`), after slices 4A to 4G and before plan 06 | 2481 passed, 70 skipped (the real-PostgreSQL tests, which skip without the throwaway database), 30 minutes |
+| Focused browser files of plan 04 (reports and search, Command Centre first screen, My Work) | passed, in the browser lane of the next table |
+| Capability inventory | regenerated after 4G, 1084 routes (`--check` passes) |
+
+## Stage verification (end of plan 06, 2026-10-15)
+
+| Lane | Result |
+| --- | --- |
+| New and neighbouring backend files (transport 12, templates 9, outbox 13, producers 26; the guard files for silent swallows and security, diagnostics, Sentinel clock and write scope, GRID isolation) | 60 passed in the email files; 244 passed in the guard and neighbouring files |
+| Full backend, SQLite, after plan 06 | 2542 passed, 71 skipped (the real-PostgreSQL tests, which skip without the throwaway database), 48 minutes. An earlier attempt on the same code stood still at 46 per cent for an hour and a half while the machine was asleep; it was killed, and the rerun with a hang dump armed finished with nothing stuck |
+| Real PostgreSQL 18 (`tests/test_postgres_init.py`, container `themisiq-pg-aigov`) | 71 of 71 passed, 7 minutes; includes the new case that asks for a finding deadline message inside a tenant, sends it from that schema and checks it was asked for once and delivered once |
+| Browser files touched by plan 06 (Email Settings error detail, reset, accessibility at zoom and viewports, the truthful status page, the audit share journey, the profile preference) | 11 passed |
+| Browser files touched by plans 04 and 06 together (42 files: Command Centre, first screen, reports and search, My Work, analytics, BCM, Sentinel and ERM pages, the topbar, Email Settings and the profile, GRID findings and the audit share, the connected view, org isolation, CSRF, and the accessibility, 200 per cent zoom and desktop viewport files with the three new routes added: `/metrics`, `/my-work`, `/profile`) | 370 passed, 1 skipped, 18 minutes |
+| Capability inventory | regenerated, 1090 routes (`--check` passes) |
+
+Not run: the full browser suite in one session (about 3.8 hours), a specialist walkthrough with pilot data, and any send
+through a real mailbox.
+
+## Stage verification (follow-up 11, 2026-10-15)
+
+| Lane | Result |
+| --- | --- |
+| Focused backend files (outbox 18, producers 36, templates 9, transport 12, assignment 13, trace 19, team 12, My Work service and views) | passed |
+| Full backend, SQLite (`pytest --ignore=tests/ui`), after follow-up 11 | 2599 passed, 1 failed, 72 skipped (the real-PostgreSQL tests, which skip without the throwaway database), 51 minutes. The one failure was the hand written list in `test_email_templates.py`, which did not yet name the two new BCM templates; it was corrected and that file passes (9 of 9). The whole suite was **not** run again |
+| Real PostgreSQL 18 (`tests/test_postgres_init.py`, container `themisiq-pg-aigov`) | 72 of 72 passed, 7 minutes; includes the new case for the trace and the team view inside a tenant schema. The container was removed afterwards |
+| Browser, 36 files touched by follow-up 11 (the 11 AI Governance files, BCM, Command Centre, My Work, profile and Email Settings, the accessibility, zoom and viewport files, CSRF, organization isolation, modal and dialog, reports and search, the connected view, the shell) | 253 passed, 14 failed, 1 teardown error, 2 hours 7 minutes. The machine was suspended for about an hour and a half in the middle: 12 of the failures and the teardown error are `ERR_NETWORK_IO_SUSPENDED`, `ERR_NETWORK_ACCESS_DENIED` or a 30 second navigation timeout. The other two were real axe findings that depend on data and order (see Found on the way) |
+| The 14 failures run again, with the new accessibility checks (whole guidance file, all 23 acceptance routes for axe, the team view and trace files) | 42 passed, 5 minutes |
+| After the notification list change: the new keyboard test, the shell and theme files | 66 passed, 6 minutes; the keyboard test fails without the change (checked) |
+| After the same change, the shell wide files (axe on 23 routes, 200 per cent zoom, desktop viewports, dialog focus, modal contract, My Work, first screen) | 116 passed, 8 minutes |
+| Capability inventory | regenerated, 1099 routes (`--check` passes) |
+
+Not run: the whole browser suite in one session (about 3.8 hours); the 36 file subset again in one piece after the last
+template change (the change is one set of attributes on the notification list in the shell, every page that extends the shell
+carries it, and a representative set of pages, the accessibility, zoom and viewport files, was run again, not every file); the
+full backend suite after the one test correction; a specialist walkthrough on pilot data; and any send through a real mailbox.
+
 ## Handoff (read this first)
 
-1. Slices 1A, 1B, 1C (plan 01), 2A, 2B, 2C (plan 02) and 3A to 3D (plan 03) are built in the working tree and verified as
-   above. Nothing is committed or pushed; the owner is asked at the end. The Docker container `themisiq-pg-aigov`
-   (127.0.0.1:55433, database `themisiq_test_aigov`; recipe in the memory file `reference_test_environment.md`) is the
-   PostgreSQL lane; remove it when the programme ends (`docker rm -f themisiq-pg-aigov`).
-2. Existing browser tests were changed for the new layout and the queue fix: `test_evidence_keyboard_accessibility.py`,
-   `test_evidence_pagination.py`, `test_ai_governance_pages.py` (tab order, and the wait for the chosen request),
-   `test_ai_governance_review_desk_ui.py`.
-3. **This is where the standing instruction stops: plan 04 (platform truth, navigation and reports) is next and is not
-   started.** Its section 2 lists the truth repairs that were deliberately left for it (the ARIA Generate Report toast, the
-   BCM report types, the BCM and Sentinel example data, frozen saved report runs, the metric registry).
-4. Open decisions that block the rest of plan 03: the delegated-authority matrix for risk acceptance (ERM), legally approved
-   jurisdiction content (Sentinel), and whether GRID and BCM files should become Vault families.
-5. A specialist walkthrough on pilot data (Ali Moyo and Vivian Tsongorera) has not happened: nothing here has been seen by the
-   people it is for.
+1. Slices 1A, 1B, 1C (plan 01), 2A, 2B, 2C (plan 02) and 3A to 3D (plan 03) are built and verified as above. They were
+   committed (`d20d202`, `e0e2c13`) and merged to `master` as pull request 10 (`a568b75`, 2026-10-14, merged by the owner on
+   GitHub; this session's auto mode refuses to merge an unreviewed pull request, even with an allow rule). Deploying to the
+   VPS is the owner's step. The Docker container `themisiq-pg-aigov` (127.0.0.1:55433, database `themisiq_test_aigov`; recipe
+   in the memory file `reference_test_environment.md`) was the PostgreSQL lane. It was removed on 2026-10-15 after the last
+   run (72 of 72, after follow-up 11); recreate it from that recipe for the next lane.
+2. Plans 04, 05 and 06 are built in the working tree of the branch `claude/plan-04-platform-truth` (cut from `master` at
+   `a568b75`) and are **not committed**. Plan 04 is slices 4A to 4G; plan 05 is documents only
+   (`10-completion-record.md`); plan 06 is E0 to E2 and part of E3 (see Not done (4) and Not done (6)). Follow-up 11
+   ([11](11-follow-up-plan.md)) added the E4 seams, BCM mail, a named AI reviewer and decider, summaries and quiet hours, the
+   predictive trace and the manager's team view; its entry and stage table are above. Nothing in them is pilot live or
+   generally released.
+3. **Before this reaches a server**, the owner has three things to do that code cannot: set the mail secret in the service
+   environment (`SMTP_PASS`, `APP_URL` as an HTTPS origin, and `SMTP_REPLY_TO` if replies are monitored) and then use
+   Clear stored secrets on the Email Settings page, decide the seven questions in `09-email-inventory.md`, and run the
+   PostgreSQL lane (`tests/test_postgres_init.py`) against the build that will be deployed. The new tables `email_outbox`
+   and `report_run_notes` are declared with the platform tables, so `_migrate_all_tenant_schemas` creates them in every
+   existing tenant schema on the first start (idempotent, additive).
+4. Existing tests were changed for the new behaviour: `test_entity_scope.py`, `test_platform_ownership_surfaces.py`,
+   `tests/ui/test_my_work_page.py`. The new files are listed in the
+   slice table.
+5. Open decisions that block the rest of plan 03: the delegated-authority matrix for risk acceptance (ERM), legally approved
+   jurisdiction content (Sentinel), and whether GRID and BCM files should become Vault families. Open decisions for plan 04:
+   which role authors workflows, and whether the three chats and three board narratives are kept as labelled placeholders
+   or refuse when the assistant is off. Open decisions for plan 06 are listed in `09-email-inventory.md`. The defaults of
+   follow-up 11 were confirmed by the owner on 2026-10-15 (see "Decisions taken"). Still open for the owner: a managed sender
+   identity, and the BCM acknowledgement windows and alternate contact (a starting point is written there, not built).
+6. A specialist walkthrough on pilot data (Ali Moyo and Vivian Tsongorera) has not happened: nothing here has been seen by the
+   people it is for. A mail pilot with a real mailbox has not happened either.
+7. Nothing was pushed or deployed by this work, and nothing was committed: the owner is asked at the end.
+8. The browser lane depends on order and data. Two findings only appear after earlier tests have created records (the
+   notification list, fixed, and the amber badge contrast on `/erm/register`, not fixed), and a machine that sleeps during a
+   run produces a block of network errors that pass when run again. Run the files that failed on their own before reading
+   a failure as a defect, and give a long run keep-awake.

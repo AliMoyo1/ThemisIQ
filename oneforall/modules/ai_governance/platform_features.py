@@ -9,6 +9,7 @@ import re
 from datetime import date, datetime
 
 from config import settings
+from core.ai_declarations import declaration
 from core.ai_policy import CATEGORIES, FEATURES
 from core.rbac import has_capability
 from core.timeutils import utcnow
@@ -151,6 +152,7 @@ def list_features(db, user):
         items.append({
             "key": key, "label": label, "categories": list(categories),
             "category_labels": [CATEGORIES.get(category, category) for category in categories],
+            "declaration": declaration(key),
             "owner": record.get("owner") or "", "provider_note": record.get("provider_note") or "",
             "known_limitations": record.get("known_limitations") or "",
             "incident_path": record.get("incident_path") or "",

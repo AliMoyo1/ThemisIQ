@@ -4,6 +4,8 @@
 
 **Cross-plan navigation:** [ThemisIQ portfolio and dependency map](../ROADMAP-2026-10.md) places these plans alongside [PLAN-37](../PLAN-37-connected-compliance-experience.md), the [Evidence Vault plan](../../design/evidence-vault/PLAN.md), and the [CISO Assistant-inspired assurance plans](../ciso-assistant-features/README.md). Review that map before starting a slice so relationship, task, approval and evidence work is built once.
 
+**Integrated implementation:** The [AI Governance programme](../ai-governance/README.md) composes all nine briefs into one AI-use workspace and specifies shared record ownership, module adapters, data sources, guardrails, and release gates. This folder remains the feature-level plan; the programme does not replace it.
+
 ## Decision and sequence
 
 The strongest product opportunity is a **governed AI use journey**: register an AI use once, connect its data and vendor, complete the right assessments, obtain a recorded decision, monitor it, and assemble the supporting evidence. People should enter through a short task, see the next action, and remain able to navigate without AI. The connected-compliance vision is in [PLAN-37](../PLAN-37-connected-compliance-experience.md); the documents below are the requested **feature-specific build plans**.

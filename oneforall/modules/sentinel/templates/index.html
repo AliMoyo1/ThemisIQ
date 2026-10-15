@@ -371,6 +371,8 @@
       <div class="stat-value" id="snRopaCount">&mdash;</div>
       <div class="stat-sub" id="snRopaSub">Processing activities catalogued</div>
       <div class="pbar"><div class="pbar-fill" id="snRopaBar" style="width:0;background:white"></div></div>
+      <a href="#" id="snRopaGapLink" style="display:none;font-size:11px;color:inherit;text-decoration:underline;margin-top:6px" onclick="event.preventDefault();snShowRopaGaps()">See the processes without a record</a>
+      <div id="snRopaGapList" style="display:none;font-size:12px;margin-top:6px"></div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Active DPIAs</div>
@@ -393,6 +395,10 @@
   </div>
 
   <!-- Onboarding Banner -->
+  <div id="snUnavailable" class="card" role="alert" style="display:none;border-left:4px solid var(--red);padding:12px 16px;margin-bottom:12px;gap:12px;align-items:center;justify-content:space-between">
+    <span><strong>The privacy figures could not be read just now.</strong> A dash means "not read", not zero.</span>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="snLoadDashboard()">Try again</button>
+  </div>
   <div id="snOnboardBanner" class="card animate-fade-up anim-1" style="padding:24px;margin-bottom:16px;display:none">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <h3 style="font-size:15px;font-weight:700;margin:0 0 12px">Getting Started with Sentinel</h3>
@@ -465,7 +471,7 @@
     </div>
     <div style="overflow-x:auto">
       <table class="data-table" id="snDsrTable">
-        <thead><tr><th>Reference</th><th>Type</th><th>Status</th><th>Submitted</th><th>Due Date</th><th>Priority</th></tr></thead>
+        <thead><tr><th>Reference</th><th>Type</th><th>Status</th><th>Submitted</th><th>Due Date</th></tr></thead>
         <tbody id="snDsrBody">
           <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
         </tbody>
@@ -1226,68 +1232,84 @@
   /* ════════════════════════════════════════════════════════════════════════
      DASHBOARD
      ════════════════════════════════════════════════════════════════════════ */
-  var fallback={
-    ropa:{count:24,coverage:72,total_activities:33},
-    dpia:{active:6,high:2,medium:3,low:8,total:13},
-    dsr:{open:5,in_progress:3,completed:18,total:26,trend:'+3 this month',items:[
-      {id:'DSR-2026-041',type:'Access Request',status:'open',submitted:'2026-05-14',due:'2026-06-14',priority:'high'},
-      {id:'DSR-2026-040',type:'Erasure Request',status:'in_progress',submitted:'2026-05-12',due:'2026-06-12',priority:'critical'},
-      {id:'DSR-2026-039',type:'Portability',status:'open',submitted:'2026-05-10',due:'2026-06-10',priority:'medium'},
-      {id:'DSR-2026-038',type:'Rectification',status:'completed',submitted:'2026-05-08',due:'2026-06-08',priority:'low'},
-      {id:'DSR-2026-037',type:'Access Request',status:'in_progress',submitted:'2026-05-06',due:'2026-06-06',priority:'medium'}
-    ]},
-    breaches:{active:1},
-    activity:[
-      {text:'DPIA completed for CRM migration',time:'25 min ago'},
-      {text:'DSR-2026-040 assigned to Legal team',time:'2 hours ago'},
-      {text:'Vendor DPA signed — CloudHost Ltd',time:'5 hours ago'},
-      {text:'RoPA record added — HR onboarding',time:'Yesterday'},
-      {text:'Breach notification sent to ICO',time:'2 days ago'}
-    ]
-  };
+  // A figure is shown only when it was measured. When it could not be read, or there is nothing to measure, the card shows
+  // a dash and says which: never a zero or a sample in its place.
+  var snFailed=false;
+  function mHas(m){return !!m&&(m.state==='measured'||m.state==='partial'||m.state==='stale')&&m.value!==null&&m.value!==undefined;}
+  function mWords(m){
+    if(!m) return snFailed?'Unavailable just now. This is not a count of zero.':'Not available to you.';
+    if(m.state==='unavailable') return 'Unavailable just now. This is not a count of zero.';
+    if(m.state==='not_measured') return 'Not measured. '+(m.note||'');
+    if(m.state==='partial') return 'Partial: '+((m.sources&&m.sources.missing)||['a source']).join(', ')+' could not be read.';
+    return '';
+  }
   var allDsrItems=[];
 
-  function populateStats(ropa,dpia,dsr,breaches){
-    document.getElementById('snRopaCount').textContent=ropa.count;
-    var pct=ropa.total_activities?Math.round((ropa.count/ropa.total_activities)*100):ropa.coverage||0;
-    document.getElementById('snRopaSub').textContent=pct+'% coverage of processing activities';
+  function populateStats(mt){
+    var ropa=mt['sentinel.ropa_records'],cov=mt['sentinel.ropa_coverage'],dpia=mt['sentinel.dpia_active'],dsr=mt['sentinel.dsr_open'],br=mt['sentinel.breaches_active'];
+    var set=function(id,text){var el=document.getElementById(id);if(el)el.textContent=text;};
+    set('snRopaCount',mHas(ropa)?ropa.value:'n/a');
+    var pct=mHas(cov)?cov.value:0;
+    set('snRopaSub',mHas(cov)?pct+'% of business processes have a processing record ('+cov.detail.covered+' of '+cov.detail.total+')':'Coverage: '+mWords(cov));
     document.getElementById('snRopaBar').style.width=pct+'%';
-    document.getElementById('snDpiaCount').textContent=dpia.active;
-    document.getElementById('snDpiaSub').textContent=dpia.total+' total assessments';
-    document.getElementById('snDsrCount').textContent=(dsr.open||0)+(dsr.in_progress||0);
+    set('snDpiaCount',mHas(dpia)?dpia.value:'n/a');
+    set('snDpiaSub',mHas(dpia)?dpia.detail.total+' total assessments':mWords(dpia));
+    set('snDsrCount',mHas(dsr)?dsr.value:'n/a');
     var trendEl=document.getElementById('snDsrTrend');
-    if(dsr.trend) trendEl.querySelector('span').textContent=dsr.trend;
-    var bc=breaches.active||0;
-    document.getElementById('snBreachCount').textContent=bc;
+    if(trendEl) trendEl.querySelector('span').textContent=mHas(dsr)?dsr.detail.total+' requests in total':mWords(dsr);
+    var bc=mHas(br)?br.value:0;
+    set('snBreachCount',mHas(br)?bc:'n/a');
     var card=document.getElementById('snBreachCard');
-    if(bc>0){card.classList.add('stat-card-alert');document.getElementById('snBreachSub').textContent='Requires immediate attention';}
-    else{card.classList.remove('stat-card-alert');document.getElementById('snBreachSub').textContent='No active incidents';}
+    if(mHas(br)&&bc>0){card.classList.add('stat-card-alert');set('snBreachSub','Requires immediate attention');}
+    else{card.classList.remove('stat-card-alert');set('snBreachSub',mHas(br)?'No active incidents':mWords(br));}
     // Sidebar counts
-    var nr=document.getElementById('sideNavRopa');if(nr)nr.textContent=ropa.count;
-    var nd=document.getElementById('sideNavDpia');if(nd)nd.textContent=dpia.total||dpia.active;
-    var ns=document.getElementById('sideNavDsr');if(ns)ns.textContent=(dsr.open||0)+(dsr.in_progress||0);
-    var nb=document.getElementById('sideNavBreaches');if(nb&&bc>0){nb.textContent=bc;nb.style.display='inline-block';}
-    // Onboarding banner
+    var nr=document.getElementById('sideNavRopa');if(nr)nr.textContent=mHas(ropa)?ropa.value:'';
+    var nd=document.getElementById('sideNavDpia');if(nd)nd.textContent=mHas(dpia)?dpia.detail.total:'';
+    var ns=document.getElementById('sideNavDsr');if(ns)ns.textContent=mHas(dsr)?dsr.value:'';
+    var nb=document.getElementById('sideNavBreaches');if(nb){if(mHas(br)&&bc>0){nb.textContent=bc;nb.style.display='inline-block';}else{nb.style.display='none';}}
+    // Onboarding banner: only when everything it rests on was read and is zero
     var ob=document.getElementById('snOnboardBanner');
-    if(ob&&!localStorage.getItem('hide_sn_onboard')){ob.style.display=(ropa.count===0&&(dpia.total||0)===0&&(dsr.total||0)===0)?'':'none';}
+    if(ob&&!localStorage.getItem('hide_sn_onboard')){
+      ob.style.display=(mHas(ropa)&&ropa.value===0&&mHas(dpia)&&dpia.detail.total===0&&mHas(dsr)&&dsr.detail.total===0)?'':'none';
+    }
     // Quick-add link on zero-count hero card
     var qa=document.getElementById('snRopaCount');
-    if(qa&&ropa.count===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();sentinelRouter.navigate(\'/sentinel/ropa\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add first record</a>');}
+    if(qa&&mHas(ropa)&&ropa.value===0&&!qa.dataset.qaAdded){qa.dataset.qaAdded='1';qa.insertAdjacentHTML('afterend','<a href="#" onclick="event.preventDefault();sentinelRouter.navigate(\'/sentinel/ropa\')" style="font-size:11px;color:var(--accent);display:block;margin-top:4px">+ Add first record</a>');}
+    // The processes behind the coverage figure
+    var gap=document.getElementById('snRopaGapLink');
+    if(gap) gap.style.display=(mHas(cov)&&cov.detail.total>cov.detail.covered)?'':'none';
   }
-  function populateDsrStatus(dsr){
+  window.snShowRopaGaps=async function(){
+    var el=document.getElementById('snRopaGapList');
+    if(!el) return;
+    try{
+      var r=await apiFetch('/sentinel/api/ropa/coverage-gaps');
+      var items=(r&&r.items)||[];
+      el.innerHTML=items.length
+        ? '<ul style="margin:0;padding-left:18px">'+items.map(function(i){return '<li><a style="color:inherit" href="'+esc(i.url).replace(/"/g,'&quot;')+'">'+esc(i.name)+'</a></li>';}).join('')+'</ul>'
+        : 'Every business process you may open has a processing record.';
+      el.style.display='';
+    }catch(e){ el.textContent='The list could not be read just now.'; el.style.display=''; }
+  };
+
+  function populateDsrStatus(m){
     var el=document.getElementById('snDsrStatus');
+    if(!mHas(m)){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+esc(mWords(m))+'</div>';return;}
+    var dsr=m.detail;
     var rows=[{label:'Open',count:dsr.open||0,color:'var(--amber)'},{label:'In Progress',count:dsr.in_progress||0,color:'var(--blue)'},{label:'Completed',count:dsr.completed||0,color:'var(--green-status)'}];
     el.innerHTML=rows.map(function(r){return '<div class="sn-status-row"><div class="sn-status-dot" style="background:'+r.color+'"></div><div class="sn-status-label">'+r.label+'</div><div class="sn-status-val">'+r.count+'</div></div>';}).join('')+
-    '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--muted);font-weight:600">Total Requests</span><span style="font-family:var(--mono);font-weight:700;color:var(--text)">'+(dsr.total||(dsr.open+dsr.in_progress+dsr.completed))+'</span></div>';
+    '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--muted);font-weight:600">Total Requests</span><span style="font-family:var(--mono);font-weight:700;color:var(--text)">'+dsr.total+'</span></div>';
   }
-  function populateRiskDonut(dpia){
+  function populateRiskDonut(m){
+    var known=mHas(m);
+    var dpia=known?m.detail:{};
     var counts=[Math.max(0,dpia.high||0),Math.max(0,dpia.medium||0),Math.max(0,dpia.low||0)];
     var total=counts.reduce(function(sum,n){return sum+n;},0);
     var circ=2*Math.PI*42;
-    document.getElementById('snRiskTotal').textContent=total||dpia.total||0;
-    document.getElementById('snRiskHighVal').textContent=counts[0];
-    document.getElementById('snRiskMedVal').textContent=counts[1];
-    document.getElementById('snRiskLowVal').textContent=counts[2];
+    document.getElementById('snRiskTotal').textContent=known?total:'\u2014';
+    document.getElementById('snRiskHighVal').textContent=known?counts[0]:'\u2014';
+    document.getElementById('snRiskMedVal').textContent=known?counts[1]:'\u2014';
+    document.getElementById('snRiskLowVal').textContent=known?counts[2]:'\u2014';
     function paint(){
       var angle=-90;
       ['snRiskHigh','snRiskMed','snRiskLow'].forEach(function(id,i){
@@ -1305,7 +1327,8 @@
   }
   function populateActivity(items){
     var el=document.getElementById('snRecentActivity');
-    if(!items||!items.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';return;}
+    if(items===null||items===undefined){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">'+(snFailed?'Not read just now':'The activity could not be read just now')+'</div>';return;}
+    if(!items.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';return;}
     el.innerHTML=items.map(function(a,i){
       var isLast=i===items.length-1;
       return '<div class="tl-item"><div class="tl-col"><div class="tl-dot" style="box-shadow:0 0 0 2px var(--accent);border-color:var(--surface)"></div>'+(isLast?'':'<div class="tl-line"></div>')+'</div><div class="tl-content"><div class="tl-name">'+esc(a.text||a.description||'')+'</div><div class="tl-date">'+esc(a.time||timeAgoShort(a.created_at))+'</div></div></div>';
@@ -1313,39 +1336,48 @@
   }
   function renderDashDsrTable(items){
     var body=document.getElementById('snDsrBody');
-    if(!items||!items.length){body.innerHTML=emptyRow(6,'No data subject requests found');return;}
+    if(items===null||items===undefined){body.innerHTML=emptyRow(5,snFailed?'The requests could not be read just now. This is not an empty list.':'Not available to you');return;}
+    if(!items.length){body.innerHTML=emptyRow(5,'No data subject requests found');return;}
     body.innerHTML=items.slice(0,10).map(function(d){
-      var statusCls={open:'badge-high',in_progress:'badge-progress',completed:'badge-complete',closed:'badge-complete'}[d.status]||'badge-medium';
-      var priCls={critical:'badge-critical',high:'badge-high',medium:'badge-medium',low:'badge-low'}[d.priority]||'badge-low';
+      var statusCls={open:'badge-high',new:'badge-high',in_progress:'badge-progress',completed:'badge-complete',closed:'badge-complete'}[d.status]||'badge-medium';
       var sl=(d.status||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
-      var pl=(d.priority||'').replace(/\b\w/g,function(c){return c.toUpperCase();});
-      return '<tr style="cursor:pointer" onclick="sentinelRouter.navigate(\'/sentinel/dsr\')"><td><span class="item-id">'+esc(String(d.id||d.reference||''))+'</span></td><td>'+esc(d.type||d.request_type||'')+'</td><td><span class="badge '+statusCls+'">'+esc(sl)+'</span></td><td>'+fmtDate(d.submitted||d.submitted_date||d.created_at)+'</td><td>'+fmtDate(d.due||d.due_date)+'</td><td><span class="badge '+priCls+'">'+esc(pl)+'</span></td></tr>';
+      return '<tr style="cursor:pointer" onclick="sentinelRouter.navigate(\'/sentinel/dsr\')"><td><span class="item-id">'+esc(String(d.id||''))+'</span></td><td>'+esc(d.type||'')+'</td><td><span class="badge '+statusCls+'">'+esc(sl)+'</span></td><td>'+fmtDate(d.submitted)+'</td><td>'+fmtDate(d.due)+'</td></tr>';
     }).join('');
   }
   window.snFilterDsr=function(status,chip){
     document.querySelectorAll('#snDsrFilters .filter-chip').forEach(function(c){c.classList.remove('active');});
     chip.classList.add('active');
-    renderDashDsrTable(status==='all'?allDsrItems:allDsrItems.filter(function(d){return d.status===status;}));
+    var list=allDsrItems||[];
+    renderDashDsrTable(status==='all'?list:list.filter(function(d){return status==='open'?(d.status==='open'||d.status==='new'):status==='completed'?(d.status==='completed'||d.status==='closed'):d.status===status;}));
   };
   window.snExportReport=function(){window.open('/sentinel/api/audit-export?format=csv','_blank');};
 
   async function loadDashboard(){
-    var ropaData=fallback.ropa,dpiaData=fallback.dpia,dsrData=fallback.dsr,breachData=fallback.breaches,activityData=fallback.activity;
-    try{
-      var results=await Promise.allSettled([fetch('/sentinel/api/ropa'),fetch('/sentinel/api/dpias'),fetch('/sentinel/api/dsrs'),fetch('/sentinel/api/breaches')]);
-      if(results[0].status==='fulfilled'&&results[0].value.ok){var r=await results[0].value.json();var it=r.records||r.items||r||[];if(Array.isArray(it))ropaData={count:it.length,coverage:72,total_activities:Math.max(it.length,33)};}
-      if(results[1].status==='fulfilled'&&results[1].value.ok){var dp=await results[1].value.json();var it2=dp.records||dp.items||dp||[];if(Array.isArray(it2)){var act=it2.filter(function(d){return d.status!=='completed'&&d.status!=='closed';});dpiaData={active:act.length,high:it2.filter(function(d){return(d.risk_level||d.risk)==='high';}).length,medium:it2.filter(function(d){return(d.risk_level||d.risk)==='medium';}).length,low:it2.filter(function(d){return(d.risk_level||d.risk)==='low';}).length,total:it2.length};}}
-      if(results[2].status==='fulfilled'&&results[2].value.ok){var ds=await results[2].value.json();var it3=ds.records||ds.items||ds||[];if(Array.isArray(it3)){var op=it3.filter(function(d){return d.status==='open'||d.status==='new';}).length;var pr=it3.filter(function(d){return d.status==='in_progress';}).length;var dn=it3.filter(function(d){return d.status==='completed'||d.status==='closed';}).length;dsrData={open:op,in_progress:pr,completed:dn,total:it3.length,trend:'+'+it3.length+' total',items:it3.map(function(d){return{id:d.reference||d.id||'',type:d.request_type||d.type||'',status:d.status||'open',submitted:d.submitted_date||d.created_at||'',due:d.due_date||'',priority:d.priority||'medium'};})};}}
-      if(results[3].status==='fulfilled'&&results[3].value.ok){var br=await results[3].value.json();var it4=br.records||br.items||br||[];if(Array.isArray(it4))breachData={active:it4.filter(function(b){return b.status!=='closed'&&b.status!=='resolved';}).length};}
-      try{var ar=await fetch('/sentinel/api/audit?limit=5');if(ar.ok){var au=await ar.json();var it5=au.records||au.items||au||[];if(Array.isArray(it5)&&it5.length>0)activityData=it5.map(function(a){return{text:a.action||a.description||a.title||'',time:timeAgoShort(a.created_at||a.timestamp||'')};});}}catch(e){}
-    }catch(e){console.warn('Sentinel dashboard: using fallback data',e);}
-    populateStats(ropaData,dpiaData,dsrData,breachData);
-    populateDsrStatus(dsrData);
-    populateRiskDonut(dpiaData);
-    populateActivity(activityData);
-    allDsrItems=dsrData.items||fallback.dsr.items;
-    renderDashDsrTable(allDsrItems);
-    document.getElementById('snLastUpdated').textContent='just now';
+    var data=null;
+    snFailed=false;
+    try{var resp=await fetch('/sentinel/api/dashboard');if(resp.ok) data=await resp.json();}catch(e){}
+    var banner=document.getElementById('snUnavailable');
+    if(!data||!data.metrics){
+      snFailed=true;
+      if(banner) banner.style.display='flex';
+      populateStats({});
+      populateDsrStatus(null);
+      populateRiskDonut(null);
+      populateActivity(null);
+      allDsrItems=null;
+      renderDashDsrTable(null);
+      document.getElementById('snLastUpdated').textContent='not read';
+    } else {
+      if(banner) banner.style.display='none';
+      var mt=data.metrics;
+      populateStats(mt);
+      populateDsrStatus(mt['sentinel.dsr_open']);
+      populateRiskDonut(mt['sentinel.dpia_active']);
+      populateActivity(data.activity===null||data.activity===undefined?null:data.activity.map(function(a){return{text:a.text,created_at:a.created_at};}));
+      allDsrItems=data.dsr_items;
+      renderDashDsrTable(allDsrItems);
+      document.getElementById('snLastUpdated').textContent='just now';
+    }
 
     // ── Regulatory Alert Banners ──────────────────────────────────────────
     // Breach 72h banner: check all open breaches
@@ -1384,6 +1416,8 @@
       }
     }catch(e){}
   }
+
+  window.snLoadDashboard=loadDashboard;
 
   /* ════════════════════════════════════════════════════════════════════════
      ROPA — Smart loader, risk filter, DPIA column, AI actions

@@ -2,6 +2,7 @@
 BCM module - Business Continuity Management.
 All routes serve JSON APIs at /bcm/api/* except the SPA index at GET /bcm/.
 """
+import json
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -41,6 +42,75 @@ async def _json_body(request: Request) -> dict:
     return sanitize_dict(body)
 
 
+def _named_commander(request: Request, value):
+    """The id of the person named as incident commander, or None. A person may be named only when they are active, in
+    this organization, and able to open BCM: the email that tells them must be one they could act on."""
+    if value in (None, ""):
+        return None
+    try:
+        uid = int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose a person from the list.") from None
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, org_id, is_active FROM users WHERE id = %s AND deleted_at IS NULL", (uid,)).fetchone()
+        roles = [r["role_key"] for r in db.execute(
+            "SELECT role_key FROM user_roles WHERE user_id = %s", (uid,)).fetchall()]
+    finally:
+        db.close()
+    actor = request.state.user
+    if (not row or not row["is_active"] or not has_capability({"roles": roles}, "module.bcm.access")
+            or (row["org_id"] != actor.get("org_id") and not actor.get("is_super_admin"))):
+        raise HTTPException(422, "That person cannot be named: they must be active in this organization and able to "
+                                 "open Business Continuity.")
+    return uid
+
+
+def _ask_commander_mail(incident_id: int, commander_id, actor_id: int) -> None:
+    """Ask the email outbox to tell a named incident commander (template bcm.incident: the reference and a link, never
+    the title or the impact). Best effort: the incident is already saved, and the person who named themselves is not
+    mailed about it."""
+    if not commander_id or commander_id == actor_id:
+        return
+    try:
+        from core import email_outbox
+        from database import get_current_org
+        db = get_db()
+        try:
+            email_outbox.enqueue_safely(
+                db, "bcm.incident", recipient_user_id=commander_id, org_id=get_current_org(),
+                route=f"/bcm/?open=incident:{incident_id}", fields={"reference": f"INC-{incident_id}"},
+                source=("bcm", "incident", incident_id), purpose="commander", threshold=str(commander_id))
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        swallowed("_ask_commander_mail")
+
+
+@router.get("/api/people")
+@require_capability("bcm.incident.manage")
+async def api_people(request: Request):
+    """People who may be named on a continuity record: the active people of this organization who can open BCM."""
+    from core.rbac import CAPABILITIES
+    roles = sorted(CAPABILITIES["module.bcm.access"])
+    marks = ",".join(["%s"] * len(roles))
+    sql = ("SELECT DISTINCT u.id, u.full_name FROM users u JOIN user_roles ur ON ur.user_id = u.id "
+           f"WHERE u.is_active = 1 AND u.deleted_at IS NULL AND ur.role_key IN ({marks})")
+    params = list(roles)
+    org = request.state.user.get("org_id")
+    if org is not None:
+        sql += " AND u.org_id = %s"
+        params.append(org)
+    db = get_db()
+    try:
+        rows = db.execute(sql + " ORDER BY u.full_name LIMIT 300", params).fetchall()
+    finally:
+        db.close()
+    return JSONResponse([{"id": r["id"], "name": r["full_name"]} for r in rows])
+
+
 @router.get("/", response_class=HTMLResponse)
 @require_module("bcm")
 async def bcm_spa(request: Request):
@@ -73,7 +143,8 @@ async def bcm_spa_page(request: Request, page: str):
 @router.get("/api/dashboard")
 @require_capability("module.bcm.access")
 async def api_dashboard(request: Request):
-    return JSONResponse(ds.get_dashboard_stats())
+    from modules.bcm import dashboard_metrics
+    return JSONResponse(dashboard_metrics.stats(request.state.user))
 
 
 @router.get("/api/bia")
@@ -581,20 +652,25 @@ async def api_plan_activations(request: Request, plan_id: int):
 @require_capability("bcm.plan.manage")
 async def api_plan_review_create(request: Request, plan_id: int):
     from modules.bcm import ai_service as ai
+    from core.ai_client import provider_name
     plan = ds.get_plan(plan_id)
-    if not plan:
+    scope = bu_scope_ids(request.state.user)
+    if not plan or (scope is not None and plan.get("business_unit_id") is not None
+                    and plan["business_unit_id"] not in scope):
         raise HTTPException(404)
     try:
         result = ai.review_plan(plan)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
-    result["plan_id"] = plan_id
-    result["reviewer_id"] = _uid(request)
-    result["reviewer_name"] = _uname(request)
-    result["provider"] = "anthropic"
-    rid = ds.create_plan_review(result)
-    result["id"] = rid
-    return JSONResponse(result, status_code=201)
+    provider = provider_name()
+    rid = ds.create_plan_review({
+        "plan_id": plan_id, "reviewer_id": _uid(request), "reviewer_name": _uname(request), "provider": provider,
+        "overall_score": result["score"], "strengths": json.dumps(result["strengths"]),
+        "gaps": json.dumps(result["weaknesses"]), "recommendations": json.dumps(result["recommendations"]),
+        "raw_response": json.dumps(result),
+    })
+    return JSONResponse({**result, "overall_score": result["score"], "gaps": result["weaknesses"], "plan_id": plan_id,
+                         "reviewer_name": _uname(request), "provider": provider, "id": rid}, status_code=201)
 
 
 @router.get("/api/incidents")
@@ -638,7 +714,9 @@ async def api_incident_detail(request: Request, inc_id: int):
 async def api_incident_create(request: Request):
     body = await _json_body(request)
     body["business_unit_id"] = request.state.user.get("business_unit_id")
+    body["commander_user_id"] = _named_commander(request, body.get("commander_user_id"))
     iid = ds.create_incident(body)
+    _ask_commander_mail(iid, body["commander_user_id"], _uid(request))
 
     # Emit incident declared event
     emit(
@@ -661,8 +739,14 @@ async def api_incident_create(request: Request):
 @require_capability("bcm.incident.manage")
 async def api_incident_update(request: Request, inc_id: int):
     body = await _json_body(request)
+    before = None
+    if "commander_user_id" in body:
+        body["commander_user_id"] = _named_commander(request, body["commander_user_id"])
+        before = ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user))
     if not ds.update_incident(inc_id, body, bu_scope=bu_scope_ids(request.state.user)):
         raise HTTPException(404)
+    if before is not None and before.get("commander_user_id") != body["commander_user_id"]:
+        _ask_commander_mail(inc_id, body["commander_user_id"], _uid(request))
 
     # Emit incident resolved event when status changes to resolved
     new_status = (body.get("status") or "").lower()
@@ -1372,16 +1456,17 @@ async def api_export_csv(request: Request):
 @router.get("/api/reports/summary")
 @require_capability("module.bcm.access")
 async def api_reports_summary(request: Request):
-    return JSONResponse(ds.get_dashboard_stats())
+    from modules.bcm import dashboard_metrics
+    return JSONResponse(dashboard_metrics.stats(request.state.user))
 
 
 @router.post("/api/reports/board")
 @require_capability("bcm.report.generate")
 async def api_reports_board(request: Request):
-    from modules.bcm import ai_service as ai
-    stats = ds.get_dashboard_stats()
+    from modules.bcm import ai_service as ai, dashboard_metrics
+    stats = dashboard_metrics.stats(request.state.user)
     try:
-        narrative = ai.generate_board_narrative(stats)
+        narrative = ai.generate_board_narrative(dashboard_metrics.for_narrative(stats))
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     return JSONResponse({"stats": stats, "narrative": narrative})

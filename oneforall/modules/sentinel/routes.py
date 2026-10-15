@@ -204,6 +204,32 @@ async def sentinel_spa_page(request: Request, page: str):
 # CROSS-MODULE: Active breach status (used by BCM, GRID, ORM dashboards)
 # ═════════════════════════════════════════════════════════════════════════════
 
+@router.get("/api/dashboard")
+@require_capability("module.sentinel.access")
+async def api_dashboard(request: Request):
+    """The privacy dashboard's numbers, each with its state, read through the caller's own scope."""
+    from modules.sentinel import dashboard_metrics
+    response = JSONResponse(dashboard_metrics.stats(request.state.user))
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@router.get("/api/ropa/coverage-gaps")
+@require_capability("module.sentinel.access")
+async def api_ropa_coverage_gaps(request: Request):
+    """Business processes the caller may open that have no processing record connected: the list behind the coverage figure."""
+    from modules.sentinel import dashboard_metrics
+    from database import get_db as _get_db
+    db = _get_db()
+    try:
+        items = dashboard_metrics.coverage_gaps(db, request.state.user)
+    finally:
+        db.close()
+    response = JSONResponse({"items": items or [], "available": items is not None})
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
 @router.get("/api/active-breach")
 @require_module("sentinel")
 async def api_active_breach(request: Request):

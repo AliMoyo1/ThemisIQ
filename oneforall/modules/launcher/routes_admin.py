@@ -1307,8 +1307,9 @@ async def admin_email_page(request: Request):
 @router.get("/api/admin/email-config")
 @_require_cap("platform.manage_users")
 async def api_email_config_get(request: Request):
-    """Return current email configuration with passwords masked."""
-    from core.email import _get_setting, _resolve_provider
+    """Return current email configuration with passwords masked, and what an administrator needs to know about the
+    sender: where the password comes from, whether a provider is really configured, and what is wrong with it."""
+    from core.email import _get_setting, _resolve_provider, health, db_secrets_allowed
 
     provider = _resolve_provider()
 
@@ -1327,8 +1328,11 @@ async def api_email_config_get(request: Request):
         "ms_client_id":      _get_setting("ms_client_id", ""),
         "ms_client_secret":  _masked("ms_client_secret_enc"),
         "resolved_provider": provider,
+        "health":            health(),
+        "secrets_in_database_allowed": db_secrets_allowed(),
         "last_test_result":  _get_setting("email_last_test_result", ""),
         "last_test_at":      _get_setting("email_last_test_at", ""),
+        "last_receipt":      _get_setting("email_last_receipt", ""),
     }
     return _JSONResp(cfg)
 
@@ -1336,10 +1340,16 @@ async def api_email_config_get(request: Request):
 @router.post("/api/admin/email-config")
 @_require_cap("platform.manage_users")
 async def api_email_config_save(request: Request):
-    """Save email configuration to the settings table."""
-    from core.email import encrypt_setting
+    """Save email configuration to the settings table.
+
+    The host, user and From address are saved here. A new password or client secret is a deployment secret (SMTP_PASS,
+    MS_CLIENT_SECRET in the service environment): it is saved in the database only when the operator allowed that on
+    purpose (EMAIL_ALLOW_DB_SECRETS), because the stored value is obscured, not encrypted. A refused secret is reported,
+    not silently dropped."""
+    from core.email import encrypt_setting, db_secrets_allowed
 
     data = await _json_body(request)
+    refused = []
     db = get_db()
     try:
         def _save(key: str, val: str):
@@ -1360,27 +1370,66 @@ async def api_email_config_save(request: Request):
         # Only update passwords if a non-masked value was submitted
         raw_pass = data.get("smtp_pass", "")
         if raw_pass and raw_pass != "__unchanged__":
-            _save("smtp_pass_enc", encrypt_setting(raw_pass))
+            if db_secrets_allowed():
+                _save("smtp_pass_enc", encrypt_setting(raw_pass))
+            else:
+                refused.append("smtp_pass")
 
         raw_secret = data.get("ms_client_secret", "")
         if raw_secret and raw_secret != "__unchanged__":
-            _save("ms_client_secret_enc", encrypt_setting(raw_secret))
+            if db_secrets_allowed():
+                _save("ms_client_secret_enc", encrypt_setting(raw_secret))
+            else:
+                refused.append("ms_client_secret")
 
         db.commit()
     finally:
         db.close()
 
     log_audit(request.state.user, "platform", "email_config_update",
-              details=f"Email provider set to: {data.get('provider','')}")
-    return _JSONResp({"success": True})
+              details=f"Email provider set to: {data.get('provider','')}"
+                      + (f"; not saved because secrets belong in the service environment: {', '.join(refused)}"
+                         if refused else ""))
+    out = {"success": True}
+    if refused:
+        out["secrets_not_saved"] = refused
+        out["notice"] = ("The settings were saved, but the password was not: set SMTP_PASS (or MS_CLIENT_SECRET) in the "
+                         "service environment and restart the service. A password stored in the database is only "
+                         "obscured, not encrypted.")
+    return _JSONResp(out)
+
+
+@router.post("/api/admin/email-config/clear-secrets")
+@_require_cap("platform.manage_users")
+async def api_email_clear_secrets(request: Request):
+    """Remove the passwords and keys an earlier version stored, obscured, in the settings table. Done after the secret
+    is set in the service environment and rotated; with no environment secret, mail stops."""
+    data = await _json_body(request)
+    if data.get("confirm") is not True:
+        raise HTTPException(400, "Confirm that the secret is set in the service environment before clearing the stored copy")
+    cleared = []
+    db = get_db()
+    try:
+        for key in ("smtp_pass_enc", "ms_client_secret_enc", "sendgrid_api_key_enc"):
+            cur = db.execute("DELETE FROM settings WHERE key=%s", (key,))
+            if getattr(cur, "rowcount", 0):
+                cleared.append(key)
+        db.commit()
+    finally:
+        db.close()
+    log_audit(request.state.user, "platform", "email_secrets_cleared", details=", ".join(cleared) or "none stored")
+    return _JSONResp({"success": True, "cleared": cleared})
 
 
 @router.post("/api/admin/email-test")
 @_require_cap("platform.manage_users")
 async def api_email_test(request: Request):
-    """Send a test email to the requesting admin's address."""
-    from core.email import send_email, test_connection, _get_setting
+    """Send a test email to the requesting admin's address and say what happened in words that cannot be mistaken for
+    delivery: the provider accepted it, it was only logged, or it failed. Whether it arrived is confirmed by the person
+    who opens the mailbox (/api/admin/email-test/receipt)."""
+    from core.email import send_email, test_connection, STATUS_LOGGED
     import datetime as _dt
+    import html as _html
 
     admin       = request.state.user
     admin_email = admin.get("email", "")
@@ -1389,41 +1438,132 @@ async def api_email_test(request: Request):
 
     # First validate config without sending
     check = test_connection()
-    if not check["ok"] and check["provider"] not in ("console",):
+    if check.get("status") == STATUS_LOGGED:
+        detail = "No mail provider is configured: nothing was sent and nothing left the platform. " + check.get("detail", "")
+        _save_test_result(detail, ok=False)
+        return _JSONResp({"ok": False, "status": STATUS_LOGGED, "provider": check.get("provider", "unknown"),
+                          "detail": detail})
+    if not check["ok"]:
         _save_test_result(check.get("detail", "Connection failed"), ok=False)
-        return _JSONResp({"ok": False, "provider": check.get("provider", "unknown"), "detail": "Email connection test failed"})
+        return _JSONResp({"ok": False, "status": check.get("status"), "provider": check.get("provider", "unknown"),
+                          "detail": "Email connection test failed: " + str(check.get("detail", ""))})
 
     # Send a real test message
+    stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    esc = _html.escape
     body_html = f"""
     <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">
       <div style="background:#1e3a8a;color:white;padding:16px 20px;border-radius:8px 8px 0 0;font-size:16px;font-weight:700">
-        ✅ ThemisIQ — Email Test
+        ThemisIQ: email test
       </div>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:20px">
         <p>This is a test email from <strong>ThemisIQ</strong>.</p>
-        <p>If you received this, your email configuration is working correctly.</p>
+        <p>If you received this, mail from this installation reaches your mailbox.</p>
         <table style="margin-top:16px;font-size:12px;color:#64748b;border-collapse:collapse">
-          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Sent to:</td><td>{admin_email}</td></tr>
-          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Sent at:</td><td>{_dt.datetime.now(_dt.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</td></tr>
-          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Provider:</td><td>{check['provider']}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Sent to:</td><td>{esc(admin_email)}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Sent at:</td><td>{esc(stamp)}</td></tr>
+          <tr><td style="padding:3px 10px 3px 0;font-weight:600">Provider:</td><td>{esc(str(check['provider']))}</td></tr>
         </table>
       </div>
     </div>
     """
+    body_text = (f"This is a test email from ThemisIQ.\nIf you received this, mail from this installation reaches your "
+                 f"mailbox.\n\nSent to: {admin_email}\nSent at: {stamp}\nProvider: {check['provider']}\n")
 
     result = send_email(
         to=admin_email,
-        subject="[ThemisIQ] Email configuration test",
+        subject="ThemisIQ: email configuration test",
         body_html=body_html,
+        body_text=body_text,
     )
 
-    ok = result["ok"]
+    ok = bool(result.get("ok"))
+    status = result.get("status")
     provider = result.get("provider", "unknown")
-    detail = ("Sent via " + provider) if ok else "Email delivery failed"
-    _save_test_result(result.get("error") or detail, ok=ok)
+    if ok:
+        detail = (f"The provider ({provider}) accepted the message for {admin_email}. Accepted is not received: "
+                  "check the mailbox and confirm below.")
+    elif status == STATUS_LOGGED:
+        detail = "Nothing was sent: no mail provider is configured."
+    else:
+        detail = "The provider did not accept the message: " + str(result.get("error") or result.get("reason") or "unknown error")
+    _save_test_result(detail, ok=ok)
     log_audit(request.state.user, "platform", "email_test",
-              details=f"Test email to {admin_email}: {'ok' if ok else 'failed'}")
-    return _JSONResp({"ok": ok, "provider": provider, "detail": detail, "to": admin_email})
+              details=f"Test email to {admin_email}: {status or 'unknown'}")
+    return _JSONResp({"ok": ok, "status": status, "provider": provider, "detail": detail, "to": admin_email,
+                      "confirm_receipt": ok})
+
+
+@router.post("/api/admin/email-test/receipt")
+@_require_cap("platform.manage_users")
+async def api_email_test_receipt(request: Request):
+    """The administrator's own statement that the test message did or did not reach the mailbox."""
+    import datetime as _dt
+    data = await _json_body(request)
+    received = data.get("received") is True
+    stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    value = ("Received" if received else "Not received") + f" ({stamp})"
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO settings(key,value) VALUES(%s,%s) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            ("email_last_receipt", value),
+        )
+        db.commit()
+    finally:
+        db.close()
+    log_audit(request.state.user, "platform", "email_test_receipt", details=value)
+    return _JSONResp({"success": True, "last_receipt": value})
+
+
+@router.get("/api/admin/email-outbox")
+@_require_cap("platform.manage_users")
+async def api_email_outbox(request: Request):
+    """The delivery queue of this organization: counts by state, and what needs attention (failed, logged only, or
+    waiting to retry). No recipient or message text: a reference to the source record and what the provider said."""
+    from core import email_outbox
+    db = get_db()
+    try:
+        return _JSONResp(email_outbox.summary(db))
+    finally:
+        db.close()
+
+
+@router.post("/api/admin/email-outbox/{outbox_id}/requeue")
+@_require_cap("platform.manage_users")
+async def api_email_outbox_requeue(request: Request, outbox_id: int):
+    """Put a message that was logged only or failed back in the queue, after the configuration was fixed."""
+    from core import email_outbox
+    db = get_db()
+    try:
+        queued = email_outbox.requeue(db, outbox_id)
+        db.commit()
+    finally:
+        db.close()
+    if not queued:
+        raise HTTPException(409, "That message was already sent, or it no longer exists")
+    log_audit(request.state.user, "platform", "email_outbox_requeue", details=f"Message {outbox_id} queued again")
+    return _JSONResp({"success": True})
+
+
+@router.post("/api/admin/email-outbox/pause")
+@_require_cap("platform.manage_users")
+async def api_email_outbox_pause(request: Request):
+    """Pause or resume sending: the first step of a provider cutover (drain the queue, switch, resume). A pause holds
+    everything except critical messages."""
+    from core import email_outbox
+    data = await _json_body(request)
+    if not isinstance(data.get("paused"), bool):
+        raise HTTPException(400, "paused must be true or false")
+    db = get_db()
+    try:
+        email_outbox.set_paused(db, data["paused"])
+        db.commit()
+    finally:
+        db.close()
+    log_audit(request.state.user, "platform", "email_outbox_pause",
+              details="Sending paused" if data["paused"] else "Sending resumed")
+    return _JSONResp({"paused": data["paused"]})
 
 
 def _save_test_result(detail: str, ok: bool):
@@ -1434,6 +1574,7 @@ def _save_test_result(detail: str, ok: bool):
         for key, val in [
             ("email_last_test_result", (("OK " if ok else "FAIL ") + detail[:200])),
             ("email_last_test_at",     _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")),
+            ("email_last_receipt",     ""),
         ]:
             db.execute(
                 "INSERT INTO settings(key,value) VALUES(%s,%s) "

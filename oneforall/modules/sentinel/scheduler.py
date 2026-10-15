@@ -1,33 +1,40 @@
 """
-Sentinel module — Background scheduler.
+Sentinel module: Background scheduler.
 
 Jobs:
   Job 1  Breach deadline monitor  (every hour)
-         - Sends email alert when 72h notify window has < 48h, < 24h, < 6h remaining
-         - Marks notification sent to avoid spamming
+         - Tells the administrators in the app when the notification deadline is less than 24 and less than 6 hours away
+           and when it has passed, once per threshold
+         - Asks the email outbox to tell the named privacy officers, once per person and threshold
 
   Job 2  DSR deadline monitor  (daily 08:00)
-         - Sends email when 7 days, 3 days, 1 day remaining
-         - Emits SENTINEL_DSR_OVERDUE event when past deadline
+         - Asks the email outbox to tell the named privacy officers at 7, 3 and 1 days
+         - Emits SENTINEL_DSR_OVERDUE when past the deadline
 
   Job 3  Retention schedule review  (weekly, Monday 07:00)
          - Creates notifications for retention records due for review
          - Creates tasks for data owners to confirm deletion / renewal
 
-All jobs are safe to run repeatedly (idempotent where possible).
+All jobs are safe to run repeatedly (idempotent where possible), and each visits every organization in turn.
+
+Who is told by email (plans/2026-10-governance-rework/06 sections 3 and 4): the active users who hold the DPO role, and
+the active user whose address is set as the DPO address in the settings. Never the first user of the table. When nobody is
+named, the administrators are told in the app, and the notice says that no email was sent. A message carries the case
+reference, the deadline and a link, never the title of a breach or the name of a data subject. Whether a recipient may
+open the case, and whether it is still open, are checked by the outbox at the moment of sending.
 """
 from __future__ import annotations
 
-import html
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from core.timeutils import utcnow, to_dt
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from database import get_db_background as get_db, sql_date_offset  # scheduler: fail-fast, never block UI
-from core.email import send_email as _core_send_email
+from core import email_outbox as outbox
+from core import email_templates as templates
 from core.best_effort import swallowed
 
 log = logging.getLogger("sentinel.scheduler")
@@ -40,27 +47,41 @@ _scheduler: BackgroundScheduler | None = None
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _esc(t) -> str:
-    return html.escape(str(t)) if t else ""
-
-
-def _send(*, to: str, subject: str, body_html: str) -> bool:
-    """Thin wrapper around core.email.send_email for backward compatibility."""
-    result = _core_send_email(to=to, subject=subject, body_html=body_html)
-    return result.get("ok", False)
-
-
-def _get_dpo_email() -> str:
+def _dpo_user_ids(org_id) -> list:
+    """The people privacy deadlines are addressed to, in one organization: the active users who hold the DPO role, and
+    the active user whose address is set as the DPO address. Never the first user of the table, and never a platform
+    operator."""
     db = get_db()
     try:
-        row = db.execute("SELECT value FROM settings WHERE key='sentinel_dpo_email'").fetchone()
-        if row:
-            return row["value"]
-        row = db.execute("SELECT value FROM settings WHERE key='dpo_email'").fetchone()
-        if row:
-            return row["value"]
-        row = db.execute("SELECT email FROM users WHERE is_active=1 ORDER BY id LIMIT 1").fetchone()
-        return row["email"] if row else ""
+        ids = outbox.organization_people(db, org_id, ("dpo",))
+        for key in ("sentinel_dpo_email", "dpo_email"):
+            row = db.execute("SELECT value FROM settings WHERE key = %s", (key,)).fetchone()
+            address = str((row["value"] if row else "") or "").strip()
+            if not address:
+                continue
+            user = db.execute(
+                "SELECT id FROM users WHERE LOWER(email) = LOWER(%s) AND is_active = 1 "
+                "AND COALESCE(is_super_admin, 0) = 0 AND (org_id = %s OR org_id IS NULL)", (address, org_id)).fetchone()
+            if user and user["id"] not in ids:
+                ids.append(user["id"])
+            break
+        return ids
+    finally:
+        db.close()
+
+
+def _ask_officers(org_id, template, recipients, *, route, fields, source, purpose, threshold, priority) -> int:
+    """Ask the outbox for one message to each named person. The outbox is the record of what was sent."""
+    db = get_db()
+    try:
+        asked = 0
+        for uid in recipients:
+            if outbox.enqueue_safely(
+                    db, template, recipient_user_id=uid, org_id=org_id, route=route, fields=fields, source=source,
+                    purpose=purpose, threshold=threshold, priority=priority):
+                asked += 1
+        db.commit()
+        return asked
     finally:
         db.close()
 
@@ -100,11 +121,15 @@ def _notify_admins(module: str, title: str, message: str, link: str = ""):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 1 — Breach 72-hour deadline monitor  (hourly)
+# Job 1: Breach 72-hour deadline monitor  (hourly)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _breach_deadline_check() -> None:
     log.info("Sentinel: running breach deadline check")
+    outbox.for_each_tenant(_breach_deadline_check_in, "Sentinel breach deadline check")
+
+
+def _breach_deadline_check_in(org_id: int) -> None:
     db = get_db()
     try:
         open_breaches = db.execute(
@@ -118,13 +143,13 @@ def _breach_deadline_check() -> None:
         db.close()
 
     now = utcnow()
-    dpo = _get_dpo_email()
+    recipients = _dpo_user_ids(org_id)
+    unnamed = "" if recipients else " No privacy officer is named, so no email was sent: name a user with the DPO role."
 
     for b in open_breaches:
         bid = b["id"]
         ref = b["ref_number"] or f"BRE-{bid}"
         title = b["title"] or "Data Breach Incident"
-        severity = b["severity"] or "unknown"
         regulation = b["regulation"] or "GDPR"
 
         try:
@@ -146,91 +171,44 @@ def _breach_deadline_check() -> None:
 
         hours_left = (deadline - now).total_seconds() / 3600
         window_label = "ASAP" if is_asap else f"{deadline_h}h"
+        level = "6h" if 0 < hours_left <= 6 else ("24h" if 0 < hours_left <= 24 else None)
 
-        # 24h alert (send once)
-        if hours_left <= 24 and hours_left > 0 and not b["breach_notified_24h"]:
-            _send_breach_alert(dpo, ref, title, severity, hours_left, "24h",
-                               regulation=regulation, authority=authority, window=window_label)
-            _notify_admins("sentinel",
-                f"⚠️ Breach Notification Due in {hours_left:.0f}h: {title}",
-                f"Ref {ref} — {regulation} requires notification to {authority}. "
-                f"{hours_left:.0f} hours remaining.",
-                "/sentinel/breaches")
-            _mark_breach_notified(bid, "24h")
-
-        # 6h alert (send once)
-        elif hours_left <= 6 and hours_left > 0 and not b["breach_notified_6h"]:
-            _send_breach_alert(dpo, ref, title, severity, hours_left, "6h",
-                               regulation=regulation, authority=authority, window=window_label)
-            _notify_admins("sentinel",
-                f"🚨 URGENT: Breach Notification Due in {hours_left:.0f}h: {title}",
-                f"Ref {ref} — Only {hours_left:.0f} hours until the {regulation} "
-                f"{window_label} notification deadline ({authority}).",
-                "/sentinel/breaches")
-            _mark_breach_notified(bid, "6h")
+        if level:
+            _ask_officers(
+                org_id, "privacy.deadline", recipients, route=f"/sentinel/?open=breach:{bid}",
+                fields={"reference": templates.reference_or(ref, f"BRE-{bid}"),
+                        "due": deadline.strftime("%Y-%m-%d %H:%M"), "hours": int(hours_left)},
+                source=("sentinel", "breach", bid), purpose="deadline", threshold=level, priority="critical")
+            already = b["breach_notified_6h"] if level == "6h" else b["breach_notified_24h"]
+            if already:
+                continue
+            if level == "24h":
+                _notify_admins(
+                    "sentinel", f"Breach Notification Due in {hours_left:.0f}h: {title}",
+                    f"Ref {ref}: {regulation} requires notification to {authority}. "
+                    f"{hours_left:.0f} hours remaining.{unnamed}", "/sentinel/breaches")
+            else:
+                _notify_admins(
+                    "sentinel", f"URGENT: Breach Notification Due in {hours_left:.0f}h: {title}",
+                    f"Ref {ref}: Only {hours_left:.0f} hours until the {regulation} "
+                    f"{window_label} notification deadline ({authority}).{unnamed}", "/sentinel/breaches")
+            _mark_breach_notified(bid, level)
 
         # Overdue
         elif hours_left <= 0:
             hours_overdue = abs(hours_left)
             if hours_overdue < 2:  # only notify once when it first tips over
-                _notify_admins("sentinel",
-                    f"🔴 OVERDUE: Breach Notification Deadline Passed — {title}",
-                    f"Ref {ref} — The {regulation} {window_label} notification deadline "
-                    f"({authority}) has passed. Immediate action required.",
-                    "/sentinel/breaches")
+                _notify_admins(
+                    "sentinel", f"OVERDUE: Breach Notification Deadline Passed: {title}",
+                    f"Ref {ref}: The {regulation} {window_label} notification deadline "
+                    f"({authority}) has passed. Immediate action required.", "/sentinel/breaches")
 
-    log.info("Sentinel: breach deadline check complete (%d open breaches checked)", len(open_breaches))
-
-
-def _send_breach_alert(to: str, ref: str, title: str, severity: str,
-                       hours_left: float, alert_level: str,
-                       regulation: str = "GDPR", authority: str = "DPA",
-                       window: str = "72h") -> None:
-    if not to:
-        return
-    urgency = "URGENT" if alert_level == "6h" else "Important"
-    body = f"""
-<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-  <div style="background:#dc2626;color:white;padding:20px 24px;border-radius:8px 8px 0 0">
-    <h2 style="margin:0;font-size:18px">⚠️ {_esc(urgency)}: Breach Notification Deadline</h2>
-    <p style="margin:8px 0 0;opacity:.85;font-size:13px">
-      {_esc(regulation)} — {_esc(window)} notification deadline to {_esc(authority)}
-    </p>
-  </div>
-  <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-    <p style="font-size:15px;color:#111">
-      The breach notification window is closing. Action required.
-    </p>
-    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">
-      <tr><td style="padding:8px 0;color:#6b7280;width:40%">Reference</td>
-          <td style="font-weight:700">{_esc(ref)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Title</td>
-          <td style="font-weight:700">{_esc(title)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Regulation</td>
-          <td style="font-weight:700">{_esc(regulation)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Authority</td>
-          <td style="font-weight:700">{_esc(authority)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Severity</td>
-          <td style="font-weight:700;color:#dc2626">{_esc(severity.upper())}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Time remaining</td>
-          <td style="font-weight:700;color:#dc2626">{hours_left:.1f} hours</td></tr>
-    </table>
-    <p style="font-size:13px;color:#6b7280">
-      Where notification to the supervisory authority is required, it must be completed
-      within the deadline set by {_esc(regulation)}.
-    </p>
-    <a href="#" style="display:inline-block;background:#dc2626;color:white;padding:10px 20px;
-       border-radius:6px;text-decoration:none;font-size:14px;font-weight:700;margin-top:8px">
-      Open Breach Record
-    </a>
-  </div>
-</div>"""
-    _send(to=to,
-          subject=f"[{alert_level} ALERT] {regulation} Breach Notification Due — {ref}",
-          body_html=body)
+    log.info("Sentinel: breach deadline check complete in organization %s (%d open breaches checked)",
+             org_id, len(open_breaches))
 
 
 def _mark_breach_notified(bid: int, level: str) -> None:
+    """Records that the administrators were told in the app. It says nothing about email: the outbox does."""
     col = "breach_notified_24h" if level == "24h" else "breach_notified_6h"
     db = get_db()
     try:
@@ -243,11 +221,15 @@ def _mark_breach_notified(bid: int, level: str) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 2 — DSR 30-day deadline monitor  (daily 08:00)
+# Job 2: DSR 30-day deadline monitor  (daily 08:00)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _dsr_deadline_check() -> None:
     log.info("Sentinel: running DSR deadline check")
+    outbox.for_each_tenant(_dsr_deadline_check_in, "Sentinel DSR deadline check")
+
+
+def _dsr_deadline_check_in(org_id: int) -> None:
     db = get_db()
     try:
         open_dsrs = db.execute(
@@ -261,7 +243,8 @@ def _dsr_deadline_check() -> None:
         db.close()
 
     now = utcnow().date()
-    dpo = _get_dpo_email()
+    recipients = _dpo_user_ids(org_id)
+    unnamed = "" if recipients else " No privacy officer is named, so no email was sent."
 
     for d in open_dsrs:
         did = d["id"]
@@ -271,11 +254,9 @@ def _dsr_deadline_check() -> None:
         regulation = d["regulation"] or "GDPR"
 
         try:
-            from modules.sentinel.jurisdictions import get_dsr_deadline_days, get_authority_short
-            dsr_window = get_dsr_deadline_days(regulation)
+            from modules.sentinel.jurisdictions import get_authority_short
             authority = get_authority_short(regulation)
         except Exception:
-            dsr_window = 30
             authority = "DPA"
 
         try:
@@ -286,7 +267,7 @@ def _dsr_deadline_check() -> None:
         days_left = (deadline - now).days
 
         if days_left < 0:
-            # Overdue — emit event + notify
+            # Overdue: emit event + notify
             from core.events import emit, SENTINEL_DSR_OVERDUE
             emit(
                 SENTINEL_DSR_OVERDUE,
@@ -303,66 +284,30 @@ def _dsr_deadline_check() -> None:
                 user_id=None,
             )
         elif days_left in (7, 3, 1):
-            # Alert approaching deadline
-            if dpo:
-                _send_dsr_alert(dpo, ref, name, req_type, days_left, str(deadline),
-                                regulation=regulation, authority=authority, dsr_window=dsr_window)
-            _notify_admins("sentinel",
-                f"DSR Deadline: {days_left} day{'s' if days_left > 1 else ''} remaining — {ref}",
+            _ask_officers(
+                org_id, "privacy.dsr", recipients, route=f"/sentinel/?open=dsr:{did}",
+                fields={"reference": templates.reference_or(ref, f"DSR-{did}"), "due": str(deadline)},
+                source=("sentinel", "dsr", did), purpose="deadline", threshold=f"d{days_left}", priority=None)
+            _notify_admins(
+                "sentinel",
+                f"DSR Deadline: {days_left} day{'s' if days_left > 1 else ''} remaining: {ref}",
                 f"{regulation}: {req_type} from {name} is due in {days_left} day(s) "
-                f"({deadline}). Notify {authority} if unable to respond.",
+                f"({deadline}). Notify {authority} if unable to respond.{unnamed}",
                 "/sentinel/dsr")
 
-    log.info("Sentinel: DSR deadline check complete (%d open DSRs checked)", len(open_dsrs))
-
-
-def _send_dsr_alert(to: str, ref: str, name: str, req_type: str,
-                    days_left: int, deadline: str,
-                    regulation: str = "GDPR", authority: str = "DPA",
-                    dsr_window: int = 30) -> None:
-    urgency_color = "#dc2626" if days_left == 1 else "#f59e0b" if days_left == 3 else "#2563eb"
-    body = f"""
-<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-  <div style="background:{urgency_color};color:white;padding:20px 24px;border-radius:8px 8px 0 0">
-    <h2 style="margin:0;font-size:18px">DSR Deadline: {days_left} Day{'s' if days_left > 1 else ''} Remaining</h2>
-    <p style="margin:8px 0 0;opacity:.85;font-size:13px">
-      {_esc(regulation)} — {dsr_window}-day data subject request response requirement
-    </p>
-  </div>
-  <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">
-    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">
-      <tr><td style="padding:8px 0;color:#6b7280;width:40%">Reference</td>
-          <td style="font-weight:700">{_esc(ref)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Requester</td>
-          <td>{_esc(name)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Request type</td>
-          <td>{_esc(req_type)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Regulation</td>
-          <td>{_esc(regulation)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Authority</td>
-          <td>{_esc(authority)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Deadline</td>
-          <td style="font-weight:700;color:{urgency_color}">{_esc(deadline)}</td></tr>
-      <tr><td style="padding:8px 0;color:#6b7280">Days remaining</td>
-          <td style="font-weight:700;color:{urgency_color}">{days_left}</td></tr>
-    </table>
-    <p style="font-size:13px;color:#6b7280">
-      Data subject requests must be responded to within the timeframe required by
-      {_esc(regulation)}. Extensions must be communicated to the data subject.
-    </p>
-  </div>
-</div>"""
-    _send(to=to,
-          subject=f"[DSR Alert — {days_left}d] {regulation}: {req_type} due {deadline} — {ref}",
-          body_html=body)
+    log.info("Sentinel: DSR deadline check complete in organization %s (%d open DSRs checked)", org_id, len(open_dsrs))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 3 — Retention review monitor  (weekly Monday 07:00)
+# Job 3: Retention review monitor  (weekly Monday 07:00)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _retention_review_check() -> None:
     log.info("Sentinel: running retention review check")
+    outbox.for_each_tenant(lambda _org: _retention_review_check_in(), "Sentinel retention review check")
+
+
+def _retention_review_check_in() -> None:
     db = get_db()
     try:
         due = db.execute(

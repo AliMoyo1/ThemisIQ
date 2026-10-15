@@ -3989,3 +3989,173 @@ def test_g7_oversight_versions_are_tenant_scoped_on_real_postgres(pg):
             db.close()
     assert _raw_rows("SELECT count(*) FROM tenant_g7oversight.ai_oversight_versions") == [(1,)]
     assert _raw_rows("SELECT count(*) FROM public.ai_oversight_versions") == [(0,)]
+
+
+def test_email_outbox_and_the_scheduled_mail_jobs_run_inside_each_tenant_on_real_postgres(pg, monkeypatch):
+    """email_outbox is a platform table of every tenant schema. The scheduled jobs visit each organization, ask for one
+    message per action, and the worker sends it from that schema with the recipient checked at the moment of sending.
+    A bare connection (no tenant bound) would have seen none of the organization's findings."""
+    from datetime import timedelta
+
+    from core import email as mail
+    from core import email_outbox as outbox
+    from core.timeutils import utcnow
+    from modules.grid import scheduler as grid
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "mailorg")
+    assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_mailorg' "
+                     "AND table_name = 'email_outbox'") == [(1,)]
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, 'audit_lead')", (ids["second"],))
+        conn.commit()
+    finally:
+        conn.close()
+
+    today = utcnow().date()
+    with pg.tenant_context(org, "mailorg", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            audit = pg.insert_returning_id(db, "INSERT INTO grid_audits (name, lead_id) VALUES ('Audit', %s)", (ids["reviewer"],))
+            nc = pg.insert_returning_id(
+                db, "INSERT INTO grid_non_conformances (audit_id, title, status, assigned_to, response_deadline, cap_status) "
+                    "VALUES (%s, 'Private finding title', 'open', %s, %s, 'Open')",
+                (audit, ids["second"], (today + timedelta(days=2)).isoformat()))
+            db.commit()
+        finally:
+            db.close()
+
+    grid.process_nc_deadline_reminders()
+    grid.process_nc_deadline_reminders()
+    rows = _raw_rows("SELECT template_key, recipient_user_id, source_id, status, fields_json "
+                     "FROM tenant_mailorg.email_outbox")
+    assert len(rows) == 1, "two runs ask for the one message"
+    assert rows[0][:4] == ("audit.deadline", ids["second"], nc, "queued")
+    assert "Private finding title" not in rows[0][4]
+    assert _raw_rows("SELECT count(*) FROM public.email_outbox") == [(0,)], "asked for in the tenant, not the shared schema"
+
+    sent = []
+
+    def accepted(**kwargs):
+        sent.append(kwargs)
+        return {"status": mail.STATUS_ACCEPTED, "ok": True, "provider": "fake"}
+
+    monkeypatch.setattr(mail, "send_email", accepted)
+    monkeypatch.setenv("APP_URL", "https://app.themisiq.net")
+    totals = outbox.deliver_all_tenants()
+    assert totals.get(outbox.ACCEPTED) == 1, totals
+    assert [m["to"] for m in sent] == ["mailorg_second@example.test"]
+    assert f"https://app.themisiq.net/grid/?open=nc:{nc}" in sent[0]["body_text"]
+    assert _raw_rows("SELECT status, attempts, provider FROM tenant_mailorg.email_outbox") == [("provider_accepted", 1, "fake")]
+    assert outbox.deliver_all_tenants().get("examined", 0) == 0, "delivered once"
+
+
+def test_the_predictive_trace_and_the_team_view_run_inside_a_tenant_on_real_postgres(pg):
+    """The trace of a prediction (the collection queries that now keep record ids, the notes table, the lookup of the
+    records) and a manager's team view (the unit tree, the people, each person's assigned work) use PostgreSQL syntax
+    and a tenant schema."""
+    import json
+    from datetime import timedelta
+
+    from core import predictive_risk as pr
+    from core.timeutils import utcnow
+    from modules.launcher import my_work_service, predictive_trace
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "traceorg")
+    assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_traceorg' "
+                     "AND table_name = 'ai_risk_prediction_notes'") == [(1,)]
+    shared = pg.get_db_bypass_rls()
+    try:
+        # Users are shared, while the unit belongs to the provisioned tenant schema.
+        shared.execute("UPDATE users SET business_unit_id = %s WHERE id IN (%s, %s, %s)",
+                       (unit, ids["author"], ids["reviewer"], ids["second"]))
+        shared.commit()
+    finally:
+        shared.close()
+
+    today = utcnow().date()
+    admin = {"id": ids["reviewer"], "username": "traceorg_reviewer", "full_name": "reviewer", "org_id": org,
+             "business_unit_id": None, "is_super_admin": 1, "roles": ["super_admin"]}
+    manager = {**who["reviewer"], "full_name": "reviewer"}
+
+    def part(out, key):
+        return next(s for s in out["signals"] if s["key"] == key)
+
+    with pg.tenant_context(org, "traceorg", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            breach = pg.insert_returning_id(
+                db, "INSERT INTO sentinel_breaches (ref_number, title, severity, status, discovery_date, business_unit_id) "
+                    "VALUES ('BR-PG', 'PG breach', 'critical', 'open', %s, %s)", (today.isoformat(), unit))
+            audit = pg.insert_returning_id(
+                db, "INSERT INTO grid_audits (name, business_unit_id) VALUES ('PG audit', %s)", (unit,))
+            finding = pg.insert_returning_id(
+                db, "INSERT INTO grid_non_conformances (audit_id, title, severity, status) "
+                    "VALUES (%s, 'PG finding', 'critical', 'open')", (audit,))
+            exercise = pg.insert_returning_id(
+                db, "INSERT INTO bcm_exercises (title, status, scheduled_date, business_unit_id) "
+                    "VALUES ('PG exercise', 'completed', %s, %s)", ((today - timedelta(days=30)).isoformat(), unit))
+            event = pg.insert_returning_id(
+                db, "INSERT INTO orm_events (title, is_recurring, business_unit_id) VALUES ('PG event', 1, %s)", (unit,))
+            framework = pg.insert_returning_id(db, "INSERT INTO frameworks (name) VALUES ('PG framework')", ())
+            control = pg.insert_returning_id(
+                db, "INSERT INTO controls (framework_id, ref, name, status) VALUES (%s, 'PG-1', 'PG control', 'Not Started')",
+                (framework,))
+            db.execute("INSERT INTO erm_risk_appetite (category, max_score) VALUES ('cyber', 6)")
+            db.execute("INSERT INTO erm_enterprise_risks (title, category, likelihood, impact, status) "
+                       "VALUES ('PG cyber risk', 'cyber', 4, 4, 'open')")
+            db.commit()
+
+            metrics = pr.collect_telemetry(db)
+            trace = metrics["trace"]
+            assert trace["breaches"]["count"] == 1 and [r["id"] for r in trace["breaches"]["records"]] == [breach]
+            assert [r["id"] for r in trace["non_conformances"]["records"]] == [finding]
+            assert [r["id"] for r in trace["bcm_staleness"]["records"]] == [exercise]
+            assert [r["id"] for r in trace["orm_recurring"]["records"]] == [event]
+            assert trace["compliance_gap"]["count"] == 1 and [r["id"] for r in trace["compliance_gap"]["records"]] == [control]
+            assert trace["appetite_breaches"]["categories"] == ["cyber"]
+
+            result = pr.compute_delta_p(metrics)
+            prediction = pg.insert_returning_id(
+                db, "INSERT INTO ai_risk_predictions (delta_p, delta_cyber, delta_operational, delta_compliance, "
+                    "confidence, risk_level, telemetry_json, contributions_json) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (result["delta_p"], result["delta_cyber"], result["delta_operational"], result["delta_compliance"],
+                 result["confidence"], result["risk_level"], json.dumps(metrics),
+                 json.dumps(result["signal_contributions"])))
+            db.commit()
+
+            out = predictive_trace.build(db, admin, prediction)
+            assert out["traceable"] is True and out["delta_p"] == result["delta_p"]
+            assert [r["title"] for r in part(out, "breaches")["records"]] == ["PG breach"]
+            assert [r["title"] for r in part(out, "non_conformances")["records"]] == ["PG finding"]
+            assert [r["title"] for r in part(out, "compliance_gap")["records"]] == ["PG control"]
+
+            predictive_trace.add_dispute(db, admin, prediction, "breaches", "Recovered the same day.")
+            db.commit()
+            again = predictive_trace.build(db, admin, prediction)
+            assert [n["body"] for n in part(again, "breaches")["disputes"]] == ["Recovered the same day."]
+
+            # the team view: the reviewer heads the unit, the author has a task that is overdue
+            db.execute("UPDATE business_units SET head_user_id = %s WHERE id = %s", (ids["reviewer"], unit))
+            task = pg.insert_returning_id(
+                db, "INSERT INTO task_board (title, status, priority, due_date, assigned_to, created_by, business_unit_id) "
+                    "VALUES ('PG late task', 'todo', 'high', %s, %s, %s, %s)",
+                ((today - timedelta(days=4)).isoformat(), ids["author"], ids["author"], unit))
+            db.commit()
+        finally:
+            db.close()
+
+        team = my_work_service.get_team_work(manager)
+        assert team["is_manager"] is True and [u["name"] for u in team["units"]] == ["AI unit"]
+        by_name = {m["name"]: m for m in team["members"]}
+        assert sorted(by_name) == ["author", "second"], "not the manager, and only the people of the unit"
+        assert by_name["author"]["counts"]["overdue"] == 1
+        assert [(i["title"], i["link"]) for i in by_name["author"]["overdue"]] == [
+            ("PG late task", f"/tasks?open={task}")]
+        assert by_name["second"]["counts"]["overdue"] == 0
+        assert my_work_service.get_team_work(who["author"])["is_manager"] is False
+
+    assert _raw_rows("SELECT count(*) FROM tenant_traceorg.ai_risk_prediction_notes") == [(1,)]
+    assert _raw_rows("SELECT count(*) FROM public.ai_risk_prediction_notes") == [(0,)]
