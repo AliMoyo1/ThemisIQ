@@ -4252,21 +4252,26 @@ def test_outbox_purge_send_budget_and_task_hand_over_mail_run_inside_a_tenant_on
             assert [(r["template_key"], r["recipient_user_id"]) for r in queued] == [
                 ("action.assigned", ids["reviewer"]), ("tasks.assigned", ids["second"])]
 
+            # settle the two hand over messages: the second person's batch is sent, and the first is not, because that
+            # task is still its author's (the outbox checks that again at sending)
+            settled = outbox.deliver_due(db, budget={"n": 100}, limit=50)
+            assert settled[outbox.ACCEPTED] == 1 and settled[outbox.SUPPRESSED] == 1
+
             # the budget: 3 ordinary messages with a budget of 2, then a critical one that is not held
             for n in range(3):
-                outbox.enqueue(db, "action.assigned", recipient_user_id=ids["reviewer"], org_id=org, route="/tasks",
-                               fields={"kind": "task", "reference": f"TK-{n + 100}"},
-                               source=("platform", "task", task), purpose=f"n{n}")
+                outbox.enqueue(db, "tasks.assigned", recipient_user_id=ids["reviewer"], org_id=org, route="/tasks",
+                               fields={"count": n + 2}, source=("platform", "task_batch", 700 + n),
+                               purpose=f"batch{n}")
             db.commit()
             budget = {"n": 2}
             first = outbox.deliver_due(db, budget=budget, limit=50)
             assert first[outbox.ACCEPTED] == 2 and budget["n"] == 0
-            outbox.enqueue(db, "action.assigned", recipient_user_id=ids["reviewer"], org_id=org, route="/tasks",
-                           fields={"kind": "task", "reference": "TK-999"}, source=("platform", "task", other),
-                           purpose="urgent", priority="critical")
+            outbox.enqueue(db, "tasks.assigned", recipient_user_id=ids["reviewer"], org_id=org, route="/tasks",
+                           fields={"count": 9}, source=("platform", "task_batch", 799), purpose="urgent",
+                           priority="critical")
             db.commit()
             assert outbox.deliver_due(db, budget=budget, limit=50)[outbox.ACCEPTED] == 1
-            assert db.execute("SELECT COUNT(*) FROM email_outbox WHERE status = 'queued'").fetchone()[0] >= 1
+            assert db.execute("SELECT COUNT(*) FROM email_outbox WHERE status = 'queued'").fetchone()[0] == 1
 
             # the purge: an ended delivery from long ago goes, an old one that is still waiting stays
             old = (utcnow() - timedelta(days=outbox.RETENTION_DAYS + 3)).strftime("%Y-%m-%d %H:%M:%S")

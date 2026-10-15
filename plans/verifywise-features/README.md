@@ -12,7 +12,7 @@ The strongest product opportunity is a **governed AI use journey**: register an 
 
 | Order | Feature plan | User value | Proposed size | Starting point |
 | --- | --- | --- | --- | --- |
-| 0 | [Evidence Vault](../../design/evidence-vault/PLAN.md) and [PLAN-36](../PLAN-36-themisiq-stabilization-and-product-improvements/task_plan.md) gates | Safe, scalable evidence discovery and stable routes | Existing work | Vault Phase 1a built and verified locally, not committed, PostgreSQL lane not run; verify before building on it |
+| 0 | [Evidence Vault](../../design/evidence-vault/PLAN.md) and [PLAN-36](../PLAN-36-themisiq-stabilization-and-product-improvements/task_plan.md) gates | Safe, scalable evidence discovery and stable routes | Existing work | Vault Phase 1a was built and verified locally on 2026-10-07; since committed, PostgreSQL lane run, and on `master` (pull requests 6 and 10), with the rework's library and proof semantics on top; verify before building on it |
 | 0b | Scope fixes and relationship service ([PLAN-37 Slice 1](../PLAN-37-connected-compliance-experience.md)) | Related Items and topbar search stop showing other business units' titles; one scoped relationship service | M | Evidence Vault resolver; live gaps verified 2026-10-07 |
 | 0c | AI service foundation ([PLAN-37 Slice 1b](../PLAN-37-connected-compliance-experience.md)) | One model-call wrapper with per-organization policy and usage records | M | About 70 call sites in 15 files; no shared wrapper today |
 | 1 | [AI intake, inventory and lineage](01-ai-intake-inventory.md) | One clear way to declare an AI use and find its owner, provider, model, data, and status | L | Canonical `applications`, Sentinel AIIA, Governance data assets |

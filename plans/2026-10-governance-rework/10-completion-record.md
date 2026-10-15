@@ -1,14 +1,15 @@
 # 10. Completion record (plan 05)
 
-**Status:** Written 2026-10-15 on the branch `claude/plan-04-platform-truth`. It is the record that
+**Status:** Written 2026-10-15 on the branch `claude/plan-04-platform-truth` and brought up to date the same day for follow-ups
+11 to 13. It is the record that
 [05](05-delivery-and-acceptance.md) section 12 asks for: for each slice, what was decided and built, how it was checked and
 where, and what is still open. It does not repeat the build detail, which is in [07](07-implementation-ledger.md) under the
 heading named in each row.
 
-**How to read the status words.** Used exactly as 05 section 12 separates them. *Built*: in the branch's commit `cbf9372`, not pushed. *Verified
+**How to read the status words.** Used exactly as 05 section 12 separates them. *Built*: on the branch `claude/plan-04-platform-truth` (commits `cbf9372` to the latest, pushed to GitHub), not merged to `master`. *Verified
 locally*: the focused checks named passed on SQLite, on a disposable PostgreSQL 18 where the row says so, and in a browser
 where the row says so. *Pilot live* and *generally released*: nothing here is either. No source owner has signed any phase
-off, a pilot walkthrough with Ali Moyo and Vivian Tsongorera has not happened, and nothing was pushed or deployed.
+off, a pilot walkthrough with Ali Moyo and Vivian Tsongorera has not happened, and nothing from this branch is merged to `master` or deployed.
 
 ## 1. Decision register (05 section 1)
 
@@ -41,7 +42,7 @@ under "Decisions taken". A confirmed default is still not a phase sign-off.
 | Output named in 05 section 2 | Where it is | State |
 | --- | --- | --- |
 | Baseline matrix: built, proposed, deferred | The slice table and the Baseline table of the ledger | Built; the deployed state of any tenant is not known from the source |
-| Route and schema inventory | `oneforall/docs/generated/capability_inventory.*` (1099 routes, `--check` passes) and the platform inventory [08](08-platform-functions-inventory.md) | Built from source |
+| Route and schema inventory | `oneforall/docs/generated/capability_inventory.*` (1100 routes, `--check` passes) and the platform inventory [08](08-platform-functions-inventory.md) | Built from source |
 | Source-of-truth contract and relationship vocabulary | The README map, `modules/governance/entity_scope.py` (`_KINDS`), the relationship service states recorded, suggested, disputed | Built |
 | Metric definitions | `core/metric_registry.py` and the page `/metrics` | Built; readiness counts are not registered yet |
 | Import field guide and sample mapping | Published by `/ai-governance/api/import/guide` and shown on the import page; a CSV template at `/ai-governance/api/import/template.csv` for the form administrator | Built; not checked against a customer export |

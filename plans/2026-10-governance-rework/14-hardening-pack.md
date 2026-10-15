@@ -53,3 +53,7 @@ to the person who made the change, a hand over has its own key so a task given a
 `routes_platform.py`: `api_task_update` and `api_tasks_bulk_update` call it for the tasks that really changed hands. Tests:
 5 added to `tests/test_email_outbox.py`, 7 in `tests/test_task_assignment_mail.py`, the template sample, and one
 PostgreSQL case.
+
+**Step 5 (verified, 2026-10-15).** Full backend 2633 passed, 74 skipped, 0 failed; real PostgreSQL 73 of 74 in the lane and
+the one case, whose test data was wrong (not the code), passes on its own; browser 43 files, 350 passed, 1 skipped, 0 failed.
+Committed as `ecccbad`.

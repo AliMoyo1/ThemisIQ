@@ -8,7 +8,7 @@ fast-forwarded to `origin/master` (`f770d33`). The earlier AI Governance history
 **Status words** (from [05](05-delivery-and-acceptance.md) section 12, kept separate on purpose): *planned*, *built* (in the
 working tree), *verified locally* (focused checks named below passed on SQLite, and on a disposable PostgreSQL where stated),
 *pilot live*, *generally released*. Nothing in this file is *pilot live* or *generally released*. Plans 01 to 03 were merged
-as pull request 10; plans 04 to 06 and follow-ups 11 and 12 are committed and pushed on the branch
+as pull request 10; plans 04 to 06 and follow-ups 11 to 13 are committed and pushed on the branch
 `claude/plan-04-platform-truth`. Nothing here is merged to `master` or deployed: that is the owner's step.
 
 ## Working rules for whoever continues
@@ -65,8 +65,8 @@ here; the owner's VPS output reported the release healthy on 2026-10-14.
 | 6 E2 Outbox, templates and the pilot paths | 06 sections 3, 5, 6 | built, verified locally (SQLite, browser) | `tests/test_email_templates.py` (9), `tests/test_email_outbox.py` (18), `tests/test_email_producers.py` (36), `tests/ui/test_profile_email_preference.py` (3); the later cases are follow-up 11 |
 | 6 E3 Urgent cases and management summaries | 06 sections 4, 9 | built for Sentinel breach and request deadlines and the GRID weekly summary and, in follow-up 11, BCM incident and exercise mail, a named AI Governance reviewer and decider, the opt in My Work summary and quiet hours. Not built: a BCM escalation clock, an alternate contact, jurisdiction wording | `tests/test_ai_governance_assignment.py` (13), `tests/ui/test_bcm_incident_commander_ui.py` (1), `tests/ui/test_ai_governance_assignment_ui.py` (2), the files above; see Not done (6) |
 | 6 E3 BCM incident acknowledgement and escalation (follow-up 12) | 06 section 4; owner decision 3 | built, verified locally (SQLite, browser, real PostgreSQL); see the stage table | `tests/test_bcm_escalation.py` (21), `tests/ui/test_bcm_incident_escalation_ui.py` (4), the PostgreSQL case |
-| 6 Hardening pack (follow-up 13): outbox purge, send budget, task hand over mail | 06 section 3, owner decision 5; Not done (6) | built; the focused tests pass; the full backend, PostgreSQL and browser lanes were still running when this was committed | `tests/test_email_outbox.py` (23), `tests/test_task_assignment_mail.py` (7), the PostgreSQL case |
-| 4 Badge text contrast (follow-up 13) | 04 section 7 (accessibility); follow-up 11 finding | built; the new browser test passes (and fails on the earlier colours); the wider browser lane was still running when this was committed | `tests/ui/test_badge_contrast.py` (1) |
+| 6 Hardening pack (follow-up 13): outbox purge, send budget, task hand over mail | 06 section 3, owner decision 5; Not done (6) | built, verified locally (SQLite, browser, real PostgreSQL); see the stage table | `tests/test_email_outbox.py` (23), `tests/test_task_assignment_mail.py` (7), the PostgreSQL case |
+| 4 Badge text contrast (follow-up 13) | 04 section 7 (accessibility); follow-up 11 finding | built, verified locally (browser, both themes); see the stage table | `tests/ui/test_badge_contrast.py` (1) |
 | 6 E4 Provider cutover | 06 section 7 | seams built in follow-up 11 (pause, comparison by provider, runbook [12](12-email-cutover-runbook.md)); the cutover is not possible, no managed sender identity exists | `tests/test_email_outbox.py`, `tests/ui/test_admin_email_truthful_status.py` |
 
 ## Change log
@@ -426,7 +426,7 @@ Slices, in the order built: 4A (the registry, then the Command Centre, BCM and S
 
 ### 2026-10-14 and 15, 4A to 4G: platform truth, navigation and reports
 
-**Built, committed as `cbf9372` on the branch `claude/plan-04-platform-truth` (local, not pushed).** New: `core/metric_registry.py`,
+**Built, committed as `cbf9372` and pushed on the branch `claude/plan-04-platform-truth`.** New: `core/metric_registry.py`,
 `modules/launcher/command_metrics.py`, `modules/bcm/dashboard_metrics.py`, `modules/sentinel/dashboard_metrics.py`,
 `modules/launcher/report_snapshot.py`, `modules/launcher/report_builders.py`, `modules/launcher/search_service.py`,
 `modules/launcher/first_screen.py`, `core/ai_declarations.py`, `modules/launcher/templates/metrics.html`. Rewritten:
@@ -536,7 +536,7 @@ are labelled legacy.
 
 ### 2026-10-15, plan 06: email notifications and delivery (E0, E1, E2, and part of E3)
 
-**Built, committed as `cbf9372` on the branch `claude/plan-04-platform-truth` (local, not pushed).** New: `core/email_templates.py` (the catalogue and its renderer),
+**Built, committed as `cbf9372` and pushed on the branch `claude/plan-04-platform-truth`.** New: `core/email_templates.py` (the catalogue and its renderer),
 `core/email_outbox.py` (the outbox, its worker and `for_each_tenant`), `plans/2026-10-governance-rework/09-email-inventory.md`.
 Rewritten: `core/email.py` (the transport), `core/reminder_scheduler.py`, `modules/sentinel/scheduler.py`,
 `modules/evidence/scheduler.py`, `modules/grid/email_service.py`. Changed: `modules/grid/scheduler.py` (the mail jobs),
@@ -652,7 +652,7 @@ DNS record or server schedule was touched, and no real message was sent.
 
 ### 2026-10-15, follow-up 11: the items the first build of plans 04 to 06 left
 
-**Built, committed as `cbf9372` on the branch `claude/plan-04-platform-truth` (local, not pushed).** After the first build the owner asked to deal with the five items it had
+**Built, committed as `cbf9372` and pushed on the branch `claude/plan-04-platform-truth`.** After the first build the owner asked to deal with the five items it had
 reported as not built. The plan and its running log are [11](11-follow-up-plan.md); the cutover runbook is
 [12](12-email-cutover-runbook.md). New: `modules/launcher/summary_mail.py`, `modules/launcher/predictive_trace.py`,
 `modules/ai_governance/assignment.py`. Changed: `core/email_outbox.py` (pause, comparison by provider, preferences, quiet
@@ -847,7 +847,7 @@ one on purpose. It is a confirmation of product defaults in chat; it is not a si
 
 ### 2026-10-15, follow-up 12: BCM incident acknowledgement and escalation
 
-**Built and committed on the branch `claude/plan-04-platform-truth` (the commit that adds `13-bcm-incident-escalation.md`; not pushed).** The owner answered "go for it" to the recommendation in "Decisions taken"
+**Built, committed as `7425111` and pushed on the branch `claude/plan-04-platform-truth`.** The owner answered "go for it" to the recommendation in "Decisions taken"
 (15, 30 and 60 minute windows, the BCM manager as the first alternate). The plan and its log are
 [13](13-bcm-incident-escalation.md). New: `modules/bcm/escalation.py`. Changed: `core/email_templates.py`
 (`bcm.escalation`; `bcm.incident` is version 2 and says how long the commander has), `core/email_outbox.py` (a send-time
@@ -916,7 +916,7 @@ schema, the claim and the notices from that schema). The full lanes are in the s
 
 ### 2026-10-15, follow-up 13: the hardening pack
 
-**Built and committed on the branch `claude/plan-04-platform-truth` (the commit that adds `14-hardening-pack.md`; not pushed).** The owner answered "do this" to the recommendation made after follow-up 12:
+**Built, committed and pushed on the branch `claude/plan-04-platform-truth` (`ecccbad`, with its verification record in the commit after it).** The owner answered "do this" to the recommendation made after follow-up 12:
 the three open items of plan 06 that code can close, and the badge contrast finding. Plan and log:
 [14](14-hardening-pack.md). Changed: `core/email_outbox.py`, `core/email_templates.py` (`tasks.assigned`),
 `modules/launcher/task_service.py`, `routes_platform.py`, `templates/base_shell.html`, and the tests.
@@ -969,8 +969,7 @@ the three open items of plan 06 that code can close, and the badge contrast find
 a minute, the purge, the once a day run), `test_task_assignment_mail.py` (7), `test_email_templates.py` (the new template).
 Browser: `tests/ui/test_badge_contrast.py` (seeds one row of each badge in the BCM incident list and the ERM register and asks
 axe about both themes; it fails on the earlier colours and passes now). PostgreSQL: one case (the purge, the budget and the
-hand over from a tenant schema). The full lanes were still running when this was committed; their results are recorded in
-a stage table for follow-up 13 once they are in.
+hand over from a tenant schema). The full lanes are in the stage table below.
 
 **Not done (follow-up 13).**
 
@@ -1058,6 +1057,19 @@ Not run: the 15 browser files again in one piece after the profile fix (the prof
 inside that page's script), the PostgreSQL lane again after the one corrected assertion (that case was run on its own), the
 whole browser suite in one session, a walkthrough on pilot data, and any send through a real mailbox.
 
+## Stage verification (follow-up 13, 2026-10-15)
+
+| Lane | Result |
+| --- | --- |
+| Focused backend (`test_email_outbox.py` 23, `test_task_assignment_mail.py` 7, templates, producers) | 75 passed |
+| Full backend, SQLite (`pytest --ignore=tests/ui`) | 2633 passed, 74 skipped (the real-PostgreSQL tests, which skip without the throwaway database), 0 failed, 32 minutes |
+| Real PostgreSQL 18 (`tests/test_postgres_init.py`, container `themisiq-pg-aigov`) | 73 of 74 passed in the lane, 6 minutes. The new case failed on its own setup: it queued messages for a task that was still assigned to someone else, which the outbox correctly suppressed when sending. The data was corrected and the case passes (5 seconds); the product code was right. The container was removed afterwards |
+| Browser, 43 files (the shell and its accessibility, zoom, viewport, dialog and modal files, the premium theme, BCM, ERM, task board, My Work, the Command Centre, profile and Email Settings, reports and search, CSRF, isolation, action contracts, the 11 AI Governance files, and the new badge and notification list tests) | 350 passed, 1 skipped, 0 failed, 22 minutes. The amber badge finding on `/erm/register` did not recur |
+| Capability inventory | unchanged: no route was added (1100) |
+
+Not run: the whole browser suite in one session (about 3.8 hours), the PostgreSQL lane again after the one corrected case
+(that case was run on its own), a walkthrough on pilot data, and any send through a real mailbox.
+
 ## Handoff (read this first)
 
 1. Slices 1A, 1B, 1C (plan 01), 2A, 2B, 2C (plan 02) and 3A to 3D (plan 03) are built and verified as above. They were
@@ -1067,8 +1079,9 @@ whole browser suite in one session, a walkthrough on pilot data, and any send th
    in the memory file `reference_test_environment.md`) was the PostgreSQL lane. It was removed on 2026-10-15 after the last
    run (72 of 72, after follow-up 11); recreate it from that recipe for the next lane.
 2. Plans 04, 05 and 06 and follow-up 11 are built on the branch `claude/plan-04-platform-truth` (cut from `master` at
-   `a568b75`) and were committed (`cbf9372`, `083e661`, and follow-up 12 as `7425111`) and pushed to `origin/claude/plan-04-platform-truth`
-   on 2026-10-15 at the owner's request. Plan 04 is slices 4A to 4G; plan 05 is documents only
+   `a568b75`) and were committed (`cbf9372`, `083e661`, follow-up 12 as `7425111`, the profile fix `1a88208`) and pushed to
+   `origin/claude/plan-04-platform-truth` on 2026-10-15 at the owner's request. Follow-up 13, the hardening pack
+   ([14](14-hardening-pack.md)), is committed as `ecccbad`, its verification record as the commit after it, and both were pushed on 2026-10-15 at the owner's request. Plan 04 is slices 4A to 4G; plan 05 is documents only
    (`10-completion-record.md`); plan 06 is E0 to E2 and part of E3 (see Not done (4) and Not done (6)). Follow-up 11
    ([11](11-follow-up-plan.md)) added the E4 seams, BCM mail, a named AI reviewer and decider, summaries and quiet hours, the
    predictive trace and the manager's team view; its entry and stage table are above. Nothing in them is pilot live or
@@ -1093,6 +1106,6 @@ whole browser suite in one session, a walkthrough on pilot data, and any send th
 7. Nothing was deployed by this work. The branch was pushed on 2026-10-15 at the owner's request. What is left for the owner:
    open and merge the pull request on GitHub (this session's auto mode refuses to merge) and deploy to the VPS.
 8. The browser lane depends on order and data. Two findings only appear after earlier tests have created records (the
-   notification list, fixed, and the amber badge contrast on `/erm/register`, not fixed), and a machine that sleeps during a
+   notification list and the badge text contrast, both fixed), and a machine that sleeps during a
    run produces a block of network errors that pass when run again. Run the files that failed on their own before reading
    a failure as a defect, and give a long run keep-awake.
