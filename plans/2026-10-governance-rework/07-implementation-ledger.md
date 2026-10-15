@@ -8,8 +8,8 @@ fast-forwarded to `origin/master` (`f770d33`). The earlier AI Governance history
 **Status words** (from [05](05-delivery-and-acceptance.md) section 12, kept separate on purpose): *planned*, *built* (in the
 working tree), *verified locally* (focused checks named below passed on SQLite, and on a disposable PostgreSQL where stated),
 *pilot live*, *generally released*. Nothing in this file is *pilot live* or *generally released*. Plans 01 to 03 were merged
-as pull request 10; plans 04 to 06 and follow-up 11 are committed as `cbf9372` on the branch `claude/plan-04-platform-truth`.
-Nothing here is pushed or deployed: that is the owner's step.
+as pull request 10; plans 04 to 06 and follow-ups 11 and 12 are committed and pushed on the branch
+`claude/plan-04-platform-truth`. Nothing here is merged to `master` or deployed: that is the owner's step.
 
 ## Working rules for whoever continues
 
@@ -64,7 +64,7 @@ here; the owner's VPS output reported the release healthy on 2026-10-14.
 | 6 E1 Sender safety and truthful status | 06 sections 2, 7, 8 | built, verified locally (SQLite, browser) | `tests/test_email_transport.py` (12), `tests/test_email_producers.py` (reminders, administration), `tests/ui/test_admin_email_truthful_status.py` (2) |
 | 6 E2 Outbox, templates and the pilot paths | 06 sections 3, 5, 6 | built, verified locally (SQLite, browser) | `tests/test_email_templates.py` (9), `tests/test_email_outbox.py` (18), `tests/test_email_producers.py` (36), `tests/ui/test_profile_email_preference.py` (3); the later cases are follow-up 11 |
 | 6 E3 Urgent cases and management summaries | 06 sections 4, 9 | built for Sentinel breach and request deadlines and the GRID weekly summary and, in follow-up 11, BCM incident and exercise mail, a named AI Governance reviewer and decider, the opt in My Work summary and quiet hours. Not built: a BCM escalation clock, an alternate contact, jurisdiction wording | `tests/test_ai_governance_assignment.py` (13), `tests/ui/test_bcm_incident_commander_ui.py` (1), `tests/ui/test_ai_governance_assignment_ui.py` (2), the files above; see Not done (6) |
-| 6 E3 BCM incident acknowledgement and escalation (follow-up 12) | 06 section 4; owner decision 3 | built; the focused tests pass (SQLite, browser); the full backend, PostgreSQL and browser lanes were still running when this was committed, see the stage table | `tests/test_bcm_escalation.py` (21), `tests/ui/test_bcm_incident_escalation_ui.py` (4), the PostgreSQL case |
+| 6 E3 BCM incident acknowledgement and escalation (follow-up 12) | 06 section 4; owner decision 3 | built, verified locally (SQLite, browser, real PostgreSQL); see the stage table | `tests/test_bcm_escalation.py` (21), `tests/ui/test_bcm_incident_escalation_ui.py` (4), the PostgreSQL case |
 | 6 E4 Provider cutover | 06 section 7 | seams built in follow-up 11 (pause, comparison by provider, runbook [12](12-email-cutover-runbook.md)); the cutover is not possible, no managed sender identity exists | `tests/test_email_outbox.py`, `tests/ui/test_admin_email_truthful_status.py` |
 
 ## Change log
@@ -882,13 +882,20 @@ columns on `bcm_incidents`), `modules/bcm/data_service.py`, `routes.py`, `schedu
   tier names `major` and `significant`, which the BCM page does not offer. It now starts the same clock (the windows read
   those two as high and medium), so a breach that becomes an incident cannot sit unacknowledged without the BCM managers
   being told. The tier names themselves are not changed.
+- **A race in the profile quiet hours editor** (written in follow-up 11, found by this lane). Saving anything else, the time
+  zone for one, answered with the saved state and drew it over quiet hours the person had ticked and typed but not saved: the
+  box came unticked, the times reset and Save was disabled, depending on which answer came first. The page now keeps a
+  draft until it is saved or switched off; `test_changing_the_time_zone_does_not_undo_quiet_hours_that_are_not_saved_yet`
+  fails without the change (checked).
+- **The profile page's active sessions list can never load.** It selects `sessions.last_active`, which the table does not
+  have; the error is swallowed, so the list is always empty. Not caused by this work and not fixed here: a separate task was
+  raised for it.
 
 **Checks.** Backend: `test_bcm_escalation.py` (21: the windows, the clock on declare, restart, raise and reopen, the job and
 its single claim, who is told and who is not, the fallbacks, the send-time check, the commander's message, the route and its
 scope, the breach incident), and the changed `test_email_producers.py` and `test_email_templates.py`. Browser:
-`test_bcm_incident_escalation_ui.py` (4, including an axe check of the new markup). PostgreSQL: a case is written (the columns in a
-tenant schema, the claim and the notices from that schema); its result and the full lanes are in the stage table, which
-was not yet written when this was committed.
+`test_bcm_incident_escalation_ui.py` (4, including an axe check of the new markup). PostgreSQL: one case (the columns in a tenant
+schema, the claim and the notices from that schema). The full lanes are in the stage table below.
 
 **Not done (follow-up 12).**
 
@@ -965,6 +972,21 @@ template change (the change is one set of attributes on the notification list in
 carries it, and a representative set of pages, the accessibility, zoom and viewport files, was run again, not every file); the
 full backend suite after the one test correction; a specialist walkthrough on pilot data; and any send through a real mailbox.
 
+## Stage verification (follow-up 12, 2026-10-15)
+
+| Lane | Result |
+| --- | --- |
+| Focused backend (`test_bcm_escalation.py` 21, the email producer, template and outbox files) | passed |
+| Full backend, SQLite (`pytest --ignore=tests/ui`) | 2621 passed, 73 skipped (the real-PostgreSQL tests, which skip without the throwaway database), 0 failed, 1 hour 7 minutes |
+| Real PostgreSQL 18 (`tests/test_postgres_init.py`, container `themisiq-pg-aigov`) | 72 of 73 passed in the lane, 6 minutes. The new BCM case failed on its own last line: it expected a timeline note that only the acknowledge route writes, and the test called the data function. The assertion was corrected and the case passes (5 seconds); the product code was right. The container was removed afterwards |
+| Browser, 15 files (the four BCM files, axe on 23 routes, 200 per cent zoom, desktop viewports, modal and dialog, the notification list, Email Settings and the profile preference, CSRF, organization isolation, action contracts) | 167 passed, 1 skipped, 2 failed, 8 minutes. One failure is the known amber badge contrast on `/erm/register`, which appears once earlier tests have put such a badge on the register (see follow-up 11); the other was a real race in the profile quiet hours editor, fixed (see Found on the way) |
+| The profile file after that fix | 4 passed; the new regression test fails on the earlier page (checked) |
+| Capability inventory | regenerated, 1100 routes (`--check` passes) |
+
+Not run: the 15 browser files again in one piece after the profile fix (the profile file was run again, and the change is
+inside that page's script), the PostgreSQL lane again after the one corrected assertion (that case was run on its own), the
+whole browser suite in one session, a walkthrough on pilot data, and any send through a real mailbox.
+
 ## Handoff (read this first)
 
 1. Slices 1A, 1B, 1C (plan 01), 2A, 2B, 2C (plan 02) and 3A to 3D (plan 03) are built and verified as above. They were
@@ -974,7 +996,8 @@ full backend suite after the one test correction; a specialist walkthrough on pi
    in the memory file `reference_test_environment.md`) was the PostgreSQL lane. It was removed on 2026-10-15 after the last
    run (72 of 72, after follow-up 11); recreate it from that recipe for the next lane.
 2. Plans 04, 05 and 06 and follow-up 11 are built on the branch `claude/plan-04-platform-truth` (cut from `master` at
-   `a568b75`) and were committed locally as `cbf9372` on 2026-10-15 at the owner's request; they are **not pushed**. Plan 04 is slices 4A to 4G; plan 05 is documents only
+   `a568b75`) and were committed (`cbf9372`, `083e661`, and follow-up 12 as `7425111`) and pushed to `origin/claude/plan-04-platform-truth`
+   on 2026-10-15 at the owner's request. Plan 04 is slices 4A to 4G; plan 05 is documents only
    (`10-completion-record.md`); plan 06 is E0 to E2 and part of E3 (see Not done (4) and Not done (6)). Follow-up 11
    ([11](11-follow-up-plan.md)) added the E4 seams, BCM mail, a named AI reviewer and decider, summaries and quiet hours, the
    predictive trace and the manager's team view; its entry and stage table are above. Nothing in them is pilot live or
@@ -996,9 +1019,8 @@ full backend suite after the one test correction; a specialist walkthrough on pi
    identity, and the BCM acknowledgement windows and alternate contact (a starting point is written there, not built).
 6. A specialist walkthrough on pilot data (Ali Moyo and Vivian Tsongorera) has not happened: nothing here has been seen by the
    people it is for. A mail pilot with a real mailbox has not happened either.
-7. Nothing was pushed or deployed by this work. Committed locally as `cbf9372` (2026-10-15, at the owner's request). What is
-   left for the owner: push the branch, open and merge the pull request on GitHub (this session's auto mode refuses to merge),
-   and deploy to the VPS.
+7. Nothing was deployed by this work. The branch was pushed on 2026-10-15 at the owner's request. What is left for the owner:
+   open and merge the pull request on GitHub (this session's auto mode refuses to merge) and deploy to the VPS.
 8. The browser lane depends on order and data. Two findings only appear after earlier tests have created records (the
    notification list, fixed, and the amber badge contrast on `/erm/register`, not fixed), and a machine that sleeps during a
    run produces a block of network errors that pass when run again. Run the files that failed on their own before reading

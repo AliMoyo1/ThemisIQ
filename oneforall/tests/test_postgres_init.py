@@ -4213,4 +4213,5 @@ def test_bcm_incident_acknowledgement_and_escalation_run_inside_a_tenant_on_real
     rows = _raw_rows("SELECT template_key, recipient_user_id, priority, source_id FROM tenant_bcmesc.email_outbox")
     assert rows == [("bcm.escalation", ids["second"], "critical", waiting)]
     assert _raw_rows("SELECT count(*) FROM public.email_outbox") == [(0,)]
-    assert _raw_rows("SELECT count(*) FROM tenant_bcmesc.bcm_incident_updates WHERE incident_id = %s", (waiting,)) == [(2,)]
+    # the escalation wrote one note to the timeline; the acknowledgement note belongs to the route, which was not called
+    assert _raw_rows("SELECT count(*) FROM tenant_bcmesc.bcm_incident_updates WHERE incident_id = %s", (waiting,)) == [(1,)]

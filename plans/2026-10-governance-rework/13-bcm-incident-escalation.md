@@ -64,3 +64,8 @@ their unit scope; the first acknowledgement stands; 409 when resolved or closed)
 still live and unacknowledged, and the recipient can still open it); the console header and the list show the state with an
 Acknowledge button. The Sentinel breach handler's incident gets a clock too. Tests: 21 in `tests/test_bcm_escalation.py`,
 4 in `tests/ui/test_bcm_incident_escalation_ui.py`, one PostgreSQL case.
+
+**Steps 6 and 7 (verified, 2026-10-15).** Full backend 2621 passed, 73 skipped, 0 failed; real PostgreSQL 72 of 73 in the
+lane and the one corrected case passes; browser 167 passed with two failures, one known (amber badge contrast, order and data
+dependent) and one real race in the profile quiet hours editor from follow-up 11, fixed with a regression test. The owner
+approved the windows and the alternate on 2026-10-15; the committed code is `7425111`, pushed.

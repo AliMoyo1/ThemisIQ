@@ -54,3 +54,24 @@ def test_a_daily_summary_a_weekly_summary_and_quiet_hours_are_saved_and_restored
     page.uncheck("#quietOn")
     page.wait_for_selector("#emailActionStatus:has-text('Quiet hours are off')", timeout=8000)
     assert not page.console_errors, f"unexpected console/page errors: {page.console_errors}"
+
+
+def test_changing_the_time_zone_does_not_undo_quiet_hours_that_are_not_saved_yet(login_as, live_app):
+    page = login_as("super_admin")
+    page.goto(f"{live_app}/profile")
+    page.wait_for_selector("#emailAction:not([disabled])", timeout=8000)
+    page.check("#quietOn")
+    page.fill("#quietStart", "20:15")
+    page.fill("#quietEnd", "05:30")
+    page.select_option("#utcOffset", "180")
+    page.wait_for_selector("#emailActionStatus:has-text('Your time zone is saved')", timeout=8000)
+    assert page.is_checked("#quietOn"), "the save of the time zone answered with the saved state, which has no quiet hours"
+    assert page.input_value("#quietStart") == "20:15" and page.input_value("#quietEnd") == "05:30"
+    assert page.is_enabled("#quietSave")
+
+    # leave the saved state as it was for the tests that follow
+    page.uncheck("#quietOn")
+    page.wait_for_selector("#emailActionStatus:has-text('Quiet hours are off')", timeout=8000)
+    page.select_option("#utcOffset", "0")
+    page.wait_for_selector("#emailActionStatus:has-text('Your time zone is saved')", timeout=8000)
+    assert not page.console_errors, f"unexpected console/page errors: {page.console_errors}"
