@@ -24,7 +24,8 @@ from core.links import RELATIONSHIP_LABELS
 from modules.governance import relationships
 from modules.governance.entity_scope import entity_scope_sql
 from modules.launcher import search_service
-from modules.launcher.task_service import create_task_with_assignment_notification, validate_task_assignee
+from modules.launcher.task_service import (
+    create_task_with_assignment_notification, tell_new_assignee, validate_task_assignee)
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -851,6 +852,10 @@ async def api_tasks_bulk_update(request: Request):
         if not ids:
             return _JSONResp({"error": "No accessible tasks."}, 403)
         placeholders = ", ".join(["%s"] * len(ids))
+        # who each task belonged to, so that only the tasks that really change hands are told about
+        new_assignee = validate_int(updates.get("assigned_to")) if "assigned_to" in updates else None
+        before = {r["id"]: r["assigned_to"] for r in db.execute(
+            f"SELECT id, assigned_to FROM task_board WHERE id IN ({placeholders})", ids).fetchall()}
         params.extend(ids)
         sql = f"UPDATE task_board SET {', '.join(fields)} WHERE id IN ({placeholders})"
         if not is_admin:
@@ -858,6 +863,8 @@ async def api_tasks_bulk_update(request: Request):
             params.extend([uid, uid])
         db.execute(sql, params)
         db.commit()
+        if new_assignee is not None:
+            tell_new_assignee(db, [t for t, owner in before.items() if owner != new_assignee], new_assignee, uid)
     finally:
         db.close()
     return _JSONResp({"updated": len(ids)})
@@ -910,6 +917,9 @@ async def api_task_update(request: Request, tid: int):
             db.commit()
             if cur.rowcount == 0:
                 return _JSONResp({"error": "Task changed or was removed; refresh and retry."}, 409)
+            handed_to = validate_int(data.get("assigned_to")) if "assigned_to" in data else None
+            if handed_to is not None and handed_to != row["assigned_to"]:
+                tell_new_assignee(db, [tid], handed_to, uid)
     finally:
         db.close()
     return _JSONResp({"success": True})

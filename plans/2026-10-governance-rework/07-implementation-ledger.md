@@ -65,6 +65,8 @@ here; the owner's VPS output reported the release healthy on 2026-10-14.
 | 6 E2 Outbox, templates and the pilot paths | 06 sections 3, 5, 6 | built, verified locally (SQLite, browser) | `tests/test_email_templates.py` (9), `tests/test_email_outbox.py` (18), `tests/test_email_producers.py` (36), `tests/ui/test_profile_email_preference.py` (3); the later cases are follow-up 11 |
 | 6 E3 Urgent cases and management summaries | 06 sections 4, 9 | built for Sentinel breach and request deadlines and the GRID weekly summary and, in follow-up 11, BCM incident and exercise mail, a named AI Governance reviewer and decider, the opt in My Work summary and quiet hours. Not built: a BCM escalation clock, an alternate contact, jurisdiction wording | `tests/test_ai_governance_assignment.py` (13), `tests/ui/test_bcm_incident_commander_ui.py` (1), `tests/ui/test_ai_governance_assignment_ui.py` (2), the files above; see Not done (6) |
 | 6 E3 BCM incident acknowledgement and escalation (follow-up 12) | 06 section 4; owner decision 3 | built, verified locally (SQLite, browser, real PostgreSQL); see the stage table | `tests/test_bcm_escalation.py` (21), `tests/ui/test_bcm_incident_escalation_ui.py` (4), the PostgreSQL case |
+| 6 Hardening pack (follow-up 13): outbox purge, send budget, task hand over mail | 06 section 3, owner decision 5; Not done (6) | built; the focused tests pass; the full backend, PostgreSQL and browser lanes were still running when this was committed | `tests/test_email_outbox.py` (23), `tests/test_task_assignment_mail.py` (7), the PostgreSQL case |
+| 4 Badge text contrast (follow-up 13) | 04 section 7 (accessibility); follow-up 11 finding | built; the new browser test passes (and fails on the earlier colours); the wider browser lane was still running when this was committed | `tests/ui/test_badge_contrast.py` (1) |
 | 6 E4 Provider cutover | 06 section 7 | seams built in follow-up 11 (pause, comparison by provider, runbook [12](12-email-cutover-runbook.md)); the cutover is not possible, no managed sender identity exists | `tests/test_email_outbox.py`, `tests/ui/test_admin_email_truthful_status.py` |
 
 ## Change log
@@ -638,8 +640,10 @@ DNS record or server schedule was touched, and no real message was sent.
   A tenant cannot override them (owner decision 4).
 - **Bounces and replies.** The Reply-To comes from `SMTP_REPLY_TO`; no bounce or reply intake exists. SPF, DKIM and DMARC are
   a property of the real sending domain and were not checked.
-- **Rate limits per minute and per account**, and retention (a purge) of old outbox rows.
-- **Task updates and bulk assignment** do not notify at all (no in-app notice exists there either), so they send no mail.
+- **Rate limits per minute and per account**, and retention (a purge) of old outbox rows: both were built afterwards
+  (follow-up 13).
+- **Task updates and bulk assignment** did not notify at all (no in-app notice existed there either), so they sent no mail:
+  an edit that hands a task to someone, and a bulk assignment, now tell the new assignee (follow-up 13).
 - **The audit share link** keeps its direct send (a recipient bound, signed in link). Its token expiry and revocation review
   is open; the creator now sees `email_status`.
 - **E4, provider cutover**: no managed sender identity exists. Its seams (pause, comparison by provider, the runbook
@@ -740,8 +744,8 @@ real message was sent.
 - **A BCM escalation clock and an alternate human contact** were built afterwards (follow-up 12). Jurisdiction wording for
   Sentinel and its alternate contact are still open (owner decisions 3 and 7). Plan owner and training owner are free text
   and stay unmailed.
-- **A tenant cannot override** the preferences, quiet hours or sender identity (owner decision 4); there is no purge of old
-  outbox rows, no bounce or reply intake and no per minute rate limit.
+- **A tenant cannot override** the preferences, quiet hours or sender identity (owner decision 4); there is no bounce or
+  reply intake. (The purge of old outbox rows and a per minute limit were built afterwards: follow-up 13.)
 - **A named reviewer or decider is not asked to accept and is not chased.** Nothing nudges a person who has been named and
   does nothing; the item follows its own due dates and shows as overdue on their My Work and in the team view.
 - **The team view** reads 25 people a request (a unit can be chosen for a larger team), is based on the unit head (the schema
@@ -909,6 +913,73 @@ schema, the claim and the notices from that schema). The full lanes are in the s
   show the commander a due time for it.
 - **The privacy deadline clock and its alternate contact** are separate legal decisions (owner decisions 3 and 7) and are not
   part of this.
+
+### 2026-10-15, follow-up 13: the hardening pack
+
+**Built and committed on the branch `claude/plan-04-platform-truth` (the commit that adds `14-hardening-pack.md`; not pushed).** The owner answered "do this" to the recommendation made after follow-up 12:
+the three open items of plan 06 that code can close, and the badge contrast finding. Plan and log:
+[14](14-hardening-pack.md). Changed: `core/email_outbox.py`, `core/email_templates.py` (`tasks.assigned`),
+`modules/launcher/task_service.py`, `routes_platform.py`, `templates/base_shell.html`, and the tests.
+
+**What a person gets.**
+
+- **Old delivery records are removed.** A delivery that ended (accepted, suppressed, failed for good or logged only) more than
+  180 days ago is deleted, once a day per organization. A delivery that is waiting, retrying or leased is never touched.
+- **Ordinary mail is paced.** At most 20 messages other than critical go to the provider in a minute, across every
+  organization, since they leave through one account. Critical mail is not counted and is never held; a suppression, which
+  is a local decision, is not counted either. What is left over waits for the next minute.
+- **A task handed to someone tells them.** Editing a task so that it belongs to someone else, or assigning a group of tasks,
+  tells the new assignee in the app and by email. One task is told as a task is when it is created; a group is one message,
+  "N tasks are assigned to you". The person who made the change is not told, and a task given away and given again is told
+  again.
+- **Badge text is readable.** The 10 pixel bold badges (high, in progress, low, complete, critical, overdue) used the fill
+  tints as text colours and measured about 3:1. They use a darker text token in the light theme and the same colours as before
+  in the dark theme.
+
+**Decisions taken (owner, 2026-10-15: "do this") and why.**
+
+1. **Retention of 180 days.** The rows are a recipient, a reference and a status, not a message, so they are small, and after a
+   few weeks they answer only "was this sent". The cost is that the deduplication key goes with the row: an action still open
+   after 180 days and asked for again is told once more, which is a reminder and not a defect. A shorter window repeats
+   reminders sooner; a longer one keeps delivery history for no use. The number is `RETENTION_DAYS`. Owner question 5 in
+   [09](09-email-inventory.md) (retention and processor terms) is still the owner's to confirm.
+2. **20 a minute.** The temporary account has a daily cap of 200; 20 a minute drains it in ten minutes and keeps a burst
+   (a bulk assignment, a deadline run) below what a consumer mailbox provider treats as a flood. The number is `PER_MINUTE`.
+   Organizations are served in id order, so one with a long backlog is served first and the next minute continues; fairness
+   between organizations is not built.
+3. **One message for a group of tasks.** The daily cap and the person's inbox are both shared; forty messages for forty tasks
+   would spend the first and bury the second.
+4. **Green and red were fixed with amber.** The probe that found the amber measured the green tints at 3.14 to 1 and the red
+   at 4.41 to 1; leaving them would have left the same finding on the next page that shows a row. Fills, icons and borders
+   are unchanged.
+
+**Rules that hold.**
+
+- **Nothing that is waiting is purged**, however old, and a purge never touches the in-app notice or the work.
+- **A hand over is told only when it happened**: the assignee changed, to someone other than the person doing it, and the task
+  is still theirs to be told about at sending (the outbox checks that again).
+- **The email carries no title**, as every message: a kind, a reference and a link, or a count and a link.
+
+**Found on the way.**
+
+- **`deliver_all_tenants` had no limit across organizations**, only 50 examined per organization per pass, so many
+  organizations could each send 50 a minute through the same account. They now share one budget.
+
+**Checks.** Backend: `test_email_outbox.py` (5 added: the budget, a suppression not spending it, one budget for the passes of
+a minute, the purge, the once a day run), `test_task_assignment_mail.py` (7), `test_email_templates.py` (the new template).
+Browser: `tests/ui/test_badge_contrast.py` (seeds one row of each badge in the BCM incident list and the ERM register and asks
+axe about both themes; it fails on the earlier colours and passes now). PostgreSQL: one case (the purge, the budget and the
+hand over from a tenant schema). The full lanes were still running when this was committed; their results are recorded in
+a stage table for follow-up 13 once they are in.
+
+**Not done (follow-up 13).**
+
+- **The retention and the send limit are constants**, not settings an administrator can change.
+- **Only an assignment notifies.** A status change, a drag between columns and a delete tell nobody; a bulk change of status
+  or priority tells nobody.
+- **Other badge definitions are not touched.** The Governance page defines its own `.badge-high` (orange on a tint) and
+  `.badge-med`, and inline colours elsewhere; only the shell's six classes were fixed.
+- **The notification rows are still not individually focusable** (the list itself takes focus).
 
 ## Stage verification (end of plan 02, 2026-10-14)
 

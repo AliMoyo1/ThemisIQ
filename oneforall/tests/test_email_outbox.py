@@ -323,3 +323,87 @@ def test_a_producer_never_loses_its_own_work_to_a_mail_problem(desk):
     assert outbox.enqueue_safely(desk.db, "no.such.template", recipient_user_id=1, org_id=ORG, route="/x",
                                  fields={}, source=("a", "b", 1), purpose="p") is None
     assert desk.db.execute("SELECT COUNT(*) FROM email_outbox").fetchone()[0] == 0
+
+
+# ── The send budget and the purge (plans/2026-10-governance-rework/14) ──────
+
+def test_ordinary_mail_goes_out_at_the_per_minute_budget_and_critical_mail_is_never_held(desk, provider):
+    for i in range(25):
+        _ask(desk, threshold=f"day:{i}")
+    for i in range(3):
+        _ask(desk, threshold=f"urgent:{i}", priority="critical")
+    first = outbox.deliver_due(desk.db, per_minute=20, limit=100)
+    assert first[outbox.ACCEPTED] == 23, "the three critical messages and twenty ordinary ones"
+    queued = desk.db.execute("SELECT COUNT(*) FROM email_outbox WHERE status = 'queued'").fetchone()[0]
+    assert queued == 5, "the rest wait for the next minute"
+    second = outbox.deliver_due(desk.db, per_minute=20, limit=100)
+    assert second[outbox.ACCEPTED] == 5
+    assert len(provider.calls) == 28
+
+
+def test_a_suppressed_message_is_a_local_decision_and_does_not_spend_the_budget(desk, provider):
+    for i in range(10):
+        _ask(desk, to="noaddr", threshold=f"day:{i}")        # no valid address: suppressed, never given to the provider
+    for i in range(20):
+        _ask(desk, threshold=f"day:{i}")
+    got = outbox.deliver_due(desk.db, per_minute=20, limit=100)
+    assert got[outbox.SUPPRESSED] == 10 and got[outbox.ACCEPTED] == 20
+    assert len(provider.calls) == 20
+
+
+def test_the_passes_of_one_minute_share_one_budget(desk, provider):
+    budget = {"n": 5}
+    for i in range(8):
+        _ask(desk, threshold=f"day:{i}")
+    assert outbox.deliver_due(desk.db, budget=budget, limit=100)[outbox.ACCEPTED] == 5
+    assert budget["n"] == 0
+    urgent = _ask(desk, threshold="urgent", priority="critical")
+    again = outbox.deliver_due(desk.db, budget=budget, limit=100)
+    assert again[outbox.ACCEPTED] == 1 and _row(desk, urgent)["status"] == "provider_accepted", \
+        "a spent budget holds ordinary mail and lets critical mail through"
+    assert desk.db.execute("SELECT COUNT(*) FROM email_outbox WHERE status = 'queued'").fetchone()[0] == 3
+
+
+def _age(desk, outbox_id, status, days):
+    stamp = (utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    desk.db.execute("UPDATE email_outbox SET status = %s, created_at = %s WHERE id = %s", (status, stamp, outbox_id))
+    desk.db.commit()
+
+
+def test_deliveries_that_ended_long_ago_are_deleted_and_nothing_that_is_still_waiting(desk):
+    gone = []
+    for i, status in enumerate(("provider_accepted", "suppressed", "permanent_failure", "logged_only")):
+        row_id = _ask(desk, threshold=f"old:{i}")
+        _age(desk, row_id, status, outbox.RETENTION_DAYS + 5)
+        gone.append(row_id)
+    kept = []
+    recent = _ask(desk, threshold="recent")
+    _age(desk, recent, "provider_accepted", 10)
+    kept.append(recent)
+    for i, status in enumerate(("queued", "retry_due", "sending")):
+        row_id = _ask(desk, threshold=f"waiting:{i}")
+        _age(desk, row_id, status, 400)
+        kept.append(row_id)
+
+    assert outbox.purge_old(desk.db) == 4
+    desk.db.commit()
+    left = {r["id"] for r in desk.db.execute("SELECT id FROM email_outbox").fetchall()}
+    assert left == set(kept) and not (left & set(gone))
+    assert outbox.purge_old(desk.db) == 0
+
+
+def test_the_worker_purges_once_a_day_for_each_organization(desk, provider):
+    outbox._PURGED_ON.clear()
+    first = _ask(desk, threshold="old:1")
+    _age(desk, first, "provider_accepted", outbox.RETENTION_DAYS + 1)
+    outbox.deliver_all_tenants()
+    assert desk.db.execute("SELECT COUNT(*) FROM email_outbox WHERE id = %s", (first,)).fetchone()[0] == 0
+
+    second = _ask(desk, threshold="old:2")
+    _age(desk, second, "provider_accepted", outbox.RETENTION_DAYS + 1)
+    outbox.deliver_all_tenants()
+    assert desk.db.execute("SELECT COUNT(*) FROM email_outbox WHERE id = %s", (second,)).fetchone()[0] == 1, \
+        "already purged today by this process"
+    outbox._PURGED_ON.clear()
+    outbox.deliver_all_tenants()
+    assert desk.db.execute("SELECT COUNT(*) FROM email_outbox WHERE id = %s", (second,)).fetchone()[0] == 0

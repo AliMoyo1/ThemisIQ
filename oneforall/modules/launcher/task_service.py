@@ -72,9 +72,11 @@ def create_task_with_assignment_notification(
         db.close()
 
 
-def _ask_assignment_email(db, task_id: int, assigned_to: int, due_date) -> None:
+def _ask_assignment_email(db, task_id: int, assigned_to: int, due_date, change: str = "") -> None:
     """Ask the email outbox to tell the assignee (template action.assigned: the kind of action, a reference and the due
-    date, never the title). A mail problem is recorded and goes no further; the person has the in-app notice."""
+    date, never the title). A mail problem is recorded and goes no further; the person has the in-app notice.
+
+    `change` makes a hand over its own message: a task given to a person, taken away and given back is told twice."""
     try:
         from core import email_outbox
         from core.email_templates import iso_or_none
@@ -82,7 +84,8 @@ def _ask_assignment_email(db, task_id: int, assigned_to: int, due_date) -> None:
         email_outbox.enqueue_safely(
             db, "action.assigned", recipient_user_id=assigned_to, org_id=get_current_org(), route="/tasks",
             fields={"kind": "task", "reference": f"TK-{task_id}", "due": due},
-            source=("platform", "task", task_id), purpose="assigned", threshold=f"{assigned_to}|{due or ''}")
+            source=("platform", "task", task_id), purpose="assigned",
+            threshold=f"{assigned_to}|{due or ''}" + (f"|{change}" if change else ""))
         db.commit()
     except Exception:
         swallowed("task assignment email")
@@ -90,3 +93,43 @@ def _ask_assignment_email(db, task_id: int, assigned_to: int, due_date) -> None:
             db.rollback()
         except Exception:
             swallowed("task assignment email rollback")
+
+
+def tell_new_assignee(db, task_ids, assignee_id, actor_id) -> None:
+    """Tell the person tasks were handed to: an edit that gave a task to someone else, or a bulk assignment.
+
+    One notice in the app and one email, however many tasks: a person given forty tasks is told once ("N tasks are
+    assigned to you"), and one task is told as a task is when it is created. The person who made the change is not told.
+    Called after the change is committed; a problem is recorded and goes no further."""
+    ids = sorted({int(t) for t in task_ids if t is not None})
+    if not ids or assignee_id is None or assignee_id == actor_id:
+        return
+    try:
+        from core.timeutils import utcnow
+        change = utcnow().strftime("%Y%m%d%H%M")
+        if len(ids) == 1:
+            row = db.execute("SELECT title, due_date FROM task_board WHERE id = %s", (ids[0],)).fetchone()
+            if row is None:
+                return
+            db.execute(
+                "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
+                (assignee_id, f"Task assigned to you: {row['title']}", "Open the task board to see it.", "/tasks", "task"))
+            db.commit()
+            _ask_assignment_email(db, ids[0], assignee_id, row["due_date"], change)
+            return
+        db.execute(
+            "INSERT INTO notifications (user_id, title, message, link, module) VALUES (%s,%s,%s,%s,%s)",
+            (assignee_id, f"{len(ids)} tasks assigned to you", "Open the task board to see them.", "/tasks", "task"))
+        db.commit()
+        from core import email_outbox
+        email_outbox.enqueue_safely(
+            db, "tasks.assigned", recipient_user_id=assignee_id, org_id=get_current_org(), route="/tasks",
+            fields={"count": len(ids)}, source=("platform", "task_batch", ids[0]), purpose="assigned_batch",
+            threshold=f"{assignee_id}|{ids[0]}|{len(ids)}|{change}")
+        db.commit()
+    except Exception:
+        swallowed("task reassignment notice")
+        try:
+            db.rollback()
+        except Exception:
+            swallowed("task reassignment notice rollback")

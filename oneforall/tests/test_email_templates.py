@@ -23,6 +23,7 @@ def test_every_template_renders_a_subject_without_a_field_and_the_same_informati
         "bcm.exercise": ({"reference": "EX-9", "due": "2026-10-20"}, "/bcm/?open=exercise:9"),
         "bcm.incident": ({"reference": "INC-14", "minutes": 15}, "/bcm/?open=incident:14"),
         "bcm.escalation": ({"reference": "INC-14", "minutes": 15}, "/bcm/?open=incident:14"),
+        "tasks.assigned": ({"count": 4}, "/tasks"),
         "summary.weekly": ({"audits": 3, "overdue": 1}, "/grid/"),
         "summary.mywork": ({"count": 4, "overdue": 1}, "/my-work"),
         "delivery.failure": ({"count": 3}, "/admin/email"),

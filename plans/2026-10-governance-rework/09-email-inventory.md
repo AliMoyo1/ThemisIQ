@@ -22,7 +22,8 @@ through the outbox are sent by its worker, once a minute, from the reminder sche
 | `modules/grid/scheduler.py` vault expiry | daily 08:45 | the uploader | the same people as the Evidence job, daily for thirty days | Asks the Evidence job's function, under the same key: one message |
 | `modules/grid/routes.py` NC assignment | a finding is assigned or created with an assignee | the assignee | best effort, swallowed, result ignored; none at creation | `audit.finding` through the outbox, also at creation |
 | `modules/grid/routes.py` audit share | an administrator creates a share link | the auditor, an active account with GRID access in the organization | a bearer-style token in the link; the origin is validated (`APP_URL`, https) | Direct send kept (a link that works only for the signed-in recipient); the subject has no audit name; the creator sees `email_status`. Token expiry and revocation review is open |
-| `modules/launcher/task_service.py` task created for someone else | a task is created with an assignee | the assignee | in-app notice only | `action.assigned` through the outbox, after the task and its notice are committed. Updating or bulk assigning a task notifies nobody, in the app or by mail |
+| `modules/launcher/task_service.py` task created for someone else | a task is created with an assignee | the assignee | in-app notice only | `action.assigned` through the outbox, after the task and its notice are committed |
+| `modules/launcher/task_service.py` task handed over | a task is edited so that it belongs to someone else, or tasks are assigned in bulk (follow-up 13) | the new assignee, never the person who made the change | none | An in-app notice and `action.assigned` for one task; for a group, one notice and `tasks.assigned` (a count and a link). A task given away and given again is told again. Other updates tell nobody |
 | `main.py` demo request | the public form | the administrator address | called `send_email(body_text=...)`, which the function did not accept: the exception was caught, so the message was never sent | The function takes a plain text part; the data is escaped; a provider that did not accept it is logged |
 | `modules/launcher/routes_admin.py` test | an administrator presses Send test | the administrator | in console mode it answered "Sent via console" | Says *the provider accepted it*, *nothing was sent* or *the provider did not accept it*, and asks whether it arrived |
 | `core/email_outbox.py` failure report | the worker, every minute, sends at most once a day per count | the administrators of the organization | none | `delivery.failure`: how many messages ended as a permanent failure in the last seven days. A critical failure is also shown in the app at its first failure, not after the retries |
@@ -66,7 +67,9 @@ through the outbox are sent by its worker, once a minute, from the reminder sche
    **Decided (owner, 2026-10-15): platform wide.** Each person chooses their own action mail, daily or weekly summary and
    quiet hours; a tenant cannot override them and the sender identity is the platform's. The reasons are in the ledger under
    "Decisions taken".
-5. Which delivery metadata retention and provider data processing terms are approved? Outbox rows are kept; there is no purge.
+5. Which delivery metadata retention and provider data processing terms are approved? **Built with a default (follow-up
+   13, adopted by the owner on 2026-10-15): ended deliveries are deleted after 180 days, once a day** (`RETENTION_DAYS`);
+   waiting rows are never purged. The processor terms are still the owner's to confirm.
 6. Does the pilot include only test recipients or a named governance team, and what is the measured daily volume? The cap is
    200 accepted messages a day per organization for everything that is not critical (a constant, `DAILY_CAP`).
 7. Which role authors the legal clocks and alternate contacts of Sentinel and BCM (E3)? Until answered, the breach message

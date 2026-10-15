@@ -36,6 +36,8 @@ BACKOFF_MINUTES = (5, 15, 60, 180, 360)
 MAX_AGE_HOURS = 48
 DAILY_CAP = 200          # provider accepted per UTC day for everything that is not critical; a setting may lower it
 CRITICAL_CEILING = 2     # critical mail may go up to this multiple of the cap
+PER_MINUTE = 20          # messages other than critical handed to the provider in one pass (a minute), all organizations
+RETENTION_DAYS = 180     # an ended delivery is kept this long, then deleted (06 section 10, question 5)
 _PRIORITY_RANK = {templates.CRITICAL: 0, templates.OPERATOR: 1, templates.ACTION: 2, templates.INFO: 3}
 # The people who administer an organization. "admin" is the spelling older role lists used.
 ADMIN_ROLES = ("super_admin", "org_admin", "admin")
@@ -282,7 +284,9 @@ def _set(db, row_id, **cols):
 
 # ── Sending ─────────────────────────────────────────────────────────────────
 
-def _deliver_one(db, row, now, cap) -> str:
+def _deliver_one(db, row, now, cap, calls=None) -> str:
+    """Send one delivery, or decide not to. `calls` (a list) gets an item when the provider was actually called, which is
+    what the per minute budget counts: a suppression or a postponement is a local decision and costs nothing."""
     from core import email as mail
     template = templates.get(row["template_key"])
     user_row = db.execute(
@@ -330,6 +334,8 @@ def _deliver_one(db, row, now, cap) -> str:
         return done(FAILED, suppress_reason="template_error", last_error=str(exc)[:200])
 
     db.commit()  # the checks above only read: no transaction is held open while the provider is called
+    if calls is not None:
+        calls.append(row["id"])
     result = mail.send_email(to=address, subject=message["subject"], body_html=message["html"],
                              body_text=message["text"])
     status = result.get("status")
@@ -404,15 +410,21 @@ def set_paused(db, paused: bool) -> None:
         (PAUSE_KEY, "1" if paused else "0"))
 
 
-def deliver_due(db=None, *, now=None, limit=50, cap=None) -> dict:
+def deliver_due(db=None, *, now=None, limit=50, cap=None, per_minute=None, budget=None) -> dict:
     """Send what is due. Safe to run from several workers: a row is leased with a compare-and-set before it is sent, and
-    nothing is held open while the provider is called."""
+    nothing is held open while the provider is called.
+
+    At most `per_minute` messages other than critical go to the provider in one pass. Every organization sends through
+    the same account, so the worker passes one `budget` ({"n": remaining}) to all of them; critical mail is neither
+    counted nor held. A message left over stays queued for the next minute."""
     own = db is None
     if own:
         from database import get_db_background
         db = get_db_background()
     now = now or utcnow()
     cap = cap or DAILY_CAP
+    if budget is None:
+        budget = {"n": PER_MINUTE if per_minute is None else int(per_minute)}
     summary = {"examined": 0, ACCEPTED: 0, LOGGED: 0, SUPPRESSED: 0, RETRY: 0, FAILED: 0}
     try:
         stamp = _stamp(now)
@@ -426,6 +438,8 @@ def deliver_due(db=None, *, now=None, limit=50, cap=None) -> dict:
             "ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'operator' THEN 1 WHEN 'action' THEN 2 ELSE 3 END, id "
             "LIMIT %s", (stamp, stamp, stamp, int(limit))).fetchall()
         for row in due:
+            if row["priority"] != templates.CRITICAL and budget["n"] <= 0:
+                break  # ordered critical first: what is left is all ordinary mail, and it waits for the next minute
             claimed = db.execute(
                 "UPDATE email_outbox SET status = 'sending', leased_until = %s WHERE id = %s "
                 "AND (status IN ('queued', 'retry_due') OR (status = 'sending' AND leased_until < %s))",
@@ -434,8 +448,9 @@ def deliver_due(db=None, *, now=None, limit=50, cap=None) -> dict:
             if getattr(claimed, "rowcount", 1) != 1:
                 continue
             summary["examined"] += 1
+            calls: list = []
             try:
-                outcome = _deliver_one(db, row, now, cap)
+                outcome = _deliver_one(db, row, now, cap, calls)
             except Exception:
                 swallowed("email outbox delivery")
                 db.rollback()
@@ -444,6 +459,8 @@ def deliver_due(db=None, *, now=None, limit=50, cap=None) -> dict:
                 outcome = RETRY
             db.commit()
             summary[outcome] = summary.get(outcome, 0) + 1
+            if calls and row["priority"] != templates.CRITICAL:
+                budget["n"] -= 1
     finally:
         if own:
             db.close()
@@ -474,6 +491,34 @@ def summary(db) -> dict:
         "ORDER BY CASE priority WHEN 'critical' THEN 0 ELSE 1 END, id DESC LIMIT 50").fetchall()
     return {"counts": counts, "attention": [dict(r) for r in attention], "paused": is_paused(db),
             "by_provider": by_provider(db)}
+
+
+_ENDED = (ACCEPTED, SUPPRESSED, FAILED, LOGGED)
+
+
+def purge_old(db, *, now=None, days: int = RETENTION_DAYS) -> int:
+    """Delete the deliveries that ended more than `days` days ago and return how many. A delivery that is waiting,
+    retrying or leased is never touched, however old. The deduplication key goes with the row: an action that is still
+    open after that long and is asked for again is told once more, which is a reminder and not a duplicate."""
+    cutoff = _stamp((now or utcnow()) - timedelta(days=int(days)))
+    marks = ",".join(["%s"] * len(_ENDED))
+    cur = db.execute(f"DELETE FROM email_outbox WHERE status IN ({marks}) AND created_at < %s", [*_ENDED, cutoff])
+    return max(getattr(cur, "rowcount", 0) or 0, 0)
+
+
+_PURGED_ON: dict = {}   # organization id -> the UTC day of the last purge made by this process
+
+
+def _purge_once_a_day(db, org_id) -> None:
+    today = utcnow().strftime("%Y-%m-%d")
+    if _PURGED_ON.get(org_id) == today:
+        return
+    removed = purge_old(db)
+    db.commit()
+    _PURGED_ON[org_id] = today
+    if removed:
+        log.info("Email outbox: %d ended deliveries older than %d days removed (organization %s)", removed,
+                 RETENTION_DAYS, org_id)
 
 
 def requeue(db, outbox_id: int) -> bool:
@@ -561,6 +606,7 @@ def _deliver_and_report(org_id, **kwargs) -> dict:
     from database import get_db_background
     db = get_db_background()
     try:
+        _purge_once_a_day(db, org_id)
         report_failures(db, org_id)
         from modules.launcher import summary_mail
         summary_mail.ask_summaries(db, org_id)
@@ -576,6 +622,9 @@ def deliver_all_tenants(**kwargs) -> dict:
     """The worker's entry point: send what is due in every organization, one after the other, and tell its
     administrators about the messages that could not be accepted."""
     totals: dict = {}
+    # One send budget for every organization: they all leave through the same account (organizations are served in id
+    # order, so one with a long backlog is served first; the next minute continues).
+    kwargs.setdefault("budget", {"n": int(kwargs.pop("per_minute", None) or PER_MINUTE)})
     for got in for_each_tenant(lambda org: _deliver_and_report(org, **kwargs), "email outbox delivery"):
         for key, value in (got or {}).items():
             totals[key] = totals.get(key, 0) + value

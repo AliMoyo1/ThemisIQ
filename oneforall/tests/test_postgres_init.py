@@ -4215,3 +4215,69 @@ def test_bcm_incident_acknowledgement_and_escalation_run_inside_a_tenant_on_real
     assert _raw_rows("SELECT count(*) FROM public.email_outbox") == [(0,)]
     # the escalation wrote one note to the timeline; the acknowledgement note belongs to the route, which was not called
     assert _raw_rows("SELECT count(*) FROM tenant_bcmesc.bcm_incident_updates WHERE incident_id = %s", (waiting,)) == [(1,)]
+
+
+def test_outbox_purge_send_budget_and_task_hand_over_mail_run_inside_a_tenant_on_real_postgres(pg, monkeypatch):
+    """The purge deletes ended deliveries older than the retention from the tenant schema and nothing that waits; the
+    budget holds ordinary mail and lets critical mail through; a task handed to someone is told from that schema."""
+    from datetime import timedelta
+
+    from core import email as mail
+    from core import email_outbox as outbox
+    from core.timeutils import utcnow
+    from modules.launcher.task_service import tell_new_assignee
+
+    pg.init_db()
+    org, unit, ids, who = _ai_governance_world(pg, "hardpack")
+    monkeypatch.setattr(mail, "send_email", lambda **kw: {"status": mail.STATUS_ACCEPTED, "ok": True, "provider": "fake"})
+    monkeypatch.setenv("APP_URL", "https://app.themisiq.net")
+
+    with pg.tenant_context(org, "hardpack", is_super_admin=False):
+        db = pg.get_db()
+        try:
+            task = pg.insert_returning_id(
+                db, "INSERT INTO task_board (title, status, assigned_to, created_by, due_date) "
+                    "VALUES ('Hand over', 'todo', %s, %s, '2026-12-01')", (ids["author"], ids["author"]))
+            other = pg.insert_returning_id(
+                db, "INSERT INTO task_board (title, status, assigned_to, created_by) VALUES ('Second', 'todo', %s, %s)",
+                (ids["author"], ids["author"]))
+            db.commit()
+
+            # a hand over: one task is a task message, a group is one batch message, the person who did it is not told
+            tell_new_assignee(db, [task], ids["reviewer"], ids["author"])
+            tell_new_assignee(db, [task, other], ids["second"], ids["author"])
+            tell_new_assignee(db, [task], ids["author"], ids["author"])
+            queued = db.execute(
+                "SELECT template_key, recipient_user_id FROM email_outbox ORDER BY id").fetchall()
+            assert [(r["template_key"], r["recipient_user_id"]) for r in queued] == [
+                ("action.assigned", ids["reviewer"]), ("tasks.assigned", ids["second"])]
+
+            # the budget: 3 ordinary messages with a budget of 2, then a critical one that is not held
+            for n in range(3):
+                outbox.enqueue(db, "action.assigned", recipient_user_id=ids["reviewer"], org_id=org, route="/tasks",
+                               fields={"kind": "task", "reference": f"TK-{n + 100}"},
+                               source=("platform", "task", task), purpose=f"n{n}")
+            db.commit()
+            budget = {"n": 2}
+            first = outbox.deliver_due(db, budget=budget, limit=50)
+            assert first[outbox.ACCEPTED] == 2 and budget["n"] == 0
+            outbox.enqueue(db, "action.assigned", recipient_user_id=ids["reviewer"], org_id=org, route="/tasks",
+                           fields={"kind": "task", "reference": "TK-999"}, source=("platform", "task", other),
+                           purpose="urgent", priority="critical")
+            db.commit()
+            assert outbox.deliver_due(db, budget=budget, limit=50)[outbox.ACCEPTED] == 1
+            assert db.execute("SELECT COUNT(*) FROM email_outbox WHERE status = 'queued'").fetchone()[0] >= 1
+
+            # the purge: an ended delivery from long ago goes, an old one that is still waiting stays
+            old = (utcnow() - timedelta(days=outbox.RETENTION_DAYS + 3)).strftime("%Y-%m-%d %H:%M:%S")
+            ended = db.execute("SELECT id FROM email_outbox WHERE status = 'provider_accepted' ORDER BY id").fetchone()["id"]
+            waiting = db.execute("SELECT id FROM email_outbox WHERE status = 'queued' ORDER BY id").fetchone()["id"]
+            db.execute("UPDATE email_outbox SET created_at = %s WHERE id IN (%s, %s)", (old, ended, waiting))
+            db.commit()
+            assert outbox.purge_old(db) == 1
+            db.commit()
+            assert db.execute("SELECT COUNT(*) FROM email_outbox WHERE id = %s", (ended,)).fetchone()[0] == 0
+            assert db.execute("SELECT COUNT(*) FROM email_outbox WHERE id = %s", (waiting,)).fetchone()[0] == 1
+        finally:
+            db.close()
+    assert _raw_rows("SELECT count(*) FROM public.email_outbox") == [(0,)], "all of it in the tenant schema"

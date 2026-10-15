@@ -67,6 +67,11 @@ TEMPLATES = {t.key: t for t in (
         ("kind", "reference"), ("due",), ("/my-work", "/ai-governance/", "/grid/", "/tasks", "/evidence/", "/aria/"),
         "Open it in ThemisIQ", "it is assigned to you"),
     Template(
+        "tasks.assigned", 1, ACTION, "The person several tasks were assigned to at once",
+        "tasks are assigned to you",
+        "{count} task(s) are assigned to you. Open the task board in ThemisIQ to see what is needed.",
+        ("count",), (), ("/tasks",), "Open the task board", "tasks were assigned to you"),
+    Template(
         "decision.ready", 1, ACTION, "The independent decider named for the case",
         "an AI use decision is ready for you",
         "The review brief for {reference} is ready.{due_sentence} Confirm the evidence and record your decision in "
