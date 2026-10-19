@@ -9,7 +9,8 @@ import pytest
 from modules.ai_governance import import_rules as ir
 from tests.test_ai_governance_imports import export, response
 from tests.test_ai_governance_routes import http  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 API = "/ai-governance/api/import"
 

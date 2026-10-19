@@ -20,7 +20,8 @@ from modules.ai_governance.routes import router as ai_router
 from modules.evidence.routes import router as evidence_router
 from modules.governance import data_service as governance_ds
 from modules.governance.routes import router as governance_router
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture

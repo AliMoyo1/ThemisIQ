@@ -22,19 +22,26 @@ def test_a_regulation_with_no_rule_gets_no_deadline_instead_of_a_guess():
     assert "Atlantis Privacy Act" in clock["label"] and "no deadline is calculated" in clock["label"]
 
 
-def test_an_as_soon_as_practicable_regulation_has_no_fixed_hours():
-    for regulation in ("South Africa POPIA", "Canada PIPEDA", "India DPDP"):
-        clock = breach_clock(regulation, "2026-10-01")
-        assert clock["state"] == "asap" and clock["hours"] is None
-        assert "internal target, not a legal deadline" in clock["label"]
+def test_an_as_soon_as_practicable_researched_rule_has_no_fixed_hours():
+    clock = breach_clock("South Africa POPIA", "2026-10-01")
+    assert clock["state"] == "asap" and clock["hours"] is None
+    assert "internal target, not a legal deadline" in clock["label"]
 
 
-@pytest.mark.parametrize("regulation, hours", [("GDPR", 72), ("Brazil LGPD", 48), ("Japan APPI", 720), ("Zimbabwe CDPA", 72)])
+@pytest.mark.parametrize("regulation, hours", [("GDPR", 72), ("Zimbabwe CDPA", 24)])
 def test_a_fixed_rule_is_indicative_and_names_what_it_is_counted_from(regulation, hours):
     clock = breach_clock(regulation, "2026-10-01 08:30:00")
     assert clock["state"] == "indicative" and clock["hours"] == hours
     assert clock["basis"] == f"{hours} hours after the recorded discovery date under {regulation}"
     assert "privacy specialist confirms the legal trigger" in clock["label"]
+
+
+@pytest.mark.parametrize("regulation", ["Canada PIPEDA", "India DPDP", "Brazil LGPD", "Japan APPI"])
+def test_unverified_legacy_rules_are_internal_targets_only(regulation):
+    clock = breach_clock(regulation, "2026-10-01")
+    assert clock["state"] == "unverified"
+    assert clock["basis"] == "Legacy internal review target"
+    assert "internal review target only" in clock["label"]
 
 
 def _breach(db, **cols):

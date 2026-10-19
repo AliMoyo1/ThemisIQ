@@ -9,7 +9,8 @@ from modules.ai_governance.routes import router as ai_router
 from modules.launcher.routes import router as launcher_router
 from tests.test_ai_governance_routes import _accepted
 from tests.test_ai_governance_service import roles  # noqa: F401
-from tests.test_platform_ownership import _insert, world  # noqa: F401
+from tests.test_platform_ownership import _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 API = "/ai-governance/api"
 

@@ -13,7 +13,8 @@ from tests.test_ai_governance_decisions import ask, decide, resolve_provider_rev
 from tests.test_ai_governance_evaluations import RUN
 from tests.test_ai_governance_oversight import COMPLETE
 from tests.test_ai_governance_service import FULL, approve_new, commit, fail, roles, submitted, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 KEYS = ["facts", "owner", "aiia", "dpia", "ropa", "vendor", "aims", "policy", "evaluation", "oversight", "proof",
         "continuity", "regulatory", "decision"]

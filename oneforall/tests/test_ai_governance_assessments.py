@@ -19,7 +19,8 @@ import pytest
 from core import rbac
 from modules.ai_governance import assessments
 from tests.test_ai_governance_service import commit, count, fail, user
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 READERS_AND_WRITERS = (rbac.SUPER_ADMIN, rbac.DPO, rbac.PRIVACY_ANALYST, rbac.COMPLIANCE_MGR, rbac.GRC_OFFICER,
                        rbac.RISK_OWNER, rbac.ORG_ADMIN)

@@ -12,7 +12,7 @@ from modules.ai_governance import literacy, platform_features
 from modules.ai_governance.routes import router as ai_router
 from modules.ai_governance.service import ServiceError
 from tests.test_ai_governance_service import roles  # noqa: F401
-from tests.test_platform_ownership import world  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 COURSE = {"title": "Responsible AI", "body": "Check every output.",

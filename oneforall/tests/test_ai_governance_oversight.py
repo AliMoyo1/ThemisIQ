@@ -7,7 +7,8 @@ from modules.ai_governance import decisions, monitoring, oversight
 from modules.ai_governance.service import ServiceError
 from modules.governance.data_service import bu_scope_ids
 from modules.launcher.my_work_service import _ai_governance_work
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 COMPLETE = {

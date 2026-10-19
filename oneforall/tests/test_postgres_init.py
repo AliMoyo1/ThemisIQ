@@ -2940,6 +2940,21 @@ def _ai_governance_world(pg, slug, provision=True, author_role=None):
     return org, unit, ids, personas
 
 
+def _grant_ai_reviewers_source_access(pg, ids, who):
+    """Give the deciders the ORM access needed to verify the proposed AI brief."""
+    from core import rbac
+
+    db = pg.get_db_bypass_rls()
+    try:
+        for name in ("reviewer", "second"):
+            db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+                       (ids[name], rbac.COMPLIANCE_MGR))
+            who[name]["roles"].append(rbac.COMPLIANCE_MGR)
+        db.commit()
+    finally:
+        db.close()
+
+
 _AI_GOOD = {"name": "PG summarizer", "purpose": "Summarize tickets", "deployment": "vendor_service", "provider_name": "Acme AI",
             "data_categories": ["internal"], "intended_users": "Agents", "affected_people": ["none"], "autonomy": "assist_only",
             "affects_decisions": False, "external_access": False}
@@ -3005,7 +3020,7 @@ def test_ai_intake_review_inventory_and_workspace_run_inside_a_tenant_on_real_po
 
     first_thread = threading.Thread(target=accept, args=("reviewer", True))
     first_thread.start()
-    assert held.wait(15)
+    assert held.wait(15), outcomes
     second_thread = threading.Thread(target=accept, args=("second", False))
     second_thread.start()
     second_thread.join(1.0)
@@ -3269,6 +3284,7 @@ def test_ai_decisions_hold_one_open_request_and_one_winner_on_real_postgres(pg):
 
     pg.init_db()
     org, unit, ids, who = _ai_governance_world(pg, "aidecide")
+    _grant_ai_reviewers_source_access(pg, ids, who)
     author, reviewer, second = who["author"], who["reviewer"], who["second"]
     for index in ("uq_ai_decision_open", "idx_ai_decisions_application", "idx_ai_decision_conditions"):
         assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aidecide' AND indexname = %s", (index,)) == [(1,)], index
@@ -3317,7 +3333,9 @@ def test_ai_decisions_hold_one_open_request_and_one_winner_on_real_postgres(pg):
     with pg.tenant_context(org, "aidecide", is_super_admin=False):
         db = pg.get_db()
         try:
-            shown = decisions.get_brief(db, reviewer, app)["hash"]
+            brief = decisions.get_brief(db, reviewer, app)
+            shown = brief["hash"]
+            assert not brief["proposal_access_limited"]
             assert decisions.get_brief(db, second, app)["hash"] == shown, "both are shown the same facts"
             queue = decisions.list_queue(db, reviewer)
             assert [r["id"] for r in queue["requests"]] == [decision_id]
@@ -3333,7 +3351,9 @@ def test_ai_decisions_hold_one_open_request_and_one_winner_on_real_postgres(pg):
             conn = pg.get_db()
             try:
                 result = decisions.decide(conn, person, decision_id, "approve", rationale=f"Approved by {name}.",
-                                          brief=shown, expected_version=1)
+                                          brief=shown, expected_version=1,
+                                          override_reason=("Review gaps are documented in this test brief."
+                                                           if brief["needs_override"] else None))
                 if hold:
                     held.set()
                     release.wait(15)
@@ -3386,6 +3406,7 @@ def test_ai_evaluations_regulation_and_monitoring_run_inside_a_tenant_on_real_po
 
     pg.init_db()
     org, unit, ids, who = _ai_governance_world(pg, "aimon")
+    _grant_ai_reviewers_source_access(pg, ids, who)
     author, reviewer, second = who["author"], who["reviewer"], who["second"]
     for index in ("idx_ai_evaluation_application", "idx_ai_regulatory_queue"):
         assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aimon' AND indexname = %s", (index,)) == [(1,)], index
@@ -3435,8 +3456,12 @@ def test_ai_evaluations_regulation_and_monitoring_run_inside_a_tenant_on_real_po
             assert {"evaluations", "regulation"} <= set(watched["attention"])
             asked = decisions.request_decision(db, author, app, None)
             db.commit()
-            shown = decisions.get_brief(db, second, app)["hash"]
-            signed = decisions.decide(db, second, asked["decision"]["id"], "approve", brief=shown, expected_version=1)
+            brief = decisions.get_brief(db, second, app)
+            assert not brief["proposal_access_limited"]
+            signed = decisions.decide(db, second, asked["decision"]["id"], "approve", brief=brief["hash"],
+                                      expected_version=1,
+                                      override_reason=("Review gaps are documented in this test brief."
+                                                       if brief["needs_override"] else None))
             db.commit()
             assert signed["decision"]["status"] == "approved"
             # what was recorded before the signing stands behind it; only what is recorded after reopens it
@@ -3465,11 +3490,17 @@ def test_ai_review_pack_issue_open_revoke_and_issuer_right_on_real_postgres(pg):
             shared, "INSERT INTO users (username, email, full_name, password_hash, org_id) VALUES (%s, %s, %s, 'x', %s)",
             ("aipack_auditor", "aipack_auditor@example.test", "Pack auditor", org))
         shared.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (recipient_id, rbac.EXTERNAL_AUDITOR))
+        outsider_id = pg.insert_returning_id(
+            shared, "INSERT INTO users (username, email, full_name, password_hash, org_id) VALUES (%s, %s, %s, 'x', %s)",
+            ("aipack_employee", "aipack_employee@example.test", "Other employee", org))
+        shared.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (outsider_id, rbac.EMPLOYEE))
         shared.commit()
     finally:
         shared.close()
     recipient = {"id": recipient_id, "username": "aipack_auditor", "org_id": org, "business_unit_id": None,
                  "is_super_admin": 0, "roles": [rbac.EXTERNAL_AUDITOR]}
+    outsider = {"id": outsider_id, "username": "aipack_employee", "org_id": org, "business_unit_id": None,
+                "is_super_admin": 0, "roles": [rbac.EMPLOYEE]}
     assert _raw_rows("SELECT count(*) FROM pg_indexes WHERE schemaname = 'tenant_aipack' "
                      "AND indexname = 'idx_ai_pack_recipient'") == [(1,)]
     with pg.tenant_context(org, "aipack", is_super_admin=False):
@@ -3498,7 +3529,7 @@ def test_ai_review_pack_issue_open_revoke_and_issuer_right_on_real_postgres(pg):
             db.commit()
             assert opened["manifest"]["hash"] == made["pack"]["hash"]
             assert review_packs.access_history(db, who["reviewer"], pack_id)["events"][0]["action"] == "viewed"
-            assert review_packs.open_pack(db, who["author"], pack_id)["http"] == 404
+            assert review_packs.open_pack(db, outsider, pack_id)["http"] == 404
             db.commit()
             revoked = review_packs.revoke(db, who["reviewer"], pack_id, "Audit ended", made["pack"]["version"])
             db.commit()

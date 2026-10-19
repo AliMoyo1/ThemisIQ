@@ -14,7 +14,8 @@ from core import rbac
 from modules.ai_governance import decisions, evaluations, guidance, service
 from modules.ai_governance.service import ServiceError
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, submitted, user
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 RUN = {"name": "Citation check", "test_set_name": "aria-citations", "test_set_version": "v3", "rubric_version": "r2",
        "subject_version": "assistant 2026-09", "evaluator": "deterministic", "status": "completed",

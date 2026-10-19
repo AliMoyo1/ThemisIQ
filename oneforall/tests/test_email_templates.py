@@ -85,7 +85,7 @@ def test_a_deadline_with_a_time_is_stated_in_utc_and_the_hours_are_a_bounded_num
     got = t.render("privacy.deadline", {"reference": "BR-104", "due": "2026-10-14 16:00:00", "hours": 6},
                    "/sentinel/?open=breach:7", ORIGIN)
     assert "14 Oct 2026, 16:00 UTC" in got["text"] and "About 6 hour(s) remained" in got["text"]
-    assert got["subject"] == "ThemisIQ: a privacy deadline is approaching", "the subject carries no field"
+    assert got["subject"] == "ThemisIQ: a privacy case needs review", "the subject carries no field"
     assert "Reference: BR-104." in got["text"]
     with pytest.raises(t.TemplateError):
         t.render("privacy.deadline", {"reference": "BR-104", "due": "2026-10-14", "hours": -1}, "/sentinel/", ORIGIN)

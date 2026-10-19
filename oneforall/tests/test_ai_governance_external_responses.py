@@ -21,7 +21,8 @@ from tests.test_ai_governance_imports import preview as preview_import
 from tests.test_ai_governance_imports import response as form_response
 from tests.test_ai_governance_routes import _accepted, http  # noqa: F401
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, roles, submitted, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture

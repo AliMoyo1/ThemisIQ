@@ -2,7 +2,8 @@
 
 from tests.test_ai_governance_oversight import COMPLETE
 from tests.test_ai_governance_routes import http  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 def _system(http):

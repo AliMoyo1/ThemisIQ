@@ -14,7 +14,8 @@ import core.middleware as middleware
 from core import rbac
 from modules.ai_governance.routes import router as ai_router
 from modules.launcher.routes import router as launcher_router
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 GOOD = {"name": "Ticket summarizer", "purpose": "Summarize support tickets", "deployment": "vendor_service",
         "provider_name": "Acme AI", "data_categories": ["internal"], "intended_users": "Support agents"}

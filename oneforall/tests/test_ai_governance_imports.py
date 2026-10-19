@@ -15,7 +15,8 @@ from modules.ai_governance import import_rules as ir
 from modules.ai_governance import imports, service
 from modules.ai_governance.service import ServiceError
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, roles, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 HEADERS = [g["question"] for g in ir.FIELD_GUIDE if g["target"] != "response_id"]
 

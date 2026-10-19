@@ -8,7 +8,8 @@ from modules.ai_governance import evaluations, monitoring, regulation, service
 from modules.governance import relationships
 from tests.test_ai_governance_evaluations import RUN
 from tests.test_ai_governance_service import FULL, approve_new, commit, fail, submitted, user
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture

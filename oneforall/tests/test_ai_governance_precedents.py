@@ -10,7 +10,8 @@ from modules.ai_governance import precedents as pr
 from modules.ai_governance import service
 from tests.test_ai_governance_decisions import ask, decide, resolve_provider_review
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, draft, fail, roles, submitted, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 def subject(**changes):

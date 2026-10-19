@@ -10,7 +10,8 @@ import pytest
 
 from modules.ai_governance import decisions, guidance, regulation, service
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, submitted, user
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture

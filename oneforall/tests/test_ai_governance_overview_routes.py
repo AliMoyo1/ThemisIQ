@@ -7,7 +7,8 @@ the specialist ones, a bad filter is a 400 that names the problem, and a unit ne
 import pytest
 
 from tests.test_ai_governance_routes import FULL, _submit, http  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 PAGES = ("/ai-governance/", "/ai-governance/systems", "/ai-governance/monitoring")
 APIS = ("/ai-governance/api/overview", "/ai-governance/api/portfolio")

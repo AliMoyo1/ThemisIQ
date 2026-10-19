@@ -8,7 +8,8 @@ not open answers exactly like one that does not exist, and a body that is not a 
 import pytest
 
 from tests.test_ai_governance_routes import _accepted, http  # noqa: F401
-from tests.test_platform_ownership import _insert, world  # noqa: F401
+from tests.test_platform_ownership import _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 API = "/ai-governance/api"
 

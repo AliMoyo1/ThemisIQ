@@ -10,7 +10,8 @@ import pytest
 from core import ai_client
 from tests.test_ai_governance_evaluations import RUN
 from tests.test_ai_governance_routes import _accepted, http  # noqa: F401
-from tests.test_platform_ownership import _insert, world  # noqa: F401
+from tests.test_platform_ownership import _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 API = "/ai-governance/api"
 

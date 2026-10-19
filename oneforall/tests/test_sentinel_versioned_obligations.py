@@ -22,6 +22,12 @@ def _setup(db):
     return {"id": uid, "org_id": org, "roles": ["dpo"]}, bid
 
 
+def _independent_dpo(db, user):
+    uid = _id(db, "users", username="second_dpo", email="second_dpo@example.test",
+              full_name="Second DPO", password_hash="x", org_id=user["org_id"])
+    return {"id": uid, "org_id": user["org_id"], "roles": ["dpo"]}
+
+
 def _card(key="EXAMPLE", **changes):
     return {"jurisdiction_key": key, "notice_type": "authority",
             "source_title": "Reviewed legal source", "source_url": "https://example.org/rule",
@@ -31,6 +37,7 @@ def _card(key="EXAMPLE", **changes):
 
 def test_draft_missing_trigger_and_multiple_approved_clocks(test_db):
     user, breach = _setup(test_db)
+    approver = _independent_dpo(test_db, user)
     first = obligations.create_card(_card(), user)
     draft_obligation = obligations.add_obligation(breach, {"rule_card_id": first,
         "applicability": "applies", "trigger_at": "2026-10-16T12:00:00+00:00",
@@ -38,13 +45,13 @@ def test_draft_missing_trigger_and_multiple_approved_clocks(test_db):
     now = datetime(2026, 10, 16, 13, tzinfo=timezone.utc)
     assert obligations.list_obligations(breach, user, now=now)[0]["clock"] == {
         "state": "awaiting_rule_approval", "deadline_at": None, "authoritative": False}
-    obligations.approve_card(first, user)
+    obligations.approve_card(first, approver)
     first_clock = obligations.list_obligations(breach, user, now=now)[0]["clock"]
     assert first_clock["state"] == "running" and first_clock["authoritative"]
     assert first_clock["deadline_at"] == "2026-10-18T12:00:00+00:00"
 
     second = obligations.create_card(_card(key="SECOND", deadline_hours=24), user)
-    obligations.approve_card(second, user)
+    obligations.approve_card(second, approver)
     obligations.add_obligation(breach, {"rule_card_id": second,
         "applicability": "applies", "trigger_source": "Pending discovery confirmation"}, user)
     clocks = [item["clock"]["state"] for item in obligations.list_obligations(breach, user, now=now)]
@@ -63,13 +70,16 @@ def test_draft_missing_trigger_and_multiple_approved_clocks(test_db):
 
 def test_card_approval_is_dpo_only_and_version_is_immutable(test_db):
     user, _ = _setup(test_db)
+    approver = _independent_dpo(test_db, user)
     first = obligations.create_card(_card(), user)
     with pytest.raises(PermissionError):
         obligations.approve_card(first, {"id": user["id"], "org_id": user["org_id"],
                                          "roles": ["privacy_analyst"]})
-    obligations.approve_card(first, user)
-    with pytest.raises(LookupError):
+    with pytest.raises(LookupError, match="independent approval"):
         obligations.approve_card(first, user)
+    obligations.approve_card(first, approver)
+    with pytest.raises(LookupError):
+        obligations.approve_card(first, approver)
     second = obligations.create_card(_card(deadline_hours=72), user)
     versions = [item["version"] for item in obligations.list_cards(user)]
     assert (first, second) != (second, first) and versions == [2, 1]
