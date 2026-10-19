@@ -1,4 +1,5 @@
 """Historical GRID files and BCM references get a reviewable Vault crosswalk."""
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -122,13 +123,17 @@ def test_grid_evidence_collection_is_scoped_to_audit_unit(test_db):
     assert [row["original_name"] for row in rows] == ["visible.txt"]
 
 
-def test_bcm_crosswalk_requires_explicit_visible_vault_item(test_db):
+def test_bcm_crosswalk_requires_explicit_visible_vault_item(test_db, tmp_path, monkeypatch):
     user = _user(test_db)
+    monkeypatch.setenv("EVIDENCE_DIR", str(tmp_path))
+    content = b"Reviewed continuity evidence"
+    (tmp_path / "reviewed.txt").write_bytes(content)
     control = _id(test_db, "bcm_compliance_controls", framework="ISO 22301",
                   clause="8.4", title="Continuity proof")
     source = _id(test_db, "bcm_compliance_evidence", control_id=control,
                  title="Old reference", file_path="/client/supplied/path")
-    vault = _id(test_db, "evidence_items", title="Reviewed file", org_id=user["org_id"], status="current")
+    vault = _id(test_db, "evidence_items", title="Reviewed file", org_id=user["org_id"], status="current",
+                file_path="reviewed.txt", file_size=len(content), file_hash=hashlib.sha256(content).hexdigest())
     assert legacy_migration.bcm_inventory(user)[0]["state"] == "manual_review"
     assert legacy_migration.reconcile_bcm_file(source, vault, user) == vault
     assert legacy_migration.reconcile_bcm_file(source, vault, user) == vault

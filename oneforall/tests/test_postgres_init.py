@@ -2941,11 +2941,14 @@ def _ai_governance_world(pg, slug, provision=True, author_role=None):
 
 
 def _grant_ai_reviewers_source_access(pg, ids, who):
-    """Give the deciders the ORM access needed to verify the proposed AI brief."""
+    """Give requester and deciders the same source visibility for a comparable brief."""
     from core import rbac
 
     db = pg.get_db_bypass_rls()
     try:
+        db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+                   (ids["author"], rbac.DPO))
+        who["author"]["roles"].append(rbac.DPO)
         for name in ("reviewer", "second"):
             db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
                        (ids[name], rbac.COMPLIANCE_MGR))
