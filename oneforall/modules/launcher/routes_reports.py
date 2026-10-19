@@ -3,19 +3,20 @@ Launcher sub-router: Reporting engine: definitions, runs, report generation.
 
 A run is frozen when it is generated (plans/2026-10-governance-rework/04 section 5). Generating one reads through the
 viewer's own scope, stores the figures with who, when, which scope and which sources, hashes them, and never recomputes
-them: opening a saved run decodes what was stored. A person may open only a run generated for them while their access is
-what it was then; a refusal is written to the audit log. Running a definition again makes a new run, linked to the
+them: opening a saved run decodes what was stored. The owner and a named recipient with the same current scope can open
+the frozen run; a refusal is written to the audit log. Running a definition again makes a new run, linked to the
 earlier one with a summary of what changed.
 """
 import csv
 import io
 import json as json_lib
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
 from core.best_effort import swallowed
-from core.rbac import user_modules
+from core.rbac import user_capabilities, user_modules
 from core.timeutils import utcnow
 from database import insert_returning_id
 from modules.governance.data_service import bu_scope_ids
@@ -25,7 +26,7 @@ from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, log_audit,
     shell_ctx, shell_templates, get_db,
     _json_body,)
-from modules.launcher.scoped_metrics import run_scope_key
+from modules.launcher.scoped_metrics import run_scope_key, table_scope
 
 router = APIRouter()
 
@@ -108,6 +109,7 @@ def _scope_of(db, user) -> dict:
                                                   if len(ids) > 1 else "") + ", and organization-wide records"
     scope = {"org_id": user.get("org_id"), "org_name": org_name, "whole_organization": units is None,
              "business_unit_ids": ids, "organization_wide_only": units == [-1], "modules": sorted(user_modules(user)),
+             "capabilities": sorted(user_capabilities(user)),
              "label": label}
     scope["fingerprint"] = snap.scope_fingerprint(scope)
     return scope
@@ -190,6 +192,73 @@ def _notes(db, run_id) -> list:
     return [dict(r) for r in rows]
 
 
+def _recipient(db, user_id):
+    """Load current effective access, including current role and module grants."""
+    from core.email_outbox import user_for_scope
+    row = db.execute(
+        "SELECT id,username,email,full_name,org_id,business_unit_id,is_super_admin,is_active "
+        "FROM users WHERE id=%s", (user_id,),
+    ).fetchone()
+    return user_for_scope(db, row) if row and row["is_active"] else None
+
+
+def _shareable(db, env, person):
+    """A share never widens the saved report's access, even when a grant remains in the table."""
+    scope = env.get("scope") or {}
+    if (not person or person.get("is_super_admin") or not person.get("org_id") or
+            person["org_id"] != scope.get("org_id") or
+            not set(scope.get("modules") or ()).issubset(set(user_modules(person))) or
+            not set(scope.get("capabilities") or ()).issubset(set(user_capabilities(person))) or
+            _scope_of(db, person)["fingerprint"] != scope.get("fingerprint")):
+        return False
+    inputs = env.get("inputs") or {}
+    for source in env.get("sources") or []:
+        if source.get("state") != "read":
+            continue
+        name = source.get("source")
+        if name not in builders.SOURCES or (source.get("records") and name not in inputs):
+            return False
+    for table, captured in inputs.items():
+        if table not in builders.SOURCES or captured.get("truncated"):
+            return False
+        ids = captured.get("ids") or []
+        if any(type(i) is not int or i < 1 for i in ids) or len(ids) > snap.RECORD_CAP:
+            return False
+        if not ids:
+            continue
+        scope_sql, scope_params = table_scope(table, person)
+        marks = ",".join(["%s"] * len(ids))
+        visible = db.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE id IN ({marks}) AND {scope_sql}",
+            [*ids, *scope_params],
+        ).fetchone()[0]
+        if visible != len(set(ids)):
+            return False
+    return True
+
+
+def _retention(db, run_id):
+    row = db.execute("SELECT delete_after,hold_reason,purged_at FROM report_run_retention WHERE run_id=%s",
+                     (run_id,)).fetchone()
+    return dict(row) if row else {"delete_after": None, "hold_reason": None, "purged_at": None}
+
+
+def _signoffs(db, run_id):
+    return [dict(r) for r in db.execute(
+        "SELECT id,signer_id,decision,reason,snapshot_hash,narrative_reviewed,last_note_id,signed_at "
+        "FROM report_run_signoffs WHERE run_id=%s ORDER BY id", (run_id,),
+    ).fetchall()]
+
+
+def _owned_run(db, user, run_id, request):
+    row, refusal = _open(db, user, run_id, request, "manage")
+    if refusal:
+        return None, refusal
+    if snap.actor_id(row["triggered_by"]) != user["id"]:
+        return None, _JSONResp({"error": "Not found"}, status_code=404)
+    return row, None
+
+
 def _present(row, with_records=False) -> dict:
     """What a person is given for one saved run. Never recomputed: legacy runs say that they are legacy."""
     out = {"id": row["id"], "run_id": row["id"], "definition_id": row["definition_id"], "status": row["status"],
@@ -234,7 +303,25 @@ def _open(db, user, run_id, request, action):
         return None, _JSONResp({"error": "Not found"}, status_code=404)
     verdict = snap.decide(user, row["triggered_by"], run_scope_key(user))
     if verdict == snap.ALLOW:
+        retention = _retention(db, run_id)
+        if retention["purged_at"] or (retention["delete_after"] and
+                                      retention["delete_after"] <= _now() and not retention["hold_reason"]):
+            return None, _JSONResp({"error": "This saved report has reached its retention date."}, status_code=410)
         return dict(row), None
+    if verdict == snap.NOT_FOUND and not user.get("is_super_admin"):
+        grant = db.execute(
+            "SELECT id FROM report_run_shares WHERE run_id=%s AND recipient_user_id=%s "
+            "AND recipient_scope_key=%s AND revoked_at IS NULL AND expires_at>%s",
+            (run_id, user["id"], run_scope_key(user), _now()),
+        ).fetchone()
+        if grant and row["snapshot_hash"] and snap.intact(row["result_json"], row["snapshot_hash"]):
+            owner = _recipient(db, snap.actor_id(row["triggered_by"]))
+            env = json_lib.loads(row["result_json"])
+            if owner and run_scope_key(owner) == row["triggered_by"] and _shareable(db, env, user):
+                retention = _retention(db, run_id)
+                if not retention["purged_at"] and (not retention["delete_after"] or
+                        retention["delete_after"] > _now() or retention["hold_reason"]):
+                    return dict(row), None
     log_audit(user, "platform", "report_run_denied", entity_type="report_run", entity_id=run_id,
               details=f"{action}: {verdict}", ip=_ip(request))
     if verdict == snap.ACCESS_CHANGED:
@@ -484,8 +571,11 @@ async def api_report_runs(request: Request):
         where = ["1=1"]
         params = []
         if not user.get("is_super_admin"):
-            where.extend(["rd.created_by = %s", "rr.triggered_by = %s"])
-            params.extend([user["id"], run_scope_key(user)])
+            where.append("((rd.created_by=%s AND rr.triggered_by=%s) OR EXISTS ("
+                         "SELECT 1 FROM report_run_shares s WHERE s.run_id=rr.id "
+                         "AND s.recipient_user_id=%s AND s.recipient_scope_key=%s "
+                         "AND s.revoked_at IS NULL AND s.expires_at>%s))")
+            params.extend([user["id"], run_scope_key(user), user["id"], run_scope_key(user), _now()])
         if def_id:
             if not def_id.isdecimal():
                 return _JSONResp({"error": "Invalid definition id"}, status_code=400)
@@ -493,20 +583,24 @@ async def api_report_runs(request: Request):
             params.append(int(def_id))
         rows = db.execute(
             "SELECT rr.id, rr.definition_id, rr.status, rr.started_at, rr.completed_at, rr.error, rr.previous_run_id, "
-            "rr.snapshot_hash, rd.name as report_name, rd.report_type "
+            "rr.snapshot_hash, rr.triggered_by, rd.name as report_name, rd.report_type "
             "FROM report_runs rr "
             "LEFT JOIN report_definitions rd ON rr.definition_id = rd.id "
             f"WHERE {' AND '.join(where)} "
             "ORDER BY rr.started_at DESC, rr.id DESC LIMIT 50",
             params
         ).fetchall()
+        out = []
+        for r in rows:
+            _, refusal = _open(db, user, r["id"], request, "list")
+            if refusal:
+                continue
+            item = dict(r)
+            item["shared"] = snap.actor_id(item.pop("triggered_by")) != user["id"]
+            item["frozen"] = bool(item.pop("snapshot_hash"))
+            out.append(item)
     finally:
         db.close()
-    out = []
-    for r in rows:
-        item = dict(r)
-        item["frozen"] = bool(item.pop("snapshot_hash"))
-        out.append(item)
     return _JSONResp(out)
 
 
@@ -528,11 +622,174 @@ async def api_report_run_get(request: Request, run_id: int):
     db = get_db()
     try:
         shown["notes"] = _notes(db, run_id)
+        shown["signoffs"] = _signoffs(db, run_id)
+        shown["signoff_state"] = shown["signoffs"][-1]["decision"] if shown["signoffs"] else "not_reviewed"
+        if shown["signoffs"] and any(n["kind"] == "dispute" and
+                                     n["id"] > shown["signoffs"][-1]["last_note_id"] for n in shown["notes"]):
+            shown["signoff_state"] = "challenged"
+        shown["retention"] = _retention(db, run_id)
+        shown["shared"] = snap.actor_id(row["triggered_by"]) != user["id"]
+        if not shown["shared"]:
+            shown["shares"] = [dict(s) for s in db.execute(
+                "SELECT s.recipient_user_id,u.full_name,u.email,s.expires_at,s.revoked_at "
+                "FROM report_run_shares s JOIN users u ON u.id=s.recipient_user_id "
+                "WHERE s.run_id=%s ORDER BY s.id", (run_id,),
+            ).fetchall()]
     finally:
         db.close()
     if shown.get("frozen"):
         shown["figures"] = sorted(snap.flatten(shown.get("result")))
+    shown["can_share"] = shown.get("frozen") and not shown["shared"]
+    shown["can_signoff"] = (shown.get("frozen") and shown["shared"] and
+                            has_capability(user, "platform.report.signoff"))
+    shown["can_manage_retention"] = has_capability(user, "platform.manage_users")
     return _JSONResp(shown)
+
+
+@router.post("/api/reports/runs/{run_id}/shares", status_code=201)
+@require_auth
+async def api_report_share(request: Request, run_id: int):
+    """Give a named colleague a time-limited copy of the same frozen run, with access rechecked on every open."""
+    data = await _json_body(request)
+    email = str(data.get("recipient_email") or "").strip().lower()
+    days = data.get("expires_days", 30)
+    from core.email import valid_address
+    if not valid_address(email) or type(days) is not int or not 1 <= days <= 90:
+        return _JSONResp({"error": "Choose a recipient and an expiry from 1 to 90 days"}, status_code=400)
+    user = request.state.user
+    db = get_db()
+    try:
+        row, refusal = _owned_run(db, user, run_id, request)
+        if refusal:
+            return refusal
+        if not row["snapshot_hash"] or not snap.intact(row["result_json"], row["snapshot_hash"]):
+            return _JSONResp({"error": "Only an intact frozen report can be shared"}, status_code=409)
+        recipient_row = db.execute(
+            "SELECT id FROM users WHERE LOWER(email)=LOWER(%s) AND org_id=%s AND is_active=1 "
+            "AND COALESCE(is_super_admin,0)=0", (email, user.get("org_id")),
+        ).fetchone()
+        recipient_id = recipient_row["id"] if recipient_row else None
+        recipient = _recipient(db, recipient_id)
+        if recipient_id == user["id"] or not _shareable(db, json_lib.loads(row["result_json"]), recipient):
+            return _JSONResp({"error": "Recipient cannot open every source in this saved scope"}, status_code=400)
+        expires = (utcnow() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+        db.execute(
+            "INSERT INTO report_run_shares (run_id,recipient_user_id,recipient_scope_key,shared_by,expires_at) "
+            "VALUES (%s,%s,%s,%s,%s) ON CONFLICT(run_id,recipient_user_id) DO UPDATE SET "
+            "recipient_scope_key=excluded.recipient_scope_key,shared_by=excluded.shared_by,"
+            "shared_at=CURRENT_TIMESTAMP,expires_at=excluded.expires_at,revoked_at=NULL",
+            (run_id, recipient_id, run_scope_key(recipient), user["id"], expires),
+        )
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "platform", "report_run_share", entity_type="report_run", entity_id=run_id,
+              details=f"recipient_user_id={recipient_id}; expires_at={expires}", ip=_ip(request))
+    return _JSONResp({"recipient_user_id": recipient_id, "expires_at": expires}, status_code=201)
+
+
+@router.delete("/api/reports/runs/{run_id}/shares/{recipient_id}")
+@require_auth
+async def api_report_share_revoke(request: Request, run_id: int, recipient_id: int):
+    user = request.state.user
+    db = get_db()
+    try:
+        _, refusal = _owned_run(db, user, run_id, request)
+        if refusal:
+            return refusal
+        changed = db.execute(
+            "UPDATE report_run_shares SET revoked_at=CURRENT_TIMESTAMP "
+            "WHERE run_id=%s AND recipient_user_id=%s AND revoked_at IS NULL",
+            (run_id, recipient_id),
+        ).rowcount
+        if changed != 1:
+            return _JSONResp({"error": "Share not found"}, status_code=404)
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "platform", "report_run_share_revoke", entity_type="report_run", entity_id=run_id,
+              details=f"recipient_user_id={recipient_id}", ip=_ip(request))
+    return _JSONResp({"revoked": True})
+
+
+@router.post("/api/reports/runs/{run_id}/signoff", status_code=201)
+@require_auth
+async def api_report_signoff(request: Request, run_id: int):
+    user = request.state.user
+    if not has_capability(user, "platform.report.signoff"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
+    data = await _json_body(request)
+    decision = data.get("decision")
+    reason = str(data.get("reason") or "").strip()
+    narrative_reviewed = data.get("narrative_reviewed") is True
+    if decision not in ("approved", "rejected") or not 10 <= len(reason) <= 2000:
+        return _JSONResp({"error": "Choose approve or reject and record a reason of 10 to 2000 characters"},
+                         status_code=400)
+    db = get_db()
+    try:
+        row, refusal = _open(db, user, run_id, request, "signoff")
+        if refusal:
+            return refusal
+        if snap.actor_id(row["triggered_by"]) == user["id"]:
+            return _JSONResp({"error": "The author cannot sign their own report"}, status_code=403)
+        if row["status"] != "completed" or not snap.intact(row["result_json"], row["snapshot_hash"]):
+            return _JSONResp({"error": "Only an intact completed report can be signed"}, status_code=409)
+        env = json_lib.loads(row["result_json"])
+        if decision == "approved" and env.get("narrative") and not narrative_reviewed:
+            return _JSONResp({"error": "Review the draft AI narrative explicitly before approving"}, status_code=400)
+        last_note_id = db.execute("SELECT COALESCE(MAX(id),0) FROM report_run_notes WHERE run_id=%s",
+                                  (run_id,)).fetchone()[0]
+        signoff_id = insert_returning_id(
+            db, "INSERT INTO report_run_signoffs "
+                "(run_id,signer_id,decision,reason,snapshot_hash,narrative_reviewed,last_note_id) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (run_id, user["id"], decision, reason, row["snapshot_hash"], int(narrative_reviewed), last_note_id),
+        )
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "platform", "report_run_signoff", entity_type="report_run", entity_id=run_id,
+              details=f"decision={decision}; signoff_id={signoff_id}", ip=_ip(request))
+    return _JSONResp({"id": signoff_id, "decision": decision}, status_code=201)
+
+
+@router.post("/api/reports/runs/{run_id}/retention")
+@require_auth
+async def api_report_retention(request: Request, run_id: int):
+    """A tenant administrator explicitly sets a per-run deletion date or a documented hold."""
+    user = request.state.user
+    if not has_capability(user, "platform.manage_users"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
+    data = await _json_body(request)
+    raw = str(data.get("delete_after") or "").strip()
+    hold = str(data.get("hold_reason") or "").strip()
+    reason = str(data.get("reason") or "").strip()
+    try:
+        day = date.fromisoformat(raw) if raw else None
+    except ValueError:
+        return _JSONResp({"error": "Use an ISO deletion date"}, status_code=400)
+    if (day and not 30 <= (day - utcnow().date()).days <= 3650) or len(hold) > 500 or not 10 <= len(reason) <= 500:
+        return _JSONResp({"error": "Choose a date 30 to 3650 days away and record why"}, status_code=400)
+    db = get_db()
+    try:
+        row, refusal = _open(db, user, run_id, request, "retention")
+        if refusal:
+            return refusal
+        if row["file_path"]:
+            return _JSONResp({"error": "This run has an external file that needs a separate retention process"},
+                             status_code=409)
+        db.execute(
+            "INSERT INTO report_run_retention (run_id,delete_after,hold_reason,set_by) VALUES (%s,%s,%s,%s) "
+            "ON CONFLICT(run_id) DO UPDATE SET delete_after=excluded.delete_after,"
+            "hold_reason=excluded.hold_reason,set_by=excluded.set_by,set_at=CURRENT_TIMESTAMP",
+            (run_id, day.isoformat() if day else None, hold or None, user["id"]),
+        )
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "platform", "report_run_retention", entity_type="report_run", entity_id=run_id,
+              details=f"delete_after={day}; hold={'yes' if hold else 'no'}; reason={reason}", ip=_ip(request))
+    return _JSONResp({"delete_after": day.isoformat() if day else None, "hold": bool(hold)})
 
 
 @router.post("/api/reports/runs/{run_id}/notes", status_code=201)
@@ -591,7 +848,18 @@ async def api_report_run_export(request: Request, run_id: int):
     if not snap.intact(row.get("result_json"), row.get("snapshot_hash")):
         return _integrity_refusal(user, run_id, request)
     buffer = io.StringIO()
-    csv.writer(buffer).writerows(snap.csv_rows(json_lib.loads(row["result_json"])))
+    db = get_db()
+    try:
+        reviews = _signoffs(db, run_id)
+    finally:
+        db.close()
+    rows = snap.csv_rows(json_lib.loads(row["result_json"]))
+    if reviews:
+        latest = reviews[-1]
+        rows[8:8] = [["Latest independent review", latest["decision"], latest["signed_at"]],
+                     ["Reviewer", latest["signer_id"], snap._cell(latest["reason"])],
+                     ["Draft AI narrative reviewed", "yes" if latest["narrative_reviewed"] else "no", ""]]
+    csv.writer(buffer).writerows(rows)
     log_audit(user, "platform", "report_run_export", entity_type="report_run", entity_id=run_id,
               details=f"sha256={row['snapshot_hash'][:16]}", ip=_ip(request))
     return Response(buffer.getvalue(), media_type="text/csv; charset=utf-8", headers={

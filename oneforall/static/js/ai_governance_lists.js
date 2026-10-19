@@ -143,7 +143,8 @@
   var STATUS_KIND = { draft: 'muted', submitted: 'info', returned: 'warn', approved: 'good', rejected: 'bad', superseded: 'muted' };
   AIGov.statusChip = function (status) { return AIGov.chip(STATUS_LABEL[status] || status, STATUS_KIND[status]); };
 
-  AIGov.requests = function (root) {
+  AIGov.requests = function (root, options) {
+    options = options || {};
     var status = el('div', { class: 'aig-say', role: 'status' });
     var list = el('div', { class: 'aig-tablewrap' });
     root.appendChild(status);
@@ -153,8 +154,8 @@
       AIGov.say(status, '');
       if (!data.items.length) {
         list.appendChild(el('div', { class: 'aig-empty' }, [
-          el('p', { text: 'You have not described an AI use yet.' }),
-          el('a', { class: 'btn btn-primary btn-sm', href: '/ai-governance/register', text: 'Register an AI use' })]));
+          el('p', { text: options.canCreate ? 'You have not described an AI use yet.' : 'No earlier AI use requests.' }),
+          options.canCreate ? el('a', { class: 'btn btn-primary btn-sm', href: '/ai-governance/register', text: 'Register an AI use' }) : null]));
         return;
       }
       var table = el('table', { class: 'aig-table' }, [el('thead', {}, [el('tr', {}, ['Name', 'Status', 'Last changed', ''].map(function (h) {
@@ -168,17 +169,134 @@
             row.revision > 1 ? AIGov.chip('Revision ' + row.revision, 'warn') : null,
             row.status === 'returned' && row.review_note ? el('div', { class: 'aig-hint', text: 'Reviewer: ' + row.review_note }) : null,
             row.status === 'rejected' && row.review_note ? el('div', { class: 'aig-hint', text: 'Reason: ' + row.review_note }) : null]),
-          el('td', {}, [AIGov.statusChip(row.status)]),
+          el('td', {}, [row.closed_at ? AIGov.chip('Closed', 'muted') : AIGov.statusChip(row.status)]),
           el('td', { text: AIGov.date(row.updated_at) }),
-          el('td', {}, [row.status === 'approved' && row.application_id
+          el('td', {}, [options.canCreate && row.status === 'approved' && row.application_id
             ? el('a', { href: '/ai-governance/systems/' + row.application_id, text: 'Open the AI system' })
-            : (row.status === 'draft' || row.status === 'returned') ? el('a', { href: '/ai-governance/requests/' + row.id, text: 'Continue' }) : null]),
+            : (row.status === 'draft' || row.status === 'returned') ? el('a', { href: '/ai-governance/requests/' + row.id, text: options.canCreate ? 'Continue' : 'View' }) : null]),
         ];
         body.appendChild(el('tr', {}, cells));
       });
       table.appendChild(body);
       list.appendChild(table);
     }).catch(function (err) { AIGov.say(status, AIGov.errorText(err), 'bad'); });
+  };
+
+  // The specialist's lifecycle view uses one scoped server query for rows and counts.
+  AIGov.worklist = function (root) {
+    var stages = [
+      ['', 'All'], ['new', 'New'], ['needs_clarification', 'Needs clarification'],
+      ['in_assessment', 'In assessment'], ['awaiting_decision', 'Awaiting decision'],
+      ['ready_to_respond', 'Ready to respond'], ['responded', 'Response sent'], ['closed', 'Closed']
+    ];
+    var labels = {};
+    stages.forEach(function (s) { labels[s[0]] = s[1]; });
+    var query = new URLSearchParams(global.location.search);
+    var state = { stage: labels[query.get('stage')] ? query.get('stage') : '', page: 1 };
+    var tabs = el('div', { class: 'aig-worklist-tabs', role: 'group', 'aria-label': 'Request stage' });
+    var status = el('div', { class: 'aig-say', role: 'status' });
+    var list = el('div', { class: 'aig-tablewrap' });
+    var pager = el('div', { class: 'aig-pager' });
+    [tabs, status, list, pager].forEach(function (node) { root.appendChild(node); });
+    var ticket = 0, announcement = '';
+
+    function closeControl(item) {
+      var rejection = item.stage === 'ready_to_respond' && item.status === 'rejected';
+      if (item.stage !== 'responded' && !rejection) return null;
+      var wrap = el('div', { class: 'aig-closure' });
+      var form = el('form', { hidden: true });
+      var note = el('textarea', { rows: '2', maxlength: '1000', required: true });
+      form.appendChild(AIGov.field('aigCloseNote' + item.id, 'Closure reason', note).row);
+      var channel = null, reference = null;
+      if (rejection) {
+        form.appendChild(el('p', { class: 'aig-hint', text: 'Confirm that the rejection was communicated outside ThemisIQ.' }));
+        channel = AIGov.select([{ id: 'email', name: 'Email' }, { id: 'phone', name: 'Phone' },
+          { id: 'meeting', name: 'Meeting' }, { id: 'ticket', name: 'Ticket' }, { id: 'other', name: 'Other' }], '', 'Choose channel');
+        channel.required = true;
+        reference = el('input', { type: 'text', minlength: '3', maxlength: '160', required: true });
+        form.appendChild(AIGov.field('aigCloseChannel' + item.id, 'Communication channel', channel).row);
+        form.appendChild(AIGov.field('aigCloseReference' + item.id, 'External reference', reference).row);
+      }
+      var result = el('div', { class: 'aig-say', role: 'status' });
+      var submit = el('button', { class: 'btn btn-primary btn-sm', type: 'submit', text: 'Confirm closure' });
+      form.appendChild(submit);
+      form.appendChild(result);
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        submit.disabled = true;
+        AIGov.say(result, 'Saving...');
+        AIGov.api('/ai-governance/api/review/requests/' + item.id + '/close', 'POST', {
+          version: item.version, note: note.value, channel: channel ? channel.value : null,
+          reference: reference ? reference.value : null
+        }).then(function () { announcement = 'Request closed.'; load(); }).catch(function (err) {
+          submit.disabled = false;
+          AIGov.say(result, AIGov.errorText(err), 'bad');
+        });
+      });
+      wrap.appendChild(el('button', { class: 'btn btn-ghost btn-sm', type: 'button',
+        text: rejection ? 'Record response and close' : 'Close request',
+        on: { click: function () { form.hidden = !form.hidden; if (!form.hidden) note.focus(); } } }));
+      wrap.appendChild(form);
+      return wrap;
+    }
+
+    function load() {
+      var mine = ++ticket;
+      list.setAttribute('aria-busy', 'true');
+      AIGov.say(status, 'Loading request work...');
+      AIGov.api('/ai-governance/api/review/worklist' + AIGov.qs({ stage: state.stage, page: state.page })).then(function (data) {
+        if (mine !== ticket) return;
+        list.removeAttribute('aria-busy');
+        AIGov.say(status, announcement);
+        announcement = '';
+        AIGov.clear(tabs);
+        stages.forEach(function (entry) {
+          var count = entry[0] ? data.counts[entry[0]] : Object.keys(data.counts).reduce(function (n, key) { return n + data.counts[key]; }, 0);
+          tabs.appendChild(el('button', { type: 'button', class: 'btn btn-sm ' + (state.stage === entry[0] ? 'btn-primary' : 'btn-secondary'),
+            'aria-pressed': state.stage === entry[0] ? 'true' : 'false',
+            text: entry[1] + ' (' + count + ')', on: { click: function () {
+              state.stage = entry[0]; state.page = 1;
+              var url = new URL(global.location.href);
+              if (state.stage) url.searchParams.set('stage', state.stage); else url.searchParams.delete('stage');
+              global.history.replaceState(null, '', url);
+              load();
+            } } }));
+        });
+        AIGov.clear(list);
+        AIGov.pager(pager, data.page, data.pages, data.total, data.page_size, function (page) { state.page = page; load(); });
+        if (!data.items.length) {
+          list.appendChild(el('p', { class: 'aig-empty', text: state.stage ? 'No requests at this stage.' : 'No requests to review yet.' }));
+          return;
+        }
+        var table = el('table', { class: 'aig-table' }, [el('thead', {}, [el('tr', {},
+          ['Request', 'Stage', 'Source', 'Updated', 'Action'].map(function (title) { return el('th', { scope: 'col', text: title }); }))])]);
+        var body = el('tbody');
+        data.items.forEach(function (item) {
+          body.appendChild(el('tr', {}, [
+            el('td', {}, [el('a', { href: item.url, text: item.name })]),
+            el('td', {}, [el('span', { text: labels[item.stage] || item.stage }),
+              item.closure ? el('details', {}, [
+                el('summary', { text: 'Closure record' }),
+                el('p', { class: 'aig-hint', text: 'Closed ' + AIGov.date(item.closure.at) +
+                  ' via ' + (item.closure.channel || 'recorded response') +
+                  (item.closure.reference ? ', reference ' + item.closure.reference : '') + '.' }),
+                el('p', { class: 'aig-hint', text: item.closure.note || 'No reason recorded.' })
+              ]) : null]),
+            el('td', { text: item.source_kind === 'import' ? 'Imported form' : 'Entered in ThemisIQ' }),
+            el('td', { text: AIGov.date(item.updated_at) }),
+            el('td', {}, [closeControl(item)])
+          ]));
+        });
+        table.appendChild(body);
+        list.appendChild(table);
+      }).catch(function (err) {
+        if (mine !== ticket) return;
+        list.removeAttribute('aria-busy');
+        AIGov.clear(list);
+        AIGov.say(status, AIGov.errorText(err), 'bad');
+      });
+    }
+    load();
   };
 
   // ── Review queue ──────────────────────────────────────────────────────────

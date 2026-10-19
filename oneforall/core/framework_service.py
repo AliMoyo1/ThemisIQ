@@ -173,10 +173,13 @@ def bulk_create_controls(framework_id: int, controls_data: list[dict],
     """Bulk insert controls for a framework. Returns count inserted."""
     db = get_db()
     try:
+        before = db.execute(
+            "SELECT total_controls FROM frameworks WHERE id = %s", (framework_id,)
+        ).fetchone()
         count = 0
         for ctrl in controls_data:
             try:
-                db.execute(
+                changed = db.execute(
                     "INSERT INTO controls (framework_id, ref, name, description, "
                     "category, doc_type, priority, last_updated) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
@@ -191,7 +194,7 @@ def bulk_create_controls(framework_id: int, controls_data: list[dict],
                         utcnow().isoformat(),
                     ),
                 )
-                count += 1
+                count += max(changed.rowcount, 0)
             except Exception as e:
                 log.warning("Failed to insert control %s: %s", ctrl.get("ref"), e)
         # Update count
@@ -201,6 +204,13 @@ def bulk_create_controls(framework_id: int, controls_data: list[dict],
             "updated_at = %s WHERE id = %s",
             (framework_id, utcnow().isoformat(), framework_id),
         )
+        if before is not None:
+            after = db.execute(
+                "SELECT total_controls FROM frameworks WHERE id = %s", (framework_id,)
+            ).fetchone()
+            from modules.governance.change_signals import publish_record_change
+            publish_record_change(db, ("aria", "framework"), framework_id,
+                                  dict(before), dict(after), kind="framework_controls_imported")
         db.commit()
 
         emit("framework.controls_populated", source_module="platform",
@@ -215,10 +225,16 @@ def update_control_status(control_id: int, status: str, user_id: int = None) -> 
     """Update a control's status."""
     db = get_db()
     try:
+        before = db.execute("SELECT * FROM controls WHERE id = %s", (control_id,)).fetchone()
+        if before is None:
+            return False
         db.execute(
             "UPDATE controls SET status = %s, last_updated = %s WHERE id = %s",
             (status, utcnow().isoformat(), control_id),
         )
+        after = db.execute("SELECT * FROM controls WHERE id = %s", (control_id,)).fetchone()
+        from modules.governance.change_signals import publish_record_change
+        publish_record_change(db, ("aria", "control"), control_id, dict(before), dict(after))
         db.commit()
 
         row = db.execute(

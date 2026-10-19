@@ -942,24 +942,45 @@ async def api_vault_evidence_search(request: Request):
 @router.get("/api/incidents/{inc_id}/vault-evidence")
 @require_capability("module.bcm.access")
 async def api_incident_vault_evidence_list(request: Request, inc_id: int):
-    return JSONResponse(ds.list_incident_vault_links(inc_id))
+    if not ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404)
+    return JSONResponse(ds.list_incident_vault_links(inc_id, request.state.user))
 
 
 @router.post("/api/incidents/{inc_id}/vault-evidence")
 @require_capability("bcm.incident.manage")
 async def api_incident_vault_evidence_link(request: Request, inc_id: int):
+    if not ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404)
     body = await _json_body(request)
     eid = body.get("evidence_id")
-    if not eid:
-        raise HTTPException(400, "evidence_id required")
-    lid = ds.link_incident_vault_item(inc_id, int(eid), _uname(request))
+    try:
+        if type(eid) is int:
+            evidence_id = eid
+        elif isinstance(eid, str) and eid.isascii() and eid.isdigit():
+            evidence_id = int(eid)
+        else:
+            raise ValueError
+        if evidence_id <= 0 or evidence_id > 2**63 - 1:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(422, "Valid evidence_id required") from None
+    try:
+        lid = ds.link_incident_vault_item(inc_id, evidence_id, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Vault artifact not found") from None
     return JSONResponse({"id": lid}, status_code=201)
 
 
 @router.delete("/api/incidents/{inc_id}/vault-evidence/{link_id}")
 @require_capability("bcm.incident.manage")
 async def api_incident_vault_evidence_unlink(request: Request, inc_id: int, link_id: int):
-    ds.unlink_incident_vault_item(link_id)
+    if not ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404)
+    try:
+        ds.unlink_incident_vault_item(inc_id, link_id, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Vault link not found") from None
     return JSONResponse({"ok": True})
 
 
@@ -1109,7 +1130,7 @@ async def api_compliance_detail(request: Request, cid: int):
     c = ds.get_compliance_control(cid)
     if not c:
         raise HTTPException(404)
-    c["evidence"] = ds.list_compliance_evidence(cid)
+    c["evidence"] = ds.list_compliance_evidence(cid, request.state.user)
     return JSONResponse(c)
 
 
@@ -1132,7 +1153,10 @@ async def api_compliance_update(request: Request, cid: int):
 @router.delete("/api/compliance/{cid}")
 @require_capability("bcm.compliance.manage")
 async def api_compliance_delete(request: Request, cid: int):
-    ds.delete_compliance_control(cid)
+    try:
+        ds.delete_compliance_control(cid)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
     return JSONResponse({"ok": True})
 
 
@@ -1140,20 +1164,66 @@ async def api_compliance_delete(request: Request, cid: int):
 @require_capability("bcm.compliance.manage")
 async def api_compliance_evidence_create(request: Request, cid: int):
     body = await _json_body(request)
-    body["uploaded_by"] = _uname(request)
-    eid = ds.create_compliance_evidence(cid, body)
-    # Mirror to central Evidence Vault so BCM evidence is visible cross-module
     try:
-        ds.sync_bcm_compliance_evidence_to_vault(eid, cid, _uid(request))
-    except Exception:
-        pass  # Vault sync is non-critical; don't fail the primary operation
+        raw_id = body.get("vault_evidence_id")
+        if type(raw_id) is int:
+            vault_id = raw_id
+        elif isinstance(raw_id, str) and raw_id.isascii() and raw_id.isdigit():
+            vault_id = int(raw_id)
+        else:
+            raise ValueError("Choose a Vault artifact")
+        if vault_id <= 0 or vault_id > 2**63 - 1:
+            raise ValueError("Choose a Vault artifact")
+        eid = ds.attach_compliance_vault_evidence(
+            cid, vault_id, request.state.user, body.get("title"), body.get("notes")
+        )
+    except LookupError:
+        raise HTTPException(404, "Control or Vault artifact not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
     return JSONResponse({"id": eid}, status_code=201)
+
+
+@router.get("/api/compliance-evidence/legacy")
+@require_capability("module.bcm.access")
+async def api_compliance_legacy_inventory(request: Request):
+    from modules.evidence.legacy_migration import bcm_inventory
+    return JSONResponse({"items": bcm_inventory(request.state.user)})
+
+
+@router.post("/api/compliance-evidence/legacy/{eid}/reconcile")
+@require_capability("bcm.compliance.manage")
+async def api_compliance_legacy_reconcile(request: Request, eid: int):
+    from modules.evidence.legacy_migration import reconcile_bcm_file
+    body = await _json_body(request)
+    try:
+        raw = body.get("vault_evidence_id")
+        if type(raw) is int:
+            vault_id = raw
+        elif isinstance(raw, str) and raw.isascii() and raw.isdigit():
+            vault_id = int(raw)
+        else:
+            raise ValueError
+        if vault_id < 1:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose a Vault artifact") from None
+    try:
+        result = reconcile_bcm_file(eid, vault_id, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "BCM reference or Vault artifact not found") from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    return JSONResponse({"id": eid, "vault_evidence_id": result})
 
 
 @router.delete("/api/compliance/{cid}/evidence/{eid}")
 @require_capability("bcm.compliance.manage")
 async def api_compliance_evidence_delete(request: Request, cid: int, eid: int):
-    ds.delete_compliance_evidence(eid)
+    try:
+        ds.delete_compliance_evidence(cid, eid, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Compliance evidence not found") from None
     return JSONResponse({"ok": True})
 
 

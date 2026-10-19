@@ -22,6 +22,10 @@ from modules.launcher._route_helpers import (
 router = APIRouter()
 
 
+def _may_author(user):
+    return has_capability(user, "platform.workflow.author") and bool(user.get("org_id") or user.get("is_super_admin"))
+
+
 def _valid_steps(steps):
     return isinstance(steps, list) and all(isinstance(step, dict) for step in steps)
 
@@ -228,6 +232,8 @@ async def api_workflow_templates(request: Request):
 @require_auth
 async def api_workflow_template_install(request: Request, template_id: str):
     """Install a workflow template as a new definition."""
+    if not _may_author(request.state.user):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     template = next((t for t in _WORKFLOW_TEMPLATES if t["id"] == template_id), None)
     if not template:
         raise HTTPException(404, "Template not found")
@@ -272,6 +278,9 @@ async def api_workflow_template_install(request: Request, template_id: str):
 async def workflows_page(request: Request):
     """Workflow management page."""
     ctx = shell_ctx(request, active_module="platform", active_section="workflows")
+    ctx["can_author_workflow"] = _may_author(request.state.user)
+    ctx["can_author_sla"] = _may_author(request.state.user) and has_capability(
+        request.state.user, "platform.manage_users")
     return shell_templates.TemplateResponse(request, "workflows.html", ctx)
 
 
@@ -304,6 +313,8 @@ async def api_workflow_definitions(request: Request):
 @require_auth
 async def api_workflow_definition_create(request: Request):
     """Create a workflow definition."""
+    if not _may_author(request.state.user):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     if not isinstance(data, dict) or not _valid_steps(data.get("steps", [])):
         return _JSONResp({"error": "Steps must be a list of objects"}, status_code=400)
@@ -334,6 +345,8 @@ async def api_workflow_definition_create(request: Request):
 @require_auth
 async def api_workflow_definition_update(request: Request, wid: int):
     """Update a workflow definition."""
+    if not _may_author(request.state.user):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     if not isinstance(data, dict) or (
         "steps" in data and not _valid_steps(data["steps"])
@@ -376,7 +389,7 @@ async def api_workflow_definition_update(request: Request, wid: int):
 @require_auth
 async def api_workflow_definition_delete(request: Request, wid: int):
     """Soft-disable a workflow definition."""
-    if not has_capability(request.state.user, "platform.manage_users"):
+    if not _may_author(request.state.user):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
@@ -805,6 +818,8 @@ async def api_sla_definitions(request: Request):
 @require_auth
 async def api_sla_definition_create(request: Request):
     """Create an SLA definition."""
+    if not _may_author(request.state.user):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     if not has_capability(request.state.user, "platform.manage_users"):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
@@ -849,6 +864,8 @@ async def api_sla_definition_create(request: Request):
 @require_auth
 async def api_sla_definition_update(request: Request, sid: int):
     """Update an SLA definition."""
+    if not _may_author(request.state.user):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     if not has_capability(request.state.user, "platform.manage_users"):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
@@ -1164,6 +1181,8 @@ async def api_comm_templates_list(request: Request):
 @require_auth
 async def api_comm_template_create(request: Request):
     """Create a communication template."""
+    if not _may_author(request.state.user):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     if not isinstance(data, dict):
         return _JSONResp({"error": "A JSON object is required"}, status_code=400)
@@ -1195,6 +1214,8 @@ async def api_comm_template_create(request: Request):
 @require_auth
 async def api_comm_template_update(request: Request, tid: int):
     """Update a communication template."""
+    if not _may_author(request.state.user):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
     data = await _json_body(request)
     if not isinstance(data, dict):
         return _JSONResp({"error": "A JSON object is required"}, status_code=400)
@@ -1225,7 +1246,7 @@ async def api_comm_template_update(request: Request, tid: int):
 @require_auth
 async def api_comm_template_delete(request: Request, tid: int):
     """Soft-delete a communication template."""
-    if not has_capability(request.state.user, "platform.manage_users"):
+    if not _may_author(request.state.user):
         return _JSONResp({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:

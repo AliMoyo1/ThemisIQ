@@ -44,6 +44,25 @@ SOURCES = {
     "task_board": ("Tasks", "platform"),
 }
 
+# These are source-owned revision fields, not a claim that every mutation updates them.
+# Keep the mapping explicit so a schema change cannot silently invent a version.
+SOURCE_REVISIONS = {
+    "controls": ("version", "last_updated"),
+    "frameworks": (None, "updated_at"),
+    "risk_register": (None, "updated_at"),
+    "erm_enterprise_risks": (None, "updated_at"),
+    "sentinel_ropa": (None, "updated_at"),
+    "sentinel_dpias": (None, "updated_at"),
+    "sentinel_breaches": (None, "updated_at"),
+    "sentinel_dsr": (None, "updated_at"),
+    "bcm_plans": ("version", "updated_at"),
+    "bcm_bia_records": (None, "updated_at"),
+    "bcm_incidents": (None, "updated_at"),
+    "bcm_exercises": (None, "updated_at"),
+    "bcm_risks": (None, "updated_at"),
+    "task_board": (None, "updated_at"),
+}
+
 class RecordNotAvailable(Exception):
     """A case report was asked for a record the person may not open, or that does not exist. The two answer alike."""
 
@@ -114,16 +133,26 @@ class Reader:
         return out
 
     def inputs(self, declared) -> dict:
-        """The identifiers of the rows the viewer could open in each source that was read."""
+        """Authorized row IDs and source-recorded revisions, frozen with the report."""
         out = {}
         for table in declared:
             if self.state.get(table) != READ:
                 continue
-            ids = self.rows(table, "SELECT id FROM " + table + " WHERE {scope} ORDER BY id LIMIT " + str(RECORD_CAP + 1))
-            if ids is None:
+            version_field, changed_field = SOURCE_REVISIONS.get(table, (None, None))
+            fields = ["id", *[name for name in (version_field, changed_field) if name]]
+            rows = self.rows(table, "SELECT " + ", ".join(fields) + " FROM " + table +
+                             " WHERE {scope} ORDER BY id LIMIT " + str(RECORD_CAP + 1))
+            if rows is None:
                 continue
-            truncated = len(ids) > RECORD_CAP
-            out[table] = {"ids": [r["id"] for r in ids[:RECORD_CAP]], "truncated": truncated}
+            selected = rows[:RECORD_CAP]
+            out[table] = {
+                "ids": [row["id"] for row in selected],
+                "truncated": len(rows) > RECORD_CAP,
+                "revision_state": "source_recorded" if version_field or changed_field else "not_recorded",
+                "revisions": [{"id": row["id"], "version": row.get(version_field) if version_field else None,
+                               "last_recorded_change": row.get(changed_field) if changed_field else None}
+                              for row in selected] if version_field or changed_field else [],
+            }
         out.update(self.extra_inputs)
         return out
 
@@ -479,7 +508,7 @@ PRESETS = {
         "parts": (), "lists": True, "limitations": ()},
 }
 
-DEFINITION_VERSIONS = {"default": "2026-10-14.1"}
+DEFINITION_VERSIONS = {"default": "2026-10-16.1"}
 CASE_SUBJECT_KEYS = ("module", "entity_type", "entity_id")
 
 
@@ -535,9 +564,21 @@ def build(db, user, report_type, parameters=None) -> Built:
     else:
         raise ValueError("Unknown report type")
     declared = tuple(declared)
-    manifest = r.manifest(declared)
     inputs = r.inputs(declared)
+    manifest = r.manifest(declared)
     limitations = [*limitations, *r.notes]
+    if any(item.get("revision_state") == "source_recorded" for item in inputs.values()):
+        limitations.append("Source versions and change times are copied as recorded. Some source workflows do not advance "
+                           "these fields on every edit, so they are not a complete change history.")
+    for table, captured in inputs.items():
+        if captured.get("revision_state") == "not_recorded":
+            label = SOURCES.get(table, (table, ""))[0]
+            limitations.append(f"{label} have no source revision field. Their permitted identifiers are frozen, but "
+                               "later edits to individual records cannot be dated from this report.")
+        if captured.get("truncated"):
+            label = SOURCES.get(table, (table, ""))[0]
+            limitations.append(f"The {label} input list is capped at {RECORD_CAP} records; its count is exact, "
+                               "but the frozen identifier list is incomplete.")
     for src in manifest:
         if src["state"] == NOT_IN_SCOPE:
             limitations.append(f"{src['label']} are not included: the person who generated this report may not open them.")

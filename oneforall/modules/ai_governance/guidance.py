@@ -50,10 +50,10 @@ def _aiia(db, user, application_id, changed):
         return _no_access()
     scope, params = entity_scope_sql(_AIIA, user, "a")
     rows = db.execute(
-        "SELECT a.id, a.ref_number, a.title, a.status, a.updated_at FROM sentinel_aiia a "
+        "SELECT a.id, a.ref_number, a.title, a.status, a.version, a.updated_at FROM sentinel_aiia a "
         f"WHERE a.application_id = %s AND {scope} ORDER BY a.updated_at DESC LIMIT 20", [application_id, *params]).fetchall()
     return checklist.progress([{"title": f"{r['ref_number']}: {r['title']}", "url": f"/ai-governance/assessments/{r['id']}",
-                                "status": r["status"], "updated_at": str(r["updated_at"] or ""),
+                                "status": r["status"], "version": r["version"], "updated_at": str(r["updated_at"] or ""),
                                 "ref": ["sentinel", "aiia", r["id"]]} for r in rows], changed)
 
 
@@ -62,6 +62,7 @@ def _by_ids(db, user, kind, table, columns, ids, url, title):
     rows = db.execute(f"SELECT {columns} FROM {table} t WHERE t.id IN ({_marks(ids)}) AND {scope} ORDER BY t.id",
                       [*ids, *params]).fetchall() if ids else []
     return [{"title": title(r), "url": url(r), "status": r["status"], "updated_at": str(r["updated_at"] or ""),
+             "version": r["version"] if "version" in r.keys() else None,
              "ref": [kind[0], kind[1], r["id"]]} for r in rows]
 
 
@@ -91,10 +92,11 @@ def _policy(db, user, application_id, changed):
     ids = _ids(_linked_ids(db, user, application_id, _DOC))
     scope, params = entity_scope_sql(_DOC, user, "t")
     rows = db.execute(
-        f"SELECT t.id, t.doc_id, t.title, t.status, t.updated_at FROM aria_documents t WHERE t.id IN ({_marks(ids)}) AND {scope} ORDER BY t.id",
+        f"SELECT t.id, t.doc_id, t.title, t.status, t.version, t.current_policy_version_id, t.updated_at FROM aria_documents t WHERE t.id IN ({_marks(ids)}) AND {scope} ORDER BY t.id",
         [*ids, *params]).fetchall() if ids else []
     return checklist.progress([{"title": r["title"], "url": f"/aria/documents?open={quote(str(r['doc_id'] or ''), safe='')}",
-                                "status": r["status"], "updated_at": str(r["updated_at"] or ""),
+                                "status": r["status"], "version": r["version"],
+                                "source_version_id": r["current_policy_version_id"], "updated_at": str(r["updated_at"] or ""),
                                 "ref": ["aria", "document", r["id"]]} for r in rows], changed)
 
 

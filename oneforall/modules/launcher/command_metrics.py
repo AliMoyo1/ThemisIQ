@@ -134,7 +134,7 @@ def _appetite(db, user):
         over = db.execute(
             "SELECT COUNT(*) FROM erm_risk_appetite a "
             "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
-            f"       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted') AND {scope}) > a.max_score",
+            f"       WHERE e.category=a.category AND e.status != 'closed' AND {scope}) > a.max_score",
             params).fetchone()[0]
         return registry.build("cc.appetite_breaches", ms.measured, over, detail={"categories": categories})
     return _guard("cc.appetite_breaches", build)
@@ -145,7 +145,7 @@ def _reviews(db, user):
     if not _hidden("erm_enterprise_risks", user):
         parts.append(("risks", lambda: scoped_count(
             db, user, "erm_enterprise_risks", "review_date IS NOT NULL "
-            f"AND review_date <= {sql_date_offset('+30 days')} AND status NOT IN ('closed','accepted')")))
+            f"AND review_date <= {sql_date_offset('+30 days')} AND status != 'closed'")))
     if not _hidden("bcm_plans", user):
         parts.append(("plans", lambda: scoped_count(
             db, user, "bcm_plans", f"last_reviewed IS NOT NULL AND last_reviewed <= {sql_date_offset('-335 days')}")))
@@ -263,7 +263,7 @@ def build(db, user) -> dict:
     put(_frameworks(db, user))
     put(_overdue(db, user))
     put(_count(db, user, "cc.critical_high_risks", "erm_enterprise_risks",
-               "qualitative_score IN ('critical','high') AND status NOT IN ('closed','accepted')"))
+               "qualitative_score IN ('critical','high') AND status != 'closed'"))
     put(_open_breaches(db, user))
     put(_appetite(db, user))
     put(_count(db, user, "cc.orm_open_events", "orm_events",

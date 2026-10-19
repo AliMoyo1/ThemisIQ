@@ -196,6 +196,14 @@ def _load(db, user, response_id):
     row = db.execute("SELECT * FROM ai_external_responses WHERE id = %s", (response_id,)).fetchone()
     if row is None or _app(db, user, row["application_id"]) is None:
         raise ServiceError(404, "Response not found.")
+    if row["intake_id"] is not None:
+        request = service._review_intake(db, user, row["intake_id"])
+        if request["application_id"] != row["application_id"]:
+            raise ServiceError(404, "Response not found.")
+    elif row["requester"] not in (None, "", "{}") or row["source_reference"]:
+        # A legacy unlinked response can carry a requester snapshot with no scoped
+        # intake to authorize it against. Do not expose such a snapshot by app scope.
+        raise ServiceError(404, "Response not found.")
     return row
 
 
@@ -209,18 +217,44 @@ def _standing(db, user, application_id):
     return latest, got
 
 
-def list_for_use(db, user, application_id: int) -> "dict | None":
+def list_for_use(db, user, application_id: int, intake_id=None) -> "dict | None":
     service._require(user, "ai_use.review")
     app = _app(db, user, application_id)
     if app is None:
         return None
-    rows = db.execute("SELECT * FROM ai_external_responses WHERE application_id = %s ORDER BY revision DESC, id DESC LIMIT 50",
-                      (application_id,)).fetchall()
+    if intake_id is not None:
+        if isinstance(intake_id, bool) or not isinstance(intake_id, int) or intake_id < 0:
+            raise ServiceError(400, "Choose a valid request.")
+        if intake_id:
+            request = service._review_intake(db, user, intake_id)
+            if request["application_id"] != application_id:
+                raise ServiceError(404, "Request not found.")
+    scope, scope_params = service._review_scope(user, alias="r")
+    visible_intakes = "SELECT r.id FROM ai_use_intake_requests r" + scope + " AND r.application_id = %s"
+    if intake_id is None:
+        rows = db.execute("SELECT * FROM ai_external_responses e WHERE e.application_id = %s "
+                          "AND ((e.intake_id IS NULL AND e.requester = '{}' AND e.source_reference IS NULL) "
+                          "OR e.intake_id IN (" + visible_intakes + ")) "
+                          "ORDER BY e.id DESC LIMIT 50", (application_id, *scope_params, application_id)).fetchall()
+    elif intake_id == 0:
+        rows = db.execute("SELECT * FROM ai_external_responses e WHERE e.application_id = %s "
+                          "AND e.intake_id IS NULL AND e.requester = '{}' AND e.source_reference IS NULL "
+                          "ORDER BY e.id DESC LIMIT 50", (application_id,)).fetchall()
+    else:
+        rows = db.execute("SELECT * FROM ai_external_responses e WHERE e.application_id = %s "
+                          "AND e.intake_id = %s ORDER BY e.id DESC LIMIT 50", (application_id, intake_id)).fetchall()
+    requests = db.execute("SELECT r.id, r.payload, r.source_ref, r.closed_at FROM ai_use_intake_requests r" + scope +
+                          " AND r.application_id = %s AND r.status = 'approved' "
+                          "ORDER BY r.id DESC LIMIT 50", (*scope_params, application_id)).fetchall()
     org = _org_name(db, user)
     latest, got = _standing(db, user, application_id)
     # "stands" says whether the decision a response rests on is still the one in force; only then can it be approved or sent.
     return {"responses": [{**_present(db, r, app["name"], org), "stands": latest is not None and r["decision_id"] == latest["id"]}
                           for r in rows],
+            "requests": [{"id": r["id"], "name": str((service._json_object(r["payload"]) or {}).get("name") or
+                                                   "Untitled request")[:120], "source_ref": r["source_ref"],
+                          "closed": bool(r["closed_at"])}
+                         for r in requests],
             "can_draft": latest is not None, "decision": ({"status": latest["status"], "decided_at": (latest["decided_at"] or "")[:10]}
                                                            if latest else None),
             "can": {"draft": has_capability(user, "ai_use.review"), "approve": has_capability(user, "ai_use.decide")}}
@@ -234,14 +268,22 @@ def get_response(db, user, response_id: int) -> dict:
 
 # ── Drafting ────────────────────────────────────────────────────────────────
 
-def _requester_from(db, application_id, intake_id):
+def _requester_from(db, user, application_id, intake_id):
     row = None
+    if intake_id == 0 and not isinstance(intake_id, bool):
+        return None, {}, None
     if intake_id is not None:
-        row = db.execute("SELECT id, requester, revision, source_kind FROM ai_use_intake_requests WHERE id = %s "
-                         "AND application_id = %s", (intake_id, application_id)).fetchone()
-    if row is None:
-        row = db.execute("SELECT id, requester, revision, source_kind FROM ai_use_intake_requests WHERE application_id = %s "
-                         "ORDER BY id DESC LIMIT 1", (application_id,)).fetchone()
+        if isinstance(intake_id, bool) or not isinstance(intake_id, int) or intake_id < 1:
+            raise ServiceError(400, "Choose a valid request.")
+        row = service._review_intake(db, user, intake_id)
+        if row["application_id"] != application_id or row["status"] != "approved" or row["closed_at"]:
+            raise ServiceError(404, "Request not found.")
+    else:
+        scope, scope_params = service._review_scope(user, alias="r")
+        row = db.execute("SELECT r.id, r.requester, r.revision, r.source_kind "
+                         "FROM ai_use_intake_requests r" + scope +
+                         " AND r.application_id = %s AND r.status = 'approved' AND r.closed_at IS NULL "
+                         "ORDER BY r.id DESC LIMIT 1", (*scope_params, application_id)).fetchone()
     if row is None:
         return None, {}, None
     data = json.loads(row["requester"] or "{}")
@@ -261,11 +303,14 @@ def create_draft(db, user, application_id: int, intake_id=None) -> dict:
     latest, got = _standing(db, user, application_id)
     if latest is None:
         raise ServiceError(409, "There is no standing decision to respond with. Ask for a decision first.")
-    last = db.execute("SELECT * FROM ai_external_responses WHERE application_id = %s ORDER BY revision DESC, id DESC LIMIT 1",
-                      (application_id,)).fetchone()
+    request_id, requester, reference = _requester_from(db, user, application_id, intake_id)
+    request_filter = ("intake_id IS NULL AND requester = '{}' AND source_reference IS NULL"
+                      if request_id is None else "intake_id = %s")
+    request_params = () if request_id is None else (request_id,)
+    last = db.execute("SELECT * FROM ai_external_responses WHERE application_id = %s AND " + request_filter +
+                      " ORDER BY revision DESC, id DESC LIMIT 1", (application_id, *request_params)).fetchone()
     if last is not None and last["decision_id"] == latest["id"] and last["status"] != "withdrawn":
         return {"response": _present(db, last, app["name"], _org_name(db, user)), "created": False, "audit": [], "events": []}
-    request_id, requester, reference = _requester_from(db, application_id, intake_id)
     conditions = [{"text": c["text"], "due_date": c["due_date"]} for c in latest.get("conditions", []) if c["status"] == "open"]
     revision = (last["revision"] + 1) if last is not None else 1
     now = service._now()

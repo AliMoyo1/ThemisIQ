@@ -2312,7 +2312,8 @@
       body.innerHTML=items.map(function(c){
         return '<tr><td>'+esc(c.framework)+'</td><td>'+esc(c.clause)+'</td><td>'+esc(c.title)+'</td><td>'+
           statusBadge(c.status||'not_started')+'</td><td>'+esc(c.owner||'—')+'</td><td>'+
-          fmtDate(c.next_review)+'</td><td>'+actionBtns('bcmEditComplianceItem('+c.id+')','bcmDeleteComplianceItem('+c.id+')')+'</td></tr>';
+          fmtDate(c.next_review)+'</td><td><button class="btn btn-sm btn-secondary" onclick="bcmShowControlProof('+Number(c.id)+')">Proof</button> '+
+          actionBtns('bcmEditComplianceItem('+c.id+')','bcmDeleteComplianceItem('+c.id+')')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(7,'Failed to load compliance controls');}
   };
@@ -2325,7 +2326,81 @@
   window.bcmDeleteComplianceItem=async function(id){
     if(!confirm('Delete this control?')) return;
     try{await apiFetch('/bcm/api/compliance/'+id,{method:'DELETE'});bcmLoadCompliance();}
-    catch(e){if(typeof showToast==='function')showToast('Delete failed','error');}
+    catch(e){alert('Delete failed: '+e.message);}
+  };
+  var bcmLegacyProofRowId=null;
+  window.bcmShowControlProof=async function(controlId){
+    bcmLegacyProofRowId=null;
+    var root=document.getElementById('bcmModalRoot');
+    try{
+      var control=await apiFetch('/bcm/api/compliance/'+controlId);
+      var rows=(control.evidence||[]).map(function(item){
+        var target=item.vault_evidence_id
+          ?'<a href="/evidence/api/items/'+Number(item.vault_evidence_id)+'/download">Open artifact</a>'
+          :'<span>Legacy reference: review needed</span> <button type="button" class="btn btn-sm btn-secondary" onclick="bcmPickLegacyProof('+Number(controlId)+','+Number(item.id)+')">Match Vault artifact</button>';
+        return '<li style="margin:8px 0">'+esc(item.title)+' ('+esc(item.vault_status||item.source)+') '+
+          target+' <button class="btn btn-sm btn-secondary" onclick="bcmRemoveControlProof('+
+          Number(controlId)+','+Number(item.id)+')">Unlink</button></li>';
+      }).join('');
+      root.innerHTML='<div class="modal-overlay" onclick="if(event.target===this)bcmCloseModal()">'+
+        '<div class="modal-box" role="dialog" aria-modal="true" aria-label="Control proof">'+
+        '<button class="modal-close" onclick="bcmCloseModal()" aria-label="Close">&times;</button>'+
+        '<div class="modal-title">Proof for '+esc(control.title)+'</div>'+
+        '<p>The Vault owns each artifact and its versions. This control keeps its own review decision. Match a legacy reference only after checking the original document against the selected artifact.</p>'+
+        '<ul>'+ (rows||'<li>No proof linked yet.</li>') +'</ul>'+
+        '<form onsubmit="bcmSearchControlProof(event,'+Number(controlId)+')">'+
+        '<label for="bcmProofSearch">Find a Vault artifact</label>'+
+        '<input id="bcmProofSearch" type="search" placeholder="Search evidence" maxlength="100">'+
+        '<button class="btn btn-secondary" type="submit">Search</button></form>'+
+        '<div id="bcmProofMatches" role="status"></div></div></div>';
+    }catch(err){root.innerHTML='';alert('Unable to load proof: '+err.message);}
+  };
+  window.bcmPickLegacyProof=function(controlId,rowId){
+    bcmLegacyProofRowId=rowId;
+    var search=document.getElementById('bcmProofSearch');
+    var matches=document.getElementById('bcmProofMatches');
+    if(matches) matches.textContent='Select the reviewed Vault artifact for legacy reference #'+rowId+'.';
+    if(search) search.focus();
+  };
+  window.bcmSearchControlProof=async function(event,controlId){
+    event.preventDefault();
+    var target=document.getElementById('bcmProofMatches');
+    target.textContent='Searching Vault...';
+    var term=document.getElementById('bcmProofSearch').value.trim();
+    try{
+      var items=await apiFetch('/bcm/api/vault-evidence/search?q='+encodeURIComponent(term));
+      target.innerHTML=items.length?items.map(function(item){
+        return '<div style="display:flex;justify-content:space-between;gap:12px;margin-top:8px">'+
+          '<span>'+esc(item.title)+'</span><button class="btn btn-sm btn-secondary" '+
+          'onclick="'+(bcmLegacyProofRowId?'bcmReconcileControlProof('+Number(controlId)+','+
+          Number(bcmLegacyProofRowId)+','+Number(item.id)+')':'bcmAttachControlProof('+Number(controlId)+','+
+          Number(item.id)+')')+'">'+(bcmLegacyProofRowId?'Match reviewed artifact':'Attach')+'</button></div>';
+      }).join(''):'No matching Vault artifacts.';
+    }catch(err){target.textContent='Vault search failed: '+err.message;}
+  };
+  window.bcmReconcileControlProof=async function(controlId,rowId,vaultId){
+    if(!confirm('Confirm that you reviewed the original reference and this Vault artifact as the same evidence?')) return;
+    try{
+      await apiFetch('/bcm/api/compliance-evidence/legacy/'+rowId+'/reconcile',{
+        method:'POST',body:{vault_evidence_id:vaultId}
+      });
+      bcmShowControlProof(controlId);
+    }catch(err){alert('Match failed: '+err.message);}
+  };
+  window.bcmAttachControlProof=async function(controlId,vaultId){
+    try{
+      await apiFetch('/bcm/api/compliance/'+controlId+'/evidence',{
+        method:'POST',body:{vault_evidence_id:vaultId}
+      });
+      bcmShowControlProof(controlId);
+    }catch(err){alert('Attach failed: '+err.message);}
+  };
+  window.bcmRemoveControlProof=async function(controlId,rowId){
+    if(!confirm('Unlink this proof from the control?')) return;
+    try{
+      await apiFetch('/bcm/api/compliance/'+controlId+'/evidence/'+rowId,{method:'DELETE'});
+      bcmShowControlProof(controlId);
+    }catch(err){alert('Unlink failed: '+err.message);}
   };
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -2917,8 +2992,8 @@
         ackLine(inc)+
       '</div>'+
       '<div class="bcm-console-tabs">'+
-        ['actions','timeline','decisions','stakeholders','plans','evidence'].map(function(t){
-          var labels={actions:'📋 Actions',timeline:'💬 Timeline',decisions:'🏛 Decisions',stakeholders:'👥 Stakeholders',plans:'🔗 Plans',evidence:'📂 Evidence'};
+        ['actions','timeline','decisions','stakeholders','plans','evidence','related'].map(function(t){
+          var labels={actions:'📋 Actions',timeline:'💬 Timeline',decisions:'🏛 Decisions',stakeholders:'👥 Stakeholders',plans:'🔗 Plans',evidence:'📂 Evidence',related:'Related Items'};
           return '<div class="bcm-console-tab'+(_bcmConsoleTab===t?' active':'')+'" onclick="bcmConsoleTab(\''+t+'\',this)">'+labels[t]+'</div>';
         }).join('')+
       '</div>'+
@@ -2944,6 +3019,12 @@
       case 'actions':   bcmRenderConsoleActions(body,footer,inc); break;
       case 'timeline':  bcmRenderConsoleTimeline(body,footer,inc); break;
       case 'decisions': bcmRenderConsoleDecisions(body,footer,inc); break;
+      case 'related':
+        footer.replaceChildren();
+        body.innerHTML='<div id="bcmIncidentRelated"></div>';
+        if(typeof RelatedItems!=='undefined')RelatedItems.mount(
+          document.getElementById('bcmIncidentRelated'),'bcm','incident',inc.id,{canEdit:true});
+        break;
       case 'stakeholders': bcmRenderConsoleStakeholders(body,footer,inc); break;
       case 'plans':     bcmRenderConsolePlans(body,footer,inc); break;
       case 'evidence':  bcmRenderConsoleEvidence(body,footer,inc); break;

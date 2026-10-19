@@ -19,6 +19,17 @@ from modules.launcher.scoped_metrics import scoped_count, table_scope
 router = APIRouter()
 
 
+@router.get("/api/module-home/{module}")
+@require_auth
+async def api_module_home(request: Request, module: str):
+    from fastapi import HTTPException
+    from modules.launcher.module_home import build
+    try:
+        return JSONResponse(build(module, request.state.user))
+    except LookupError:
+        raise HTTPException(404, "Module not found") from None
+
+
 # ── Module info for launcher tiles ──────────────────────────────────────────
 
 MODULE_INFO = {
@@ -117,7 +128,7 @@ def _appetite_breaches(db, user):
     return db.execute(
         "SELECT COUNT(*) FROM erm_risk_appetite a "
         "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
-        f"       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted') AND {scope}) > a.max_score",
+        f"       WHERE e.category=a.category AND e.status != 'closed' AND {scope}) > a.max_score",
         params,
     ).fetchone()[0]
 
@@ -182,6 +193,9 @@ def _scoped_command_stats(db, user):
             "authority_notified": bool(r["authority_notified"]),
         })
     health = []
+    meanings = {"aria": "Controls recorded as implemented", "grid": "Audits recorded as complete",
+                "bcm": "Plans recorded as approved", "sentinel": "Breaches recorded as closed",
+                "erm": "Enterprise risks recorded as closed", "orm": "Events recorded as resolved or closed"}
     for key, name, table, ok in (
         ("aria", "Governance", "controls", "status = 'Implemented'"),
         ("grid", "Audit", "grid_audits", "status IN ('Completed','Complete')"),
@@ -196,7 +210,8 @@ def _scoped_command_stats(db, user):
         total = count(table)
         healthy = count(table, ok)
         # Nothing recorded is "not measured" (null), never 0 and never 100.
-        health.append({"key": key, "name": name, "pct": round(healthy / total * 100) if total else None})
+        health.append({"key": key, "name": name, "pct": round(healthy / total * 100) if total else None,
+                       "definition": meanings[key], "numerator": healthy, "denominator": total})
     activity = [dict(r) for r in db.execute(
         "SELECT action AS text, module, created_at FROM audit_log "
         "WHERE user_id = %s ORDER BY created_at DESC LIMIT 6", (user["id"],)
@@ -251,12 +266,12 @@ def _scoped_command_stats(db, user):
                                  f"AND created_at >= {sql_date_ts('-30 days')}"),
         "bcm_active_incidents": count("bcm_incidents", "status NOT IN ('closed','resolved')"),
         "erm_critical_high": count("erm_enterprise_risks", "qualitative_score IN ('critical','high') "
-                                   "AND status NOT IN ('closed','accepted')"),
+                                   "AND status != 'closed'"),
         "grid_open_findings": count("grid_controls", "status NOT IN "
                                     "('compliant','not_applicable','closed')"),
         "upcoming_reviews": count("erm_enterprise_risks", "review_date IS NOT NULL "
                                    f"AND review_date <= {sql_date_offset('+30 days')} "
-                                   "AND status NOT IN ('closed','accepted')")
+                                   "AND status != 'closed'")
                             + count("bcm_plans", "last_reviewed IS NOT NULL "
                                     f"AND last_reviewed <= {sql_date_offset('-335 days')}"),
         "ims_active_frameworks": len(frameworks),
@@ -307,7 +322,9 @@ async def api_command_centre_stats(request: Request):
         aria_total = total_controls
         aria_ok = compliant_controls
         aria_pct = round((aria_ok / aria_total) * 100) if aria_total else None  # null: nothing recorded, not measured
-        module_health.append({"key": "aria", "name": "Governance", "pct": aria_pct})
+        module_health.append({"key": "aria", "name": "Governance", "pct": aria_pct,
+                              "definition": "Controls recorded as implemented", "numerator": aria_ok,
+                              "denominator": aria_total})
 
         # GRID — audit completion
         grid_total = db.execute("SELECT COUNT(*) FROM grid_audits").fetchone()[0]
@@ -315,7 +332,9 @@ async def api_command_centre_stats(request: Request):
             "SELECT COUNT(*) FROM grid_audits WHERE status IN ('Completed','Complete')"
         ).fetchone()[0]
         grid_pct = round((grid_done / grid_total) * 100) if grid_total else None
-        module_health.append({"key": "grid", "name": "Audit", "pct": grid_pct})
+        module_health.append({"key": "grid", "name": "Audit", "pct": grid_pct,
+                              "definition": "Audits recorded as complete", "numerator": grid_done,
+                              "denominator": grid_total})
 
         # BCM — plan coverage
         bcm_total = db.execute("SELECT COUNT(*) FROM bcm_plans").fetchone()[0]
@@ -323,15 +342,19 @@ async def api_command_centre_stats(request: Request):
             "SELECT COUNT(*) FROM bcm_plans WHERE status = 'approved'"
         ).fetchone()[0]
         bcm_pct = round((bcm_approved / bcm_total) * 100) if bcm_total else None
-        module_health.append({"key": "bcm", "name": "Resilience", "pct": bcm_pct})
+        module_health.append({"key": "bcm", "name": "Resilience", "pct": bcm_pct,
+                              "definition": "Plans recorded as approved", "numerator": bcm_approved,
+                              "denominator": bcm_total})
 
-        # Sentinel — open breach rate (inverted: 0 open = 100%, no breaches = 100%)
+        # Sentinel: the share recorded as closed.
         sent_total = db.execute("SELECT COUNT(*) FROM sentinel_breaches").fetchone()[0]
-        sent_open = db.execute(
-            "SELECT COUNT(*) FROM sentinel_breaches WHERE status != 'closed'"
+        sent_closed = db.execute(
+            "SELECT COUNT(*) FROM sentinel_breaches WHERE status = 'closed'"
         ).fetchone()[0]
-        sent_pct = round((1 - sent_open / max(1, sent_total)) * 100) if sent_total else None
-        module_health.append({"key": "sentinel", "name": "Privacy", "pct": sent_pct})
+        sent_pct = round(sent_closed / sent_total * 100) if sent_total else None
+        module_health.append({"key": "sentinel", "name": "Privacy", "pct": sent_pct,
+                              "definition": "Breaches recorded as closed", "numerator": sent_closed,
+                              "denominator": sent_total})
 
         # ERM — % of appetite categories within threshold (no breach)
         try:
@@ -342,9 +365,11 @@ async def api_command_centre_stats(request: Request):
                 erm_breach = db.execute(
                     "SELECT COUNT(*) FROM erm_risk_appetite a "
                     "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
-                    "       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted')) > a.max_score"
+                    "       WHERE e.category=a.category AND e.status != 'closed') > a.max_score"
                 ).fetchone()[0]
                 erm_pct = round((1 - erm_breach / max(1, erm_cats)) * 100)
+                erm_numerator, erm_denominator = erm_cats - erm_breach, erm_cats
+                erm_definition = "Appetite categories within threshold"
             else:
                 # No appetite defined yet — use risk mitigation rate instead
                 erm_total_r = db.execute(
@@ -352,11 +377,15 @@ async def api_command_centre_stats(request: Request):
                 ).fetchone()[0]
                 erm_treated = db.execute(
                     "SELECT COUNT(*) FROM erm_enterprise_risks "
-                    "WHERE status IN ('mitigated','accepted') OR treatment != 'mitigate'"
+                    "WHERE status='mitigated'"
                 ).fetchone()[0]
                 erm_pct = round((erm_treated / max(1, erm_total_r)) * 100) if erm_total_r else None
+                erm_numerator, erm_denominator = erm_treated, erm_total_r
+                erm_definition = "Open enterprise risks recorded as mitigated"
             # Only include if user has erm access (always include in stats, visibility filtered by template)
-            module_health.append({"key": "erm", "name": "Enterprise Risk", "pct": erm_pct})
+            module_health.append({"key": "erm", "name": "Enterprise Risk", "pct": erm_pct,
+                                  "definition": erm_definition, "numerator": erm_numerator,
+                                  "denominator": erm_denominator})
         except Exception:
             swallowed("api_command_centre_stats (erm_risk_appetite)")  # ERM tables may not exist in all deployments
 
@@ -367,7 +396,9 @@ async def api_command_centre_stats(request: Request):
                 "SELECT COUNT(*) FROM orm_events WHERE status IN ('resolved','closed')"
             ).fetchone()[0]
             orm_pct = round((orm_closed / max(1, orm_total)) * 100) if orm_total else None
-            module_health.append({"key": "orm", "name": "Operations Risk", "pct": orm_pct})
+            module_health.append({"key": "orm", "name": "Operations Risk", "pct": orm_pct,
+                                  "definition": "Events recorded as resolved or closed", "numerator": orm_closed,
+                                  "denominator": orm_total})
         except Exception:
             swallowed("api_command_centre_stats (orm_events)")  # ORM tables may not exist in all deployments
 
@@ -656,7 +687,7 @@ async def api_command_centre_stats(request: Request):
             erm_critical_high = db.execute(
                 "SELECT COUNT(*) FROM erm_enterprise_risks "
                 "WHERE qualitative_score IN ('critical','high') "
-                "AND status NOT IN ('closed','accepted')"
+                "AND status != 'closed'"
             ).fetchone()[0]
         except Exception:
             swallowed("api_command_centre_stats (erm_enterprise_risks)")
@@ -677,7 +708,7 @@ async def api_command_centre_stats(request: Request):
             upcoming_reviews += db.execute(
                 "SELECT COUNT(*) FROM erm_enterprise_risks "
                 f"WHERE review_date IS NOT NULL AND review_date <= {sql_date_offset('+30 days')} "
-                "AND status NOT IN ('closed','accepted')"
+                "AND status != 'closed'"
             ).fetchone()[0]
         except Exception:
             swallowed("api_command_centre_stats (erm_enterprise_risks)")

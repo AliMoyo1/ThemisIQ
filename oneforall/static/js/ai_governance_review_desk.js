@@ -54,7 +54,11 @@
         if (line.owner) body.push(el('div', { class: 'aig-hint', text: 'Owner: ' + line.owner.name }));
         if (line.records && line.records.length) {
           body.push(el('div', { class: 'aig-hint' }, ['Records: '].concat(line.records.map(function (r, i) {
-            return el('span', {}, [i ? ', ' : '', link(r.url, r.title)]);
+            var source = Array.isArray(r.ref) ? ' [' + r.ref[0] + '/' + r.ref[1] + ' ' + r.ref[2] + ']' : '';
+            var version = r.version != null ? ' version ' + r.version :
+              r.updated_at ? ' updated ' + String(r.updated_at).slice(0, 10) : '';
+            return el('span', {}, [i ? ', ' : '', link(r.url, r.title), source + version +
+              (r.source_version_id ? ' policy source version ID ' + r.source_version_id : '')]);
           }))));
         }
         if (line.resolution && safe(line.resolution.url)) body.push(link(line.resolution.url, line.resolution.label, { class: 'aig-hint' }));
@@ -257,35 +261,68 @@
 
   A.responsesPanel = function (host, config) {
     var base = '/ai-governance/api/systems/' + config.applicationId + '/responses';
+    var requested = new URLSearchParams(global.location.search).get('request_id');
+    var selectedRequest = requested && /^[1-9][0-9]*$/.test(requested) ? Number(requested) : null;
     var box = el('section', { class: 'aig-panel', 'aria-label': 'Response to the requester' });
+    var picker = el('div', {});
     var body = el('div', {});
     var status = el('div', { class: 'aig-say', role: 'status' });
     box.appendChild(el('h2', { class: 'aig-h3', text: 'Response to the requester' }));
     box.appendChild(el('p', { class: 'aig-hint', text: 'A short document that tells the requester the outcome. It is drafted from the signed decision, '
       + 'approved by someone other than the drafter, and sent by you. Downloading it is not sending it.' }));
     box.appendChild(status);
+    box.appendChild(picker);
     box.appendChild(body);
     host.appendChild(box);
 
     function draft() {
-      A.api(base, 'POST', {}).then(refresh).catch(function (err) { A.say(status, A.errorText(err), 'bad'); });
+      A.api(base, 'POST', { intake_id: selectedRequest }).then(refresh)
+        .catch(function (err) { A.say(status, A.errorText(err), 'bad'); });
     }
 
     function render(data) {
+      if (selectedRequest === null) {
+        var active = (data.requests || []).filter(function (r) { return !r.closed; });
+        selectedRequest = active.length ? active[0].id : 0;
+        refresh();
+        return;
+      }
+      A.clear(picker);
+      var choices = [{ id: '0', name: 'General response (not tied to a request)' }];
+      (data.requests || []).forEach(function (r) {
+        choices.push({ id: String(r.id), name: 'Request ' + r.id + ': ' + r.name + (r.closed ? ' (closed)' : '') });
+      });
+      if (selectedRequest && !choices.some(function (c) { return c.id === String(selectedRequest); })) {
+        choices.push({ id: String(selectedRequest), name: 'Selected request ' + selectedRequest });
+      }
+      var requestSelect = A.select(choices, String(selectedRequest));
+      requestSelect.addEventListener('change', function () {
+        selectedRequest = Number(requestSelect.value);
+        var url = new URL(global.location.href);
+        if (selectedRequest) url.searchParams.set('request_id', String(selectedRequest));
+        else url.searchParams.delete('request_id');
+        global.history.replaceState(null, '', url);
+        refresh();
+      });
+      picker.appendChild(A.field('aigResponseRequest', 'Response for', requestSelect).row);
       A.clear(body);
       var latest = data.responses[0];
+      var selected = (data.requests || []).find(function (r) { return r.id === selectedRequest; });
+      var canDraft = data.can_draft && !(selected && selected.closed);
       if (!latest || latest.status === 'withdrawn') {
-        if (data.can_draft) {
+        if (canDraft) {
           body.appendChild(el('button', { type: 'button', class: 'btn btn-primary', text: 'Draft a response', on: { click: draft } }));
         } else {
-          body.appendChild(el('p', { class: 'aig-note-muted', text: 'A response can be drafted once a decision stands: approved, approved with conditions or not approved.' }));
+          body.appendChild(el('p', { class: 'aig-note-muted', text: selected && selected.closed
+            ? 'This request is closed. Its response history remains available.'
+            : 'A response can be drafted once a decision stands: approved, approved with conditions or not approved.' }));
         }
         if (latest) body.appendChild(el('p', { class: 'aig-hint', text: 'Revision ' + latest.revision + ' was withdrawn: ' + latest.withdraw_reason }));
         return;
       }
       var live = latest.stands;
       if (!live) {
-        if (data.can_draft) {
+        if (canDraft) {
           body.appendChild(el('p', { class: 'aig-note-warn', text: 'The decision this response rests on has been replaced, so it can no longer be approved '
             + 'or sent. Draft a new revision from the decision now in force.' }));
           body.appendChild(el('button', { type: 'button', class: 'btn btn-primary', text: 'Draft a new revision', on: { click: draft } }));
@@ -431,7 +468,8 @@
     }
 
     function refresh() {
-      return A.api(base).then(function (data) { A.say(status, ''); render(data); })
+      return A.api(base + (selectedRequest === null ? '' : A.qs({ intake_id: selectedRequest })))
+        .then(function (data) { A.say(status, ''); render(data); })
         .catch(function (err) { A.say(status, A.errorText(err), 'bad'); });
     }
     A.say(status, 'Loading...');

@@ -362,7 +362,8 @@ WATCHED_CASES = {"ropa": ("sentinel", "ropa"), "dpia": ("sentinel", "dpia"), "br
 
 def test_every_watched_kind_is_exercised_here_or_has_its_own_test():
     # application, process and the vendors are tested above, the control and the policy version further down
-    elsewhere = {("governance", "application"), ("governance", "process"), ("aria", "control")} | set(cs.VENDOR_KEYS)
+    elsewhere = {("governance", "application"), ("governance", "process"), ("aria", "control"),
+                 ("aria", "document"), ("aria", "risk")} | set(cs.VENDOR_KEYS)
     assert set(cs.WATCHED) == set(WATCHED_CASES.values()) | elsewhere
 
 

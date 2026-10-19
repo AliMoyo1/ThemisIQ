@@ -35,6 +35,7 @@ class Definition:
     exclusions: str
     drilldown: "str | None"   # the page that opens the rows
     exact: bool = True        # the page lists exactly the rows that are counted (False: it opens the module, not the rows)
+    ownership: str = "business_unit_or_organization"  # row owner, distinct from who may view the metric
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -48,9 +49,10 @@ REGISTRY: dict = {}
 
 
 def _add(key, label, module, owner, definition, eligibility, *, denominator=None, window=_NOW, scope=_VISIBLE,
-         refresh=_READ, exclusions="None.", drilldown=None, exact=True):
+         refresh=_READ, exclusions="None.", drilldown=None, exact=True,
+         ownership="business_unit_or_organization"):
     REGISTRY[key] = Definition(key, label, module, owner, definition, eligibility, denominator, window, scope, refresh,
-                               exclusions, drilldown, exact)
+                               exclusions, drilldown, exact, ownership)
 
 
 # ── Command Centre ──────────────────────────────────────────────────────────
@@ -59,13 +61,15 @@ _CC = "modules/launcher/command_metrics.py"
 _add("cc.controls_implemented", "Controls implemented", "aria", _CC,
      "The share of controls whose status is Implemented. A control that is only Approved (its documentation is approved) "
      "is not implemented and is not counted.",
-     "Every control the viewer may open.", denominator="All controls the viewer may open.", drilldown="/aria/", exact=False)
+     "Every control the viewer may open.", denominator="All controls the viewer may open.", drilldown="/aria/", exact=False,
+     ownership="organization")
 _add("cc.active_frameworks", "Active frameworks", "aria", _CC,
-     "Frameworks that are switched on for the organization.", "Frameworks marked active.", drilldown="/projects")
+     "Frameworks that are switched on for the organization.", "Frameworks marked active.", drilldown="/projects",
+     ownership="organization")
 _add("cc.overdue_actions", "Overdue actions", "", _CC,
      "Tasks past their due date that are not done, plus service clocks that are active and breached.",
      "Tasks with a due date in the past and a status other than done; active service clocks marked breached.",
-     drilldown="/my-work?section=overdue", exact=False)
+     drilldown="/my-work?section=overdue", exact=False, ownership="mixed_sources")
 _add("cc.critical_high_risks", "Critical and high risks", "erm", _CC,
      "Enterprise risks rated critical or high that are not closed or accepted.",
      "Enterprise risks the viewer may open, rated critical or high, with a status other than closed or accepted.",
@@ -77,7 +81,8 @@ _add("cc.appetite_breaches", "Appetite breaches", "erm", _CC,
      "Risk categories whose worst open risk scores above the category's limit.",
      "Categories that have a limit set, judged over the enterprise risks the viewer may open.",
      denominator="Categories that have a limit set.", drilldown="/erm/", exact=False,
-     exclusions="A category with no limit is not judged. Without any limit the number is not measured.")
+     exclusions="A category with no limit is not judged. Without any limit the number is not measured.",
+     ownership="mixed_sources")
 _add("cc.orm_open_events", "Open operational events", "orm", _CC,
      "Operational events that are open or under investigation and were created in the last 30 days.",
      "Events the viewer may open.", window="The last 30 days, by the day the event was created.", drilldown="/orm/")
@@ -90,7 +95,8 @@ _add("cc.grid_open_audit_controls", "Audit controls not yet compliant", "grid", 
 _add("cc.upcoming_reviews", "Reviews due within 30 days", "", _CC,
      "Enterprise risks whose review date falls within 30 days, plus continuity plans last reviewed more than 335 days ago.",
      "Risks and plans the viewer may open that are not closed or accepted.",
-     window="The next 30 days; for plans, a last review older than 335 days.", drilldown=None, exact=False)
+     window="The next 30 days; for plans, a last review older than 335 days.", drilldown=None, exact=False,
+     ownership="mixed_sources")
 _add("cc.evidence_files", "Evidence files", "", _CC,
      "Files held in the Evidence Vault that are in the library: current and expired files. Archived files and files "
      "replaced by a newer version are not counted.",
@@ -107,13 +113,14 @@ _add("cc.workflows_active", "Active workflows", "", _CC,
      "Workflow instances that are running.", "Instances the viewer may open.", drilldown="/workflows")
 _add("cc.open_risks", "Open risks by level", "", _CC,
      "Open enterprise and platform risks, by rating level.",
-     "Risks the viewer may open that are not closed.", drilldown="/risk-register")
+     "Risks the viewer may open that are not closed.", drilldown="/risk-register", ownership="mixed_sources")
 _add("cc.module_health", "Share of records in their good state", "", _CC,
      "For one module, the share of its main records that are in the good state of that module: controls implemented, "
      "audits completed, plans approved, breaches closed, risks closed, events resolved.",
      "The module's main records the viewer may open.",
      denominator="All of that module's main records the viewer may open.",
-     exclusions="A module with nothing recorded is not measured. It is not shown as 100 per cent.", drilldown=None, exact=False)
+     exclusions="A module with nothing recorded is not measured. It is not shown as 100 per cent.", drilldown=None, exact=False,
+     ownership="mixed_sources")
 
 # ── Business continuity dashboard ───────────────────────────────────────────
 
@@ -130,10 +137,10 @@ _add("bcm.exercises_completed", "Exercises completed", "bcm", _BCM,
      denominator="All exercises the viewer may open, including cancelled ones.",
      exclusions="With no exercise recorded the number is not measured.", drilldown="/bcm/exercises")
 _add("bcm.open_risks", "Open continuity risks", "bcm", _BCM, "Continuity risks with the status open.",
-     "Continuity risks the viewer may open.", drilldown="/bcm/risks")
+     "Continuity risks the viewer may open.", drilldown="/bcm/risks", ownership="organization")
 _add("bcm.risk_levels", "Continuity risks by level", "bcm", _BCM,
      "Continuity risks that are not closed, banded by score: critical 20 and over, high 12 to 19, medium 6 to 11, low under 6.",
-     "Continuity risks the viewer may open.", drilldown="/bcm/risks")
+     "Continuity risks the viewer may open.", drilldown="/bcm/risks", ownership="organization")
 
 # ── Privacy dashboard ───────────────────────────────────────────────────────
 
@@ -145,7 +152,7 @@ _add("sentinel.ropa_coverage", "Business processes with a processing record", "s
      "Active business processes the viewer may open.",
      denominator="Active business processes the viewer may open, recorded in Governance.",
      exclusions="Proposed links are not counted. Without any business process recorded the number is not measured.",
-     drilldown="/sentinel/ropa")
+     drilldown="/sentinel/ropa", ownership="mixed_sources")
 _add("sentinel.dpia_active", "Impact assessments in progress", "sentinel", _SEN,
      "Privacy impact assessments that are not completed or closed.", "Assessments the viewer may open.",
      drilldown="/sentinel/dpia")
@@ -162,13 +169,15 @@ _VAULT = "modules/evidence/routes.py"
 _add("vault.linked", "Claims with a live link", "", _VAULT,
      "Claims (records) that have at least one live evidence link. A link is not proof.",
      "Records of the kind that the viewer may open.", denominator="Records of that kind the viewer may open.",
-     drilldown="/evidence/", exact=False)
+     drilldown="/evidence/", exact=False, ownership="mixed_sources")
 _add("vault.current_proof", "Claims with current proof", "", _VAULT,
      "Claims with a live link to a current file that has not expired and whose link was not returned or rejected.",
-     "As above.", denominator="Records of that kind the viewer may open.", drilldown="/evidence/", exact=False)
+     "As above.", denominator="Records of that kind the viewer may open.", drilldown="/evidence/", exact=False,
+     ownership="mixed_sources")
 _add("vault.accepted", "Claims with accepted proof", "", _VAULT,
      "Claims whose current proof a reviewer other than the person who attached it has accepted.",
-     "As above.", denominator="Records of that kind the viewer may open.", drilldown="/evidence/", exact=False)
+     "As above.", denominator="Records of that kind the viewer may open.", drilldown="/evidence/", exact=False,
+     ownership="mixed_sources")
 
 
 # ── Access ──────────────────────────────────────────────────────────────────

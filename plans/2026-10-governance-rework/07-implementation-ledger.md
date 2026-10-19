@@ -49,7 +49,7 @@ here; the owner's VPS output reported the release healthy on 2026-10-14.
 | 3B Connected view, changes page, My Work | 03 section 2, 05 phase 4 | built, verified locally (SQLite, browser, real PostgreSQL) | `tests/ui/test_governance_connected_ui.py` (3), the My Work service test |
 | 3C Sentinel breach clock | 03 section 6 | built, verified locally (SQLite) | `tests/test_sentinel_breach_clock.py` (9) |
 | 3D AI use signals and the other module kinds | 03 section 1 table | built, verified locally (SQLite) | inside `tests/test_change_signals.py`: one case per watched kind, and the decision, revocation and changed use handlers |
-| 3E ERM acceptance, jurisdiction cards, GRID and BCM file convergence, module homes | 03 sections 3 to 9 | not built | see Not done (3) |
+| 3E ERM acceptance, jurisdiction cards, GRID and BCM file convergence, module homes | 03 sections 3 to 9 | local build, focused verification; no release | ERM acceptance proposal/decision/history and My Work projection; one Vault artifact for each new GRID upload and BCM proof attachment; historical GRID file and version crosswalks; BCM legacy reference match; source-backed module overviews; Sentinel draft and DPO-approved rule cards with separate breach obligations. PostgreSQL verification, actual legal rule content, and a specialist pilot remain open |
 | 4A Truthful dashboards and the metric registry | 04 section 2, 05 phase 1 slice A | built, verified locally (SQLite) | `tests/test_command_metrics.py` (7), `tests/test_dashboard_truth.py` (13) |
 | 4B Reports: real paths, frozen runs, presets, notes | 04 sections 2, 5, 05 phase 1 slice B | built, verified locally (SQLite, browser) | `tests/test_report_runs.py` (22), `tests/ui/test_reports_and_search_ui.py` (6) |
 | 4C My Work views, grouping, no duplicate actions | 04 section 3 | built, verified locally (SQLite, browser) | `tests/test_my_work_views.py` (6), `tests/ui/test_my_work_page.py` |
@@ -63,13 +63,37 @@ here; the owner's VPS output reported the release healthy on 2026-10-14.
 | 6 E0 Email inventory and decisions | 06 sections 2, 9 | built (from source; nothing read on a server) | `09-email-inventory.md` |
 | 6 E1 Sender safety and truthful status | 06 sections 2, 7, 8 | built, verified locally (SQLite, browser) | `tests/test_email_transport.py` (12), `tests/test_email_producers.py` (reminders, administration), `tests/ui/test_admin_email_truthful_status.py` (2) |
 | 6 E2 Outbox, templates and the pilot paths | 06 sections 3, 5, 6 | built, verified locally (SQLite, browser) | `tests/test_email_templates.py` (9), `tests/test_email_outbox.py` (18), `tests/test_email_producers.py` (36), `tests/ui/test_profile_email_preference.py` (3); the later cases are follow-up 11 |
-| 6 E3 Urgent cases and management summaries | 06 sections 4, 9 | built for Sentinel breach and request deadlines and the GRID weekly summary and, in follow-up 11, BCM incident and exercise mail, a named AI Governance reviewer and decider, the opt in My Work summary and quiet hours. Not built: a BCM escalation clock, an alternate contact, jurisdiction wording | `tests/test_ai_governance_assignment.py` (13), `tests/ui/test_bcm_incident_commander_ui.py` (1), `tests/ui/test_ai_governance_assignment_ui.py` (2), the files above; see Not done (6) |
+| 6 E3 Urgent cases and management summaries | 06 sections 4, 9 | built for Sentinel breach and request deadlines, the GRID weekly summary, BCM incident and exercise mail, named AI Governance reviewers and deciders, and opt in My Work summaries with quiet hours. BCM acknowledgement and first alternate escalation were added in follow-up 12. Not built: jurisdiction wording and an alternate human contact for privacy deadlines | `tests/test_ai_governance_assignment.py` (13), `tests/test_bcm_escalation.py` (21), the browser files named below; see Not done (6) and follow-up 12 |
 | 6 E3 BCM incident acknowledgement and escalation (follow-up 12) | 06 section 4; owner decision 3 | built, verified locally (SQLite, browser, real PostgreSQL); see the stage table | `tests/test_bcm_escalation.py` (21), `tests/ui/test_bcm_incident_escalation_ui.py` (4), the PostgreSQL case |
 | 6 Hardening pack (follow-up 13): outbox purge, send budget, task hand over mail | 06 section 3, owner decision 5; Not done (6) | built, verified locally (SQLite, browser, real PostgreSQL); see the stage table | `tests/test_email_outbox.py` (23), `tests/test_task_assignment_mail.py` (7), the PostgreSQL case |
 | 4 Badge text contrast (follow-up 13) | 04 section 7 (accessibility); follow-up 11 finding | built, verified locally (browser, both themes); see the stage table | `tests/ui/test_badge_contrast.py` (1) |
 | 6 E4 Provider cutover | 06 section 7 | seams built in follow-up 11 (pause, comparison by provider, runbook [12](12-email-cutover-runbook.md)); the cutover is not possible, no managed sender identity exists | `tests/test_email_outbox.py`, `tests/ui/test_admin_email_truthful_status.py` |
 
 ## Change log
+
+### 2026-10-16, My Work linked grouping continuation
+
+- Added Vendor and Business process choices to My Work. AI use actions use the application's canonical provider. ORM events, ERM risks, GRID findings, BCM incidents and Sentinel request or breach actions use confirmed links to visible vendor or process records. Vendor links are merged under canonical identity where present. Grouping checks the viewer's source and linked-record scope. Actions linked to several vendors or processes appear in each relevant group without changing their underlying action count.
+- Source actions without a qualifying link are labelled as such. Other actions appear under "Other work" until their source-owned vendor and process relationships are projected. This slice is local and unverified. Python and JavaScript syntax checks and `git diff --check` passed; no behavior tests, commit, push or deployment ran.
+- My Work now ignores an earlier request after a newer filter request starts, so a slow response cannot append stale actions or group labels to the newly selected view.
+- The ORM event drawer now mounts the shared Related Items panel so an authorized specialist can inspect and record cross-module relationships from the event they are reviewing. Browser and permission behavior remain unverified.
+
+### 2026-10-16, report source traceability continuation
+
+- Report runs now freeze each permitted source row ID alongside its source-recorded version and/or last change time where those fields exist. Sources without such fields say that revisions are not recorded. The report viewer shows the first 50 rows per source; its CSV exports the full bounded identifier list, revision detail and any truncation notice. This repairs the viewer's undefined identifier count and advances the report definition version.
+- A source timestamp is explicitly described as incomplete change history because not every source workflow advances it. The report still lacks an enforced monotonic version for every table, per-figure row lineage, sharing, sign-off and retention. This slice is local and unverified; no behavior tests, commit, push or deployment have run.
+- The shared Related Items picker now labels its search, holds focus inside the dialog, returns focus when closed, ignores stale search responses and keeps the picker open with a visible error when a link cannot be saved. Its browser and permission behavior remains unverified.
+- Evidence Vault coverage now returns a null percentage for an empty denominator, explains that state in its definitions, and shows "Not measured" without a percentage bar in the Vault. Analytics narrative and its local Q&A no longer label an empty Vault healthy, imply that zero critical risks proves healthy posture, or show an unknown module score as 0%. Analytics now calls the module percentages indicators, labels their distinct numerators and denominators, and stops using one threshold to rate unlike measures. Source-by-source Analytics review remains open. This is local and unverified.
+
+### 2026-10-15, local continuation after follow-up 13
+
+- The owner confirmed that a risk owner proposes acceptance and a different Compliance Manager or Chief GRC Officer decides it. A Super Admin may administer. Reason, expiry and review date are required. The owner also confirmed that GRID and BCM should share a canonical Vault artifact while keeping module-specific review.
+- The uncommitted ERM acceptance slice adds a human decision record, immutable risk/appetite snapshot, decision events, independent authority, expiry and source-change checks, drawer actions, and a My Work projection. Historical `accepted` risk labels are still counted as exposure until reconciled. No behavior checks have run for this slice.
+- The uncommitted BCM compliance proof slice replaces the route's client-provided path mirror with a scoped Vault attachment and link. It retains legacy rows as migration-needed metadata and soft-deletes new link rows; it does not migrate prior files. GRID now scopes Vault attachment and download and mirrors versioned GRID files into Vault, but its physical GRID copy still exists. Final canonical storage, a file crosswalk and the historical audit decision mapping remain open.
+- While reviewing this path, BCM incident proof link list, attach and unlink were found to accept an incident ID or Vault link ID without a matching source and artifact scope check. The local patch adds those checks and records the linking user's ID rather than their name.
+- The uncommitted import follow-up adds saved mappings scoped by organization. A specialist saves only a mapping that came from a valid preview, reuses it for a later export, and still reviews that export before creating requests. An archived mapping does not rewrite historical batch snapshots. Python and JavaScript syntax checks pass; behavior checks and both database migrations remain unverified.
+- The Related Items component can now create a first link from an empty ERM risk, escapes returned text, uses bound handlers rather than interpolating search data into code, and links to permitted source records. It is mounted only on the ERM risk drawer. Browser and permission behavior are not yet verified.
+- This continuation used syntax parsing and a whitespace check only. The changed ERM, GRID and BCM routes, schema migrations, database engines and browser flows require behavior verification before release. No commit, push or deployment was done here.
 
 ### 2026-10-14, start
 
@@ -98,17 +122,20 @@ Monitoring page (`/ai-governance/monitoring`) lists every active use in scope wi
   decisions queue, `workspace.list_systems`, `monitoring.get_portfolio`), so a count and its list cannot disagree. Everything
   is inside the viewer's business unit scope; a parent unit sees its children, never the reverse.
 
-**Navigation.** The sidebar is grouped as Work (Overview, Requests, AI systems, Reviews and decisions, Monitoring, Review packs)
+**Navigation at the end of 1A.** The sidebar was grouped as Work (Overview, Requests, AI systems, Reviews and decisions, Monitoring, Review packs)
 and Also (impact assessments, regulatory changes, register an AI use, AI literacy history or My training). Platform AI
 features left the customer sidebar and are linked from the Super Admin page. The review queue gained a "Waiting for information"
-tab, and the Decisions page lists approvals with open conditions.
+tab, and the Decisions page lists approvals with open conditions. The later navigation correction removes AI literacy from
+this sidebar and removes literacy-only access from the main module rail. Existing course routes and assigned links in My Work
+remain until the staff learning destination is ready.
 
 **Literacy consumer inventory (done before touching its navigation).** What reads the course tables today: the learner and
 manager pages (`/ai-governance/literacy`), My Work (one item per assigned course), the owner literacy quality rule, the shell
 icon for people with no AI Governance access, and the notification handler for a published course. Nothing was removed or
-hidden from those. Only the sidebar entry changed: managers and reporters see "AI literacy history", staff see "My training",
-so a learner is not stranded and a specialist does not see a learner workflow in the main path. The routes, APIs, completions
-and history are untouched. The move to a separate staff-facing project is not built; see 01 section 8.
+hidden from those. At the end of 1A, managers and reporters saw "AI literacy history" and staff saw "My training" in the
+sidebar. The later navigation correction removes those entries while retaining the direct course route used by My Work.
+The routes, APIs, completions and history are untouched. The move to a separate staff-facing project is not built; see 01
+section 8.
 
 **Found on the way.** The 14 browser tests that opened the inventory through `/ai-governance/?q=` failed after the landing page
 moved; they now open `/ai-governance/systems?q=`. That was a test dependency on the landing page, not a product defect.
@@ -303,6 +330,20 @@ of file content by a model (a later gate by the plan). The inspector has no peri
 period yet. Reuse suggestions are title-based only. The inspector scans the first 2000 current files and says when that
 limit was hit.
 
+### 2026-10-18, Evidence Vault guided filing and version access extension
+
+**Built locally, not released.** The upload dialog can select an accessible module record through the scoped entity search.
+The upload route checks the record, owner and replacement before storing a file, gives the file the selected record's business
+unit where present, and commits the file row and a pending review link together. A failed write rolls back rows and removes
+the newly written file. A replacement must name a visible current version, and a selected link already carried from the
+old version is not duplicated. Version history returns only a contiguous visible chain, without hidden parent IDs or file
+metadata, and the UI can open each visible version. AI Governance records are included in the target search allowlist.
+
+**Focused evidence.** The new guided-upload backend cases, existing Vault library and proof cases, a browser upload to an
+ERM claim, and 500-item browser pagination were run locally. The 500-item check proves reachability, not production search
+latency or a 5,000-item capacity target. Document text extraction, OCR, artifact families and the real PostgreSQL gate remain
+open under plan 02. See `PLAN_EVIDENCE_VAULT_GUIDED_UPLOAD_2026-10-18.md` for the slice and its limits.
+
 ### 2026-10-14, 3A to 3D: change signals, the connected view and Sentinel's breach clock
 
 **Built, committed in `d20d202` and merged as pull request 10.** New: `modules/governance/change_signals.py`, `modules/governance/entity360.py`,
@@ -378,14 +419,16 @@ queue script; `modules/launcher/my_work_service.py` and `templates/my_work.html`
 
 **Not done (3).**
 
-- **Governed risk acceptance in ERM** (section 7): the delegated-authority matrix is an owner decision and the work belongs to
-  `ciso-assistant-features/04`. A control or a finding that changes now reaches the owner of the risk it is connected to;
-  nothing records an acceptance, its expiry or its return to action.
+- **Governed risk acceptance in ERM** (section 7): the owner approved the authority rule on 2026-10-15. A local, unverified
+  proposal and decision record now exists with expiry and review dates, separate approval and a My Work projection. The
+  schema, route behavior, legacy accepted labels and report treatment still need review before release.
 - **Jurisdiction cards with a source, rule version, timezone and approver** (section 6): they need legal approved content.
   One breach still has one regulation and one clock, and the clock says it is indicative. Several obligations on one breach
   is not built.
-- **One file identity for GRID and BCM** (sections 4 and 5): both still keep their own file stores. A new Vault version tells
-  the claims that used the old one; a GRID or BCM file is not yet one Vault family.
+- **One file identity for GRID and BCM** (sections 4 and 5): the owner approved a canonical Vault artifact on 2026-10-15.
+  BCM's new compliance proof attachment uses one Vault artifact and GRID can attach one too. GRID's upload mirror still
+  keeps a separate physical copy, and historical GRID and BCM files need an organization-scoped inventory and crosswalk
+  before a final cutover.
 - **Module homes with Act now, Portfolio, Trends and Coverage** (section 9): they depend on the metric registry of plan 04.
 - **Truth repairs that open plan 04**: the ARIA "Generate Report" timer toast, the BCM report types that the shared engine
   does not register, the BCM and Sentinel example data after a failed read, and frozen saved report runs. They are the first
@@ -397,8 +440,10 @@ queue script; `modules/launcher/my_work_service.py` and `templates/my_work.html`
   approval of a policy version are wired; the others are listed here.
 - **A burst.** A bulk edit that goes through the update functions publishes one signal per changed record, each with up to
   200 targets. There is no batching or rate limit.
-- **The Related Items panel** (`static/js/related_items.js`) is loaded by the shell but mounted by no screen in this tree, so
-  the connected view is reached from the AI system header, the Governance tables, My Work and the changes page, not from it.
+- **The Related Items panel** (`static/js/related_items.js`) is now mounted locally on the ERM risk drawer, with its empty
+  state, scoped link picker, safe text rendering and target link repaired. Other module detail screens still need a mount and
+  browser review. The connected view also remains reachable from the AI system header, Governance tables, My Work and the
+  changes page.
 
 ### 2026-10-14, plan 04: what was found before building
 
@@ -518,21 +563,26 @@ are labelled legacy.
 
 **Not done (4).**
 
-- **No grouping by vendor or process** in My Work (04 section 3): grouping is by source, unit and parent record only. The
-  manager's team view was built afterwards (follow-up 11, step 6).
+- **Vendor and process grouping** in My Work has a local, unverified first slice. AI-use provider IDs and confirmed links
+  from ORM events, ERM risks, GRID findings, BCM incidents, and Sentinel requests and breaches group work by a visible vendor
+  or process. Vendor identity is canonical where present. Both endpoints are scoped, and actions with no such link are labelled
+  as unlinked. Other source actions and unverified UI behavior remain open.
+  The manager's team view was built afterwards (follow-up 11, step 6).
 - **A predictive number's trace** (acceptance scenario 5, second half) was built afterwards (follow-up 11, step 5). A
   prediction made before it carries no trace and says so.
 - **Report sharing, a review workflow with sign-off, and retention** of saved runs: a run is for one person and is kept.
-- **No per-record version stamps** in the envelope: it names the sources and the time, not each record's version.
-- **ERM and ORM dashboard statistics are not unit scoped** (`get_dashboard_stats`), so a unit manager's board narrative is
-  written from whole organization figures. A product decision with the ERM export scope note.
+- **Incomplete per-record version stamps** in the envelope: the 2026-10-16 local patch freezes version and last-change fields where a source records them, and labels missing fields. These are not yet enforced on every write, and the identifier list is scoped source rows rather than exact per-figure lineage. Browser and database behavior remain unverified.
+- **ERM and ORM dashboard scope:** a 2026-10-15 local patch scopes dashboard figures and their AI board inputs to the
+  viewer's business unit. It is not behavior-verified yet. Unowned records, organization-wide KRIs and cross-module event
+  payloads still need an explicit source-ownership contract.
 - **Workflow authoring** is open to every signed-in user of the organization (08 inventory); which role authors workflows is a
   product decision.
 - **Three places still write without a review step**: auto-mapping of controls, the regulatory drift check and checklist
   import risk scoring (declared in `WRITES_WITHOUT_REVIEW`). The three chats and the three board narratives still return a
   labelled placeholder when the assistant is off, not analysis.
-- **Analytics and the Vault coverage `pct`** still render zero where nothing is recorded; the registry figures do not.
-- **The Related Items panel** is still mounted by no screen (see Not done (3)).
+- **Analytics empty-data states** still need a source-by-source review. The Vault coverage `pct` now returns null for an empty denominator in a local unverified patch.
+- **The Related Items panel** is locally mounted on the ERM risk and ORM event drawers; other module homes still need an entry point
+  and browser review (see Not done (3)).
 
 ### 2026-10-15, plan 06: email notifications and delivery (E0, E1, E2, and part of E3)
 
@@ -945,8 +995,10 @@ the three open items of plan 06 that code can close, and the badge contrast find
    [09](09-email-inventory.md) (retention and processor terms) is still the owner's to confirm.
 2. **20 a minute.** The temporary account has a daily cap of 200; 20 a minute drains it in ten minutes and keeps a burst
    (a bulk assignment, a deadline run) below what a consumer mailbox provider treats as a flood. The number is `PER_MINUTE`.
-   Organizations are served in id order, so one with a long backlog is served first and the next minute continues; fairness
-   between organizations is not built.
+   The initial implementation served organizations in id order, allowing the first organization's backlog to consume the
+   whole allowance every minute. The later fairness correction gives each organization a first share, redistributes unused
+   capacity, and rotates the starting organization when there are more tenants than available sends. This unverified
+   working-tree correction is tracked in `PLAN_email_queue_fairness_and_ai_literacy_navigation_2026-10-15.md`.
 3. **One message for a group of tasks.** The daily cap and the person's inbox are both shared; forty messages for forty tasks
    would spend the first and bury the second.
 4. **Green and red were fixed with amber.** The probe that found the amber measured the green tints at 3.14 to 1 and the red
@@ -1095,8 +1147,8 @@ Not run: the whole browser suite in one session (about 3.8 hours), the PostgreSQ
 4. Existing tests were changed for the new behaviour: `test_entity_scope.py`, `test_platform_ownership_surfaces.py`,
    `tests/ui/test_my_work_page.py`. The new files are listed in the
    slice table.
-5. Open decisions that block the rest of plan 03: the delegated-authority matrix for risk acceptance (ERM), legally approved
-   jurisdiction content (Sentinel), and whether GRID and BCM files should become Vault families. Open decisions for plan 04:
+5. The owner resolved the ERM delegated-authority and canonical Vault artifact decisions on 2026-10-15; their unverified
+   local slices are logged above. Legally approved jurisdiction content (Sentinel) remains open. Open decisions for plan 04:
    which role authors workflows, and whether the three chats and three board narratives are kept as labelled placeholders
    or refuse when the assistant is off. Open decisions for plan 06 are listed in `09-email-inventory.md`. The defaults of
    follow-up 11 were confirmed by the owner on 2026-10-15 (see "Decisions taken"). Still open for the owner: a managed sender
@@ -1109,3 +1161,56 @@ Not run: the whole browser suite in one session (about 3.8 hours), the PostgreSQ
    notification list and the badge text contrast, both fixed), and a machine that sleeps during a
    run produces a block of network errors that pass when run again. Run the files that failed on their own before reading
    a failure as a defect, and give a long run keep-awake.
+
+## Connected module stage, 2026-10-16
+
+This section updates the older 3E status and handoff. The working tree contains this stage and other local user edits. It has not been committed, pushed or deployed by this stage.
+
+| Area | Local build | Focused evidence and remaining gate |
+| --- | --- | --- |
+| ERM risk acceptance | Owner proposal, independent Compliance Manager or Chief GRC Officer decision, dates and reason, history and My Work action | Three dedicated backend checks passed. Specialist pilot remains open |
+| GRID and BCM files | New GRID uploads and replacements use one Vault byte store; BCM attaches one Vault artifact. Historical GRID current files and versions have idempotent crosswalks. BCM has a human-confirmed reference match. GRID file APIs hide internal storage paths | Canonical upload, migration, Vault scope, BCM service and one BCM review browser check passed. Existing files are not bulk-migrated. PostgreSQL check remains open |
+| Module homes and connected navigation | Four source-backed overview cards on each specialist home, plus Related Items at GRID control, BCM incident and Sentinel breach record views | Three backend/HTTP checks and five Chromium module home checks passed. Wider specialist pilot remains open |
+| Sentinel jurisdiction obligations | Versioned draft and DPO-approved cards, sourced trigger facts, separate obligations and change history. Existing simple clocks are indicative | Three new and nine existing focused clock checks plus one DPO draft browser check passed. Real legal rules have not been authored or approved |
+| Earlier local slices | AI import mappings, My Work grouping, report traceability and scoped modules remain in this working tree | Focused backend checks passed. One stale My Work source-list assertion was corrected after the ERM acceptance source was added |
+
+The final focused backend group passed 18 checks and seven focused Chromium checks passed. The real PostgreSQL lane is pending because the local Docker daemon is unavailable. Do not treat SQLite or browser checks as production migration proof. No full suite was run in this stage.
+
+### Follow-up, 2026-10-18
+
+- Added a guarded real-PostgreSQL upgrade regression for the GRID historical crosswalk and Sentinel obligation tables in an existing tenant. It is pending because the local Docker daemon is unavailable. Do not run it against production or any database outside the disposable test naming guard.
+- Fixed canonical GRID upload atomicity: control status is projected before the Vault and GRID rows commit. A status failure rolls back both records and removes the newly written file. Failed replacement preserves the prior approved version.
+- Replacing an approved GRID file now reopens a completed control for review. The focused canonical upload file passed five checks; the connected module backend group passed 22 checks. The live specialist pilot and PostgreSQL lane remain open. This follow-up is local and uncommitted.
+- ARIA risk and document form edits now publish only material, structured field changes to confirmed linked records. Owner names, mitigation prose and document comments are not copied into signals. The two new regressions failed before the change and passed afterward; the focused change-signal file plus ARIA form tests passed 44 checks. Direct database edits, ARIA imports and bulk signal batching remain open.
+- Evidence Vault local text-indexing build: a bounded parser process and per-version table index PDF, DOCX, XLSX, TXT, CSV and JSON; scoped library and Find evidence results show short source passages. The index is hash-bound and the scheduler uses a cross-worker lease and tenant rotation. See `PLAN_EVIDENCE_VAULT_TEXT_INDEX_2026-10-18.md`. Syntax and whitespace checks passed; automated tests and PostgreSQL migration verification were not run for this slice. Untrusted-file OS isolation remains a release gate.
+- Follow-up: the AI Governance overview gained evaluation outcome and attention by tier views from its scoped Monitoring portfolio, with not-measured drilldowns and explicit partial coverage above 500 uses. Evidence Vault file path containment now uses exact resolved directory ancestry for downloads, preview, verification and permanent deletion. Automatic text extraction is disabled by default pending an operating-system sandbox for untrusted files. No automated or production checks were run for these local changes.
+- Follow-up: the specialist Requests page gained a paginated lifecycle worklist with scoped counts for New, Needs clarification, In assessment, Awaiting decision, Ready to respond, Response sent and Closed. It derives the first six from existing intake, question, decision and response records. Closing is a separate, version-checked human action after a response was sent, or after a triage rejection was communicated externally with a recorded reference. The overview funnel now measures accepted requests whose response was sent and whose record was closed. Reviewers can open a permitted request; only an author can edit a manual draft. This local slice has syntax checks only; the new columns still need the real PostgreSQL migration lane.
+- A governance reviewer may edit and submit an imported draft in their own organization and business-unit scope, even when another specialist imported it. Manually created staff drafts remain author-only. The actual specialist who submits is recorded as the event actor. This change has syntax review only.
+- The overview now reads worklist counts without loading a page of request details. The request funnel's accepted, assessed, decided, responded and closed counts include a linked AI system only if that system is openable in the reviewer's scope. This local scope correction has syntax review only; PostgreSQL and role-based behavior remain unverified.
+- External response reads and drafts now bind requester snapshots to an intake the specialist may review. The response panel asks which request it answers and keeps the selected request while switching AI system tabs; a shared AI system alone no longer authorizes reading another unit's requester snapshot. Each request gets its own response revision chain. Legacy unlinked responses with a requester snapshot are withheld until provenance is repaired. The bounded decision history now retrieves an older standing decision separately so a series of returned proposals cannot make it disappear. These are local changes with syntax review only; their migration and browser behavior remain unverified.
+- Editing a draft preserves its stored business unit unless the specialist explicitly changes that field through the scoped choice. This prevents an imported request whose payload omitted the unit from silently becoming organization-wide on save. This is local and behavior-unverified.
+- The Vault text indexer now requires Linux Bubblewrap as well as an explicit enable flag. Its child receives one frozen document and read-only interpreter and package mounts, no application data directory and no network namespace. The target VPS must have Bubblewrap and allow its namespaces; neither the sandbox nor document extraction has been exercised under the production service identity. Leave extraction disabled until that proof, the PostgreSQL migration check and scope verification are complete.
+
+### AI decision brief slice, 2026-10-19
+
+- Local build: an AI use profile can name an active sponsor in its organization; the outstanding-items view shows whether one is named. Existing profiles with no sponsor retain their original fingerprint until a covered fact changes. The sponsor column is additive in both schema declarations and the column migration.
+- A proposed decision now stores a frozen brief of intended scope, owner and sponsor, checklist source references and versions, AI impact assessments, evaluation outcomes, Vault proof versions, review gaps and quality findings. The requester can include proposed conditions, expiry and review date. Approval refuses a proposal whose current source brief has changed. The signed record retains the proposed terms alongside the decider's actual conditions, rationale, expiry and review date.
+- Specialist screens show the brief before a request, the proposed terms before a decision, and source versions in the review desk. Counts over the bounded assessment, evaluation and control reads produce explicit partial-history gaps instead of implying full coverage.
+- This slice is local and uncommitted. Automated, PostgreSQL and browser verification and the specialist pilot have not been run for it. Other local changes in the working tree predate this slice and are not part of its release claim.
+- Approval stays fail closed when the decider lacks access to sources captured by the requester. The reviewer screen distinguishes that access gap from changed facts. A DPO without ORM source access cannot approve a proposal that includes ORM proof; use a decider with that access or design a separately authorized review-pack grant before the pilot.
+
+### Remaining connected and platform work, local build, 2026-10-19
+
+This entry records local changes in a pre-existing dirty working tree. It does not claim that production rows were migrated, that a lawyer approved a jurisdiction rule, or that mail was sent. No automated tests were run for this slice.
+
+| Area | Local implementation | Release or external gate |
+| --- | --- | --- |
+| Historical GRID and BCM files | Tenant-admin inventory and guarded per-record migration for GRID current files and historical versions. The source bytes remain on disk. An idempotent crosswalk records Vault artifact, source hash and legacy path. BCM reconciliation requires a human to select an existing accessible Vault artifact and retains BCM's review status. | Run an inventory in each live tenant, inspect every manual-review entry, back up files and database, migrate bounded groups, verify counts and hashes, then reconcile BCM references individually. No live rows were changed here. |
+| Change signals | ARIA control status edits and a bounded bulk edit publish material control changes. Framework bulk creation, force-seeding and lazy seeding count actual inserts and publish a framework control-count signal for confirmed linked records. ARIA form edits and record change signals from the earlier slice remain. | Direct SQL changes are outside the event seam. Verify linked framework behavior and source scope in PostgreSQL before release. |
+| Connected entry points | ARIA risk and document lists now open the scoped Connected Records page. Existing module drawers for GRID, BCM, Sentinel, ERM and ORM remain. | Specialist click-through and role review are pending. |
+| Dashboard figure ownership | Metric definitions disclose whether the owner is an organization, an eligible business unit or mixed sources. The definitions remain the authority for scope and drilldown. | Confirm labels with data owners; validate all mixed-source figures in a specialist pilot. |
+| Saved reports | Named, expiring, revocable shares recheck current modules, capabilities, row scope and frozen source IDs. A reviewer may have additional grants but must retain every source grant and the same scope. An independent capable reviewer signs or rejects an intact run with a reason. A tenant administrator may set a documented retention date or hold; the scheduler purges due content and keeps a hash tombstone. | Review the retention schedule and sign-off authority with the tenant, then verify PostgreSQL upgrade and role behavior before release. Existing saved runs without complete frozen scope cannot be shared. |
+| Workflow and AI write decisions | Workflow and communication template authorship now needs a dedicated platform capability. AI control mappings await a different human reviewer; GRID AI scores are presented as suggestions for per-row selection; regulatory AI summaries need an explicit human decision before non-managers see them. | Verify role paths and source readers in the browser and PostgreSQL lane. Earlier AI-generated mappings remain historical accepted rows and need a separate provenance review. |
+| Privacy escalation and legal content | Admin can nominate an active same-organization privacy specialist as alternate contact. Sentinel includes the person in deadline mail routing and scoped in-app alerts, which remain useful before mail is configured. Recipient lookups require the current organization; duplicate case alerts to a named recipient are suppressed. Case alerts require current case access and omit breach titles. Source review corrected two legacy figures and marks broad DSR and breach clocks as internal review targets. See [source review](15-jurisdiction-source-review.md). | No card is legally approved by this research. A privacy/legal reviewer must confirm each rule, trigger and effective date, and a different DPO must approve it in Sentinel. No live sender account is configured. |
+
+The mail outbox and templates are ready for a controlled pilot only after the sender address, Reply-To owner, credentials, domain authentication and the runbook's delivery checks exist. Do not claim provider acceptance or deliverability from a queued row.

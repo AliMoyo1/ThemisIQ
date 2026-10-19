@@ -57,12 +57,14 @@
 .an-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
 .an-card-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:14px}
 
-/* Module health bars */
+/* Source-backed module indicators */
 .mh-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.mh-name{font-size:12px;font-weight:700;width:64px;flex-shrink:0;color:var(--text)}
+.mh-name{font-size:12px;font-weight:700;width:165px;flex-shrink:0;color:var(--text)}
+.mh-definition{display:block;font-size:10px;font-weight:400;color:var(--muted);line-height:1.3}
 .mh-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
 .mh-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1)}
-.mh-pct{font-size:12px;font-weight:800;width:36px;text-align:right;flex-shrink:0}
+.mh-pct{font-size:12px;font-weight:800;min-width:88px;text-align:right;flex-shrink:0}
+@media(max-width:480px){.mh-row{flex-wrap:wrap}.mh-name{width:100%}}
 
 /* Risk distribution */
 .risk-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
@@ -177,10 +179,11 @@
   </div>
 </div>
 
-<!-- ── Module Health + Risk Distribution ─────────────────────────────────── -->
+<!-- ── Module indicators + risk distribution ─────────────────────────────── -->
 <div class="an-bottom">
   <div class="an-card">
-    <div class="an-card-title">Module Health</div>
+    <div class="an-card-title">Module indicators</div>
+    <p style="font-size:11px;color:var(--muted);margin:-8px 0 12px">Each percentage has its own definition and denominator. Compare it with its source records, not with another module's percentage.</p>
     <div id="moduleHealthPanel">
       <div class="an-loading"><div class="spinner" style="margin:0 auto"></div></div>
     </div>
@@ -336,7 +339,7 @@ function renderLiveMetrics(){
       '', 'var(--text)');
 }
 
-/* ── Module Health Bars ──────────────────────────────────────────────────── */
+/* ── Module indicators ───────────────────────────────────────────────────── */
 function renderModuleHealth(){
   const el = document.getElementById('moduleHealthPanel');
   const items = (liveData?.module_health)||[];
@@ -344,18 +347,23 @@ function renderModuleHealth(){
 
   const moduleKeys = ['aria','grid','bcm','sentinel','erm','orm','governance'];
   el.innerHTML = items.map(m=>{
-    const measured = m.pct!==null && m.pct!==undefined;
-    const pct = measured ? (parseInt(m.pct)||0) : 0;
-    const color = !measured?'var(--muted)':pct>=80?'var(--green-status)':pct>=60?'var(--amber)':'var(--red)';
+    const measured = m.pct!==null && m.pct!==undefined && Number.isFinite(Number(m.pct));
+    const pct = measured ? Math.max(0,Math.min(100,Number(m.pct))) : 0;
+    const color = 'var(--accent)';
     const modKey = moduleKeys.includes(m.key) ? m.key : 'platform';
+    const definition = m.definition || 'Definition unavailable';
+    const quantity = m.numerator!==null && m.numerator!==undefined &&
+      Number.isFinite(Number(m.denominator)) && Number(m.denominator)>0
+      ? `${m.numerator} of ${m.denominator}` : '';
     return `<div class="mh-row">
       <div class="mh-name">
         <span class="mh-dot" data-module-key="${modKey}" aria-hidden="true">●</span>${esc(m.name)}
+        <span class="mh-definition">${esc(definition)}${quantity ? ' · '+esc(quantity) : ''}</span>
       </div>
-      <div class="mh-track">
+      <div class="mh-track" ${measured ? `role="meter" aria-label="${esc(m.name+': '+definition).replace(/"/g,'&quot;')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"` : 'aria-hidden="true"'}>
         <div class="mh-fill" style="width:${pct}%;background:${color}"></div>
       </div>
-      <div class="mh-pct" style="color:${color}">${measured?pct+'%':'Not measured'}</div>
+      <div class="mh-pct">${measured?pct+'%':'Not measured'}</div>
     </div>`;
   }).join('');
 }
@@ -552,23 +560,25 @@ function runInsightEngine(){
   if(comp === null){
     insights.push({sev:'blue', title:'Compliance is not measured yet.', body:'No control is recorded that you may open, so there is nothing to measure. Add a framework or controls to start.'});
   } else if(comp >= 85){
-    insights.push({sev:'green', title:'Compliance at '+comp+'%', body:'Above the 80% operational threshold. Continue control assurance programme.'});
+    insights.push({sev:'blue', title:'Recorded implementation at '+comp+'%', body:'This exceeds the 80% operational threshold. Review evidence and audit results separately before drawing an assurance conclusion.'});
   } else if(comp >= 70){
-    insights.push({sev:'amber', title:'Compliance at '+comp+'%', body:'Approaching the 80% threshold. Review and accelerate implementation of '+Math.ceil((80-comp)/100*(d.compliance_pct||1))+' outstanding controls.'});
+    insights.push({sev:'amber', title:'Recorded implementation at '+comp+'%', body:'Review controls that are not recorded as implemented and inspect their evidence before drawing an assurance conclusion.'});
   } else {
-    insights.push({sev:'red', title:'Compliance at '+comp+'%', body:'Below acceptable threshold. Immediate executive review of control gaps required.'});
+    insights.push({sev:'red', title:'Recorded implementation at '+comp+'%', body:'Prioritize review of controls not recorded as implemented. Confirm the underlying records and evidence.'});
   }
 
   // 2. Critical risks
   const crit = d.risk_counts?.critical||0;
   const high = d.risk_counts?.high||0;
-  if(crit > 0){
+  if(!d.risk_counts){
+    insights.push({sev:'blue', title:'Risk counts are unavailable.', body:'Open the Risk Register before drawing a conclusion about the current risk posture.'});
+  } else if(crit > 0){
     insights.push({sev:'red', title:crit+' critical risk'+(crit>1?'s':'')+' unresolved.', body:'These require immediate mitigation plans and executive sign-off before quarter close.'});
   } else if(high > 3){
     insights.push({sev:'amber', title:high+' high-priority risks open.', body:'No critical risks. Review mitigation adequacy for the high-risk items before next board cycle.'});
   } else {
     const total = (d.risk_counts?.medium||0)+(d.risk_counts?.low||0);
-    insights.push({sev:'green', title:'Risk posture healthy.', body:'No critical risks. '+high+' high, '+total+' medium/low risks tracked and managed.'});
+    insights.push({sev:'blue', title:'No critical risks are recorded in this view.', body:high+' high and '+total+' medium/low risks are recorded. This count does not establish that risk is controlled.'});
   }
 
   // 3. SLA performance
@@ -580,7 +590,9 @@ function runInsightEngine(){
   } else if(slaRisk > 2){
     insights.push({sev:'amber', title:slaRisk+' SLAs at risk', body:'Breach within 2 hours. Assign response owners immediately to avoid formal breaches.'});
   } else {
-    if(slaPct === null){
+    if(!d.sla){
+      insights.push({sev:'blue', title:'SLA source is unavailable.', body:'No conclusion about service clocks can be drawn from this view.'});
+    } else if(slaPct === null){
       insights.push({sev:'blue', title:'SLA compliance is not measured yet.', body:'No service clock has ended, so there is no on-time share to report.'});
     } else {
       insights.push({sev:'green', title:'SLA compliance at '+slaPct+'%.', body:(slaBr===0?'No active breaches. ':'')+' Response and resolution deadlines on track.'});
@@ -591,15 +603,17 @@ function runInsightEngine(){
   const evExp = d.evidence_expiring||0;
   if(evExp > 0){
     insights.push({sev:'amber', title:evExp+' evidence item'+(evExp>1?'s':'')+' expiring within 30 days.', body:'Renew or archive these items to maintain audit trail integrity. Review in Evidence Repository.'});
+  } else if((d.evidence_count||0) === 0){
+    insights.push({sev:'blue', title:'No evidence is recorded in this view.', body:'Expiry and proof coverage cannot be inferred from an empty repository.'});
   } else {
-    insights.push({sev:'green', title:'Evidence vault in good standing.', body:'No items expiring in the next 30 days. Coverage spans '+Object.keys(d.module_health||{}).length+' modules.'});
+    insights.push({sev:'blue', title:'No evidence items are recorded as expiring soon.', body:'Review proof coverage and acceptance separately; expiry count alone does not establish assurance.'});
   }
 
-  // 5. Module health
+  // 5. Source-backed module indicators
   const mh = d.module_health||[];
-  const lowMod = mh.filter(m=>m.pct!==null && m.pct!==undefined && parseInt(m.pct)<60);
-  if(lowMod.length){
-    insights.push({sev:'amber', title:lowMod.map(m=>m.name).join(', ')+' health below 60%.', body:'These modules have the most incomplete controls or unresolved findings. Prioritise in next sprint.'});
+  const missingMod = mh.filter(m=>m.pct===null||m.pct===undefined);
+  if(missingMod.length){
+    insights.push({sev:'blue', title:'Some module indicators are not measured.', body:missingMod.map(m=>m.name).join(', ')+' have no eligible records in this view.'});
   }
 
   // 6. Trends (if we have trend data)
@@ -658,23 +672,24 @@ window.askAnalytics = function(){
 
   // Compliance
   if(/compliance|control|compliant/.test(q)){
-    const c = d?.compliance_pct??snap.compliance_pct??'unknown';
+    const c = d?.compliance_pct??snap.compliance_pct;
     const tot = snap.controls_total;
     const ok  = snap.controls_compliant;
-    response = `Current compliance rate is <strong>${c}%</strong>${tot?` (${ok} of ${tot} controls implemented)`:''}. `+
-      (c>=80?'This is above the 80% operational threshold.':'This is below the 80% threshold — review control gaps urgently.');
+    response = c===null||c===undefined
+      ? 'Compliance is not measured because no eligible controls are recorded in this view.'
+      : `Recorded implementation is <strong>${c}%</strong>${tot?` (${ok} of ${tot} controls implemented in the saved snapshot)`:''}. This is a status measure, not an independent assurance opinion.`;
   }
 
   // Risks
   else if(/critical risk|how many critical/.test(q)){
-    const crit = d?.risk_counts?.critical??0;
-    response = `There are currently <strong>${crit} critical open risk${crit!==1?'s':''}</strong> in the Risk Register.`+
-      (crit>0?' These require executive attention and immediate mitigation.':' No critical risks — good risk posture.');
+    const crit = d?.risk_counts?.critical;
+    response = crit===null||crit===undefined ? 'Risk counts are unavailable in this view.' :
+      `There are <strong>${crit} critical open risk${crit!==1?'s':''}</strong> recorded in the Risk Register. This count does not establish that other risks are controlled.`;
   }
   else if(/risk|risks/.test(q)){
-    const rc = d?.risk_counts||{};
-    response = `Open risks: <strong>${rc.critical||0} critical, ${rc.high||0} high, ${rc.medium||0} medium, ${rc.low||0} low.</strong> `+
-      `Total ${(rc.critical||0)+(rc.high||0)+(rc.medium||0)+(rc.low||0)} open risks in the register.`;
+    const rc = d?.risk_counts;
+    response = rc ? `Open risks recorded in this view: <strong>${rc.critical||0} critical, ${rc.high||0} high, ${rc.medium||0} medium, ${rc.low||0} low.</strong> `+
+      `Total ${(rc.critical||0)+(rc.high||0)+(rc.medium||0)+(rc.low||0)}.` : 'Risk counts are unavailable in this view.';
   }
 
   // SLA
@@ -689,7 +704,8 @@ window.askAnalytics = function(){
     const count = d?.evidence_count??0;
     const exp   = d?.evidence_expiring??0;
     response = `Evidence vault holds <strong>${count} item${count!==1?'s':''}</strong>. `+
-      (exp>0?`⚠ <strong>${exp} item${exp!==1?'s':''} expiring within 30 days</strong> — review in Evidence Repository.`:'No items expiring in the next 30 days.');
+      (exp>0?`<strong>${exp} item${exp!==1?'s':''} expiring within 30 days</strong>. Review in Evidence Repository.`:
+       count===0?'Coverage is not measured from an empty repository.':'No item is recorded as expiring in the next 30 days. Check proof coverage separately.');
   }
 
   // Audits
@@ -710,9 +726,9 @@ window.askAnalytics = function(){
   else if(/module|health|aria|grid|bcm|sentinel/.test(q)){
     const mh = d?.module_health||[];
     if(mh.length){
-      response = 'Module health scores:<br>' + mh.map(m=>{
-        const c = m.pct>=80?'green':m.pct>=60?'amber':'red';
-        return `<span style="color:var(--${c==='green'?'green-status':c==='amber'?'amber':'red'})">${esc(m.name)}: ${parseInt(m.pct)||0}%</span>`;
+      response = 'Module indicators, each with its own definition:<br>' + mh.map(m=>{
+        const value = m.pct===null||m.pct===undefined ? 'Not measured' : parseInt(m.pct,10)+'%';
+        return `<span>${esc(m.name)}: ${value} (${esc(m.definition||'definition unavailable')})</span>`;
       }).join(' · ');
     } else {
       response = 'No module health data available. Ensure the platform has data in each module.';
@@ -735,7 +751,7 @@ window.askAnalytics = function(){
 
   // Fallback
   else {
-    response = `I can answer questions about: <strong>compliance rate, critical risks, SLA performance, evidence vault, audits, module health, workflows, and trends.</strong> Try asking one of these topics.`;
+    response = `I can show recorded facts about <strong>control implementation, critical risks, SLA performance, evidence, audits, module indicators, workflows and trends.</strong> Try asking one of these topics.`;
   }
 
   answer.innerHTML = response;

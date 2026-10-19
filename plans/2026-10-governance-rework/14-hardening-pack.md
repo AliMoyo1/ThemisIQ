@@ -16,9 +16,10 @@ record goes into [07](07-implementation-ledger.md) when it is verified.
    `RETENTION_DAYS`.
 2. **A send limit per minute.** At most 20 non-critical messages are handed to the provider in a minute, across every
    organization, because they all leave through one account. Critical messages are not counted and are never held. A
-   suppressed message is not a send and is not counted. *Why 20:* the temporary account has a daily cap of 200; 20 a minute
-   lets that drain in ten minutes, and keeps a burst (a bulk assignment, a deadline run) below what a consumer mailbox
-   provider treats as a flood. It is a constant, `PER_MINUTE`.
+   suppressed message is not a send and is not counted. *Why 20:* the application has a 200-message daily limit within each
+   tenant; 20 a minute paces a burst such as bulk assignment or a deadline run. The daily limit is not a provider-wide cap
+   across tenants, so a shared sender needs a separate account-wide limit before a live mail pilot. The minute limit is the
+   constant `PER_MINUTE`.
 3. **Mail when a task is handed to someone.** Updating a task so that it belongs to someone else, and assigning a group of
    tasks, tell the new assignee in the app and by email (until now only creating a task did). A group is one message, "N tasks
    are assigned to you", not N: a person who is given forty tasks is told once. The person who made the change is not told.

@@ -407,6 +407,42 @@ def test_erm_scan_job_table_exists_in_public_and_tenant_schemas(pg):
     assert "erm_emerging_scan_jobs" in _tables_present(pg, "scanqueue")
 
 
+def test_connected_module_tables_upgrade_existing_tenant_on_real_postgres(pg):
+    """Vault crosswalk and legal obligation DDL must reach older tenants."""
+    required = {
+        "evidence_file_crosswalk", "sentinel_jurisdiction_rule_cards",
+        "sentinel_breach_obligations", "sentinel_obligation_history",
+    }
+    pg.init_db()
+    assert required <= _tables_present(pg)
+    pg.provision_tenant_schema("connectedpilot")
+    assert required <= _tables_present(pg, "connectedpilot")
+
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.set_tenant("connectedpilot")
+        for table in ("sentinel_obligation_history", "sentinel_breach_obligations",
+                      "sentinel_jurisdiction_rule_cards", "evidence_file_crosswalk"):
+            conn.execute(f"DROP TABLE {table}")
+        conn.commit()
+    finally:
+        conn.close()
+
+    # A server restart replays additive DDL across existing tenant schemas.
+    pg.init_db()
+    assert required <= _tables_present(pg, "connectedpilot")
+    conn = pg.get_db_bypass_rls()
+    try:
+        conn.set_tenant("connectedpilot")
+        columns = {row["column_name"] for row in conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema=current_schema() AND table_name='grid_evidence_versions'"
+        ).fetchall()}
+        assert {"status", "approved_by", "approved_at"} <= columns
+    finally:
+        conn.close()
+
+
 def test_reinit_repairs_existing_projection_columns_after_workflow_loss(pg):
     """CASCADE can remove FKs while leaving their source columns in place."""
     pg.init_db()

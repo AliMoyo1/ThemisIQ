@@ -20,8 +20,10 @@ from datetime import date
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
-from database import get_db_background as get_db, sql_date_offset, sql_current_date  # scheduler: fail-fast, never block UI
+from database import get_db_background as get_db, sql_date_offset, sql_current_date, try_acquire_scheduler_lock, list_active_tenants  # scheduler: fail-fast, never block UI
+from config import settings
 from core import email_outbox as outbox
 from core import email_templates as templates
 from core.best_effort import swallowed
@@ -31,6 +33,38 @@ log = logging.getLogger("evidence.scheduler")
 TZ = "UTC"
 
 _scheduler: BackgroundScheduler | None = None
+
+
+def _index_due() -> None:
+    """One small cross-worker batch, with a short lease and per-tenant context."""
+    lock_db = get_db()
+    try:
+        acquired = try_acquire_scheduler_lock(lock_db, "evidence_text_index", 290)
+    finally:
+        lock_db.close()
+    if not acquired:
+        return
+    from modules.evidence.indexer import index_batch
+
+    remaining = 12
+    tenants = sorted(list_active_tenants())
+    if not settings.is_postgres():
+        tenants = tenants[:1]
+    if not tenants:
+        tenants = [(None, None)]
+    pivot = int(utcnow().timestamp() // 300) % len(tenants)
+    tenants = tenants[pivot:] + tenants[:pivot]
+
+    def visit(org_id):
+        nonlocal remaining
+        if remaining <= 0:
+            return 0
+        count = index_batch(org_id if settings.is_postgres() else None,
+                            limit=min(remaining, 3 if settings.is_postgres() else 12))
+        remaining -= count
+        return count
+
+    outbox.for_each_tenant(visit, "Evidence text indexing", tenants=tenants)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -215,9 +249,16 @@ def start_scheduler() -> None:
         replace_existing=True,
         misfire_grace_time=300,
     )
+    from modules.evidence.indexer import indexing_enabled
+    if indexing_enabled():
+        _scheduler.add_job(
+            _index_due, IntervalTrigger(minutes=5), id="evidence_text_index",
+            replace_existing=True, max_instances=1, misfire_grace_time=30,
+        )
 
     _scheduler.start()
-    log.info("Evidence scheduler started: expiry check daily at 09:00 UTC")
+    log.info("Evidence scheduler started: expiry check daily; text indexing %s",
+             "enabled every five minutes" if indexing_enabled() else "disabled")
 
 
 def stop_scheduler() -> None:

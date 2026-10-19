@@ -65,10 +65,14 @@ async def orm_spa_page(request: Request, page: str):
 @require_capability("module.orm.access")
 async def api_dashboard(request: Request):
     days = int(request.query_params.get("days", 30))
-    stats = ds.get_dashboard_stats(days=days)
-    stats["departments"] = ds.get_distinct_departments()
-    stats["active_bcm_incident"] = ds.has_active_bcm_incident()
-    stats["active_sentinel_breach"] = ds.has_active_sentinel_breach()
+    user = request.state.user
+    stats = ds.get_dashboard_stats(days=days, user=user)
+    stats["departments"] = ds.get_distinct_departments(user=user)
+    stats["active_bcm_incident"] = ds.has_active_bcm_incident(user=user)
+    stats["active_sentinel_breach"] = ds.has_active_sentinel_breach(user=user)
+    # KRIs have no business-unit owner and the Indicators page is organization-wide.
+    # Declare that scope so their alerts are not mistaken for unit-only figures.
+    stats["kri_alerts_scope"] = "organization"
     stats["kri_alerts"] = _get_kri_alerts()
     # sla_overdue already included in get_dashboard_stats()
     return JSONResponse(stats)
@@ -327,7 +331,7 @@ async def api_ai_analyze(request: Request, event_id: int):
 @require_capability("orm.report.generate")
 async def api_ai_board_report(request: Request):
     days = int((await _json_body(request)).get("days", 30))
-    stats = ds.get_dashboard_stats(days=days)
+    stats = ds.get_dashboard_stats(days=days, user=request.state.user)
     narrative = ai.generate_trend_narrative(stats)
     return JSONResponse({"narrative": narrative, "stats": stats})
 
@@ -343,7 +347,7 @@ async def api_chat_send(request: Request):
     ds.save_chat(uid, "user", message)
     history = ds.list_chat(uid, limit=20)
     msgs = [{"role": m["role"], "content": m["content"]} for m in history]
-    stats = ds.get_dashboard_stats()
+    stats = ds.get_dashboard_stats(user=request.state.user)
     reply = ai.chat(msgs, stats=stats)
     ds.save_chat(uid, "assistant", reply, "anthropic")
     return JSONResponse({"reply": reply})

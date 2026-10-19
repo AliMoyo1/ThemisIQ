@@ -3,7 +3,7 @@ Sentinel module: Background scheduler.
 
 Jobs:
   Job 1  Breach deadline monitor  (every hour)
-         - Tells the administrators in the app when the notification deadline is less than 24 and less than 6 hours away
+         - Tells privacy specialists who may open the case when the notification deadline is less than 24 and less than 6 hours away
            and when it has passed, once per threshold
          - Asks the email outbox to tell the named privacy officers, once per person and threshold
 
@@ -17,11 +17,11 @@ Jobs:
 
 All jobs are safe to run repeatedly (idempotent where possible), and each visits every organization in turn.
 
-Who is told by email (plans/2026-10-governance-rework/06 sections 3 and 4): the active users who hold the DPO role, and
-the active user whose address is set as the DPO address in the settings. Never the first user of the table. When nobody is
-named, the administrators are told in the app, and the notice says that no email was sent. A message carries the case
-reference, the deadline and a link, never the title of a breach or the name of a data subject. Whether a recipient may
-open the case, and whether it is still open, are checked by the outbox at the moment of sending.
+Who is told by email (plans/2026-10-governance-rework/06 sections 3 and 4): active DPOs, the named DPO contact,
+and an optional alternate privacy specialist. Never the first user of the table. Scoped privacy specialists receive in-app
+case notices; the named specialists also receive in-app notices. A message carries the case reference, recorded review
+target and link, never the title of a breach or the name of a data subject. Case access is checked for in-app notices
+and again by the outbox when sending email.
 """
 from __future__ import annotations
 
@@ -61,10 +61,21 @@ def _dpo_user_ids(org_id) -> list:
                 continue
             user = db.execute(
                 "SELECT id FROM users WHERE LOWER(email) = LOWER(%s) AND is_active = 1 "
-                "AND COALESCE(is_super_admin, 0) = 0 AND (org_id = %s OR org_id IS NULL)", (address, org_id)).fetchone()
+                "AND COALESCE(is_super_admin, 0) = 0 AND org_id = %s", (address, org_id)).fetchone()
             if user and user["id"] not in ids:
                 ids.append(user["id"])
             break
+        backup_row = db.execute("SELECT value FROM settings WHERE key='sentinel_backup_email'").fetchone()
+        backup = str((backup_row["value"] if backup_row else "") or "").strip()
+        if backup:
+            person = db.execute(
+                "SELECT u.id FROM users u JOIN user_roles ur ON ur.user_id=u.id "
+                "WHERE LOWER(u.email)=LOWER(%s) AND u.org_id=%s AND u.is_active=1 "
+                "AND COALESCE(u.is_super_admin,0)=0 "
+                "AND ur.role_key IN ('dpo','privacy_analyst') LIMIT 1", (backup, org_id),
+            ).fetchone()
+            if person and person["id"] not in ids:
+                ids.append(person["id"])
         return ids
     finally:
         db.close()
@@ -100,28 +111,75 @@ def _notify_user(user_id: int, module: str, title: str, message: str, link: str 
         db.close()
 
 
-def _notify_admins(module: str, title: str, message: str, link: str = ""):
+def _notify_privacy_people(org_id: int, recipients: list[int], source_type: str, source_id: int,
+                           title: str, message: str, link: str) -> None:
+    """Give the named privacy people an in-app alert even when mail is not configured."""
+    if not recipients:
+        return
     db = get_db()
     try:
+        from modules.governance.entity_scope import describe_record
+        today = utcnow().date().isoformat()
+        for uid in recipients:
+            row = db.execute(
+                "SELECT id,username,email,full_name,org_id,is_active,is_super_admin,business_unit_id "
+                "FROM users WHERE id=%s AND org_id=%s AND is_active=1",
+                (uid, org_id),
+            ).fetchone()
+            if not row or describe_record(db, ("sentinel", source_type), source_id,
+                                          outbox.user_for_scope(db, row)) is None:
+                continue
+            exists = db.execute(
+                "SELECT 1 FROM notifications WHERE user_id=%s AND module='sentinel' "
+                "AND title=%s AND link=%s AND created_at >= %s LIMIT 1",
+                (uid, title, link, today),
+            ).fetchone()
+            if not exists:
+                db.execute(
+                    "INSERT INTO notifications (user_id,module,title,message,link) "
+                    "VALUES (%s,'sentinel',%s,%s,%s)", (uid, title, message, link),
+                )
+        db.commit()
+    except Exception:
+        db.rollback()
+        swallowed("_notify_privacy_people (notifications)")
+    finally:
+        db.close()
+
+
+def _notify_admins(module: str, title: str, message: str, link: str, org_id: int,
+                   source_type: str | None = None, source_id: int | None = None,
+                   exclude_ids: list[int] | None = None):
+    db = get_db()
+    try:
+        from modules.governance.entity_scope import describe_record
         rows = db.execute(
-            "SELECT DISTINCT u.id FROM users u "
+            "SELECT DISTINCT u.id,u.username,u.email,u.full_name,u.org_id,u.is_active,"
+            "u.is_super_admin,u.business_unit_id FROM users u "
             "JOIN user_roles ur ON u.id=ur.user_id "
-            "WHERE ur.role_key IN ('super_admin','admin','dpo') AND u.is_active=1"
+            "WHERE ur.role_key IN ('dpo','privacy_analyst') AND u.is_active=1 AND u.org_id=%s "
+            "AND COALESCE(u.is_super_admin,0)=0", (org_id,)
         ).fetchall()
         for r in rows:
+            if r["id"] in (exclude_ids or ()):
+                continue
+            if source_type and describe_record(db, (module, source_type), source_id,
+                                               outbox.user_for_scope(db, r)) is None:
+                continue
             db.execute(
                 "INSERT INTO notifications (user_id, module, title, message, link) VALUES (%s,%s,%s,%s,%s)",
-                (r[0], module, title, message, link),
+                (r["id"], module, title, message, link),
             )
         db.commit()
     except Exception:
+        db.rollback()
         swallowed("_notify_admins (users)")
     finally:
         db.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 1: Breach 72-hour deadline monitor  (hourly)
+# Job 1: Breach review deadline monitor  (hourly)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _breach_deadline_check() -> None:
@@ -144,12 +202,11 @@ def _breach_deadline_check_in(org_id: int) -> None:
 
     now = utcnow()
     recipients = _dpo_user_ids(org_id)
-    unnamed = "" if recipients else " No privacy officer is named, so no email was sent: name a user with the DPO role."
+    unnamed = "" if recipients else " No privacy specialist is named, so no email was queued: name a DPO or alternate contact."
 
     for b in open_breaches:
         bid = b["id"]
-        ref = b["ref_number"] or f"BRE-{bid}"
-        title = b["title"] or "Data Breach Incident"
+        ref = templates.reference_or(b["ref_number"], f"BRE-{bid}")
         regulation = b["regulation"] or "GDPR"
 
         try:
@@ -179,29 +236,42 @@ def _breach_deadline_check_in(org_id: int) -> None:
                 fields={"reference": templates.reference_or(ref, f"BRE-{bid}"),
                         "due": deadline.strftime("%Y-%m-%d %H:%M"), "hours": int(hours_left)},
                 source=("sentinel", "breach", bid), purpose="deadline", threshold=level, priority="critical")
+            _notify_privacy_people(
+                org_id, recipients, "breach", bid, f"Breach review due within {level}: {ref}",
+                f"Review recorded deadline for {ref}. Confirm the applicable rule and trigger.",
+                f"/sentinel/?open=breach:{bid}",
+            )
             already = b["breach_notified_6h"] if level == "6h" else b["breach_notified_24h"]
             if already:
                 continue
             if level == "24h":
                 _notify_admins(
-                    "sentinel", f"Breach Notification Due in {hours_left:.0f}h: {title}",
-                    f"Ref {ref}: {regulation} requires notification to {authority}. "
-                    f"{hours_left:.0f} hours remaining.{unnamed}", "/sentinel/breaches")
+                    "sentinel", f"Breach review due in {hours_left:.0f}h: {ref}",
+                    f"Ref {ref}: {hours_left:.0f} hours remain until the recorded review deadline. "
+                    f"A privacy specialist must confirm the applicable rule and trigger.{unnamed}",
+                    "/sentinel/breaches", org_id, "breach", bid, recipients)
             else:
                 _notify_admins(
-                    "sentinel", f"URGENT: Breach Notification Due in {hours_left:.0f}h: {title}",
-                    f"Ref {ref}: Only {hours_left:.0f} hours until the {regulation} "
-                    f"{window_label} notification deadline ({authority}).{unnamed}", "/sentinel/breaches")
+                    "sentinel", f"Urgent breach review due in {hours_left:.0f}h: {ref}",
+                    f"Ref {ref}: {hours_left:.0f} hours remain until the recorded review deadline. "
+                    f"Confirm the obligation and required action.{unnamed}",
+                    "/sentinel/breaches", org_id, "breach", bid, recipients)
             _mark_breach_notified(bid, level)
 
         # Overdue
         elif hours_left <= 0:
             hours_overdue = abs(hours_left)
             if hours_overdue < 2:  # only notify once when it first tips over
+                _notify_privacy_people(
+                    org_id, recipients, "breach", bid, f"Breach review target passed: {ref}",
+                    f"Review the recorded target for {ref} and confirm the applicable obligation.",
+                    f"/sentinel/?open=breach:{bid}",
+                )
                 _notify_admins(
-                    "sentinel", f"OVERDUE: Breach Notification Deadline Passed: {title}",
-                    f"Ref {ref}: The {regulation} {window_label} notification deadline "
-                    f"({authority}) has passed. Immediate action required.", "/sentinel/breaches")
+                    "sentinel", f"Breach review target passed: {ref}",
+                    f"Ref {ref}: The recorded review deadline has passed. "
+                    "A privacy specialist should assess the obligation and act promptly.",
+                    "/sentinel/breaches", org_id, "breach", bid, recipients)
 
     log.info("Sentinel: breach deadline check complete in organization %s (%d open breaches checked)",
              org_id, len(open_breaches))
@@ -221,7 +291,7 @@ def _mark_breach_notified(bid: int, level: str) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Job 2: DSR 30-day deadline monitor  (daily 08:00)
+# Job 2: DSR recorded review deadline monitor  (daily 08:00)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _dsr_deadline_check() -> None:
@@ -248,7 +318,7 @@ def _dsr_deadline_check_in(org_id: int) -> None:
 
     for d in open_dsrs:
         did = d["id"]
-        ref = d["ref_number"] or f"DSR-{did}"
+        ref = templates.reference_or(d["ref_number"], f"DSR-{did}")
         name = d["requester_name"] or "Data Subject"
         req_type = d["request_type"] or "Request"
         regulation = d["regulation"] or "GDPR"
@@ -268,6 +338,11 @@ def _dsr_deadline_check_in(org_id: int) -> None:
 
         if days_left < 0:
             # Overdue: emit event + notify
+            _notify_privacy_people(
+                org_id, recipients, "dsr", did, f"DSR review target passed: {ref}",
+                f"Review the recorded target for {ref} and confirm the applicable obligation.",
+                f"/sentinel/?open=dsr:{did}",
+            )
             from core.events import emit, SENTINEL_DSR_OVERDUE
             emit(
                 SENTINEL_DSR_OVERDUE,
@@ -288,12 +363,17 @@ def _dsr_deadline_check_in(org_id: int) -> None:
                 org_id, "privacy.dsr", recipients, route=f"/sentinel/?open=dsr:{did}",
                 fields={"reference": templates.reference_or(ref, f"DSR-{did}"), "due": str(deadline)},
                 source=("sentinel", "dsr", did), purpose="deadline", threshold=f"d{days_left}", priority=None)
+            _notify_privacy_people(
+                org_id, recipients, "dsr", did, f"DSR review due in {days_left} day(s): {ref}",
+                f"Review the recorded date for {ref} and confirm the applicable rule.",
+                f"/sentinel/?open=dsr:{did}",
+            )
             _notify_admins(
                 "sentinel",
-                f"DSR Deadline: {days_left} day{'s' if days_left > 1 else ''} remaining: {ref}",
-                f"{regulation}: {req_type} from {name} is due in {days_left} day(s) "
-                f"({deadline}). Notify {authority} if unable to respond.{unnamed}",
-                "/sentinel/dsr")
+                f"DSR review: {days_left} day{'s' if days_left > 1 else ''} remaining: {ref}",
+                f"Ref {ref}: the recorded response date is in {days_left} day(s) "
+                f"({deadline}). Confirm any legal deadline and required action.{unnamed}",
+                "/sentinel/dsr", org_id, "dsr", did, recipients)
 
     log.info("Sentinel: DSR deadline check complete in organization %s (%d open DSRs checked)", org_id, len(open_dsrs))
 
@@ -304,10 +384,10 @@ def _dsr_deadline_check_in(org_id: int) -> None:
 
 def _retention_review_check() -> None:
     log.info("Sentinel: running retention review check")
-    outbox.for_each_tenant(lambda _org: _retention_review_check_in(), "Sentinel retention review check")
+    outbox.for_each_tenant(_retention_review_check_in, "Sentinel retention review check")
 
 
-def _retention_review_check_in() -> None:
+def _retention_review_check_in(org_id: int) -> None:
     db = get_db()
     try:
         due = db.execute(
@@ -327,7 +407,7 @@ def _retention_review_check_in() -> None:
         f"Retention Review Due: {len(due)} schedule(s) require attention",
         f"{len(due)} retention schedule(s) have review dates within the next 30 days. "
         "Review and confirm retention periods remain appropriate.",
-        "/sentinel/retention")
+        "/sentinel/retention", org_id)
 
     # Create task board item
     db2 = get_db()

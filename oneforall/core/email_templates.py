@@ -106,17 +106,17 @@ TEMPLATES = {t.key: t for t in (
         "A control on audit {reference} needs your attention.{due_sentence} Open it in ThemisIQ to add the evidence.",
         ("reference",), ("due",), ("/grid/",), "Open the control", "you asked to be reminded of this control"),
     Template(
-        "privacy.deadline", 1, CRITICAL, "The privacy officer named for the organization",
-        "a privacy deadline is approaching",
-        "A privacy case needs attention. Reference: {reference}. The notification deadline recorded for this case is "
-        "{due}.{hours_sentence} Open the case in ThemisIQ to check the jurisdiction and the notice decision.",
+        "privacy.deadline", 2, CRITICAL, "The privacy officer named for the organization",
+        "a privacy case needs review",
+        "A privacy case needs attention. Reference: {reference}. Its recorded review target is "
+        "{due}.{hours_sentence} Open the case in ThemisIQ to confirm the applicable rule, trigger and notice decision.",
         ("reference", "due"), ("hours",), ("/sentinel/",), "Open the case",
         "you are named as a privacy officer for this organization"),
     Template(
-        "privacy.dsr", 1, CRITICAL, "The privacy officer named for the organization",
-        "a data subject request is due",
-        "A data subject request needs a response by {due}. Reference: {reference}. Open it in ThemisIQ to see what is "
-        "outstanding.",
+        "privacy.dsr", 2, CRITICAL, "The privacy officer named for the organization",
+        "a data subject request needs review",
+        "A data subject request has a recorded review target of {due}. Reference: {reference}. Open it in ThemisIQ "
+        "to confirm the legal response period and see what is outstanding.",
         ("reference", "due"), (), ("/sentinel/",), "Open the request",
         "you are named as a privacy officer for this organization"),
     Template(

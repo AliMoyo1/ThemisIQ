@@ -1447,6 +1447,10 @@
   };
 
   var _pendingChecklist=null;
+  window.gridChecklistSetRisk=function(index,value){
+    if(_pendingChecklist && _pendingChecklist[index] && ['Low','Medium','High','Critical'].includes(value))
+      _pendingChecklist[index].risk_level=value;
+  };
 
   window.parseChecklistPreview=async function(auditId){
     var form=document.getElementById('checklistImportForm');
@@ -1468,18 +1472,20 @@
       if(preview){
         preview.style.display='block';
         preview.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px">'+
-          'Found '+_pendingChecklist.length+' controls'+(data.ai_scored?' (AI-scored)':'')+
+          'Found '+_pendingChecklist.length+' controls'+(data.ai_scored?' with AI suggestions to review':'')+
         '</div>'+
-        '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">'+
-          '<table class="data-table" style="font-size:12px"><thead><tr><th>ID</th><th>Name</th><th>Risk</th><th>Evidence</th></tr></thead><tbody>'+
-          _pendingChecklist.slice(0,50).map(function(c){
-            var evCount=(c.evidence_required||[]).length;
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">The suggested score is not saved automatically. Choose a level for each control you wish to change from Medium. Suggested evidence must be added separately after review.</div>'+
+        '<div style="max-height:350px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)">'+
+          '<table class="data-table" style="font-size:12px"><thead><tr><th>ID</th><th>Name</th><th>Suggested risk</th><th>Level to import</th><th>Suggested evidence</th></tr></thead><tbody>'+
+          _pendingChecklist.map(function(c,index){
+            var evCount=(c.suggested_evidence_items||[]).length;
             return '<tr><td style="font-family:var(--mono);color:var(--accent)">'+esc(c.control_id||'—')+'</td>'+
               '<td>'+esc(c.name||'')+'</td>'+
-              '<td>'+riskBadge(c.risk_level||'Medium')+'</td>'+
+              '<td>'+esc(c.suggested_risk_level||'No suggestion')+'</td>'+
+              '<td><select aria-label="Import risk for '+esc(c.control_id||c.name||'control')+'" onchange="gridChecklistSetRisk('+index+',this.value)">'+
+              ['Low','Medium','High','Critical'].map(function(level){return '<option value="'+level+'"'+(c.risk_level===level?' selected':'')+'>'+level+'</option>';}).join('')+'</select></td>'+
               '<td style="text-align:center">'+(evCount||'—')+'</td></tr>';
           }).join('')+
-          (_pendingChecklist.length>50?'<tr><td colspan="4" style="text-align:center;color:var(--muted)">... and '+(_pendingChecklist.length-50)+' more</td></tr>':'')+
           '</tbody></table>'+
         '</div>';
       }
@@ -2937,6 +2943,7 @@
           '<button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="addControlComment('+cid+')">Post</button>'+
         '</div>'+
         '</div>'+
+        '<div class="ctrl-section" id="gridControlRelated"></div>'+
 
       '</div>';
 
@@ -2952,6 +2959,10 @@
     loadSuggestedPolicies(cid);
     // Render comments
     renderCommentsList(ctrl.comments||[]);
+    if(typeof RelatedItems!=='undefined'){
+      var related=document.getElementById('gridControlRelated');
+      if(related)RelatedItems.mount(related,'grid','control',cid,{canEdit:true});
+    }
 
     // Drag-and-drop on upload zone
     var zone=document.getElementById('cdUploadZone');
@@ -3000,6 +3011,7 @@
 
   function _evFileHtml(f, cid, items){
     var isAriaPolicy = (f.mime_type||'') === 'application/x-aria-policy';
+    var isLegacyFile = !isAriaPolicy && f.storage_state==='legacy_needs_migration';
     var ariaMeta = isAriaPolicy ? _parseAriaNotes(f.notes||'') : null;
 
     var ext=(f.original_name||f.filename||'').split('.').pop().toLowerCase();
@@ -3070,6 +3082,9 @@
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'+
       '</button>';
     if(!isAriaPolicy){
+      if(isLegacyFile){
+        actionsHtml+='<button title="Move historical file into the Evidence Vault" onclick="event.stopPropagation();migrateLegacyEvidence('+f.id+','+cid+')" style="color:var(--accent)">Move to Vault</button>';
+      }
       if(ver>1){
         actionsHtml+=
           '<button title="Version history" onclick="event.stopPropagation();showVersionHistory('+f.id+')" style="color:var(--accent)">'+
@@ -3137,6 +3152,19 @@
 
   window.downloadEvidence=function(eid){
     window.open('/grid/api/evidence/file/'+eid+'/download','_blank');
+  };
+
+  window.migrateLegacyEvidence=async function(eid,cid){
+    try{
+      await ApiClient.request('/grid/api/legacy-evidence/'+eid+'/migrate',
+        {method:'POST',actionId:'grid.evidence.migrate'});
+      var ctrl=await api('/grid/api/controls/'+cid);
+      if(ctrl){
+        renderEvidenceList(ctrl.evidence_files||[],ctrl.evidence_items||[],cid);
+        renderChecklistItems(ctrl.evidence_items||[],ctrl.evidence_files||[],cid);
+      }
+      if(typeof showToast==='function')showToast('File now points to the Vault. The old source is retained for review.','success');
+    }catch(e){if(typeof showToast==='function')showToast(e.detail||e.message||'Migration needs manual review','error');}
   };
 
   window.downloadAllEvidence=function(cid){
@@ -3309,11 +3337,21 @@
           sizeStr+(v.uploader_name?' &middot; '+esc(v.uploader_name):'')+(v.created_at?' &middot; '+fmtDate(v.created_at):'')+
         '</div>'+
         (v.notes?'<div style="font-size:12px;color:var(--text);margin-top:4px">'+esc(v.notes)+'</div>':'')+
+        (v.storage_state==='legacy_needs_migration'
+          ?'<button type="button" class="btn btn-sm btn-secondary" onclick="migrateLegacyVersion('+Number(v.id)+','+Number(eid)+')">Move version to Vault</button>'
+          :'<small>Vault artifact #'+Number(v.vault_evidence_id||0)+'</small>')+
       '</div>';
     }).join('')+
     '</div>';
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+  };
+  window.migrateLegacyVersion=async function(versionId,eid){
+    try{
+      await api('/grid/api/legacy-evidence/versions/'+versionId+'/migrate',{method:'POST'});
+      document.getElementById('versionHistoryModal')?.remove();
+      showVersionHistory(eid);
+    }catch(err){if(typeof showToast==='function')showToast('Version migration failed: '+err.message,'error');}
   };
 
   /* ── Approve / Reject single evidence file ── */

@@ -174,6 +174,9 @@ async def sentinel_index(request: Request):
         "activity_types": ACTIVITY_TYPES,
         "data_categories": DATA_CATEGORIES,
         "special_categories": SPECIAL_CATEGORIES,
+        "can_draft_jurisdiction": has_capability(user, "sentinel.jurisdiction.draft"),
+        "can_approve_jurisdiction": has_capability(user, "sentinel.jurisdiction.approve"),
+        "can_manage_breach_obligations": has_capability(user, "sentinel.breach.manage"),
         **shell_ctx(request, active_module="sentinel", active_section="dashboard"),
     })
 
@@ -1450,6 +1453,87 @@ async def api_lia_delete(request: Request, lia_id: int):
 # ═════════════════════════════════════════════════════════════════════════════
 # Jurisdiction Management
 # ═════════════════════════════════════════════════════════════════════════════
+
+@router.get("/api/jurisdiction-cards")
+@require_capability("module.sentinel.access")
+async def api_jurisdiction_cards(request: Request):
+    from modules.sentinel import obligations
+    return JSONResponse({"items": obligations.list_cards(request.state.user)})
+
+
+@router.post("/api/jurisdiction-cards", status_code=201)
+@require_capability("sentinel.jurisdiction.draft")
+async def api_jurisdiction_card_create(request: Request):
+    from modules.sentinel import obligations
+    try:
+        card_id = obligations.create_card(await _json_body(request), request.state.user)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    return JSONResponse({"id": card_id}, status_code=201)
+
+
+@router.post("/api/jurisdiction-cards/{card_id}/approve")
+@require_capability("sentinel.jurisdiction.approve")
+async def api_jurisdiction_card_approve(request: Request, card_id: int):
+    from modules.sentinel import obligations
+    try:
+        obligations.approve_card(card_id, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Draft rule card not found") from None
+    return JSONResponse({"ok": True})
+
+
+@router.get("/api/breaches/{breach_id}/obligations")
+@require_capability("module.sentinel.access")
+async def api_breach_obligations(request: Request, breach_id: int):
+    from modules.sentinel import obligations
+    try:
+        items = obligations.list_obligations(breach_id, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Breach not found") from None
+    return JSONResponse({"items": items})
+
+
+@router.post("/api/breaches/{breach_id}/obligations", status_code=201)
+@require_capability("sentinel.breach.manage")
+async def api_breach_obligation_create(request: Request, breach_id: int):
+    from modules.sentinel import obligations
+    try:
+        obligation_id = obligations.add_obligation(breach_id, await _json_body(request), request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Breach or rule card not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    return JSONResponse({"id": obligation_id}, status_code=201)
+
+
+@router.post("/api/breach-obligations/{obligation_id}/decision")
+@require_capability("sentinel.breach.manage")
+async def api_breach_obligation_decide(request: Request, obligation_id: int):
+    from modules.sentinel import obligations
+    body = await _json_body(request)
+    try:
+        obligations.decide_obligation(obligation_id, body.get("decision"), body.get("reason") or "",
+                                      request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Obligation not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    return JSONResponse({"ok": True})
+
+
+@router.put("/api/breach-obligations/{obligation_id}/facts")
+@require_capability("sentinel.breach.manage")
+async def api_breach_obligation_facts(request: Request, obligation_id: int):
+    from modules.sentinel import obligations
+    try:
+        obligations.update_obligation_facts(obligation_id, await _json_body(request), request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Obligation not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    return JSONResponse({"ok": True})
+
 
 @router.get("/api/jurisdictions/rules")
 @require_module("sentinel")

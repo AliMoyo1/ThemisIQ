@@ -796,8 +796,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     </a>
     {% endif %}
 
-    {% if can_ai_use or can_ai_pack or can_ai_literacy or can_ai_admin_nav %}
-    <a href="{{ '/ai-governance/' if can_ai_use or can_ai_admin_nav else ('/ai-governance/packs' if can_ai_pack else '/ai-governance/literacy') }}" class="icon-nav-item{% if active_module == 'ai-governance' %} active{% endif %}" title="AI Governance">
+    {% if can_ai_use or can_ai_pack or can_ai_admin_nav %}
+    <a href="{{ '/ai-governance/' if can_ai_use or can_ai_admin_nav else '/ai-governance/packs' }}" class="icon-nav-item{% if active_module == 'ai-governance' %} active{% endif %}" title="AI Governance">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
       <span class="icon-nav-tooltip">AI Governance</span>
       <span class="nav-label">AI Governance</span>
@@ -1528,6 +1528,7 @@ async function createReminder(e){
 
 
 <script src="/static/js/related_items.js"></script>
+<script src="/static/js/module_home.js"></script>
 <script src="/static/js/modal_manager.js?v=1"></script>
 
 </body>

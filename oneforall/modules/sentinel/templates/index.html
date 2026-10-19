@@ -578,7 +578,7 @@
   <div class="section-header">
     <div>
       <div class="section-title">Data Breach Register</div>
-      <div class="section-sub">Article 33 &amp; 34 GDPR — Breach notification management</div>
+      <div class="section-sub">Multi-jurisdiction notification review. Confirm applicability and triggers for each obligation.</div>
     </div>
     <div class="header-actions">
       <button class="btn btn-primary" onclick="snOpenModal('breach')">
@@ -590,13 +590,14 @@
   <div class="card">
     <div style="overflow-x:auto">
       <table class="data-table">
-        <thead><tr><th>Reference</th><th>Title</th><th>Severity</th><th>Status</th><th>Reported</th><th>72h Deadline</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Reference</th><th>Title</th><th>Severity</th><th>Status</th><th>Reported</th><th>Indicative legacy clock</th><th>Actions</th></tr></thead>
         <tbody id="snBreachBody">
           <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
         </tbody>
       </table>
     </div>
   </div>
+  <div class="card" id="snBreachObligationPanel" data-can-manage="{{ 'true' if can_manage_breach_obligations else 'false' }}" style="margin-top:16px;display:none"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -1014,6 +1015,15 @@
       </table>
     </div>
   </div>
+  <div class="card" id="snRuleCardPanel" data-can-approve="{{ 'true' if can_approve_jurisdiction else 'false' }}" style="margin-top:20px">
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <span>Versioned notification rule cards</span>
+      {% if can_draft_jurisdiction %}<button type="button" class="btn btn-secondary" id="snCreateRuleCard">Draft a rule card</button>{% endif %}
+    </div>
+    <p style="color:var(--muted);font-size:13px">An approved source, trigger definition, effective period and DPO interpretation are required before a breach obligation shows a countdown.</p>
+    <div id="snRuleCards">Open Jurisdiction Manager to load rule cards.</div>
+    <div id="snRuleCardForm"></div>
+  </div>
 </div>
 
 </div><!-- /snSpaRoot -->
@@ -1090,14 +1100,14 @@
     var due=new Date(notify_deadline);
     var diffH=(due-now)/3600000;
     if(diffH<0){
-      return '<span class="cd-overdue">&#9888; OVERDUE '+Math.abs(Math.floor(diffH))+'h</span>';
+      return '<span class="cd-overdue">Indicative window passed '+Math.abs(Math.floor(diffH))+'h ago</span>';
     } else if(diffH<=6){
       var h=Math.floor(diffH),m=Math.floor((diffH-h)*60);
-      return '<span class="cd-crit">&#9679; '+h+'h '+m+'m left</span>';
+      return '<span class="cd-crit">Indicative '+h+'h '+m+'m left</span>';
     } else if(diffH<=24){
-      return '<span class="cd-crit">'+Math.floor(diffH)+'h remaining</span>';
+      return '<span class="cd-crit">Indicative '+Math.floor(diffH)+'h remaining</span>';
     } else {
-      return '<span class="cd-warn">'+Math.floor(diffH)+'h remaining</span>';
+      return '<span class="cd-warn">Indicative '+Math.floor(diffH)+'h remaining</span>';
     }
   }
 
@@ -1380,7 +1390,7 @@
     }
 
     // ── Regulatory Alert Banners ──────────────────────────────────────────
-    // Breach 72h banner: check all open breaches
+    // Legacy indicative window: each approved obligation has its own clock.
     try{
       var bdata=await apiFetch('/sentinel/api/breaches?status=open');
       var blist=Array.isArray(bdata)?bdata:bdata.records||bdata.items||[];
@@ -1393,8 +1403,8 @@
       if(alertEl&&urgent.length>0){
         alertEl.classList.add('visible');
         var minH=Math.min.apply(null,urgent.map(function(b){return (new Date(b.notify_deadline)-new Date())/3600000;}));
-        document.getElementById('snBreachAlertTitle').textContent=urgent.length+' breach'+(urgent.length>1?' notifications':' notification')+' deadline within 48h';
-        document.getElementById('snBreachAlertBody').textContent='Least time remaining: '+Math.floor(minH)+'h — notify the relevant supervisory authority within the jurisdiction deadline (check each breach for authority details).';
+        document.getElementById('snBreachAlertTitle').textContent=urgent.length+' breach'+(urgent.length>1?'es have':' has')+' an indicative window within 48h';
+        document.getElementById('snBreachAlertBody').textContent='Indicative legacy window: '+Math.floor(minH)+'h remaining. Open the breach obligations to confirm each jurisdiction, trigger and approved rule.';
       }
     }catch(e){}
     // DSR 30d banner: check overdue or <3 days
@@ -1412,7 +1422,7 @@
         var overdue=urgentDsr.filter(function(d){var now=new Date();now.setHours(0,0,0,0);return new Date(d.deadline_date.substring(0,10)+'T00:00:00')<now;});
         dsrAlertEl.classList.add('visible');
         document.getElementById('snDsrAlertTitle').textContent=(overdue.length?overdue.length+' overdue DSR'+(overdue.length>1?'s':'')+', ':'')+urgentDsr.length+' request'+(urgentDsr.length>1?'s':'')+' due within 3 days';
-        document.getElementById('snDsrAlertBody').textContent='Response deadlines vary by jurisdiction (GDPR: 30d · CCPA: 45d · Kenya DPA: 21d · LGPD: 15d · PIPA: 10d). Check individual DSR records for exact deadlines.';
+        document.getElementById('snDsrAlertBody').textContent='Response rules vary by jurisdiction and request type. Review the recorded target and its legal basis on each DSR before responding.';
       }
     }catch(e){}
   }
@@ -2151,7 +2161,8 @@
     var info=document.getElementById('ddJurisHint');if(!info)return;
     var j=window._jurisRules[reg];
     if(!j){info.classList.remove('visible');return;}
-    info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong> &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong> &nbsp;|&nbsp; Breach: <strong>'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</strong> &nbsp;|&nbsp; DSR: <strong>'+(j.dsr_days||30)+' days</strong>';
+    info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong> &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong> &nbsp;|&nbsp; Indicative breach target: <strong>'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</strong> &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days||30)+' days</strong>'+
+      ' &nbsp;|&nbsp; '+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule awaiting legal approval');
     info.classList.add('visible');
   };
   window.snAppendSubject=function(inputId,val){
@@ -2418,7 +2429,7 @@
       breachCache=items;
       if(!items.length){body.innerHTML=emptyRow(6,'No breaches recorded');return;}
       body.innerHTML=items.map(function(b){
-        return '<tr><td><span class="item-id">'+esc(b.reference||'BR-'+b.id)+'</span></td><td>'+esc(b.title||b.description||'')+'</td><td>'+riskBadge(b.severity||b.risk_level)+'</td><td>'+statusBadge(b.status)+'</td><td>'+fmtDate(b.reported_date||b.created_at)+'</td><td>'+breachCountdown(b.notify_deadline,b.status,b.clock)+'</td><td>'+actionBtns('snEditBreach('+b.id+')','snDeleteRecord(\'breach\','+b.id+')')+'</td></tr>';
+        return '<tr><td><span class="item-id">'+esc(b.reference||'BR-'+b.id)+'</span></td><td>'+esc(b.title||b.description||'')+'</td><td>'+riskBadge(b.severity||b.risk_level)+'</td><td>'+statusBadge(b.status)+'</td><td>'+fmtDate(b.reported_date||b.created_at)+'</td><td>'+breachCountdown(b.notify_deadline,b.status,b.clock)+'</td><td><button class="btn btn-sm btn-secondary" type="button" onclick="snOpenBreachObligations('+b.id+')">Obligations</button> '+actionBtns('snEditBreach('+b.id+')','snDeleteRecord(\'breach\','+b.id+')')+'</td></tr>';
       }).join('');
     }catch(e){body.innerHTML=emptyRow(6,'Failed to load breaches');}
   };
@@ -3770,16 +3781,15 @@
         container.innerHTML='<div class="juris-grid">'+_activeJurisdictions.map(function(j){
           var isPrimary=j.is_primary;
           var breachPill=j.breach_asap
-            ? '<span class="juris-pill warn">ASAP Breach</span>'
-            : '<span class="juris-pill info">'+esc((j.breach_hours||72)+'h breach')+'</span>';
-          var dsrPill='<span class="juris-pill info">'+esc(j.dsr_days||30)+'d DSR</span>';
-          var dpoPill=j.dpo_required?'<span class="juris-pill ok">DPO Required</span>':'';
-          var liaPill=j.has_lia?'<span class="juris-pill ok">LIA Applies</span>':'';
+            ? '<span class="juris-pill warn">ASAP review target</span>'
+            : '<span class="juris-pill info">'+esc((j.breach_hours||72)+'h breach review target')+'</span>';
+          var dsrPill='<span class="juris-pill info">'+esc(j.dsr_days||30)+'d DSR review target</span>';
+          var sourcePill='<span class="juris-pill warn">'+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule not approved')+'</span>';
           return '<div class="juris-card'+(isPrimary?' primary':'')+'" onclick="snEditJurisdiction(\''+esc(j.jurisdiction_key||j.key)+'\')">'+
             '<div class="juris-flag">'+(j.flag||'🌐')+'</div>'+
             '<div class="juris-name">'+esc(j.name||j.jurisdiction_key)+(isPrimary?' <span style="font-size:10px;background:var(--accent);color:white;padding:1px 6px;border-radius:100px;margin-left:4px">Primary</span>':'')+'</div>'+
             '<div class="juris-region">'+esc(j.region||'')+'</div>'+
-            '<div class="juris-pills">'+breachPill+dsrPill+dpoPill+liaPill+'</div>'+
+            '<div class="juris-pills">'+breachPill+dsrPill+sourcePill+'</div>'+
             '<div class="juris-authority">Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong></div>'+
             (j.registration_number?'<div style="font-size:11px;color:var(--muted);margin-top:4px">Reg: '+esc(j.registration_number)+'</div>':'')+
           '</div>';
@@ -3898,9 +3908,10 @@
 
         '<div style="background:var(--surface2);border-radius:var(--radius-lg);padding:14px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px">'+
           '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Authority</div><div style="font-weight:700">'+esc(j.authority_short||'DPA')+'</div></div>'+
-          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Breach Deadline</div><div style="font-weight:700">'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</div></div>'+
-          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">DSR Deadline</div><div style="font-weight:700">'+(j.dsr_days||30)+' days</div></div>'+
+          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">Breach review target</div><div style="font-weight:700">'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</div></div>'+
+          '<div><div style="color:var(--muted);font-weight:600;margin-bottom:2px">DSR Review Target</div><div style="font-weight:700">'+(j.dsr_days||30)+' days</div></div>'+
         '</div>'+
+        '<p style="font-size:11px;color:var(--muted)">'+(j.breach_source_status==='unverified'?'Legal notification period unverified.':'Source researched; legal rule still needs approval.')+' The displayed numbers are internal review targets.</p>'+
 
         '<div class="form-row">'+
           '<div class="form-group"><label>Registration Number</label><input id="jurisRegNo" value="'+esc(configs.registration_number||'')+'"></div>'+
@@ -3960,8 +3971,9 @@
     if(!j){info.classList.remove('visible');return;}
     info.innerHTML='<strong style="color:var(--accent)">'+esc(reg)+'</strong>'+
       ' &nbsp;|&nbsp; Authority: <strong>'+esc(j.authority_short||'DPA')+'</strong>'+
-      ' &nbsp;|&nbsp; Breach: <strong>'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</strong>'+
-      ' &nbsp;|&nbsp; DSR: <strong>'+(j.dsr_days||30)+' days</strong>';
+      ' &nbsp;|&nbsp; Breach review target: <strong>'+(j.breach_asap?'ASAP':((j.breach_hours||72)+'h'))+'</strong>'+
+      ' &nbsp;|&nbsp; DSR review target: <strong>'+(j.dsr_days||30)+' days</strong>'+
+      ' &nbsp;|&nbsp; '+(j.breach_source_status==='unverified'?'Legal period unverified':'Rule awaiting legal approval');
     info.classList.add('visible');
   };
 
@@ -4014,4 +4026,5 @@
   attempt();
 })();
 </script>
+<script src="/static/js/sentinel_obligations.js"></script>
 {% endblock %}

@@ -118,6 +118,6 @@ def test_a_finding_is_grouped_under_its_audit(test_db):
 
 
 def test_only_the_named_groupings_are_accepted(me):
-    assert GROUPS == ("", "source", "business_unit", "parent")
+    assert GROUPS == ("", "source", "business_unit", "parent", "vendor", "process")
     with pytest.raises(ValueError):
         get_my_work(me["user"], group="owner")

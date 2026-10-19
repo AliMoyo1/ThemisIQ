@@ -1,15 +1,15 @@
 {% extends "base_shell.html" %}
 {% block title %}Register an AI use | ThemisIQ{% endblock %}
 {% block module_sidebar %}{% include "_ai_sidebar.html" %}{% endblock %}
-{% block breadcrumb %}<span class="aig-breadcrumb"><a href="/ai-governance/">AI Governance</a></span> <span class="breadcrumb-current">Register an AI use</span>{% endblock %}
+{% block breadcrumb %}<span class="aig-breadcrumb"><a href="/ai-governance/requests">My requests</a></span> <span class="breadcrumb-current">AI use request</span>{% endblock %}
 {% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
 
 {% block content %}
 <div class="aig-page">
   <div class="aig-head">
     <div>
-      <h1 class="aig-h1">Register an AI use</h1>
-      <p class="aig-lede">Tell us what the AI is for, who owns it and what data it sees. You can save a draft at any step and come back to it. A reviewer reads it before it joins the inventory.</p>
+      <h1 class="aig-h1">{% if can_register %}Register an AI use{% else %}AI use request{% endif %}</h1>
+      <p class="aig-lede">{% if can_register %}Describe the AI use and save a draft at any step. A reviewer reads it before it joins the inventory.{% else %}This earlier request is available for reference. Contact the governance team to provide new information.{% endif %}</p>
     </div>
   </div>
   <div id="aigIntake"></div>
@@ -22,7 +22,8 @@
 <script>
   AIGov.intake(document.getElementById('aigIntake'), {
     intakeId: {{ intake_id }}, userId: {{ user.id }}, userName: {{ (user.full_name or user.username or '') | tojson }},
-    sourceRef: {{ source_ref | tojson }}, sourceName: {{ source_name | tojson }}
+    sourceRef: {{ source_ref | tojson }}, sourceName: {{ source_name | tojson }},
+    canEdit: {{ 'true' if can_register else 'false' }}
   });
 </script>
 {% endblock %}

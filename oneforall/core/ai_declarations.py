@@ -82,7 +82,8 @@ DECLARATIONS = {
     "core.auto_map_controls": _d("Classify two ambiguous controls from different frameworks as equivalent, related or none",
                                  "The reference, name and description of two controls",
                                  "Evidence, status and owners", "Module access to ARIA, and only when the person ticks use AI",
-                                 "Mappings written to the mapping table", "applied", "rules"),
+                                 "Proposals remain outside IMS calculations until a different specialist reviews them",
+                                 "person", "rules"),
     # ── BCM ─────────────────────────────────────────────────────────────────
     "bcm.review_plan": _d("Review one continuity plan",
                           "The plan's title and content", "Other plans and incidents", "bcm.plan.manage",
@@ -174,8 +175,8 @@ DECLARATIONS = {
     "grid.batch_risk_score": _d("Rate audit items by risk",
                                 "Audit item names and descriptions of one checklist, with the framework name",
                                 "Evidence and findings", "Checklist import by a person with GRID access",
-                                "Risk levels written onto the new items, which the person can then edit. When the "
-                                "assistant fails every item gets Medium", "applied", "defaults"),
+                                "Suggested levels appear in the import preview. Imported levels start at Medium until a "
+                                "person explicitly selects another level", "person", "defaults"),
     "grid.parse_checklist_with_ai": _d("Read a pasted compliance checklist into items",
                                        "The pasted text (the first 6000 characters)", "Everything else",
                                        "Checklist import by a person with GRID access", "Items shown for the person to "

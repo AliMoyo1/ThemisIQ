@@ -1,5 +1,5 @@
 {
-  "route_count": 1100,
+  "route_count": 1108,
   "entries": [
     {
       "path": "/openapi.json",
@@ -184,19 +184,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -584,19 +575,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -619,19 +601,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -654,19 +627,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -689,19 +653,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -724,19 +679,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -783,19 +729,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -842,19 +779,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -873,24 +801,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -912,19 +830,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -1159,6 +1068,81 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/import/mappings",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_import_mappings",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/import/mappings",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_import_mapping_save",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/import/mappings/{mapping_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_import_mapping_archive",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/ai-governance/api/import/preview",
       "methods": [
         "POST"
@@ -1220,19 +1204,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -1578,19 +1553,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -1802,24 +1768,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -1901,19 +1857,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2011,19 +1958,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2127,24 +2065,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -2206,24 +2134,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -2270,19 +2188,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2351,24 +2260,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -2714,19 +2613,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2749,19 +2639,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2784,19 +2665,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2819,19 +2691,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2854,19 +2717,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2939,19 +2793,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2974,19 +2819,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3009,19 +2845,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3044,19 +2871,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3079,19 +2897,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3139,19 +2948,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3174,19 +2974,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3209,19 +3000,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3244,19 +3026,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3304,19 +3077,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3535,19 +3299,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3745,19 +3500,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3824,19 +3570,10 @@
           "super_admin"
         ],
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3937,19 +3674,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -4084,19 +3812,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -4205,24 +3924,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -4244,19 +3953,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -4374,19 +4074,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -4409,19 +4100,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -10026,6 +9708,76 @@
       "notes": ""
     },
     {
+      "path": "/erm/api/acceptances/{acceptance_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.risk.view"
+      ],
+      "roles_by_capability": {
+        "erm.risk.view": [
+          "audit_lead",
+          "bcm_manager",
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptance_detail",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/acceptances/{acceptance_id}/decision",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.acceptance.decide"
+      ],
+      "roles_by_capability": {
+        "erm.acceptance.decide": [
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptance_decide",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/acceptances/{acceptance_id}/revoke",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.acceptance.decide"
+      ],
+      "roles_by_capability": {
+        "erm.acceptance.decide": [
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptance_revoke",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/erm/api/ai/board-report",
       "methods": [
         "POST"
@@ -11912,6 +11664,53 @@
       },
       "license_modules_required": [],
       "name": "api_risk_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/risks/{risk_id}/acceptances",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.risk.view"
+      ],
+      "roles_by_capability": {
+        "erm.risk.view": [
+          "audit_lead",
+          "bcm_manager",
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptances",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/risks/{risk_id}/acceptances",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.acceptance.propose"
+      ],
+      "roles_by_capability": {
+        "erm.acceptance.propose": [
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptance_propose",
       "maturity": "",
       "notes": ""
     },

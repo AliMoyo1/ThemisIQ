@@ -160,6 +160,42 @@ def test_a_new_version_proposes_the_links_and_they_wait_for_their_own_review(
     assert f"Claim for {title}" in impact and "Accepted then, Waiting for a reviewer now" in impact
 
 
+def test_guided_upload_files_a_claim_for_independent_review(login_as, live_app, page, synthetic_tenant, tmp_path):
+    title = _title("Guided report")
+    risk_name = _title("Guided claim")
+    db = database.get_db()
+    try:
+        risk = db.execute("INSERT INTO erm_enterprise_risks (title) VALUES (%s)", (risk_name,)).lastrowid
+        db.commit()
+    finally:
+        db.close()
+    login_as("compliance_manager")
+    page.goto(f"{live_app}/evidence")
+    page.click("button:has-text('+ Upload')")
+    file = tmp_path / "guided.txt"
+    file.write_text(title)
+    page.set_input_files("#uploadFile", str(file))
+    page.fill("#uploadTitle", title)
+    page.select_option("#uploadLinkModule", "erm")
+    page.select_option("#uploadLinkType", "risk")
+    page.fill("#uploadLinkSearch", risk_name)
+    page.locator("#uploadLinkResults button", has_text=risk_name).click()
+    assert risk_name in page.inner_text("#uploadLinkSelected")
+    page.click("#uploadSubmit")
+    page.wait_for_selector("#uploadModal:not(.open)", state="attached")
+    db = database.get_db()
+    try:
+        linked = db.execute(
+            "SELECT el.entity_id, COALESCE(el.review_status,'pending') AS review_status "
+            "FROM evidence_items e JOIN evidence_links el ON el.evidence_id=e.id "
+            "WHERE e.title=%s AND el.deleted_at IS NULL", (title,),
+        ).fetchall()
+        assert len(linked) == 1 and linked[0]["entity_id"] == risk
+        assert linked[0]["review_status"] == "pending"
+    finally:
+        db.close()
+
+
 def test_the_library_detail_and_insights_fit_a_phone_without_sideways_scroll(
         login_as, live_app, page, synthetic_tenant):
     _seed(synthetic_tenant, _title("Phone"), claim="A claim with a long enough name to wrap on a narrow screen")

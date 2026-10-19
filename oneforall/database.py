@@ -927,6 +927,20 @@ CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidenc
 CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
+CREATE TABLE IF NOT EXISTS evidence_text_index (
+    evidence_id       INTEGER PRIMARY KEY REFERENCES evidence_items(id) ON DELETE CASCADE,
+    org_id            INTEGER,
+    business_unit_id  INTEGER,
+    file_hash         TEXT NOT NULL DEFAULT '',
+    indexer_version   TEXT NOT NULL,
+    status            TEXT NOT NULL,
+    content_text      TEXT NOT NULL DEFAULT '',
+    segments_json     TEXT NOT NULL DEFAULT '[]',
+    error_code        TEXT,
+    retry_after       TEXT,
+    indexed_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_text_org_status ON evidence_text_index(org_id, status);
 -- idx_evidence_items_hash and idx_evidence_items_parent created in _run_migrations
 -- after ALTER TABLE adds the columns to pre-existing databases.
 
@@ -1103,6 +1117,42 @@ CREATE TABLE IF NOT EXISTS report_run_notes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_report_run_notes_run ON report_run_notes(run_id, id);
+
+CREATE TABLE IF NOT EXISTS report_run_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES report_runs(id) ON DELETE CASCADE,
+    recipient_user_id INTEGER NOT NULL REFERENCES users(id),
+    recipient_scope_key TEXT NOT NULL,
+    shared_by INTEGER NOT NULL REFERENCES users(id),
+    shared_at TEXT DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    UNIQUE(run_id, recipient_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_report_run_shares_recipient ON report_run_shares(recipient_user_id, run_id);
+
+CREATE TABLE IF NOT EXISTS report_run_signoffs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES report_runs(id) ON DELETE CASCADE,
+    signer_id INTEGER NOT NULL REFERENCES users(id),
+    decision TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    snapshot_hash TEXT NOT NULL,
+    narrative_reviewed INTEGER NOT NULL DEFAULT 0,
+    last_note_id INTEGER NOT NULL DEFAULT 0,
+    signed_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_report_run_signoffs_run ON report_run_signoffs(run_id, id);
+
+CREATE TABLE IF NOT EXISTS report_run_retention (
+    run_id INTEGER PRIMARY KEY REFERENCES report_runs(id) ON DELETE CASCADE,
+    delete_after TEXT,
+    hold_reason TEXT,
+    set_by INTEGER REFERENCES users(id),
+    set_at TEXT DEFAULT (datetime('now')),
+    purged_at TEXT,
+    purged_hash TEXT
+);
 
 -- One delivery of one message to one person (core/email_outbox.py). The dedupe key makes asking twice one message, and
 -- the state is a fact about mail only. A row holds a reference to the source record and the fields of a template, never
@@ -1476,6 +1526,7 @@ CREATE INDEX IF NOT EXISTS idx_da_classification ON data_assets(classification);
 CREATE TABLE IF NOT EXISTS ai_use_profiles (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     application_id        INTEGER NOT NULL UNIQUE REFERENCES applications(id),
+    sponsor_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
     purpose               TEXT,
     capability_type       TEXT,
     intended_users        TEXT,
@@ -1555,6 +1606,11 @@ CREATE TABLE IF NOT EXISTS ai_use_intake_requests (
     submitted_at      TEXT,
     source_ref        TEXT,
     idempotency_key   TEXT,
+    closed_at         TEXT,
+    closed_by         INTEGER REFERENCES users(id),
+    closure_note      TEXT,
+    closure_channel   TEXT,
+    closure_reference TEXT,
     created_at        TEXT DEFAULT (datetime('now')),
     updated_at        TEXT DEFAULT (datetime('now'))
 );
@@ -1590,6 +1646,26 @@ CREATE TABLE IF NOT EXISTS ai_import_batches (
     confirmed_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_ai_import_batches ON ai_import_batches(status, business_unit_id);
+
+-- Reusable column mappings contain labels only, not response rows. Each
+-- imported batch retains its own mapping snapshot for historical review.
+CREATE TABLE IF NOT EXISTS ai_import_saved_mappings (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id           INTEGER NOT NULL REFERENCES organizations(id),
+    name             TEXT NOT NULL,
+    source_system    TEXT NOT NULL,
+    form_name        TEXT NOT NULL,
+    mapping          TEXT NOT NULL,
+    mapping_version  TEXT NOT NULL,
+    date_order       TEXT NOT NULL,
+    headers          TEXT NOT NULL,
+    saved_from_batch_id INTEGER REFERENCES ai_import_batches(id),
+    created_by       INTEGER NOT NULL REFERENCES users(id),
+    created_at       TEXT DEFAULT (datetime('now')),
+    archived_at      TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_import_saved_mapping_name
+    ON ai_import_saved_mappings(org_id, name) WHERE archived_at IS NULL;
 
 -- A specialist's verdict on a precedent candidate: the same use, a related one, or not related. It links, merges and
 -- approves nothing; it only records what a person concluded about two records they could open.
@@ -1799,6 +1875,15 @@ CREATE TABLE IF NOT EXISTS regulatory_updates (
     updated_at          TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_regupd_status ON regulatory_updates(status);
+
+CREATE TABLE IF NOT EXISTS regulatory_ai_reviews (
+    update_id INTEGER PRIMARY KEY REFERENCES regulatory_updates(id) ON DELETE CASCADE,
+    summary_hash TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    reviewed_by INTEGER NOT NULL REFERENCES users(id),
+    reviewed_at TEXT DEFAULT (datetime('now'))
+);
 
 -- ── AI governance (G5): evaluation records and regulatory impact ────────────
 -- A recorded evaluation run. ThemisIQ does not run the evaluation and keeps no prompts or answers: it keeps what was
@@ -2087,6 +2172,20 @@ CREATE INDEX IF NOT EXISTS idx_evidence_links_evidence ON evidence_links(evidenc
 CREATE INDEX IF NOT EXISTS idx_evidence_links_entity ON evidence_links(module, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_category ON evidence_items(category);
 CREATE INDEX IF NOT EXISTS idx_evidence_items_status ON evidence_items(status);
+CREATE TABLE IF NOT EXISTS evidence_text_index (
+    evidence_id       INTEGER PRIMARY KEY REFERENCES evidence_items(id) ON DELETE CASCADE,
+    org_id            INTEGER,
+    business_unit_id  INTEGER,
+    file_hash         TEXT NOT NULL DEFAULT '',
+    indexer_version   TEXT NOT NULL,
+    status            TEXT NOT NULL,
+    content_text      TEXT NOT NULL DEFAULT '',
+    segments_json     TEXT NOT NULL DEFAULT '[]',
+    error_code        TEXT,
+    retry_after       TEXT,
+    indexed_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_text_org_status ON evidence_text_index(org_id, status);
 
 -- ── Cross-Module Risk Register ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS risk_register (
@@ -2261,6 +2360,42 @@ CREATE TABLE IF NOT EXISTS report_run_notes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_report_run_notes_run ON report_run_notes(run_id, id);
+
+CREATE TABLE IF NOT EXISTS report_run_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES report_runs(id) ON DELETE CASCADE,
+    recipient_user_id INTEGER NOT NULL REFERENCES users(id),
+    recipient_scope_key TEXT NOT NULL,
+    shared_by INTEGER NOT NULL REFERENCES users(id),
+    shared_at TEXT DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    UNIQUE(run_id, recipient_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_report_run_shares_recipient ON report_run_shares(recipient_user_id, run_id);
+
+CREATE TABLE IF NOT EXISTS report_run_signoffs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES report_runs(id) ON DELETE CASCADE,
+    signer_id INTEGER NOT NULL REFERENCES users(id),
+    decision TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    snapshot_hash TEXT NOT NULL,
+    narrative_reviewed INTEGER NOT NULL DEFAULT 0,
+    last_note_id INTEGER NOT NULL DEFAULT 0,
+    signed_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_report_run_signoffs_run ON report_run_signoffs(run_id, id);
+
+CREATE TABLE IF NOT EXISTS report_run_retention (
+    run_id INTEGER PRIMARY KEY REFERENCES report_runs(id) ON DELETE CASCADE,
+    delete_after TEXT,
+    hold_reason TEXT,
+    set_by INTEGER REFERENCES users(id),
+    set_at TEXT DEFAULT (datetime('now')),
+    purged_at TEXT,
+    purged_hash TEXT
+);
 
 -- One delivery of one message to one person (core/email_outbox.py). The dedupe key makes asking twice one message, and
 -- the state is a fact about mail only. A row holds a reference to the source record and the fields of a template, never
@@ -2618,6 +2753,7 @@ CREATE INDEX IF NOT EXISTS idx_da_classification ON data_assets(classification);
 CREATE TABLE IF NOT EXISTS ai_use_profiles (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     application_id        INTEGER NOT NULL UNIQUE REFERENCES applications(id),
+    sponsor_user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
     purpose               TEXT,
     capability_type       TEXT,
     intended_users        TEXT,
@@ -2697,6 +2833,11 @@ CREATE TABLE IF NOT EXISTS ai_use_intake_requests (
     submitted_at      TEXT,
     source_ref        TEXT,
     idempotency_key   TEXT,
+    closed_at         TEXT,
+    closed_by         INTEGER REFERENCES users(id),
+    closure_note      TEXT,
+    closure_channel   TEXT,
+    closure_reference TEXT,
     created_at        TEXT DEFAULT (datetime('now')),
     updated_at        TEXT DEFAULT (datetime('now'))
 );
@@ -2732,6 +2873,26 @@ CREATE TABLE IF NOT EXISTS ai_import_batches (
     confirmed_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_ai_import_batches ON ai_import_batches(status, business_unit_id);
+
+-- Reusable column mappings contain labels only, not response rows. Each
+-- imported batch retains its own mapping snapshot for historical review.
+CREATE TABLE IF NOT EXISTS ai_import_saved_mappings (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id           INTEGER NOT NULL REFERENCES organizations(id),
+    name             TEXT NOT NULL,
+    source_system    TEXT NOT NULL,
+    form_name        TEXT NOT NULL,
+    mapping          TEXT NOT NULL,
+    mapping_version  TEXT NOT NULL,
+    date_order       TEXT NOT NULL,
+    headers          TEXT NOT NULL,
+    saved_from_batch_id INTEGER REFERENCES ai_import_batches(id),
+    created_by       INTEGER NOT NULL REFERENCES users(id),
+    created_at       TEXT DEFAULT (datetime('now')),
+    archived_at      TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_import_saved_mapping_name
+    ON ai_import_saved_mappings(org_id, name) WHERE archived_at IS NULL;
 
 -- A specialist's verdict on a precedent candidate: the same use, a related one, or not related. It links, merges and
 -- approves nothing; it only records what a person concluded about two records they could open.
@@ -2941,6 +3102,15 @@ CREATE TABLE IF NOT EXISTS regulatory_updates (
     updated_at          TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_regupd_status ON regulatory_updates(status);
+
+CREATE TABLE IF NOT EXISTS regulatory_ai_reviews (
+    update_id INTEGER PRIMARY KEY REFERENCES regulatory_updates(id) ON DELETE CASCADE,
+    summary_hash TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    reviewed_by INTEGER NOT NULL REFERENCES users(id),
+    reviewed_at TEXT DEFAULT (datetime('now'))
+);
 
 -- ── AI governance (G5): evaluation records and regulatory impact ────────────
 -- A recorded evaluation run. ThemisIQ does not run the evaluation and keeps no prompts or answers: it keeps what was
@@ -3492,8 +3662,26 @@ CREATE TABLE IF NOT EXISTS grid_evidence_versions (
     file_size       INTEGER,
     mime_type       TEXT,
     uploaded_by     INTEGER REFERENCES users(id),
+    status          TEXT,
+    approved_by     INTEGER REFERENCES users(id),
+    approved_at     TEXT,
     notes           TEXT,
     created_at      TEXT DEFAULT (datetime('now'))
+);
+
+-- Historical module references that have been reconciled to the Vault.
+-- Source bytes are retained until a separately reviewed cleanup.
+CREATE TABLE IF NOT EXISTS evidence_file_crosswalk (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id          INTEGER NOT NULL REFERENCES organizations(id),
+    module          TEXT NOT NULL,
+    source_id       INTEGER NOT NULL,
+    legacy_path     TEXT,
+    source_hash     TEXT,
+    vault_evidence_id INTEGER NOT NULL REFERENCES evidence_items(id),
+    migrated_by     INTEGER REFERENCES users(id),
+    migrated_at     TEXT DEFAULT (datetime('now')),
+    UNIQUE (org_id, module, source_id)
 );
 
 -- ── GRID: Audit Timeline ────────────────────────────────────────────────────
@@ -4063,6 +4251,7 @@ CREATE TABLE IF NOT EXISTS bcm_compliance_evidence (
     file_type       TEXT,
     uploaded_by     TEXT,
     notes           TEXT,
+    deleted_at      TEXT,
     created_at      TEXT DEFAULT (datetime('now'))
 );
 
@@ -4420,6 +4609,55 @@ CREATE TABLE IF NOT EXISTS sentinel_breaches (
     ai_assessment   TEXT,
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sentinel_jurisdiction_rule_cards (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    jurisdiction_key TEXT NOT NULL,
+    notice_type     TEXT NOT NULL,
+    version         INTEGER NOT NULL,
+    state           TEXT NOT NULL DEFAULT 'draft',
+    source_title    TEXT NOT NULL,
+    source_url      TEXT NOT NULL,
+    rule_summary    TEXT NOT NULL,
+    trigger_definition TEXT NOT NULL,
+    timezone        TEXT NOT NULL,
+    deadline_hours  INTEGER,
+    asap            INTEGER NOT NULL DEFAULT 0,
+    effective_from  TEXT NOT NULL,
+    effective_to    TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now')),
+    approved_by     INTEGER REFERENCES users(id),
+    approved_at     TEXT,
+    UNIQUE (jurisdiction_key, notice_type, version)
+);
+
+CREATE TABLE IF NOT EXISTS sentinel_breach_obligations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    breach_id       INTEGER NOT NULL REFERENCES sentinel_breaches(id),
+    rule_card_id    INTEGER NOT NULL REFERENCES sentinel_jurisdiction_rule_cards(id),
+    applicability   TEXT NOT NULL DEFAULT 'under_review',
+    trigger_at      TEXT,
+    trigger_source  TEXT,
+    decision        TEXT NOT NULL DEFAULT 'pending',
+    decision_reason TEXT,
+    owner_user_id   INTEGER REFERENCES users(id),
+    decided_by      INTEGER REFERENCES users(id),
+    decided_at      TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      TEXT DEFAULT (datetime('now')),
+    UNIQUE (breach_id, rule_card_id)
+);
+
+CREATE TABLE IF NOT EXISTS sentinel_obligation_history (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    obligation_id   INTEGER NOT NULL REFERENCES sentinel_breach_obligations(id),
+    change_kind     TEXT NOT NULL,
+    before_json     TEXT,
+    after_json      TEXT NOT NULL,
+    changed_by      INTEGER REFERENCES users(id),
+    changed_at      TEXT DEFAULT (datetime('now'))
 );
 
 -- ── Sentinel: DSR ───────────────────────────────────────────────────────────
@@ -4860,6 +5098,45 @@ CREATE TABLE IF NOT EXISTS erm_risk_workflow_history (
     changed_at  TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_erm_wf_risk ON erm_risk_workflow_history(risk_id);
+
+-- ERM risk acceptance is a separate human decision, never inferred from
+-- erm_enterprise_risks.treatment or a historical accepted status.
+CREATE TABLE IF NOT EXISTS erm_risk_acceptances (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id          INTEGER NOT NULL REFERENCES organizations(id),
+    risk_id         INTEGER NOT NULL REFERENCES erm_enterprise_risks(id),
+    proposed_by     INTEGER NOT NULL REFERENCES users(id),
+    reason          TEXT NOT NULL,
+    alternatives    TEXT NOT NULL,
+    conditions      TEXT,
+    scope_note      TEXT NOT NULL,
+    review_on       TEXT NOT NULL,
+    expires_on      TEXT NOT NULL,
+    source_snapshot TEXT NOT NULL,
+    source_hash     TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'submitted',
+    version         INTEGER NOT NULL DEFAULT 1,
+    decided_by      INTEGER REFERENCES users(id),
+    decided_at      TEXT,
+    decision_note   TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_erm_risk_acceptance_pending
+    ON erm_risk_acceptances(org_id, risk_id) WHERE status='submitted';
+CREATE INDEX IF NOT EXISTS idx_erm_risk_acceptance_risk
+    ON erm_risk_acceptances(org_id, risk_id, created_at);
+CREATE TABLE IF NOT EXISTS erm_risk_acceptance_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    acceptance_id   INTEGER NOT NULL REFERENCES erm_risk_acceptances(id),
+    from_status     TEXT,
+    to_status       TEXT NOT NULL,
+    actor_id        INTEGER NOT NULL REFERENCES users(id),
+    note            TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_erm_risk_acceptance_events
+    ON erm_risk_acceptance_events(acceptance_id, id);
 
 -- ── ERM: Key Risk Indicators ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS erm_kris (
@@ -5824,6 +6101,9 @@ _COLUMN_MIGRATIONS = [
         # keeps its existing path, a typed reference takes precedence when present)
         ("evidence_items", "aria_policy_version_id", "INTEGER REFERENCES aria_policy_versions(id)"),
         ("grid_evidence_files", "aria_policy_version_id", "INTEGER REFERENCES aria_policy_versions(id)"),
+        ("grid_evidence_versions", "status", "TEXT"),
+        ("grid_evidence_versions", "approved_by", "INTEGER REFERENCES users(id)"),
+        ("grid_evidence_versions", "approved_at", "TEXT"),
         # PLAN-35 T09: lets emit() de-duplicate a caller-supplied stable key
         # (e.g. a publication_key) so a crash/lease-reclaim replay of the
         # same logical event never re-runs handlers/webhooks a second time.
@@ -6110,6 +6390,7 @@ _COLUMN_MIGRATIONS = [
         # ── BCM sub-page field gaps found in QA Pass 4 ──────────────────────────
         ("bcm_bia_records",       "status",            "TEXT"),
         ("bcm_exercises",         "description",       "TEXT"),
+        ("bcm_compliance_evidence", "deleted_at",      "TEXT"),
         # PLAN-36 P08: calendar projections carry explicit tenant and BU scope.
         ("calendar_events", "org_id", "INTEGER REFERENCES organizations(id)"),
         ("calendar_events", "business_unit_id", "INTEGER REFERENCES business_units(id)"),
@@ -6203,6 +6484,7 @@ _COLUMN_MIGRATIONS = [
         ("aims_assessments", "application_id", "INTEGER REFERENCES applications(id)"),
         ("notifications", "source_event_id", "INTEGER"),
         ("ai_use_profiles", "material_changed_at", "TEXT"),
+        ("ai_use_profiles", "sponsor_user_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL"),
         # AI governance G3b: the AI impact assessment carries a version, so two people editing it cannot overwrite each other
         ("sentinel_aiia", "version", "INTEGER NOT NULL DEFAULT 1"),
         # "Uses AI or embedded AI?" on a vendor and on a business process: yes, no or unknown, with who said so and why
@@ -6226,6 +6508,11 @@ _COLUMN_MIGRATIONS = [
         ("ai_use_intake_requests", "requester", "TEXT"),
         ("ai_use_intake_requests", "revision", "INTEGER NOT NULL DEFAULT 1"),
         ("ai_use_intake_requests", "supersedes_id", "INTEGER"),
+        ("ai_use_intake_requests", "closed_at", "TEXT"),
+        ("ai_use_intake_requests", "closed_by", "INTEGER REFERENCES users(id)"),
+        ("ai_use_intake_requests", "closure_note", "TEXT"),
+        ("ai_use_intake_requests", "closure_channel", "TEXT"),
+        ("ai_use_intake_requests", "closure_reference", "TEXT"),
         # Platform truth 4B: a saved report run holds a frozen envelope (result_json) with the hash of its exact text, and a
         # run again links to the run before it. A row with no hash is a legacy run that was never frozen.
         ("report_runs", "snapshot_hash", "TEXT"),

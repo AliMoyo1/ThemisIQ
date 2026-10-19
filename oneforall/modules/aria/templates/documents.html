@@ -168,6 +168,7 @@
             {% endif %}
           </td>
           <td style="text-align:center;white-space:nowrap">
+            <a class="edit-btn" href="/governance/connected/aria/document/{{ doc.id }}" aria-label="View connected records for {{ doc.doc_id }}">Connected</a>
             {% if user.role != 'viewer' %}
             <button class="edit-btn" onclick='openEditModal({{ doc | tojson }})'>Edit</button>
             {% if has_capability(user, 'aria.policy.delete') %}

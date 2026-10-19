@@ -1333,6 +1333,7 @@ async def api_email_config_get(request: Request):
         "last_test_result":  _get_setting("email_last_test_result", ""),
         "last_test_at":      _get_setting("email_last_test_at", ""),
         "last_receipt":      _get_setting("email_last_receipt", ""),
+        "privacy_backup_email": _get_setting("sentinel_backup_email", ""),
     }
     return _JSONResp(cfg)
 
@@ -1366,6 +1367,22 @@ async def api_email_config_save(request: Request):
         _save("smtp_from",      data.get("smtp_from", "").strip())
         _save("ms_tenant_id",   data.get("ms_tenant_id", "").strip())
         _save("ms_client_id",   data.get("ms_client_id", "").strip())
+        if "privacy_backup_email" in data:
+            backup = str(data["privacy_backup_email"] or "").strip().lower()
+            if backup:
+                from core.email import valid_address
+                if not valid_address(backup) or not request.state.user.get("org_id"):
+                    return _JSONResp({"error": "Choose an active privacy specialist in this organization"}, status_code=400)
+                eligible = db.execute(
+                    "SELECT u.id FROM users u JOIN user_roles ur ON ur.user_id=u.id "
+                    "WHERE LOWER(u.email)=LOWER(%s) AND u.org_id=%s AND u.is_active=1 "
+                    "AND COALESCE(u.is_super_admin,0)=0 "
+                    "AND ur.role_key IN ('dpo','privacy_analyst') LIMIT 1",
+                    (backup, request.state.user["org_id"]),
+                ).fetchone()
+                if not eligible:
+                    return _JSONResp({"error": "Choose an active privacy specialist in this organization"}, status_code=400)
+            _save("sentinel_backup_email", backup)
 
         # Only update passwords if a non-masked value was submitted
         raw_pass = data.get("smtp_pass", "")

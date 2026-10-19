@@ -530,13 +530,9 @@ def requeue(db, outbox_id: int) -> bool:
     return getattr(cur, "rowcount", 0) == 1
 
 
-def for_each_tenant(job, label: str = "email job") -> list:
-    """Run job(org_id) once in every active organization, bound to that organization, and return what each returned.
-
-    A scheduler has no request to take a tenant from: a bare connection stays on the public schema and sees none of an
-    organization's rows. One organization failing is recorded and does not stop the others (the BCM and ARIA jobs use
-    the same pattern)."""
-    from database import list_active_tenants, tenant_context
+def _tenant_entries(label: str) -> list:
+    """The schemas a background mail job must visit, in stable organization order."""
+    from database import list_active_tenants
     try:
         tenants = list_active_tenants()
     except Exception:
@@ -548,6 +544,18 @@ def for_each_tenant(job, label: str = "email job") -> list:
         tenants = tenants[:1]  # one database holds every organization: a pass for each would repeat the same rows
     if not tenants:
         tenants = [(None, None)]  # an installation with no organization rows is one tenant: its own database
+    return tenants
+
+
+def for_each_tenant(job, label: str = "email job", *, tenants=None) -> list:
+    """Run job(org_id) in each tenant schema. A caller may reuse one snapshot and choose its order.
+
+    A scheduler has no request to take a tenant from: a bare connection stays on the public schema and sees none of an
+    organization's rows. One organization failing is recorded and does not stop the others (the BCM and ARIA jobs use
+    the same pattern)."""
+    from database import tenant_context
+    if tenants is None:
+        tenants = _tenant_entries(label)
     results = []
     for org_id, slug in tenants:
         try:
@@ -620,12 +628,44 @@ def _deliver_and_report(org_id, **kwargs) -> dict:
 
 def deliver_all_tenants(**kwargs) -> dict:
     """The worker's entry point: send what is due in every organization, one after the other, and tell its
-    administrators about the messages that could not be accepted."""
+    administrators about the messages that could not be accepted.
+
+    Each organization gets a first share of the ordinary-mail budget. Unused shares are then available to the others.
+    The first organization rotates so a budget smaller than the tenant count still reaches every tenant over time.
+    Critical mail is checked for every tenant in the first pass and never spends the ordinary-mail budget."""
     totals: dict = {}
-    # One send budget for every organization: they all leave through the same account (organizations are served in id
-    # order, so one with a long backlog is served first; the next minute continues).
-    kwargs.setdefault("budget", {"n": int(kwargs.pop("per_minute", None) or PER_MINUTE)})
-    for got in for_each_tenant(lambda org: _deliver_and_report(org, **kwargs), "email outbox delivery"):
+    tenants = _tenant_entries("email outbox delivery")
+    if not tenants:
+        return totals
+    budget = kwargs.pop("budget", None)
+    per_minute = kwargs.pop("per_minute", None)
+    if budget is None:
+        budget = {"n": PER_MINUTE if per_minute is None else int(per_minute)}
+    allowance = max(0, int(budget["n"]))
+    budget["n"] = allowance
+    now = kwargs.get("now") or utcnow()
+    minute = now.toordinal() * 1440 + now.hour * 60 + now.minute
+    step = allowance if 0 < allowance < len(tenants) else 1
+    offset = minute * step % len(tenants)
+    tenants = tenants[offset:] + tenants[:offset]
+    share, extra = divmod(allowance, len(tenants))
+    shares = {org_id: share + (index < extra) for index, (org_id, _) in enumerate(tenants)}
+
+    def first_pass(org_id):
+        local = {"n": shares[org_id]}
+        try:
+            return _deliver_and_report(org_id, budget=local, **kwargs)
+        finally:
+            budget["n"] -= shares[org_id] - local["n"]
+
+    def collect(got):
         for key, value in (got or {}).items():
             totals[key] = totals.get(key, 0) + value
+
+    for got in for_each_tenant(first_pass, "email outbox delivery", tenants=tenants):
+        collect(got)
+    if budget["n"] > 0:
+        for got in for_each_tenant(lambda _org: deliver_due(budget=budget, **kwargs),
+                                   "email outbox spare capacity", tenants=tenants):
+            collect(got)
     return totals

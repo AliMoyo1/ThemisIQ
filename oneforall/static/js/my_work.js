@@ -14,12 +14,14 @@
   const more = document.getElementById('myWorkMore');
   const saved = document.getElementById('myWorkSaved');
   const controls = document.querySelector('.mywork-controls');
+  const groupingNote = document.getElementById('myWorkGroupingNote');
   const ownerId = Number(controls.dataset.userId);
   let views = [];
   let cursor = null;
   let loaded = Object.fromEntries(order.map(name => [name, []]));
   let counts = {};
   let groups = {};
+  let loadGeneration = 0;
 
   function esc(value) {
     const div = document.createElement('div');
@@ -75,10 +77,12 @@
       let cards = '';
       if (document.getElementById('myWorkGroup').value) {
         const seen = [];
-        items.forEach(it => { if (seen.indexOf(it.group_key) < 0) seen.push(it.group_key); });
+        items.forEach(it => {
+          (it.group_keys || [it.group_key]).forEach(key => { if (seen.indexOf(key) < 0) seen.push(key); });
+        });
         seen.sort((a, b) => ((groups[b] || {}).count || 0) - ((groups[a] || {}).count || 0));
         cards = seen.map(key => '<div class="mywork-group">' + esc((groups[key] || {}).label || key) + '</div>' +
-          items.filter(it => it.group_key === key).map(card).join('')).join('');
+          items.filter(it => (it.group_keys || [it.group_key]).includes(key)).map(card).join('')).join('');
       } else {
         cards = items.map(card).join('');
       }
@@ -90,6 +94,7 @@
     }
   }
   async function load(reset) {
+    const generation = ++loadGeneration;
     if (reset) {
       cursor = null;
       loaded = Object.fromEntries(order.map(name => [name, []]));
@@ -100,11 +105,13 @@
     more.disabled = true;
     try {
       const data = await ApiClient.request('/api/my-work?' + query.toString());
+      if (generation !== loadGeneration) return;
       for (const name of order) loaded[name].push(...(data.sections[name] || []));
       counts = data.counts || {};
       groups = Object.fromEntries((data.groups || []).map(g => [g.key, g]));
       cursor = data.next_cursor;
       more.hidden = !cursor;
+      groupingNote.hidden = !['vendor', 'process'].includes(document.getElementById('myWorkGroup').value);
       render();
       const unavailable = (data.source_states || []).filter(x =>
         x.state === 'degraded' || x.state === 'scope_limited' || x.state === 'disabled' || x.truncated);
@@ -113,10 +120,11 @@
         'Some sources could not be fully checked: ' + unavailable.map(x => x.source.replace(/_/g, ' ')).join(', ') +
         '. Their counts may be incomplete.' : '';
     } catch (error) {
+      if (generation !== loadGeneration) return;
       note.style.display = '';
       note.textContent = error && error.detail ? String(error.detail) : 'Could not load My Work. Try again.';
     } finally {
-      more.disabled = false;
+      if (generation === loadGeneration) more.disabled = false;
     }
   }
   async function loadViews() {
@@ -238,6 +246,7 @@
   }
   function showView(team) {
     controls.hidden = team;
+    groupingNote.hidden = team || !['vendor', 'process'].includes(document.getElementById('myWorkGroup').value);
     sections.hidden = team;
     note.hidden = team;
     more.hidden = team || !cursor;

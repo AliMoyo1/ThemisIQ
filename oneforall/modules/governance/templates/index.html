@@ -250,6 +250,7 @@ var govRegList = [];
 var govRegFwNames = [];
 
 function esc(s){return (s==null?'':(''+s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c])}
+function govSafeSourceUrl(value){try{var url=new URL(value);return url.protocol==='https:'&&url.hostname&& !url.username&&!url.password?url.href:'';}catch(_){return '';}}
 function apiFetch(url, opts){return fetch(url, Object.assign({credentials:'same-origin', headers:{'Content-Type':'application/json'}}, opts||{})).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.status===204?null:r.json()})}
 
 function critBadge(c){var m={critical:'crit',high:'high',medium:'med',low:'low'};return '<span class="badge badge-'+(m[c]||'med')+'">'+esc(c||'medium')+'</span>'}
@@ -896,11 +897,16 @@ function govLoadReg(){
       var actions = CAN_MANAGE ? (
         '<button class="gov-btn ghost small" onclick="govEditReg('+r.id+')">Edit</button> '+
         (r.status==='open' ? '<button class="gov-btn ghost small" onclick="govDismissReg('+r.id+')">Dismiss</button> ' : '')+
+        (r.ai_summary ? '<button class="gov-btn ghost small" onclick="govReviewRegAi('+r.id+')">Review AI draft</button> ' : '')+
         '<button class="gov-btn ghost small danger" onclick="govDeleteReg('+r.id+')">Delete</button>'
       ) : '';
-      var aiHint = r.ai_summary ? ' title="'+esc(r.ai_summary)+'"' : '';
+      var aiHint = r.ai_summary && r.ai_review_state==='approved' ? ' title="'+esc(r.ai_summary)+'"' : '';
+      var aiState = r.ai_review_state==='approved' ? 'Reviewed AI summary' :
+        r.ai_review_state==='rejected' ? 'AI draft rejected' :
+        r.ai_review_state==='pending' ? 'AI draft awaiting human review' : '';
+      var sourceUrl=govSafeSourceUrl(r.source_url);
       return '<tr>'
-        + '<td><strong'+aiHint+'>'+esc(r.title)+'</strong>'+(r.source_url?'<br><a href="'+esc(r.source_url)+'" target="_blank" style="font-size:11px;color:var(--accent)">Source</a>':'')+'</td>'
+        + '<td><strong'+aiHint+'>'+esc(r.title)+'</strong>'+(aiState?'<br><span style="font-size:11px;color:var(--muted)">'+aiState+'</span>':'')+(sourceUrl?'<br><a href="'+esc(sourceUrl)+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent)">Source</a>':'')+'</td>'
         + '<td>'+esc(r.framework_name)+'</td>'
         + '<td>'+sevBadge(r.severity)+'</td>'
         + '<td>'+(r.effective_date?r.effective_date.substring(0,10):'–')+'</td>'
@@ -913,6 +919,31 @@ function govLoadReg(){
   if(!govRegFwNames.length){
     apiFetch('/governance/api/regulatory-frameworks').then(names=>{govRegFwNames=names;}).catch(()=>{});
   }
+}
+
+function govReviewRegAi(id){
+  var row = govRegList.find(r=>r.id===id);
+  if(!row || !row.ai_summary || !CAN_MANAGE) return;
+  document.getElementById('govModal').innerHTML =
+    '<div class="modal-overlay"><div class="modal-box">'+
+      '<button class="modal-close" onclick="govCloseModal()">x</button>'+
+      '<div class="modal-title">Review AI draft</div>'+
+      '<p style="font-size:12px;color:var(--muted)">Check the cited source and affected controls. This draft does not decide legal applicability.</p>'+
+      '<div style="padding:12px;background:var(--surface2);white-space:pre-wrap;font-size:13px">'+esc(row.ai_summary)+'</div>'+
+      '<div class="form-group" style="margin-top:12px"><label>Review reason</label><textarea id="reg_ai_reason" maxlength="500" rows="3"></textarea></div>'+
+      '<div class="modal-actions"><button class="gov-btn ghost" onclick="govCloseModal()">Cancel</button>'+
+        '<button class="gov-btn ghost" onclick="govDecideRegAi('+id+',\'rejected\')">Reject</button>'+
+        '<button class="gov-btn" onclick="govDecideRegAi('+id+',\'approved\')">Approve draft</button></div>'+
+    '</div></div>';
+}
+
+function govDecideRegAi(id,decision){
+  var reason = document.getElementById('reg_ai_reason').value.trim();
+  if(reason.length<10){alert('Record a review reason of at least 10 characters.');return;}
+  apiFetch('/governance/api/regulatory-updates/'+id+'/ai-review',
+    {method:'POST',body:JSON.stringify({decision:decision,reason:reason})})
+    .then(()=>{govCloseModal();govLoadReg();})
+    .catch(err=>alert('Review could not be recorded: '+err.message));
 }
 
 function govEditReg(id){var r=govRegList.find(x=>x.id===id); if(r) govOpenRegModal(r);}

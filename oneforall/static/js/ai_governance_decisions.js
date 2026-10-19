@@ -27,6 +27,28 @@
 
   function briefList(manifest) {
     var parts = [];
+    var scope = manifest.intended_scope;
+    if (scope) {
+      parts.push(el('h3', { class: 'aig-h3', text: 'Intended scope of use' }));
+      var scoped = [
+        ['Purpose', scope.purpose], ['Capability', scope.capability_type], ['Provider or model', scope.provider],
+        ['Intended users', scope.intended_users],
+        ['Affected people', (scope.affected_people || []).join(', ')], ['Deployment', scope.deployment],
+        ['Data', (scope.data_categories || []).join(', ')], ['Jurisdictions', (scope.jurisdictions || []).join(', ')],
+        ['External access', scope.external_access == null ? 'Not recorded' : scope.external_access ? 'Yes' : 'No'],
+        ['Autonomy', scope.autonomy], ['Human oversight', scope.human_oversight], ['Target launch', scope.target_launch],
+        ['Business unit', scope.business_unit_id == null ? 'Whole organization' :
+          (scope.business_unit_name || 'Unit ' + scope.business_unit_id)]
+      ];
+      parts.push(el('dl', { class: 'aig-facts' }, scoped.map(function (pair) {
+        return el('div', { class: 'aig-fact' }, [el('dt', { text: pair[0] }), el('dd', { text: pair[1] || 'Not recorded' })]);
+      })));
+    }
+    if (manifest.accountability) {
+      parts.push(el('p', { class: 'aig-hint', text: 'Owner: ' + (manifest.accountability.owner || 'Not recorded') +
+        '. Sponsor: ' + (manifest.accountability.sponsor || 'Not recorded') + '.' }));
+    }
+    if (manifest.review_due) parts.push(el('p', { class: 'aig-hint', text: 'Review due: ' + String(manifest.review_due).slice(0, 10) }));
     var steps = manifest.checklist.steps;
     parts.push(el('h3', { class: 'aig-h3', text: 'Steps' }));
     parts.push(el('ul', { class: 'aig-list' }, steps.map(function (s) {
@@ -35,7 +57,10 @@
       if (s.override) kids.push(el('span', { class: 'aig-hint', text: 'Ruled out: ' + s.override.reason }));
       (s.records || []).forEach(function (r) {
         if (r.restricted) kids.push(el('span', { class: 'aig-muted', text: 'A record you cannot open' }));
-        else if (r.title) kids.push(r.url ? el('a', { href: r.url, text: r.title }) : el('span', { class: 'aig-muted', text: r.title }), AIGov.chip(r.status || 'recorded'));
+        else if (r.title) kids.push(r.url ? el('a', { href: r.url, text: r.title }) : el('span', { class: 'aig-muted', text: r.title }),
+          AIGov.chip(r.status || 'recorded'), el('span', { class: 'aig-muted', text: r.version != null ? ' version ' + r.version :
+            r.updated_at ? ' updated ' + String(r.updated_at).slice(0, 10) : '' }),
+          r.source_version_id ? el('span', { class: 'aig-muted', text: ' policy source version ID ' + r.source_version_id }) : null);
       });
       return el('li', {}, kids);
     })));
@@ -51,6 +76,59 @@
         return el('li', {}, [a.url ? el('a', { href: a.url, text: label }) : el('span', { text: label }),
           a.restricted ? null : AIGov.chip(a.status || 'recorded'),
           !a.restricted && a.classification ? el('span', { class: 'aig-muted', text: 'Classification: ' + a.classification }) : null]);
+      })));
+    }
+    if (manifest.evaluations) {
+      parts.push(el('h3', { class: 'aig-h3', text: 'Evaluation outcomes' }));
+      parts.push(manifest.evaluations.length ? el('ul', { class: 'aig-list' }, manifest.evaluations.map(function (run) {
+        var children = [el('strong', { text: run.name }), AIGov.chip(run.state || 'Not measured', run.state === 'passed' && !run.stale ? 'good' : 'warn'),
+          el('span', { class: 'aig-muted', text: 'Run ' + run.id + ', version ' + run.version +
+            ', test set ' + (run.test_set_version || 'not recorded') + ', rubric ' + (run.rubric_version || 'not recorded') +
+            ', subject ' + (run.subject_version || 'not recorded') + ', finished ' + when(run.finished_at) })];
+        Object.keys(run.scores || {}).sort().forEach(function (dimension) {
+          var threshold = (run.thresholds || {})[dimension];
+          children.push(el('span', { class: 'aig-muted', text: dimension + ': ' + run.scores[dimension] +
+            (threshold == null ? '' : ' (minimum ' + threshold + ')') }));
+        });
+        if (run.review_outcome) children.push(el('span', { class: 'aig-muted', text: 'Review: ' + run.review_outcome }));
+        if (run.stale) children.push(el('span', { class: 'aig-note-warn', text: 'Out of date' }));
+        if (run.artifact) children.push(run.artifact.restricted ? el('span', { class: 'aig-muted', text: 'Artifact not open to you' }) :
+          (run.artifact.url ? el('a', { href: run.artifact.url, text: 'Vault artifact ' + run.artifact.id + ', version ' + run.artifact.version }) :
+            el('span', { class: 'aig-muted', text: 'Vault artifact ' + run.artifact.id + ', version ' + run.artifact.version })));
+        return el('li', {}, children);
+      })) : el('p', { class: 'aig-note-warn', text: 'No evaluation outcome recorded.' }));
+    }
+    if (manifest.proof && manifest.proof.length) {
+      parts.push(el('h3', { class: 'aig-h3', text: 'Evidence versions' }));
+      parts.push(el('ul', { class: 'aig-list' }, manifest.proof.map(function (item) {
+        var title = item.restricted ? 'A Vault item you cannot open' :
+          'Vault item ' + item.id + ', version ' + item.version + (item.expired ? ' (expired)' : '');
+        return el('li', {}, [item.url ? el('a', { href: item.url, text: title }) : el('span', { text: title })]);
+      })));
+    }
+    if (manifest.gaps && manifest.gaps.length) {
+      parts.push(el('h3', { class: 'aig-h3', text: 'Review gaps' }));
+      parts.push(el('ul', { class: 'aig-list' }, manifest.gaps.map(function (gap) { return el('li', { text: gap.title }); })));
+    }
+    if (manifest.proposed_terms) {
+      var proposal = manifest.proposed_terms;
+      parts.push(el('h3', { class: 'aig-h3', text: 'Terms proposed for review' }));
+      if (manifest.proposal_hash) parts.push(el('p', { class: 'aig-hint', text: 'Proposal record: ' + manifest.proposal_hash }));
+      parts.push(el('p', { text: 'Proposed expiry: ' + (proposal.expires_at || 'None') +
+        '. Proposed review date: ' + (proposal.review_due || 'None') + '.' }));
+      parts.push(proposal.conditions && proposal.conditions.length ? el('ul', { class: 'aig-list' }, proposal.conditions.map(function (c) {
+        return el('li', { text: c.text + (c.due_date ? ' (due ' + c.due_date + ')' : '') });
+      })) : el('p', { class: 'aig-note-muted', text: 'No conditions proposed.' }));
+    }
+    if (manifest.decision_terms) {
+      var terms = manifest.decision_terms;
+      parts.push(el('h3', { class: 'aig-h3', text: 'Terms recorded with this decision' }));
+      parts.push(el('p', { text: 'Outcome: ' + terms.outcome + '. Valid until: ' + (terms.expires_at || 'No expiry recorded') +
+        '. Review due: ' + (terms.review_due || 'Not scheduled') + '.' }));
+      if (terms.rationale) parts.push(el('p', { text: 'Reason: ' + terms.rationale }));
+      if (terms.override_reason) parts.push(el('p', { class: 'aig-note-warn', text: 'Reason for unresolved gaps: ' + terms.override_reason }));
+      if (terms.conditions && terms.conditions.length) parts.push(el('ul', { class: 'aig-list' }, terms.conditions.map(function (c) {
+        return el('li', { text: c.text + (c.due_date ? ' (due ' + c.due_date + ')' : '') });
       })));
     }
     parts.push(el('h3', { class: 'aig-h3', text: 'AI controls and their proof' }));
@@ -88,15 +166,39 @@
     function askDialog() {
       AIGov.dialog('Ask for a decision', function (box, close) {
         var note = el('textarea', { rows: '3', maxlength: '1000' });
+        var proposedConditions = el('textarea', { rows: '3', maxlength: '10000', placeholder: 'One proposed condition per line' });
+        var proposedExpiry = el('input', { type: 'date' });
+        var proposedReview = el('input', { type: 'date' });
         var out = el('div', { class: 'aig-say', role: 'status' });
-        box.appendChild(el('p', { class: 'aig-muted', text: 'A decider will see what this use is and where each required step stands, and then decide.' }));
+        var preview = el('div', { class: 'aig-brief' });
+        var currentHash = null;
+        box.appendChild(el('p', { class: 'aig-muted', text: 'Review the brief below before asking. It is frozen with this request; changed source facts require a fresh request.' }));
+        box.appendChild(preview);
+        AIGov.say(out, 'Loading the brief...');
+        AIGov.api(API + '/systems/' + id + '/decision-brief').then(function (data) {
+          currentHash = data.hash;
+          AIGov.clear(preview);
+          briefList(data.manifest).forEach(function (part) { preview.appendChild(part); });
+          askButton.disabled = false;
+          AIGov.say(out, '');
+        }).catch(function (err) { AIGov.say(out, AIGov.errorText(err), 'bad'); });
         box.appendChild(AIGov.field('aigAskNote', 'A note for the decider (optional)', note).row);
-        box.appendChild(el('div', { class: 'aig-actions' }, [
-          el('button', { type: 'button', class: 'btn btn-primary', text: 'Ask for a decision', on: { click: function () {
+        box.appendChild(AIGov.field('aigProposedConditions', 'Proposed conditions (optional)', proposedConditions,
+          'The decider may change these. Add at most 20, one per line.').row);
+        box.appendChild(AIGov.field('aigProposedExpiry', 'Proposed approval expiry (optional)', proposedExpiry).row);
+        box.appendChild(AIGov.field('aigProposedReview', 'Proposed review date (optional)', proposedReview).row);
+        var askButton = el('button', { type: 'button', class: 'btn btn-primary', text: 'Ask for a decision', disabled: true,
+          on: { click: function () {
             AIGov.say(out, 'Sending...');
-            AIGov.api(API + '/systems/' + id + '/decisions', 'POST', { note: note.value.trim() || null })
+            var lines = proposedConditions.value.split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean);
+            if (lines.length > 20) { AIGov.say(out, 'Use at most 20 proposed conditions.', 'bad'); return; }
+            AIGov.api(API + '/systems/' + id + '/decisions', 'POST', { note: note.value.trim() || null, brief_hash: currentHash,
+              proposed_conditions: lines, proposed_expires_at: proposedExpiry.value || null,
+              proposed_review_due: proposedReview.value || null })
               .then(function () { close(); reload(); }).catch(function (err) { AIGov.say(out, AIGov.errorText(err), 'bad'); });
-          } } }), el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel', on: { click: close } })]));
+          } } });
+        box.appendChild(el('div', { class: 'aig-actions' }, [
+          askButton, el('button', { type: 'button', class: 'btn btn-ghost', text: 'Cancel', on: { click: close } })]));
         box.appendChild(out);
       });
     }
@@ -143,31 +245,47 @@
       AIGov.dialog('Decide: ' + (config.name || 'this AI use'), function (box, close) {
         var loading = el('p', { class: 'aig-muted', text: 'Loading the brief...' });
         box.appendChild(loading);
-        AIGov.api(API + '/systems/' + id + '/decision-brief').then(function (brief) {
+        Promise.all([AIGov.api(API + '/systems/' + id + '/decision-brief'),
+          AIGov.api(API + '/decisions/' + request.id)]).then(function (loaded) {
+          var brief = loaded[0], proposalManifest = loaded[1].decision.manifest || {};
           box.removeChild(loading);
           if (brief.changed_since_standing.length) {
             box.appendChild(el('div', { class: 'aig-banner aig-banner-warn' }, [el('strong', { text: 'Since the last decision' }),
               el('ul', {}, brief.changed_since_standing.map(function (line) { return el('li', { text: line }); }))]));
           }
+          if (brief.proposal_changed && !brief.proposal_access_limited) box.appendChild(el('div', { class: 'aig-banner aig-banner-bad', role: 'note',
+            text: 'The brief changed after this decision was requested. Withdraw this request and ask for a new decision before approval.' }));
+          if (brief.proposal_access_limited) box.appendChild(el('div', { class: 'aig-banner aig-banner-bad', role: 'note',
+            text: 'This account cannot open all sources in the original request. Assign a decider who has access to those sources.' }));
           if (brief.unresolved.length) {
             box.appendChild(el('div', { class: 'aig-banner aig-banner-bad', role: 'note' }, [
-              el('strong', { text: 'Required steps are not done: ' }), brief.unresolved.map(function (u) { return u.title; }).join(', ') + '. ' +
+              el('strong', { text: 'Review gaps remain: ' }), brief.unresolved.map(function (u) { return u.title; }).join(', ') + '. ' +
               'You can still approve, with a reason that is recorded.']));
           }
           box.appendChild(el('div', { class: 'aig-brief' }, briefList(brief.manifest)));
+          if (proposalManifest.proposed_terms) box.appendChild(el('div', { class: 'aig-brief' }, [
+            el('h3', { class: 'aig-h3', text: 'Original request' }),
+            el('p', { class: 'aig-hint', text: 'These proposed terms were frozen when the decision was requested.' }),
+            el('p', { text: 'Proposed expiry: ' + (proposalManifest.proposed_terms.expires_at || 'None') +
+              '. Proposed review date: ' + (proposalManifest.proposed_terms.review_due || 'None') }),
+            el('ul', { class: 'aig-list' }, (proposalManifest.proposed_terms.conditions || []).map(function (c) {
+              return el('li', { text: c.text + (c.due_date ? ' (due ' + c.due_date + ')' : '') });
+            }))]));
 
-          var outcome = 'approve';
+          var outcome = proposalManifest.proposed_terms && (proposalManifest.proposed_terms.conditions || []).length
+            ? 'approve_with_conditions' : 'approve';
           var radios = el('fieldset', { class: 'aig-fieldset' }, [el('legend', { text: 'Your decision' })]);
           var conditionRows = el('div', {});
           var extras = el('div', {});
           OUTCOMES.forEach(function (o) {
-            var radio = el('input', { type: 'radio', name: 'aigOutcome', value: o.id, checked: o.id === 'approve' });
+            var radio = el('input', { type: 'radio', name: 'aigOutcome', value: o.id, checked: o.id === outcome });
             radio.addEventListener('change', function () { outcome = o.id; paint(); });
             radios.appendChild(el('label', { class: 'aig-radio' }, [radio, el('span', {}, [el('strong', { text: o.label }), el('span', { class: 'aig-hint', text: ' ' + o.hint })])]));
           });
           box.appendChild(radios);
           var rationale = el('textarea', { rows: '3', maxlength: '1000' });
           var expires = el('input', { type: 'date' });
+          var reviewDue = el('input', { type: 'date' });
           var override = el('textarea', { rows: '2', maxlength: '1000' });
           var rationaleField = AIGov.field('aigRationale', 'Why', rationale, 'Needed to return or reject. Optional when approving.');
           box.appendChild(rationaleField.row);
@@ -176,6 +294,7 @@
           var conditionInputs = [];
 
           function addCondition() {
+            if (conditionInputs.length >= 20) { AIGov.say(out, 'Use at most 20 conditions.', 'bad'); return; }
             var n = conditionInputs.length + 1;
             var text = el('input', { type: 'text', maxlength: '1000' });
             var due = el('input', { type: 'date' });
@@ -183,18 +302,30 @@
             conditionRows.appendChild(el('div', { class: 'aig-impact-fields' }, [
               AIGov.field('aigCond' + n, 'Condition ' + n, text).row, AIGov.field('aigCondDue' + n, 'Due (optional)', due).row]));
           }
+          var proposed = proposalManifest.proposed_terms || {};
+          (proposed.conditions || []).forEach(function (condition) {
+            addCondition();
+            var input = conditionInputs[conditionInputs.length - 1];
+            input.text.value = condition.text;
+            input.due.value = condition.due_date || '';
+          });
+          if (proposed.expires_at) expires.value = proposed.expires_at;
 
           function paint() {
             AIGov.clear(extras);
             var approving = outcome === 'approve' || outcome === 'approve_with_conditions';
-            if (approving) extras.appendChild(AIGov.field('aigExpires', 'Valid until (optional)', expires, 'After this date the approval reads as expired and asks for a new decision.').row);
+            if (approving) {
+              extras.appendChild(AIGov.field('aigExpires', 'Valid until (optional)', expires, 'After this date the approval reads as expired and asks for a new decision.').row);
+              extras.appendChild(AIGov.field('aigReviewDue', 'Next review date (optional)', reviewDue,
+                'If left blank, the AI profile review date is used.').row);
+            }
             if (outcome === 'approve_with_conditions') {
               extras.appendChild(conditionRows);
               if (!conditionInputs.length) addCondition();
               extras.appendChild(el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Add a condition', on: { click: addCondition } }));
             }
             if (approving && brief.needs_override) {
-              extras.appendChild(AIGov.field('aigOverride', 'Why this goes ahead with required steps not done', override,
+              extras.appendChild(AIGov.field('aigOverride', 'Why this goes ahead with review gaps', override,
                 'Recorded with the decision and visible to anyone who reads it.').row);
             }
           }
@@ -205,6 +336,7 @@
               var body = { outcome: outcome, rationale: rationale.value.trim() || null, brief_hash: brief.hash, version: request.version };
               if (outcome === 'approve' || outcome === 'approve_with_conditions') {
                 body.expires_at = expires.value || null;
+                body.review_due = reviewDue.value || null;
                 if (brief.needs_override) body.override_reason = override.value.trim() || null;
               }
               if (outcome === 'approve_with_conditions') {

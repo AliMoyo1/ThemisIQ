@@ -70,6 +70,14 @@ _STMTS = [
     "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_items",
     f"CREATE POLICY tenant_isolation ON public.evidence_items USING {_USING}",
 
+    # Parsed document text is more sensitive than its metadata. Public rows
+    # get the same organization guard; business-unit access is checked via
+    # the evidence_items join in every read path.
+    "ALTER TABLE public.evidence_text_index ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.evidence_text_index FORCE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS tenant_isolation ON public.evidence_text_index",
+    f"CREATE POLICY tenant_isolation ON public.evidence_text_index USING {_USING}",
+
     # readiness_findings (PLAN-36 P04) - defense-in-depth alongside
     # modules/readiness/data_service.py's own org_id filter. The rule
     # scanner writes findings for every tenant in one background process
@@ -131,6 +139,7 @@ def apply_rls_policies(db) -> None:
         _logger.info(
             "RLS policies applied to public.users, public.audit_log, "
             "public.licenses, public.webhooks, public.evidence_items, "
+            "public.evidence_text_index, "
             "public.readiness_findings, public.evidence_campaigns, "
             "public.evidence_requests, public.saved_views, "
             "public.bulk_action_runs"

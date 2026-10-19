@@ -927,6 +927,8 @@ window.ermCloseDocViewer=function(){document.getElementById('ermDocViewerRoot').
 
 /* ── Role flags ── */
 var ERM_IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+var ERM_CAN_PROPOSE_ACCEPTANCE = {{ can_propose_acceptance | tojson }};
+var ERM_CAN_DECIDE_ACCEPTANCE = {{ can_decide_acceptance | tojson }};
 
 /* ────────────────── SPA ROUTER ────────────────── */
 var _routes={'/erm/':'dashboard','/erm':'dashboard','/erm/register':'register','/erm/appetite':'appetite','/erm/library':'library','/erm/rating-guide':'rating-guide','/erm/framework-admin':'framework-admin','/erm/objectives':'objectives','/erm/external':'external','/erm/obligations':'obligations','/erm/indicators':'indicators','/erm/assessments':'assessments','/erm/reports':'reports','/erm/chat':'chat'};
@@ -1014,7 +1016,10 @@ window.ermLoadDashboard=async function(){
     ermRenderAppetitePanel(d.appetite_status||[]);
     ermRenderTopCritical(d.top_critical_risks||[]);
     ermRenderActionsRequired(d.actions_required||[]);
-    ermRenderFeedPanel(d.risk_feed||[]);
+    if(d.risk_feed_unavailable){
+      var feed=document.getElementById('ermFeedPanel');
+      if(feed)feed.textContent='Cross-module event feed is unavailable in this business-unit view.';
+    }else{ermRenderFeedPanel(d.risk_feed||[]);}
     ermRenderPosture(d.posture||null);
     ermRenderWatchlist((d.posture&&d.posture.high_rrr)||[]);
     ermRenderTrajectory((d.posture&&d.posture.trajectory)||[]);
@@ -1518,9 +1523,9 @@ window.ermOpenRiskDrawer=async function(id){
     var qBg=qColor+'14';
     var qBorder=qColor+'38';
     // Treatment color maps
-    var txColor={mitigate:'#2563eb',accept:'#16a34a',avoid:'#dc2626',transfer:'#d97706'}[r.treatment||'mitigate']||'var(--muted)';
-    var txBg={mitigate:'rgba(37,99,235,.1)',accept:'rgba(22,163,74,.1)',avoid:'rgba(220,38,38,.1)',transfer:'rgba(217,119,6,.1)'}[r.treatment||'mitigate']||'var(--surface2)';
-    var txBorder={mitigate:'rgba(37,99,235,.25)',accept:'rgba(22,163,74,.25)',avoid:'rgba(220,38,38,.25)',transfer:'rgba(217,119,6,.25)'}[r.treatment||'mitigate']||'var(--border)';
+    var txColor={mitigate:'#2563eb',accept:'#b45309',avoid:'#dc2626',transfer:'#d97706'}[r.treatment||'mitigate']||'var(--muted)';
+    var txBg={mitigate:'rgba(37,99,235,.1)',accept:'rgba(217,119,6,.1)',avoid:'rgba(220,38,38,.1)',transfer:'rgba(217,119,6,.1)'}[r.treatment||'mitigate']||'var(--surface2)';
+    var txBorder={mitigate:'rgba(37,99,235,.25)',accept:'rgba(217,119,6,.25)',avoid:'rgba(220,38,38,.25)',transfer:'rgba(217,119,6,.25)'}[r.treatment||'mitigate']||'var(--border)';
     // Workflow steps
     var wfSteps=['draft','identified','assessed','treated','monitored','closed'];
     var curOrd=wfSteps.indexOf(r.workflow_step||'draft');
@@ -1625,12 +1630,16 @@ window.ermOpenRiskDrawer=async function(id){
           '<div class="erm-drawer-section-title">Treatment</div>'+
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
             '<span style="font-size:11px;font-weight:700;color:var(--muted)">Strategy</span>'+
-            '<span style="background:'+txBg+';color:'+txColor+';border:1px solid '+txBorder+';font-size:12px;font-weight:800;text-transform:capitalize;padding:3px 12px;border-radius:100px">'+(r.treatment||'mitigate')+'</span>'+
+            '<span style="background:'+txBg+';color:'+txColor+';border:1px solid '+txBorder+';font-size:12px;font-weight:800;text-transform:capitalize;padding:3px 12px;border-radius:100px">'+(r.treatment==='accept'?'Accept strategy, approval separate':(r.treatment||'mitigate'))+'</span>'+
           '</div>'+
           (r.treatment_plan?
             '<div style="font-size:13px;color:var(--text);line-height:1.65;padding:12px 14px;background:var(--surface2);border-radius:var(--radius)">'+esc(r.treatment_plan)+'</div>':
             '<div style="font-size:12px;color:var(--muted);padding:10px 14px;background:var(--surface2);border-radius:var(--radius);font-style:italic">No treatment plan recorded.</div>')+
         '</div>'+
+        (isErm?'<div class="erm-drawer-section">'+
+          '<div class="erm-drawer-section-title">Risk acceptance decision</div>'+
+          '<div id="ermAcceptancePanel">Loading decision history...</div>'+
+        '</div>':'')+
         // Workflow Stepper
         '<div class="erm-drawer-section">'+
           '<div class="erm-drawer-section-title">Workflow Progress</div>'+
@@ -1659,6 +1668,7 @@ window.ermOpenRiskDrawer=async function(id){
           '<div id="ermTreatmentsList" style="font-size:13px;color:var(--muted)">Loading...</div>'+
           '<div id="ermTreatmentsFooter"></div>'+
         '</div>'+
+        (isErm?'<div class="erm-drawer-section" id="ermRelatedItems"></div>':'')+
       '</div>'+  // closes erm-drawer-body
       // ── Footer ──
       '<div class="erm-drawer-foot">'+
@@ -1671,9 +1681,14 @@ window.ermOpenRiskDrawer=async function(id){
       '</div>'+
       '</div></div>';
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(document.querySelector('#ermRiskDrawer .erm-drawer-panel'));
+    if(isErm && typeof RelatedItems!=='undefined'){
+      var related=document.getElementById('ermRelatedItems');
+      if(related)RelatedItems.mount(related,'erm','risk',id,{canEdit:true});
+    }
     // Assessment: summary strip renders immediately from the already-fetched
     // risk; the CF-grouped control list needs its own fetch.
     ermRenderAssessSummary(r);
+    if(isErm)ermLoadAcceptance(id);
     (function(riskId){
       apiFetch('/erm/api/risks/'+riskId+'/controls').then(function(controls){
         ermRenderAssessGroups(riskId,controls,r.contributing_factors);
@@ -1719,7 +1734,102 @@ window.ermOpenRiskDrawer=async function(id){
     }catch(e){}
   }catch(e){ermCloseRiskDrawer();typeof showToast==='function'&&showToast('Load failed','error');}
 };
-window.ermCloseRiskDrawer=function(){if(typeof DialogFocus!=='undefined')DialogFocus.release();document.getElementById('ermRiskDrawer').innerHTML='';_drawerRisk=null;};
+window.ermLoadAcceptance=async function(riskId){
+  var panel=document.getElementById('ermAcceptancePanel');
+  if(!panel)return;
+  try{
+    var rows=await apiFetch('/erm/api/risks/'+riskId+'/acceptances');
+    if(!document.getElementById('ermAcceptancePanel'))return;
+    var latest=rows&&rows.length?rows[0]:null;
+    var status=latest?(latest.effective_status||latest.status):'not accepted';
+    var tone=status==='approved'?'var(--good,#16a34a)':status==='expired'||status==='needs_re_review'?'var(--red,#dc2626)':'var(--muted)';
+    var html='<div style="padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2)">'+
+      '<div style="font-weight:700;color:'+tone+'">'+esc(status.replace(/_/g,' '))+'</div>'+
+      '<p style="font-size:12px;color:var(--muted);margin:6px 0">A treatment choice or historical accepted status is not a formal approval.</p>';
+    if(latest){
+      var source=latest.source_snapshot||{};
+      html+='<div style="font-size:12px;line-height:1.7">Reason: '+esc(latest.reason)+
+        '<br>Current score at proposal: '+esc(String(source.current_score==null?'not measured':source.current_score))+
+        '<br>Planned residual estimate: '+esc(String(source.planned_residual_score==null?'not measured':source.planned_residual_score))+
+        '<br>Appetite threshold at proposal: '+esc(String(source.appetite&&source.appetite.max_score!=null?source.appetite.max_score:'not configured'))+
+        '<br>Proposed by user '+esc(String(latest.proposed_by))+
+        (latest.decided_by?'<br>Decided by user '+esc(String(latest.decided_by)):'')+
+        '<br>Review: '+esc(String(latest.review_on))+' · Expires: '+esc(String(latest.expires_on))+
+        (latest.conditions?'<br>Conditions: '+esc(latest.conditions):'')+
+        (latest.decision_note?'<br>Decision: '+esc(latest.decision_note):'')+'</div>';
+    }
+    html+='<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">';
+    if(ERM_CAN_PROPOSE_ACCEPTANCE&&(!latest||latest.status!=='submitted'))
+      html+='<button type="button" class="btn btn-sm btn-secondary" onclick="ermOpenAcceptanceForm('+riskId+')">Request acceptance</button>';
+    if(ERM_CAN_DECIDE_ACCEPTANCE&&latest&&latest.status==='submitted')
+      html+='<button type="button" class="btn btn-sm btn-primary" onclick="ermOpenAcceptanceDecision('+latest.id+','+latest.version+',false,'+riskId+')">Review proposal</button>';
+    if(ERM_CAN_DECIDE_ACCEPTANCE&&latest&&latest.status==='approved')
+      html+='<button type="button" class="btn btn-sm btn-secondary" onclick="ermOpenAcceptanceDecision('+latest.id+','+latest.version+',true,'+riskId+')">Revoke approval</button>';
+    html+='</div></div>';
+    if(rows&&rows.length>1)html+='<div style="font-size:11px;color:var(--muted);margin-top:6px">'+(rows.length-1)+' earlier decision(s) retained in the record.</div>';
+    panel.innerHTML=html;
+  }catch(e){panel.textContent='Decision history unavailable. No approval can be inferred.';}
+};
+window.ermOpenAcceptanceForm=function(riskId){
+  var html='<div class="erm-modal-overlay" id="ermAcceptanceModal" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
+    '<button type="button" class="modal-close" onclick="document.getElementById(\'ermAcceptanceModal\').remove()" aria-label="Close">×</button>'+
+    '<div class="modal-title">Request risk acceptance</div>'+
+    '<p style="font-size:12px;color:var(--muted)">A different authorized reviewer must decide. This request does not change the risk score or status.</p>'+
+    '<div class="form-group"><label for="accReason">Reason</label><textarea id="accReason" maxlength="4000" rows="3" required></textarea></div>'+
+    '<div class="form-group"><label for="accAlternatives">Alternatives considered</label><textarea id="accAlternatives" maxlength="4000" rows="2" required></textarea></div>'+
+    '<div class="form-group"><label for="accScope">Scope of exposure</label><textarea id="accScope" maxlength="4000" rows="2" required></textarea></div>'+
+    '<div class="form-group"><label for="accConditions">Proposed conditions</label><textarea id="accConditions" maxlength="4000" rows="2"></textarea></div>'+
+    '<div class="form-row"><div class="form-group"><label for="accReview">Review date</label><input id="accReview" type="date" required></div>'+
+    '<div class="form-group"><label for="accExpiry">Expiry date</label><input id="accExpiry" type="date" required></div></div>'+
+    '<div id="accError" role="alert" style="color:var(--red,#dc2626)"></div>'+
+    '<button type="button" class="btn btn-primary" onclick="ermSubmitAcceptance('+riskId+')">Submit for review</button></div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  document.getElementById('accReason').focus();
+};
+window.ermSubmitAcceptance=async function(riskId){
+  var value=function(id){return document.getElementById(id).value.trim();};
+  try{
+    await apiFetch('/erm/api/risks/'+riskId+'/acceptances',{method:'POST',body:{
+      reason:value('accReason'),alternatives:value('accAlternatives'),scope_note:value('accScope'),
+      conditions:value('accConditions'),review_on:value('accReview'),expires_on:value('accExpiry')}});
+    document.getElementById('ermAcceptanceModal').remove();
+    ermLoadAcceptance(riskId);
+    if(typeof showToast==='function')showToast('Acceptance sent for independent review');
+  }catch(e){document.getElementById('accError').textContent=e.message||'Could not submit acceptance';}
+};
+window.ermOpenAcceptanceDecision=function(id,version,revoke,riskId){
+  var html='<div class="erm-modal-overlay" id="ermAcceptanceDecision" onclick="if(event.target===this)this.remove()"><div class="modal-box">'+
+    '<button type="button" class="modal-close" onclick="document.getElementById(\'ermAcceptanceDecision\').remove()" aria-label="Close">×</button>'+
+    '<div class="modal-title">'+(revoke?'Revoke risk acceptance':'Review risk acceptance')+'</div>'+
+    '<p style="font-size:12px;color:var(--muted)">Confirm the current exposure, planned residual estimate, appetite and conditions before deciding.</p>'+
+    '<div class="form-group"><label for="accDecisionNote">Decision reason</label><textarea id="accDecisionNote" maxlength="4000" rows="3" required></textarea></div>'+
+    '<div id="accDecisionError" role="alert" style="color:var(--red,#dc2626)"></div>'+
+    (revoke?'<button type="button" class="btn btn-primary" onclick="ermSubmitAcceptanceDecision('+id+','+version+',\'revoke\','+riskId+')">Revoke</button>':
+      '<div style="display:flex;gap:8px"><button type="button" class="btn btn-primary" onclick="ermSubmitAcceptanceDecision('+id+','+version+',\'approved\','+riskId+')">Approve</button>'+
+      '<button type="button" class="btn btn-secondary" onclick="ermSubmitAcceptanceDecision('+id+','+version+',\'returned\','+riskId+')">Return</button>'+
+      '<button type="button" class="btn btn-secondary" onclick="ermSubmitAcceptanceDecision('+id+','+version+',\'rejected\','+riskId+')">Reject</button></div>')+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  document.getElementById('accDecisionNote').focus();
+};
+window.ermSubmitAcceptanceDecision=async function(id,version,decision,riskId){
+  try{
+    var url='/erm/api/acceptances/'+id+'/'+(decision==='revoke'?'revoke':'decision');
+    var body={version:version,note:document.getElementById('accDecisionNote').value.trim()};
+    if(decision!=='revoke')body.decision=decision;
+    await apiFetch(url,{method:'POST',body:body});
+    document.getElementById('ermAcceptanceDecision').remove();
+    ermLoadAcceptance(riskId);
+    if(typeof showToast==='function')showToast('Decision recorded');
+  }catch(e){document.getElementById('accDecisionError').textContent=e.message||'Could not record decision';}
+};
+window.ermCloseRiskDrawer=function(){
+  if(typeof DialogFocus!=='undefined')DialogFocus.release();
+  var picker=document.getElementById('ri-picker-overlay');
+  if(picker)picker.remove();
+  document.getElementById('ermRiskDrawer').innerHTML='';
+  _drawerRisk=null;
+};
 document.addEventListener('keydown',function(e){
   if(e.key!=='Escape')return;
   if(document.getElementById('ermRiskDrawer').firstElementChild)ermCloseRiskDrawer();

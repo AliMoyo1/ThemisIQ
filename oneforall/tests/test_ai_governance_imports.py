@@ -76,6 +76,32 @@ def test_a_preview_reads_the_export_and_creates_no_request(world):
     assert done["audit"][0][0] == "ai_import_previewed"
 
 
+def test_a_valid_preview_mapping_can_be_reused_and_archived_without_changing_its_batch(world):
+    specialist = user(world, "dpo_a")
+    first = preview(world)
+    batch_id = first["batch"]["id"]
+    saved = imports.save_mapping(world.db, specialist, batch_id, "Support intake")
+    commit(world, saved, specialist)
+    mapping_id = saved["id"]
+    listed = imports.list_saved_mappings(world.db, specialist)["mappings"]
+    assert [entry["id"] for entry in listed] == [mapping_id]
+    assert listed[0]["mapping"] == first["batch"]["mapping"]
+
+    reused = preview(world, mapping=listed[0]["mapping"])
+    assert reused["batch"]["mapping"] == first["batch"]["mapping"]
+    archived = imports.archive_mapping(world.db, specialist, mapping_id)
+    commit(world, archived, specialist)
+    assert imports.list_saved_mappings(world.db, specialist)["mappings"] == []
+    assert imports.get_batch(world.db, specialist, batch_id)["batch"]["mapping"] == first["batch"]["mapping"]
+
+
+def test_an_unpreviewed_or_hidden_mapping_cannot_be_saved(world):
+    done = preview(world)
+    fail(lambda: imports.save_mapping(world.db, user(world, "dpo_b"), done["batch"]["id"], "Hidden"), 404)
+    fail(lambda: imports.save_mapping(world.db, user(world, "employee_a"), done["batch"]["id"], "No review role"), 403)
+    fail(lambda: imports.save_mapping(world.db, user(world, "dpo_a"), 99999, "Missing"), 404)
+
+
 def test_the_owner_is_offered_as_candidates_and_never_assigned(world):
     only = preview(world)["batch"]["rows"][0]
     assert [(c["name"], c["by"]) for c in only["owner_candidates"]] == [("employee_a", "email")]

@@ -56,6 +56,9 @@ Only figures from modules you may open are listed here.</p>
         row(dl, 'A share of', d.denominator);
         row(dl, 'Window', d.window);
         row(dl, 'Who sees what', d.scope);
+        row(dl, 'Figure owner', d.ownership === 'organization' ? 'Organization-wide, shared across its business units.' :
+          d.ownership === 'mixed_sources' ? 'Combined from the named sources, each with its own owner and access rule.' :
+          'Source rows belong to a business unit or to the organization. The viewer sees only permitted rows.');
         row(dl, 'Refreshed', d.refresh);
         row(dl, 'Left out', d.exclusions);
         var card = el('div', {class: 'metrics-card'}, [

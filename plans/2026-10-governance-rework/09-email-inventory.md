@@ -81,6 +81,11 @@ E1 (sender safety and truthful status) and E2 (the outbox, the catalogue and the
 expiry, task assignment, and the GRID jobs) are built and verified locally; the ledger entry "plan 06" has the checks and
 the Not done list. E3 is built for Sentinel breach and request deadlines on the common contract, the GRID weekly summary,
 and (follow-up 11) the BCM incident and exercise mail, the named AI Governance reviewer and decider, and the opt in My Work
-summary with quiet hours. Not built: a BCM escalation clock and alternate contact, jurisdiction wording, and external
-invitations. E4 (provider cutover): the seams are built (pause, comparison by provider, [the runbook](12-email-cutover-runbook.md));
+summary with quiet hours. BCM acknowledgement and first alternate escalation were added in follow-up 12. Not built: an
+alternate human contact for privacy deadlines, jurisdiction wording, and external invitations. E4 (provider cutover): the
+seams are built (pause, comparison by provider, [the runbook](12-email-cutover-runbook.md));
 the managed sender identity it needs does not exist yet, so no cutover has been run.
+
+## 2026-10-19 local follow-up
+
+The owner confirmed that a domain sender account has not yet been created. The admin page now accepts an alternate privacy contact only when the email belongs to an active DPO or privacy analyst in the same organization. Sentinel's deadline outbox asks that person alongside the DPO. In-app alerts also go to named recipients who may currently open the case, so a missing sender does not leave the alternate contact wholly unnotified. Alert text refers to recorded internal review targets until a jurisdiction rule is approved. These local changes are not a delivery confirmation. The live SMTP cutover remains pending account creation, a monitored Reply-To address, SPF, DKIM and DMARC, a secret supplied through the service environment, provider health checks, and a controlled message to a pilot recipient. No password belongs in a plan or in chat.

@@ -214,6 +214,12 @@
     </div>
 
     <!-- Step 3: Test -->
+    <div class="panel-card" style="margin-bottom:16px">
+      <div class="panel-title">Privacy deadline backup</div>
+      <label class="ef-label" for="fPrivacyBackup">Alternate privacy contact</label>
+      <input class="ef-input" id="fPrivacyBackup" type="email" autocomplete="off" placeholder="privacy-backup@yourdomain.com">
+      <div class="ef-hint">Must be an active DPO or Privacy Analyst in this organization. This person receives the same case reference and deadline alerts as the DPO. Leave blank to remove the backup.</div>
+    </div>
     <div class="panel-card">
       <div class="panel-title" style="margin-bottom:6px">3 · Test Connection</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
@@ -354,7 +360,7 @@ window.selectProvider = function(id) {
 // Reset button actually needs, so it always resolved even before this fix.
 const DIRTY_FIELD_IDS = ['fSmtpUser','fSmtpPass','fSmtpFrom','fSmtpUserMs','fSmtpPassMs','fSmtpFromMs',
   'fSmtpHostCustom','fSmtpPortCustom','fSmtpUserCustom','fSmtpPassCustom','fSmtpFromCustom',
-  'fTenantId','fClientId','fClientSecret','fGraphFrom'];
+  'fTenantId','fClientId','fClientSecret','fGraphFrom','fPrivacyBackup'];
 let lastLoadedSnapshot = null;
 
 function snapshotForm() {
@@ -398,6 +404,7 @@ async function loadConfig(throwOnError) {
     set('fClientId',      cfg.ms_client_id);
     set('fClientSecret',  cfg.ms_client_secret);
     set('fGraphFrom',     cfg.smtp_from);
+    document.getElementById('fPrivacyBackup').value = cfg.privacy_backup_email || '';
 
     // Sidebar status: what the sender really is, not which provider happens to be selected
     const h = cfg.health || {};
@@ -475,7 +482,7 @@ window.saveConfig = async function() {
   const prov = currentProvider;
   const get  = id => { const el=document.getElementById(id); return el ? el.value.trim() : ''; };
 
-  let body = { provider: prov };
+  let body = { provider: prov, privacy_backup_email: get('fPrivacyBackup') };
 
   if (prov === 'google') {
     body.smtp_host  = 'smtp.gmail.com';

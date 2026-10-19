@@ -64,6 +64,21 @@ def _aria_render(request: Request, template: str, context: dict,
                              active_section=active_section))
     return templates.TemplateResponse(request, template, context)
 
+
+def _publish_form_change(db, entity_type: str, record_id: int, before: dict) -> None:
+    """Tell confirmed linked records about material ARIA edits after the form save."""
+    table = {"document": "aria_documents", "risk": "aria_risks"}[entity_type]
+    try:
+        from modules.governance import change_signals
+        after = db.execute(f"SELECT * FROM {table} WHERE id=%s", (record_id,)).fetchone()
+        if after is not None:
+            change_signals.publish_record_change(
+                db, ("aria", entity_type), record_id, before, dict(after))
+            db.commit()
+    except Exception:
+        db.rollback()
+        swallowed(f"ARIA {entity_type} change signal")
+
 # -- Cross-framework mapping (static reference data) -------------------------
 
 CROSS_MAPPING = {
@@ -385,8 +400,10 @@ async def frameworks_list(request: Request):
                 "SELECT c.framework_id, COUNT(DISTINCT c.id) as mapped "
                 "FROM controls c "
                 "WHERE c.framework_id IN (SELECT id FROM frameworks WHERE is_active=1) "
-                "AND (c.id IN (SELECT source_control_id FROM aria_control_mappings) "
-                "     OR c.id IN (SELECT target_control_id FROM aria_control_mappings)) "
+                "AND (c.id IN (SELECT source_control_id FROM aria_control_mappings "
+                "              WHERE mapping_type IN ('equivalent','related','ims_equivalent','covers','partial')) "
+                "     OR c.id IN (SELECT target_control_id FROM aria_control_mappings "
+                "                 WHERE mapping_type IN ('equivalent','related','ims_equivalent','covers','partial'))) "
                 "GROUP BY c.framework_id"
             ).fetchall()
             for mr in map_rows:
@@ -428,7 +445,8 @@ async def frameworks_list(request: Request):
         if len(fw_ids) >= 2:
             try:
                 total_mappings = db.execute(
-                    "SELECT COUNT(*) FROM aria_control_mappings"
+                    "SELECT COUNT(*) FROM aria_control_mappings "
+                    "WHERE mapping_type IN ('equivalent','related','ims_equivalent','covers','partial')"
                 ).fetchone()[0]
                 total_ctrls = sum(f["total"] for f in fw_list)
                 total_mapped = sum(f["mapped_controls"] for f in fw_list)
@@ -530,6 +548,55 @@ async def framework_detail(request: Request, fw_id: int,
 
 
 # -- Control Update -----------------------------------------------------------
+
+@router.post("/api/controls/bulk-update")
+@require_module("aria")
+async def bulk_update_controls(request: Request):
+    """Apply a bounded set of authorized edits and publish one signal per changed control."""
+    from modules.governance.change_signals import publish_record_change
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid request body"}, status_code=400)
+    edits = body.get("edits") if isinstance(body, dict) else None
+    if not isinstance(edits, list) or not 1 <= len(edits) <= 100:
+        return JSONResponse({"error": "Choose 1 to 100 control edits"}, status_code=400)
+    user = request.state.user
+    allowed = {"status", "owner", "version"}
+    db = get_db()
+    try:
+        seen = set()
+        pending = []
+        for edit in edits:
+            if not isinstance(edit, dict) or type(edit.get("id")) is not int or edit["id"] < 1:
+                return JSONResponse({"error": "Every edit needs a valid control ID"}, status_code=400)
+            cid = edit["id"]
+            changes = {key: value for key, value in edit.items() if key != "id"}
+            if cid in seen or not changes or set(changes) - allowed:
+                return JSONResponse({"error": "Duplicate control or unsupported edit"}, status_code=400)
+            seen.add(cid)
+            if any(not isinstance(value, str) or not value.strip() or len(value) > 200
+                   for value in changes.values()):
+                return JSONResponse({"error": "Edits must be nonempty text of at most 200 characters"}, status_code=400)
+            old = db.execute("SELECT * FROM controls WHERE id=%s", (cid,)).fetchone()
+            if old is None or not _can_edit_control(user, dict(old)):
+                return JSONResponse({"error": "Control not found or not editable"}, status_code=404)
+            pending.append((cid, dict(old), {key: _s(value) for key, value in changes.items()}))
+        for cid, before, changes in pending:
+            fields = list(changes)
+            assignments = ", ".join(f"{field}=%s" for field in fields)
+            db.execute(f"UPDATE controls SET {assignments},last_updated=%s WHERE id=%s",
+                       [*(changes[field] for field in fields), utcnow().strftime("%Y-%m-%d"), cid])
+            after = db.execute("SELECT * FROM controls WHERE id=%s", (cid,)).fetchone()
+            publish_record_change(db, ("aria", "control"), cid, before, dict(after))
+        db.commit()
+        return JSONResponse({"updated": len(pending)})
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 @router.post("/control/{ctrl_id}/update")
 @require_module("aria")
@@ -723,6 +790,9 @@ async def api_controls(request: Request, fw_id: int):
 @require_module("aria")
 async def api_force_seed_controls(request: Request, fw_id: int):
     """Force-seed controls for a specific framework."""
+    user = request.state.user
+    if not has_capability(user, "aria.control.update_any"):
+        return JSONResponse({"error": "Not authorized"}, status_code=403)
     db = get_db()
     try:
         fw = db.execute(
@@ -766,7 +836,7 @@ async def api_force_seed_controls(request: Request, fw_id: int):
         count = 0
         for ctrl in seed_data:
             try:
-                db.execute(
+                changed = db.execute(
                     "INSERT INTO controls "
                     "(framework_id, ref, name, description, category, "
                     "doc_type, priority, last_updated) "
@@ -782,10 +852,9 @@ async def api_force_seed_controls(request: Request, fw_id: int):
                         utcnow().isoformat(),
                     ),
                 )
-                count += 1
+                count += max(changed.rowcount, 0)
             except Exception as e:
                 log.warning("Force-seed insert error: %s", e)
-        db.commit()
 
         # Update total
         final_count = db.execute(
@@ -796,6 +865,11 @@ async def api_force_seed_controls(request: Request, fw_id: int):
             "UPDATE frameworks SET total_controls=%s WHERE id=%s",
             (final_count, fw_id),
         )
+        from modules.governance.change_signals import publish_record_change
+        publish_record_change(db, ("aria", "framework"), fw_id,
+                              {"total_controls": existing},
+                              {"total_controls": final_count},
+                              kind="framework_controls_imported")
         db.commit()
 
         log.info("Force-seeded %d controls for '%s' (fw_id=%d)",
@@ -1241,6 +1315,8 @@ async def update_document(request: Request, doc_id: str,
                 params,
             )
             db.commit()
+
+            _publish_form_change(db, "document", doc["id"], doc)
 
             if review_date and review_date != (doc.get("review_date") or ""):
                 _schedule_review_reminder(
@@ -2074,6 +2150,7 @@ async def update_risk(request: Request, risk_id: int,
             params.append(risk_id)
             db.execute("UPDATE aria_risks SET " + ", ".join(updates) + " WHERE id=%s", params)
             db.commit()
+            _publish_form_change(db, "risk", risk_id, dict(old))
             log_audit(user, "aria", f"Updated risk #{risk_id} status={status}",
                       "risk", risk_id, old["risk_id"])
 
@@ -2118,6 +2195,7 @@ async def mapping_page(request: Request):
         db.close()
     return _aria_render(request, "mapping.html", {
         "user": user, "module": "aria",
+        "can_review_mapping": has_capability(user, "aria.control.update_any"),
         "frameworks": [dict(r) for r in active_frameworks],
         # Legacy static mapping kept for display-only fallback
         "static_mapping": CROSS_MAPPING,
@@ -2144,7 +2222,7 @@ async def api_list_control_mappings(request: Request):
             params = [fw1, fw1]
 
         rows = db.execute(f"""
-            SELECT m.id, m.mapping_type, m.notes, m.confidence, m.created_at,
+            SELECT m.id, m.mapping_type, m.notes, m.confidence, m.created_at, m.created_by,
                    sf.id AS source_fw_id, sf.name AS source_fw_name,
                    sc.id AS source_ctrl_id, sc.ref AS source_ref, sc.name AS source_name,
                    tf.id AS target_fw_id, tf.name AS target_fw_name,
@@ -2182,6 +2260,8 @@ async def api_framework_controls(request: Request, fw_id: int):
 async def api_create_control_mapping(request: Request):
     """Create a new cross-framework control mapping."""
     user = request.state.user
+    if not has_capability(user, "aria.control.update_any"):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
     from core.sanitize import sanitize_dict as _sd
     try:
         body = _sd(await request.json())
@@ -2192,6 +2272,8 @@ async def api_create_control_mapping(request: Request):
     mapping_type   = body.get("mapping_type", "equivalent")
     notes          = body.get("notes", "")
 
+    if mapping_type not in ("equivalent", "related", "covers", "partial"):
+        return JSONResponse({"error": "Invalid mapping type"}, status_code=400)
     if not source_ctrl_id or not target_ctrl_id:
         return JSONResponse({"ok": False, "error": "source_control_id and target_control_id are required"}, status_code=400)
     if source_ctrl_id == target_ctrl_id:
@@ -2232,6 +2314,8 @@ async def api_create_control_mapping(request: Request):
 @require_module("aria")
 async def api_delete_control_mapping(request: Request, mapping_id: int):
     """Delete a control mapping by ID."""
+    if not has_capability(request.state.user, "aria.control.update_any"):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
     db = get_db()
     try:
         db.execute("DELETE FROM aria_control_mappings WHERE id=%s", (mapping_id,))
@@ -2239,6 +2323,56 @@ async def api_delete_control_mapping(request: Request, mapping_id: int):
     finally:
         db.close()
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/control-mappings/{mapping_id}/review")
+@require_module("aria")
+async def api_review_control_mapping(request: Request, mapping_id: int):
+    """A second specialist accepts or rejects a proposed mapping before IMS uses it."""
+    user = request.state.user
+    if not has_capability(user, "aria.control.update_any"):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid request body"}, status_code=400)
+    decision = body.get("decision") if isinstance(body, dict) else None
+    reason = str(body.get("reason") or "").strip() if isinstance(body, dict) else ""
+    if decision not in ("accept", "reject") or not 10 <= len(reason) <= 500:
+        return JSONResponse({"error": "Choose accept or reject and give a reason of 10 to 500 characters"},
+                            status_code=400)
+    db = get_db()
+    try:
+        row = db.execute("SELECT mapping_type,notes,created_by FROM aria_control_mappings WHERE id=%s",
+                         (mapping_id,)).fetchone()
+        if row is None:
+            return JSONResponse({"error": "Mapping not found"}, status_code=404)
+        if row["mapping_type"] != "proposed":
+            return JSONResponse({"error": "Mapping is no longer awaiting review"}, status_code=409)
+        if row["created_by"] == user["id"]:
+            return JSONResponse({"error": "The proposer cannot review this mapping"}, status_code=403)
+        try:
+            proposal = json.loads(row["notes"] or "{}")
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "Mapping proposal is invalid"}, status_code=409)
+        suggested = proposal.get("suggested_type")
+        if suggested not in ("equivalent", "related"):
+            return JSONResponse({"error": "Mapping proposal is invalid"}, status_code=409)
+        proposal.update({"decision": decision, "reason": reason, "reviewed_by": user["id"],
+                         "reviewed_at": utcnow().isoformat()})
+        changed = db.execute(
+            "UPDATE aria_control_mappings SET mapping_type=%s,notes=%s "
+            "WHERE id=%s AND mapping_type='proposed'",
+            (suggested if decision == "accept" else "rejected", json.dumps(proposal), mapping_id),
+        ).rowcount
+        if changed != 1:
+            return JSONResponse({"error": "Mapping changed during review"}, status_code=409)
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "aria", "control_mapping_review", "control_mapping", mapping_id,
+              f"decision={decision}")
+    return JSONResponse({"ok": True, "decision": decision})
 
 
 @router.post("/api/control-mappings/auto-generate")
@@ -2251,6 +2385,8 @@ async def api_auto_generate_mappings(request: Request):
     """
     try:
         user = request.state.user
+        if not has_capability(user, "aria.control.update_any"):
+            return JSONResponse({"ok": False, "error": "Forbidden"}, status_code=403)
         try:
             from core.sanitize import sanitize_dict as _sd
             body = _sd(await request.json())
@@ -2535,7 +2671,7 @@ async def ai_generator_page(request: Request):
                     inserted = 0
                     for ctrl in seed_data:
                         try:
-                            db.execute(
+                            changed = db.execute(
                                 "INSERT INTO controls "
                                 "(framework_id, ref, name, description, "
                                 "category, doc_type, priority, last_updated)"
@@ -2551,11 +2687,10 @@ async def ai_generator_page(request: Request):
                                     utcnow().isoformat(),
                                 ),
                             )
-                            inserted += 1
+                            inserted += max(changed.rowcount, 0)
                         except Exception as ins_err:
                             log.warning("  Insert failed ref=%s: %s",
                                         ctrl.get("ref"), ins_err)
-                    db.commit()
                     log.info("  Inserted %d controls", inserted)
 
                     # Update framework total
@@ -2565,6 +2700,14 @@ async def ai_generator_page(request: Request):
                         "WHERE framework_id = %s) WHERE id = %s",
                         (fw_id, fw_id),
                     )
+                    final_total = db.execute(
+                        "SELECT total_controls FROM frameworks WHERE id=%s", (fw_id,),
+                    ).fetchone()[0]
+                    from modules.governance.change_signals import publish_record_change
+                    publish_record_change(db, ("aria", "framework"), fw_id,
+                                          {"total_controls": fw["total_controls"]},
+                                          {"total_controls": final_total},
+                                          kind="framework_controls_imported")
                     db.commit()
 
                     # Re-fetch
@@ -2729,12 +2872,14 @@ async def api_generate_policy(request: Request,
                     JOIN controls c   ON c.id = m.target_control_id
                     JOIN frameworks f ON f.id = m.target_framework_id
                     WHERE m.source_control_id = %s AND m.target_framework_id = %s
+                      AND m.mapping_type IN ('equivalent','related','ims_equivalent','covers','partial')
                     UNION
                     SELECT c.ref, c.name, c.description, f.name AS fw_name
                     FROM aria_control_mappings m
                     JOIN controls c   ON c.id = m.source_control_id
                     JOIN frameworks f ON f.id = m.source_framework_id
                     WHERE m.target_control_id = %s AND m.source_framework_id = %s
+                      AND m.mapping_type IN ('equivalent','related','ims_equivalent','covers','partial')
                 """, (control_id, tfw_id, control_id, tfw_id)).fetchall()
                 for row in mapped:
                     integrated_frameworks.append({

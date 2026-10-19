@@ -63,13 +63,15 @@
   </select>
   <label for="myWorkGroup">Group by</label><select id="myWorkGroup"><option value="">No grouping</option>
     <option value="source">Source module</option><option value="business_unit">Business unit</option>
-    <option value="parent">AI use or audit</option>
+    <option value="parent">AI use or audit</option><option value="vendor">Vendor</option>
+    <option value="process">Business process</option>
   </select>
   <button type="button" class="btn btn-secondary" id="myWorkApply">Apply</button>
   <label for="myWorkSaved">Saved filters</label><select id="myWorkSaved"><option value="">Choose a filter</option></select>
   <button type="button" class="btn btn-secondary" id="myWorkSave">Save current</button>
   <button type="button" class="btn btn-secondary" id="myWorkDelete">Delete selected</button>
 </div>
+<p class="mywork-team-note" id="myWorkGroupingNote" hidden>Vendor groups use the provider of AI uses and confirmed vendor links from source records you can open. Process groups use confirmed links to business processes. An action linked to several vendors or processes appears in each relevant group.</p>
 <div id="myTeam" hidden>
   <p class="mywork-team-note" id="myTeamNote" role="status"></p>
   <div class="mywork-team-controls">

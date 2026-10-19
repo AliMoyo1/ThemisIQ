@@ -18,7 +18,7 @@ register_view_schema("platform", "my_work", allowed_params={"source", "section",
 SECTIONS = ("needs_my_action", "waiting_on_others", "due_soon", "overdue", "recently_changed", "recently_completed")
 # How the list can be grouped (plans/2026-10-governance-rework/04 section 3). Grouping is presentation only: it never
 # changes which items are returned or how they page.
-GROUPS = ("", "source", "business_unit", "parent")
+GROUPS = ("", "source", "business_unit", "parent", "vendor", "process")
 
 
 def _section_for(status_bucket: str, due_date: "str | None") -> str:
@@ -219,6 +219,7 @@ def _grid_ncs(db, user, scope):
         "link": f"/grid/?open=nc:{r['id']}", "section": _section_for(
             "open" if r["assigned_to"] == user["id"] else "waiting", r["due_date"]),
         "context": {"kind": "audit", "id": r["audit_id"], "title": r["audit_name"]},
+        "group_source": ("grid", "nc", r["id"]),
     } for r in rows]
 
 
@@ -238,7 +239,53 @@ def _erm_reviews(db, user, scope):
         "org_id": user.get("org_id"), "business_unit_id": r["business_unit_id"],
         "link": f"/erm/?open=risk:{r['id']}", "section": _section_for(
             "open" if r["reviewer_id"] == user["id"] else "waiting", r["review_date"]),
+        "group_source": ("erm", "risk", r["id"]),
     } for r in rows]
+
+
+def _erm_acceptance_actions(db, user, scope):
+    """Project pending decisions and due reviews from ERM's own decision record."""
+    if not (has_capability(user, "erm.acceptance.decide") or
+            has_capability(user, "erm.acceptance.propose")):
+        return []
+    from core.timeutils import utcnow
+    from modules.erm.acceptance import _snapshot
+    where, params = _bu_filter("r.business_unit_id", scope)
+    rows = db.execute(
+        "SELECT a.id AS acceptance_id, a.risk_id, a.status AS acceptance_status, "
+        "a.proposed_by, a.review_on, a.expires_on, "
+        "a.source_hash, r.* FROM erm_risk_acceptances a "
+        "JOIN erm_enterprise_risks r ON r.id=a.risk_id "
+        f"WHERE a.org_id=%s AND a.status IN ('submitted','approved') AND {where} "
+        "ORDER BY a.id DESC LIMIT 100",
+        [user.get("org_id"), *params],
+    ).fetchall()
+    today = utcnow().strftime("%Y-%m-%d")
+    items = []
+    for row in rows:
+        r = dict(row)
+        if r["acceptance_status"] == "submitted":
+            if not has_capability(user, "erm.acceptance.decide") or r["proposed_by"] == user["id"]:
+                continue
+            label, due, action = "Decide risk acceptance", None, "decide_risk_acceptance"
+        else:
+            if r["owner_id"] != user["id"]:
+                continue
+            _, fingerprint = _snapshot(db, r)
+            changed = fingerprint != r["source_hash"]
+            if not changed and str(r["review_on"])[:10] > today and str(r["expires_on"])[:10] > today:
+                continue
+            label = "Reassess changed acceptance" if changed else "Review expiring acceptance"
+            due, action = today if changed else r["review_on"], "review_risk_acceptance"
+        items.append({
+            "source_module": "erm", "entity_type": "risk_acceptance", "entity_id": r["acceptance_id"],
+            "action": action, "title": f"{label}: {r['title']}",
+            "due_date": due, "priority": "high", "org_id": user.get("org_id"),
+            "business_unit_id": r["business_unit_id"],
+            "link": f"/erm/?open=risk:{r['risk_id']}", "section": _section_for("open", due),
+            "group_source": ("erm", "risk", r["risk_id"]),
+        })
+    return items
 
 
 def _orm_reviews(db, user, scope):
@@ -255,6 +302,7 @@ def _orm_reviews(db, user, scope):
         "due_date": r["response_due_at"], "priority": r["severity"] or "medium",
         "org_id": user.get("org_id"), "business_unit_id": r["business_unit_id"],
         "link": f"/orm/?open=event:{r['id']}", "section": _section_for("open", r["response_due_at"]),
+        "group_source": ("orm", "event", r["id"]),
     } for r in rows]
 
 
@@ -272,6 +320,7 @@ def _bcm_incidents(db, user, scope):
         "due_date": None, "priority": r["severity"] or "high",
         "org_id": user.get("org_id"), "business_unit_id": r["business_unit_id"],
         "link": f"/bcm/?open=incident:{r['id']}", "section": "needs_my_action",
+        "group_source": ("bcm", "incident", r["id"]),
     } for r in rows]
 
 
@@ -288,6 +337,7 @@ def _privacy_deadlines(db, user, scope):
         "due_date": r["deadline_date"], "priority": "high",
         "org_id": user.get("org_id"), "business_unit_id": r["business_unit_id"],
         "link": f"/sentinel/?open=dsr:{r['id']}", "section": _section_for("open", r["deadline_date"]),
+        "group_source": ("sentinel", "dsr", r["id"]),
     } for r in dsrs]
     if has_capability(user, "sentinel.breach.manage"):
         breaches = db.execute(
@@ -303,6 +353,7 @@ def _privacy_deadlines(db, user, scope):
             "org_id": user.get("org_id"), "business_unit_id": r["business_unit_id"],
             "link": f"/sentinel/?open=breach:{r['id']}",
             "section": _section_for("open", r["notify_deadline"]),
+            "group_source": ("sentinel", "breach", r["id"]),
         } for r in breaches)
     return result
 
@@ -335,6 +386,19 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
                     f"/ai-governance/literacy/{course['id']}", "open",
                     due=course["due_at"][:10] if course["due_at"] else None,
                     priority="high" if course["state"] in ("overdue", "expired") else "medium")
+
+    if not has_capability(user, "ai_use.view"):
+        # Former authors may open only their own requests. They cannot open a
+        # system, decision or condition through the specialist workspace.
+        if has_capability(user, "ai_use.submit"):
+            for row in db.execute(
+                    "SELECT id, payload, business_unit_id FROM ai_use_intake_requests "
+                    "WHERE status = 'returned' AND submitted_by = %s ORDER BY updated_at DESC LIMIT 50",
+                    (user["id"],)).fetchall():
+                add("ai_intake_returned", row["id"], "view",
+                    f"View your AI use request: {_intake_name(row['payload'])}",
+                    f"/ai-governance/requests/{row['id']}", "open", unit=row["business_unit_id"])
+        return items
 
     # decisions waiting
     can_decide = has_capability(user, "ai_use.decide")
@@ -458,7 +522,9 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
     for r in db.execute(
             "SELECT r.id, r.payload, r.business_unit_id FROM ai_use_intake_requests r "
             "WHERE r.status = 'returned' AND r.submitted_by = %s ORDER BY r.updated_at DESC LIMIT 50", (user["id"],)).fetchall():
-        add("ai_intake_returned", r["id"], "update_ai_request", f"Update your AI use request: {_intake_name(r['payload'])}",
+        can_edit = has_capability(user, "ai_use.intake_create")
+        add("ai_intake_returned", r["id"], "update_ai_request" if can_edit else "view",
+            f"{'Update' if can_edit else 'View'} your AI use request: {_intake_name(r['payload'])}",
             f"/ai-governance/requests/{r['id']}", "open", unit=r["business_unit_id"])
     return items
 
@@ -504,6 +570,123 @@ _KIND = (("decide", "decide"), ("review", "review"), ("respond", "respond"), ("n
          ("acknowledge", "acknowledge"), ("request", "decide"))
 _STATUTORY = ("notify_authority", "respond_to_dsr")
 _CONTEXT_LABELS = {"ai_use": "AI use", "audit": "Audit"}
+_WORK_GROUP_TABLES = {
+    ("orm", "event"): "orm_events", ("erm", "risk"): "erm_enterprise_risks",
+    ("grid", "nc"): "grid_non_conformances", ("bcm", "incident"): "bcm_incidents",
+    ("sentinel", "dsr"): "sentinel_dsr", ("sentinel", "breach"): "sentinel_breaches",
+}
+
+
+def _link_source_type(key: tuple, column: str) -> tuple[str, list]:
+    """Accept the older GRID non_conformance spelling on saved links."""
+    if key == ("grid", "nc"):
+        return f"{column} IN (%s,%s)", ["nc", "non_conformance"]
+    return f"{column}=%s", [key[1]]
+
+
+def _linked_group_contexts(db, user: dict, items: list, group: str) -> None:
+    """Add vendor or process display groups to already authorized work.
+
+    Only confirmed source relationships qualify. Both endpoints are scoped again
+    at query time; a hidden process never contributes a title, ID, or count.
+    """
+    app_ids = sorted({item["context"]["id"] for item in items
+                      if item.get("context") and item["context"].get("kind") == "ai_use"})
+    from modules.governance.entity_scope import entity_scope_sql, may_view_kind
+
+    found: dict[tuple, list[dict]] = {}
+    if group == "vendor":
+        if app_ids:
+            app_scope, app_params = entity_scope_sql(("governance", "application"), user, "a")
+            marks = ",".join(["%s"] * len(app_ids))
+            rows = db.execute(
+                "SELECT a.id AS app_id, cv.id AS group_id, cv.name AS group_name "
+                "FROM applications a JOIN canonical_vendors cv ON cv.id=a.vendor_id "
+                f"WHERE a.id IN ({marks}) AND {app_scope}",
+                [*app_ids, *app_params],
+            ).fetchall()
+            for row in rows:
+                found[("governance", "application", row["app_id"])] = [
+                    {"kind": "vendor", "id": row["group_id"], "title": row["group_name"]}]
+        vendor_tables = {("grid", "vendor"): "grid_vendors", ("bcm", "vendor"): "bcm_vendors",
+                         ("sentinel", "vendor"): "sentinel_vendors"}
+        for source_key, source_table in _WORK_GROUP_TABLES.items():
+            source_ids = sorted({item["group_source"][2] for item in items
+                                 if item.get("group_source") and item["group_source"][:2] == source_key})
+            if not source_ids:
+                continue
+            source_scope, source_params = entity_scope_sql(source_key, user, "a")
+            marks = ",".join(["%s"] * len(source_ids))
+            for vendor_key, vendor_table in vendor_tables.items():
+                if not may_view_kind(user, vendor_key):
+                    continue
+                vendor_scope, vendor_params = entity_scope_sql(vendor_key, user, "v")
+                for source_col, vendor_col in (("source", "target"), ("target", "source")):
+                    source_type_sql, source_type_params = _link_source_type(source_key, f"l.{source_col}_type")
+                    rows = db.execute(
+                        "SELECT a.id AS record_id, v.id AS vendor_id, v.name AS vendor_name, "
+                        "cv.id AS canonical_id, cv.name AS canonical_name FROM cross_module_links l "
+                        f"JOIN {source_table} a ON a.id=l.{source_col}_id "
+                        f"JOIN {vendor_table} v ON v.id=l.{vendor_col}_id "
+                        "LEFT JOIN canonical_vendors cv ON cv.id=v.canonical_id "
+                        f"WHERE l.{source_col}_module=%s AND {source_type_sql} "
+                        f"AND l.{vendor_col}_module=%s AND l.{vendor_col}_type=%s "
+                        "AND COALESCE(l.status,'confirmed')='confirmed' "
+                        f"AND a.id IN ({marks}) AND {source_scope} AND {vendor_scope}",
+                        [source_key[0], *source_type_params, *vendor_key, *source_ids,
+                         *source_params, *vendor_params],
+                    ).fetchall()
+                    for row in rows:
+                        canonical_id = row["canonical_id"]
+                        context = {"kind": "vendor",
+                                   "id": canonical_id if canonical_id else f"{vendor_key[0]}:{row['vendor_id']}",
+                                   "title": row["canonical_name"] if canonical_id else
+                                   f"{vendor_key[0].upper()}: {row['vendor_name']}"}
+                        contexts = found.setdefault((*source_key, row["record_id"]), [])
+                        if not any(existing["id"] == context["id"] for existing in contexts):
+                            contexts.append(context)
+        for contexts in found.values():
+            contexts.sort(key=lambda context: str(context["id"]))
+    else:
+        process_scope, process_params = entity_scope_sql(("governance", "process"), user, "bp")
+        sources = {("governance", "application"): ("applications", set(app_ids))}
+        sources.update({key: (table, set()) for key, table in _WORK_GROUP_TABLES.items()})
+        for item in items:
+            source = item.get("group_source")
+            if source and source[:2] in sources:
+                sources[source[:2]][1].add(source[2])
+        for key, (table, ids) in sources.items():
+            if not ids:
+                continue
+            source_scope, source_params = entity_scope_sql(key, user, "a")
+            marks = ",".join(["%s"] * len(ids))
+            for source_col, process_col in (("source", "target"), ("target", "source")):
+                source_type_sql, source_type_params = _link_source_type(key, f"l.{source_col}_type")
+                rows = db.execute(
+                    "SELECT a.id AS record_id, bp.id AS group_id, bp.name AS group_name "
+                    "FROM cross_module_links l "
+                    f"JOIN {table} a ON a.id=l.{source_col}_id "
+                    f"JOIN business_processes bp ON bp.id=l.{process_col}_id "
+                    f"WHERE l.{source_col}_module=%s AND {source_type_sql} "
+                    f"AND l.{process_col}_module='governance' AND l.{process_col}_type='process' "
+                    "AND l.relationship IN ('related','supports','depends_on') "
+                    "AND COALESCE(l.status,'confirmed')='confirmed' "
+                    f"AND a.id IN ({marks}) AND {source_scope} AND {process_scope}",
+                    [key[0], *source_type_params, *sorted(ids), *source_params, *process_params],
+                ).fetchall()
+                for row in rows:
+                    context = {"kind": "process", "id": row["group_id"], "title": row["group_name"]}
+                    contexts = found.setdefault((*key, row["record_id"]), [])
+                    if not any(existing["id"] == context["id"] for existing in contexts):
+                        contexts.append(context)
+        for contexts in found.values():
+            contexts.sort(key=lambda context: context["id"])
+    for item in items:
+        context = item.get("context")
+        if context and context.get("kind") == "ai_use":
+            item["group_contexts"] = found.get(("governance", "application", context["id"]), [])
+        elif item.get("group_source"):
+            item["group_contexts"] = found.get(tuple(item["group_source"]), [])
 
 
 def _action_kind(action: str) -> str:
@@ -564,10 +747,28 @@ def _group_of(item: dict, how: str, unit_names: dict) -> tuple:
     if how == "business_unit":
         unit = item.get("business_unit_id")
         return str(unit or 0), unit_names.get(unit) or "Whole organization"
+    if how in ("vendor", "process"):
+        contexts = item.get("group_contexts") or []
+        if contexts:
+            first = contexts[0]
+            return f"{first['kind']}:{first['id']}", f"{first['kind'].title()}: {first['title']}"
+        if item.get("group_source"):
+            return "unlinked_record", f"Source records with no visible linked {how}"
+        if (item.get("context") or {}).get("kind") == "ai_use":
+            return "unlinked_ai_use", f"AI uses with no visible linked {how}"
+        return "other_work", "Other work (source grouping pending)"
     ctx = item.get("context")
     if ctx:
         return f"{ctx['kind']}:{ctx['id']}", f"{_CONTEXT_LABELS.get(ctx['kind'], ctx['kind'])}: {ctx['title']}"
     return "none", "No parent record"
+
+
+def _groups_of(item: dict, how: str, unit_names: dict) -> list[tuple]:
+    """An action linked to several vendors or processes belongs to each group."""
+    if how in ("vendor", "process") and item.get("group_contexts"):
+        return [(f"{ctx['kind']}:{ctx['id']}", f"{ctx['kind'].title()}: {ctx['title']}")
+                for ctx in item["group_contexts"]]
+    return [_group_of(item, how, unit_names)]
 
 
 def _item_key(item: dict) -> tuple:
@@ -602,6 +803,7 @@ def _collect(db, user: dict, scope, only=None) -> tuple:
         ("workflow_actions", None, lambda: _workflow_actions(db, user)),
         ("grid_non_conformances", "grid", lambda: _grid_ncs(db, user, scope)),
         ("erm_reviews", "erm", lambda: _erm_reviews(db, user, scope)),
+        ("erm_acceptances", "erm", lambda: _erm_acceptance_actions(db, user, scope)),
         ("orm_reviews", "orm", lambda: _orm_reviews(db, user, scope)),
         ("bcm_incidents", "bcm", lambda: _bcm_incidents(db, user, scope)),
         ("privacy_deadlines", "sentinel", lambda: _privacy_deadlines(db, user, scope)),
@@ -637,7 +839,8 @@ def _collect(db, user: dict, scope, only=None) -> tuple:
 
 
 def get_my_work(user: dict, *, source: str = "", section: str = "",
-                q: str = "", cursor: str | None = None, page_size: int = 50, group: str = "") -> dict:
+                q: str = "", cursor: str | None = None, page_size: int = 50, group: str = "",
+                only_sources: frozenset[str] | None = None) -> dict:
     """Federate live sources with stable keyset paging and personal filters."""
     if section and section not in SECTIONS:
         raise ValueError("Invalid section.")
@@ -650,7 +853,18 @@ def get_my_work(user: dict, *, source: str = "", section: str = "",
     scope = bu_scope_ids(user)
     unit_names = {}
     try:
-        all_items, source_states = _collect(db, user, scope)
+        all_items, source_states = _collect(db, user, scope, only=only_sources)
+        if group in ("vendor", "process"):
+            try:
+                group_items = [item for item in all_items
+                               if (not source or item["source_module"] == source)
+                               and (not section or item["section"] == section)
+                               and (not q or q.casefold() in item["title"].casefold())]
+                _linked_group_contexts(db, user, group_items, group)
+            except Exception:
+                db.rollback()
+                log.exception("My Work linked %s groups could not be read", group)
+                source_states.append({"source": f"{group}_grouping", "state": "degraded"})
         if group == "business_unit":
             try:
                 unit_names = {r["id"]: r["name"] for r in db.execute("SELECT id, name FROM business_units").fetchall()}
@@ -677,10 +891,12 @@ def get_my_work(user: dict, *, source: str = "", section: str = "",
     if group:
         index = {}
         for item in visible:
-            key, label = _group_of(item, group, unit_names)
-            index.setdefault(key, {"key": key, "label": label, "count": 0})["count"] += 1
+            for key, label in _groups_of(item, group, unit_names):
+                index.setdefault(key, {"key": key, "label": label, "count": 0})["count"] += 1
         for item in page:
-            item["group_key"] = _group_of(item, group, unit_names)[0]
+            keys = [key for key, _ in _groups_of(item, group, unit_names)]
+            item["group_key"] = keys[0]
+            item["group_keys"] = keys
         groups = sorted(index.values(), key=lambda g: (-g["count"], g["label"]))
     for item in page:
         sections[item["section"]].append(item)
