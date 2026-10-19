@@ -228,6 +228,17 @@ def test_postgres_script_splitter_discards_comments_before_semicolon_split():
     )
 
 
+def test_postgres_erm_risk_acceptance_timestamp_defaults_are_converted():
+    schema = database._ERM_ORM_TABLES_PG
+    for table in ("erm_risk_acceptances", "erm_risk_acceptance_events"):
+        statement = next(
+            statement for statement in database._pg_script_statements(schema)
+            if statement.startswith(f"CREATE TABLE IF NOT EXISTS {table} ")
+        )
+        assert "TIMESTAMPTZ NOT NULL DEFAULT NOW()" in statement
+        assert "datetime('now')" not in statement
+
+
 class _SavepointConnection:
     """Raw connection stand-in: records statements, fails any that contain 'boom'."""
 

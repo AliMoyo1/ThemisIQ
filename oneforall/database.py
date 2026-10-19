@@ -5941,6 +5941,7 @@ _PG_SCHEMA_SUBS = [
     # Primary key sequence
     (re.compile(r'\bINTEGER PRIMARY KEY AUTOINCREMENT\b'), "SERIAL PRIMARY KEY"),
     # Timestamp column type + default
+    (re.compile(r"\bTEXT NOT NULL DEFAULT \(datetime\('now'\)\)"), "TIMESTAMPTZ NOT NULL DEFAULT NOW()"),
     (re.compile(r"\bTEXT DEFAULT \(datetime\('now'\)\)"), "TIMESTAMPTZ DEFAULT NOW()"),
     (re.compile(r"\bTEXT DEFAULT \(date\('now'\)\)"), "DATE DEFAULT CURRENT_DATE"),
     # Float columns
