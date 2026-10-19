@@ -1892,7 +1892,7 @@ def test_vault_rescoring_and_grid_reattach_run_on_real_postgres(pg):
     vault._rescore_controls([control])  # a fresh connection, after the change committed
     assert _raw_rows("SELECT score FROM control_effectiveness_scores WHERE control_id = %s", (control,)) == [(10,)]
 
-    first = grid_ds.attach_vault_item_to_grid_control(grid_control, item, None)
+    first = grid_ds.attach_vault_item_to_grid_control(grid_control, item, None, {"is_super_admin": True})
     conn = pg.get_db_bypass_rls()
     try:
         conn.execute(
@@ -1900,7 +1900,7 @@ def test_vault_rescoring_and_grid_reattach_run_on_real_postgres(pg):
         conn.commit()
     finally:
         conn.close()
-    assert grid_ds.attach_vault_item_to_grid_control(grid_control, item, None) == first
+    assert grid_ds.attach_vault_item_to_grid_control(grid_control, item, None, {"is_super_admin": True}) == first
     assert _raw_rows(
         "SELECT count(*) FILTER (WHERE deleted_at IS NULL), count(*) FROM evidence_links "
         "WHERE module = 'grid' AND entity_type = 'control' AND entity_id = %s", (grid_control,)) == [(1, 2)]
@@ -2904,12 +2904,13 @@ def test_ai_policy_allowance_and_usage_run_inside_each_tenant_on_real_postgres(p
 
 # ── AI governance intake, inventory and workspace (G2) ───────────────────────
 
-def _ai_governance_world(pg, slug, provision=True):
+def _ai_governance_world(pg, slug, provision=True, author_role=None):
     """An organization with one unit, an author and two reviewers; returns (org, unit, users, personas).
 
     A provisioned organization keeps its data in its own schema, where users (a shared table) cannot be assigned a
     unit that only exists there; an unprovisioned one lives in the shared schema and its users do carry the unit."""
     from core import rbac
+    author_role = author_role or rbac.COMPLIANCE_MGR
 
     org = _make_org(pg, slug, provision=provision)
     conn = pg.get_db_bypass_rls()
@@ -2920,7 +2921,7 @@ def _ai_governance_world(pg, slug, provision=True):
         ids = {name: pg.insert_returning_id(
             conn, "INSERT INTO users (username, email, full_name, password_hash, org_id, business_unit_id) VALUES (%s, %s, %s, 'x', %s, %s)",
             (f"{slug}_{name}", f"{slug}_{name}@example.test", name, org, unit)) for name in ("author", "reviewer", "second")}
-        for name, role in (("author", rbac.EMPLOYEE), ("reviewer", rbac.DPO), ("second", rbac.DPO)):
+        for name, role in (("author", author_role), ("reviewer", rbac.DPO), ("second", rbac.DPO)):
             conn.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (ids[name], role))
         conn.commit()
     finally:
@@ -2933,7 +2934,7 @@ def _ai_governance_world(pg, slug, provision=True):
                 db.commit()
             finally:
                 db.close()
-    roles = {"author": rbac.EMPLOYEE, "reviewer": rbac.DPO, "second": rbac.DPO}
+    roles = {"author": author_role, "reviewer": rbac.DPO, "second": rbac.DPO}
     personas = {name: {"id": ids[name], "username": f"{slug}_{name}", "org_id": org, "business_unit_id": unit,
                        "is_super_admin": 0, "roles": [roles[name]]} for name in ids}
     return org, unit, ids, personas
@@ -3917,7 +3918,7 @@ def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
     from modules.ai_governance import literacy, platform_features
 
     pg.init_db()
-    org, _unit, ids, who = _ai_governance_world(pg, "g6bc")
+    org, _unit, ids, who = _ai_governance_world(pg, "g6bc", author_role=rbac.EMPLOYEE)
     feature = next(iter(FEATURES))
     assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_g6bc' "
                      "AND table_name = 'platform_ai_features'") == [(0,)]
@@ -4095,11 +4096,12 @@ def test_the_predictive_trace_and_the_team_view_run_inside_a_tenant_on_real_post
     from datetime import timedelta
 
     from core import predictive_risk as pr
+    from core import rbac
     from core.timeutils import utcnow
     from modules.launcher import my_work_service, predictive_trace
 
     pg.init_db()
-    org, unit, ids, who = _ai_governance_world(pg, "traceorg")
+    org, unit, ids, who = _ai_governance_world(pg, "traceorg", author_role=rbac.EMPLOYEE)
     assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_traceorg' "
                      "AND table_name = 'ai_risk_prediction_notes'") == [(1,)]
     shared = pg.get_db_bypass_rls()
