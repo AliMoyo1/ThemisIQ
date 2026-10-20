@@ -162,3 +162,7 @@ The section by section content is in [features-page-content.md](features-page-co
 - 2026-10-20: owner decisions 1 to 3 recorded; content breakdown written in features-page-content.md.
 - 2026-10-20: owner decisions 4 to 6 recorded (all jurisdictions, predictive risk panel, general framing).
 - 2026-10-20: added the policy authoring studio to ARIA, the "AI across the platform" section, and how ARIA connects to AIIAs, DPIAs and continuity plans. Found: the live landing page's assisted drafting panel lists AIIA, but no AI drafting exists for AIIAs; remove it from that panel or build it before launch.
+- 2026-10-20: step 2 done as a generated sheet: `capability-sheet.md` from `build_capability_sheet.py` against `origin/master`.
+  139 lines, all backed by code; 17 lines prove only that the module file exists (`.` pattern) and need a closer look
+  when their copy is reviewed; 3 lines have no matching tests (input wrapping, ARIA gap analysis, ORM RCSA actions).
+  The input wrapping line is held until security finding M3 is fixed.
