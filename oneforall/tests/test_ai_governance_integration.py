@@ -199,7 +199,7 @@ def test_a_vendor_or_process_said_to_use_ai_reaches_the_reviewers_until_a_use_co
     process = _insert(world.db, "business_processes", name="Claims triage", business_unit_id=world.unit["A"], is_active=1)
     hidden = _insert(world.db, "business_processes", name="Unit B triage", business_unit_id=world.unit["B"], is_active=1)
     world.db.commit()
-    assert http("put", f"/ai-governance/api/flags/vendor/{vendor}", name="employee_a", json={"answer": "yes"}).status_code == 403
+    assert http("put", f"/ai-governance/api/flags/vendor/{vendor}", name="staff_a", json={"answer": "yes"}).status_code == 403
     assert http("put", f"/ai-governance/api/flags/vendor/{vendor}", name="dpo_a", json={"answer": "maybe"}).status_code == 422
     assert http("put", f"/ai-governance/api/flags/vendor/{vendor}", name="dpo_a", json={"answer": "yes", "note": "Chat assistant"}).status_code == 200
     assert http("put", f"/ai-governance/api/flags/vendor/{other}", name="dpo_a", json={"answer": "no"}).status_code == 200
@@ -211,7 +211,7 @@ def test_a_vendor_or_process_said_to_use_ai_reaches_the_reviewers_until_a_use_co
     queue = http("get", "/ai-governance/api/flags", name="dpo_a").json()["items"]
     assert [(i["kind"], i["name"], i["answer"]) for i in queue] == [("vendor", "Acme Cloud", "yes"), ("process", "Claims triage", "unknown")]
     assert queue[0]["register_url"] == "/ai-governance/register?source=vendor:%d&name=Acme%%20Cloud" % vendor
-    assert http("get", "/ai-governance/api/flags", name="employee_a").status_code == 403
+    assert http("get", "/ai-governance/api/flags", name="staff_a").status_code == 403
 
     # an AI use that names the vendor takes it off the list
     app = _insert(world.db, "applications", name="Acme chat", business_unit_id=world.unit["A"], vendor_id=vendor, is_active=1)

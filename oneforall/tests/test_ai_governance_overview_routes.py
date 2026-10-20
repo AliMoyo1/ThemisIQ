@@ -45,12 +45,13 @@ def test_the_landing_page_is_the_overview_and_the_inventory_moved_to_systems(htt
     assert "aigPortfolio" in http("get", "/ai-governance/monitoring", name="dpo_a").text
 
 
-def test_a_specialist_gets_the_cards_and_staff_get_their_own(http):
+def test_specialists_get_the_cards_and_general_staff_cannot_open_the_overview(http):
     mine = http("get", "/ai-governance/api/overview", name="dpo_a").json()
     assert mine["ok"] is True and mine["viewer"]["specialist"] is True
     assert [c["key"] for c in mine["cards"]][:2] == ["new_requests", "waiting_for_information"]
-    staff = http("get", "/ai-governance/api/overview", name="employee_a").json()
-    assert staff["viewer"]["specialist"] is False and [c["key"] for c in staff["cards"]] == ["my_requests", "my_systems"]
+    colleague = http("get", "/ai-governance/api/overview", name="employee_a").json()
+    assert colleague["viewer"]["specialist"] is True
+    assert http("get", "/ai-governance/api/overview", name="staff_a").status_code == 403
 
 
 def test_the_overview_counts_a_submitted_request_for_its_unit_only(http):

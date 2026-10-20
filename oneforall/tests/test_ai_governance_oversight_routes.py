@@ -9,7 +9,8 @@ from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 def _system(http):
     world = http.world
     for name, (role, _) in PERSONAS.items():
-        world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (world.users[name]["id"], role))
+        world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                         (world.users[name]["id"], role))
     app = _insert(world.db, "applications", name="Oversight app", business_unit_id=world.unit["A"], is_active=1)
     hidden = _insert(world.db, "applications", name="Hidden app", business_unit_id=world.unit["B"], is_active=1)
     _insert(world.db, "ai_use_profiles", application_id=app, version=1)
@@ -25,7 +26,7 @@ def test_oversight_api_requires_access_and_hides_other_units(http):
         assert response.status_code == 404 and response.json() == {"ok": False, "error": "AI use not found."}
         assert response.headers["cache-control"] == "private, no-store"
     assert http("get", base, name="auditor").status_code == 403
-    assert http("put", base, name="employee_a", json={"revision": 0, "arrangement": COMPLETE}).status_code == 403
+    assert http("put", base, name="staff_a", json={"revision": 0, "arrangement": COMPLETE}).status_code == 403
     assert http("get", base, name="dpo_a").json()["oversight"]["current"] is None
     assert http("get", base, name="dpo_a").headers["cache-control"] == "private, no-store"
 

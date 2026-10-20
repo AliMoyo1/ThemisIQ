@@ -310,7 +310,7 @@ def test_nobody_signed_out_and_no_outsider_reaches_a_response(http):
         extra = {} if method == "get" else {"json": {}}
         assert http(method, f"{API}{tail}", name=None, **extra).status_code == 303, tail
         assert http(method, f"{API}{tail}", name="auditor", **extra).status_code == 403, tail
-        assert http(method, f"{API}{tail}", name="employee_a", **extra).status_code == 403, tail
+        assert http(method, f"{API}{tail}", name="staff_a", **extra).status_code == 403, tail
 
 
 def test_the_whole_journey_through_http(http):

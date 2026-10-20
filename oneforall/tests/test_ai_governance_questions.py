@@ -127,13 +127,13 @@ def test_the_workspace_names_the_request_a_use_came_from_for_a_reviewer_only(wor
 def test_questions_through_http(http):
     row = _submit(http, "employee_a")
     base = f"/ai-governance/api/requests/{row['id']}/questions"
-    assert http("post", base, name="employee_a", json={"questions": ["Is this fine?"]}).status_code == 403
+    assert http("post", base, name="staff_a", json={"questions": ["Is this fine?"]}).status_code == 403
     assert http("post", base, name="dpo_b", json={"questions": ["Is this fine?"]}).status_code == 404
     made = http("post", base, name="dpo_a", json={"questions": ["Which vendor contract covers this?"]})
     assert made.status_code == 201 and made.json()["open"] == 1
     assert http("post", base, name="dpo_a", content=b"[1]", headers={"content-type": "application/json"}).status_code == 400
     listed = http("get", base, name="employee_a").json()
-    assert listed["ok"] is True and listed["questions"][0]["status"] == "open" and listed["can_ask"] is False
+    assert listed["ok"] is True and listed["questions"][0]["status"] == "open" and listed["can_ask"] is True
     assert http("get", base, name="auditor").status_code == 403
     exported = http("post", base + "/export", name="dpo_a", json={})
     assert exported.status_code == 200 and "1. Which vendor contract covers this?" in exported.json()["text"]

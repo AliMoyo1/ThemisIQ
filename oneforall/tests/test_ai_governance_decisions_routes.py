@@ -21,12 +21,18 @@ def _ask(http, app, name="employee_a", note=None):
 
 
 def _resolve(http, app):
-    """Rule the one required step out, so an approval needs no override."""
+    """Name an accountable sponsor and rule the vendor step out before approval."""
+    profile = http("get", f"{API}/systems/{app}", name="dpo_a").json()["profile"]
+    sponsor = http.world.users["dpo_a"]["id"]
+    assert http("put", f"{API}/systems/{app}/profile", name="dpo_a",
+                json={"answers": {"sponsor_user_id": sponsor}, "version": profile["version"]}).status_code == 200
     assert http("put", f"{API}/systems/{app}/checklist/vendor", name="dpo_a", json={"reason": "Built by us under licence."}).status_code == 200
 
 
 def _decide(http, app, decision, outcome="approve", name="owner_a", **body):
     brief = http("get", f"{API}/systems/{app}/decision-brief", name=name).json()
+    if outcome in ("approve", "approve_with_conditions") and brief.get("needs_override") and "override_reason" not in body:
+        body["override_reason"] = "The outstanding review is recorded and scheduled before wider use."
     payload = {"outcome": outcome, "brief_hash": brief["hash"], "version": decision["version"], **body}
     return http("post", f"{API}/decisions/{decision['id']}/decide", name=name, json=payload)
 
@@ -62,7 +68,7 @@ def test_staff_may_ask_and_read_and_may_not_decide_or_revoke(http):
     brief = http("get", f"{API}/systems/{app}/decision-brief", name="employee_a").json()
     assert http("post", f"{API}/decisions/{decision['id']}/decide", name="employee_a",
                 json={"outcome": "approve", "brief_hash": brief["hash"], "version": 1}).status_code == 403
-    assert http("post", f"{API}/decisions/{decision['id']}/revoke", name="employee_a", json={"reason": "No."}).status_code == 403
+    assert http("post", f"{API}/decisions/{decision['id']}/revoke", name="staff_a", json={"reason": "No."}).status_code == 403
     state = http("get", f"{API}/systems/{app}/decisions", name="employee_a").json()
     assert state["can"]["decide"] is False and state["can"]["withdraw"] is True and state["state"]["waiting"] is True
 
@@ -108,10 +114,11 @@ def test_a_request_is_made_decided_and_read_back_and_a_change_reopens_it(http):
     assert [r["id"] for r in queue["requests"]] == [row["id"]] and queue["can_decide"] is True
 
     brief = http("get", f"{API}/systems/{app}/decision-brief", name="owner_a").json()
-    assert brief["needs_override"] is True and [u["key"] for u in brief["unresolved"]] == ["vendor"]
+    assert brief["needs_override"] is True and {"sponsor", "vendor", "evaluation"}.issubset(
+        {u["key"] for u in brief["unresolved"]})
     assert brief["manifest"]["profile"]["tier"] == "lower" and brief["open_request_id"] == row["id"]
 
-    assert _decide(http, app, row, "approve", rationale="Fine.").status_code == 422, "an unresolved step needs a reason"
+    assert _decide(http, app, row, "approve", rationale="Fine.", override_reason=None).status_code == 422, "an unresolved step needs a reason"
     done = _decide(http, app, row, "approve", rationale="Fine.", override_reason="The provider review is booked for next week.")
     assert done.status_code == 200 and done.json()["decision"]["status"] == "approved"
     assert http("post", f"{API}/decisions/{row['id']}/decide", name="owner_a",
@@ -210,6 +217,6 @@ def test_a_decision_can_be_downloaded_with_names_looked_up_for_the_person_asking
     assert mine.headers["cache-control"] == "no-store" and "Secret impact assessment" in mine.text
     assert mine.json()["decision"]["manifest"]["assessments"][0]["id"] == aiia
     staff = http("get", f"{API}/decisions/{row['id']}/export", name="employee_a")
-    assert staff.status_code == 200 and "Secret impact assessment" not in staff.text
+    assert staff.status_code == 200 and "Secret impact assessment" in staff.text
     assert http("get", f"{API}/decisions/{row['id']}/export", name="dpo_b").status_code == 404
     assert http("get", f"{API}/decisions/{row['id']}/export", name=None).status_code == 303

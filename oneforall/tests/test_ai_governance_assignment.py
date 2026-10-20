@@ -58,7 +58,7 @@ def test_only_people_who_may_review_and_open_the_request_can_be_named(roles):
     w = roles
     intake = submitted(w, answers=FULL)                                # employee_a, unit A
     people = assignment.reviewers_for(w.db, user(w, "dpo_a"), intake["id"])
-    assert _names(people) == ["dpo_a", "owner_a"], \
+    assert _names(people) == ["dpo_a", "owner_a", "risk_only_a"], \
         "the unit's reviewers; not the unit below it, another unit, nobody with no unit, nor the author"
     assert user(w, "employee_a")["id"] not in {p["id"] for p in people}
 

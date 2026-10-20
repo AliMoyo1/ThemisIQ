@@ -36,8 +36,7 @@ def test_a_new_use_shows_what_it_needs_and_that_nothing_has_started(system):
     got = {k: (s["applicability"], s["state"]) for k, s in steps(system).items()}
     assert got == {"aiia": ("recommended", "not_started"), "dpia": ("not_applicable", "not_started"),
                    "ropa": ("not_applicable", "not_started"), "vendor": ("required", "not_started"),
-                   # the DPO holds no right to Operations risk records: that is said, not shown as "not started"
-                   "aims": ("not_applicable", "no_access"), "policy": ("recommended", "not_started")}
+                   "aims": ("not_applicable", "not_started"), "policy": ("recommended", "not_started")}
     assert plan["unresolved"] == ["vendor"] and plan["rule_version"] == "v1"
     action = steps(system)["aiia"]["action"]
     assert action["url"] == f"/ai-governance/assessments/new?application_id={system.app}&aig_return={system.app}"
@@ -207,7 +206,7 @@ def test_each_ai_control_shows_applicable_implemented_mapped_and_proof_as_separa
 
 
 def test_a_viewer_with_no_right_to_operations_risk_sees_none_and_a_hidden_use_gives_none(controls_world):
-    assert controls.use_controls(controls_world.db, user(controls_world, "dpo_a"), controls_world.app) == []
+    assert controls.use_controls(controls_world.db, user(controls_world, "viewer_a"), controls_world.app) == []
     assert controls.use_controls(controls_world.db, user(controls_world, "owner_b"), controls_world.app) is None
 
 
@@ -219,7 +218,7 @@ def test_a_mapping_is_made_by_a_reviewer_who_may_see_the_control_and_never_by_it
     again = controls.map_control(w.db, user(w, "owner_a"), w.catalogue["bare"], w.canonical["oversight"])
     assert again["created"] is False and again["audit"] == []
     fail(lambda: controls.map_control(w.db, user(w, "staff_a"), w.catalogue["bare"], w.canonical["oversight"]), 403)
-    fail(lambda: controls.map_control(w.db, user(w, "dpo_a"), w.catalogue["bare"], w.canonical["oversight"]), 403)
+    fail(lambda: controls.map_control(w.db, user(w, "viewer_a"), w.catalogue["bare"], w.canonical["oversight"]), 403)
     fail(lambda: controls.map_control(w.db, user(w, "owner_a"), 987654, w.canonical["oversight"]), 404)
     fail(lambda: controls.map_control(w.db, user(w, "owner_a"), w.catalogue["bare"], 987654), 404)
     fail(lambda: controls.map_control(w.db, user(w, "owner_a"), "x", w.canonical["oversight"]), 400)

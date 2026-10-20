@@ -521,7 +521,7 @@ def test_the_in_app_notice_is_made_once_and_says_when_nobody_is_named(world):
     notices = [dict(r) for r in w.db.execute(
         "SELECT user_id, title, message FROM notifications WHERE module = 'sentinel'").fetchall()]
     ids = [n["user_id"] for n in notices]
-    assert w.people["chief"] in ids and len(ids) == len(set(ids)), "one notice each, although the job ran twice"
+    assert ids == [w.people["chief"]], "only the scoped administrator is told once, although the job ran twice"
     assert all("No privacy specialist is named" in n["message"] and "Urgent" in n["title"] for n in notices)
     flag = w.db.execute("SELECT breach_notified_6h FROM sentinel_breaches").fetchone()[0]
     assert flag == 1

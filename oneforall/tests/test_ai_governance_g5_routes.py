@@ -50,12 +50,12 @@ def test_an_outside_auditor_is_refused_everywhere(http):
         assert http(method, f"{API}{tail}", name="auditor", json={}).status_code == 403, tail
 
 
-def test_staff_read_what_they_may_open_and_record_and_review_nothing(http):
+def test_specialist_reads_scoped_work_and_general_staff_cannot_record_or_review(http):
     app = _accepted(http)
     for tail in (f"/systems/{app}/monitoring", f"/systems/{app}/evaluations", f"/systems/{app}/explain", "/regulatory"):
         assert http("get", f"{API}{tail}", name="employee_a").status_code == 200, tail
     for method, tail in WRITES:
-        assert http(method, f"{API}{tail}", name="employee_a", json={}).status_code == 403, tail
+        assert http(method, f"{API}{tail}", name="staff_a", json={}).status_code == 403, tail
     assert http("get", "/ai-governance/regulatory", name="employee_a").status_code == 200
 
 

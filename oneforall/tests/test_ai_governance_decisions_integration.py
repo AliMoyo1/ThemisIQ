@@ -65,7 +65,7 @@ def work(world, name):
 
 def test_the_deciders_in_the_systems_unit_are_told_and_the_asker_and_owner_are_not(system):
     ask(system)
-    assert told(system, "AI use waiting for a decision") == ids(system, "dpo_a", "owner_a")
+    assert told(system, "AI use waiting for a decision") == ids(system, "dpo_a", "owner_a", "risk_only_a")
 
 
 def test_a_decision_tells_the_asker_and_the_owner_and_never_the_decider(system):
@@ -104,7 +104,7 @@ def test_a_change_to_a_covered_fact_tells_the_owner_and_deciders_only_when_there
     profile = service.get_profile(system.db, user(system, "dpo_a"), system.app)
     second = service.update_profile(system.db, user(system, "dpo_a"), system.app, {"purpose": "A second change"}, profile["version"])
     commit(system, second, user(system, "dpo_a"))
-    assert told(system, "An approved AI use needs a new decision") == ids(system, "employee_a", "owner_a"), "not dpo_a, who made the change"
+    assert told(system, "An approved AI use needs a new decision") == ids(system, "employee_a", "owner_a", "risk_only_a"), "not dpo_a, who made the change"
 
 
 def test_a_revocation_tells_the_people_it_concerns_and_not_the_one_who_revoked(system):
