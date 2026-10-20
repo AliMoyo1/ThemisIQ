@@ -10,7 +10,7 @@ import re
 from datetime import datetime, timedelta
 
 from core import events
-from core.rbac import ALL_ROLES, EXTERNAL_AUDITOR
+from core.rbac import ALL_ROLES, EMPLOYEE, EXTERNAL_AUDITOR
 from core.timeutils import utcnow
 from database import insert_returning_id
 from modules.ai_governance import service
@@ -18,7 +18,7 @@ from modules.ai_governance.service import ServiceError
 from modules.governance.data_service import bu_scope_ids
 
 
-AUDIENCE_ROLES = tuple(role for role in ALL_ROLES if role != EXTERNAL_AUDITOR)
+AUDIENCE_ROLES = tuple(role for role in ALL_ROLES if role not in (EXTERNAL_AUDITOR, EMPLOYEE))  # ai_literacy.take
 MAX_QUESTIONS = 20
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 _NOT_FOUND = "Course not found."
@@ -122,9 +122,10 @@ def _clean(db, user, raw, previous=None):
     title = _text(raw.get("title", prior.get("title") or ""), 200, "Title")
     summary = _text(raw.get("summary", prior.get("summary") or ""), 500, "Summary")
     body = _text(raw.get("body", prior.get("body") or ""), 20000, "Body")
-    roles = raw.get("audience_roles", _json(prior.get("audience_roles"), []))
+    # A course saved before employees lost AI Governance may still name them: they are dropped, not refused.
+    roles = raw.get("audience_roles", [r for r in _json(prior.get("audience_roles"), []) if r in AUDIENCE_ROLES])
     if not isinstance(roles, list) or len(roles) > len(AUDIENCE_ROLES) or any(not isinstance(r, str) or r not in AUDIENCE_ROLES for r in roles):
-        raise ServiceError(422, "Choose valid audience roles. External auditors cannot be assigned.")
+        raise ServiceError(422, "Choose valid audience roles. Employees and external auditors cannot be assigned.")
     roles = sorted(set(roles))
     owners = raw.get("audience_owners", bool(prior.get("audience_owners")))
     if not isinstance(owners, bool):
@@ -303,14 +304,13 @@ def _people(db, org_id, user_id=None):
 
 
 def _assigned(course, person, unit_ids):
-    if EXTERNAL_AUDITOR in person["roles"] and person["roles"] == {EXTERNAL_AUDITOR}:
-        return False
+    if not person["roles"] & set(AUDIENCE_ROLES):
+        return False  # only employee or outside auditor roles: AI Governance does not open for them
     unit = course["business_unit_id"]
     if unit is not None and (person["business_unit_id"] is None or person["business_unit_id"] not in unit_ids):
         return False
     roles = set(_json(course["audience_roles"], []))
-    return bool((person["roles"] & roles) or (course["audience_owners"] and person["owns"]
-                and any(role != EXTERNAL_AUDITOR for role in person["roles"])))
+    return bool((person["roles"] & roles) or (course["audience_owners"] and person["owns"]))
 
 
 def _audience(db, course, people):

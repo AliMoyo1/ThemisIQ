@@ -23,6 +23,7 @@
     'background:var(--bg);min-width:0}.connected-module-card strong{display:block;font-size:12px}' +
     '.connected-module-card .value{display:block;font-size:25px;font-weight:700;margin:5px 0}' +
     '.connected-module-card small{color:var(--muted);line-height:1.4}' +
+    '.connected-module-card a{color:var(--accent-ink,var(--accent))}' +
     '@media(max-width:900px){.connected-module-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}' +
     '@media(max-width:550px){.connected-module-grid{grid-template-columns:1fr}}';
   document.head.appendChild(style);

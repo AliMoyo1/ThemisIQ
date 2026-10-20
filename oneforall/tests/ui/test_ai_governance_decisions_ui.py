@@ -49,7 +49,7 @@ def test_a_reviewer_asks_and_cannot_decide_their_own_request_and_a_different_dec
     page.click("button:has-text('Review and decide')")
     page.wait_for_selector(".aig-dialog input[name='aigOutcome']")
     dialog = page.locator(".aig-dialog").inner_text()
-    assert "Required steps are not done" in dialog and "Provider review" in dialog
+    assert "Review gaps remain" in dialog and "Provider review" in dialog
 
     page.click(".aig-dialog button:has-text('Record the decision')")
     page.wait_for_selector(".aig-dialog .aig-say-bad")
@@ -133,7 +133,7 @@ def test_the_decision_states_have_no_serious_accessibility_violations(login_as, 
     page.keyboard.press("Escape")
 
 
-@pytest.mark.parametrize("who", ["dpo", "employee"])
+@pytest.mark.parametrize("who", ["dpo", "privacy_analyst"])
 def test_the_queue_page_has_no_serious_accessibility_violations(login_as, live_app, page, run_axe, who):
     login_as(who)
     page.goto(f"{live_app}/ai-governance/decisions")

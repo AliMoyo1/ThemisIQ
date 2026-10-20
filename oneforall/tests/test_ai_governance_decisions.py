@@ -196,6 +196,43 @@ def test_an_approval_signed_on_a_brief_that_has_since_moved_is_refused_and_store
     assert count(system, "ai_use_decisions", "status = 'proposed'") == 1
 
 
+def _ask_as_plain_dpo(world):
+    dpo = as_role(world, rbac.DPO)  # no ORM access, unlike the fixture's dpo_a
+    done = decisions.request_decision(world.db, dpo, world.app, None)
+    commit(world, done, dpo)
+    return done["decision"]
+
+
+def test_a_decider_who_can_open_a_step_the_asker_could_not_is_not_refused_for_seeing_more(system):
+    resolve_provider_review(system)
+    states = lambda b: {s["key"]: s["state"] for s in b["manifest"]["checklist"]["steps"]}  # noqa: E731
+    row = _ask_as_plain_dpo(system)
+    asked = json.loads(system.db.execute("SELECT manifest FROM ai_use_decisions WHERE id = %s", (row["id"],)).fetchone()[0])
+    assert states({"manifest": asked})["aims"] == "no_access", "a DPO cannot open AI management assessments"
+    decider = as_role(system, rbac.SUPER_ADMIN, "owner_a")
+    seen = decisions.get_brief(system.db, decider, system.app)
+    assert states(seen)["aims"] != "no_access" and seen["proposal_changed"] is False
+    done = decisions.decide(system.db, decider, row["id"], "approve", rationale="Low tier.", brief=seen["hash"],
+                            expected_version=row["version"])
+    assert done["decision"]["status"] == "approved"
+    signed = decisions.get_decision(system.db, decider, row["id"])
+    assert states(signed)["aims"] != "no_access", "the decider signs what they saw"
+
+
+def test_a_step_the_asker_could_not_open_still_counts_when_another_fact_moves(system):
+    resolve_provider_review(system)
+    row = _ask_as_plain_dpo(system)
+    profile = service.get_profile(system.db, user(system, "dpo_a"), system.app)
+    commit(system, service.update_profile(system.db, user(system, "dpo_a"), system.app, {"purpose": "A different purpose"},
+                                          profile["version"]), user(system, "dpo_a"))
+    decider = as_role(system, rbac.SUPER_ADMIN, "owner_a")
+    seen = decisions.get_brief(system.db, decider, system.app)
+    assert seen["proposal_changed"] is True
+    error = fail(lambda: decisions.decide(system.db, decider, row["id"], "approve", rationale="Low tier.", brief=seen["hash"],
+                                          expected_version=row["version"]), 409)
+    assert error.extra.get("brief_changed") is True
+
+
 def test_approving_with_conditions_names_them_and_an_expiry_must_be_a_later_date(system):
     resolve_provider_review(system)
     row = ask(system)

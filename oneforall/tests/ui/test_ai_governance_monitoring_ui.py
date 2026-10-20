@@ -126,8 +126,8 @@ def test_the_monitoring_tab_and_the_regulatory_page_have_no_serious_accessibilit
     assert run_axe() == [], "the regulatory queue"
 
 
-@pytest.mark.parametrize("who", ["dpo", "employee"])
-def test_the_regulatory_page_opens_for_reviewers_and_staff(login_as, live_app, page, who):
+@pytest.mark.parametrize("who", ["dpo", "privacy_analyst"])
+def test_the_regulatory_page_opens_for_reviewers_and_viewing_specialists(login_as, live_app, page, who):
     login_as(who)
     assert page.goto(f"{live_app}/ai-governance/regulatory").status == 200
     page.wait_for_selector("h1:has-text('Regulatory changes')")

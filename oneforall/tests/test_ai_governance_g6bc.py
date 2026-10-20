@@ -16,7 +16,7 @@ from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 COURSE = {"title": "Responsible AI", "body": "Check every output.",
-          "audience_roles": ["employee"], "renewal_months": 12, "due_days": 30,
+          "audience_roles": ["privacy_analyst"], "renewal_months": 12, "due_days": 30,
           "questions": [{"prompt": "Who reviews an output?", "options": ["A person", "Nobody"], "correct": 0}],
           "pass_mark": 100}
 
@@ -40,7 +40,7 @@ def _error(call, status):
 def test_literacy_grades_without_answer_leak_and_retakes_only_when_required(roles):
     world = roles
     course_id, current = _published(world)
-    learner = world.users["staff_a"]
+    learner = world.users["viewer_a"]
     version = current["current_version"]
     lesson = literacy.get_for_learning(world.db, learner, course_id)["course"]
     assert lesson["questions"] == [{"prompt": "Who reviews an output?", "options": ["A person", "Nobody"]}]
@@ -71,7 +71,7 @@ def test_literacy_grades_without_answer_leak_and_retakes_only_when_required(role
 def test_literacy_scope_and_coverage_denominator(roles):
     world = roles
     course_id, _ = _published(world)
-    learner = world.users["staff_a"]
+    learner = world.users["viewer_a"]
     own = literacy.my_courses(world.db, learner)["items"]
     assert [item["id"] for item in own] == [course_id]
     assert literacy.my_courses(world.db, world.users["owner_b"])["items"] == []
@@ -87,10 +87,10 @@ def test_literacy_acknowledgement_expiry_and_my_work(roles, monkeypatch):
     from modules.launcher import my_work_service
 
     world = roles
-    learner = world.users["staff_a"]
+    learner = world.users["viewer_a"]
     course = literacy.create_course(world.db, world.users["dpo_a"], {
         "title": "AI safety briefing", "body": "Escalate unsafe output.",
-        "audience_roles": ["employee"], "business_unit_id": world.unit["A"],
+        "audience_roles": ["privacy_analyst"], "business_unit_id": world.unit["A"],
     })["course"]
     world.db.commit()
     published = literacy.publish_course(world.db, world.users["dpo_a"], course["id"], True,
@@ -194,8 +194,8 @@ def test_g6bc_http_access_cache_and_malformed_payloads(http):
     course_id, _ = _published(http.world)
     key = next(iter(FEATURES))
     assert http("get", "/ai-governance/literacy", name=None).status_code == 303
-    assert http("get", "/ai-governance/api/literacy/mine", name="staff_a").headers["cache-control"] == "private, no-store"
-    learn = http("get", f"/ai-governance/api/literacy/{course_id}/learn", name="staff_a")
+    assert http("get", "/ai-governance/api/literacy/mine", name="viewer_a").headers["cache-control"] == "private, no-store"
+    learn = http("get", f"/ai-governance/api/literacy/{course_id}/learn", name="viewer_a")
     assert learn.status_code == 200 and "correct" not in learn.text
     hidden = http("get", f"/ai-governance/api/literacy/{course_id}/learn", name="owner_b")
     missing = http("get", "/ai-governance/api/literacy/999999/learn", name="owner_b")
@@ -236,7 +236,7 @@ def test_literacy_publish_notifies_the_current_audience_once(http):
     world = http.world
     created = http("post", "/ai-governance/api/literacy/courses", json={
         "title": "AI notification course", "body": "Review model output.",
-        "audience_roles": ["employee"], "business_unit_id": world.unit["A"],
+        "audience_roles": ["privacy_analyst"], "business_unit_id": world.unit["A"],
     })
     assert created.status_code == 201, created.text
     course = created.json()["course"]
@@ -244,11 +244,40 @@ def test_literacy_publish_notifies_the_current_audience_once(http):
     published = http("post", path, json={"version": course["version"], "retake": True})
     assert published.status_code == 200, published.text
     notices = world.db.execute("SELECT user_id FROM notifications WHERE user_id=%s AND link=%s",
-                               (world.users["staff_a"]["id"],
+                               (world.users["viewer_a"]["id"],
                                 f"/ai-governance/literacy/{course['id']}")).fetchall()
     assert len(notices) == 1
     assert http("post", path, json={"version": course["version"], "retake": True}).status_code == 409
     notices = world.db.execute("SELECT count(*) FROM notifications WHERE user_id=%s AND link=%s",
-                               (world.users["staff_a"]["id"],
+                               (world.users["viewer_a"]["id"],
                                 f"/ai-governance/literacy/{course['id']}")).fetchone()[0]
     assert notices == 1
+
+
+def test_nothing_in_ai_governance_opens_for_a_general_employee():
+    """Owner decision, 2026-10-20: AI Governance is for specialists. Every capability a route asks for refuses an employee."""
+    import pathlib
+    import re
+    from core.rbac import EMPLOYEE, has_capability
+    folder = pathlib.Path(__file__).resolve().parent.parent / "modules" / "ai_governance"
+    caps = set()
+    for path in folder.rglob("*.py"):
+        for gate in re.finditer(r"require_capability\(([^)]*)\)", path.read_text(encoding="utf-8")):
+            caps |= set(re.findall(r'"([^"]+)"', gate.group(1)))
+    assert "ai_use.submit" in caps and "ai_literacy.take" in caps
+    employee = {"id": 1, "roles": [EMPLOYEE], "is_super_admin": 0}
+    assert [cap for cap in sorted(caps) if has_capability(employee, cap)] == []
+
+
+def test_a_course_cannot_target_employees_and_an_older_course_that_did_stays_editable(roles):
+    world = roles
+    manager = world.users["dpo_a"]
+    _error(lambda: literacy.create_course(world.db, manager, {**COURSE, "audience_roles": ["employee"]}), 422)
+    world.db.rollback()
+    course = literacy.create_course(world.db, manager, {**COURSE, "business_unit_id": world.unit["A"]})["course"]
+    world.db.execute("UPDATE ai_literacy_courses SET audience_roles=%s WHERE id=%s",
+                     ('["employee", "privacy_analyst"]', course["id"]))
+    world.db.commit()
+    done = literacy.update_course(world.db, manager, course["id"], {"title": "Responsible AI, revised"}, course["version"])
+    world.db.commit()
+    assert done["course"]["audience_roles"] == ["privacy_analyst"]

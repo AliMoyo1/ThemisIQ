@@ -1214,3 +1214,21 @@ This entry records local changes in a pre-existing dirty working tree. It does n
 | Privacy escalation and legal content | Admin can nominate an active same-organization privacy specialist as alternate contact. Sentinel includes the person in deadline mail routing and scoped in-app alerts, which remain useful before mail is configured. Recipient lookups require the current organization; duplicate case alerts to a named recipient are suppressed. Case alerts require current case access and omit breach titles. Source review corrected two legacy figures and marks broad DSR and breach clocks as internal review targets. See [source review](15-jurisdiction-source-review.md). | No card is legally approved by this research. A privacy/legal reviewer must confirm each rule, trigger and effective date, and a different DPO must approve it in Sentinel. No live sender account is configured. |
 
 The mail outbox and templates are ready for a controlled pilot only after the sender address, Reply-To owner, credentials, domain authentication and the runbook's delivery checks exist. Do not claim provider acceptance or deliverability from a queued row.
+
+## Specialist browser fixtures, a decision fix and the GRID card contrast, 2026-10-20
+
+Recorded in full in [16](16-specialist-browser-fixtures-and-grid-contrast.md). Branch `claude/specialist-fixtures-grid-contrast`.
+
+- **Owner decision (chat confirmation, not a sign-off):** AI Governance is for specialist roles; general employees will
+  not sign in to ThemisIQ. Why: the platform is a specialist tool. Cost: an employee cannot register an AI use; intake
+  from staff goes through a specialist or the import. How to change: add the role to `ai_use.intake_create` and
+  `ai_use.view` in `core/rbac.py`. The browser tests now author as a risk owner and use a privacy analyst as the viewer
+  without review rights.
+- **Fixed, product:** a DPO's decision request could not be approved by a decider who can open more checklist steps
+  (`decisions._hash_as_asked`).
+- **Fixed, accessibility:** module home card links use `--accent-ink` (GRID `#047857`, 4.7 to 1).
+- **Owner decision 2 (chat confirmation, not a sign-off): nothing in AI Governance opens for an employee.**
+  `ai_use.submit` and `ai_literacy.take` drop `employee`; literacy courses cannot target employees. Why, cost and how
+  to change are in 16. A backend test guards every AI Governance route capability against an employee.
+- **Open:** six pre-existing browser failures in the ARIA managed edit and workflow scope files.
+- Lanes: backend 2670 passed, 0 failed; browser 89 files, 552 passed, 6 failed (all six also fail on `master`).

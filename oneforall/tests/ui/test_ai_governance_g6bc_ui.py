@@ -12,7 +12,7 @@ def test_literacy_manager_publishes_and_learner_completes(login_as, live_app, pa
     page.get_by_role("button", name="New course").click()
     page.get_by_label("Course title").fill(title)
     page.get_by_label("Course content").fill("A person checks important AI output.")
-    page.locator(".aig-literacy-roles label", has_text="employee").locator("input").check()
+    page.locator(".aig-literacy-roles label", has_text="bcm manager").locator("input").check()  # a specialist outside AI Governance
     page.get_by_role("button", name="Save working copy").click()
     page.get_by_role("button", name="Publish and require retake").wait_for()
     page.get_by_role("button", name="Publish and require retake").click()
@@ -22,7 +22,7 @@ def test_literacy_manager_publishes_and_learner_completes(login_as, live_app, pa
     assert run_axe() == []
 
     page.context.clear_cookies()
-    login_as("employee")
+    login_as("bcm_manager")
     page.goto(f"{live_app}/ai-governance/literacy")
     page.get_by_role("link", name=title).wait_for()
     page.get_by_role("link", name=title).click()
