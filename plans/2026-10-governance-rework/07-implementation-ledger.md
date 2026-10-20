@@ -1255,4 +1255,3 @@ Plans only, on the owner's instruction "just do plans, don't build". No code cha
   a separate `/features` page; owner decisions recorded there (AI Governance as the seventh module, numbers on hold,
   security section held, every Sentinel jurisdiction named, a compact predictive risk panel, general industry framing).
   Found: the live landing page lists AIIA as AI drafted, which is not true today.
-

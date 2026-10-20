@@ -3952,7 +3952,7 @@ def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
     from modules.ai_governance import literacy, platform_features
 
     pg.init_db()
-    org, _unit, ids, who = _ai_governance_world(pg, "g6bc", author_role=rbac.EMPLOYEE)
+    org, _unit, ids, who = _ai_governance_world(pg, "g6bc", author_role=rbac.PRIVACY_ANALYST)
     feature = next(iter(FEATURES))
     assert _raw_rows("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'tenant_g6bc' "
                      "AND table_name = 'platform_ai_features'") == [(0,)]
@@ -3964,7 +3964,7 @@ def test_ai_literacy_and_platform_feature_notes_use_their_postgres_schemas(pg):
         try:
             created = literacy.create_course(db, who["reviewer"], {
                 "title": "PG responsible AI", "body": "Check output with a person.",
-                "audience_roles": [rbac.EMPLOYEE], "due_days": 30,
+                "audience_roles": [rbac.PRIVACY_ANALYST], "due_days": 30,
             })["course"]
             db.commit()
             published = literacy.publish_course(db, who["reviewer"], created["id"], True,
