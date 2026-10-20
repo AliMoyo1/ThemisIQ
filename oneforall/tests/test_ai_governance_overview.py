@@ -48,7 +48,8 @@ def approve_with_conditions(world, due="2999-01-01", texts=("Review the output w
     resolve_provider_review(world)
     row = ask(world)
     return decide(world, row, "approve_with_conditions", rationale="Fine with conditions.",
-                  conditions=[{"text": t, "due_date": due} for t in texts])
+                  conditions=[{"text": t, "due_date": due} for t in texts],
+                  override_reason="The remaining reviews are scheduled and documented for this pilot.")
 
 
 # ── The shape of the page ───────────────────────────────────────────────────
@@ -82,7 +83,7 @@ def test_new_requests_are_the_submitted_ones_in_the_viewers_scope(world):
     assert card(world, "new_requests", "dpo_a")["value"] == 1
     assert card(world, "new_requests", "dpo_b")["value"] == 1
     assert card(world, "new_requests", "super")["value"] == 2
-    assert card(world, "new_requests", "dpo_a")["drilldown"] == "/ai-governance/review"
+    assert card(world, "new_requests", "dpo_a")["drilldown"] == "/ai-governance/review?stage=new"
 
 
 def test_a_returned_request_waits_for_information_and_stops_being_new(world):
@@ -91,7 +92,7 @@ def test_a_returned_request_waits_for_information_and_stops_being_new(world):
     commit(world, done, user(world, "dpo_a"))
     assert card(world, "new_requests")["value"] == 0
     waiting = card(world, "waiting_for_information")
-    assert waiting["value"] == 1 and waiting["drilldown"] == "/ai-governance/review?status=waiting"
+    assert waiting["value"] == 1 and waiting["drilldown"] == "/ai-governance/review?stage=needs_clarification"
     assert card(world, "waiting_for_information", "dpo_b")["value"] == 0
 
 
@@ -241,30 +242,24 @@ def test_the_funnel_counts_stages_and_names_the_stages_nothing_measures_yet(worl
     assert f["state"] == "measured" and f["window"] == "last 90 days"
     assert stages["submitted"]["value"] == 2 and stages["triaged"]["value"] == 1 and stages["accepted"]["value"] == 1
     assert stages["assessed"]["value"] == 0 and stages["decided"]["value"] == 0
-    assert stages["responded"]["state"] == "not_measured" and stages["responded"]["value"] is None
-    assert stages["closed"]["state"] == "not_measured"
+    assert stages["responded"]["state"] == "measured" and stages["responded"]["value"] == 0
+    assert stages["closed"]["state"] == "measured" and stages["closed"]["value"] == 0
     assert f["denominator"] == {"value": 2, "label": "requests submitted in the window"}
 
 
 # ── Staff ───────────────────────────────────────────────────────────────────
 
-def test_staff_who_review_nothing_see_only_their_own_work(system):
-    submitted(system, "owner_b")                                              # someone else's request: never counted
-    draft(system, "employee_a")                                               # one draft
-    submitted(system, "employee_a", answers={**FULL, "name": "Waiting use"})  # one submitted
-    got = view(system, "employee_a")
-    assert got["viewer"] == {"specialist": False, "reviewer": False, "decider": False}
-    assert got["funnel"] is None and got["aging"] == []
-    assert [c["key"] for c in got["cards"]] == ["my_requests", "my_systems"]
-    mine = {c["key"]: c for c in got["cards"]}
-    assert mine["my_requests"]["value"] == 2 and mine["my_requests"]["detail"] == {"draft": 1, "submitted": 1, "returned": 0}
-    assert mine["my_systems"]["value"] == 1, "the one use they own"
-    assert mine["my_requests"]["drilldown"] == "/ai-governance/requests"
+def test_staff_without_governance_access_cannot_open_the_overview(system):
+    fail(lambda: view(system, "staff_a"), 403)
+    fail(lambda: draft(system, "staff_a"), 403)
 
 
-def test_staff_cannot_ask_for_the_specialist_numbers_by_name(system):
-    got = view(system, "employee_a")
-    assert not {c["key"] for c in got["cards"]} & set(SPECIALIST_CARDS)
+def test_privacy_analyst_can_read_specialist_numbers_without_review_actions(system):
+    got = view(system, "viewer_a")
+    assert {c["key"] for c in got["cards"]} == {
+        "awaiting_decision", "approved_with_conditions", "reviews_due",
+        "material_change", "evaluation_oversight_gaps"}
+    assert got["viewer"]["reviewer"] is False and got["viewer"]["decider"] is False
 
 
 def test_the_rollout_switch_does_not_change_a_count(system):

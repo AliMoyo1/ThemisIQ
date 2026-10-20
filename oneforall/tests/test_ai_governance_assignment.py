@@ -126,7 +126,7 @@ def test_a_reviewer_who_may_not_be_named_is_refused(roles):
     fail(lambda: assignment.assign_reviewer(w.db, user(w, "dpo_a"), intake["id"], 987654), 422)
     fail(lambda: assignment.assign_reviewer(w.db, user(w, "dpo_a"), intake["id"], "owner_a"), 422)
     fail(lambda: assignment.assign_reviewer(w.db, user(w, "dpo_a"), intake["id"], True), 422)
-    fail(lambda: assignment.assign_reviewer(w.db, user(w, "employee_a"), intake["id"], user(w, "owner_a")["id"]), 403)
+    fail(lambda: assignment.assign_reviewer(w.db, user(w, "staff_a"), intake["id"], user(w, "owner_a")["id"]), 403)
     fail(lambda: assignment.assign_reviewer(w.db, user(w, "dpo_b"), intake["id"], user(w, "owner_a")["id"]), 404)
     assert w.db.execute("SELECT assigned_reviewer_id FROM ai_use_intake_requests WHERE id = %s",
                         (intake["id"],)).fetchone()[0] is None
@@ -198,7 +198,7 @@ def test_a_decider_who_may_not_be_named_is_refused_and_the_named_one_is_not_the_
     row = ask(w, "dpo_a")
     for who in ("dpo_a", "employee_a", "dpo_b", "dpo_no_unit"):
         fail(lambda who=who: assignment.assign_decider(w.db, user(w, "owner_a"), row["id"], user(w, who)["id"]), 422)
-    fail(lambda: assignment.assign_decider(w.db, user(w, "employee_a"), row["id"], user(w, "owner_a")["id"]), 403)
+    fail(lambda: assignment.assign_decider(w.db, user(w, "staff_a"), row["id"], user(w, "owner_a")["id"]), 403)
     fail(lambda: assignment.assign_decider(w.db, user(w, "dpo_b"), row["id"], user(w, "owner_a")["id"]), 404)
     got = assignment.assign_decider(w.db, user(w, "dpo_a"), row["id"], user(w, "owner_a")["id"])
     commit(w, got, user(w, "dpo_a"))

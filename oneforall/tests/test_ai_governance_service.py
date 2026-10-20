@@ -31,15 +31,20 @@ FULL = {**GOOD, "affected_people": ["none"], "autonomy": "assist_only", "affects
 @pytest.fixture
 def world(platform_world):
     """The specialist handling internal AI intake has the intake capability."""
-    platform_world.users["employee_a"]["roles"] = [rbac.COMPLIANCE_MGR]
+    platform_world.users["employee_a"]["roles"] = [rbac.COMPLIANCE_MGR, rbac.RISK_OWNER, rbac.DPO]
+    for role in (rbac.COMPLIANCE_MGR, rbac.RISK_OWNER, rbac.DPO):
+        platform_world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+                                  (platform_world.users["employee_a"]["id"], role))
+    platform_world.users["dpo_a"]["roles"].append(rbac.RISK_OWNER)
     platform_world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
-                              (platform_world.users["employee_a"]["id"], rbac.COMPLIANCE_MGR))
-    platform_world.users["owner_a"]["roles"].append(rbac.COMPLIANCE_MGR)
-    for role in (rbac.RISK_OWNER, rbac.COMPLIANCE_MGR):
+                              (platform_world.users["dpo_a"]["id"], rbac.RISK_OWNER))
+    platform_world.users["owner_a"]["roles"].extend((rbac.COMPLIANCE_MGR, rbac.DPO))
+    for role in (rbac.RISK_OWNER, rbac.COMPLIANCE_MGR, rbac.DPO):
         platform_world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
                                   (platform_world.users["owner_a"]["id"], role))
     for offset, (name, role) in enumerate((("staff_a", rbac.EMPLOYEE),
-                                           ("viewer_a", rbac.PRIVACY_ANALYST)), start=1):
+                                           ("viewer_a", rbac.PRIVACY_ANALYST),
+                                           ("risk_only_a", rbac.RISK_OWNER)), start=1):
         user_id = len(PERSONAS) + offset
         _insert(platform_world.db, "users", id=user_id, username=name, email=f"{name}@example.test",
                 full_name=name, password_hash="x", org_id=1, business_unit_id=platform_world.unit["A"])
@@ -667,7 +672,7 @@ def test_the_assessments_tab_shows_linked_assessments_the_viewer_may_open(tabs):
 
 
 def test_the_assessments_tab_shows_records_to_a_risk_owner_with_assessment_access(tabs):
-    tab = workspace.get_tab(tabs.db, user(tabs, "owner_a"), tabs.app, "assessments")
+    tab = workspace.get_tab(tabs.db, user(tabs, "risk_only_a"), tabs.app, "assessments")
     assert [s["state"] for s in tab["sections"]] == ["ok", "empty"]
     assert "Impact of Use A" in json.dumps(tab)
 
@@ -675,8 +680,8 @@ def test_the_assessments_tab_shows_records_to_a_risk_owner_with_assessment_acces
 def test_the_risks_tab_shows_management_assessments_and_says_no_access_to_those_without_the_module(tabs):
     owner = workspace.get_tab(tabs.db, user(tabs, "owner_a"), tabs.app, "risks_controls")
     assert _items(owner, "AI management assessments") == ("ok", ["AIMS-1: AI management A"])
-    dpo = workspace.get_tab(tabs.db, user(tabs, "dpo_a"), tabs.app, "risks_controls")
-    assert dpo["sections"][0]["state"] == "no_access"
+    viewer = workspace.get_tab(tabs.db, user(tabs, "viewer_a"), tabs.app, "risks_controls")
+    assert viewer["sections"][0]["state"] == "no_access"
 
 
 def test_the_data_and_vendors_tab_shows_provider_assets_and_processes_in_scope(tabs):

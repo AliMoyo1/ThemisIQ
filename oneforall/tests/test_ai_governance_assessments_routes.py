@@ -44,7 +44,7 @@ def test_nobody_signed_out_reaches_any_page_or_call(http):
         assert _call(http, method, path, None, body).status_code == 303, path
 
 
-@pytest.mark.parametrize("name", ["auditor", "employee_a"])
+@pytest.mark.parametrize("name", ["auditor", "staff_a"])
 def test_staff_and_outside_auditors_are_refused_everywhere(http, name):
     for path in PAGES + READS:
         assert http("get", path, name=name).status_code == 403, path
@@ -53,10 +53,10 @@ def test_staff_and_outside_auditors_are_refused_everywhere(http, name):
 
 
 def test_a_risk_owner_reads_and_writes_assessments_but_does_not_configure_dimensions(http):
-    row = _make(http, "owner_a", title="Owner's")
-    assert http("get", f"{API}/assessments/{row['id']}", name="owner_a").status_code == 200
-    assert http("get", f"{API}/assessment-dimensions", name="owner_a").status_code == 200
-    assert http("put", f"{API}/assessment-dimensions", name="owner_a", json={"dimensions": [{"name": "Safety"}]}).status_code == 403
+    row = _make(http, "risk_only_a", title="Owner's")
+    assert http("get", f"{API}/assessments/{row['id']}", name="risk_only_a").status_code == 200
+    assert http("get", f"{API}/assessment-dimensions", name="risk_only_a").status_code == 200
+    assert http("put", f"{API}/assessment-dimensions", name="risk_only_a", json={"dimensions": [{"name": "Safety"}]}).status_code == 403
     assert http("put", f"{API}/assessment-dimensions", name="dpo_a", json={"dimensions": [{"name": "Safety"}]}).status_code == 200
 
 
@@ -145,7 +145,7 @@ def test_switching_ai_governance_off_hides_the_way_in_and_leaves_the_assessments
     assert http("get", "/ai-governance/assessments", name="dpo_a").status_code == 200
     assert http("get", f"{API}/assessments/{row['id']}", name="dpo_a").status_code == 200
     assert http("get", "/ai-governance/", name="employee_a").status_code == 200, "a switch hides, it does not guard"
-    assert http("get", "/ai-governance/assessments", name="employee_a").status_code == 403, "the capability still decides"
+    assert http("get", "/ai-governance/assessments", name="staff_a").status_code == 403, "the capability still decides"
 
 
 # ── Linking to a system and the checklist ───────────────────────────────────

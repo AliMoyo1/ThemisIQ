@@ -67,7 +67,7 @@ def test_a_failed_run_raises_one_event_and_a_run_that_did_not_finish_never_reads
 
 
 def test_only_a_reviewer_records_and_only_for_a_system_they_may_open(system):
-    fail(lambda: evaluations.record_run(system.db, user(system, "employee_a"), system.app, RUN), 403)
+    fail(lambda: evaluations.record_run(system.db, user(system, "staff_a"), system.app, RUN), 403)
     fail(lambda: evaluations.record_run(system.db, user(system, "dpo_b"), system.app, RUN), 404)
     fail(lambda: evaluations.record_run(system.db, user(system, "dpo_a"), 987654, RUN), 404)
     retired = service.retire(system.db, user(system, "dpo_a"), system.app, "Contract ended.")
@@ -101,7 +101,7 @@ def test_the_list_gives_the_latest_the_run_before_it_on_the_same_test_set_and_ho
            finished_at="2026-09-25 09:00:00", started_at="2026-09-25")
     record(system, name="Second", scores={"citation_validity": 96, "no_match": 100}, finished_at="2026-10-05 09:00:00",
            started_at="2026-10-05")
-    got = evaluations.list_runs(system.db, user(system, "employee_a"), system.app)
+    got = evaluations.list_runs(system.db, user(system, "viewer_a"), system.app)
     assert [r["name"] for r in got["runs"]] == ["Second", "Other set", "First"]
     assert got["latest"]["name"] == "Second" and got["previous"]["name"] == "First"
     moved = {r["dimension"]: r["change"] for r in got["comparison"]["dimensions"]}
@@ -153,7 +153,7 @@ def test_a_passed_run_is_accepted_and_a_failed_one_opens_a_finding_that_is_a_pro
     task = system.db.execute("SELECT title, assigned_to, priority, status, module FROM task_board WHERE title LIKE 'Evaluation finding%'").fetchone()
     assert task["assigned_to"] == user(system, "employee_a")["id"] and task["priority"] == "high" and task["status"] == "todo"
     fail(lambda: evaluations.review_run(system.db, user(system, "dpo_b"), bad["id"], "finding", "No.", 3), 404)
-    fail(lambda: evaluations.review_run(system.db, user(system, "employee_a"), bad["id"], "finding", "No.", 3), 403)
+    fail(lambda: evaluations.review_run(system.db, user(system, "staff_a"), bad["id"], "finding", "No.", 3), 403)
     assert audit_actions(system)[-3:] == ["ai_evaluation_accepted", "ai_evaluation_recorded", "ai_evaluation_finding"]
     assert system.db.execute("SELECT COUNT(*) FROM ai_use_decisions").fetchone()[0] == 0, "a finding withdraws no approval"
 
@@ -166,7 +166,9 @@ def _approve(world):
     commit(world, asked, user(world, "employee_a"))
     brief = decisions.get_brief(world.db, user(world, "owner_a"), world.app)
     done = decisions.decide(world.db, user(world, "owner_a"), asked["decision"]["id"], "approve", brief=brief["hash"],
-                            expected_version=1)
+                            expected_version=1,
+                            override_reason="The open review gaps are accepted for this pilot."
+                            if brief["needs_override"] else None)
     commit(world, done, user(world, "owner_a"))
     return asked["decision"]["id"]
 

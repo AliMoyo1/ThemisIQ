@@ -7,6 +7,7 @@ done or judged not applicable with a reason; and a model never sets a state (the
 """
 import pytest
 
+from core.timeutils import utcnow
 from modules.ai_governance import evaluations, guidance, oversight, outstanding, service
 from modules.governance import relationships
 from tests.test_ai_governance_decisions import ask, decide, resolve_provider_review
@@ -16,7 +17,7 @@ from tests.test_ai_governance_service import FULL, approve_new, commit, fail, ro
 from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
 from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
-KEYS = ["facts", "owner", "aiia", "dpia", "ropa", "vendor", "aims", "policy", "evaluation", "oversight", "proof",
+KEYS = ["facts", "owner", "sponsor", "aiia", "dpia", "ropa", "vendor", "aims", "policy", "evaluation", "oversight", "proof",
         "continuity", "regulatory", "decision"]
 
 
@@ -24,6 +25,10 @@ KEYS = ["facts", "owner", "aiia", "dpia", "ropa", "vendor", "aims", "policy", "e
 def system(world, roles):
     done = approve_new(world, submitted(world, answers=FULL))
     world.app = done["application_id"]
+    profile = service.get_profile(world.db, user(world, "dpo_a"), world.app)
+    service.update_profile(world.db, user(world, "dpo_a"), world.app,
+                           {"sponsor_user_id": user(world, "dpo_a")["id"]}, profile["version"])
+    world.db.commit()
     return world
 
 
@@ -40,13 +45,13 @@ def test_a_fresh_use_lists_every_line_in_a_fixed_order_with_the_state_the_record
     got = outstanding.get_outstanding(system.db, user(system, "super"), system.app)
     assert [l["key"] for l in got["lines"]] == KEYS
     by = {l["key"]: l for l in got["lines"]}
-    assert by["facts"]["state"] == "complete" and by["owner"]["state"] == "complete"
+    assert by["facts"]["state"] == by["owner"]["state"] == by["sponsor"]["state"] == "complete"
     assert by["dpia"]["state"] == by["ropa"]["state"] == by["aims"]["state"] == "not_applicable"
     assert by["aiia"]["state"] == by["vendor"]["state"] == by["policy"]["state"] == "not_yet_assessed"
     for key in ("evaluation", "oversight", "proof", "continuity", "decision"):
         assert by[key]["state"] == "not_yet_assessed", key
     assert by["regulatory"]["state"] == "not_yet_assessed" and "No intended jurisdiction" in by["regulatory"]["reason"]
-    assert all(l["rule_version"] == "o1" and l["state_label"] for l in got["lines"])
+    assert all(l["rule_version"] == "o2" and l["state_label"] for l in got["lines"])
     assert got["counts"]["not_applicable"] == 3 and "approves" in got["note"]
 
 
@@ -70,15 +75,17 @@ def test_an_owner_who_is_not_named_blocks_and_says_so(system):
 
 
 def test_an_evaluation_is_done_failed_out_of_date_or_unthresholded_and_says_which(system):
+    now = utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    current_run = {**RUN, "started_at": now[:10], "finished_at": now}
     assert state(system, "evaluation") == "not_yet_assessed"
     evaluations.record_run(system.db, user(system, "dpo_a"), system.app, {**RUN, "thresholds": {}})
     system.db.commit()
     assert state(system, "evaluation") == "not_yet_assessed" and "no threshold" in lines(system)["evaluation"]["reason"]
-    evaluations.record_run(system.db, user(system, "dpo_a"), system.app, {**RUN, "name": "Passing"})
+    evaluations.record_run(system.db, user(system, "dpo_a"), system.app, {**current_run, "name": "Passing"})
     system.db.commit()
     assert state(system, "evaluation") == "complete"
     evaluations.record_run(system.db, user(system, "dpo_a"), system.app,
-                           {**RUN, "name": "Worse", "scores": {"citation_validity": 10}, "finished_at": "2026-10-05 09:00:00"})
+                           {**current_run, "name": "Worse", "scores": {"citation_validity": 10}})
     system.db.commit()
     failed = lines(system)["evaluation"]
     assert failed["state"] == "failed" and "Worse" in failed["reason"]
@@ -113,7 +120,8 @@ def test_the_decision_line_follows_the_request_the_approval_and_a_change_to_the_
     assert state(system, "decision") == "not_yet_assessed"
     row = ask(system, "dpo_a")
     assert state(system, "decision") == "waiting"
-    decide(system, row, "approve", rationale="Fine.")
+    decide(system, row, "approve", rationale="Fine.",
+           override_reason="The remaining reviews are scheduled and documented for this pilot.")
     assert state(system, "decision") == "complete" and "conditions" not in lines(system)
     profile = service.get_profile(system.db, user(system, "dpo_a"), system.app)
     service.update_profile(system.db, user(system, "dpo_a"), system.app, {"purpose": "Something new"}, profile["version"])
@@ -126,7 +134,8 @@ def test_conditions_are_waiting_until_one_is_overdue(system):
     resolve_provider_review(system)
     row = ask(system, "dpo_a")
     decide(system, row, "approve_with_conditions", rationale="Fine with a condition.",
-           conditions=[{"text": "Review the output weekly", "due_date": "2999-01-01"}])
+           conditions=[{"text": "Review the output weekly", "due_date": "2999-01-01"}],
+           override_reason="The remaining reviews are scheduled and documented for this pilot.")
     waiting = lines(system)["conditions"]
     assert waiting["state"] == "waiting" and waiting["due"] == "2999-01-01"
     system.db.execute("UPDATE ai_use_decision_conditions SET due_date = '2020-01-01'")
@@ -176,5 +185,5 @@ def test_a_hidden_use_has_no_outstanding_items_for_the_caller(system):
 
 
 def test_a_viewer_without_orm_access_is_told_they_may_not_see_the_proof_line(system):
-    got = lines(system, "employee_a")["proof"]
+    got = lines(system, "viewer_a")["proof"]
     assert got["state"] == "no_access" and "do not have access" in got["reason"]

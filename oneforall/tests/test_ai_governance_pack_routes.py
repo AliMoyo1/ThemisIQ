@@ -63,7 +63,7 @@ def test_pack_pages_and_apis_keep_the_capability_boundary(http):
         assert http("get", path, name="auditor").status_code == 200
     for path in (f"{API}/systems/{app}/packs", f"{API}/pack-recipients?q=pa"):
         assert http("get", path, name="auditor").status_code == 403
-        assert http("get", path, name="employee_a").status_code == 403
+        assert http("get", path, name="staff_a").status_code == 403
     assert http("get", "/ai-governance/packs", name="dpo_a").status_code == 200
     assert http("get", f"{API}/pack-recipients?q=Pack", name="dpo_a").json()["items"][0]["id"] == 50
 

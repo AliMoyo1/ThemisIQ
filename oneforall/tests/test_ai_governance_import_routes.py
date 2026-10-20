@@ -36,14 +36,14 @@ def test_nobody_signed_out_reaches_the_import(http, path):
 @pytest.mark.parametrize("path", READS)
 def test_an_outside_auditor_and_staff_are_refused(http, path):
     assert http("get", path, name="auditor").status_code == 403
-    assert http("get", path, name="employee_a").status_code == 403
+    assert http("get", path, name="staff_a").status_code == 403
 
 
 def test_signed_out_staff_and_auditors_cannot_upload_or_decide(http):
     assert upload(http, name=None).status_code == 303
-    assert upload(http, name="employee_a").status_code == 403
+    assert upload(http, name="staff_a").status_code == 403
     assert upload(http, name="auditor").status_code == 403
-    for name in ("employee_a", "auditor"):
+    for name in ("staff_a", "auditor"):
         assert http("post", f"{API}/batches/1/confirm", name=name, json={"version": 1}).status_code == 403
         assert http("post", f"{API}/batches/1/discard", name=name, json={"version": 1}).status_code == 403
 

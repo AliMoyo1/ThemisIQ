@@ -54,7 +54,7 @@ def test_ordinary_staff_can_read_a_use_they_can_open_and_change_nothing(http):
     for method, path in _system_reads(app):
         assert http(method, path, name="employee_a").status_code == 200, path
     for method, path, body in _reviewer_calls(app):
-        assert _call(http, method, path, "employee_a", body).status_code == 403, path
+        assert _call(http, method, path, "staff_a", body).status_code == 403, path
 
 
 def test_a_use_in_another_unit_answers_exactly_like_one_that_is_not_there(http):

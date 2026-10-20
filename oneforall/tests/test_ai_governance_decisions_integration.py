@@ -38,6 +38,8 @@ def ask(world, name="employee_a"):
 
 def decide(world, row, outcome="approve", name="owner_a", **kw):
     brief = decisions.get_brief(world.db, user(world, name), world.app)
+    if outcome in ("approve", "approve_with_conditions") and brief["needs_override"]:
+        kw.setdefault("override_reason", "The remaining reviews are scheduled and documented for this pilot.")
     done = decisions.decide(world.db, user(world, name), row["id"], outcome, brief=brief["hash"], expected_version=row["version"], **kw)
     commit(world, done, user(world, name))
     return done

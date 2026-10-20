@@ -40,7 +40,7 @@ def _error(call, status):
 def test_literacy_grades_without_answer_leak_and_retakes_only_when_required(roles):
     world = roles
     course_id, current = _published(world)
-    learner = world.users["employee_a"]
+    learner = world.users["staff_a"]
     version = current["current_version"]
     lesson = literacy.get_for_learning(world.db, learner, course_id)["course"]
     assert lesson["questions"] == [{"prompt": "Who reviews an output?", "options": ["A person", "Nobody"]}]
@@ -71,7 +71,7 @@ def test_literacy_grades_without_answer_leak_and_retakes_only_when_required(role
 def test_literacy_scope_and_coverage_denominator(roles):
     world = roles
     course_id, _ = _published(world)
-    learner = world.users["employee_a"]
+    learner = world.users["staff_a"]
     own = literacy.my_courses(world.db, learner)["items"]
     assert [item["id"] for item in own] == [course_id]
     assert literacy.my_courses(world.db, world.users["owner_b"])["items"] == []
@@ -87,7 +87,7 @@ def test_literacy_acknowledgement_expiry_and_my_work(roles, monkeypatch):
     from modules.launcher import my_work_service
 
     world = roles
-    learner = world.users["employee_a"]
+    learner = world.users["staff_a"]
     course = literacy.create_course(world.db, world.users["dpo_a"], {
         "title": "AI safety briefing", "body": "Escalate unsafe output.",
         "audience_roles": ["employee"], "business_unit_id": world.unit["A"],
@@ -194,8 +194,8 @@ def test_g6bc_http_access_cache_and_malformed_payloads(http):
     course_id, _ = _published(http.world)
     key = next(iter(FEATURES))
     assert http("get", "/ai-governance/literacy", name=None).status_code == 303
-    assert http("get", "/ai-governance/api/literacy/mine", name="employee_a").headers["cache-control"] == "private, no-store"
-    learn = http("get", f"/ai-governance/api/literacy/{course_id}/learn", name="employee_a")
+    assert http("get", "/ai-governance/api/literacy/mine", name="staff_a").headers["cache-control"] == "private, no-store"
+    learn = http("get", f"/ai-governance/api/literacy/{course_id}/learn", name="staff_a")
     assert learn.status_code == 200 and "correct" not in learn.text
     hidden = http("get", f"/ai-governance/api/literacy/{course_id}/learn", name="owner_b")
     missing = http("get", "/ai-governance/api/literacy/999999/learn", name="owner_b")
@@ -244,11 +244,11 @@ def test_literacy_publish_notifies_the_current_audience_once(http):
     published = http("post", path, json={"version": course["version"], "retake": True})
     assert published.status_code == 200, published.text
     notices = world.db.execute("SELECT user_id FROM notifications WHERE user_id=%s AND link=%s",
-                               (world.users["employee_a"]["id"],
+                               (world.users["staff_a"]["id"],
                                 f"/ai-governance/literacy/{course['id']}")).fetchall()
     assert len(notices) == 1
     assert http("post", path, json={"version": course["version"], "retake": True}).status_code == 409
     notices = world.db.execute("SELECT count(*) FROM notifications WHERE user_id=%s AND link=%s",
-                               (world.users["employee_a"]["id"],
+                               (world.users["staff_a"]["id"],
                                 f"/ai-governance/literacy/{course['id']}")).fetchone()[0]
     assert notices == 1

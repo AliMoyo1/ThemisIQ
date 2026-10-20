@@ -157,7 +157,8 @@ def _notify_admins(module: str, title: str, message: str, link: str, org_id: int
             "SELECT DISTINCT u.id,u.username,u.email,u.full_name,u.org_id,u.is_active,"
             "u.is_super_admin,u.business_unit_id FROM users u "
             "JOIN user_roles ur ON u.id=ur.user_id "
-            "WHERE ur.role_key IN ('dpo','privacy_analyst') AND u.is_active=1 AND u.org_id=%s "
+            "WHERE ur.role_key IN ('dpo','privacy_analyst','org_admin','super_admin') "
+            "AND u.is_active=1 AND u.org_id=%s "
             "AND COALESCE(u.is_super_admin,0)=0", (org_id,)
         ).fetchall()
         for r in rows:

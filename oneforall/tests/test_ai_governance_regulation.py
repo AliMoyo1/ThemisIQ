@@ -62,7 +62,7 @@ def test_a_reviewer_only_proposes_uses_in_their_own_unit(system):
     assert regulation.list_queue(system.db, user(system, "dpo_b"))["items"] == []
     assert refresh(system, "dpo_a")["created"] == 1
     assert regulation.list_queue(system.db, user(system, "dpo_b"))["items"] == []
-    fail(lambda: regulation.refresh(system.db, user(system, "employee_a")), 403)
+    fail(lambda: regulation.refresh(system.db, user(system, "staff_a")), 403)
     assert [i["system"] for i in regulation.list_queue(system.db, user(system, "employee_a"))["items"]] == ["Ticket summarizer"]
 
 
@@ -109,7 +109,7 @@ def test_a_candidate_in_another_unit_is_a_404_for_the_reviewer(system):
     item = regulation.list_queue(system.db, user(system, "dpo_a"))["items"][0]
     fail(lambda: regulation.review(system.db, user(system, "dpo_b"), item["id"], "dismiss", "No.", item["version"]), 404)
     fail(lambda: regulation.review(system.db, user(system, "dpo_a"), 987654, "dismiss", "No.", 1), 404)
-    fail(lambda: regulation.review(system.db, user(system, "employee_a"), item["id"], "dismiss", "No.", item["version"]), 403)
+    fail(lambda: regulation.review(system.db, user(system, "staff_a"), item["id"], "dismiss", "No.", item["version"]), 403)
     fail(lambda: regulation.list_queue(system.db, user(system, "dpo_a"), "pending"), 400)
 
 
@@ -121,7 +121,9 @@ def test_a_change_confirmed_after_an_approval_reopens_it(system):
     commit(system, asked, user(system, "employee_a"))
     brief = decisions.get_brief(system.db, user(system, "owner_a"), system.app)
     commit(system, decisions.decide(system.db, user(system, "owner_a"), asked["decision"]["id"], "approve", brief=brief["hash"],
-                                    expected_version=1), user(system, "owner_a"))
+                                    expected_version=1,
+                                    override_reason="The remaining reviews are scheduled and documented for this pilot."
+                                    if brief["needs_override"] else None), user(system, "owner_a"))
     system.db.execute("UPDATE ai_use_decisions SET decided_at = '2026-01-01 00:00:00'")
     system.db.commit()
     assert decisions.get_decisions(system.db, user(system, "owner_a"), system.app)["state"]["state"] == "approved"

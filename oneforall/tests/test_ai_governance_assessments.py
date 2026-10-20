@@ -66,7 +66,7 @@ def test_staff_and_outside_auditors_hold_none_of_the_three(role):
 
 def test_every_operation_checks_its_capability_before_it_looks_at_a_record(world):
     row = make(world)
-    staff = user(world, "employee_a")
+    staff = user(world, "staff_a")
     fail(lambda: assessments.list_assessments(world.db, staff), 403)
     fail(lambda: assessments.get_assessment(world.db, staff, row["id"]), 403)
     fail(lambda: assessments.create_assessment(world.db, staff, {"title": "x"}), 403)
@@ -173,8 +173,9 @@ def test_a_privacy_record_the_reader_may_not_open_is_not_named(world):
     assert tuple(stored) == (ropa_b, dpia_b), "an unrelated edit must keep hidden links"
     assert assessments.get_assessment(world.db, user(world, "dpo_a"), own)["ropa"] == {
         "id": ropa_a, "ref": "ROPA-A", "title": "Own payroll processing", "url": f"/sentinel/?open=ropa:{ropa_a}"}
-    # a risk owner reads assessments but holds no right to privacy records, so none is named even in their own unit
-    assert assessments.get_assessment(world.db, user(world, "owner_a"), own)["ropa"] == {"restricted": True}
+    # A risk owner with assessment access sees a linked privacy record in their own unit.
+    assert assessments.get_assessment(world.db, user(world, "owner_a"), own)["ropa"] == {
+        "id": ropa_a, "ref": "ROPA-A", "title": "Own payroll processing", "url": f"/sentinel/?open=ropa:{ropa_a}"}
     assert assessments.get_assessment(world.db, user(world, "owner_a"), own)["dpia"] is None, "nothing is linked at all"
 
 
@@ -400,5 +401,5 @@ def test_the_pickers_offer_only_privacy_records_the_writer_may_open_found_by_typ
     assert found == [{"id": mine, "ref": "ROPA-A", "title": "Payroll run"}]
     assert [r["id"] for r in assessments.link_options(world.db, user(world, "dpo_a"), "dpia")] == [dpia], "empty search lists the first few"
     assert assessments.link_options(world.db, user(world, "dpo_a"), "ropa", "%") == [], "a wildcard is just a character"
-    assert assessments.link_options(world.db, user(world, "owner_a"), "ropa", "payroll") == [], "no right to privacy records"
+    assert [r["id"] for r in assessments.link_options(world.db, user(world, "owner_a"), "ropa", "payroll")] == [mine]
     fail(lambda: assessments.link_options(world.db, user(world, "dpo_a"), "vendor", "x"), 400)

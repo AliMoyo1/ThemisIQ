@@ -99,7 +99,7 @@ def test_a_valid_preview_mapping_can_be_reused_and_archived_without_changing_its
 def test_an_unpreviewed_or_hidden_mapping_cannot_be_saved(world):
     done = preview(world)
     fail(lambda: imports.save_mapping(world.db, user(world, "dpo_b"), done["batch"]["id"], "Hidden"), 404)
-    fail(lambda: imports.save_mapping(world.db, user(world, "employee_a"), done["batch"]["id"], "No review role"), 403)
+    fail(lambda: imports.save_mapping(world.db, user(world, "staff_a"), done["batch"]["id"], "No review role"), 403)
     fail(lambda: imports.save_mapping(world.db, user(world, "dpo_a"), 99999, "Missing"), 404)
 
 
@@ -169,7 +169,7 @@ def test_a_workbook_is_read_like_a_csv(world):
 # ── Who may ─────────────────────────────────────────────────────────────────
 
 def test_only_reviewers_may_import_and_only_those_in_the_batchs_unit_may_open_it(world):
-    fail(lambda: imports.preview(world.db, user(world, "employee_a"), data=export(response()), filename="x.csv",
+    fail(lambda: imports.preview(world.db, user(world, "staff_a"), data=export(response()), filename="x.csv",
                                  source_system="other", form_name="F"), 403)
     done = preview(world)
     assert imports.get_batch(world.db, user(world, "dpo_a"), done["batch"]["id"])["batch"]["row_count"] == 1
@@ -212,7 +212,7 @@ def test_the_requester_gets_no_account_and_no_access(world):
     assert count(world, "users") == before
     [row] = intake_rows(world)
     fail(lambda: service.get_intake(world.db, user(world, "dpo_b"), row["id"]), 404)
-    fail(lambda: service.get_intake(world.db, user(world, "employee_a"), row["id"]), 404)
+    fail(lambda: service.get_intake(world.db, user(world, "staff_a"), row["id"]), 404)
 
 
 def test_an_owner_left_open_stays_a_gap_and_blocks_submission(world):

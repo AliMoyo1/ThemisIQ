@@ -509,8 +509,12 @@ def test_the_in_app_notice_is_made_once_and_says_when_nobody_is_named(world):
     from modules.sentinel import scheduler as sched
     w = world
     w.db.execute("DELETE FROM user_roles WHERE role_key = 'dpo'")
+    w.db.execute("UPDATE users SET business_unit_id=%s WHERE id=%s", (w.unit_a, w.people["chief"]))
     w.db.commit()
-    _breach(w, 5.5)
+    breach = _breach(w, 5.5)
+    from modules.governance.entity_scope import describe_record
+    chief = w.db.execute("SELECT * FROM users WHERE id=%s", (w.people["chief"],)).fetchone()
+    assert describe_record(w.db, ("sentinel", "breach"), breach, outbox.user_for_scope(w.db, chief))
     sched._breach_deadline_check()
     sched._breach_deadline_check()
     assert _outbox(w) == [], "no one is named, so nothing is asked for: the first user is not a DPO"
@@ -518,7 +522,7 @@ def test_the_in_app_notice_is_made_once_and_says_when_nobody_is_named(world):
         "SELECT user_id, title, message FROM notifications WHERE module = 'sentinel'").fetchall()]
     ids = [n["user_id"] for n in notices]
     assert w.people["chief"] in ids and len(ids) == len(set(ids)), "one notice each, although the job ran twice"
-    assert all("No privacy officer is named" in n["message"] and "URGENT" in n["title"] for n in notices)
+    assert all("No privacy specialist is named" in n["message"] and "Urgent" in n["title"] for n in notices)
     flag = w.db.execute("SELECT breach_notified_6h FROM sentinel_breaches").fetchone()[0]
     assert flag == 1
 

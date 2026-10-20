@@ -120,7 +120,7 @@ def test_an_outside_auditor_with_no_ai_capability_is_refused_everywhere(http, me
 
 @pytest.mark.parametrize("method, path", REVIEW_ONLY)
 def test_ordinary_staff_cannot_use_the_reviewers_pages_and_calls(http, method, path):
-    assert http(method.lower(), path, name="employee_a").status_code == 403
+    assert http(method.lower(), path, name="staff_a").status_code == 403
 
 
 @pytest.mark.parametrize("method, path", SUBMIT_ONLY + VIEW + REVIEW_ONLY)
@@ -132,8 +132,8 @@ def test_every_change_a_reviewer_makes_is_closed_to_staff(http):
     row = _submit(http)
     for action, body in (("return", {"note": "x", "version": 3}), ("reject", {"reason": "x", "version": 3}),
                          ("approve", {"version": 3, "new_application": {}})):
-        assert http("post", f"/ai-governance/api/review/requests/{row['id']}/{action}", json=body).status_code == 403
-    assert http("get", f"/ai-governance/api/review/requests/{row['id']}/duplicates").status_code == 403
+        assert http("post", f"/ai-governance/api/review/requests/{row['id']}/{action}", name="staff_a", json=body).status_code == 403
+    assert http("get", f"/ai-governance/api/review/requests/{row['id']}/duplicates", name="staff_a").status_code == 403
     assert http("get", f"/ai-governance/api/requests/{row['id']}").status_code == 200, "its own author may read it"
 
 
@@ -142,7 +142,7 @@ def test_staff_cannot_change_a_profile_a_tier_or_the_life_of_a_use(http):
     for method, suffix, body in (("post", "profile", {"answers": {}}), ("put", "profile", {"answers": {}, "version": 1}),
                                  ("post", "tier", {"tier": "lower", "reason": "x", "version": 1}), ("post", "reviewed", {}),
                                  ("post", "retire", {"reason": "x"}), ("post", "restore", {})):
-        assert http(method, f"/ai-governance/api/systems/{app}/{suffix}", json=body).status_code == 403, suffix
+        assert http(method, f"/ai-governance/api/systems/{app}/{suffix}", name="staff_a", json=body).status_code == 403, suffix
 
 
 def _accepted(http, name="employee_a"):
@@ -314,7 +314,7 @@ def test_staff_who_do_not_own_the_use_cannot_link_it(http):
     world.db.commit()
     body = {"source_module": "governance", "source_type": "application", "source_id": app, "target_module": "governance",
             "target_type": "process", "target_id": process, "relationship": "supports"}
-    assert http("post", "/api/links", name="employee_a", json=body).status_code == 403
+    assert http("post", "/api/links", name="staff_a", json=body).status_code == 403
     assert http("post", "/api/links", name="owner_a", json=body).status_code == 201
 
 
@@ -326,4 +326,4 @@ def test_the_pages_render_with_the_modules_navigation(http):
     review = http("get", "/ai-governance/review", name="dpo_a")
     assert "Review requests" in review.text and "ai_governance_lists.js" in review.text
     assert 'href="/ai-governance/review"' in review.text
-    assert 'href="/ai-governance/review"' not in http("get", "/ai-governance/", name="employee_a").text, "staff are not offered the reviewers' page"
+    assert http("get", "/ai-governance/", name="staff_a").status_code == 403

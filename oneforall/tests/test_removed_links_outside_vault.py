@@ -185,7 +185,7 @@ def test_grid_attach_creates_a_live_link_when_the_old_link_was_removed(test_db):
     control = _grid_control(test_db)
     item = _evidence(test_db, "Policy pack", "grid", "control", control, removed=True)
 
-    assert grid_ds.attach_vault_item_to_grid_control(control, item, None) is not None
+    assert grid_ds.attach_vault_item_to_grid_control(control, item, None, user=ADMIN) is not None
     # One live link again, and the removed row stays as the audit trail.
     assert _link_counts(test_db, item, control) == (1, 2)
 
@@ -194,5 +194,5 @@ def test_grid_attach_does_not_duplicate_a_live_link(test_db):
     control = _grid_control(test_db)
     item = _evidence(test_db, "Policy pack", "grid", "control", control)
 
-    assert grid_ds.attach_vault_item_to_grid_control(control, item, None) is not None
+    assert grid_ds.attach_vault_item_to_grid_control(control, item, None, user=ADMIN) is not None
     assert _link_counts(test_db, item, control) == (1, 1)
