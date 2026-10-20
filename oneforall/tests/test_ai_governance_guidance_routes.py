@@ -168,7 +168,7 @@ def test_a_reviewer_maps_an_ai_control_and_sees_it_with_its_proof_state(http, co
     assert shown["access"] is True
     before = shown["items"]
     assert len(before) == 1 and before[0]["mapped"] is False and before[0]["proof"]["current"] == 0
-    denied = http("get", f"{API}/systems/{controls.app}/controls", name="dpo_a").json()
+    denied = http("get", f"{API}/systems/{controls.app}/controls", name="viewer_a").json()
     assert (denied["items"], denied["access"]) == ([], False), "no right to Operations risk is not the same as none recorded"
     assert (before[0]["applicable"], before[0]["implemented"]) == (True, True)
 
@@ -196,7 +196,7 @@ def test_a_mapping_needs_real_controls_and_a_reviewer_who_may_see_them(http, con
     assert http("put", f"{API}/control-mappings", name="owner_a", json={**ok, "ai_control_id": True}).status_code == 400
     assert http("put", f"{API}/control-mappings", name="owner_a", json={**ok, "ai_control_id": 987654}).status_code == 404
     assert http("put", f"{API}/control-mappings", name="owner_a", json={**ok, "canonical_control_id": controls.inactive}).status_code == 404
-    assert http("put", f"{API}/control-mappings", name="dpo_a", json=ok).status_code == 403, "no right to Operations risk"
+    assert http("put", f"{API}/control-mappings", name="viewer_a", json=ok).status_code == 403, "no right to Operations risk"
     assert http("put", f"{API}/control-mappings", name="owner_b", json=ok).status_code == 404, "the control sits in unit A"
 
 

@@ -513,7 +513,7 @@ def _notified(world, event_type=None):
 def test_a_submission_tells_the_reviewers_who_may_see_it_and_nobody_else(roles):
     submitted(roles)
     told = {name for name, _, _ in _notified(roles)}
-    assert told == {"dpo_a", "owner_a"}, "reviewers of unit A; not the author, not other units, not a reviewer with no unit"
+    assert told == {"dpo_a", "owner_a", "risk_only_a"}, "reviewers of unit A; not the author, not other units, not a reviewer with no unit"
 
 
 def test_delivering_the_same_event_twice_tells_nobody_twice(roles):
