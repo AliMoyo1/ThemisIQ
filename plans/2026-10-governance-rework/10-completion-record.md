@@ -6,10 +6,10 @@
 where, and what is still open. It does not repeat the build detail, which is in [07](07-implementation-ledger.md) under the
 heading named in each row.
 
-**How to read the status words.** Used exactly as 05 section 12 separates them. *Built*: on the branch `claude/plan-04-platform-truth` (commits `cbf9372` to the latest, pushed to GitHub), not merged to `master`. *Verified
+**How to read the status words.** Used exactly as 05 section 12 separates them. *Built*: on the branch `claude/plan-04-platform-truth`, merged to `master` as pull request 11 (`790ce1c`, 2026-10-20). *Verified
 locally*: the focused checks named passed on SQLite, on a disposable PostgreSQL 18 where the row says so, and in a browser
 where the row says so. *Pilot live* and *generally released*: nothing here is either. No source owner has signed any phase
-off, a pilot walkthrough with Ali Moyo and Vivian Tsongorera has not happened, and nothing from this branch is merged to `master` or deployed.
+off, a pilot walkthrough with Ali Moyo and Vivian Tsongorera has not happened, and nothing is confirmed deployed.
 
 ## 1. Decision register (05 section 1)
 

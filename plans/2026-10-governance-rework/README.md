@@ -2,7 +2,7 @@
 
 **Status:** Design documents 01 to 06 were written 2026-10-14 and still describe behavior and acceptance gates: they do not mark a feature built or a release approved. What was built from them, how it was checked and what was left is in the implementation records below (07 to 14).
 
-**Build status, 2026-10-15:** plans 01 to 03 are merged to `master` (pull request 10). Plans 04 to 06 and follow-ups 11 to 13 (the email items, the predictive trace and team view, BCM escalation, the hardening pack) are committed and pushed on the branch `claude/plan-04-platform-truth`, awaiting a pull request and the owner's decisions listed in the handoff of [07](07-implementation-ledger.md). Nothing from this branch is merged to `master`, deployed, or pilot live.
+**Build status, 2026-10-20:** plans 01 to 03 are merged to `master` (pull request 10). Plans 04 to 06, follow-ups 11 to 13 and the connected governance build that followed are merged to `master` as pull request 11 (`790ce1c`, 2026-10-20). What was verified on that head, what was not done and the open owner decisions are in [07](07-implementation-ledger.md). Nothing is confirmed deployed or pilot live.
 
 ## Product decision
 
