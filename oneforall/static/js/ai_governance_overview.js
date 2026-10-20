@@ -21,7 +21,7 @@
     switch (m.key) {
       case 'new_requests':
         return m.value === 0 ? 'Nothing is waiting for a first review.'
-          : (d.oldest_days === null || d.oldest_days === undefined ? '' : 'The oldest has waited ' + plural(d.oldest_days, 'day', 'days') + '.');
+          : (d.oldest_days === null || d.oldest_days === undefined ? '' : 'The oldest currently submitted request is ' + plural(d.oldest_days, 'day', 'days') + ' old.');
       case 'awaiting_decision':
         return m.value === 0 ? 'No decision is being waited for.'
           : plural(d.yours_to_decide || 0, 'request is', 'requests are') + ' yours to decide.';
@@ -70,7 +70,7 @@
 
   function agingTable(buckets, total) {
     var table = el('table', { class: 'aig-table aig-aging' }, [
-      el('caption', { class: 'aig-muted', text: 'New requests by how long they have waited' }),
+      el('caption', { class: 'aig-muted', text: 'Currently submitted requests by age, including those with open questions' }),
       el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', text: 'Waiting' }), el('th', { scope: 'col', text: 'Requests' }),
         el('th', { scope: 'col', text: 'Share' })])])]);
     var body = el('tbody');
@@ -110,6 +110,64 @@
     return box;
   }
 
+  function portfolioCharts(charts) {
+    var box = el('section', { class: 'aig-panel', 'aria-labelledby': 'aigPortfolioH' }, [
+      el('h2', { id: 'aigPortfolioH', class: 'aig-h3', text: 'Portfolio signals' })]);
+    if (!charts || charts.state === 'unavailable') {
+      box.appendChild(el('p', { class: 'aig-note-muted', text: charts ? charts.definition : 'Portfolio data is unavailable.' }));
+      return box;
+    }
+    var total = charts.included;
+    var note = charts.state === 'partial'
+      ? 'Partial: only the first ' + charts.limit + ' active uses are included. Counts below do not describe the entire portfolio.'
+      : total + ' active AI uses in your scope.';
+    box.appendChild(el('p', { class: 'aig-muted', text: note + ' As of ' + charts.as_of + '.' }));
+
+    var evaluations = el('div', { class: 'aig-chart', 'aria-labelledby': 'aigEvalH' }, [
+      el('h3', { id: 'aigEvalH', class: 'aig-chart-title', text: 'Latest evaluation outcome' })]);
+    var outcomes = [
+      ['passed', 'Passed and current', 'evaluation_current'],
+      ['failed', 'Failed or did not finish', 'evaluation_failed'],
+      ['stale', 'Out of date', 'evaluation_stale'],
+      ['not_measured', 'Not measured', 'no_evaluation']
+    ];
+    var evalList = el('ul', { class: 'aig-chart-list' });
+    outcomes.forEach(function (entry) {
+      var count = charts.evaluations[entry[0]];
+      evalList.appendChild(el('li', { class: 'aig-chart-row' }, [
+        el('span', { text: entry[1] }),
+        el('strong', { text: String(count) }),
+        el('meter', { min: '0', max: String(Math.max(total, 1)), value: String(count),
+          'aria-label': entry[1] + ': ' + count + ' of ' + total }),
+        el('a', { href: '/ai-governance/monitoring' + A.qs({ focus: entry[2] }), text: 'View uses',
+          'aria-label': 'View uses with evaluation outcome ' + entry[1] })
+      ]));
+    });
+    evaluations.appendChild(evalList);
+    box.appendChild(evaluations);
+
+    var byTier = el('div', { class: 'aig-chart', 'aria-labelledby': 'aigTierH' }, [
+      el('h3', { id: 'aigTierH', class: 'aig-chart-title', text: 'Uses needing attention by tier' })]);
+    var tiers = el('ul', { class: 'aig-chart-list' });
+    Object.keys(charts.tiers).forEach(function (key) {
+      var tier = charts.tiers[key];
+      if (!tier.total) return;
+      tiers.appendChild(el('li', { class: 'aig-chart-row' }, [
+        el('span', { text: tier.label }),
+        el('strong', { text: tier.attention + ' of ' + tier.total }),
+        el('meter', { min: '0', max: String(tier.total), value: String(tier.attention),
+          'aria-label': tier.label + ': ' + tier.attention + ' of ' + tier.total + ' need attention' }),
+        el('a', { href: '/ai-governance/systems' + A.qs({ tier: key }), text: 'View tier',
+          'aria-label': 'View AI uses in tier ' + tier.label })
+      ]));
+    });
+    if (!tiers.childElementCount) tiers.appendChild(el('li', { class: 'aig-muted', text: 'No active AI uses to group by tier.' }));
+    byTier.appendChild(tiers);
+    box.appendChild(byTier);
+    box.appendChild(el('p', { class: 'aig-hint', text: charts.definition }));
+    return box;
+  }
+
   A.overview = function (root) {
     var status = el('div', { class: 'aig-say', role: 'status' });
     root.appendChild(status);
@@ -124,10 +182,11 @@
         var cols = el('div', { class: 'aig-two' });
         if (data.funnel) cols.appendChild(funnel(data.funnel));
         if (data.aging && data.aging.length) {
-          var newReq = data.cards.filter(function (c) { return c.key === 'new_requests'; })[0];
-          cols.appendChild(el('section', { class: 'aig-panel' }, [agingTable(data.aging, newReq && newReq.value ? newReq.value : 0)]));
+          var submittedTotal = data.aging.reduce(function (count, bucket) { return count + bucket.count; }, 0);
+          cols.appendChild(el('section', { class: 'aig-panel' }, [agingTable(data.aging, submittedTotal)]));
         }
         root.appendChild(cols);
+        root.appendChild(portfolioCharts(data.charts));
       } else {
         root.appendChild(el('p', { class: 'aig-note-muted',
           text: 'You see your own requests and the AI uses you own. Reviewers and deciders see the portfolio numbers.' }));
@@ -138,7 +197,9 @@
   /* The portfolio: every use in scope, with what needs looking at first. */
   var FOCUS = [
     ['', 'All uses'], ['gaps', 'Needs attention'], ['evaluation_oversight', 'Evaluation and oversight'],
+    ['evaluation_current', 'Evaluation passed and current'],
     ['evaluation_failed', 'Evaluation failed'], ['evaluation_stale', 'Evaluation out of date'],
+    ['no_evaluation', 'Evaluation not measured'], ['no_oversight', 'Oversight not measured'],
     ['oversight_attention', 'Oversight to review'], ['review_overdue', 'Review overdue'],
     ['material_change', 'Needs a new decision'], ['condition_overdue', 'Condition overdue']
   ];

@@ -1,7 +1,7 @@
-"""Evidence Vault pager: every item is reachable past the old 200 row cap (PHASE-1A.md, T6)."""
+"""Evidence Vault pager: every item is reachable in a 500-file library (PHASE-1A.md, T6)."""
 import database
 
-PROBES = 230
+PROBES = 500
 
 
 def _status_is(page, text):
@@ -45,14 +45,14 @@ def test_every_item_is_reachable_through_the_pager(login_as, live_app, synthetic
         page.keyboard.press("Enter")
         _status_is(page, f"Showing 26 to 50 of {PROBES}")
 
-        for n in range(3, 11):
+        for n in range(3, 21):
             page.click("#evNextPage")
             _status_is(page, f"Showing {(n - 1) * 25 + 1} to {min(n * 25, PROBES)} of {PROBES}")
         assert page.get_attribute("#evNextPage", "aria-disabled") == "true"
         assert page.locator("#evidenceTable", has_text="Pagination probe 001").count() == 1
 
         page.click("#evPrevPage")
-        _status_is(page, f"Showing 201 to 225 of {PROBES}")
+        _status_is(page, f"Showing 451 to 475 of {PROBES}")
 
         # A new search starts again from page 1 and hides the buttons when everything fits.
         page.locator("#searchInput").fill("")

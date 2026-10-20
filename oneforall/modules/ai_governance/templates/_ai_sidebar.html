@@ -16,7 +16,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
     Requests
   </a>
-  {% elif can_register %}
+  {% elif can_ai_request_history %}
   <a href="/ai-governance/requests" class="nav-item{% if active_section == 'requests' %} active{% endif %}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
     My requests
@@ -72,16 +72,5 @@
     My requests
   </a>
   {% endif %}
-  {% endif %}
-  {% if can_literacy_manage or can_literacy_report %}
-  <a href="/ai-governance/literacy" class="nav-item{% if active_section == 'literacy' %} active{% endif %}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
-    AI literacy history
-  </a>
-  {% elif can_literacy_take %}
-  <a href="/ai-governance/literacy" class="nav-item{% if active_section == 'literacy' %} active{% endif %}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
-    My training
-  </a>
   {% endif %}
 </div>

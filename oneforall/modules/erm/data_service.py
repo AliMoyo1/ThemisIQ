@@ -966,6 +966,8 @@ def update_enterprise_risk(risk_id, data):
 def delete_enterprise_risk(risk_id):
     db = get_db()
     try:
+        if db.execute("SELECT 1 FROM erm_risk_acceptances WHERE risk_id=%s LIMIT 1", (risk_id,)).fetchone():
+            raise ValueError("Risk has formal acceptance history and must be retained")
         db.execute("UPDATE erm_kris SET linked_risk_id=NULL WHERE linked_risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_risk_dimension_scores WHERE risk_id=%s", (risk_id,))
         db.execute("DELETE FROM erm_cf_treatments WHERE risk_id=%s", (risk_id,))
@@ -1283,23 +1285,47 @@ def suggest_ice_for_control(control_id):
     return {"suggested_ice": suggested, "auto_score": auto_score, "factors": factors}
 
 
-def list_pillars(include_inactive=False):
+def _check_target_unit(user, unit_id):
+    """Reject assigning an ERM framework record outside the writer's unit tree."""
+    if user is None or unit_id is None or unit_id == "":
+        return None if unit_id == "" else unit_id
+    if isinstance(unit_id, bool) or not str(unit_id).isascii() or not str(unit_id).isdigit():
+        raise ValueError("Choose a valid business unit")
+    from modules.governance.data_service import bu_scope_ids
+    value = int(unit_id)
+    units = bu_scope_ids(user)
+    if units is not None and value not in units:
+        raise ValueError("Business unit not found")
+    return value
+
+
+def list_pillars(include_inactive=False, user=None):
     db = get_db()
     try:
-        where = "" if include_inactive else "WHERE is_active=1"
+        where, params = [], []
+        if not include_inactive:
+            where.append("is_active=1")
+        if user is not None:
+            from modules.governance.data_service import bu_scope_ids
+            units = bu_scope_ids(user)
+            if units is not None:
+                where.append(f"(business_unit_id IS NULL OR business_unit_id IN ({','.join(['%s'] * len(units))}))")
+                params.extend(units)
+        clause = "WHERE " + " AND ".join(where) if where else ""
         return _dicts(db.execute(
-            f"SELECT * FROM erm_pillars {where} ORDER BY name"
+            f"SELECT * FROM erm_pillars {clause} ORDER BY name", params
         ).fetchall())
     finally:
         db.close()
 
 
-def create_pillar(data):
+def create_pillar(data, user=None):
     """Create an organisational pillar. Raises ValueError if name is empty
     or already exists (erm_pillars.name is UNIQUE)."""
     name = str(data.get("name") or "").strip()
     if not name:
         raise ValueError("name is required")
+    data["business_unit_id"] = _check_target_unit(user, data.get("business_unit_id"))
     db = get_db()
     try:
         existing = db.execute("SELECT id FROM erm_pillars WHERE name=%s", (name,)).fetchone()
@@ -1315,15 +1341,20 @@ def create_pillar(data):
         db.close()
 
 
-def update_pillar(pillar_id, data):
+def update_pillar(pillar_id, data, user=None):
     """Update a pillar's name/description/business_unit_id. Raises
     ValueError if not found, the new name is empty, or it collides with a
     different pillar."""
     db = get_db()
     try:
-        row = db.execute("SELECT id FROM erm_pillars WHERE id=%s", (pillar_id,)).fetchone()
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, scope_params = entity_scope_sql(("erm", "pillar"), user) if user else ("1=1", [])
+        row = db.execute(f"SELECT id FROM erm_pillars WHERE id=%s AND {scope}",
+                         (pillar_id, *scope_params)).fetchone()
         if not row:
             raise ValueError("Pillar not found")
+        if "business_unit_id" in data:
+            data["business_unit_id"] = _check_target_unit(user, data["business_unit_id"])
         fields, vals = [], []
         if "name" in data:
             name = str(data["name"] or "").strip()
@@ -1340,13 +1371,14 @@ def update_pillar(pillar_id, data):
                 fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
             vals.append(pillar_id)
-            db.execute(f"UPDATE erm_pillars SET {','.join(fields)} WHERE id=%s", vals)
+            db.execute(f"UPDATE erm_pillars SET {','.join(fields)} WHERE id=%s AND {scope}",
+                       [*vals, *scope_params])
             db.commit()
     finally:
         db.close()
 
 
-def deactivate_pillar(pillar_id):
+def deactivate_pillar(pillar_id, user=None):
     """Set is_active=0. Raises ValueError if not found or referenced by any
     risk's impacted_pillar. impacted_pillar is a TEXT snapshot of the
     pillar's name, not an FK, so a deactivated pillar keeps rendering on
@@ -1354,7 +1386,10 @@ def deactivate_pillar(pillar_id):
     still in active use, it never touches existing risk rows."""
     db = get_db()
     try:
-        row = db.execute("SELECT name FROM erm_pillars WHERE id=%s", (pillar_id,)).fetchone()
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, scope_params = entity_scope_sql(("erm", "pillar"), user) if user else ("1=1", [])
+        row = db.execute(f"SELECT name FROM erm_pillars WHERE id=%s AND {scope}",
+                         (pillar_id, *scope_params)).fetchone()
         if not row:
             raise ValueError("Pillar not found")
         count = db.execute(
@@ -1362,7 +1397,8 @@ def deactivate_pillar(pillar_id):
         ).fetchone()[0]
         if count > 0:
             raise ValueError(f"Pillar is referenced by {count} risk(s)")
-        db.execute("UPDATE erm_pillars SET is_active=0 WHERE id=%s", (pillar_id,))
+        db.execute(f"UPDATE erm_pillars SET is_active=0 WHERE id=%s AND {scope}",
+                   (pillar_id, *scope_params))
         db.commit()
     finally:
         db.close()
@@ -1372,7 +1408,7 @@ def deactivate_pillar(pillar_id):
 # OBJECTIVES REGISTRY (PLAN-27): strategic / standard / departmental
 # ═════════════════════════════════════════════════════════════════════════════
 
-def _validate_objective(data, db):
+def _validate_objective(data, db, user=None):
     """Validate an objective payload before any SQL runs. obj_type must be
     strategic/standard/departmental; title is required; a strategic
     objective may never have a parent; a standard/departmental objective's
@@ -1389,8 +1425,11 @@ def _validate_objective(data, db):
         if parent_id is not None:
             raise ValueError("A strategic objective cannot have a parent")
     elif parent_id is not None:
+        from modules.governance.entity_scope import entity_scope_sql
+        parent_scope, parent_params = entity_scope_sql(("erm", "objective"), user) if user else ("1=1", [])
         parent = db.execute(
-            "SELECT obj_type FROM erm_objectives WHERE id=%s", (parent_id,)
+            f"SELECT obj_type FROM erm_objectives WHERE id=%s AND {parent_scope}",
+            (parent_id, *parent_params),
         ).fetchone()
         if not parent:
             raise ValueError("parent_id does not exist")
@@ -1400,7 +1439,7 @@ def _validate_objective(data, db):
         raise ValueError("standard_ref is required for standard objectives")
 
 
-def list_objectives(obj_type=None, include_archived=False):
+def list_objectives(obj_type=None, include_archived=False, user=None):
     """Objectives joined with their parent's title and owner's name,
     ordered obj_type then title (Strategic sorts first alphabetically)."""
     db = get_db()
@@ -1410,23 +1449,34 @@ def list_objectives(obj_type=None, include_archived=False):
             where.append("o.obj_type=%s"); params.append(obj_type)
         if not include_archived:
             where.append("o.status!='archived'")
+        parent_scope = ""
+        if user is not None:
+            from modules.governance.data_service import bu_scope_ids
+            units = bu_scope_ids(user)
+            if units is not None:
+                marks = ",".join(["%s"] * len(units))
+                where.append(f"(o.business_unit_id IS NULL OR o.business_unit_id IN ({marks}))")
+                parent_scope = f" AND (p.business_unit_id IS NULL OR p.business_unit_id IN ({marks}))"
+                params.extend(units)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
+        parent_params = list(units) if parent_scope else []
         return _dicts(db.execute(
             f"SELECT o.*, p.title AS parent_title, u.full_name AS owner_name "
             f"FROM erm_objectives o "
-            f"LEFT JOIN erm_objectives p ON p.id = o.parent_id "
+            f"LEFT JOIN erm_objectives p ON p.id = o.parent_id{parent_scope} "
             f"LEFT JOIN users u ON u.id = o.owner_id "
             f"{clause} ORDER BY o.obj_type, o.title",
-            params,
+            [*parent_params, *params],
         ).fetchall())
     finally:
         db.close()
 
 
-def create_objective(data):
+def create_objective(data, user=None):
     db = get_db()
     try:
-        _validate_objective(data, db)
+        data["business_unit_id"] = _check_target_unit(user, data.get("business_unit_id"))
+        _validate_objective(data, db, user)
         new_id = insert_returning_id(db,
             "INSERT INTO erm_objectives "
             "(title, obj_type, parent_id, standard_ref, pillar, department, "
@@ -1443,18 +1493,23 @@ def create_objective(data):
         db.close()
 
 
-def update_objective(objective_id, data):
+def update_objective(objective_id, data, user=None):
     """Partial update, validated against the FULL resulting state (existing
     row merged with the incoming patch) so changing one field never trips
     a false-positive hierarchy error on fields the caller didn't touch."""
     db = get_db()
     try:
-        row = db.execute("SELECT * FROM erm_objectives WHERE id=%s", (objective_id,)).fetchone()
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, scope_params = entity_scope_sql(("erm", "objective"), user) if user else ("1=1", [])
+        row = db.execute(f"SELECT * FROM erm_objectives WHERE id=%s AND {scope}",
+                         (objective_id, *scope_params)).fetchone()
         if not row:
             raise ValueError("Objective not found")
+        if "business_unit_id" in data:
+            data["business_unit_id"] = _check_target_unit(user, data["business_unit_id"])
         merged = dict(row)
         merged.update(data)
-        _validate_objective(merged, db)
+        _validate_objective(merged, db, user)
         fields, vals = [], []
         for k in ("title", "obj_type", "parent_id", "standard_ref", "pillar",
                   "department", "owner_id", "business_unit_id", "status", "description"):
@@ -1463,19 +1518,23 @@ def update_objective(objective_id, data):
         if fields:
             fields.append("updated_at=%s"); vals.append(_now())
             vals.append(objective_id)
-            db.execute(f"UPDATE erm_objectives SET {','.join(fields)} WHERE id=%s", vals)
+            db.execute(f"UPDATE erm_objectives SET {','.join(fields)} WHERE id=%s AND {scope}",
+                       [*vals, *scope_params])
             db.commit()
     finally:
         db.close()
 
 
-def archive_objective(objective_id):
+def archive_objective(objective_id, user=None):
     """Flip status to 'archived'. Never deletes (parent_id ON DELETE SET
     NULL only matters for a hard delete, which this app never performs).
     Raises ValueError if any risk currently links to it via objective_id."""
     db = get_db()
     try:
-        row = db.execute("SELECT id FROM erm_objectives WHERE id=%s", (objective_id,)).fetchone()
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, scope_params = entity_scope_sql(("erm", "objective"), user) if user else ("1=1", [])
+        row = db.execute(f"SELECT id FROM erm_objectives WHERE id=%s AND {scope}",
+                         (objective_id, *scope_params)).fetchone()
         if not row:
             raise ValueError("Objective not found")
         count = db.execute(
@@ -1484,8 +1543,8 @@ def archive_objective(objective_id):
         if count > 0:
             raise ValueError(f"Objective is linked to {count} risks")
         db.execute(
-            "UPDATE erm_objectives SET status='archived', updated_at=%s WHERE id=%s",
-            (_now(), objective_id),
+            f"UPDATE erm_objectives SET status='archived', updated_at=%s WHERE id=%s AND {scope}",
+            (_now(), objective_id, *scope_params),
         )
         db.commit()
     finally:
@@ -1920,7 +1979,7 @@ def delete_appetite(appetite_id):
         db.close()
 
 
-def get_appetite_status():
+def get_appetite_status(user=None):
     """For each category: current max RESIDUAL exposure in erm_enterprise_risks
     vs appetite threshold. Decided 2026-07-18 (PLAN-26): appetite compares
     POST-control exposure, matching the mind map's placement of Risk
@@ -1930,26 +1989,33 @@ def get_appetite_status():
     breaches only start clearing once controls are actually ICE-scored."""
     db = get_db()
     try:
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, scope_params = (entity_scope_sql(("erm", "risk"), user, "e")
+                               if user is not None else ("(1 = 1)", []))
         appetites = _dicts(db.execute("SELECT * FROM erm_risk_appetite").fetchall())
         result = []
         for a in appetites:
             cat = a["category"]
             max_risk = db.execute(
-                "SELECT MAX(COALESCE(rrr, likelihood*impact)) FROM erm_enterprise_risks "
-                "WHERE category=%s AND status NOT IN ('closed','accepted')", (cat,)
+                "SELECT MAX(COALESCE(e.rrr, e.likelihood*e.impact)) FROM erm_enterprise_risks e "
+                f"WHERE e.category=%s AND e.status != 'closed' AND {scope}",
+                (cat, *scope_params)
             ).fetchone()[0] or 0
             count_open = db.execute(
-                "SELECT COUNT(*) FROM erm_enterprise_risks "
-                "WHERE category=%s AND status NOT IN ('closed','accepted')", (cat,)
+                "SELECT COUNT(*) FROM erm_enterprise_risks e "
+                f"WHERE e.category=%s AND e.status != 'closed' AND {scope}",
+                (cat, *scope_params)
             ).fetchone()[0]
             a["current_max_score"] = max_risk
             a["open_count"] = count_open
             a["breached"] = max_risk > a["max_score"]
             # Top risk in this category, by the same residual-exposure metric
             top = db.execute(
-                "SELECT id, title, COALESCE(rrr, likelihood*impact) AS score FROM erm_enterprise_risks "
-                "WHERE category=%s AND status NOT IN ('closed','accepted') "
-                "ORDER BY COALESCE(rrr, likelihood*impact) DESC LIMIT 1", (cat,)
+                "SELECT e.id, e.title, COALESCE(e.rrr, e.likelihood*e.impact) AS score "
+                "FROM erm_enterprise_risks e "
+                f"WHERE e.category=%s AND e.status != 'closed' AND {scope} "
+                "ORDER BY COALESCE(e.rrr, e.likelihood*e.impact) DESC LIMIT 1",
+                (cat, *scope_params)
             ).fetchone()
             a["top_risk"] = _dict(top)
             result.append(a)
@@ -2133,7 +2199,7 @@ def create_library_item(data, actor: dict) -> "int | None":
 # REGULATORY OBLIGATIONS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def list_obligations(status=None, regulator=None, limit=500):
+def list_obligations(status=None, regulator=None, limit=500, user=None):
     db = get_db()
     try:
         where, params = [], []
@@ -2141,6 +2207,11 @@ def list_obligations(status=None, regulator=None, limit=500):
             where.append("o.status=%s"); params.append(status)
         if regulator:
             where.append("o.regulator=%s"); params.append(regulator)
+        if user is not None:
+            from modules.governance.entity_scope import entity_scope_sql
+            scope, scope_params = entity_scope_sql(("erm", "obligation"), user, "o")
+            where.append(scope)
+            params.extend(scope_params)
         clause = ("WHERE " + " AND ".join(where)) if where else ""
         return _dicts(db.execute(
             f"SELECT o.*, u.full_name AS owner_name "
@@ -2152,10 +2223,16 @@ def list_obligations(status=None, regulator=None, limit=500):
         db.close()
 
 
-def get_obligation(obl_id):
+def get_obligation(obl_id, user=None):
     db = get_db()
     try:
-        return _dict(db.execute("SELECT * FROM erm_regulatory_obligations WHERE id=%s", (obl_id,)).fetchone())
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, params = (entity_scope_sql(("erm", "obligation"), user, "o")
+                         if user is not None else ("(1 = 1)", []))
+        return _dict(db.execute(
+            f"SELECT o.* FROM erm_regulatory_obligations o WHERE o.id=%s AND {scope}",
+            (obl_id, *params),
+        ).fetchone())
     finally:
         db.close()
 
@@ -2180,9 +2257,12 @@ def create_obligation(data):
         db.close()
 
 
-def update_obligation(obl_id, data):
+def update_obligation(obl_id, data, user=None):
     db = get_db()
     try:
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, scope_params = (entity_scope_sql(("erm", "obligation"), user)
+                               if user is not None else ("(1 = 1)", []))
         fields, vals = [], []
         for k in ("regulator", "regulation_name", "obligation", "applicable_departments",
                   "evidence_required", "owner_id", "due_date", "status",
@@ -2190,18 +2270,33 @@ def update_obligation(obl_id, data):
             if k in data:
                 fields.append(f"{k}=%s"); vals.append(data[k])
         if fields:
-            fields.append("updated_at=%s"); vals.append(_now()); vals.append(obl_id)
-            db.execute(f"UPDATE erm_regulatory_obligations SET {','.join(fields)} WHERE id=%s", vals)
+            fields.append("updated_at=%s"); vals.append(_now())
+            updated = db.execute(
+                f"UPDATE erm_regulatory_obligations SET {','.join(fields)} WHERE id=%s AND {scope}",
+                [*vals, obl_id, *scope_params],
+            ).rowcount
             db.commit()
+            return updated == 1
+        return bool(db.execute(
+            f"SELECT 1 FROM erm_regulatory_obligations WHERE id=%s AND {scope}",
+            [obl_id, *scope_params],
+        ).fetchone())
     finally:
         db.close()
 
 
-def delete_obligation(obl_id):
+def delete_obligation(obl_id, user=None):
     db = get_db()
     try:
-        db.execute("DELETE FROM erm_regulatory_obligations WHERE id=%s", (obl_id,))
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, scope_params = (entity_scope_sql(("erm", "obligation"), user)
+                               if user is not None else ("(1 = 1)", []))
+        deleted = db.execute(
+            f"DELETE FROM erm_regulatory_obligations WHERE id=%s AND {scope}",
+            [obl_id, *scope_params],
+        ).rowcount
         db.commit()
+        return deleted == 1
     finally:
         db.close()
 
@@ -2345,18 +2440,25 @@ def list_responses(assessment_id):
 # UNIFIED RISK REGISTER VIEW (erm_enterprise_risks UNION risk_register)
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_unified_register(filters=None, limit=1000):
+def get_unified_register(filters=None, limit=1000, user=None):
     """Return all ERM enterprise risks + risk_register entries as a unified list."""
     filters = filters or {}
     cat    = filters.get("category")
     status = filters.get("status")
     db = get_db()
     try:
+        from modules.governance.entity_scope import entity_scope_sql
+        erm_scope, erm_scope_params = (entity_scope_sql(("erm", "risk"), user, "e")
+                                       if user is not None else ("(1 = 1)", []))
+        rr_scope, rr_scope_params = (entity_scope_sql(("platform", "risk"), user, "r")
+                                     if user is not None else ("(1 = 1)", []))
         # ── ERM enterprise risks ──────────────────────────────────────────
         erm_where, erm_params = [], []
-        if cat:    erm_where.append("category=%s");  erm_params.append(cat)
-        if status: erm_where.append("status=%s");    erm_params.append(status)
-        else:      erm_where.append("status != 'closed'")
+        if cat:    erm_where.append("e.category=%s");  erm_params.append(cat)
+        if status: erm_where.append("e.status=%s");    erm_params.append(status)
+        else:      erm_where.append("e.status != 'closed'")
+        erm_where.append(erm_scope)
+        erm_params.extend(erm_scope_params)
         ew = ("WHERE " + " AND ".join(erm_where)) if erm_where else ""
         erm_rows = _dicts(db.execute(
             f"SELECT e.id, e.title, e.description, e.category, e.sub_category, e.likelihood, e.impact, "
@@ -2375,6 +2477,8 @@ def get_unified_register(filters=None, limit=1000):
         if cat:    rr_where.append("r.category=%s");  rr_params.append(cat)
         if status: rr_where.append("r.status=%s");    rr_params.append(status)
         else:      rr_where.append("r.status != 'closed'")
+        rr_where.append(rr_scope)
+        rr_params.extend(rr_scope_params)
         rw = ("WHERE " + " AND ".join(rr_where)) if rr_where else ""
         rr_rows = _dicts(db.execute(
             f"SELECT r.id, r.title, r.description, r.category, r.likelihood, r.impact, "
@@ -2395,20 +2499,27 @@ def get_unified_register(filters=None, limit=1000):
         db.close()
 
 
-def get_register_stats():
+def get_register_stats(user=None):
     """Stats for ERM dashboard: by_level, by_module, by_category, heat_map."""
     db = get_db()
     try:
+        from modules.governance.entity_scope import entity_scope_sql
+        erm_scope, erm_params = (entity_scope_sql(("erm", "risk"), user, "e")
+                                 if user is not None else ("(1 = 1)", []))
+        rr_scope, rr_params = (entity_scope_sql(("platform", "risk"), user, "r")
+                               if user is not None else ("(1 = 1)", []))
         fw_matrix = get_active_framework_matrix(db)
 
         # All open risks from both tables
         erm = _dicts(db.execute(
-            "SELECT likelihood, impact, (likelihood*impact) AS score, category, source_module "
-            "FROM erm_enterprise_risks WHERE status NOT IN ('closed','accepted')"
+            "SELECT e.likelihood, e.impact, (e.likelihood*e.impact) AS score, e.category, e.source_module "
+            f"FROM erm_enterprise_risks e WHERE e.status != 'closed' AND {erm_scope}",
+            erm_params
         ).fetchall())
         rr = _dicts(db.execute(
-            "SELECT likelihood, impact, risk_score AS score, category, source_module "
-            "FROM risk_register WHERE status NOT IN ('closed')"
+            "SELECT r.likelihood, r.impact, r.risk_score AS score, r.category, r.source_module "
+            f"FROM risk_register r WHERE r.status NOT IN ('closed') AND {rr_scope}",
+            rr_params
         ).fetchall())
         all_risks = erm + rr
 
@@ -2443,8 +2554,13 @@ def get_register_stats():
 # RISK FEED (recent events from all modules)
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_risk_feed(limit=20):
+def get_risk_feed(limit=20, user=None):
     """Recent risk-related events from the platform events table."""
+    if user is not None:
+        from modules.governance.data_service import bu_scope_ids
+        # Event payloads have no business-unit owner and may include a source title.
+        if bu_scope_ids(user) is not None:
+            return []
     db = get_db()
     try:
         rows = _dicts(db.execute(
@@ -2465,7 +2581,7 @@ def get_risk_feed(limit=20):
 # DASHBOARD STATS
 # ═════════════════════════════════════════════════════════════════════════════
 
-def _posture_where(filters):
+def _posture_where(filters, user=None):
     """Build a parameterised WHERE clause + params for the PLAN-26 posture
     block from optional filters: category, business_unit_id, impacted_pillar,
     objective_id (PLAN-27), date_from, date_to (created_at range, ISO
@@ -2494,16 +2610,21 @@ def _posture_where(filters):
     if filters.get("date_to"):
         where.append("e.created_at <= %s")
         params.append(filters["date_to"])
+    if user is not None:
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, scope_params = entity_scope_sql(("erm", "risk"), user, "e")
+        where.append(scope)
+        params.extend(scope_params)
     return " AND ".join(where), params
 
 
-def _get_posture_stats(db, filters):
+def _get_posture_stats(db, filters, user=None):
     """Risk posture block for the dashboard v2 (PLAN-26): IRR/RRR/LoA/LoR
     averages, EMV-i/r/a totals, control effectiveness, a high-RRR watchlist
     (rrr >= 15), and a trajectory bucketed by month from score history.
     AVG/SUM over zero qualifying rows returns SQL NULL -> Python None here;
     never coerced to 0, since 0 would misreport real posture as perfect."""
-    where_sql, params = _posture_where(filters)
+    where_sql, params = _posture_where(filters, user=user)
     params = tuple(params)
 
     def _scalar(sql, extra_params=()):
@@ -2588,19 +2709,31 @@ def _get_posture_stats(db, filters):
     }
 
 
-def get_dashboard_stats(filters=None):
+def get_dashboard_stats(filters=None, user=None):
     db = get_db()
     try:
-        total_erm = db.execute("SELECT COUNT(*) FROM erm_enterprise_risks WHERE status!='closed'").fetchone()[0]
+        from modules.governance.entity_scope import entity_scope_sql
+        erm_scope, erm_params = (entity_scope_sql(("erm", "risk"), user, "e")
+                                 if user is not None else ("(1 = 1)", []))
+        rr_scope, rr_params = (entity_scope_sql(("platform", "risk"), user, "r")
+                               if user is not None else ("(1 = 1)", []))
+        total_erm = db.execute(
+            f"SELECT COUNT(*) FROM erm_enterprise_risks e WHERE e.status!='closed' AND {erm_scope}",
+            erm_params
+        ).fetchone()[0]
         critical = db.execute(
             f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
-            "WHERE mb.band_key='critical' AND e.status!='closed'"
+            f"WHERE mb.band_key='critical' AND e.status!='closed' AND {erm_scope}",
+            erm_params
         ).fetchone()[0]
         high = db.execute(
             f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
-            "WHERE mb.band_key IN ('high','critical') AND e.status!='closed'"
+            f"WHERE mb.band_key IN ('high','critical') AND e.status!='closed' AND {erm_scope}",
+            erm_params
         ).fetchone()[0]
-        total_rr = db.execute("SELECT COUNT(*) FROM risk_register WHERE status!='closed'").fetchone()[0]
+        total_rr = db.execute(
+            f"SELECT COUNT(*) FROM risk_register r WHERE r.status!='closed' AND {rr_scope}", rr_params
+        ).fetchone()[0]
         # Residual exposure vs appetite (PLAN-26, decided 2026-07-18): compares
         # POST-control exposure, not raw inherent likelihood*impact. Unassessed
         # risks default rrr to irr_score (tier 4 of the residual ladder), so
@@ -2609,27 +2742,36 @@ def get_dashboard_stats(filters=None):
         appetite_breaches = db.execute(
             "SELECT COUNT(*) FROM erm_enterprise_risks e "
             "JOIN erm_risk_appetite a ON a.category=e.category "
-            "WHERE COALESCE(e.rrr, e.likelihood*e.impact) > a.max_score AND e.status!='closed'"
+            f"WHERE COALESCE(e.rrr, e.likelihood*e.impact) > a.max_score AND e.status!='closed' AND {erm_scope}",
+            erm_params
         ).fetchone()[0]
+        # An obligation without a linked risk is organization-wide. A linked
+        # obligation follows the linked risk's scope, including its title.
+        obligation_scope = (
+            "(o.linked_erm_risk_id IS NULL OR o.linked_erm_risk_id IN "
+            f"(SELECT e.id FROM erm_enterprise_risks e WHERE {erm_scope}))"
+        )
         overdue_obligations = db.execute(
-            "SELECT COUNT(*) FROM erm_regulatory_obligations "
-            f"WHERE status NOT IN ('compliant') AND due_date < {sql_current_date()}"
+            "SELECT COUNT(*) FROM erm_regulatory_obligations o "
+            f"WHERE o.status NOT IN ('compliant') AND o.due_date < {sql_current_date()} "
+            f"AND {obligation_scope}", erm_params
         ).fetchone()[0]
         open_assessments = db.execute(
             "SELECT COUNT(*) FROM erm_assessments WHERE status='active'"
         ).fetchone()[0]
         board_visible = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks WHERE board_visibility=1 AND status!='closed'"
+            "SELECT COUNT(*) FROM erm_enterprise_risks e "
+            f"WHERE e.board_visibility=1 AND e.status!='closed' AND {erm_scope}", erm_params
         ).fetchone()[0]
 
         # Trend: compare current open count to 30 days ago
         erm_30d = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks WHERE status!='closed' "
-            f"AND created_at < {sql_now_ts('-30 days')}"
+            "SELECT COUNT(*) FROM erm_enterprise_risks e WHERE e.status!='closed' "
+            f"AND e.created_at < {sql_now_ts('-30 days')} AND {erm_scope}", erm_params
         ).fetchone()[0]
         rr_30d = db.execute(
-            "SELECT COUNT(*) FROM risk_register WHERE status!='closed' "
-            f"AND created_at < {sql_now_ts('-30 days')}"
+            "SELECT COUNT(*) FROM risk_register r WHERE r.status!='closed' "
+            f"AND r.created_at < {sql_now_ts('-30 days')} AND {rr_scope}", rr_params
         ).fetchone()[0]
         total_30d = erm_30d + rr_30d
         trend_total = (total_erm + total_rr) - total_30d
@@ -2637,7 +2779,7 @@ def get_dashboard_stats(filters=None):
         crit_30d = db.execute(
             f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
             "WHERE mb.band_key='critical' AND e.status!='closed' "
-            f"AND e.created_at < {sql_now_ts('-30 days')}"
+            f"AND e.created_at < {sql_now_ts('-30 days')} AND {erm_scope}", erm_params
         ).fetchone()[0]
         trend_critical = critical - crit_30d
 
@@ -2647,16 +2789,17 @@ def get_dashboard_stats(filters=None):
             "(e.likelihood*e.impact) AS score, e.source_module, e.status, "
             "'erm' AS register_source "
             "FROM erm_enterprise_risks e "
-            "WHERE e.status IN ('open','under_review') "
-            "ORDER BY (e.likelihood*e.impact) DESC LIMIT 5"
+            f"WHERE e.status IN ('open','under_review') AND {erm_scope} "
+            "ORDER BY (e.likelihood*e.impact) DESC LIMIT 5", erm_params
         ).fetchall())
 
         # Actions required: unowned + past-review-date + overdue obligations
         actions = []
         # Unowned ERM risks (no owner_id)
         unowned = _dicts(db.execute(
-            "SELECT id, title, 'unowned_risk' AS action_type FROM erm_enterprise_risks "
-            "WHERE owner_id IS NULL AND status IN ('open','under_review') LIMIT 5"
+            "SELECT e.id, e.title, 'unowned_risk' AS action_type FROM erm_enterprise_risks e "
+            f"WHERE e.owner_id IS NULL AND e.status IN ('open','under_review') AND {erm_scope} LIMIT 5",
+            erm_params
         ).fetchall())
         for r in unowned:
             actions.append({"type": "unowned_risk", "id": r["id"],
@@ -2664,9 +2807,9 @@ def get_dashboard_stats(filters=None):
 
         # Past review date
         overdue_review = _dicts(db.execute(
-            "SELECT id, title FROM erm_enterprise_risks "
-            f"WHERE review_date < {sql_current_date()} AND status IN ('open','under_review') "
-            "AND review_date IS NOT NULL LIMIT 5"
+            "SELECT e.id, e.title FROM erm_enterprise_risks e "
+            f"WHERE e.review_date < {sql_current_date()} AND e.status IN ('open','under_review') "
+            f"AND e.review_date IS NOT NULL AND {erm_scope} LIMIT 5", erm_params
         ).fetchall())
         for r in overdue_review:
             actions.append({"type": "overdue_review", "id": r["id"],
@@ -2674,18 +2817,17 @@ def get_dashboard_stats(filters=None):
 
         # Overdue obligations
         overdue_obls = _dicts(db.execute(
-            "SELECT id, regulation_name FROM erm_regulatory_obligations "
-            f"WHERE status NOT IN ('compliant') AND due_date < {sql_current_date()} LIMIT 5"
+            "SELECT o.id, o.regulation_name FROM erm_regulatory_obligations o "
+            f"WHERE o.status NOT IN ('compliant') AND o.due_date < {sql_current_date()} "
+            f"AND {obligation_scope} LIMIT 5", erm_params
         ).fetchall())
         for o in overdue_obls:
             actions.append({"type": "overdue_obligation", "id": o["id"],
                             "text": f"Overdue obligation: {o['regulation_name']}",
                             "link": "/erm/obligations"})
 
-        # Legacy counters above intentionally stay UNFILTERED (whole-tenant,
-        # band/inherent-based); only the posture block below responds to
-        # `filters`. Do not "fix" this — posture (RRR/EMV) and bands are
-        # different lenses that may legitimately disagree on the same risk.
+        # Legacy counters retain their category/period behavior. Every risk
+        # source is still scoped to the viewer, as is the filtered posture.
         return {
             "total_enterprise_risks": total_erm,
             "total_register_risks": total_rr,
@@ -2700,7 +2842,7 @@ def get_dashboard_stats(filters=None):
             "trend_critical": trend_critical,
             "top_critical_risks": top_critical,
             "actions_required": actions[:8],
-            "posture": _get_posture_stats(db, filters),
+            "posture": _get_posture_stats(db, filters, user=user),
         }
     finally:
         db.close()
@@ -3003,23 +3145,28 @@ def use_statement(stmt_id):
 # REPORTING DATA
 # ═════════════════════════════════════════════════════════════════════════════
 
-def get_trend_data(period_days=30):
+def get_trend_data(period_days=30, user=None):
     """Return weekly risk count snapshots over the given period."""
     db = get_db()
     try:
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, params = (entity_scope_sql(("erm", "risk"), user, "e")
+                         if user is not None else ("(1 = 1)", []))
         rows = db.execute(
             f"SELECT date(created_at) AS day, COUNT(*) AS new_risks "
-            f"FROM erm_enterprise_risks "
-            f"WHERE created_at >= {sql_date_ts(f'-{int(period_days)} days')} "
-            f"GROUP BY day ORDER BY day ASC"
+            f"FROM erm_enterprise_risks e "
+            f"WHERE e.created_at >= {sql_date_ts(f'-{int(period_days)} days')} AND {scope} "
+            f"GROUP BY day ORDER BY day ASC", params
         ).fetchall()
         # Also get total open per day using current status snapshot
         total_open = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks WHERE status NOT IN ('closed','accepted')"
+            f"SELECT COUNT(*) FROM erm_enterprise_risks e WHERE e.status != 'closed' AND {scope}",
+            params
         ).fetchone()[0]
         critical_open = db.execute(
             f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
-            "WHERE e.status NOT IN ('closed','accepted') AND mb.band_key='critical'"
+            f"WHERE e.status != 'closed' AND mb.band_key='critical' AND {scope}",
+            params
         ).fetchone()[0]
         return {
             "daily": _dicts(rows),
@@ -3031,15 +3178,19 @@ def get_trend_data(period_days=30):
         db.close()
 
 
-def get_risk_aging():
+def get_risk_aging(user=None):
     """Bucket open risks by how long they have been open."""
     db = get_db()
     try:
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, params = (entity_scope_sql(("erm", "risk"), user, "e")
+                         if user is not None else ("(1 = 1)", []))
         rows = db.execute(
-            "SELECT id, title, category, qualitative_score, "
-            f"""CAST({sql_days_between("'now'", "created_at")} AS INTEGER) AS days_open """
-            "FROM erm_enterprise_risks "
-            "WHERE status NOT IN ('closed','accepted') ORDER BY days_open DESC"
+            "SELECT e.id, e.title, e.category, e.qualitative_score, "
+            f"""CAST({sql_days_between("'now'", "e.created_at")} AS INTEGER) AS days_open """
+            "FROM erm_enterprise_risks e "
+            f"WHERE e.status != 'closed' AND {scope} ORDER BY days_open DESC",
+            params
         ).fetchall()
         buckets = {"lt30": [], "d30_90": [], "d90_180": [], "gt180": []}
         for r in rows:
@@ -3051,37 +3202,42 @@ def get_risk_aging():
         db.close()
 
 
-def get_executive_dashboard():
+def get_executive_dashboard(user=None):
     """Board-level view: board_visibility=1 risks + appetite status + top 3 actions."""
     db = get_db()
     try:
+        from modules.governance.entity_scope import entity_scope_sql
+        scope, params = (entity_scope_sql(("erm", "risk"), user, "e")
+                         if user is not None else ("(1 = 1)", []))
         board_risks = _dicts(db.execute(
             "SELECT e.*, u.full_name AS owner_name "
             "FROM erm_enterprise_risks e "
             "LEFT JOIN users u ON u.id=e.owner_id "
-            "WHERE e.board_visibility=1 AND e.status NOT IN ('closed','accepted') "
-            "ORDER BY (e.likelihood*e.impact) DESC LIMIT 10"
+            f"WHERE e.board_visibility=1 AND e.status != 'closed' AND {scope} "
+            "ORDER BY (e.likelihood*e.impact) DESC LIMIT 10", params
         ).fetchall())
         appetite = _dicts(db.execute(
             "SELECT a.*, "
-            "(SELECT MAX(likelihood*impact) FROM erm_enterprise_risks "
-            " WHERE category=a.category AND status NOT IN ('closed','accepted')) AS current_score "
-            "FROM erm_risk_appetite a ORDER BY category"
+            "(SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
+            f" WHERE e.category=a.category AND e.status != 'closed' AND {scope}) AS current_score "
+            "FROM erm_risk_appetite a ORDER BY a.category", params
         ).fetchall())
         for a in appetite:
             a["breached"] = bool(a.get("current_score") and a["current_score"] > a["max_score"])
         actions = _dicts(db.execute(
-            "SELECT id, title, category, qualitative_score, owner_id "
-            "FROM erm_enterprise_risks "
-            f"WHERE (owner_id IS NULL OR review_date < {sql_current_date()}) "
-            "AND status NOT IN ('closed','accepted') LIMIT 3"
+            "SELECT e.id, e.title, e.category, e.qualitative_score, e.owner_id "
+            "FROM erm_enterprise_risks e "
+            f"WHERE (e.owner_id IS NULL OR e.review_date < {sql_current_date()}) "
+            f"AND e.status != 'closed' AND {scope} LIMIT 3", params
         ).fetchall())
         total = db.execute(
-            "SELECT COUNT(*) FROM erm_enterprise_risks WHERE status NOT IN ('closed','accepted')"
+            "SELECT COUNT(*) FROM erm_enterprise_risks e "
+            f"WHERE e.status != 'closed' AND {scope}", params
         ).fetchone()[0]
         critical = db.execute(
             f"SELECT COUNT(*) FROM erm_enterprise_risks e {_FW_BAND_JOIN} "
-            "WHERE e.status NOT IN ('closed','accepted') AND mb.band_key='critical'"
+            f"WHERE e.status != 'closed' AND mb.band_key='critical' AND {scope}",
+            params
         ).fetchone()[0]
         return {
             "board_risks": board_risks, "appetite": appetite,

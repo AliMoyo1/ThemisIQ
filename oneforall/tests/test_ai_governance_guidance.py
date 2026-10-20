@@ -13,7 +13,8 @@ from modules.ai_governance import controls, guidance, quality, service
 from modules.ai_governance.service import ServiceError
 from modules.governance import relationships
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, submitted, user
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture
@@ -35,8 +36,7 @@ def test_a_new_use_shows_what_it_needs_and_that_nothing_has_started(system):
     got = {k: (s["applicability"], s["state"]) for k, s in steps(system).items()}
     assert got == {"aiia": ("recommended", "not_started"), "dpia": ("not_applicable", "not_started"),
                    "ropa": ("not_applicable", "not_started"), "vendor": ("required", "not_started"),
-                   # the DPO holds no right to Operations risk records: that is said, not shown as "not started"
-                   "aims": ("not_applicable", "no_access"), "policy": ("recommended", "not_started")}
+                   "aims": ("not_applicable", "not_started"), "policy": ("recommended", "not_started")}
     assert plan["unresolved"] == ["vendor"] and plan["rule_version"] == "v1"
     action = steps(system)["aiia"]["action"]
     assert action["url"] == f"/ai-governance/assessments/new?application_id={system.app}&aig_return={system.app}"
@@ -76,13 +76,11 @@ def test_a_record_in_another_unit_is_never_named_or_counted(system):
     assert "Secret impact" not in json.dumps(guidance.get_checklist(system.db, user(system, "dpo_a"), system.app))
 
 
-def test_a_viewer_with_no_right_to_privacy_records_is_told_so_and_shown_nothing(system):
+def test_staff_cannot_read_a_governance_checklist_or_privacy_record(system):
     _insert(system.db, "sentinel_aiia", ref_number="AIIA-9", title="Visible to the DPO only", business_unit_id=system.unit["A"],
             application_id=system.app, status="completed")
     system.db.commit()
-    plan = steps(system, "employee_a")
-    assert plan["aiia"]["state"] == "no_access" and plan["aiia"]["records"] == []
-    assert "Visible to the DPO only" not in json.dumps(plan)
+    fail(lambda: guidance.get_checklist(system.db, user(system, "staff_a"), system.app), 403)
 
 
 def test_a_use_the_viewer_may_not_open_has_no_checklist(system):
@@ -148,7 +146,7 @@ def test_a_judgement_is_out_of_date_once_the_use_changes(system):
 
 
 def test_only_a_reviewer_may_rule_a_step_out_and_only_for_a_use_they_can_open(system):
-    fail(lambda: guidance.set_step_not_applicable(system.db, user(system, "employee_a"), system.app, "vendor", "because"), 403)
+    fail(lambda: guidance.set_step_not_applicable(system.db, user(system, "staff_a"), system.app, "vendor", "because"), 403)
     fail(lambda: guidance.set_step_not_applicable(system.db, user(system, "dpo_b"), system.app, "vendor", "because"), 404)
     fail(lambda: guidance.clear_step_judgement(system.db, user(system, "dpo_b"), system.app, "vendor"), 404)
     assert count(system, "ai_use_step_overrides") == 0
@@ -208,7 +206,7 @@ def test_each_ai_control_shows_applicable_implemented_mapped_and_proof_as_separa
 
 
 def test_a_viewer_with_no_right_to_operations_risk_sees_none_and_a_hidden_use_gives_none(controls_world):
-    assert controls.use_controls(controls_world.db, user(controls_world, "dpo_a"), controls_world.app) == []
+    assert controls.use_controls(controls_world.db, user(controls_world, "viewer_a"), controls_world.app) == []
     assert controls.use_controls(controls_world.db, user(controls_world, "owner_b"), controls_world.app) is None
 
 
@@ -219,8 +217,8 @@ def test_a_mapping_is_made_by_a_reviewer_who_may_see_the_control_and_never_by_it
     assert made["created"] is True
     again = controls.map_control(w.db, user(w, "owner_a"), w.catalogue["bare"], w.canonical["oversight"])
     assert again["created"] is False and again["audit"] == []
-    fail(lambda: controls.map_control(w.db, user(w, "employee_a"), w.catalogue["bare"], w.canonical["oversight"]), 403)
-    fail(lambda: controls.map_control(w.db, user(w, "dpo_a"), w.catalogue["bare"], w.canonical["oversight"]), 403)
+    fail(lambda: controls.map_control(w.db, user(w, "staff_a"), w.catalogue["bare"], w.canonical["oversight"]), 403)
+    fail(lambda: controls.map_control(w.db, user(w, "viewer_a"), w.catalogue["bare"], w.canonical["oversight"]), 403)
     fail(lambda: controls.map_control(w.db, user(w, "owner_a"), 987654, w.canonical["oversight"]), 404)
     fail(lambda: controls.map_control(w.db, user(w, "owner_a"), w.catalogue["bare"], 987654), 404)
     fail(lambda: controls.map_control(w.db, user(w, "owner_a"), "x", w.canonical["oversight"]), 400)
@@ -287,7 +285,7 @@ def test_a_dismissal_needs_a_reason_applies_while_the_facts_hold_and_is_audited(
     key = f"control_unmapped:ai_control:{w.catalogue['bare']}"
     fail(lambda: quality.dismiss(w.db, user(w, "owner_a"), w.app, key, " "), 422)
     fail(lambda: quality.dismiss(w.db, user(w, "owner_a"), w.app, "made_up:x:1", "because"), 404)
-    fail(lambda: quality.dismiss(w.db, user(w, "employee_a"), w.app, key, "because"), 403)
+    fail(lambda: quality.dismiss(w.db, user(w, "staff_a"), w.app, key, "because"), 403)
     fail(lambda: quality.dismiss(w.db, user(w, "owner_a"), w.app, key, "because", expires_at="2000-01-01"), 422)
     done = quality.dismiss(w.db, user(w, "owner_a"), w.app, key, "Compensating review in place.", expires_at="2999-01-01")
     commit(w, done, user(w, "owner_a"))

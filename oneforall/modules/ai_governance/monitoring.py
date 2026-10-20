@@ -173,7 +173,8 @@ NOT_MEASURED_LABELS = {
     "no_evaluation": "No evaluation with a pass or fail threshold has been recorded",
     "no_oversight": "No human oversight arrangement has been recorded",
 }
-FOCUS = {"evaluation_oversight": ("evaluation_failed", "evaluation_stale", "oversight_attention"), "gaps": tuple(GAP_LABELS)}
+FOCUS = {"evaluation_oversight": ("evaluation_failed", "evaluation_stale", "oversight_attention"),
+         "gaps": tuple(GAP_LABELS), "evaluation_current": ()}
 
 
 def get_portfolio(db, user, *, focus=None) -> dict:
@@ -184,7 +185,7 @@ def get_portfolio(db, user, *, focus=None) -> dict:
     scope so a card and its list agree. Uses with something to look at come first. When more uses exist than the limit,
     the state is `partial`."""
     service._require(user, "ai_use.view")
-    if focus not in (None, "", "all", *FOCUS, *GAP_LABELS):
+    if focus not in (None, "", "all", *FOCUS, *GAP_LABELS, *NOT_MEASURED_LABELS):
         raise ServiceError(400, "Unknown focus.")
     today = utcnow().strftime("%Y-%m-%d")
     scope, params = entity_scope_sql(APP, user, "a")
@@ -218,12 +219,17 @@ def get_portfolio(db, user, *, focus=None) -> dict:
     for r in rows:
         flags, unmeasured = [], []
         run = latest.get(r["id"])
-        if run is None or run["result_state"] == "ungated":
+        if run is None or run["result_state"] not in ("passed", "failed", "interrupted"):
             unmeasured.append("no_evaluation")
+            evaluation_outcome = "not_measured"
         elif run["result_state"] in ("failed", "interrupted"):
             flags.append("evaluation_failed")
+            evaluation_outcome = "failed"
         elif evaluations.is_stale(run["finished_at"] or run["recorded_at"], r["material_changed_at"], today):
             flags.append("evaluation_stale")
+            evaluation_outcome = "stale"
+        else:
+            evaluation_outcome = "passed"
         recorded = tracks.get(r["id"], [])
         if not recorded:
             unmeasured.append("no_oversight")
@@ -240,13 +246,17 @@ def get_portfolio(db, user, *, focus=None) -> dict:
         tier = rules.effective_tier(r["provisional_tier"], r["adopted_tier"])
         uses.append({"application_id": r["id"], "name": r["name"], "business_unit": r["bu_name"], "owner": r["owner_name"],
                      "tier": tier, "tier_label": rules.TIER_LABELS[tier],
+                     "evaluation_outcome": evaluation_outcome,
                      "flags": [{"key": k, "label": GAP_LABELS[k]} for k in flags],
                      "not_measured": [{"key": k, "label": NOT_MEASURED_LABELS[k]} for k in unmeasured],
                      "url": f"/ai-governance/systems/{r['id']}#monitoring"})
     with_gaps = sum(1 for u in uses if u["flags"])
     in_focus = sum(1 for u in uses if any(f["key"] in FOCUS["evaluation_oversight"] for f in u["flags"]))
     wanted = set(FOCUS.get(focus, (focus,))) if focus not in (None, "", "all") else None
-    shown = uses if wanted is None else [u for u in uses if wanted & {f["key"] for f in u["flags"]}]
+    if focus == "evaluation_current":
+        shown = [u for u in uses if u["evaluation_outcome"] == "passed"]
+    else:
+        shown = uses if wanted is None else [u for u in uses if wanted & {f["key"] for f in (*u["flags"], *u["not_measured"])}]
     shown.sort(key=lambda u: (-len(u["flags"]), u["name"].lower(), u["application_id"]))
     return {"as_of": utcnow().strftime("%Y-%m-%d %H:%M:%S"), "state": "partial" if truncated else "measured",
             "limit": PORTFOLIO_LIMIT, "total_uses": len(uses), "with_gaps": with_gaps, "evaluation_oversight": in_focus,

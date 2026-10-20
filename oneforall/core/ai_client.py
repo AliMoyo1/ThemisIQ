@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import time
+from contextlib import contextmanager
 from urllib.parse import urlsplit
 
 import httpx
@@ -837,6 +838,47 @@ def _web_search_to_provider(messages, system, max_tokens, model, max_searches, a
         "input_tokens": total_input,
         "output_tokens": total_output,
     }
+
+
+class AIUnavailable(RuntimeError):
+    """The assistant could not produce an answer: it is not configured, it failed, or what it said could not be read.
+
+    Raised instead of returning canned content, so that nothing made up is shown or saved as if a model wrote it. The
+    person gets the sentence in str(); the manual path of the feature is always open. `reason` is a stable code."""
+
+    def __init__(self, message: str = "", reason: str = "unavailable"):
+        super().__init__(message or UNAVAILABLE_MESSAGE)
+        self.reason = reason
+
+
+UNAVAILABLE_MESSAGE = "The AI assistant could not produce an answer just now. Nothing was generated or saved."
+NOT_CONFIGURED_MESSAGE = "The AI assistant is not configured for this platform, so nothing was generated or saved."
+UNREADABLE_MESSAGE = "The AI assistant's answer could not be read, so nothing was generated or saved."
+
+
+@contextmanager
+def must_answer():
+    """Wrap a model call whose answer is shown or saved as the assistant's own.
+
+    Not configured, a provider failure and an unusable answer all end as AIUnavailable. An organization's policy refusal
+    keeps its own sentence and is not wrapped."""
+    if not is_configured():
+        raise AIUnavailable(NOT_CONFIGURED_MESSAGE, "not_configured")
+    try:
+        yield
+    except (AIUnavailable, ai_policy.AIPolicyError):
+        raise
+    except Exception as exc:
+        log.warning("AI call failed: %s", type(exc).__name__, exc_info=True)
+        raise AIUnavailable(UNAVAILABLE_MESSAGE, "failed") from exc
+
+
+def answer_json(text, *required, kind=dict):
+    """The JSON the assistant returned, as `kind` (dict or list) with every `required` key, or AIUnavailable."""
+    got = safe_json_parse(text, None)
+    if not isinstance(got, kind) or (kind is dict and any(k not in got for k in required)):
+        raise AIUnavailable(UNREADABLE_MESSAGE, "unreadable")
+    return got
 
 
 def wrap_user_input(text: str) -> str:

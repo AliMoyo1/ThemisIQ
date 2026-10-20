@@ -130,7 +130,7 @@ def _proof(db, user, canonical_ids) -> dict:
     return out
 
 
-def use_controls(db, user, application_id: int) -> "list | None":
+def use_controls(db, user, application_id: int, *, proof_limit=10) -> "list | None":
     """For each AI control in the use's management assessments: whether it is in scope and implemented, which canonical
     controls it maps to, and the proof held for them. None when the viewer may not open the application."""
     service._require(user, "ai_use.view")
@@ -166,6 +166,7 @@ def use_controls(db, user, application_id: int) -> "list | None":
             "control": {"id": r["control_id"], "ref": r["control_ref"], "title": r["control_title"]},
             "applicable": bool(r["in_scope"]), "implemented": bool(r["implemented"]), "status": r["status"],
             "mapped_to": mapped, "mapped": bool(mapped),
-            "proof": {"current": current, "expired": expired, "verified": verified, "items": items[:10]},
+            "proof": {"current": current, "expired": expired, "verified": verified,
+                      "items": items if proof_limit is None else items[:proof_limit]},
         })
     return out

@@ -1,6 +1,8 @@
 # ThemisIQ specialist rework programme
 
-**Status:** Proposed design, 2026-10-14. These documents describe future behavior and acceptance gates. They do not mark a feature built or a release approved.
+**Status:** Design documents 01 to 06 were written 2026-10-14 and still describe behavior and acceptance gates: they do not mark a feature built or a release approved. What was built from them, how it was checked and what was left is in the implementation records below (07 to 14).
+
+**Build status, 2026-10-15:** plans 01 to 03 are merged to `master` (pull request 10). Plans 04 to 06 and follow-ups 11 to 13 (the email items, the predictive trace and team view, BCM escalation, the hardening pack) are committed and pushed on the branch `claude/plan-04-platform-truth`, awaiting a pull request and the owner's decisions listed in the handoff of [07](07-implementation-ledger.md). Nothing from this branch is merged to `master`, deployed, or pilot live.
 
 ## Product decision
 
@@ -18,6 +20,22 @@ The owning module keeps the record and its lifecycle. Dashboards, My Work, relat
 | [04 Platform](04-platform-truth-navigation-and-reports.md) | Shared metrics, navigation, reports, AI, trust and unavailable states | [PLAN-37](../PLAN-37-connected-compliance-experience.md), [SBU plans](../PLAN-SBU-04-scope-legibility-and-filter.md) |
 | [05 Delivery](05-delivery-and-acceptance.md) | Sequence, decisions, migration, acceptance, rollout | [Portfolio roadmap](../ROADMAP-2026-10.md), [PLAN-36](../PLAN-36-themisiq-stabilization-and-product-improvements/task_plan.md) |
 | [06 Email](06-email-notifications-and-delivery.md) | Temporary Gmail sender, role-based touch points, shared templates, delivery outcomes, fallback, service-identity cutover | Existing `core/email.py`, module schedulers and platform notifications |
+
+## Implementation records
+
+The documents above are the design. What was built from them, how it was checked, and what was left is kept apart so a
+proposal is never read as a release.
+
+| Record | What it holds |
+| --- | --- |
+| [07 Implementation ledger](07-implementation-ledger.md) | Slice status, a change log per slice with what was found on the way, the not done lists, stage verification and the handoff |
+| [08 Platform functions inventory](08-platform-functions-inventory.md) | Per platform function: who reads and writes what, under which gate, what was found and fixed (plan 04 section 8) |
+| [09 Email inventory](09-email-inventory.md) | Every path that sends mail, what it claimed, its state now, and the decisions only the owner can make (plan 06, E0) |
+| [10 Completion record](10-completion-record.md) | The decision register, gates against evidence, migration inventory, security checks, verification results and the per slice record (plan 05 section 12) |
+| [11 Follow-up plan](11-follow-up-plan.md) | The items the first build of plans 04 to 06 reported as not built: what could be built, the defaults chosen, and the running log |
+| [14 Hardening pack](14-hardening-pack.md) | The outbox purge, the send budget, mail when a task is handed over, and badge contrast: the rules, the reasons and the log (follow-up 13) |
+| [13 BCM incident escalation](13-bcm-incident-escalation.md) | Acknowledgement windows by severity, the first alternate, the rules and the log of the build (follow-up 12) |
+| [12 Email cutover runbook](12-email-cutover-runbook.md) | Pause, switch, test and resume for the move to a managed sender identity (plan 06, E4). Nothing in it has been run |
 
 Where an older plan and this user-directed rework disagree, these documents state the changed product decision. An implementation still has to reconcile code, schema, live data, permissions, and historical plan links before changing behavior. Do not silently rewrite or delete the earlier plan.
 

@@ -36,6 +36,10 @@ ROUTES = [
     ("/sentinel/", "super_admin"),
     ("/orm/", "super_admin"),
     ("/governance", "super_admin"),
+    # Added with plan 04 and plan 06: the figure definitions, My Work and the profile's email preference
+    ("/metrics", "super_admin"),
+    ("/my-work", "super_admin"),
+    ("/profile", "super_admin"),
 ]
 
 # route -> {violation_id: reason}. Every entry here is a real, found,

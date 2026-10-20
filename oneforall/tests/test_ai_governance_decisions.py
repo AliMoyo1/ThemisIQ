@@ -6,14 +6,16 @@ and a later change never edits it; an approval cannot go ahead over an unresolve
 reason; two deciders cannot both win; and a system the caller may not open does not exist for them.
 """
 import json
+from datetime import datetime, timezone
 
 import pytest
 
 from core import ai_rollout, rbac
-from modules.ai_governance import decisions, guidance, service
+from modules.ai_governance import decisions, evaluations, guidance, service
 from modules.ai_governance.service import ServiceError
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, submitted, user
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 def as_role(world, role, name="dpo_a"):
@@ -25,6 +27,19 @@ def system(world):
     """An accepted use in unit A owned by employee_a (tier lower; the provider review is its one required step)."""
     done = approve_new(world, submitted(world, answers=FULL))
     world.app = done["application_id"]
+    profile = service.get_profile(world.db, user(world, "dpo_a"), world.app)
+    service.update_profile(world.db, user(world, "dpo_a"), world.app,
+                           {"sponsor_user_id": user(world, "dpo_a")["id"], "jurisdictions": ["ZW"]},
+                           profile["version"])
+    evaluations.record_run(world.db, user(world, "dpo_a"), world.app, {
+        "name": "Citation check", "test_set_name": "citations", "test_set_version": "v1",
+        "rubric_version": "v1", "subject_version": "assistant v1", "evaluator": "deterministic",
+        "status": "completed", "started_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "finished_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "scores": {"citation_validity": 100}, "thresholds": {"citation_validity": 95},
+        "cases_total": 1, "cases_failed": 0, "retention": "summary",
+    })
+    world.db.commit()
     return world
 
 
@@ -280,7 +295,8 @@ def test_proof_the_decision_relied_on_expiring_opens_a_re_review(system):
 def test_a_revocation_needs_a_reason_applies_once_and_only_to_an_approval(system):
     row, _ = _approved(system)
     fail(lambda: decisions.revoke(system.db, user(system, "owner_a"), row["id"], " "), 422)
-    fail(lambda: decisions.revoke(system.db, user(system, "employee_a"), row["id"], "No longer accurate."), 403)
+    fail(lambda: decisions.revoke(system.db, as_role(system, rbac.EMPLOYEE, "employee_a"), row["id"],
+                                  "No longer accurate."), 403)
     done = decisions.revoke(system.db, user(system, "owner_a"), row["id"], "The provider changed its terms.")
     commit(system, done, user(system, "owner_a"))
     assert event_types(system)[-1] == "ai_use.decision_revoked" and audit_actions(system)[-1] == "ai_decision_revoked"
@@ -349,10 +365,14 @@ def test_a_manifest_names_a_record_only_to_a_viewer_who_may_open_it(system):
     decide(system, row, "approve", rationale="Approved.")
     seen = decisions.get_decision(system.db, user(system, "owner_a"), row["id"])["manifest"]["assessments"]
     assert seen[0]["id"] == aiia and seen[0]["title"] == "Secret impact assessment" and seen[0]["restricted"] is False
-    staff = decisions.get_decision(system.db, user(system, "employee_a"), row["id"])
-    assert "Secret impact assessment" not in json.dumps(staff)
-    assert staff["manifest"]["assessments"][0] == {"restricted": True}
-    assert "AIIA-D1" not in json.dumps(staff["manifest"])
+    fail(lambda: decisions.get_decision(system.db, user(system, "staff_a"), row["id"]), 403)
+    fail(lambda: decisions.get_decision(system.db, user(system, "dpo_b"), row["id"]), 404)
+    frozen = json.loads(system.db.execute(
+        "SELECT manifest FROM ai_use_decisions WHERE id = %s", (row["id"],)).fetchone()[0])
+    hidden = decisions.present_manifest(system.db, user(system, "dpo_b"), frozen)
+    assert "Secret impact assessment" not in json.dumps(hidden)
+    assert hidden["assessments"][0] == {"restricted": True}
+    assert "AIIA-D1" not in json.dumps(hidden)
 
 
 def test_manifest_removes_hidden_record_metadata_and_nested_mapping_ids(system):

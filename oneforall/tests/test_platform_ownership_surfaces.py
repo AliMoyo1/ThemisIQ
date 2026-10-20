@@ -215,8 +215,9 @@ def test_the_sla_report_counts_the_visible_clocks(seeded, name):
 
 
 # critical risks, high risks, active breaches in the executive brief
+# An employee may not open the risk register, so those two figures are blank, not zero.
 BRIEF = {"dpo_a": (1, 1, 1), "owner_a": (1, 1, 1), "dpo_a1": (0, 1, 1), "dpo_b": (1, 0, 1), "owner_b": (1, 0, 1),
-         "dpo_no_unit": (0, 0, 0), "employee_a": (0, 0, 1)}
+         "dpo_no_unit": (0, 0, 0), "employee_a": (None, None, 1)}
 
 
 @pytest.mark.parametrize("name", list(BRIEF))
@@ -233,6 +234,10 @@ def test_the_risk_report_the_widget_and_the_register_page_agree(seeded, name):
     widget = _stats(seeded, name)["risk_counts"]
     status, page = _call(risks.api_risk_stats(_request(seeded.users[name])))
     assert status == 200
+    if report["by_level"] is None:
+        # a person who may open neither risk source gets a blank report: the register page and the widget show zeros
+        assert name == "employee_a" and not any(widget.values()) and not report["total_open"]
+        return
     assert report["by_level"] == widget == page["by_level"]
     assert report["total_open"] == page["total"] == sum(widget.values())
     assert report["by_module"] == page["by_module"] or not sum(widget.values())

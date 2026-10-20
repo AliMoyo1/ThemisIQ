@@ -37,6 +37,8 @@
   --text:#111827;--text-mid:#374151;--muted:#6b7280;--dim:#9ca3af;
   --border:rgba(0,0,0,0.06);--border2:rgba(0,0,0,0.1);
   --amber:#d97706;--amber-bg:#fffbeb;--red:#dc2626;--red-bg:#fef2f2;
+  /* Text colours for the 10px bold badges: the tints above are for fills and icons and fall below 4.5:1 as text */
+  --badge-amber:#b45309;--badge-green:#15803d;--badge-red:#b91c1c;
   --blue:#2563eb;--blue-bg:#eff6ff;--green-status:#16a34a;--green-bg:#f0fdf4;
   --good:#11803a;--good-soft:rgba(22,163,74,0.1);--bad:#dc2626;--bad-soft:rgba(220,38,38,0.1);
   --warn:#d97706;--warn-soft:rgba(217,119,6,0.1);--info:#2563eb;--info-soft:rgba(37,99,235,0.1);
@@ -115,6 +117,7 @@
   --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.12);
   --amber:#fbbf24;--amber-bg:rgba(251,191,36,0.12);
   --red:#f87171;--red-bg:rgba(248,113,113,0.12);
+  --badge-amber:#fbbf24;--badge-green:#4ade80;--badge-red:#f87171;
   --blue:#60a5fa;--blue-bg:rgba(96,165,250,0.12);
   --green-status:#4ade80;--green-bg:rgba(74,222,128,0.12);
   --good:#4ade80;--good-soft:rgba(74,222,128,0.12);--bad:#f87171;--bad-soft:rgba(248,113,113,0.12);
@@ -526,14 +529,14 @@ input,select,textarea{font-family:var(--font)}
 .data-table tbody tr:hover{background:var(--accent-bg)}
 
 .badge{font-size:10px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block;white-space:nowrap}
-.badge-critical{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
-.badge-high{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.badge-critical{background:var(--red-bg);color:var(--badge-red);border:1px solid rgba(220,38,38,0.15)}
+.badge-high{background:var(--amber-bg);color:var(--badge-amber);border:1px solid rgba(217,119,6,0.15)}
 .badge-medium{background:var(--blue-bg);color:var(--blue);border:1px solid rgba(37,99,235,0.15)}
-.badge-low{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
-.badge-complete{background:var(--green-bg);color:var(--green-status);border:1px solid rgba(22,163,74,0.15)}
-.badge-progress{background:var(--amber-bg);color:var(--amber);border:1px solid rgba(217,119,6,0.15)}
+.badge-low{background:var(--green-bg);color:var(--badge-green);border:1px solid rgba(22,163,74,0.15)}
+.badge-complete{background:var(--green-bg);color:var(--badge-green);border:1px solid rgba(22,163,74,0.15)}
+.badge-progress{background:var(--amber-bg);color:var(--badge-amber);border:1px solid rgba(217,119,6,0.15)}
 .badge-draft{background:var(--surface3);color:var(--text-mid);border:1px solid var(--border)}
-.badge-overdue{background:var(--red-bg);color:var(--red);border:1px solid rgba(220,38,38,0.15)}
+.badge-overdue{background:var(--red-bg);color:var(--badge-red);border:1px solid rgba(220,38,38,0.15)}
 .badge-accent{background:var(--accent-pale);color:var(--accent);border:1px solid rgba(0,0,0,0.06)}
 
 .filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
@@ -793,8 +796,8 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
     </a>
     {% endif %}
 
-    {% if can_ai_use or can_ai_pack or can_ai_literacy or can_ai_admin_nav %}
-    <a href="{{ '/ai-governance/' if can_ai_use or can_ai_admin_nav else ('/ai-governance/packs' if can_ai_pack else '/ai-governance/literacy') }}" class="icon-nav-item{% if active_module == 'ai-governance' %} active{% endif %}" title="AI Governance">
+    {% if can_ai_use or can_ai_pack or can_ai_admin_nav %}
+    <a href="{{ '/ai-governance/' if can_ai_use or can_ai_admin_nav else '/ai-governance/packs' }}" class="icon-nav-item{% if active_module == 'ai-governance' %} active{% endif %}" title="AI Governance">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
       <span class="icon-nav-tooltip">AI Governance</span>
       <span class="nav-label">AI Governance</span>
@@ -994,7 +997,7 @@ select.form-input{appearance:none;background-image:url("data:image/svg+xml,%3Csv
             <span class="notif-header-title">Notifications</span>
             <button type="button" class="notif-mark-read" onclick="markAllRead()">Mark all read</button>
           </div>
-          <div class="notif-list" id="notifList">
+          <div class="notif-list" id="notifList" role="region" aria-label="Notifications" tabindex="0">
             <div class="empty-state" style="padding:24px">
               <p>No new notifications</p>
             </div>
@@ -1166,7 +1169,7 @@ async function loadNotifications(){
       return;
     }
     list.innerHTML = data.notifications.slice(0,20).map(function(n) {
-      var safeLink = (n.link||'').replace(/[^a-zA-Z0-9\/_\-\.#?=&]/g, '');
+      var safeLink = safeHref(n.link, '');
       return '<div style="padding:10px 14px;border-bottom:1px solid var(--border-soft);cursor:pointer;background:'+(n.is_read?'transparent':'var(--surface2)')+'" data-nid="'+parseInt(n.id,10)+'" data-link="'+esc(safeLink)+'">' +
         '<div style="font-size:12.5px;font-weight:'+(n.is_read?'400':'600')+';color:var(--text);">'+esc(n.title)+'</div>' +
         '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(n.message||'')+'</div>' +
@@ -1262,6 +1265,16 @@ document.addEventListener('keydown', function(e){
   }
 });
 
+// A link the server gave, kept as it is when it is a path on this site. The earlier filter removed every character that
+// was not a letter, digit or one of a few marks, which turned "?open=control:12" into "?open=control12".
+function safeHref(link, fallback){
+  var value = String(link || '');
+  if(value.charAt(0) === '/' && value.charAt(1) !== '/' && value.indexOf('\\') < 0 && !/[\u0000-\u001f\u007f]/.test(value)){
+    return value;
+  }
+  return fallback;
+}
+
 function updateSearchActive(items, idx){
   items.forEach(function(it, i){ it.classList.toggle('active', i === idx); });
   if(idx >= 0 && items[idx]){
@@ -1289,13 +1302,16 @@ async function doGlobalSearch(q){
   } else {
     var modColors = {aria:'#6c63ff',sentinel:'#10b981',grid:'#f59e0b',bcm:'#ef4444',platform:'#94a3b8'};
     el.innerHTML = data.results.map(function(r) {
-      var safeLink = (r.link||'#').replace(/[^a-zA-Z0-9\/_\-\.#?=&]/g, '');
+      var safeLink = safeHref(r.link, '#');
+      var facts = [r.status, r.date, r.business_unit].filter(Boolean).join(' \u00b7 ');
       var mod = (r.module||'').replace(/[^a-z]/g,'');
       return '<a href="'+esc(safeLink)+'" class="search-result" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border-soft);text-decoration:none;color:var(--text);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'transparent\'">' +
         '<span style="width:8px;height:8px;border-radius:50%;background:'+(modColors[mod]||'var(--muted)')+';flex-shrink:0;"></span>' +
         '<div style="flex:1;min-width:0;">' +
           '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.title)+'</div>' +
           '<div style="font-size:11px;color:var(--muted);">'+esc(r.module)+' &middot; '+esc(r.type)+(r.subtitle?' &middot; '+esc(r.subtitle):'')+'</div>' +
+          (facts?'<div style="font-size:11px;color:var(--muted);">'+esc(facts)+'</div>':'') +
+          (r.snippet?'<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r.snippet)+'</div>':'') +
         '</div>' +
       '</a>';
     }).join('');
@@ -1512,6 +1528,7 @@ async function createReminder(e){
 
 
 <script src="/static/js/related_items.js"></script>
+<script src="/static/js/module_home.js"></script>
 <script src="/static/js/modal_manager.js?v=1"></script>
 
 </body>

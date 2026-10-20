@@ -188,7 +188,7 @@ def _check_and_emit_appetite_breach(db, category, user_id=None):
     try:
         row = db.execute(
             "SELECT MAX(COALESCE(rrr, likelihood * impact)) AS max_score FROM erm_enterprise_risks "
-            "WHERE category=%s AND status NOT IN ('closed','accepted')",
+            "WHERE category=%s AND status != 'closed'",
             (category,)
         ).fetchone()
         current_score = row["max_score"] if row and row["max_score"] else 0
@@ -1874,16 +1874,20 @@ def breach_triggers_bcm_incident(event_type, source_module, entity_type,
         # Map Sentinel severity → BCM severity tier
         bcm_sev  = {"critical": "critical", "high": "major", "medium": "significant"}.get(severity, "major")
 
+        # An incident opened this way has no commander, so its acknowledgement clock starts now: if nobody takes it, the
+        # BCM managers are told (modules/bcm/escalation.py).
+        from core.timeutils import utcnow
+        from modules.bcm import escalation
         incident_id = insert_returning_id(db,
             "INSERT INTO bcm_incidents "
-            "(title, description, severity, status, started_at, created_at, updated_at) "
-            "VALUES (%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+            "(title, description, severity, status, started_at, created_at, updated_at, ack_due_at) "
+            "VALUES (%s,%s,%s,%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,%s)",
             (
                 f"DATA BREACH: {title}",
                 f"Automatically escalated from Sentinel breach #{entity_id}. "
                 f"Severity: {severity}. Activate relevant BCM plan and initiate "
                 f"crisis communications protocol.",
-                bcm_sev, "open",
+                bcm_sev, "open", escalation.due_from(bcm_sev, utcnow()),
             ),
         )
         db.commit()
@@ -2637,7 +2641,7 @@ def breach_resolved_closes_linked_risks(event_type, source_module, entity_type,
       3. Close the BCM incident that was auto-created from this breach
       4. Notify risk owners and admins
     The appetite framework recalculates automatically on next load because
-    get_appetite_status() queries WHERE status NOT IN ('closed','accepted').
+    get_appetite_status() queries WHERE status != 'closed'.
     """
     db = get_db()
     try:
@@ -2650,7 +2654,7 @@ def breach_resolved_closes_linked_risks(event_type, source_module, entity_type,
         erm_rows = db.execute(
             "SELECT id, title, category, owner_id FROM erm_enterprise_risks "
             "WHERE source_module='sentinel' AND source_risk_id=%s "
-            "AND status NOT IN ('closed','accepted')",
+            "AND status != 'closed'",
             (entity_id,),
         ).fetchall()
 
@@ -2799,7 +2803,7 @@ def erm_risk_closed_checks_appetite(event_type, source_module, entity_type,
         max_score = appetite["max_score"]
         current_max = db.execute(
             "SELECT MAX(COALESCE(rrr, likelihood*impact)) FROM erm_enterprise_risks "
-            "WHERE category=%s AND status NOT IN ('closed','accepted')",
+            "WHERE category=%s AND status != 'closed'",
             (category,),
         ).fetchone()[0] or 0
 
@@ -3050,7 +3054,7 @@ def appetite_breach_notify(event_type, source_module, entity_type,
         # Notify owners of risks in that category
         rows = db.execute(
             "SELECT DISTINCT owner_id FROM erm_enterprise_risks "
-            "WHERE category=%s AND status NOT IN ('closed','accepted') AND owner_id IS NOT NULL",
+            "WHERE category=%s AND status != 'closed' AND owner_id IS NOT NULL",
             (category,)
         ).fetchall()
         for row in rows:

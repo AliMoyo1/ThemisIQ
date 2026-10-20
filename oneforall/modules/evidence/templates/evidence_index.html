@@ -138,9 +138,22 @@
       </button>
     </div>
     <button class="btn btn-secondary" onclick="evFindOpen()">Find evidence</button>
+    {% if can_manage_legacy %}<button class="btn btn-secondary" type="button" onclick="evOpenLegacy()">Review legacy files</button>{% endif %}
     <button class="btn btn-primary" onclick="ModalManager.open('uploadModal')">+ Upload</button>
   </div>
 </div>
+
+{% if can_manage_legacy %}
+<section id="evLegacyPanel" hidden aria-label="Historical file reconciliation" style="margin:14px 0;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <h2 style="font-size:17px;margin:0">Historical file reconciliation</h2>
+    <button class="btn btn-secondary" type="button" onclick="document.getElementById('evLegacyPanel').hidden=true">Close</button>
+  </div>
+  <p style="font-size:12px;color:var(--muted)">Review one source at a time. GRID bytes are copied into the Vault and checked; BCM references need a human to identify the matching existing Vault artifact. Historical source files and module review decisions are retained.</p>
+  <div id="evLegacyStatus" role="status" aria-live="polite"></div>
+  <div id="evLegacyRows"></div>
+</section>
+{% endif %}
 
 <!-- Full-page drag-drop zone (catches drops anywhere) -->
 <div id="pageDropZone" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);align-items:center;justify-content:center;pointer-events:none">
@@ -152,8 +165,8 @@
 
 <div class="content" style="padding:20px">
   <!-- Search first, so the results start at the top of the page -->
-  <label for="searchInput" class="sr-only">Search the Vault by title, file name, tag or description</label>
-  <input type="search" id="searchInput" class="ev-search" placeholder="Search by title, file name, tag or description" onkeyup="debounceSearch()" autocomplete="off">
+  <label for="searchInput" class="sr-only">Search the Vault by name, tag, description or indexed file text</label>
+  <input type="search" id="searchInput" class="ev-search" placeholder="Search names, tags and file text" onkeyup="debounceSearch()" autocomplete="off">
 
   <!-- Work views. Each count is the length of the list it opens. -->
   <div id="evWork" class="ev-work" role="group" aria-label="Work views">
@@ -265,6 +278,32 @@
             <option value="training">Training Record</option>
           </select>
         </div>
+        <fieldset style="border:1px solid var(--border);border-radius:8px;padding:12px;margin:0 0 14px">
+          <legend style="font-size:12px;font-weight:600;padding:0 4px">What does this support? <span style="font-weight:400;color:var(--muted)">(optional)</span></legend>
+          <p style="font-size:11px;color:var(--muted);margin:0 0 10px">Choose a claim now to file this evidence with it. The link will wait for an independent review.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <label style="font-size:11px">Module
+              <select id="uploadLinkModule" onchange="uploadTargetModuleChanged()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">
+                <option value="">Choose module</option>
+                {% if 'aria' in user_modules %}<option value="aria">Governance</option>{% endif %}
+                {% if 'grid' in user_modules %}<option value="grid">Audit</option>{% endif %}
+                {% if 'bcm' in user_modules %}<option value="bcm">Resilience</option>{% endif %}
+                {% if 'sentinel' in user_modules %}<option value="sentinel">Privacy</option>{% endif %}
+                {% if 'erm' in user_modules %}<option value="erm">Enterprise Risk</option>{% endif %}
+                {% if can_ai_use %}<option value="governance">AI Governance</option>{% endif %}
+              </select>
+            </label>
+            <label style="font-size:11px">Record type
+              <select id="uploadLinkType" onchange="uploadTargetTypeChanged()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)"><option value="">Choose type</option></select>
+            </label>
+          </div>
+          <label for="uploadLinkSearch" style="font-size:11px">Find a record</label>
+          <input id="uploadLinkSearch" type="search" maxlength="100" placeholder="Search by name" oninput="debounceUploadTargetSearch()" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text)">
+          <div id="uploadLinkResults" role="status" style="max-height:145px;overflow-y:auto;margin-top:6px;font-size:12px;color:var(--muted)"></div>
+          <div id="uploadLinkSelected" style="display:none;align-items:center;gap:8px;margin-top:8px;padding:8px;border-radius:6px;background:var(--surface2);font-size:12px">
+            <span style="flex:1"></span><button type="button" class="btn btn-secondary" onclick="clearUploadTarget()" aria-label="Remove selected claim">Remove</button>
+          </div>
+        </fieldset>
         <div style="margin-bottom:14px">
           <label style="font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px">Tags (comma-separated)</label>
           <input type="text" id="uploadTags" placeholder="iso27001, access-control, ..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px">
@@ -293,7 +332,7 @@
         </div>
         <!-- Duplicate warning (shown on 409) -->
         <div id="uploadDupeWarning" style="display:none;background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px"></div>
-        <button type="submit" class="btn btn-primary" style="width:100%">Upload Evidence</button>
+        <button type="submit" class="btn btn-primary" id="uploadSubmit" style="width:100%">Upload Evidence</button>
       </form>
     </div>
   </div>
@@ -429,6 +468,69 @@ var entityTypes={
 };
 
 function escHtml(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/\"/g,'&quot;').replace(/'/g,'&#39;');}
+{% if can_manage_legacy %}
+async function evOpenLegacy(){
+  document.getElementById('evLegacyPanel').hidden=false;
+  await evLoadLegacy();
+}
+async function evLoadLegacy(){
+  var rows=document.getElementById('evLegacyRows'),status=document.getElementById('evLegacyStatus');
+  status.textContent='Loading historical file inventory...';
+  try{
+    var data=await ApiClient.request('/evidence/api/legacy-files');
+    var groups=[
+      {title:'GRID current files',kind:'grid',items:data.grid_files||[],allowed:data.grid_access},
+      {title:'GRID historical versions',kind:'grid-versions',items:data.grid_versions||[],allowed:data.grid_access},
+      {title:'BCM file references',kind:'bcm',items:data.bcm_files||[],allowed:data.bcm_access}
+    ];
+    rows.innerHTML=groups.map(function(group){
+      if(!group.allowed)return '<h3>'+group.title+'</h3><p>Module access is required for this inventory.</p>';
+      var pending=group.items.filter(function(item){return item.state!=='vault'&&!item.vault_evidence_id;});
+      var visible=pending.slice(0,100);
+      var table=visible.length?'<table class="ev-table"><thead><tr><th>Source</th><th>State</th><th>Action</th></tr></thead><tbody>'+
+        visible.map(function(item){
+          var source='#'+Number(item.id)+' '+escHtml(item.name||item.title||'Untitled');
+          var action=(group.kind==='bcm'&&!data.bcm_reconcile)?'<span>BCM manage access required</span>':
+            (group.kind==='bcm')?
+            '<label>Matching Vault ID <input type="number" min="1" id="evLegacyVault-'+Number(item.id)+'" style="width:110px"></label> '+
+            '<button type="button" class="btn btn-secondary" data-legacy-kind="bcm" data-legacy-id="'+Number(item.id)+'">Reconcile</button>':
+            !data.grid_migrate?'<span>GRID upload access required</span>':
+            item.state==='safe_local_file'?
+              '<button type="button" class="btn btn-secondary" data-legacy-kind="'+group.kind+'" data-legacy-id="'+Number(item.id)+'">Copy to Vault</button>':
+              '<span>Manual source review required</span>';
+          return '<tr><td>'+source+'</td><td>'+escHtml(item.state)+'</td><td>'+action+'</td></tr>';
+        }).join('')+'</tbody></table>':'<p>No unresolved files in this group.</p>';
+      return '<h3 style="font-size:14px;margin:18px 0 4px">'+group.title+' ('+pending.length+' unresolved)</h3>'+
+        (pending.length>visible.length?'<p>Showing the first 100. Resolve them and refresh for the next group.</p>':'')+table;
+    }).join('');
+    status.textContent='Review each source and its Vault match before changing references.';
+  }catch(e){status.textContent=e.detail||'The historical file inventory could not be loaded.';}
+}
+document.addEventListener('click',async function(event){
+  var button=event.target.closest('[data-legacy-kind]');
+  if(!button)return;
+  var kind=button.dataset.legacyKind,id=Number(button.dataset.legacyId);
+  if(!Number.isSafeInteger(id)||id<1)return;
+  var vaultId=kind==='bcm'?Number(document.getElementById('evLegacyVault-'+id)?.value):null;
+  if(kind==='bcm'&&(!Number.isSafeInteger(vaultId)||vaultId<1)){
+    document.getElementById('evLegacyStatus').textContent='Select the matching Vault artifact first.';return;
+  }
+  if(!confirm('Review the source and confirm this one historical reference should be reconciled. Continue?'))return;
+  var url=kind==='grid'?'/evidence/api/legacy-files/grid/'+id+'/migrate':
+    kind==='grid-versions'?'/evidence/api/legacy-files/grid-versions/'+id+'/migrate':
+    '/evidence/api/legacy-files/bcm/'+id+'/reconcile';
+  button.disabled=true;
+  try{
+    await ApiClient.request(url,{method:'POST',body:kind==='bcm'?{vault_evidence_id:vaultId}:{},
+      actionId:'evidence.legacy.reconcile'});
+    await evLoadLegacy();
+    loadEvidence();loadStats();
+  }catch(e){
+    document.getElementById('evLegacyStatus').textContent=e.detail||'The reference was not changed.';
+    button.disabled=false;
+  }
+});
+{% endif %}
 function fmtSize(b){if(!b)return '0 B';var k=1024,s=['B','KB','MB','GB'],i=Math.floor(Math.log(b)/Math.log(k));return parseFloat((b/Math.pow(k,i)).toFixed(1))+' '+s[i];}
 function fmtDate(ts){if(!ts)return '—';try{var d=new Date(ts.length===10?ts+'T00:00:00':ts.replace(' ','T'));if(isNaN(d.getTime()))return ts;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}catch(e){return ts;}}
 
@@ -515,15 +617,15 @@ async function loadCoverage(){
       var c=modColors[mod]||'#6b7280';
       html+='<div><div style="font-weight:600;font-size:12px;margin-bottom:4px"><span class="ev-mod-dot" style="background:'+c+';margin-right:6px" aria-hidden="true"></span>'+mod.toUpperCase()+' · '+d.total+' records</div>';
       [['linked','Has a live link'],['current','Has current proof'],['accepted','Accepted by a reviewer']].forEach(function(row){
-        var n=d[row[0]]||0,pct=d['pct_'+row[0]]||0;
-        html+='<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:5px"><span>'+escHtml(row[1])+'</span><span style="color:var(--muted)">'+n+'/'+d.total+' ('+pct+'%)</span></div>'+
-          '<div class="coverage-bar"><div class="coverage-fill" style="width:'+pct+'%;background:'+c+'"></div></div>';
+        var n=d[row[0]]||0,pct=d['pct_'+row[0]],measured=pct!==null&&pct!==undefined;
+        html+='<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:5px"><span>'+escHtml(row[1])+'</span><span style="color:var(--muted)">'+(measured?n+'/'+d.total+' ('+pct+'%)':'Not measured')+'</span></div>'+
+          (measured?'<div class="coverage-bar"><div class="coverage-fill" style="width:'+pct+'%;background:'+c+'"></div></div>':'');
       });
       html+='</div>';
     });
     html+='</div><details class="ev-defs" style="margin-top:12px"><summary>What these mean</summary><dl style="font-size:12px;margin:8px 0 0">'+
       Object.keys(m).map(function(k){return '<dt style="font-weight:700;margin-top:6px">'+escHtml(m[k].label)+'</dt><dd style="margin:2px 0 0;color:var(--muted)">'+escHtml(m[k].means)+'</dd>';}).join('')+
-      '</dl><p style="font-size:12px;color:var(--muted)">'+escHtml(defs.exclusions||'')+' As of '+escHtml(defs.as_of||'')+'.</p></details></div>';
+      '</dl><p style="font-size:12px;color:var(--muted)">'+escHtml(defs.exclusions||'')+' '+escHtml(defs.empty_denominator||'')+' As of '+escHtml(defs.as_of||'')+'.</p></details></div>';
     document.getElementById('coverageBar').innerHTML=html;
   }catch(e){document.getElementById('coverageBar').innerHTML='';}
 }
@@ -641,6 +743,11 @@ function evActiveChips(){
     box.appendChild(all);
   }
 }
+function evTextMatchHtml(item){
+  if(!item.text_match)return '';
+  return '<div style="font-size:11px;color:var(--muted);margin-top:5px;white-space:normal;line-height:1.4">'+
+    '<strong>'+escHtml(item.text_match.label)+'</strong> · '+escHtml(item.text_match.text)+'</div>';
+}
 async function loadEvidence(){
   var loadSeq=++evLoadSeq;
   var params=new URLSearchParams();
@@ -698,7 +805,7 @@ async function loadEvidence(){
           (item.status==='archived'?'': '<input type="checkbox" class="ev-row-select" value="'+Number(item.id)+'" aria-label="Select '+escHtml(item.title)+'">')+'</td>':'')+
         '<td><div style="display:flex;align-items:center;gap:8px"><span aria-hidden="true">'+icon+'</span>'+
           '<div style="min-width:0"><div style="font-weight:600;font-size:13px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escHtml(item.title)+'">'+escHtml(item.title)+'</div>'+
-          '<div style="font-size:10px;color:var(--muted)">'+source+' · v'+escHtml(String(item.version||1))+'</div></div></div></td>'+
+          '<div style="font-size:10px;color:var(--muted)">'+source+' · v'+escHtml(String(item.version||1))+'</div>'+evTextMatchHtml(item)+'</div></div></td>'+
         '<td onclick="event.stopPropagation()">'+evClaimsHtml(item)+'</td>'+
         '<td>'+owner+'</td>'+
         '<td>'+due+'</td>'+
@@ -718,7 +825,7 @@ async function loadEvidence(){
           '<span style="font-size:28px">'+icon+'</span>'+
           '<div style="flex:1;min-width:0">'+
             '<div style="font-weight:600;font-size:13.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(item.title)+'</div>'+
-            '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+
+            '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml(item.file_name||'No file')+' · '+fmtSize(item.file_size)+'</div>'+evTextMatchHtml(item)+
             '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
               '<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:var(--blue-bg,#dbeafe);color:var(--blue,#4f8ef7)">'+escHtml(item.category)+'</span>'+
               evStateChip(item.state)+expiryBadgeHtml(item.expiry_date)+
@@ -965,11 +1072,18 @@ async function openDetail(eid){
   var links=item.links||[];
   var mime=(item.mime_type||'').toLowerCase();
   var canPdf=isOfficeMime(mime);
+  var textState=item.text_index&&item.text_index.status;
+  var textStateLabel={indexed:'Searchable text ready',empty:'No readable text found',
+    pending:'Searchable text is being prepared',disabled:'File text indexing is not enabled',
+    unsupported:'File text is not indexed',
+    not_applicable:'No attached file to index',
+    failed:'Text indexing could not finish; metadata search still works'};
 
   var html='<div class="ev-section" style="display:flex;justify-content:space-between;align-items:flex-start">'+
     '<div><div style="font-size:18px;font-weight:700;color:var(--text)">'+icon+' '+escHtml(item.title)+'</div>'+
     '<div style="font-size:12px;color:var(--muted);margin-top:4px">'+escHtml(item.file_name||'')+' · '+fmtSize(item.file_size)+' · v'+escHtml(String(item.version||1))+'</div>'+
-    '<div style="margin-top:8px">'+evStateChip(item.state)+'</div></div>'+
+    '<div style="margin-top:8px">'+evStateChip(item.state)+'</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-top:6px">'+escHtml(textStateLabel[textState]||'Text search unavailable')+'</div></div>'+
     '<button onclick="closeDetail()" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:16px">✕</button></div>';
 
   /* Actions */
@@ -1150,11 +1264,14 @@ async function openDetail(eid){
     var vr=await fetch('/evidence/api/items/'+eid+'/versions');var vd=await vr.json();
     var vers=vd.versions||[];
     document.getElementById('evVersions').innerHTML=vers.length?vers.map(function(v){
+      var versionId=Number(v.id);
+      if(!Number.isSafeInteger(versionId)||versionId<=0)return '';
+      var state=v.status==='current'?'Current version':v.status==='superseded'?'Replaced version':v.status;
       return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px">'+
         '<span style="font-weight:700;color:var(--accent);font-family:monospace;min-width:28px">v'+v.version+'</span>'+
-        '<span style="color:var(--text);flex:1">'+escHtml(v.title)+'</span>'+
+        '<button type="button" style="color:var(--text);flex:1;text-align:left;background:none;border:none;cursor:pointer;font:inherit;text-decoration:underline" onclick="openDetail('+versionId+')">'+escHtml(v.title)+'</button>'+
         '<span style="color:var(--muted)">'+fmtDate(v.created_at)+'</span>'+
-        '<span class="ev-tag">'+escHtml(v.status)+'</span></div>';
+        '<span class="ev-tag">'+escHtml(state)+'</span></div>';
     }).join(''):'<div style="font-size:12px;color:var(--muted);padding:8px 0">Single version, no history</div>';
   }catch(e){document.getElementById('evVersions').innerHTML='<div style="font-size:12px;color:var(--muted)">Could not load versions</div>';}
 
@@ -1450,6 +1567,7 @@ async function evFindRun(e,edited){
       '<div style="font-size:11px;color:var(--muted);margin-top:3px">'+escHtml((r.why||[]).join(' · '))+
         (r.expiry_date?' · expires '+escHtml(fmtDate(r.expiry_date)):'')+(r.review_due_date?' · review by '+escHtml(fmtDate(r.review_due_date)):'')+
         (r.owner_name?' · owner '+escHtml(r.owner_name):'')+'</div>'+
+      evTextMatchHtml(r)+
       (claims||r.claims_hidden?'<div style="font-size:11px;margin-top:2px">Supports: '+(claims||'')+(r.claims_hidden?(claims?', ':'')+r.claims_hidden+' you cannot open':'')+'</div>':'')+
     '</li>';
   }).join('');
@@ -1661,6 +1779,74 @@ function filterCategory(c){currentCategory=c;evPage=1;loadEvidence();}
 function debounceSearch(){clearTimeout(searchTimeout);searchTimeout=setTimeout(function(){evPage=1;loadEvidence();},300);}
 
 /* ── Upload ── */
+var uploadTarget=null, uploadTargetTimer=null, uploadTargetSeq=0;
+function clearUploadTarget(){
+  uploadTarget=null;
+  var selected=document.getElementById('uploadLinkSelected');
+  selected.style.display='none';
+  selected.querySelector('span').textContent='';
+}
+function uploadTargetModuleChanged(){
+  clearUploadTarget();
+  var mod=document.getElementById('uploadLinkModule').value;
+  var type=document.getElementById('uploadLinkType');
+  type.replaceChildren();
+  var blank=document.createElement('option');blank.value='';blank.textContent='Choose type';type.appendChild(blank);
+  var labels={nc:'Nonconformance',non_conformance:'Nonconformance',bia:'Business impact assessment',
+    compliance_control:'Compliance control',ropa:'Processing activity',dpia:'Privacy impact assessment',
+    dsr:'Data subject request',application:'AI system or application'};
+  (entityTypes[mod]||[]).forEach(function(kind){
+    var option=document.createElement('option');option.value=kind;
+    option.textContent=labels[kind]||kind.replace(/_/g,' ').replace(/^./,function(c){return c.toUpperCase();});
+    type.appendChild(option);
+  });
+  uploadTargetTypeChanged();
+}
+function uploadTargetTypeChanged(){
+  clearUploadTarget();
+  document.getElementById('uploadLinkSearch').value='';
+  searchUploadTargets();
+}
+function debounceUploadTargetSearch(){
+  clearTimeout(uploadTargetTimer);
+  uploadTargetTimer=setTimeout(searchUploadTargets,250);
+}
+async function searchUploadTargets(){
+  var mod=document.getElementById('uploadLinkModule').value;
+  var type=document.getElementById('uploadLinkType').value;
+  var box=document.getElementById('uploadLinkResults');
+  var seq=++uploadTargetSeq;
+  box.replaceChildren();
+  if(!mod||!type)return;
+  box.textContent='Finding records...';
+  var query=new URLSearchParams({module:mod,entity_type:type,q:document.getElementById('uploadLinkSearch').value});
+  try{
+    var response=await fetch('/evidence/api/search-entities?'+query);
+    if(!response.ok)throw new Error('Search unavailable');
+    var items=await response.json();
+    if(seq!==uploadTargetSeq)return;
+    box.replaceChildren();
+    if(!items.length){box.textContent='No accessible records found';return;}
+    items.forEach(function(item){
+      var id=Number(item.id);
+      if(!Number.isSafeInteger(id)||id<=0)return;
+      var button=document.createElement('button');button.type='button';
+      button.className='btn btn-secondary';
+      button.style.cssText='display:block;width:100%;text-align:left;margin:3px 0;white-space:normal';
+      button.textContent=item.name+' (#'+id+')';
+      button.addEventListener('click',function(){
+        uploadTarget={module:mod,entity_type:type,entity_id:id};
+        var selected=document.getElementById('uploadLinkSelected');
+        selected.querySelector('span').textContent='Selected: '+item.name+' (#'+id+')';
+        selected.style.display='flex';
+        box.replaceChildren();
+      });
+      box.appendChild(button);
+    });
+  }catch(error){
+    if(seq===uploadTargetSeq)box.textContent='Record search is unavailable. You can upload without a link.';
+  }
+}
 async function handleUpload(e){
   e.preventDefault();
   document.getElementById('uploadDupeWarning').style.display='none';
@@ -1672,12 +1858,21 @@ async function handleUpload(e){
   form.append('category',document.getElementById('uploadCategory').value);
   form.append('tags',document.getElementById('uploadTags').value);
   form.append('description',document.getElementById('uploadDesc').value);
+  if(uploadTarget){
+    form.append('link_module',uploadTarget.module);
+    form.append('link_entity_type',uploadTarget.entity_type);
+    form.append('link_entity_id',String(uploadTarget.entity_id));
+  }else if(document.getElementById('uploadLinkModule').value){
+    document.getElementById('uploadLinkResults').textContent='Select a record, or choose no module to upload without a link.';
+    return;
+  }
   var expiry=document.getElementById('uploadExpiry').value;
   if(expiry)form.append('expiry_date',expiry);
   [['uploadReviewDue','review_due_date'],['uploadPeriodStart','period_start'],['uploadPeriodEnd','period_end']].forEach(function(f){
     var v=document.getElementById(f[0]).value;
     if(v)form.append(f[1],v);
   });
+  var submit=document.getElementById('uploadSubmit');submit.disabled=true;
   try {
     await ApiClient.request('/evidence/api/items', { method: 'POST', body: form, actionId: 'evidence.upload' });
   } catch (e) {
@@ -1699,13 +1894,18 @@ async function handleUpload(e){
       showToast(e.detail || 'Upload failed','error');
     }
     return;
+  } finally {
+    submit.disabled=false;
   }
   ModalManager.close('uploadModal');
   document.getElementById('uploadForm').reset();
+  clearUploadTarget();
+  document.getElementById('uploadLinkType').innerHTML='<option value="">Choose type</option>';
+  document.getElementById('uploadLinkResults').replaceChildren();
   document.getElementById('uploadExpiry').value='';
   evPage=1;
   loadEvidence();loadStats();loadCoverage();
-  if(typeof showToast==='function')showToast('Evidence uploaded','success');
+  if(typeof showToast==='function')showToast('Evidence uploaded'+(form.has('link_module')?' and filed for link review':''),'success');
 }
 
 /* ── Drag-drop ── */

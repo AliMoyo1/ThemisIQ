@@ -5,8 +5,8 @@ A governance specialist's first screen answers what needs action today. Every ca
 against which denominator, and where the records it counted can be opened, and it is one of the states of
 `core/metric_state`: a measured number (a measured zero stays zero), "not measured" when nothing defines it, or
 "unavailable" when its source could not be read. A use with no evaluation or oversight arrangement is "not measured" and is
-never counted as passing. Staff who review nothing get their own requests and the uses they own, not the specialist
-numbers: the layout depends on the role, the authorization does not.
+never counted as passing. This dashboard is for governance specialists; historical request authors see only their own
+request history.
 
 Every number is read through the same functions as the list it opens, inside the viewer's own business-unit scope.
 """
@@ -17,9 +17,7 @@ from core import ai_rollout, metric_state as ms
 from core.rbac import has_capability
 from core.timeutils import utcnow
 from modules.ai_governance import decisions, monitoring, rules, service, workspace
-from modules.ai_governance.service import APP
 from modules.governance.data_service import bu_scope_ids
-from modules.governance.entity_scope import entity_scope_sql
 
 log = logging.getLogger("oneforall.ai_governance")
 
@@ -74,15 +72,15 @@ def _funnel(db, user, now, window_days) -> dict:
          "note": "An AI impact assessment is completed or approved."},
         {"key": "decided", "label": "Accepted and decided", "state": ms.MEASURED, "value": counts["decided"],
          "note": "A decision of approved, approved with conditions or rejected stands."},
-        {"key": "responded", "label": "Responded to the requester", "state": ms.NOT_MEASURED, "value": None,
-         "note": "Not measured: a response to the requester is not recorded yet."},
-        {"key": "closed", "label": "Closed", "state": ms.NOT_MEASURED, "value": None,
-         "note": "Not measured: a request is not closed as a separate step yet."},
+        {"key": "responded", "label": "Response sent", "state": ms.MEASURED, "value": counts["responded"],
+         "note": "The latest external response is marked sent, or the accepted request was closed after a sent response."},
+        {"key": "closed", "label": "Closed", "state": ms.MEASURED, "value": counts["closed"],
+         "note": "An accepted request was explicitly closed by a specialist."},
     ]
     return ms.measured(
         "decision_funnel", "Requests by stage", counts["submitted"],
-        definition="Requests submitted in the window, and how many of them reached each later stage. A stage is read from "
-                   "the records; the stages nothing records yet say so.",
+        definition="Requests submitted in the window and how many reached each step. Response and closure counts "
+                   "include accepted requests only; a rejection at intake is visible in the Requests worklist.",
         window=f"last {window_days} days", denominator={"value": counts["submitted"], "label": "requests submitted in the window"},
         drilldown="/ai-governance/review", detail={"stages": stages})
 
@@ -90,17 +88,33 @@ def _funnel(db, user, now, window_days) -> dict:
 def _specialist(db, user, now, window_days, reviewer, decider) -> tuple:
     cards, aging = [], []
     today = now.strftime("%Y-%m-%d")
+    portfolio = None
+
+    def scoped_portfolio():
+        nonlocal portfolio
+        if portfolio is None:
+            portfolio = monitoring.get_portfolio(db, user)
+        return portfolio
 
     if reviewer:
+        work_counts = None
+
+        def scoped_work_counts():
+            nonlocal work_counts
+            if work_counts is None:
+                work_counts = service.review_worklist(db, user, counts_only=True)["counts"]
+            return work_counts
+
         def new():
             stamps = service.review_submitted_at(db, user, "submitted")
             ages = [d for d in (_age_days(s, now) for s in stamps) if d is not None]
             return ms.measured(
-                "new_requests", "New requests", service.review_count(db, user, "submitted"),
-                definition="Requests that were submitted for review and no reviewer has acted on yet.",
-                drilldown="/ai-governance/review", detail={"oldest_days": max(ages) if ages else None})
+                "new_requests", "New requests", scoped_work_counts()["new"],
+                definition="Imported drafts to triage and submitted requests awaiting a first review.",
+                drilldown="/ai-governance/review?stage=new",
+                detail={"oldest_days": max(ages) if ages else None})
         cards.append(ms.guarded("new_requests", "New requests", new, definition="Requests awaiting a first review.",
-                                drilldown="/ai-governance/review"))
+                                drilldown="/ai-governance/review?stage=new"))
         try:
             aging = _aging(service.review_submitted_at(db, user, "submitted"), now)
         except Exception:
@@ -109,11 +123,11 @@ def _specialist(db, user, now, window_days, reviewer, decider) -> tuple:
         cards.append(ms.guarded(
             "waiting_for_information", "Waiting for information",
             lambda: ms.measured(
-                "waiting_for_information", "Waiting for information", service.review_count(db, user, "waiting"),
+                "waiting_for_information", "Waiting for information", scoped_work_counts()["needs_clarification"],
                 definition="Requests sent back to the requester, or carrying a question nobody has answered yet. A pending "
                            "reply is not an internal failure.",
-                drilldown="/ai-governance/review?status=waiting"),
-            definition="Requests waiting for the requester.", drilldown="/ai-governance/review?status=waiting"))
+                drilldown="/ai-governance/review?stage=needs_clarification"),
+            definition="Requests waiting for the requester.", drilldown="/ai-governance/review?stage=needs_clarification"))
 
     queue_error = None
     queue = None
@@ -170,7 +184,7 @@ def _specialist(db, user, now, window_days, reviewer, decider) -> tuple:
                             "Approved uses that need a new decision.", changed))
 
     def gaps():
-        pf = monitoring.get_portfolio(db, user)
+        pf = scoped_portfolio()
         c = pf["counts"]
         detail = {k: c[k] for k in ("evaluation_failed", "evaluation_stale", "oversight_attention", "no_evaluation", "no_oversight")}
         note = None
@@ -193,42 +207,36 @@ def _specialist(db, user, now, window_days, reviewer, decider) -> tuple:
     funnel = ms.guarded("decision_funnel", "Requests by stage", lambda: _funnel(db, user, now, window_days),
                         definition="Requests submitted in the window and how far each got.", drilldown="/ai-governance/review",
                         window=f"last {window_days} days") if reviewer else None
-    return cards, funnel, aging
-
-
-def _staff(db, user) -> list:
-    cards = []
-
-    def mine():
-        counts = service.mine_counts(db, user)
-        detail = {"draft": counts.get("draft", 0), "submitted": counts.get("submitted", 0), "returned": counts.get("returned", 0)}
-        return ms.measured("my_requests", "My open requests", sum(detail.values()),
-                           definition="Your requests that are drafts, submitted for review, or returned to you with a question.",
-                           drilldown="/ai-governance/requests", detail=detail)
-    cards.append(ms.guarded("my_requests", "My open requests", mine, definition="Your own requests.",
-                            drilldown="/ai-governance/requests"))
-
-    def owned():
-        scope, params = entity_scope_sql(APP, user, "a")
-        n = db.execute("SELECT COUNT(*) FROM applications a JOIN ai_use_profiles p ON p.application_id = a.id "
-                       f"WHERE a.owner_user_id = %s AND a.is_active = 1 AND {scope}", [user["id"], *params]).fetchone()[0]
-        return ms.measured("my_systems", "AI uses I own", n, definition="Active AI uses with you named as the owner.",
-                           drilldown=f"/ai-governance/systems?owner={user['id']}")
-    cards.append(ms.guarded("my_systems", "AI uses I own", owned, definition="Active AI uses you own.",
-                            drilldown=f"/ai-governance/systems?owner={user['id']}"))
-    return cards
+    try:
+        pf = scoped_portfolio()
+        evaluation_counts = {"passed": 0, "failed": 0, "stale": 0, "not_measured": 0}
+        tiers = {key: {"label": label, "total": 0, "attention": 0} for key, label in rules.TIER_LABELS.items()}
+        for use in pf["uses"]:
+            evaluation_counts[use["evaluation_outcome"]] += 1
+            tier = tiers.get(use["tier"])
+            if tier is not None:
+                tier["total"] += 1
+                tier["attention"] += bool(use["flags"] or use["not_measured"])
+        charts = {"state": pf["state"], "as_of": pf["as_of"], "included": pf["total_uses"],
+                  "limit": pf["limit"], "evaluations": evaluation_counts, "tiers": tiers,
+                  "definition": "Latest recorded evaluation for each active AI use in your scope. "
+                                "Not measured includes uses with no thresholded evaluation. "
+                                "Attention includes recorded gaps and missing evaluation or oversight."}
+    except Exception:
+        log.warning("AI governance overview: portfolio charts could not be read", exc_info=True)
+        charts = {"state": "unavailable", "as_of": None, "included": None, "limit": None,
+                  "evaluations": None, "tiers": None,
+                  "definition": "The active AI use portfolio could not be read just now."}
+    return cards, funnel, aging, charts
 
 
 def get_overview(db, user, *, window_days: int = WINDOW_DAYS, now=None) -> dict:
     service._require(user, "ai_use.view")
     now = now or utcnow()
     reviewer, decider = has_capability(user, "ai_use.review"), has_capability(user, "ai_use.decide")
-    specialist = reviewer or decider
     out = {"as_of": now.strftime("%Y-%m-%d %H:%M:%S"),
-           "viewer": {"specialist": specialist, "reviewer": reviewer, "decider": decider},
-           "scope": _scope(db, user), "cards": [], "funnel": None, "aging": []}
-    if specialist:
-        out["cards"], out["funnel"], out["aging"] = _specialist(db, user, now, window_days, reviewer, decider)
-    else:
-        out["cards"] = _staff(db, user)
+           "viewer": {"specialist": True, "reviewer": reviewer, "decider": decider},
+           "scope": _scope(db, user), "cards": [], "funnel": None, "aging": [], "charts": None}
+    out["cards"], out["funnel"], out["aging"], out["charts"] = _specialist(
+        db, user, now, window_days, reviewer, decider)
     return out

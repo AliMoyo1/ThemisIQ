@@ -25,7 +25,8 @@
   }
 
   A.importer = function (root) {
-    var state = { guide: null, units: [], file: null, mapping: null, batch: null, form: null };
+    var state = { guide: null, units: [], savedMappings: [], file: null, mapping: null, batch: null, form: null };
+    var savedSelect = null;
     var status = el('div', { class: 'aig-say', role: 'status' });
     var guideBox = el('div', {});
     var uploadBox = el('div', {});
@@ -64,13 +65,43 @@
       var exported = el('input', { type: 'date' });
       var order = A.select([{ id: 'iso', name: 'Year first (2026-12-31)' }, { id: 'dmy', name: 'Day first (31/12/2026)' }, { id: 'mdy', name: 'Month first (12/31/2026)' }], 'iso');
       var unit = A.select(state.units, '', 'My business unit');
+      var saved = A.select(state.savedMappings.map(function (m) { return { id: m.id, name: m.name }; }), '', 'Choose a saved mapping');
+      savedSelect = saved;
+      saved.addEventListener('change', function () {
+        var chosen = state.savedMappings.find(function (m) { return String(m.id) === saved.value; });
+        if (chosen && chosen.mapping_version !== state.guide.version) {
+          A.say(out, 'This mapping uses an older form guide. Preview and save a new mapping.', 'bad');
+          saved.value = '';
+          state.mapping = null;
+          return;
+        }
+        state.mapping = chosen ? Object.assign({}, chosen.mapping) : null;
+        if (chosen) {
+          system.value = chosen.source_system;
+          name.value = chosen.form_name;
+          order.value = chosen.date_order;
+        }
+      });
       var file = el('input', { type: 'file', accept: '.csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       var out = el('div', { class: 'aig-say', role: 'status' });
       [A.field('aigImpSystem', 'Where the form was made', system), A.field('aigImpForm', 'Name of the form', name,
         'The same name each time, so a corrected response is recognized.'), A.field('aigImpDate', 'Date of the export (optional)', exported),
         A.field('aigImpOrder', 'How dates are written in the export', order, 'A date such as 03/04/2026 is only read in the order you choose.'),
-        A.field('aigImpUnit', 'File the requests under', unit), A.field('aigImpFile', 'The export (.csv or .xlsx, up to 2 MB)', file)]
+        A.field('aigImpUnit', 'File the requests under', unit),
+        A.field('aigImpSaved', 'Use a reviewed column mapping (optional)', saved,
+          'The new export still goes through preview. If its columns changed, adjust the mapping before confirming.'),
+        A.field('aigImpFile', 'The export (.csv or .xlsx, up to 2 MB)', file)]
         .forEach(function (f) { form.appendChild(f.row); });
+      form.appendChild(el('button', { type: 'button', class: 'btn btn-ghost btn-sm',
+        text: 'Archive selected saved mapping', on: { click: function () {
+          if (!saved.value || !global.confirm('Archive this saved mapping? Earlier imports keep their own mapping.')) return;
+          A.api(API + '/mappings/' + encodeURIComponent(saved.value), 'DELETE').then(function () {
+            saved.value = '';
+            state.mapping = null;
+            A.say(out, 'Saved mapping archived.', 'good');
+            loadSavedMappings();
+          }).catch(function (err) { A.say(out, A.errorText(err), 'bad'); });
+        } } }));
       var go = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Read the file' });
       form.appendChild(el('div', { class: 'aig-actions' }, [go]));
       form.appendChild(out);
@@ -80,13 +111,14 @@
         state.file = file.files[0];
         state.form = { source_system: system.value, form_name: name.value, export_date: exported.value, date_order: order.value,
           business_unit_id: unit.value };
-        state.mapping = null;
+        state.mapping = saved.value ? state.mapping : null;
         run(out);
       });
       uploadBox.appendChild(form);
     }
 
     function run(out) {
+      state.batch = null;
       var data = new FormData();
       data.append('file', state.file);
       Object.keys(state.form).forEach(function (key) { data.append(key, state.form[key] || ''); });
@@ -136,7 +168,37 @@
           run(out);
         } } })]));
       panel.appendChild(out);
+      if (state.batch) {
+        var saveName = el('input', { type: 'text', maxlength: '120', autocomplete: 'off',
+          placeholder: 'e.g. Customer AI request form' });
+        var saveOut = el('div', { class: 'aig-say', role: 'status' });
+        panel.appendChild(el('div', { class: 'aig-actions' }, [
+          A.field('aigImpSaveName', 'Save these columns for later exports', saveName).row,
+          el('button', { type: 'button', class: 'btn btn-secondary', text: 'Save mapping',
+            on: { click: function () {
+              A.api(API + '/mappings', 'POST', { batch_id: state.batch.id, name: saveName.value }).then(function () {
+                A.say(saveOut, 'Mapping saved. New files will still need a preview.', 'good');
+                loadSavedMappings();
+              }).catch(function (err) { A.say(saveOut, A.errorText(err), 'bad'); });
+            } } })
+        ]));
+        panel.appendChild(saveOut);
+      }
       mappingBox.appendChild(panel);
+    }
+
+    function loadSavedMappings() {
+      A.api(API + '/mappings').then(function (data) {
+        state.savedMappings = data.mappings || [];
+        if (!savedSelect) return;
+        var selected = savedSelect.value;
+        A.clear(savedSelect);
+        savedSelect.appendChild(el('option', { value: '', text: 'Choose a saved mapping' }));
+        state.savedMappings.forEach(function (m) {
+          savedSelect.appendChild(el('option', { value: String(m.id), text: m.name }));
+        });
+        savedSelect.value = selected;
+      }).catch(function () { A.say(status, 'Saved mappings could not be loaded.', 'bad'); });
     }
 
     // ── Step 3: every response, then confirm ─────────────────────────────────
@@ -260,10 +322,12 @@
     }
 
     A.say(status, 'Loading...');
-    Promise.all([A.api(API + '/guide'), A.api('/ai-governance/api/business-units')]).then(function (parts) {
+    Promise.all([A.api(API + '/guide'), A.api('/ai-governance/api/business-units'),
+      A.api(API + '/mappings').catch(function () { return { mappings: [] }; })]).then(function (parts) {
       A.say(status, '');
       state.guide = parts[0];
       state.units = (parts[1].items || []).map(function (u) { return { id: u.id, name: u.name }; });
+      state.savedMappings = parts[2].mappings || [];
       renderGuide();
       renderUpload();
       loadRecent();

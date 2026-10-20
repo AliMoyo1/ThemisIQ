@@ -45,7 +45,7 @@ def _files(db, control):
 
 def test_reattaching_restores_a_link_the_vault_removed(test_db):
     control, item = _control(test_db), _item(test_db, "Policy pack")
-    first = grid_ds.attach_vault_item_to_grid_control(control, item, None)
+    first = grid_ds.attach_vault_item_to_grid_control(control, item, None, {"is_super_admin": True})
     assert first is not None and _links(test_db, item, control) == (1, 1)
 
     # The Vault unlinks it (a soft delete); the GRID record stays.
@@ -53,7 +53,7 @@ def test_reattaching_restores_a_link_the_vault_removed(test_db):
     test_db.commit()
     assert _links(test_db, item, control) == (0, 1)
 
-    again = grid_ds.attach_vault_item_to_grid_control(control, item, None)
+    again = grid_ds.attach_vault_item_to_grid_control(control, item, None, {"is_super_admin": True})
     assert again == first, "the existing GRID record is reused, not duplicated"
     assert _files(test_db, control) == 1
     assert _links(test_db, item, control) == (1, 2), "one live link again; the removed row stays as the audit trail"
@@ -61,8 +61,8 @@ def test_reattaching_restores_a_link_the_vault_removed(test_db):
 
 def test_reattaching_with_a_live_link_changes_nothing(test_db):
     control, item = _control(test_db), _item(test_db, "Policy pack")
-    first = grid_ds.attach_vault_item_to_grid_control(control, item, None)
-    assert grid_ds.attach_vault_item_to_grid_control(control, item, None) == first
+    first = grid_ds.attach_vault_item_to_grid_control(control, item, None, {"is_super_admin": True})
+    assert grid_ds.attach_vault_item_to_grid_control(control, item, None, {"is_super_admin": True}) == first
     assert _files(test_db, control) == 1 and _links(test_db, item, control) == (1, 1)
 
 
@@ -72,8 +72,8 @@ def test_item_1_is_not_mistaken_for_item_12(test_db):
     one, twelve = items[0], items[11]
     assert (one, twelve) == (1, 12)
 
-    on_twelve = grid_ds.attach_vault_item_to_grid_control(control, twelve, None)
-    on_one = grid_ds.attach_vault_item_to_grid_control(control, one, None)
+    on_twelve = grid_ds.attach_vault_item_to_grid_control(control, twelve, None, {"is_super_admin": True})
+    on_one = grid_ds.attach_vault_item_to_grid_control(control, one, None, {"is_super_admin": True})
 
     assert on_one is not None and on_one != on_twelve
     assert _files(test_db, control) == 2

@@ -27,6 +27,7 @@ log = logging.getLogger("oneforall.relationships")
 
 PROVENANCE = ("manual", "imported", "system", "system_candidate")  # who made an edge; core/links.py writes "system"
 STATUSES = ("candidate", "confirmed", "rejected")
+STATE_WORDS = {"confirmed": "recorded", "candidate": "suggested", "rejected": "disputed"}  # what a person is told
 MAX_LIST = 200
 
 _APP = ("governance", "application")
@@ -152,15 +153,18 @@ def _row_ends(row):
             (canonical_key(row["target_module"], row["target_type"]), row["target_id"]))
 
 
-def list_links(db, user, key, record_id, *, include_candidates=False, limit=MAX_LIST) -> list:
+def list_links(db, user, key, record_id, *, include_candidates=False, include_rejected=False, limit=MAX_LIST) -> list:
     """The links of one record whose other end this user may also open, newest first. [] when the user may not
-    open the record itself: the answer is the same as for a record that does not exist."""
+    open the record itself: the answer is the same as for a record that does not exist.
+
+    Each link says what it is: `state` is recorded (somebody confirmed it), suggested (a rule or an import proposed it
+    and nobody has) or disputed (somebody declined it). Suggested and disputed ones are listed only when asked for."""
     key = canonical_key(*key)
     if not is_linkable(key) or not describe_record(db, key, record_id, user):
         return []
     side_src, p_src = _side_sql("source", key)
     side_dst, p_dst = _side_sql("target", key)
-    statuses = ("confirmed", "candidate") if include_candidates else ("confirmed",)
+    statuses = ("confirmed",) + (("candidate",) if include_candidates else ()) + (("rejected",) if include_rejected else ())
     rows = db.execute(
         "SELECT id, source_module, source_type, source_id, target_module, target_type, target_id, relationship, "
         "provenance, status, confirmed_at, created_at, note FROM cross_module_links "
@@ -192,6 +196,7 @@ def list_links(db, user, key, record_id, *, include_candidates=False, limit=MAX_
             "title": shown["title"], "url": shown["url"], "relationship": row["relationship"],
             "label": forward if outgoing else inverse, "direction": "outgoing" if outgoing else "incoming",
             "provenance": row["provenance"] or "legacy", "status": row["status"] or "confirmed",
+            "state": STATE_WORDS.get(row["status"] or "confirmed", "recorded"),
         })
     return results
 

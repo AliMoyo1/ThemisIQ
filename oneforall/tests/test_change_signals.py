@@ -362,8 +362,28 @@ WATCHED_CASES = {"ropa": ("sentinel", "ropa"), "dpia": ("sentinel", "dpia"), "br
 
 def test_every_watched_kind_is_exercised_here_or_has_its_own_test():
     # application, process and the vendors are tested above, the control and the policy version further down
-    elsewhere = {("governance", "application"), ("governance", "process"), ("aria", "control")} | set(cs.VENDOR_KEYS)
+    elsewhere = {("governance", "application"), ("governance", "process"), ("aria", "control"),
+                 ("aria", "document"), ("aria", "risk"), ("aria", "framework")} | set(cs.VENDOR_KEYS)
     assert set(cs.WATCHED) == set(WATCHED_CASES.values()) | elsewhere
+
+
+def test_framework_control_count_change_reaches_connected_application(world, chain):
+    framework_id = _insert(world.db, "frameworks", name="Signal test framework", total_controls=0)
+    _link(world, ("aria", "framework", framework_id),
+          ("governance", "application", chain.app), "supports")
+    world.db.execute("UPDATE frameworks SET total_controls = 2 WHERE id = %s", (framework_id,))
+    cs.publish_record_change(world.db, ("aria", "framework"), framework_id,
+                             {"total_controls": 0}, {"total_controls": 2},
+                             kind="framework_controls_imported")
+    [signal] = world.db.execute("SELECT * FROM change_signals").fetchall()
+    assert (signal["source_module"], signal["source_type"], signal["source_id"]) == (
+        "aria", "framework", framework_id)
+    assert signal["change_kind"] == "framework_controls_imported"
+    assert [change["field"] for change in json.loads(signal["changes"])] == ["total_controls"]
+    [target] = world.db.execute(
+        "SELECT target_module,target_type,target_id FROM change_signal_targets").fetchall()
+    assert (target["target_module"], target["target_type"], target["target_id"]) == (
+        "governance", "application", chain.app)
 
 
 @pytest.mark.parametrize("name", sorted(WATCHED_CASES))

@@ -16,6 +16,7 @@ from core.rbac import has_capability
 from core.events import emit, ERM_APPETITE_BREACHED, ERM_RISK_CLOSED, ERM_RISK_IDENTIFIED, ERM_RISK_UPDATED
 from core.timeutils import utcnow, to_dt
 from modules.erm import data_service as ds
+from modules.erm import acceptance
 from modules.erm import ai_service as ai
 from modules.erm import scan_jobs
 from modules.governance.data_service import bu_scope_ids
@@ -76,6 +77,40 @@ def _check_risk_scope(request: Request, risk_id: int) -> dict:
     return risk
 
 
+def _check_obligation_link(request: Request, body: dict) -> None:
+    """An obligation may be unlinked or point to a risk in the caller's unit."""
+    if "linked_erm_risk_id" not in body or body["linked_erm_risk_id"] is None:
+        return
+    value = body["linked_erm_risk_id"]
+    if (isinstance(value, bool) or not isinstance(value, (int, str))
+            or not str(value).isascii() or not str(value).isdigit()
+            or len(str(value)) > 10):
+        raise HTTPException(400, "Choose a valid linked risk")
+    risk_id = int(value)
+    if not 0 < risk_id <= 2 ** 31 - 1:
+        raise HTTPException(400, "Choose a valid linked risk")
+    _check_risk_scope(request, risk_id)
+    body["linked_erm_risk_id"] = risk_id
+
+
+def _check_risk_unit_write(request: Request, body: dict, existing: dict | None = None) -> None:
+    """A unit risk owner cannot create an organization-wide risk or move one."""
+    user = request.state.user
+    if user.get("is_super_admin"):
+        return
+    own_unit = user.get("business_unit_id")
+    if not own_unit:
+        raise HTTPException(403, "A business unit assignment is required to manage risks")
+    if existing is None:
+        proposed = body.get("business_unit_id")
+        if proposed in (None, ""):
+            body["business_unit_id"] = own_unit
+        elif str(proposed) != str(own_unit):
+            raise HTTPException(403, "Risk must belong to your business unit")
+    elif "business_unit_id" in body and str(body["business_unit_id"]) != str(existing.get("business_unit_id")):
+        raise HTTPException(403, "Risk business unit cannot be changed here")
+
+
 # ── SPA ───────────────────────────────────────────────────────────────────────
 
 _SPA_PAGES = {"register", "appetite", "library", "obligations", "assessments", "reports", "chat", "indicators", "statements", "rating-guide", "framework-admin", "objectives", "external"}
@@ -89,6 +124,8 @@ async def erm_spa(request: Request):
         "user": user,
         "can_manage_frameworks": has_capability(user, "erm.framework.manage"),
         "can_manage_library": has_capability(user, "erm.library.manage"),
+        "can_propose_acceptance": has_capability(user, "erm.acceptance.propose"),
+        "can_decide_acceptance": has_capability(user, "erm.acceptance.decide"),
         "can_view_scenarios": has_capability(user, "erm.scenario.view"),
         **shell_ctx(request, active_module="erm"),
     })
@@ -107,9 +144,8 @@ async def erm_spa_page(request: Request, page: str):
 @router.get("/api/dashboard")
 @require_capability("module.erm.access")
 async def api_dashboard(request: Request):
-    # PLAN-26: optional posture filters. Legacy counters (critical, high,
-    # top_critical_risks, etc.) stay whole-tenant/unfiltered by design; only
-    # stats["posture"] responds to these.
+    # PLAN-26 posture filters apply only to the posture block. Business-unit
+    # authorization applies to every source, including legacy headline cards.
     qp = request.query_params
     filters = {}
     if qp.get("category"):
@@ -132,10 +168,12 @@ async def api_dashboard(request: Request):
     if period_days is not None:
         filters["date_from"] = (utcnow() - timedelta(days=period_days)).strftime("%Y-%m-%d")
 
-    stats = ds.get_dashboard_stats(filters or None)
-    stats["register_stats"] = ds.get_register_stats()
-    stats["appetite_status"] = ds.get_appetite_status()
-    stats["risk_feed"] = ds.get_risk_feed(limit=10)
+    user = request.state.user
+    stats = ds.get_dashboard_stats(filters or None, user=user)
+    stats["register_stats"] = ds.get_register_stats(user=user)
+    stats["appetite_status"] = ds.get_appetite_status(user=user)
+    stats["risk_feed_unavailable"] = bu_scope_ids(user) is not None
+    stats["risk_feed"] = ds.get_risk_feed(limit=10, user=user)
     return JSONResponse(stats)
 
 
@@ -172,6 +210,7 @@ async def api_risk_detail(request: Request, risk_id: int):
 async def api_risk_create(request: Request):
     body = await _json_body(request)
     _validate_score_fields(body)
+    _check_risk_unit_write(request, body)
     body["created_by"] = _uid(request)
     rid = ds.create_enterprise_risk(body)
     emit(
@@ -211,9 +250,10 @@ def _risk_in_scope_or_404(request: Request, risk_id: int) -> dict:
 @router.put("/api/risks/{risk_id}")
 @require_capability("erm.risk.manage")
 async def api_risk_update(request: Request, risk_id: int):
-    _risk_in_scope_or_404(request, risk_id)
+    existing = _risk_in_scope_or_404(request, risk_id)
     body = await _json_body(request)
     _validate_score_fields(body)
+    _check_risk_unit_write(request, body, existing)
     ds.update_enterprise_risk(risk_id, body)
     risk = ds.get_enterprise_risk(risk_id)
     if risk:
@@ -257,7 +297,10 @@ async def api_risk_update(request: Request, risk_id: int):
 @require_capability("erm.risk.manage")
 async def api_risk_delete(request: Request, risk_id: int):
     _risk_in_scope_or_404(request, risk_id)
-    ds.delete_enterprise_risk(risk_id)
+    try:
+        ds.delete_enterprise_risk(risk_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
     return JSONResponse({"ok": True})
 
 
@@ -393,7 +436,7 @@ async def api_risk_control_suggest_ice(request: Request, risk_id: int, control_i
 @require_capability("erm.risk.view")
 async def api_pillars_list(request: Request):
     include_inactive = request.query_params.get("include_inactive") == "1"
-    return JSONResponse(ds.list_pillars(include_inactive=include_inactive))
+    return JSONResponse(ds.list_pillars(include_inactive=include_inactive, user=request.state.user))
 
 
 @router.post("/api/pillars")
@@ -401,7 +444,7 @@ async def api_pillars_list(request: Request):
 async def api_pillar_create(request: Request):
     body = await _json_body(request)
     try:
-        new_id = ds.create_pillar(body)
+        new_id = ds.create_pillar(body, user=request.state.user)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return JSONResponse({"id": new_id}, status_code=201)
@@ -412,8 +455,10 @@ async def api_pillar_create(request: Request):
 async def api_pillar_update(request: Request, pillar_id: int):
     body = await _json_body(request)
     try:
-        ds.update_pillar(pillar_id, body)
+        ds.update_pillar(pillar_id, body, user=request.state.user)
     except ValueError as exc:
+        if str(exc) == "Pillar not found":
+            raise HTTPException(404, str(exc))
         raise HTTPException(400, str(exc))
     return JSONResponse({"ok": True})
 
@@ -422,8 +467,10 @@ async def api_pillar_update(request: Request, pillar_id: int):
 @require_capability("erm.framework.manage")
 async def api_pillar_deactivate(request: Request, pillar_id: int):
     try:
-        ds.deactivate_pillar(pillar_id)
+        ds.deactivate_pillar(pillar_id, user=request.state.user)
     except ValueError as exc:
+        if str(exc) == "Pillar not found":
+            raise HTTPException(404, str(exc))
         raise HTTPException(400, str(exc))
     return JSONResponse({"ok": True})
 
@@ -435,7 +482,8 @@ async def api_pillar_deactivate(request: Request, pillar_id: int):
 async def api_objectives_list(request: Request):
     obj_type = request.query_params.get("obj_type")
     include_archived = request.query_params.get("include_archived") == "1"
-    return JSONResponse(ds.list_objectives(obj_type=obj_type, include_archived=include_archived))
+    return JSONResponse(ds.list_objectives(obj_type=obj_type, include_archived=include_archived,
+                                           user=request.state.user))
 
 
 @router.post("/api/objectives")
@@ -443,7 +491,7 @@ async def api_objectives_list(request: Request):
 async def api_objective_create(request: Request):
     body = await _json_body(request)
     try:
-        new_id = ds.create_objective(body)
+        new_id = ds.create_objective(body, user=request.state.user)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     return JSONResponse({"id": new_id}, status_code=201)
@@ -454,8 +502,10 @@ async def api_objective_create(request: Request):
 async def api_objective_update(request: Request, objective_id: int):
     body = await _json_body(request)
     try:
-        ds.update_objective(objective_id, body)
+        ds.update_objective(objective_id, body, user=request.state.user)
     except ValueError as exc:
+        if str(exc) == "Objective not found":
+            raise HTTPException(404, str(exc))
         raise HTTPException(400, str(exc))
     return JSONResponse({"ok": True})
 
@@ -464,8 +514,10 @@ async def api_objective_update(request: Request, objective_id: int):
 @require_capability("erm.framework.manage")
 async def api_objective_archive(request: Request, objective_id: int):
     try:
-        ds.archive_objective(objective_id)
+        ds.archive_objective(objective_id, user=request.state.user)
     except ValueError as exc:
+        if str(exc) == "Objective not found":
+            raise HTTPException(404, str(exc))
         raise HTTPException(400, str(exc))
     return JSONResponse({"ok": True})
 
@@ -591,6 +643,64 @@ async def api_emerging_scan_status(request: Request, job_id: int):
     return JSONResponse(scan_jobs.public_job(job))
 
 
+def _acceptance_error(exc):
+    if isinstance(exc, acceptance.AcceptanceConflict):
+        raise HTTPException(409, str(exc))
+    if isinstance(exc, LookupError):
+        raise HTTPException(404, str(exc))
+    if isinstance(exc, PermissionError):
+        raise HTTPException(403, str(exc))
+    raise HTTPException(400, str(exc))
+
+
+@router.get("/api/risks/{risk_id}/acceptances")
+@require_capability("erm.risk.view")
+async def api_risk_acceptances(request: Request, risk_id: int):
+    try:
+        return JSONResponse(acceptance.list_for_risk(request.state.user, risk_id))
+    except (LookupError, ValueError) as exc:
+        _acceptance_error(exc)
+
+
+@router.post("/api/risks/{risk_id}/acceptances")
+@require_capability("erm.acceptance.propose")
+async def api_risk_acceptance_propose(request: Request, risk_id: int):
+    try:
+        new_id = acceptance.propose(request.state.user, risk_id, await _json_body(request))
+        return JSONResponse({"id": new_id, "status": "submitted"}, status_code=201)
+    except (LookupError, ValueError, PermissionError) as exc:
+        _acceptance_error(exc)
+
+
+@router.get("/api/acceptances/{acceptance_id}")
+@require_capability("erm.risk.view")
+async def api_risk_acceptance_detail(request: Request, acceptance_id: int):
+    try:
+        return JSONResponse(acceptance.detail(request.state.user, acceptance_id))
+    except (LookupError, ValueError) as exc:
+        _acceptance_error(exc)
+
+
+@router.post("/api/acceptances/{acceptance_id}/decision")
+@require_capability("erm.acceptance.decide")
+async def api_risk_acceptance_decide(request: Request, acceptance_id: int):
+    try:
+        status = acceptance.decide(request.state.user, acceptance_id, await _json_body(request))
+        return JSONResponse({"status": status})
+    except (LookupError, ValueError, PermissionError) as exc:
+        _acceptance_error(exc)
+
+
+@router.post("/api/acceptances/{acceptance_id}/revoke")
+@require_capability("erm.acceptance.decide")
+async def api_risk_acceptance_revoke(request: Request, acceptance_id: int):
+    try:
+        acceptance.revoke(request.state.user, acceptance_id, await _json_body(request))
+        return JSONResponse({"status": "revoked"})
+    except (LookupError, ValueError, PermissionError) as exc:
+        _acceptance_error(exc)
+
+
 # ── ERM v2 (PLAN-25): Per-CF treatments ───────────────────────────────────────
 # No POST/DELETE here by design: one treatment row is auto-created per CF
 # (ensure_treatments_for_risk) and dies with its CF via ON DELETE CASCADE.
@@ -648,13 +758,13 @@ async def api_register(request: Request):
     return JSONResponse(ds.get_unified_register(filters={
         "category": p.get("category"),
         "status": p.get("status"),
-    }))
+    }, user=request.state.user))
 
 
 @router.get("/api/register/stats")
 @require_capability("erm.risk.view")
 async def api_register_stats(request: Request):
-    return JSONResponse(ds.get_register_stats())
+    return JSONResponse(ds.get_register_stats(user=request.state.user))
 
 
 # ── Risk Rating Framework ─────────────────────────────────────────────────────
@@ -797,9 +907,12 @@ async def api_appetite_delete(request: Request, appetite_id: int):
 @router.get("/api/appetite/status")
 @require_capability("module.erm.access")
 async def api_appetite_status(request: Request):
-    statuses = ds.get_appetite_status()
+    statuses = ds.get_appetite_status(user=request.state.user)
     now = utcnow()
-    for a in statuses:
+    # A unit view must not clear or emit the organization's global appetite
+    # notification state based on only its own risks.
+    notification_candidates = statuses if bu_scope_ids(request.state.user) is None else []
+    for a in notification_candidates:
         if a.get("breached"):
             last = a.get("last_breach_notified_at")
             last_dt = to_dt(last) if last else None
@@ -932,6 +1045,7 @@ async def api_obligations_list(request: Request):
     return JSONResponse(ds.list_obligations(
         status=p.get("status"),
         regulator=p.get("regulator"),
+        user=request.state.user,
     ))
 
 
@@ -939,6 +1053,7 @@ async def api_obligations_list(request: Request):
 @require_capability("erm.obligations.manage")
 async def api_obligation_create(request: Request):
     body = await _json_body(request)
+    _check_obligation_link(request, body)
     body["created_by"] = _uid(request)
     oid = ds.create_obligation(body)
     return JSONResponse({"id": oid}, status_code=201)
@@ -948,14 +1063,21 @@ async def api_obligation_create(request: Request):
 @require_capability("erm.obligations.manage")
 async def api_obligation_update(request: Request, obl_id: int):
     body = await _json_body(request)
-    ds.update_obligation(obl_id, body)
+    if not ds.get_obligation(obl_id, user=request.state.user):
+        raise HTTPException(404, "Obligation not found")
+    _check_obligation_link(request, body)
+    if not ds.update_obligation(obl_id, body, user=request.state.user):
+        raise HTTPException(404, "Obligation not found")
     return JSONResponse({"ok": True})
 
 
 @router.delete("/api/obligations/{obl_id}")
 @require_capability("erm.obligations.manage")
 async def api_obligation_delete(request: Request, obl_id: int):
-    ds.delete_obligation(obl_id)
+    if not ds.get_obligation(obl_id, user=request.state.user):
+        raise HTTPException(404, "Obligation not found")
+    if not ds.delete_obligation(obl_id, user=request.state.user):
+        raise HTTPException(404, "Obligation not found")
     return JSONResponse({"ok": True})
 
 
@@ -1066,7 +1188,7 @@ async def api_users_list(request: Request):
 @router.get("/api/feed")
 @require_capability("module.erm.access")
 async def api_feed(request: Request):
-    return JSONResponse(ds.get_risk_feed())
+    return JSONResponse(ds.get_risk_feed(user=request.state.user))
 
 
 # ── AI Endpoints ──────────────────────────────────────────────────────────────
@@ -1077,23 +1199,16 @@ async def api_ai_score_risk(request: Request, risk_id: int):
     if not check_ai_rate_limit(str(_uid(request))):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
-    r = ds.get_enterprise_risk(risk_id)
-    if not r:
-        raise HTTPException(404)
+    r = _check_risk_scope(request, risk_id)
     result = ai.score_risk(
         r.get("title", ""),
         r.get("description", ""),
         r.get("category", "")
     )
-    # Update the risk with AI-scored fields
-    update_data = {}
-    if "likelihood" in result:
-        update_data["likelihood"] = result["likelihood"]
-    if "impact" in result:
-        update_data["impact"] = result["impact"]
-    if update_data:
-        ds.update_enterprise_risk(risk_id, update_data)
-    return JSONResponse(result)
+    # A suggestion, not a change: the owner's score stays until a person with erm.risk.manage applies it
+    # through the ordinary update, which the register page offers after the person confirms.
+    return JSONResponse({**result, "applied": False,
+                         "current": {"likelihood": r.get("likelihood"), "impact": r.get("impact")}})
 
 
 @router.post("/api/ai/suggest-scores")
@@ -1140,8 +1255,8 @@ async def api_ai_board_report(request: Request):
     if not check_ai_rate_limit(str(_uid(request))):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
-    stats = ds.get_dashboard_stats()
-    appetite_status = ds.get_appetite_status()
+    stats = ds.get_dashboard_stats(user=request.state.user)
+    appetite_status = ds.get_appetite_status(user=request.state.user)
     narrative = ai.generate_board_narrative(stats, appetite_status)
     return JSONResponse({"narrative": narrative, "stats": stats})
 
@@ -1160,7 +1275,7 @@ async def api_chat_send(request: Request):
     ds.save_chat(uid, "user", message)
     history = ds.list_chat(uid, limit=20)
     msgs = [{"role": m["role"], "content": m["content"]} for m in history]
-    stats = ds.get_dashboard_stats()
+    stats = ds.get_dashboard_stats(user=request.state.user)
     reply = ai.chat(msgs, stats=stats)
     ds.save_chat(uid, "assistant", reply, "anthropic")
     return JSONResponse({"reply": reply})
@@ -1305,19 +1420,19 @@ async def api_statements_use(request: Request, stmt_id: int):
 @require_capability("erm.report.generate")
 async def api_reports_trend(request: Request):
     period = int(request.query_params.get("period", 30))
-    return JSONResponse(ds.get_trend_data(max(7, min(period, 365))))
+    return JSONResponse(ds.get_trend_data(max(7, min(period, 365)), user=request.state.user))
 
 
 @router.get("/api/reports/aging")
 @require_capability("erm.report.generate")
 async def api_reports_aging(request: Request):
-    return JSONResponse(ds.get_risk_aging())
+    return JSONResponse(ds.get_risk_aging(user=request.state.user))
 
 
 @router.get("/api/dashboard/executive")
 @require_capability("module.erm.access")
 async def api_executive_dashboard(request: Request):
-    return JSONResponse(ds.get_executive_dashboard())
+    return JSONResponse(ds.get_executive_dashboard(user=request.state.user))
 
 
 # ── Smart Assessment (AI) ─────────────────────────────────────────────────────
@@ -1382,9 +1497,7 @@ async def api_remediation_plan(request: Request, risk_id: int):
     if not check_ai_rate_limit(str(_uid(request))):
         return JSONResponse({"error": "AI rate limit exceeded. Maximum 60 requests per hour."}, status_code=429)
     record_ai_call(str(_uid(request)))
-    risk = ds.get_enterprise_risk(risk_id)
-    if not risk:
-        raise HTTPException(404, "Risk not found")
+    risk = _check_risk_scope(request, risk_id)
     score = risk.get("inherent_score") or (risk.get("likelihood", 3) * risk.get("impact", 3))
     plan = ai.smart_remediation_plan(
         risk.get("title", ""), risk.get("description", ""),

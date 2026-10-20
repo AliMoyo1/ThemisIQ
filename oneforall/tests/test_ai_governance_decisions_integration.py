@@ -15,7 +15,8 @@ from core import ai_rollout, events
 from modules.ai_governance import decisions, guidance, service
 from modules.launcher import my_work_service
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, roles, submitted, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture
@@ -37,6 +38,8 @@ def ask(world, name="employee_a"):
 
 def decide(world, row, outcome="approve", name="owner_a", **kw):
     brief = decisions.get_brief(world.db, user(world, name), world.app)
+    if outcome in ("approve", "approve_with_conditions") and brief["needs_override"]:
+        kw.setdefault("override_reason", "The remaining reviews are scheduled and documented for this pilot.")
     done = decisions.decide(world.db, user(world, name), row["id"], outcome, brief=brief["hash"], expected_version=row["version"], **kw)
     commit(world, done, user(world, name))
     return done
@@ -62,7 +65,7 @@ def work(world, name):
 
 def test_the_deciders_in_the_systems_unit_are_told_and_the_asker_and_owner_are_not(system):
     ask(system)
-    assert told(system, "AI use waiting for a decision") == ids(system, "dpo_a", "owner_a")
+    assert told(system, "AI use waiting for a decision") == ids(system, "dpo_a", "owner_a", "risk_only_a")
 
 
 def test_a_decision_tells_the_asker_and_the_owner_and_never_the_decider(system):
@@ -101,7 +104,7 @@ def test_a_change_to_a_covered_fact_tells_the_owner_and_deciders_only_when_there
     profile = service.get_profile(system.db, user(system, "dpo_a"), system.app)
     second = service.update_profile(system.db, user(system, "dpo_a"), system.app, {"purpose": "A second change"}, profile["version"])
     commit(system, second, user(system, "dpo_a"))
-    assert told(system, "An approved AI use needs a new decision") == ids(system, "employee_a", "owner_a"), "not dpo_a, who made the change"
+    assert told(system, "An approved AI use needs a new decision") == ids(system, "employee_a", "owner_a", "risk_only_a"), "not dpo_a, who made the change"
 
 
 def test_a_revocation_tells_the_people_it_concerns_and_not_the_one_who_revoked(system):

@@ -8,7 +8,8 @@ from modules.ai_governance import evaluations, monitoring, regulation, service
 from modules.governance import relationships
 from tests.test_ai_governance_evaluations import RUN
 from tests.test_ai_governance_service import FULL, approve_new, commit, fail, submitted, user
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture
@@ -25,7 +26,7 @@ def states(world, name="dpo_a"):
 
 def test_a_new_use_measures_nothing_and_says_so_per_source(system):
     got, full = states(system, "dpo_a")
-    assert got == {"decision": "not_measured", "oversight": "not_measured", "evaluations": "not_measured", "controls": "no_access", "proof": "no_access",
+    assert got == {"decision": "not_measured", "oversight": "not_measured", "evaluations": "not_measured", "controls": "not_measured", "proof": "not_measured",
                    "incidents": "not_measured", "regulation": "not_measured"}
     assert full["attention"] == [] and full["unavailable"] == []
     risk_owner, _ = states(system, "owner_a")

@@ -210,6 +210,7 @@
 
   <!-- KRI alerts banner -->
   <div id="ormKriBanner" style="display:none"></div>
+  <div id="ormSourceWarning" role="status" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:12px;font-size:12px"></div>
 
   <!-- KRI status strip -->
   <div id="ormKriStrip" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 16px;margin-bottom:16px;display:none;flex-wrap:wrap;gap:8px;align-items:center;cursor:pointer" data-spa="/orm/indicators">
@@ -749,6 +750,15 @@ async function ormLoadDashboard(){
     var bb=document.getElementById('ormBcmBanner');
     if(bb)bb.style.display=d.active_bcm_incident?'flex':'none';
 
+    var sourceWarning=document.getElementById('ormSourceWarning');
+    if(sourceWarning){
+      var missing=[];
+      if(d.active_bcm_incident===null)missing.push('Resilience incidents');
+      if(d.active_sentinel_breach===null)missing.push('Privacy breaches');
+      sourceWarning.style.display=missing.length?'block':'none';
+      sourceWarning.textContent=missing.length?missing.join(' and ')+' could not be checked in this view. The absence of an alert does not confirm a clear status.':'';
+    }
+
     // KRI alerts banner
     var kBanner=document.getElementById('ormKriBanner');
     if(kBanner){
@@ -756,7 +766,7 @@ async function ormLoadDashboard(){
         kBanner.style.display='';
         kBanner.innerHTML='<div style="background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:8px">'+
           '<span style="font-size:16px">&#9888;</span>'+
-          '<span><strong>KRI Alerts:</strong> '+d.kri_alerts.map(function(k){return esc(k.name)+' ('+k.value+') is <strong>'+k.level+'</strong>';}).join(', ')+'</span>'+
+          '<span><strong>Organization-wide KRI Alerts:</strong> '+d.kri_alerts.map(function(k){return esc(k.name)+' ('+k.value+') is <strong>'+k.level+'</strong>';}).join(', ')+'</span>'+
           '<a href="/orm/indicators" data-spa="/orm/indicators" style="margin-left:auto;cursor:pointer;color:var(--accent);font-weight:700;font-size:12px">View KRIs →</a>'+
         '</div>';
       }else{kBanner.style.display='none';}
@@ -776,7 +786,11 @@ async function ormLoadDashboard(){
       // Show badge on sidebar
       var sideAlert=document.getElementById('ormNavKriAlert');
       if(sideAlert){var critCount=d.kri_alerts.filter(function(k){return k.level==='critical';}).length;sideAlert.style.display=critCount?'':'none';sideAlert.textContent=critCount;}
-    }else if(kStrip){kStrip.style.display='none';}
+    }else{
+      if(kStrip)kStrip.style.display='none';
+      var sideAlert=document.getElementById('ormNavKriAlert');
+      if(sideAlert)sideAlert.style.display='none';
+    }
 
     // Trend arrows on stat cards (all are "higher = worse" for ORM)
     document.getElementById('dTotalEvts').textContent=d.total_events||0;
@@ -1159,6 +1173,7 @@ window.ormOpenEventDrawer=async function(id){
               '</div></div>':'')+
           '</div>';
         })()+
+        '<div class="orm-drawer-section" id="ormRelatedItems"></div>'+
       '</div>'+
       '<div class="orm-drawer-footer">'+
         '<button class="btn-orm-ai" onclick="ormAiAnalyzeFromDrawer('+e.id+')">&#129504; AI Analyze</button>'+
@@ -1168,6 +1183,10 @@ window.ormOpenEventDrawer=async function(id){
       '</div>'+
     '</div></div>';
     if(typeof DialogFocus!=='undefined')DialogFocus.trap(drawer.querySelector('.orm-drawer-panel'));
+    if(typeof RelatedItems!=='undefined'){
+      var related=document.getElementById('ormRelatedItems');
+      if(related)RelatedItems.mount(related,'orm','event',e.id,{canEdit:true});
+    }
   }catch(ex){drawer.innerHTML='';}
 };
 window.ormCloseDrawer=function(){if(typeof DialogFocus!=='undefined')DialogFocus.release();document.getElementById('ormDrawerRoot').innerHTML='';};

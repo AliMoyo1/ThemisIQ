@@ -125,6 +125,8 @@ ROLE_CHIP_TONE = {
 CAPABILITIES: dict[str, set[str]] = {
     # ── Platform ─────────────────────────────────────────────────
     "platform.manage_users":      {SUPER_ADMIN},
+    "platform.workflow.author":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
+    "platform.report.signoff":   {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     "platform.manage_org_users":  {SUPER_ADMIN, ORG_ADMIN},
     "platform.manage_settings":   {SUPER_ADMIN},
     "platform.view_audit_log":    {SUPER_ADMIN, COMPLIANCE_MGR, DPO, EXTERNAL_AUDITOR, GRC_OFFICER},
@@ -238,6 +240,8 @@ CAPABILITIES: dict[str, set[str]] = {
     "sentinel.ropa.manage":           {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.dpia.manage":           {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.breach.manage":         {SUPER_ADMIN, DPO},
+    "sentinel.jurisdiction.draft":    {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
+    "sentinel.jurisdiction.approve":  {DPO},
     "sentinel.dsr.manage":            {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.consent.manage":        {SUPER_ADMIN, DPO, PRIVACY_ANALYST},
     "sentinel.vendor.manage":         {SUPER_ADMIN, DPO},
@@ -250,6 +254,8 @@ CAPABILITIES: dict[str, set[str]] = {
     # ── ERM capabilities ──────────────────────────────────────────────
     "module.erm.access":         {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
     "erm.risk.manage":           {SUPER_ADMIN, RISK_OWNER},
+    "erm.acceptance.propose":    {SUPER_ADMIN, RISK_OWNER},
+    "erm.acceptance.decide":     {SUPER_ADMIN, COMPLIANCE_MGR, GRC_OFFICER},
     "erm.risk.view":             {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR, AUDIT_LEAD, BCM_MANAGER, DPO, GRC_OFFICER},
     "erm.appetite.manage":       {SUPER_ADMIN, RISK_OWNER},
     "erm.library.manage":        {SUPER_ADMIN, RISK_OWNER},
@@ -279,8 +285,11 @@ CAPABILITIES: dict[str, set[str]] = {
     # Anyone on staff may declare an AI use and see AI systems inside their own business unit scope; only a
     # narrow set reviews, links and decides. Review is the five governance.entities.manage roles plus the DPO.
     # Decide excludes the org admin: a decision is a compliance judgement, not a tenant administration task.
+    # Existing authors keep access to their own historical requests through
+    # ai_use.submit. New requests and edits use a separate specialist gate.
     "ai_use.submit":             set(ALL_ROLES) - {EXTERNAL_AUDITOR},
-    "ai_use.view":               set(ALL_ROLES) - {EXTERNAL_AUDITOR},
+    "ai_use.intake_create":      {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
+    "ai_use.view":               {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO, PRIVACY_ANALYST},
     "ai_use.review":             {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
     "ai_use.link":               {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
     "ai_use.decide":             {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, DPO},

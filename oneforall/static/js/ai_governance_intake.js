@@ -170,7 +170,7 @@
       Object.keys(ctl).forEach(function (key) { if (key in values) ctl[key].set(values[key]); });
       sensitiveNote(); peopleNote();
     }
-    function locked() { return ['submitted', 'approved', 'rejected'].indexOf(state.status) >= 0; }
+    function locked() { return !config.canEdit || ['submitted', 'approved', 'rejected'].indexOf(state.status) >= 0; }
 
     function showSummary(message, fields) {
       AIGov.clear(summary);
@@ -224,7 +224,7 @@
         banner.hidden = false; banner.className = 'aig-banner aig-banner-good';
         AIGov.clear(banner);
         banner.appendChild(document.createTextNode('This request was accepted. '));
-        if (state.applicationId) banner.appendChild(el('a', { href: '/ai-governance/systems/' + state.applicationId, text: 'Open the AI system' }));
+        if (state.applicationId && config.canEdit) banner.appendChild(el('a', { href: '/ai-governance/systems/' + state.applicationId, text: 'Open the AI system' }));
       } else if (state.status === 'rejected') {
         banner.hidden = false; banner.className = 'aig-banner aig-banner-bad';
         banner.textContent = 'This request was not accepted' + (state.reviewNote ? ': ' + state.reviewNote : '.');
@@ -311,7 +311,7 @@
         row('How much it decides', words(vocab.autonomy, a.autonomy))]));
       var dups = el('section', { class: 'aig-panel' }, [el('h3', { class: 'aig-h3', text: 'Is this one of these?' })]);
       box.appendChild(dups);
-      if (a.name && a.name.length >= 3) {
+      if (config.canEdit && a.name && a.name.length >= 3) {
         AIGov.api('/ai-governance/api/duplicates' + AIGov.qs({ name: a.name, provider: a.provider_name })).then(function (data) {
           if (!data.items.length) { dups.appendChild(el('p', { class: 'aig-muted', text: 'No similar application you can see.' })); return; }
           dups.appendChild(el('p', { text: 'These look similar. If yours is one of them, say so in the purpose; the reviewer will link it instead of adding a second one.' }));
@@ -319,7 +319,7 @@
             return el('li', {}, [el('a', { href: d.url, target: '_blank', rel: 'noopener', text: d.name }), ' (' + d.reason.toLowerCase() + ')']);
           })));
         }).catch(function () { dups.appendChild(el('p', { class: 'aig-muted', text: 'Could not check for similar applications just now.' })); });
-      } else { dups.appendChild(el('p', { class: 'aig-muted', text: 'Add a name to check for similar applications.' })); }
+      } else { dups.appendChild(el('p', { class: 'aig-muted', text: config.canEdit ? 'Add a name to check for similar applications.' : 'Similar-use review is handled by the governance team.' })); }
       if (state.id) {
         AIGov.api('/ai-governance/api/requests/' + state.id).then(function (data) {
           var s = data.intake.screening;

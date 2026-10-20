@@ -15,7 +15,8 @@ from core import rbac
 from modules.ai_governance import review_packs as packs
 from modules.ai_governance import service
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, roles, submitted, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture
@@ -76,7 +77,7 @@ def edit_purpose(world, text):
 # ── Preview ─────────────────────────────────────────────────────────────────
 
 def test_a_preview_needs_the_right_and_a_use_the_caller_may_open_and_stores_nothing(system):
-    for name, status in (("employee_a", 403), ("auditor", 403), ("dpo_b", 404)):
+    for name, status in (("staff_a", 403), ("auditor", 403), ("dpo_b", 404)):
         fail(lambda n=name: packs.preview(system.db, user(system, n), system.app, options(system)), status)
     shown = packs.preview(system.db, user(system, "dpo_a"), system.app, options(system))
     assert shown["hash"] == packs.preview_hash(shown["manifest"], shown["options"]) and shown["problems"] == {}
@@ -174,7 +175,7 @@ def test_a_recipient_must_be_an_active_person_of_the_organization_who_can_receiv
                    org_id=1, is_active=0)
     system.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (61, %s)", (rbac.EXTERNAL_AUDITOR,))
     system.db.commit()
-    for recipient in (stranger, gone, user(system, "employee_a")["id"], who["id"], 9999):
+    for recipient in (stranger, gone, user(system, "staff_a")["id"], who["id"], 9999):
         opts = options(system, recipient_id=recipient)
         shown = packs.preview(system.db, who, system.app, opts)
         assert "recipient_id" in shown["problems"], recipient
@@ -214,7 +215,7 @@ def test_the_recipient_reads_a_frozen_account_and_the_open_is_recorded(system):
 
 def test_everyone_else_is_refused_like_a_pack_that_is_not_there_and_it_is_recorded(system):
     pack, _ = issue(system)
-    for who in ("employee_a", "dpo_b", "auditor_two"):
+    for who in ("staff_a", "dpo_b", "auditor_two"):
         assert opened(system, pack["id"], who) == {"refused": "wrong_recipient", "http": 404}, who
     assert opened(system, 987654) == {"refused": "not_found", "http": 404}
     assert [e[:2] for e in events_of(system, pack["id"])] == [("denied", "wrong_recipient")] * 3
@@ -326,12 +327,12 @@ def test_the_manager_sees_who_opened_it_and_what_changed_since(system):
 
 def test_nobody_outside_the_unit_or_without_the_right_can_list_revoke_or_read_the_history(system):
     pack, _ = issue(system)
-    for who, status in (("dpo_b", 404), ("employee_a", 403), ("auditor", 403)):
+    for who, status in (("dpo_b", 404), ("staff_a", 403), ("auditor", 403)):
         fail(lambda w=who: packs.revoke(system.db, user(system, w), pack["id"], "Because.", pack["version"]), status)
         fail(lambda w=who: packs.access_history(system.db, user(system, w), pack["id"]), status)
         fail(lambda w=who: packs.changes_since(system.db, user(system, w), pack["id"]), status)
     assert packs.list_for_application(system.db, user(system, "dpo_b"), system.app) is None
-    fail(lambda: packs.list_for_application(system.db, user(system, "employee_a"), system.app), 403)
+    fail(lambda: packs.list_for_application(system.db, user(system, "staff_a"), system.app), 403)
 
 
 def test_revoking_needs_a_reason_and_the_current_version_and_happens_once(system):
@@ -361,9 +362,9 @@ def test_recipients_are_found_by_name_or_email_within_the_organization_and_only_
     assert [p["name"] for p in packs.find_recipients(system.db, who, "aud")] == ["auditor", "auditor_two"], \
         "not the person in another organization, not the one who is switched off"
     assert [p["name"] for p in packs.find_recipients(system.db, who, "auditor_two@example")] == ["auditor_two"], "email matches too"
-    assert packs.find_recipients(system.db, who, "employee") == [], "an employee cannot receive packs"
+    assert packs.find_recipients(system.db, who, "staff_a") == [], "an employee cannot receive packs"
     assert [p["name"] for p in packs.find_recipients(system.db, who, "dpo")] == ["dpo_a1", "dpo_b", "dpo_no_unit"], "not the caller"
-    fail(lambda: packs.find_recipients(system.db, user(system, "employee_a"), "aud"), 403)
+    fail(lambda: packs.find_recipients(system.db, user(system, "staff_a"), "aud"), 403)
 
 
 def test_a_person_is_listed_only_their_own_open_packs(system):
@@ -371,4 +372,4 @@ def test_a_person_is_listed_only_their_own_open_packs(system):
     other, _ = issue(system, name="For the second auditor", recipient_id=user(system, "auditor_two")["id"])
     assert [p["id"] for p in packs.list_mine(system.db, user(system, "auditor"))["packs"]] == [mine["id"]]
     assert [p["id"] for p in packs.list_mine(system.db, user(system, "auditor_two"))["packs"]] == [other["id"]]
-    fail(lambda: packs.list_mine(system.db, user(system, "employee_a")), 403)
+    fail(lambda: packs.list_mine(system.db, user(system, "staff_a")), 403)

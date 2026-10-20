@@ -79,6 +79,45 @@ def brief_hash(manifest: dict) -> str:
     return hashlib.sha256(stable.encode("utf-8")).hexdigest()[:32]
 
 
+def _proposal_source_hash(row) -> "str | None":
+    """A new proposal hashes its full record; older proposals hashed only the source brief."""
+    if row is None:
+        return None
+    try:
+        frozen = json.loads(row["manifest"] or "{}")
+    except (TypeError, ValueError):
+        frozen = {}
+    return frozen.get("source_hash") if isinstance(frozen, dict) and frozen.get("source_hash") else row["manifest_hash"]
+
+
+def _proposal_intact(row) -> bool:
+    if row is None or not row["manifest_hash"] or not row["manifest"]:
+        return True  # Legacy requests may have no captured brief.
+    try:
+        frozen = json.loads(row["manifest"])
+    except (TypeError, ValueError):
+        return False
+    return isinstance(frozen, dict) and brief_hash(frozen) == row["manifest_hash"]
+
+
+def _proposal_access_gap(row, current, user) -> bool:
+    if row is None or not row["manifest"]:
+        return False
+    try:
+        frozen = json.loads(row["manifest"])
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(frozen, dict):
+        return False
+    if isinstance(frozen.get("assessments"), list) and isinstance(current.get("assessments"), dict):
+        return True
+    if frozen.get("controls") and not controls.can_view(user):
+        return True
+    before = {s["key"]: s for s in (frozen.get("checklist") or {}).get("steps", [])}
+    return any(s.get("state") == "no_access" and before.get(s["key"], {}).get("state") != "no_access"
+               for s in (current.get("checklist") or {}).get("steps", []))
+
+
 def proof_expired_in(manifest, today) -> bool:
     for item in (manifest or {}).get("proof", []):
         expires = str(item.get("expires") or "")[:10]
@@ -111,8 +150,14 @@ def changes_since(old: dict, new: dict, limit: int = 20) -> list:
                 lines.append(f"A new assessment, {a['ref']}, was added.")
             elif (before["status"], before["version"]) != (a["status"], a["version"]):
                 lines.append(f"{a['ref']} changed ({before['status']} then, {a['status']} now).")
-    if len((old.get("proof") or [])) != len((new.get("proof") or [])):
+    if old.get("proof") != new.get("proof"):
         lines.append("The proof held for the AI controls changed.")
+    if old.get("evaluations") != new.get("evaluations"):
+        lines.append("The recorded evaluation outcomes changed.")
+    if old.get("intended_scope") != new.get("intended_scope"):
+        lines.append("The intended scope of use changed.")
+    if old.get("accountability") != new.get("accountability"):
+        lines.append("The accountable people changed.")
     return lines[:limit]
 
 
@@ -141,11 +186,38 @@ def _assessments(db, user, application_id):
              "classification": r["overall_classification"], "version": r["version"]} for r in rows]
 
 
+def _evaluation_manifest(db, user, application_id):
+    runs = evaluations.list_runs(db, user, application_id)["runs"]
+    recorded = []
+    for run in runs:
+        artifact = None
+        if run["artifact_id"] is not None:
+            item_id = run["artifact_id"]
+            if describe_record(db, ("evidence", "item"), item_id, user):
+                item = db.execute("SELECT version FROM evidence_items WHERE id = %s", (item_id,)).fetchone()
+                artifact = {"id": item_id, "version": item["version"] if item else None}
+            else:
+                artifact = {"restricted": True}
+        recorded.append({
+            "id": run["id"], "version": run["version"], "name": run["name"], "state": run["state"],
+            "stale": run["stale"], "test_set_version": run["test_set_version"],
+            "rubric_version": run["rubric_version"], "subject_version": run["subject_version"],
+            "scores": run["scores"], "thresholds": run["thresholds"],
+            "review_outcome": run["review_outcome"], "finished_at": run["finished_at"],
+            "artifact": artifact})
+    more = False
+    if len(runs) == evaluations.MAX_RUNS_SHOWN:
+        count = db.execute("SELECT COUNT(*) AS n FROM ai_evaluation_runs WHERE application_id = %s",
+                           (application_id,)).fetchone()["n"]
+        more = count > len(runs)
+    return recorded, more
+
+
 def build_manifest(db, user, application_id: int) -> "dict | None":
     """What a decision is signed on, built from the owning modules under the viewer's own scope. None when the viewer
     may not open the system. It carries facts and record references, never the names of other records: those are looked up
     again for whoever reads it (`present_manifest`), so a decision cannot disclose a title to someone who may not open it.
-    Values that only move with the clock are left out, so the digest is stable until a fact moves."""
+    Time-sensitive evaluation and proof status are included so a newly stale source requires a fresh brief."""
     app = _app(db, user, application_id)
     if app is None:
         return None
@@ -159,8 +231,10 @@ def build_manifest(db, user, application_id: int) -> "dict | None":
             "key": s["key"], "title": s["title"], "applicability": s["applicability"], "effective": s["effective"],
             "state": s["state"], "stale": s["stale"],
             "override": ({"reason": s["override"]["reason"], "out_of_date": s["override"]["out_of_date"]} if s["override"] else None),
-            "records": [{"ref": r.get("ref"), "status": r["status"], "updated_at": r.get("updated_at") or ""} for r in s["records"]]})
-    found = controls.use_controls(db, user, application_id)
+            "records": [{"ref": r.get("ref"), "status": r["status"], "version": r.get("version"),
+                         "source_version_id": r.get("source_version_id"),
+                         "updated_at": r.get("updated_at") or ""} for r in s["records"]]})
+    found = controls.use_controls(db, user, application_id, proof_limit=None)
     ai_controls, proof = [], []
     for item in found or []:
         ai_controls.append({
@@ -170,16 +244,61 @@ def build_manifest(db, user, application_id: int) -> "dict | None":
             "proof": {k: item["proof"][k] for k in ("current", "expired", "verified")}})
         proof.extend({"id": p["id"], "version": p["version"], "expired": p["expired"],
                       "verified": p["verified"], "expires": p.get("expires")} for p in item["proof"]["items"])
+    proof = sorted({p["id"]: p for p in proof}.values(), key=lambda p: p["id"])
+    evaluation_rows, evaluations_partial = _evaluation_manifest(db, user, application_id)
+    assessment_rows = _assessments(db, user, application_id)
+    scope = {"purpose": profile.get("purpose"), "capability_type": profile.get("capability_type"),
+             "provider": profile.get("provider_note"), "intended_users": profile.get("intended_users"),
+             "affected_people": profile.get("affected_people"), "deployment": profile.get("deployment"),
+             "data_categories": profile.get("data_categories"), "jurisdictions": profile.get("jurisdictions"),
+             "external_access": profile.get("external_access"), "autonomy": profile.get("autonomy"),
+             "human_oversight": profile.get("human_oversight"), "target_launch": profile.get("target_launch"),
+             "business_unit_id": app["business_unit_id"]}
+    gaps = []
+    if not app["owner_user_id"]:
+        gaps.append({"key": "owner", "title": "System owner is not named"})
+    if not profile.get("sponsor_user_id") or not profile.get("sponsor_name"):
+        gaps.append({"key": "sponsor", "title": "Accountable sponsor is not named"})
+    for field, title in (("purpose", "Purpose is not recorded"), ("intended_users", "Intended users are not recorded"),
+                         ("deployment", "Deployment is not recorded"), ("jurisdictions", "Jurisdictions are not recorded")):
+        if not scope[field]:
+            gaps.append({"key": field, "title": title})
+    if not evaluation_rows:
+        gaps.append({"key": "evaluation", "title": "No evaluation outcome is recorded"})
+    elif evaluation_rows[0]["stale"] or evaluation_rows[0]["state"] != "passed":
+        gaps.append({"key": "evaluation", "title": "The latest evaluation is not a current pass"})
+    if evaluations_partial:
+        gaps.append({"key": "evaluation_history", "title": "Older evaluation runs are outside this brief"})
+    if isinstance(assessment_rows, list) and len(assessment_rows) == 20:
+        assessment_scope, assessment_params = entity_scope_sql(AIIA, user, "a")
+        assessment_count = db.execute(
+            f"SELECT COUNT(*) AS n FROM sentinel_aiia a WHERE a.application_id = %s AND {assessment_scope}",
+            [application_id, *assessment_params]).fetchone()["n"]
+        if assessment_count > len(assessment_rows):
+            gaps.append({"key": "assessment_history", "title": "Older AI impact assessments are outside this brief"})
+    if controls.can_view(user) and len(found or []) == 200:
+        control_scope, control_params = entity_scope_sql(("orm", "aims"), user, "m")
+        control_count = db.execute(
+            "SELECT COUNT(*) AS n FROM aims_assessments m JOIN aims_risks r ON r.assessment_id = m.id "
+            f"WHERE m.application_id = %s AND {control_scope}", [application_id, *control_params]).fetchone()["n"]
+        if control_count > len(found):
+            gaps.append({"key": "control_history", "title": "Some AI control assessments are outside this brief"})
     review = quality.evaluate(db, user, application_id) or {"findings": [], "unchecked": [], "rule_version": quality.RULE_VERSION}
-    facts = {f: profile[f] for f in service.MATERIAL_FIELDS}
+    facts = {f: profile[f] for f in service.MATERIAL_FIELDS if f != "sponsor_user_id"}
     facts["human_oversight"] = profile.get("human_oversight")
     return {
         "application": {"id": app["id"], "name": app["name"]},
+        "accountability": {"owner_user_id": app["owner_user_id"],
+                           "sponsor_user_id": profile.get("sponsor_user_id")},
+        "intended_scope": scope,
+        "review_due": profile.get("next_review_at"),
+        "gaps": gaps,
         "profile": {"version": profile["version"], "fingerprint": profile["fingerprint"], "tier": profile["tier"],
                     "tier_adopted": profile["adopted_tier"] is not None, "tier_rule_version": profile["tier_rule_version"],
                     "facts": facts},
         "checklist": {"rule_version": plan["rule_version"], "steps": steps, "unresolved": plan["unresolved"]},
-        "assessments": _assessments(db, user, application_id),
+        "assessments": assessment_rows,
+        "evaluations": evaluation_rows,
         "controls": ai_controls,
         "proof": proof,
         "quality": {"rule_version": review["rule_version"], "unchecked": review["unchecked"],
@@ -211,6 +330,9 @@ def present_manifest(db, user, frozen) -> dict:
         want(("orm", "ai_control"), c.get("id"))
     for p in out.get("proof", []):
         want(("evidence", "item"), p.get("id"))
+    for run in out.get("evaluations", []):
+        artifact = run.get("artifact") or {}
+        want(("evidence", "item"), artifact.get("id"))
     found = {kind: describe_records(db, kind, sorted(ids), user) for kind, ids in wanted.items()}
 
     def name(entry, kind, record_id):
@@ -239,6 +361,22 @@ def present_manifest(db, user, frozen) -> dict:
             c.pop("proof", None)
     for p in out.get("proof", []):
         name(p, ("evidence", "item"), p.get("id"))
+    for run in out.get("evaluations", []):
+        artifact = run.get("artifact") or {}
+        if artifact.get("id") is not None:
+            name(artifact, ("evidence", "item"), artifact["id"])
+    scope = out.get("intended_scope")
+    if isinstance(scope, dict) and scope.get("business_unit_id") is not None:
+        unit = db.execute("SELECT name FROM business_units WHERE id = %s", (scope["business_unit_id"],)).fetchone()
+        scope["business_unit_name"] = unit["name"] if unit else None
+    people = out.get("accountability")
+    if isinstance(people, dict):
+        app_org = service._application_org(db, out.get("application", {}).get("id")) or user.get("org_id")
+        for role in ("owner", "sponsor"):
+            person_id = people.pop(role + "_user_id", None)
+            person = db.execute("SELECT full_name, org_id, is_active, deleted_at FROM users WHERE id = %s", (person_id,)).fetchone() if person_id else None
+            people[role] = (person["full_name"] if person and person["is_active"] and not person["deleted_at"] and app_org is not None
+                            and person["org_id"] == app_org and service._same_org(user, person["org_id"]) else None)
     return out
 
 
@@ -269,7 +407,8 @@ def _conditions(db, decision_ids) -> dict:
 def _present(db, rows) -> list:
     """Decision rows as dicts with names and conditions, without the manifest (that is a call of its own)."""
     rows = list(rows)
-    names = _names(db, [i for r in rows for i in (r["requested_by"], r["decided_by"], r["revoked_by"])])
+    names = _names(db, [i for r in rows for i in (r["requested_by"], r["decided_by"], r["revoked_by"],
+                                                   r["assigned_decider_id"] if "assigned_decider_id" in r.keys() else None)])
     conditions = _conditions(db, [r["id"] for r in rows])
     out = []
     for r in rows:
@@ -284,6 +423,8 @@ def _present(db, rows) -> list:
             "override_reason": r["override_reason"], "separation_enforced": bool(r["separation_enforced"]),
             "manifest_hash": r["manifest_hash"], "revoked_at": service._text(r["revoked_at"]),
             "revoked_by": names.get(r["revoked_by"]), "revoked_reason": r["revoked_reason"],
+            "assigned_decider_id": r["assigned_decider_id"] if "assigned_decider_id" in r.keys() else None,
+            "assigned_decider": names.get(r["assigned_decider_id"] if "assigned_decider_id" in r.keys() else None),
             "conditions": [{**c, "met_by": met_names.get(c["met_by"])} for c in conditions.get(r["id"], [])]})
     return out
 
@@ -347,6 +488,14 @@ def _standing_and_open(db, application_id):
                       (application_id, HISTORY_LIMIT + 1)).fetchall()
     open_request = next((r for r in rows if r["status"] == "proposed"), None)
     standing = next((r for r in rows if r["status"] in STANDING), None)
+    if standing is None:
+        # The history shown in the UI is bounded, but the standing decision must
+        # remain authoritative even after many returned decision requests.
+        standing = db.execute(
+            "SELECT * FROM ai_use_decisions WHERE application_id = %s "
+            "AND status IN ('approved','approved_with_conditions','rejected') ORDER BY id DESC LIMIT 1",
+            (application_id,),
+        ).fetchone()
     return rows, open_request, standing
 
 
@@ -391,6 +540,8 @@ def get_decisions(db, user, application_id: int) -> "dict | None":
     state["label"] = STATE_LABELS[state["state"]]
     present = _present(db, rows[:HISTORY_LIMIT])
     by_id = {p["id"]: p for p in present}
+    if standing is not None and standing["id"] not in by_id:
+        by_id[standing["id"]] = _present(db, [standing])[0]
     separation = ai_rollout.separation_required(user.get("org_id"))
     owner = app["owner_user_id"] == user["id"]
     can_decide_role = has_capability(user, "ai_use.decide")
@@ -414,7 +565,8 @@ def get_decisions(db, user, application_id: int) -> "dict | None":
             "revoke": bool(can_decide_role and revocable),
             "withdraw": bool(open_request is not None and (open_request["requested_by"] == user["id"]
                                                            or has_capability(user, "ai_use.review"))),
-            "conditions": bool(owner or has_capability(user, "ai_use.review") or can_decide_role)}}
+            "conditions": bool(owner or has_capability(user, "ai_use.review") or can_decide_role),
+            "assign": bool(open_request is not None and (has_capability(user, "ai_use.review") or can_decide_role))}}
 
 
 def get_brief(db, user, application_id: int) -> "dict | None":
@@ -432,10 +584,15 @@ def get_brief(db, user, application_id: int) -> "dict | None":
             old = json.loads(standing["manifest"])
         except (TypeError, ValueError):
             old = None
+    unresolved = ([{"key": k, "title": steps[k]["title"]} for k in manifest["checklist"]["unresolved"]]
+                  + manifest["gaps"])
     return {
         "manifest": present_manifest(db, user, manifest), "hash": brief_hash(manifest),
-        "unresolved": [{"key": k, "title": steps[k]["title"]} for k in manifest["checklist"]["unresolved"]],
-        "needs_override": bool(manifest["checklist"]["unresolved"]),
+        "unresolved": unresolved, "needs_override": bool(unresolved),
+        "proposal_access_limited": _proposal_access_gap(open_request, manifest, user),
+        "proposal_changed": bool(open_request is not None and (
+            not _proposal_intact(open_request) or
+            (_proposal_source_hash(open_request) and _proposal_source_hash(open_request) != brief_hash(manifest)))),
         "changed_since_standing": changes_since(present_manifest(db, user, old),
                                                  present_manifest(db, user, manifest)) if old else [],
         "open_request_id": open_request["id"] if open_request is not None else None}
@@ -524,7 +681,8 @@ def _stale(db, decision_id) -> ServiceError:
                         current_version=row["version"] if row else None, status_now=row["status"] if row else None)
 
 
-def request_decision(db, user, application_id: int, note=None) -> dict:
+def request_decision(db, user, application_id: int, note=None, brief=None, *, proposed_conditions=None,
+                     proposed_expires_at=None, proposed_review_due=None) -> dict:
     service._require(user, "ai_use.view")
     app = _app(db, user, application_id)
     if app is None:
@@ -537,13 +695,30 @@ def request_decision(db, user, application_id: int, note=None) -> dict:
     if not (app["owner_user_id"] == user["id"] or has_capability(user, "ai_use.review")):
         raise ServiceError(403, "Access denied.")
     note = _text(note, "the note", required=False)
+    manifest = build_manifest(db, user, application_id)
+    if manifest is None:
+        raise ServiceError(409, "Add the AI profile first.")
+    source_digest = brief_hash(manifest)
+    if brief is not None and brief != source_digest:
+        raise ServiceError(409, "The brief changed while you were reviewing. Reload it before asking for a decision.",
+                           brief_changed=True)
+    clean_proposal = _clean_conditions(proposed_conditions)
+    proposal_expiry = _date(proposed_expires_at, "proposed expiry")
+    proposal_review = _date(proposed_review_due, "proposed review date")
+    manifest["source_hash"] = source_digest
+    manifest["proposed_terms"] = {"conditions": clean_proposal, "expires_at": proposal_expiry,
+                                  "review_due": proposal_review or manifest["review_due"]}
+    proposal_digest = brief_hash(manifest)
     now = service._now()
     new_id = insert_returning_id(
         db,
         "INSERT INTO ai_use_decisions (application_id, status, requested_by, requested_at, request_note, business_unit_id, "
-        "version, created_at, updated_at) VALUES (%s, 'proposed', %s, %s, %s, %s, 1, %s, %s) "
+        "profile_version, profile_fingerprint, tier, rule_version, manifest, manifest_hash, "
+        "version, created_at, updated_at) VALUES (%s, 'proposed', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s, %s) "
         "ON CONFLICT (application_id) WHERE status = 'proposed' DO NOTHING",
-        (application_id, user["id"], now, note, app["business_unit_id"], now, now))
+        (application_id, user["id"], now, note, app["business_unit_id"],
+         manifest["profile"]["version"], manifest["profile"]["fingerprint"], manifest["profile"]["tier"],
+         manifest["checklist"]["rule_version"], json.dumps(manifest, sort_keys=True, default=str), proposal_digest, now, now))
     if new_id is None:  # one open request per system: the same request again returns the one already open
         existing = db.execute("SELECT * FROM ai_use_decisions WHERE application_id = %s AND status = 'proposed'",
                               (application_id,)).fetchone()
@@ -558,7 +733,7 @@ def request_decision(db, user, application_id: int, note=None) -> dict:
 
 
 def decide(db, user, decision_id: int, outcome, *, rationale=None, conditions=None, expires_at=None, override_reason=None,
-           brief=None, expected_version=None) -> dict:
+           brief=None, expected_version=None, review_due=None) -> dict:
     service._require(user, "ai_use.decide")
     row = _load(db, user, decision_id)
     if outcome not in OUTCOMES:
@@ -587,8 +762,11 @@ def decide(db, user, decision_id: int, outcome, *, rationale=None, conditions=No
     if outcome != "approve_with_conditions" and clean_conditions:
         raise ServiceError(422, "Conditions go with approving with conditions.")
     expires = _date(expires_at, "expiry") if approving else None
+    review_date = _date(review_due, "review date") if approving else None
     if not approving and expires_at not in (None, ""):
         raise ServiceError(422, "An expiry goes with an approval.")
+    if not approving and review_due not in (None, ""):
+        raise ServiceError(422, "A review date goes with an approval.")
 
     manifest = build_manifest(db, user, row["application_id"])
     if manifest is None:
@@ -597,12 +775,34 @@ def decide(db, user, decision_id: int, outcome, *, rationale=None, conditions=No
     if approving and brief != digest:
         raise ServiceError(409, "The facts changed while you were reviewing. Reload the brief and decide again.",
                            brief_changed=True)
+    if approving and not _proposal_intact(row):
+        raise ServiceError(409, "The proposed brief could not be verified. Withdraw and request a new decision.",
+                           brief_changed=True)
+    if approving and _proposal_access_gap(row, manifest, user):
+        raise ServiceError(403, "This account cannot verify all sources in the proposed brief. Assign a decider with source access.")
+    if approving and _proposal_source_hash(row) and _proposal_source_hash(row) != digest:
+        raise ServiceError(409, "The brief changed after the decision was requested. Withdraw and request a new decision.",
+                           brief_changed=True)
     override = None
-    if approving and manifest["checklist"]["unresolved"]:
-        override = _text(override_reason, "why the decision goes ahead with required steps unresolved", minimum=10)
+    gaps = manifest["checklist"]["unresolved"] + [g["key"] for g in manifest["gaps"]]
+    if approving and gaps:
+        override = _text(override_reason, "why the decision goes ahead with review gaps unresolved", minimum=10)
     elif override_reason not in (None, ""):
-        raise ServiceError(422, "An override reason goes with approving while a required step is unresolved.")
+        raise ServiceError(422, "An override reason goes with approving while review gaps remain.")
 
+    if row["manifest"]:
+        try:
+            proposal = json.loads(row["manifest"])
+            if isinstance(proposal, dict) and isinstance(proposal.get("proposed_terms"), dict):
+                manifest["proposed_terms"] = proposal["proposed_terms"]
+                manifest["proposal_hash"] = row["manifest_hash"]
+        except (TypeError, ValueError):
+            pass
+    manifest["decision_terms"] = {"outcome": status, "rationale": rationale,
+                                  "conditions": clean_conditions, "expires_at": expires,
+                                  "review_due": review_date or manifest["review_due"],
+                                  "override_reason": override}
+    signed_digest = brief_hash(manifest)
     now = service._now()
     moved = db.execute(
         "UPDATE ai_use_decisions SET status = %s, decided_by = %s, decided_at = %s, rationale = %s, expires_at = %s, "
@@ -611,7 +811,7 @@ def decide(db, user, decision_id: int, outcome, *, rationale=None, conditions=No
         "WHERE id = %s AND status = 'proposed' AND version = %s",
         (status, user["id"], now, rationale, expires, manifest["profile"]["version"], manifest["profile"]["fingerprint"],
          manifest["profile"]["tier"], manifest["checklist"]["rule_version"], json.dumps(manifest, sort_keys=True, default=str),
-         digest, override, 1 if separation else 0, now, decision_id, expected_version)).rowcount
+         signed_digest, override, 1 if separation else 0, now, decision_id, expected_version)).rowcount
     if moved != 1:
         raise _stale(db, decision_id)
     for position, c in enumerate(clean_conditions, start=1):
@@ -625,7 +825,7 @@ def decide(db, user, decision_id: int, outcome, *, rationale=None, conditions=No
     audit = [("ai_decision_made", "application", row["application_id"], f"decision {decision_id}: {status}")]
     if override:
         audit.append(("ai_decision_override", "application", row["application_id"],
-                      f"decision {decision_id} went ahead with {len(manifest['checklist']['unresolved'])} required step(s) unresolved"))
+                      f"decision {decision_id} went ahead with {len(gaps)} review gap(s) unresolved"))
     if not separation:
         audit.append(("ai_decision_unseparated", "application", row["application_id"],
                       f"decision {decision_id} was made while separation of duties is off"))

@@ -25,7 +25,7 @@ from modules.governance.entity_scope import describe_record
 
 log = logging.getLogger("oneforall.ai_governance")
 
-RULE_VERSION = "o1"
+RULE_VERSION = "o2"
 STATE_LABELS = {
     "complete": "Done", "not_applicable": "Not applicable", "not_yet_assessed": "Not done yet", "waiting": "Waiting on someone",
     "failed": "Needs attention", "unavailable": "Could not be read", "no_access": "Not open to you",
@@ -68,7 +68,10 @@ def _step_line(step, owner) -> dict:
         return _line(step["key"], step["title"], step["module"], "complete",
                      f"{len(step['records'])} record(s) in {step['module']} show it is done.", blocks=blocks,
                      resolution={"label": "Open it", "url": step["records"][0]["url"]} if step["records"] else resolution,
-                     records=[{"title": r["title"], "status": r["status"], "url": r["url"]} for r in step["records"][:5]])
+                     records=[{"title": r["title"], "status": r["status"], "url": r["url"],
+                               "ref": r.get("ref"), "version": r.get("version"), "source_version_id": r.get("source_version_id"),
+                               "updated_at": r.get("updated_at")}
+                              for r in step["records"][:5]])
     if step["state"] == "complete":
         why = "It was done before the use changed. Look at it again."
     elif step["state"] == "in_progress":
@@ -78,7 +81,10 @@ def _step_line(step, owner) -> dict:
     else:
         why = reason or "Nobody has started it."
     return _line(step["key"], step["title"], step["module"], "not_yet_assessed", why, blocks=blocks, resolution=resolution,
-                 owner=owner, records=[{"title": r["title"], "status": r["status"], "url": r["url"]} for r in step["records"][:5]])
+                 owner=owner, records=[{"title": r["title"], "status": r["status"], "url": r["url"],
+                                       "ref": r.get("ref"), "version": r.get("version"), "source_version_id": r.get("source_version_id"),
+                                       "updated_at": r.get("updated_at")}
+                                      for r in step["records"][:5]])
 
 
 def get_outstanding(db, user, application_id: int) -> "dict | None":
@@ -119,6 +125,16 @@ def get_outstanding(db, user, application_id: int) -> "dict | None":
                      "Nobody is named as answerable for this use.", blocks=True,
                      resolution={"label": "Name an owner", "url": base + "#overview"})
     lines.append(_guard("owner", "A named owner", "Governance", owner_line))
+
+    def sponsor_line():
+        if profile.get("sponsor_user_id") and profile.get("sponsor_name"):
+            return _line("sponsor", "An accountable sponsor", "AI Governance", "complete",
+                         f"{profile['sponsor_name']} sponsors this use.",
+                         resolution={"label": "Open the profile", "url": base + "#overview"})
+        return _line("sponsor", "An accountable sponsor", "AI Governance", "not_yet_assessed",
+                     "No active sponsor in this organization is named for this use.", blocks=True,
+                     resolution={"label": "Name a sponsor", "url": base + "#overview"}, owner=owner)
+    lines.append(_guard("sponsor", "An accountable sponsor", "AI Governance", sponsor_line))
 
     # The assessments the requirement rules call for, from the owning modules' own records
     try:

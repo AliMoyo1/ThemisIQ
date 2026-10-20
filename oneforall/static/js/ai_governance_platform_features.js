@@ -48,6 +48,13 @@
     ]);
     var meta = el('dl', { class: 'aig-platform-meta' }, [
       definition('Data sent', item.categories.join(', ')),
+      definition('What it does', item.declaration.task),
+      definition('What it reads', item.declaration.reads),
+      definition('What it leaves out', item.declaration.leaves_out),
+      definition('Who can start it', item.declaration.trigger),
+      definition('What becomes of the answer', item.declaration.output),
+      definition('Review before it counts', item.declaration.approval_words),
+      definition('When the assistant is not available', item.declaration.fallback_words),
       definition('Owner', item.owner || 'Not recorded'),
       definition('Successful calls', String(item.usage.successful)),
       definition('Refused / errors', item.usage.refused + ' / ' + item.usage.errors),

@@ -501,7 +501,12 @@ async def api_reg_frameworks(request: Request):
 @require_capability("governance.entities.view")
 async def api_reg_list(request: Request):
     status = request.query_params.get("status") or None
-    return JSONResponse(ds.list_regulatory_updates(status=status))
+    rows = ds.list_regulatory_updates(status=status)
+    for row in rows:
+        if row["ai_review_state"] != "approved" and not has_capability(
+                request.state.user, "governance.entities.manage"):
+            row["ai_summary"] = None
+    return JSONResponse(rows)
 
 
 @router.post("/api/regulatory-updates")
@@ -541,6 +546,49 @@ async def api_reg_dismiss(request: Request, rid: int):
 async def api_reg_delete(request: Request, rid: int):
     ds.delete_regulatory_update(rid)
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/regulatory-updates/{rid}/ai-review")
+@require_capability("governance.entities.manage")
+async def api_regulatory_ai_review(request: Request, rid: int):
+    """Review the optional AI draft separately from deterministic drift tasks."""
+    import hashlib
+    import json
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid request body") from None
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Invalid request body")
+    decision = body.get("decision")
+    reason = str(body.get("reason") or "").strip()
+    if decision not in ("approved", "rejected") or not 10 <= len(reason) <= 500:
+        raise HTTPException(400, "Choose approve or reject and explain the review")
+    db = get_db()
+    try:
+        row = db.execute("SELECT ai_summary FROM regulatory_updates WHERE id=%s", (rid,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "Update not found")
+        summary = row["ai_summary"] or ""
+        if not summary.strip():
+            raise HTTPException(409, "No AI draft awaits review")
+        digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
+        db.execute(
+            "INSERT INTO regulatory_ai_reviews "
+            "(update_id,summary_hash,decision,reason,reviewed_by) VALUES (%s,%s,%s,%s,%s) "
+            "ON CONFLICT(update_id) DO UPDATE SET summary_hash=excluded.summary_hash,"
+            "decision=excluded.decision,reason=excluded.reason,reviewed_by=excluded.reviewed_by,"
+            "reviewed_at=CURRENT_TIMESTAMP",
+            (rid, digest, decision, reason, request.state.user["id"]),
+        )
+        db.commit()
+    finally:
+        db.close()
+    from core.middleware import log_audit
+    log_audit(request.state.user, "governance", "regulatory_ai_review", "regulatory_update", rid,
+              json.dumps({"decision": decision, "summary_hash": digest[:16]}))
+    return JSONResponse({"decision": decision})
 
 
 @router.post("/api/regulatory-updates/run-drift")

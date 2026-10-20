@@ -228,7 +228,7 @@ def test_a_switch_request_that_is_not_a_plain_yes_or_no_changes_nothing(http, bo
 
 def test_the_navigation_flag_follows_the_switch(http):
     from core import ai_rollout
-    person = http.users["employee_a"]
+    person = http.users["admin_a"]
     request = types.SimpleNamespace(state=types.SimpleNamespace(user=person), query_params={})
     assert shell_ctx(request)["can_ai_use"] is True, "the suites start with it on"
     ai_rollout.set_enabled(ORG_A, False)

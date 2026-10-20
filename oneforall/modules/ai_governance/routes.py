@@ -18,7 +18,7 @@ from core.middleware import require_capability
 from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, tenant_context
-from modules.ai_governance import (assessments, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
+from modules.ai_governance import (assessments, assignment, controls, decisions, evaluations, explain, external_responses, guidance, handlers,  # noqa: F401  (handlers register themselves)
                                    import_rules, imports, literacy, monitoring, outstanding, oversight, overview, platform_features,
                                    precedents, quality, questions, regulation, review_packs, rules, service, workspace)
 from modules.ai_governance.service import ServiceError
@@ -91,7 +91,7 @@ def _page(request: Request, template: str, section: str, **extra) -> HTMLRespons
     from core.rbac import has_capability
     user = request.state.user
     ctx = shell_ctx(request, active_module="ai-governance", active_section=section)
-    ctx.update(can_register=has_capability(user, "ai_use.submit"), can_review=has_capability(user, "ai_use.review"),
+    ctx.update(can_register=has_capability(user, "ai_use.intake_create"), can_review=has_capability(user, "ai_use.review"),
                can_decide=has_capability(user, "ai_use.decide"),
                can_manage_pack=has_capability(user, "ai_pack.manage"),
                can_receive_pack=has_capability(user, "ai_pack.receive"),
@@ -251,7 +251,7 @@ async def pack_page(request: Request, pack_id: int):
 
 
 @router.get("/register", response_class=HTMLResponse)
-@require_capability("ai_use.submit")
+@require_capability("ai_use.intake_create")
 async def register_page(request: Request):
     """A new request. Started from a vendor or a process that was said to use AI, it carries that source and its name."""
     source = request.query_params.get("source") or ""
@@ -268,9 +268,21 @@ async def my_requests_page(request: Request):
 
 
 @router.get("/requests/{intake_id}", response_class=HTMLResponse)
-@require_capability("ai_use.submit")
+@require_capability("ai_use.submit", "ai_use.review")
 async def intake_page(request: Request, intake_id: int):
-    return _page(request, "intake.html", "requests", intake_id=intake_id, source_ref="", source_name="")
+    db = get_db()
+    try:
+        intake = service.get_intake(db, request.state.user, intake_id)
+    except ServiceError as exc:
+        return HTMLResponse("Not found" if exc.status == 404 else exc.message, status_code=exc.status)
+    finally:
+        db.close()
+    from core.rbac import has_capability
+    return _private(_page(request, "intake.html", "requests", intake_id=intake_id, source_ref="", source_name="",
+                 can_register=((has_capability(request.state.user, "ai_use.intake_create")
+                                and intake["submitted_by"] == request.state.user["id"])
+                               or (intake["source_kind"] == "import"
+                                   and has_capability(request.state.user, "ai_use.review")))))
 
 
 @router.get("/review", response_class=HTMLResponse)
@@ -301,7 +313,7 @@ async def api_vocabulary(request: Request):
 
 
 @router.get("/api/people")
-@require_capability("ai_use.submit")
+@require_capability("ai_use.intake_create")
 async def api_people(request: Request):
     """Colleagues to pick an owner from: names only, this organization only, found by typing."""
     user = request.state.user
@@ -364,7 +376,7 @@ async def api_set_flag(request: Request, kind: str, record_id: int):
 
 
 @router.get("/api/duplicates")
-@require_capability("ai_use.submit")
+@require_capability("ai_use.intake_create")
 async def api_duplicates(request: Request):
     q = request.query_params
     return _read(request, lambda db, user: service.find_duplicates(db, user, q.get("name"), q.get("provider")))
@@ -379,7 +391,7 @@ async def api_my_requests(request: Request):
 
 
 @router.post("/api/requests")
-@require_capability("ai_use.submit")
+@require_capability("ai_use.intake_create")
 async def api_create_request(request: Request):
     try:
         body = await _body(request)
@@ -396,7 +408,7 @@ async def api_get_request(request: Request, intake_id: int):
 
 
 @router.put("/api/requests/{intake_id}")
-@require_capability("ai_use.submit")
+@require_capability("ai_use.intake_create", "ai_use.review")
 async def api_save_request(request: Request, intake_id: int):
     try:
         body = await _body(request)
@@ -406,7 +418,7 @@ async def api_save_request(request: Request, intake_id: int):
 
 
 @router.post("/api/requests/{intake_id}/submit")
-@require_capability("ai_use.submit")
+@require_capability("ai_use.intake_create", "ai_use.review")
 async def api_submit_request(request: Request, intake_id: int):
     try:
         body = await _body(request)
@@ -424,6 +436,25 @@ async def api_review_queue(request: Request):
     if status not in ("submitted", "returned", "approved", "rejected", "waiting"):
         return JSONResponse({"ok": False, "error": "Unknown status."}, status_code=400)
     return _read(request, lambda db, user: service.review_queue(db, user, status))
+
+
+@router.get("/api/review/worklist")
+@require_capability("ai_use.review")
+async def api_review_worklist(request: Request):
+    return _private(_read(request, lambda db, user: service.review_worklist(
+        db, user, stage=request.query_params.get("stage") or None, page=request.query_params.get("page") or 1)))
+
+
+@router.post("/api/review/requests/{intake_id}/close")
+@require_capability("ai_use.review")
+async def api_close_request(request: Request, intake_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: service.close_request(
+        db, user, intake_id, expected_version=body.get("version"), note=body.get("note"),
+        channel=body.get("channel"), reference=body.get("reference"))))
 
 
 @router.get("/api/review/requests/{intake_id}/duplicates")
@@ -467,6 +498,23 @@ async def api_review_approve(request: Request, intake_id: int):
         db, user, intake_id, body.get("version"), application_id=body.get("application_id"),
         new_application=body.get("new_application"), corrections=body.get("corrections"),
         adopted_tier=body.get("adopted_tier"), tier_reason=body.get("tier_reason"), note=body.get("note")))
+
+
+@router.get("/api/review/requests/{intake_id}/assignees")
+@require_capability("ai_use.review")
+async def api_review_assignees(request: Request, intake_id: int):
+    """The people who may be named as the reviewer of this request."""
+    return _read(request, lambda db, user: {"items": assignment.reviewers_for(db, user, intake_id)})
+
+
+@router.post("/api/review/requests/{intake_id}/assign")
+@require_capability("ai_use.review")
+async def api_review_assign(request: Request, intake_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: assignment.assign_reviewer(db, user, intake_id, body.get("assignee_id")))
 
 
 # ── The inventory and the workspace ─────────────────────────────────────────
@@ -699,7 +747,27 @@ async def api_decision_request(request: Request, application_id: int):
         body = await _body(request)
     except ServiceError as exc:
         return _error(exc)
-    return _transact(request, lambda db, user: decisions.request_decision(db, user, application_id, body.get("note")), 201)
+    return _transact(request, lambda db, user: decisions.request_decision(
+        db, user, application_id, body.get("note"), body.get("brief_hash"),
+        proposed_conditions=body.get("proposed_conditions"), proposed_expires_at=body.get("proposed_expires_at"),
+        proposed_review_due=body.get("proposed_review_due")), 201)
+
+
+@router.get("/api/decisions/{decision_id}/assignees")
+@require_capability("ai_use.view")
+async def api_decision_assignees(request: Request, decision_id: int):
+    """The people who may be named to decide this request."""
+    return _read(request, lambda db, user: {"items": assignment.deciders_for(db, user, decision_id)})
+
+
+@router.post("/api/decisions/{decision_id}/assign")
+@require_capability("ai_use.view")
+async def api_decision_assign(request: Request, decision_id: int):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _transact(request, lambda db, user: assignment.assign_decider(db, user, decision_id, body.get("assignee_id")))
 
 
 @router.get("/api/decisions/{decision_id}/export")
@@ -731,7 +799,7 @@ async def api_decision_decide(request: Request, decision_id: int):
     return _transact(request, lambda db, user: decisions.decide(
         db, user, decision_id, body.get("outcome"), rationale=body.get("rationale"), conditions=body.get("conditions"),
         expires_at=body.get("expires_at"), override_reason=body.get("override_reason"), brief=body.get("brief_hash"),
-        expected_version=body.get("version")))
+        expected_version=body.get("version"), review_due=body.get("review_due")))
 
 
 @router.post("/api/decisions/{decision_id}/withdraw")
@@ -850,6 +918,32 @@ async def api_import_batches(request: Request):
     return _private(_read(request, lambda db, user: imports.list_batches(db, user)))
 
 
+@router.get("/api/import/mappings")
+@require_capability("ai_use.review")
+async def api_import_mappings(request: Request):
+    return _private(_read(request, lambda db, user: imports.list_saved_mappings(db, user)))
+
+
+@router.post("/api/import/mappings")
+@require_capability("ai_use.review")
+async def api_import_mapping_save(request: Request):
+    try:
+        body = await _body(request)
+    except ServiceError as exc:
+        return _error(exc)
+    return _private(_transact(request, lambda db, user: imports.save_mapping(
+        db, user, body.get("batch_id"), body.get("name")
+    ), 201))
+
+
+@router.delete("/api/import/mappings/{mapping_id}")
+@require_capability("ai_use.review")
+async def api_import_mapping_archive(request: Request, mapping_id: int):
+    return _private(_transact(request, lambda db, user: imports.archive_mapping(
+        db, user, mapping_id
+    )))
+
+
 @router.get("/api/import/batches/{batch_id}")
 @require_capability("ai_use.review")
 async def api_import_batch(request: Request, batch_id: int):
@@ -955,7 +1049,12 @@ async def api_question_withdraw(request: Request, question_id: int):
 @router.get("/api/systems/{application_id}/responses")
 @require_capability("ai_use.review")
 async def api_responses(request: Request, application_id: int):
-    return _private(_read(request, lambda db, user: external_responses.list_for_use(db, user, application_id)))
+    raw = request.query_params.get("intake_id")
+    try:
+        intake_id = int(raw) if raw is not None else None
+    except ValueError:
+        return _error(ServiceError(400, "Choose a valid request."))
+    return _private(_read(request, lambda db, user: external_responses.list_for_use(db, user, application_id, intake_id)))
 
 
 @router.post("/api/systems/{application_id}/responses")

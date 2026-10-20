@@ -51,7 +51,7 @@
 
     function open(tab) {
       current = tab;
-      global.history.replaceState(null, '', global.location.pathname + '#' + tab);
+      global.history.replaceState(null, '', global.location.pathname + global.location.search + '#' + tab);
       renderTabs();
       if (tab === 'overview') renderOverview(); else loadTab(tab);
     }
@@ -102,7 +102,7 @@
           el('h2', { id: 'aigProfH', class: 'aig-h3', text: 'AI profile' }),
           el('dl', { class: 'aig-facts' }, [
             fact('Purpose', p.purpose), fact('What it does', words(L.capability_type, p.capability_type)), fact('Provided', words(L.deployment, p.deployment)),
-            fact('Provider or model', p.provider_note), fact('Intended users', p.intended_users), fact('Kinds of data', words(L.data_categories, p.data_categories)),
+            fact('Provider or model', p.provider_note), fact('Sponsor', p.sponsor_name), fact('Intended users', p.intended_users), fact('Kinds of data', words(L.data_categories, p.data_categories)),
             fact('Who is affected', words(L.affected_people, p.affected_people)), fact('How much it decides', words(L.autonomy, p.autonomy)),
             fact('Affects decisions about people', yn(p.affects_decisions)), fact('Outside access', yn(p.external_access)),
             fact('Jurisdictions', words(L.jurisdictions, p.jurisdictions)), fact('Human oversight', p.human_oversight), fact('Target launch', p.target_launch),
@@ -209,6 +209,36 @@
         text('provider_name', 'Provider or model');
         if (profile) fields.provider_name.input.value = profile.provider_note || '';
         text('intended_users', 'Intended users');
+        var sponsor = el('select', {}, [el('option', { value: '', text: 'No sponsor named' })]);
+        if (profile && profile.sponsor_user_id && profile.sponsor_name) {
+          sponsor.appendChild(el('option', { value: String(profile.sponsor_user_id), text: profile.sponsor_name, selected: true }));
+        }
+        fields.sponsor_user_id = { get: function () { return sponsor.value ? parseInt(sponsor.value, 10) : null; }, input: sponsor };
+        var sponsorSearch = el('input', { type: 'search', maxlength: '100', placeholder: 'Search colleagues by name' });
+        form.appendChild(AIGov.field('pf_sponsor_search', 'Find a sponsor', sponsorSearch).row);
+        form.appendChild(AIGov.field('pf_sponsor_user_id', 'Accountable sponsor', sponsor,
+          'Choose a person in this organization who sponsors the proposed use.').row);
+        var sponsorLookup = 0;
+        function findSponsors() {
+          var lookup = ++sponsorLookup, selected = sponsor.value;
+          var chosen = sponsor.options[sponsor.selectedIndex];
+          var chosenName = chosen ? chosen.text : '';
+          AIGov.api('/ai-governance/api/people?q=' + encodeURIComponent(sponsorSearch.value.trim())).then(function (data) {
+            if (lookup !== sponsorLookup) return;
+            AIGov.clear(sponsor);
+            sponsor.appendChild(el('option', { value: '', text: 'No sponsor named' }));
+            if (selected && !(data.items || []).some(function (p) { return String(p.id) === selected; })) {
+              sponsor.appendChild(el('option', { value: selected, text: chosenName || 'Selected sponsor' }));
+            }
+            (data.items || []).forEach(function (person) {
+              sponsor.appendChild(el('option', { value: String(person.id), text: person.name }));
+            });
+            sponsor.value = selected;
+            if (sponsor.value !== selected) sponsor.value = '';
+          }).catch(function () { /* Keep the current choice if the lookup is unavailable. */ });
+        }
+        sponsorSearch.addEventListener('input', findSponsors);
+        findSponsors();
         checks('data_categories', 'Kinds of data', L.data_categories);
         checks('affected_people', 'Who is affected', L.affected_people);
         choice('autonomy', 'How much it decides', L.autonomy);

@@ -2,12 +2,13 @@
 BCM module - Business Continuity Management.
 All routes serve JSON APIs at /bcm/api/* except the SPA index at GET /bcm/.
 """
+import json
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call
+from core.middleware import require_module, require_capability, check_ai_rate_limit, record_ai_call, log_audit
 from core.shell_context import shell_ctx
 from core.rbac import has_capability
 from database import get_db
@@ -22,6 +23,7 @@ templates = Jinja2Templates(directory=["modules/bcm/templates", "templates"])
 
 from modules.bcm import data_service as ds
 from modules.bcm import exercise_service as exs
+from modules.bcm import escalation
 from modules.governance.data_service import bu_scope_ids
 from core.best_effort import swallowed
 
@@ -41,6 +43,93 @@ async def _json_body(request: Request) -> dict:
     return sanitize_dict(body)
 
 
+def _named_commander(request: Request, value):
+    """The id of the person named as incident commander, or None. A person may be named only when they are active, in
+    this organization, and able to open BCM: the email that tells them must be one they could act on."""
+    if value in (None, ""):
+        return None
+    try:
+        uid = int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose a person from the list.") from None
+    db = get_db()
+    try:
+        row = db.execute(
+            "SELECT id, org_id, is_active FROM users WHERE id = %s AND deleted_at IS NULL", (uid,)).fetchone()
+        roles = [r["role_key"] for r in db.execute(
+            "SELECT role_key FROM user_roles WHERE user_id = %s", (uid,)).fetchall()]
+    finally:
+        db.close()
+    actor = request.state.user
+    if (not row or not row["is_active"] or not has_capability({"roles": roles}, "module.bcm.access")
+            or (row["org_id"] != actor.get("org_id") and not actor.get("is_super_admin"))):
+        raise HTTPException(422, "That person cannot be named: they must be active in this organization and able to "
+                                 "open Business Continuity.")
+    return uid
+
+
+def _ack_names(rows) -> dict:
+    """{user id: full name} for the people who acknowledged these incidents."""
+    ids = sorted({r.get("acknowledged_by") for r in rows if r.get("acknowledged_by")})
+    if not ids:
+        return {}
+    db = get_db()
+    try:
+        marks = ",".join(["%s"] * len(ids))
+        return {r["id"]: r["full_name"] for r in db.execute(
+            f"SELECT id, full_name FROM users WHERE id IN ({marks})", ids).fetchall()}
+    finally:
+        db.close()
+
+
+def _ask_commander_mail(incident_id: int, commander_id, actor_id: int, severity=None) -> None:
+    """Ask the email outbox to tell a named incident commander (template bcm.incident: the reference, how long they have
+    to acknowledge and a link, never the title or the impact). Best effort: the incident is already saved, and the person
+    who named themselves is not mailed about it."""
+    if not commander_id or commander_id == actor_id:
+        return
+    try:
+        from core import email_outbox
+        from database import get_current_org
+        fields = {"reference": f"INC-{incident_id}"}
+        minutes = escalation.window_minutes(severity)
+        if minutes:
+            fields["minutes"] = minutes
+        db = get_db()
+        try:
+            email_outbox.enqueue_safely(
+                db, "bcm.incident", recipient_user_id=commander_id, org_id=get_current_org(),
+                route=f"/bcm/?open=incident:{incident_id}", fields=fields,
+                source=("bcm", "incident", incident_id), purpose="commander", threshold=str(commander_id))
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        swallowed("_ask_commander_mail")
+
+
+@router.get("/api/people")
+@require_capability("bcm.incident.manage")
+async def api_people(request: Request):
+    """People who may be named on a continuity record: the active people of this organization who can open BCM."""
+    from core.rbac import CAPABILITIES
+    roles = sorted(CAPABILITIES["module.bcm.access"])
+    marks = ",".join(["%s"] * len(roles))
+    sql = ("SELECT DISTINCT u.id, u.full_name FROM users u JOIN user_roles ur ON ur.user_id = u.id "
+           f"WHERE u.is_active = 1 AND u.deleted_at IS NULL AND ur.role_key IN ({marks})")
+    params = list(roles)
+    org = request.state.user.get("org_id")
+    if org is not None:
+        sql += " AND u.org_id = %s"
+        params.append(org)
+    db = get_db()
+    try:
+        rows = db.execute(sql + " ORDER BY u.full_name LIMIT 300", params).fetchall()
+    finally:
+        db.close()
+    return JSONResponse([{"id": r["id"], "name": r["full_name"]} for r in rows])
+
+
 @router.get("/", response_class=HTMLResponse)
 @require_module("bcm")
 async def bcm_spa(request: Request):
@@ -48,6 +137,7 @@ async def bcm_spa(request: Request):
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
         "bcm_can_manage_exercises": has_capability(user, "bcm.exercise.manage"),
+        "bcm_can_manage_incidents": has_capability(user, "bcm.incident.manage"),
         "bcm_can_manage_dependencies": has_capability(user, "bcm.dependency.manage"),
         "bcm_can_manage_comms": has_capability(user, "bcm.plan.manage"),
         **shell_ctx(request, active_module="bcm"),
@@ -73,7 +163,8 @@ async def bcm_spa_page(request: Request, page: str):
 @router.get("/api/dashboard")
 @require_capability("module.bcm.access")
 async def api_dashboard(request: Request):
-    return JSONResponse(ds.get_dashboard_stats())
+    from modules.bcm import dashboard_metrics
+    return JSONResponse(dashboard_metrics.stats(request.state.user))
 
 
 @router.get("/api/bia")
@@ -581,27 +672,34 @@ async def api_plan_activations(request: Request, plan_id: int):
 @require_capability("bcm.plan.manage")
 async def api_plan_review_create(request: Request, plan_id: int):
     from modules.bcm import ai_service as ai
+    from core.ai_client import provider_name
     plan = ds.get_plan(plan_id)
-    if not plan:
+    scope = bu_scope_ids(request.state.user)
+    if not plan or (scope is not None and plan.get("business_unit_id") is not None
+                    and plan["business_unit_id"] not in scope):
         raise HTTPException(404)
     try:
         result = ai.review_plan(plan)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
-    result["plan_id"] = plan_id
-    result["reviewer_id"] = _uid(request)
-    result["reviewer_name"] = _uname(request)
-    result["provider"] = "anthropic"
-    rid = ds.create_plan_review(result)
-    result["id"] = rid
-    return JSONResponse(result, status_code=201)
+    provider = provider_name()
+    rid = ds.create_plan_review({
+        "plan_id": plan_id, "reviewer_id": _uid(request), "reviewer_name": _uname(request), "provider": provider,
+        "overall_score": result["score"], "strengths": json.dumps(result["strengths"]),
+        "gaps": json.dumps(result["weaknesses"]), "recommendations": json.dumps(result["recommendations"]),
+        "raw_response": json.dumps(result),
+    })
+    return JSONResponse({**result, "overall_score": result["score"], "gaps": result["weaknesses"], "plan_id": plan_id,
+                         "reviewer_name": _uname(request), "provider": provider, "id": rid}, status_code=201)
 
 
 @router.get("/api/incidents")
 @require_capability("module.bcm.access")
 async def api_incidents_list(request: Request):
     status = request.query_params.get("status")
-    return JSONResponse(ds.list_incidents(status=status, bu_scope=bu_scope_ids(request.state.user)))
+    rows = ds.list_incidents(status=status, bu_scope=bu_scope_ids(request.state.user))
+    names = _ack_names(rows)
+    return JSONResponse([escalation.with_state(r, names=names) for r in rows])
 
 
 @router.get("/api/incidents/{inc_id}")
@@ -610,6 +708,7 @@ async def api_incident_detail(request: Request, inc_id: int):
     inc = ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user))
     if not inc:
         raise HTTPException(404)
+    inc = escalation.with_state(inc, names=_ack_names([inc]))
     inc["updates"] = ds.list_incident_updates(inc_id)
     inc["actions"] = ds.list_incident_actions(inc_id)
     inc["decisions"] = ds.list_incident_decisions(inc_id)
@@ -638,7 +737,9 @@ async def api_incident_detail(request: Request, inc_id: int):
 async def api_incident_create(request: Request):
     body = await _json_body(request)
     body["business_unit_id"] = request.state.user.get("business_unit_id")
-    iid = ds.create_incident(body)
+    body["commander_user_id"] = _named_commander(request, body.get("commander_user_id"))
+    iid = ds.create_incident(body, actor_id=_uid(request))
+    _ask_commander_mail(iid, body["commander_user_id"], _uid(request), body.get("severity", "medium"))
 
     # Emit incident declared event
     emit(
@@ -661,8 +762,15 @@ async def api_incident_create(request: Request):
 @require_capability("bcm.incident.manage")
 async def api_incident_update(request: Request, inc_id: int):
     body = await _json_body(request)
-    if not ds.update_incident(inc_id, body, bu_scope=bu_scope_ids(request.state.user)):
+    before = None
+    if "commander_user_id" in body:
+        body["commander_user_id"] = _named_commander(request, body["commander_user_id"])
+        before = ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user))
+    if not ds.update_incident(inc_id, body, bu_scope=bu_scope_ids(request.state.user), actor_id=_uid(request)):
         raise HTTPException(404)
+    if before is not None and before.get("commander_user_id") != body["commander_user_id"]:
+        _ask_commander_mail(inc_id, body["commander_user_id"], _uid(request),
+                            body.get("severity", before.get("severity")))
 
     # Emit incident resolved event when status changes to resolved
     new_status = (body.get("status") or "").lower()
@@ -681,6 +789,30 @@ async def api_incident_update(request: Request, inc_id: int):
             user_id=_uid(request),
         )
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/incidents/{inc_id}/acknowledge")
+@require_capability("module.bcm.access")
+async def api_incident_acknowledge(request: Request, inc_id: int):
+    """The named commander, or a person who manages incidents, acknowledges an incident: the clock stops and the BCM
+    managers are not told. The first acknowledgement stands; a second one changes nothing."""
+    user = request.state.user
+    inc = ds.get_incident(inc_id, bu_scope=bu_scope_ids(user))
+    if not inc:
+        raise HTTPException(404)
+    if inc.get("commander_user_id") != user["id"] and not has_capability(user, "bcm.incident.manage"):
+        raise HTTPException(403, "Only the named incident commander or a BCM manager can acknowledge an incident.")
+    outcome = ds.acknowledge_incident(inc_id, user["id"])
+    if outcome == "closed":
+        raise HTTPException(409, "This incident is already resolved or closed.")
+    if outcome == "recorded":
+        ds.create_incident_update(inc_id, _uname(request), "Acknowledged.")
+        log_audit(user, "bcm", "incident_acknowledged", "incident", inc_id, details="Incident acknowledged")
+    fresh = ds.get_incident(inc_id, bu_scope=bu_scope_ids(user)) or inc
+    fresh = escalation.with_state(fresh, names=_ack_names([fresh]))
+    return JSONResponse({"ok": True, "recorded": outcome == "recorded", "ack_state": fresh["ack_state"],
+                         "acknowledged_at": fresh.get("acknowledged_at"),
+                         "acknowledged_by_name": fresh.get("acknowledged_by_name")})
 
 
 @router.delete("/api/incidents/{inc_id}")
@@ -810,24 +942,45 @@ async def api_vault_evidence_search(request: Request):
 @router.get("/api/incidents/{inc_id}/vault-evidence")
 @require_capability("module.bcm.access")
 async def api_incident_vault_evidence_list(request: Request, inc_id: int):
-    return JSONResponse(ds.list_incident_vault_links(inc_id))
+    if not ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404)
+    return JSONResponse(ds.list_incident_vault_links(inc_id, request.state.user))
 
 
 @router.post("/api/incidents/{inc_id}/vault-evidence")
 @require_capability("bcm.incident.manage")
 async def api_incident_vault_evidence_link(request: Request, inc_id: int):
+    if not ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404)
     body = await _json_body(request)
     eid = body.get("evidence_id")
-    if not eid:
-        raise HTTPException(400, "evidence_id required")
-    lid = ds.link_incident_vault_item(inc_id, int(eid), _uname(request))
+    try:
+        if type(eid) is int:
+            evidence_id = eid
+        elif isinstance(eid, str) and eid.isascii() and eid.isdigit():
+            evidence_id = int(eid)
+        else:
+            raise ValueError
+        if evidence_id <= 0 or evidence_id > 2**63 - 1:
+            raise ValueError
+    except ValueError:
+        raise HTTPException(422, "Valid evidence_id required") from None
+    try:
+        lid = ds.link_incident_vault_item(inc_id, evidence_id, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Vault artifact not found") from None
     return JSONResponse({"id": lid}, status_code=201)
 
 
 @router.delete("/api/incidents/{inc_id}/vault-evidence/{link_id}")
 @require_capability("bcm.incident.manage")
 async def api_incident_vault_evidence_unlink(request: Request, inc_id: int, link_id: int):
-    ds.unlink_incident_vault_item(link_id)
+    if not ds.get_incident(inc_id, bu_scope=bu_scope_ids(request.state.user)):
+        raise HTTPException(404)
+    try:
+        ds.unlink_incident_vault_item(inc_id, link_id, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Vault link not found") from None
     return JSONResponse({"ok": True})
 
 
@@ -977,7 +1130,7 @@ async def api_compliance_detail(request: Request, cid: int):
     c = ds.get_compliance_control(cid)
     if not c:
         raise HTTPException(404)
-    c["evidence"] = ds.list_compliance_evidence(cid)
+    c["evidence"] = ds.list_compliance_evidence(cid, request.state.user)
     return JSONResponse(c)
 
 
@@ -1000,7 +1153,10 @@ async def api_compliance_update(request: Request, cid: int):
 @router.delete("/api/compliance/{cid}")
 @require_capability("bcm.compliance.manage")
 async def api_compliance_delete(request: Request, cid: int):
-    ds.delete_compliance_control(cid)
+    try:
+        ds.delete_compliance_control(cid)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
     return JSONResponse({"ok": True})
 
 
@@ -1008,20 +1164,66 @@ async def api_compliance_delete(request: Request, cid: int):
 @require_capability("bcm.compliance.manage")
 async def api_compliance_evidence_create(request: Request, cid: int):
     body = await _json_body(request)
-    body["uploaded_by"] = _uname(request)
-    eid = ds.create_compliance_evidence(cid, body)
-    # Mirror to central Evidence Vault so BCM evidence is visible cross-module
     try:
-        ds.sync_bcm_compliance_evidence_to_vault(eid, cid, _uid(request))
-    except Exception:
-        pass  # Vault sync is non-critical; don't fail the primary operation
+        raw_id = body.get("vault_evidence_id")
+        if type(raw_id) is int:
+            vault_id = raw_id
+        elif isinstance(raw_id, str) and raw_id.isascii() and raw_id.isdigit():
+            vault_id = int(raw_id)
+        else:
+            raise ValueError("Choose a Vault artifact")
+        if vault_id <= 0 or vault_id > 2**63 - 1:
+            raise ValueError("Choose a Vault artifact")
+        eid = ds.attach_compliance_vault_evidence(
+            cid, vault_id, request.state.user, body.get("title"), body.get("notes")
+        )
+    except LookupError:
+        raise HTTPException(404, "Control or Vault artifact not found") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
     return JSONResponse({"id": eid}, status_code=201)
+
+
+@router.get("/api/compliance-evidence/legacy")
+@require_capability("module.bcm.access")
+async def api_compliance_legacy_inventory(request: Request):
+    from modules.evidence.legacy_migration import bcm_inventory
+    return JSONResponse({"items": bcm_inventory(request.state.user)})
+
+
+@router.post("/api/compliance-evidence/legacy/{eid}/reconcile")
+@require_capability("bcm.compliance.manage")
+async def api_compliance_legacy_reconcile(request: Request, eid: int):
+    from modules.evidence.legacy_migration import reconcile_bcm_file
+    body = await _json_body(request)
+    try:
+        raw = body.get("vault_evidence_id")
+        if type(raw) is int:
+            vault_id = raw
+        elif isinstance(raw, str) and raw.isascii() and raw.isdigit():
+            vault_id = int(raw)
+        else:
+            raise ValueError
+        if vault_id < 1:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise HTTPException(422, "Choose a Vault artifact") from None
+    try:
+        result = reconcile_bcm_file(eid, vault_id, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "BCM reference or Vault artifact not found") from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    return JSONResponse({"id": eid, "vault_evidence_id": result})
 
 
 @router.delete("/api/compliance/{cid}/evidence/{eid}")
 @require_capability("bcm.compliance.manage")
 async def api_compliance_evidence_delete(request: Request, cid: int, eid: int):
-    ds.delete_compliance_evidence(eid)
+    try:
+        ds.delete_compliance_evidence(cid, eid, request.state.user)
+    except LookupError:
+        raise HTTPException(404, "Compliance evidence not found") from None
     return JSONResponse({"ok": True})
 
 
@@ -1372,16 +1574,17 @@ async def api_export_csv(request: Request):
 @router.get("/api/reports/summary")
 @require_capability("module.bcm.access")
 async def api_reports_summary(request: Request):
-    return JSONResponse(ds.get_dashboard_stats())
+    from modules.bcm import dashboard_metrics
+    return JSONResponse(dashboard_metrics.stats(request.state.user))
 
 
 @router.post("/api/reports/board")
 @require_capability("bcm.report.generate")
 async def api_reports_board(request: Request):
-    from modules.bcm import ai_service as ai
-    stats = ds.get_dashboard_stats()
+    from modules.bcm import ai_service as ai, dashboard_metrics
+    stats = dashboard_metrics.stats(request.state.user)
     try:
-        narrative = ai.generate_board_narrative(stats)
+        narrative = ai.generate_board_narrative(dashboard_metrics.for_narrative(stats))
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     return JSONResponse({"stats": stats, "narrative": narrative})
