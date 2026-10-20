@@ -1232,3 +1232,27 @@ Recorded in full in [16](16-specialist-browser-fixtures-and-grid-contrast.md). B
   to change are in 16. A backend test guards every AI Governance route capability against an employee.
 - **Open:** six pre-existing browser failures in the ARIA managed edit and workflow scope files.
 - Lanes: backend 2670 passed, 0 failed; browser 89 files, 552 passed, 6 failed (all six also fail on `master`).
+
+## Connected assessments and landing page plans, 2026-10-20 (planned, not built)
+
+Plans only, on the owner's instruction "just do plans, don't build". No code changed in this entry.
+
+- [17](17-connected-assessments.md): connecting DPIAs, AIIAs and continuity plans to ARIA controls without forcing it.
+  Assessment: the DPIA handler records keyword guesses as confirmed links (they are stored without a status, which
+  reads as confirmed), a plan activation creates a task with no named controls, and the AIIA's mitigations never see
+  the controls its AI use already has. No AI drafting exists for the AIIA, and never did; the AIIA's data lives in
+  Sentinel's tables and Sentinel's sidebar still links to it.
+- **Owner decisions (chat confirmation, not a sign-off)**, recommendations adopted, explained in 17 section 7:
+  1. Existing keyword links become suggestions rather than being deleted. Why: right ones can be confirmed in one
+     click, wrong ones stop looking like fact. Cost: a one-off migration of unconfirmed handler links. How to change:
+     delete them instead.
+  2. Build AI drafting for the AIIA. Why: DPIAs and plans have it, the landing page claims it, the prefill gives it good
+     inputs. Cost: about three days and a new governed AI feature; AIIA comes off the landing page's drafting panel
+     until it ships. How to change: keep only the landing page correction.
+  3. Order DPIA, plans, AIIA. Why: DPIA links misrepresent data today and matter most. Cost: AIIA help comes last. How
+     to change: run the AIIA step first.
+- [Landing page plan](../2026-10-landing-page/PLAN-features-page.md) and [features page content](../2026-10-landing-page/features-page-content.md):
+  a separate `/features` page; owner decisions recorded there (AI Governance as the seventh module, numbers on hold,
+  security section held, every Sentinel jurisdiction named, a compact predictive risk panel, general industry framing).
+  Found: the live landing page lists AIIA as AI drafted, which is not true today.
+
