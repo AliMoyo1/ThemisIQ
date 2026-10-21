@@ -295,13 +295,20 @@ def _score_risks_in_batches(rows: list, framework_name: str) -> list:
 
         for row in batch:
             risk = risk_map.get(row["seq"], {})
+            suggested = str(risk.get("risk_level") or "").title()
+            if suggested not in ("Low", "Medium", "High", "Critical"):
+                suggested = ""
+            evidence = risk.get("evidence_items")
+            evidence = [str(item)[:200] for item in evidence[:20] if isinstance(item, str) and item.strip()] \
+                if isinstance(evidence, list) else []
             scored.append({
                 "control_id": row["raw_id"],
                 "name": row["name"],
                 "description": row["description"] or row["note"],
-                "risk_level": risk.get("risk_level", "Medium"),
-                "evidence_required": risk.get("evidence_required", 1),
-                "evidence_items": risk.get("evidence_items", [row["name"]]),
+                "risk_level": "Medium",
+                "suggested_risk_level": suggested,
+                "evidence_required": [],
+                "suggested_evidence_items": evidence,
                 "applicable": row["applicable"],
             })
 
@@ -350,8 +357,9 @@ def parse_checklist_file(
                 "name": r["name"],
                 "description": r["description"],
                 "risk_level": "Medium",
-                "evidence_required": 1,
-                "evidence_items": [r["name"]],
+                "evidence_required": [],
+                "suggested_risk_level": "",
+                "suggested_evidence_items": [],
             }
             for r in applicable
         ]

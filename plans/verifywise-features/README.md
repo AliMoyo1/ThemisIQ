@@ -4,13 +4,15 @@
 
 **Cross-plan navigation:** [ThemisIQ portfolio and dependency map](../ROADMAP-2026-10.md) places these plans alongside [PLAN-37](../PLAN-37-connected-compliance-experience.md), the [Evidence Vault plan](../../design/evidence-vault/PLAN.md), and the [CISO Assistant-inspired assurance plans](../ciso-assistant-features/README.md). Review that map before starting a slice so relationship, task, approval and evidence work is built once.
 
+**Integrated implementation:** The [AI Governance programme](../ai-governance/README.md) composes all nine briefs into one AI-use workspace and specifies shared record ownership, module adapters, data sources, guardrails, and release gates. This folder remains the feature-level plan; the programme does not replace it.
+
 ## Decision and sequence
 
 The strongest product opportunity is a **governed AI use journey**: register an AI use once, connect its data and vendor, complete the right assessments, obtain a recorded decision, monitor it, and assemble the supporting evidence. People should enter through a short task, see the next action, and remain able to navigate without AI. The connected-compliance vision is in [PLAN-37](../PLAN-37-connected-compliance-experience.md); the documents below are the requested **feature-specific build plans**.
 
 | Order | Feature plan | User value | Proposed size | Starting point |
 | --- | --- | --- | --- | --- |
-| 0 | [Evidence Vault](../../design/evidence-vault/PLAN.md) and [PLAN-36](../PLAN-36-themisiq-stabilization-and-product-improvements/task_plan.md) gates | Safe, scalable evidence discovery and stable routes | Existing work | Vault Phase 1a built and verified locally, not committed, PostgreSQL lane not run; verify before building on it |
+| 0 | [Evidence Vault](../../design/evidence-vault/PLAN.md) and [PLAN-36](../PLAN-36-themisiq-stabilization-and-product-improvements/task_plan.md) gates | Safe, scalable evidence discovery and stable routes | Existing work | Vault Phase 1a was built and verified locally on 2026-10-07; since committed, PostgreSQL lane run, and on `master` (pull requests 6 and 10), with the rework's library and proof semantics on top; verify before building on it |
 | 0b | Scope fixes and relationship service ([PLAN-37 Slice 1](../PLAN-37-connected-compliance-experience.md)) | Related Items and topbar search stop showing other business units' titles; one scoped relationship service | M | Evidence Vault resolver; live gaps verified 2026-10-07 |
 | 0c | AI service foundation ([PLAN-37 Slice 1b](../PLAN-37-connected-compliance-experience.md)) | One model-call wrapper with per-organization policy and usage records | M | About 70 call sites in 15 files; no shared wrapper today |
 | 1 | [AI intake, inventory and lineage](01-ai-intake-inventory.md) | One clear way to declare an AI use and find its owner, provider, model, data, and status | L | Canonical `applications`, Sentinel AIIA, Governance data assets |

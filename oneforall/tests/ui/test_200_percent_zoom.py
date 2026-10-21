@@ -36,6 +36,10 @@ ROUTES = [
     ("/sentinel/", "super_admin"),
     ("/orm/", "super_admin"),
     ("/governance", "super_admin"),
+    # Added with plan 04 and plan 06
+    ("/metrics", "super_admin"),
+    ("/my-work", "super_admin"),
+    ("/profile", "super_admin"),
 ]
 
 # route -> reason. Same discipline as test_axe_acceptance_routes.py's own

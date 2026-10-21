@@ -21,7 +21,8 @@ from tests.test_ai_governance_imports import preview as preview_import
 from tests.test_ai_governance_imports import response as form_response
 from tests.test_ai_governance_routes import _accepted, http  # noqa: F401
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, roles, submitted, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture
@@ -34,6 +35,9 @@ def system(world, roles):
 def approved_use(world, conditions=None, **more):
     resolve_provider_review(world)
     row = ask(world, "dpo_a")
+    if "override_reason" not in more and decisions.get_brief(
+            world.db, user(world, "owner_a"), world.app)["needs_override"]:
+        more["override_reason"] = "The remaining reviews are scheduled and documented for this pilot."
     if conditions:
         return decide(world, row, "approve_with_conditions", rationale="Fine with conditions.", conditions=conditions, **more)
     return decide(world, row, "approve", rationale="Fine.", **more)
@@ -94,7 +98,8 @@ def test_drafting_again_for_the_same_decision_returns_the_draft_and_a_new_decisi
     commit(system, decisions.revoke(system.db, user(system, "owner_a"), standing["id"], "The provider changed its terms."),
            user(system, "owner_a"))
     row = ask(system, "dpo_a")
-    decide(system, row, "approve", rationale="Approved again after the change.")
+    decide(system, row, "approve", rationale="Approved again after the change.",
+           override_reason="The remaining reviews are scheduled and documented for this pilot.")
     second = er.create_draft(system.db, user(system, "dpo_a"), system.app)
     assert second["created"] is True and second["response"]["revision"] == 2 and second["response"]["id"] != first["id"]
 
@@ -110,7 +115,8 @@ def test_a_response_says_whether_the_decision_it_rests_on_still_stands(system):
     got = er.list_for_use(system.db, user(system, "dpo_a"), system.app)
     assert got["can_draft"] is False and got["responses"][0]["stands"] is False, "a revoked decision answers nobody"
     row = ask(system, "dpo_a")
-    decide(system, row, "approve", rationale="Approved again after the change.")
+    decide(system, row, "approve", rationale="Approved again after the change.",
+           override_reason="The remaining reviews are scheduled and documented for this pilot.")
     got = er.list_for_use(system.db, user(system, "dpo_a"), system.app)
     assert got["can_draft"] is True and got["responses"][0]["id"] == first["id"]
     assert got["responses"][0]["stands"] is False, "the old response rests on the replaced decision, not the new one"
@@ -118,7 +124,7 @@ def test_a_response_says_whether_the_decision_it_rests_on_still_stands(system):
 
 def test_only_a_reviewer_in_the_unit_may_draft_and_a_hidden_use_has_none(system):
     approved_use(system)
-    fail(lambda: er.create_draft(system.db, user(system, "employee_a"), system.app), 403)
+    fail(lambda: er.create_draft(system.db, user(system, "staff_a"), system.app), 403)
     fail(lambda: er.create_draft(system.db, user(system, "dpo_b"), system.app), 404)
     assert er.list_for_use(system.db, user(system, "dpo_b"), system.app) is None
 
@@ -160,7 +166,7 @@ def test_a_different_person_with_the_right_to_decide_approves_and_the_content_is
     approved_use(system)
     draft = edited(system, drafted(system))
     fail(lambda: er.approve(system.db, user(system, "dpo_a"), draft["id"], draft["version"]), 403)  # their own draft
-    fail(lambda: er.approve(system.db, user(system, "employee_a"), draft["id"], draft["version"]), 403)
+    fail(lambda: er.approve(system.db, user(system, "staff_a"), draft["id"], draft["version"]), 403)
     done = approved(system, draft)
     assert done["status"] == "approved" and done["frozen"] is True and len(done["content_hash"]) == 64
     assert done["approved_by"] == "owner_a"
@@ -304,7 +310,7 @@ def test_nobody_signed_out_and_no_outsider_reaches_a_response(http):
         extra = {} if method == "get" else {"json": {}}
         assert http(method, f"{API}{tail}", name=None, **extra).status_code == 303, tail
         assert http(method, f"{API}{tail}", name="auditor", **extra).status_code == 403, tail
-        assert http(method, f"{API}{tail}", name="employee_a", **extra).status_code == 403, tail
+        assert http(method, f"{API}{tail}", name="staff_a", **extra).status_code == 403, tail
 
 
 def test_the_whole_journey_through_http(http):

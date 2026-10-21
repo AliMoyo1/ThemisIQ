@@ -15,7 +15,8 @@ from modules.ai_governance import import_rules as ir
 from modules.ai_governance import imports, service
 from modules.ai_governance.service import ServiceError
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, roles, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 HEADERS = [g["question"] for g in ir.FIELD_GUIDE if g["target"] != "response_id"]
 
@@ -74,6 +75,32 @@ def test_a_preview_reads_the_export_and_creates_no_request(world):
     assert batch["mapping"]["What is the name of the AI tool or use?"] == "name"
     assert batch["business_unit_id"] == world.unit["A"] and batch["file_kind"] == "csv"
     assert done["audit"][0][0] == "ai_import_previewed"
+
+
+def test_a_valid_preview_mapping_can_be_reused_and_archived_without_changing_its_batch(world):
+    specialist = user(world, "dpo_a")
+    first = preview(world)
+    batch_id = first["batch"]["id"]
+    saved = imports.save_mapping(world.db, specialist, batch_id, "Support intake")
+    commit(world, saved, specialist)
+    mapping_id = saved["id"]
+    listed = imports.list_saved_mappings(world.db, specialist)["mappings"]
+    assert [entry["id"] for entry in listed] == [mapping_id]
+    assert listed[0]["mapping"] == first["batch"]["mapping"]
+
+    reused = preview(world, mapping=listed[0]["mapping"])
+    assert reused["batch"]["mapping"] == first["batch"]["mapping"]
+    archived = imports.archive_mapping(world.db, specialist, mapping_id)
+    commit(world, archived, specialist)
+    assert imports.list_saved_mappings(world.db, specialist)["mappings"] == []
+    assert imports.get_batch(world.db, specialist, batch_id)["batch"]["mapping"] == first["batch"]["mapping"]
+
+
+def test_an_unpreviewed_or_hidden_mapping_cannot_be_saved(world):
+    done = preview(world)
+    fail(lambda: imports.save_mapping(world.db, user(world, "dpo_b"), done["batch"]["id"], "Hidden"), 404)
+    fail(lambda: imports.save_mapping(world.db, user(world, "staff_a"), done["batch"]["id"], "No review role"), 403)
+    fail(lambda: imports.save_mapping(world.db, user(world, "dpo_a"), 99999, "Missing"), 404)
 
 
 def test_the_owner_is_offered_as_candidates_and_never_assigned(world):
@@ -142,7 +169,7 @@ def test_a_workbook_is_read_like_a_csv(world):
 # ── Who may ─────────────────────────────────────────────────────────────────
 
 def test_only_reviewers_may_import_and_only_those_in_the_batchs_unit_may_open_it(world):
-    fail(lambda: imports.preview(world.db, user(world, "employee_a"), data=export(response()), filename="x.csv",
+    fail(lambda: imports.preview(world.db, user(world, "staff_a"), data=export(response()), filename="x.csv",
                                  source_system="other", form_name="F"), 403)
     done = preview(world)
     assert imports.get_batch(world.db, user(world, "dpo_a"), done["batch"]["id"])["batch"]["row_count"] == 1
@@ -185,7 +212,7 @@ def test_the_requester_gets_no_account_and_no_access(world):
     assert count(world, "users") == before
     [row] = intake_rows(world)
     fail(lambda: service.get_intake(world.db, user(world, "dpo_b"), row["id"]), 404)
-    fail(lambda: service.get_intake(world.db, user(world, "employee_a"), row["id"]), 404)
+    fail(lambda: service.get_intake(world.db, user(world, "staff_a"), row["id"]), 404)
 
 
 def test_an_owner_left_open_stays_a_gap_and_blocks_submission(world):

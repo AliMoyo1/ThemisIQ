@@ -69,6 +69,12 @@ def _decorator_info(endpoint) -> dict:
     if "capabilities" in bound:
         return {"gate": "capability", "capabilities": tuple(bound["capabilities"])}
     if "func" in bound:
+        # require_auth wrapped around require_capability: the capability gate is the stricter one and is real
+        inner = bound["func"]
+        if callable(inner) and getattr(inner, "__closure__", None):
+            nested = _decorator_info(inner)
+            if nested["gate"] == "capability":
+                return nested
         return {"gate": "authenticated", "capabilities": None}
     return {"gate": "unknown", "capabilities": None}
 

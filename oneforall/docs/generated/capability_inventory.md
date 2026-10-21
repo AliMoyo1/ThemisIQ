@@ -30,7 +30,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 
 | Method | Path | Gate | Capability | Roles | License | Maturity / notes |
 |---|---|---|---|---|---|---|
-| GET | `/ai-governance/` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/applications/search` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/assessment-dimensions` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/assessment-dimensions` | capability | ai_assessment.configure | ai_assessment.configure: dpo, org_admin, privacy_analyst, super_admin | - |  |
@@ -40,20 +40,22 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/assessments/{assessment_id}` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/business-units` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/business-units` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/canonical-controls` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | DELETE | `/ai-governance/api/control-mappings` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/control-mappings` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/controls/{ai_control_id}/suggestions` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| PUT | `/ai-governance/api/decision-conditions/{condition_id}` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/decisions` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/decisions/{decision_id}` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| PUT | `/ai-governance/api/decision-conditions/{condition_id}` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/decisions` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/decisions/{decision_id}` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/decisions/{decision_id}/assign` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/decisions/{decision_id}/assignees` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/decisions/{decision_id}/decide` | capability | ai_use.decide | ai_use.decide: compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/decisions/{decision_id}/export` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/decisions/{decision_id}/export` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/decisions/{decision_id}/revoke` | capability | ai_use.decide | ai_use.decide: compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
-| POST | `/ai-governance/api/decisions/{decision_id}/withdraw` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/duplicates` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/evaluations/compare` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/decisions/{decision_id}/withdraw` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/duplicates` | capability | ai_use.intake_create | ai_use.intake_create: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/evaluations/compare` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/evaluations/{run_id}/review` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/flags` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/flags/{kind}/{record_id}` | capability | ai_use.review<br>sentinel.vendor.manage<br>grid.vendor.manage<br>bcm.vendor.manage<br>governance.entities.manage | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin<br>sentinel.vendor.manage: dpo, super_admin<br>grid.vendor.manage: audit_lead, super_admin<br>bcm.vendor.manage: bcm_manager, super_admin<br>governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
@@ -62,22 +64,13 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/ai-governance/api/import/batches/{batch_id}/confirm` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/import/batches/{batch_id}/discard` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/import/guide` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/import/mappings` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/import/mappings` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| DELETE | `/ai-governance/api/import/mappings/{mapping_id}` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/import/preview` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/import/template.csv` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/link-kinds` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/literacy/courses` | capability | ai_literacy.manage | ai_literacy.manage: compliance_manager, dpo, grc_officer, org_admin, super_admin | - |  |
-| POST | `/ai-governance/api/literacy/courses` | capability | ai_literacy.manage | ai_literacy.manage: compliance_manager, dpo, grc_officer, org_admin, super_admin | - |  |
-| GET | `/ai-governance/api/literacy/courses/{course_id}` | capability | ai_literacy.manage | ai_literacy.manage: compliance_manager, dpo, grc_officer, org_admin, super_admin | - |  |
-| PUT | `/ai-governance/api/literacy/courses/{course_id}` | capability | ai_literacy.manage | ai_literacy.manage: compliance_manager, dpo, grc_officer, org_admin, super_admin | - |  |
-| POST | `/ai-governance/api/literacy/courses/{course_id}/publish` | capability | ai_literacy.manage | ai_literacy.manage: compliance_manager, dpo, grc_officer, org_admin, super_admin | - |  |
-| POST | `/ai-governance/api/literacy/courses/{course_id}/retire` | capability | ai_literacy.manage | ai_literacy.manage: compliance_manager, dpo, grc_officer, org_admin, super_admin | - |  |
-| GET | `/ai-governance/api/literacy/coverage` | capability | ai_literacy.report | ai_literacy.report: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/literacy/coverage/{course_id}` | capability | ai_literacy.report | ai_literacy.report: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/literacy/mine` | capability | ai_literacy.take | ai_literacy.take: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/literacy/units` | capability | ai_literacy.manage | ai_literacy.manage: compliance_manager, dpo, grc_officer, org_admin, super_admin | - |  |
-| POST | `/ai-governance/api/literacy/{course_id}/complete` | capability | ai_literacy.take | ai_literacy.take: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/literacy/{course_id}/learn` | capability | ai_literacy.take | ai_literacy.take: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/overview` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/link-kinds` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/overview` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/pack-recipients` | capability | ai_pack.manage | ai_pack.manage: compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/packs/mine` | capability | ai_pack.receive | ai_pack.receive: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/packs/{pack_id}` | capability | ai_pack.manage<br>ai_pack.receive | ai_pack.manage: compliance_manager, dpo, grc_officer, risk_owner, super_admin<br>ai_pack.receive: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, risk_owner, super_admin | - |  |
@@ -85,26 +78,26 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/ai-governance/api/packs/{pack_id}/export` | capability | ai_pack.manage<br>ai_pack.receive | ai_pack.manage: compliance_manager, dpo, grc_officer, risk_owner, super_admin<br>ai_pack.receive: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/packs/{pack_id}/history` | capability | ai_pack.manage | ai_pack.manage: compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/packs/{pack_id}/revoke` | capability | ai_pack.manage | ai_pack.manage: compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/people` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/people` | capability | ai_use.intake_create | ai_use.intake_create: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/platform-features` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
 | PUT | `/ai-governance/api/platform-features/{feature_key}` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
 | POST | `/ai-governance/api/platform-features/{feature_key}/review` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
-| GET | `/ai-governance/api/portfolio` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/portfolio` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/precedents` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/questions/{question_id}/answer` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/questions/{question_id}/withdraw` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/regulatory` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/regulatory` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/regulatory/refresh` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/regulatory/{impact_id}/review` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/requests` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| POST | `/ai-governance/api/requests` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/requests/{intake_id}` | capability | ai_use.submit<br>ai_use.review | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin<br>ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| PUT | `/ai-governance/api/requests/{intake_id}` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/requests` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/requests` | capability | ai_use.intake_create | ai_use.intake_create: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/requests/{intake_id}` | capability | ai_use.submit<br>ai_use.review | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin<br>ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| PUT | `/ai-governance/api/requests/{intake_id}` | capability | ai_use.intake_create<br>ai_use.review | ai_use.intake_create: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin<br>ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/requests/{intake_id}/precedents` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/requests/{intake_id}/questions` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/requests/{intake_id}/questions` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/requests/{intake_id}/questions` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/requests/{intake_id}/questions/export` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| POST | `/ai-governance/api/requests/{intake_id}/submit` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/requests/{intake_id}/submit` | capability | ai_use.intake_create<br>ai_use.review | ai_use.intake_create: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin<br>ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/responses/{response_id}` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/responses/{response_id}` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/responses/{response_id}/approve` | capability | ai_use.decide | ai_use.decide: compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
@@ -113,28 +106,32 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/ai-governance/api/responses/{response_id}/withdraw` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/review/queue` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/review/requests/{intake_id}/approve` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/review/requests/{intake_id}/assign` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/review/requests/{intake_id}/assignees` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/review/requests/{intake_id}/close` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/review/requests/{intake_id}/duplicates` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/review/requests/{intake_id}/reject` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/review/requests/{intake_id}/return` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/choices` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/aiia-prefill` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/checklist` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/review/worklist` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/choices` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/aiia-prefill` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/checklist` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | DELETE | `/ai-governance/api/systems/{application_id}/checklist/{key}` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/systems/{application_id}/checklist/{key}` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/controls` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/decision-brief` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/decisions` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| POST | `/ai-governance/api/systems/{application_id}/decisions` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/evaluations` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/controls` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/decision-brief` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/decisions` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| POST | `/ai-governance/api/systems/{application_id}/decisions` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/evaluations` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/systems/{application_id}/evaluations` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/explain` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/link-candidates` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/monitoring` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/outstanding` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/explain` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/link-candidates` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/monitoring` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/outstanding` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/systems/{application_id}/oversight-people` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - | pilot-only: Scoped eligible-person search for G7 human oversight. Pilot acceptance is pending. |
-| GET | `/ai-governance/api/systems/{application_id}/oversight/{track}` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - | pilot-only: Reads versioned human oversight arrangements. This does not determine legal conformity. |
+| GET | `/ai-governance/api/systems/{application_id}/oversight/{track}` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - | pilot-only: Reads versioned human oversight arrangements. This does not determine legal conformity. |
 | PUT | `/ai-governance/api/systems/{application_id}/oversight/{track}` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - | pilot-only: Saves a new oversight draft version with scoped responsibility. Pilot acceptance is pending. |
 | POST | `/ai-governance/api/systems/{application_id}/oversight/{track}/review` | capability | ai_use.decide | ai_use.decide: compliance_manager, dpo, grc_officer, risk_owner, super_admin | - | pilot-only: Independent review of the current oversight version. Legal rule content remains disabled. |
 | GET | `/ai-governance/api/systems/{application_id}/packs` | capability | ai_pack.manage | ai_pack.manage: compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
@@ -143,7 +140,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/ai-governance/api/systems/{application_id}/precedents` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/systems/{application_id}/profile` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | PUT | `/ai-governance/api/systems/{application_id}/profile` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/quality` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/quality` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | DELETE | `/ai-governance/api/systems/{application_id}/quality/dismiss` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/systems/{application_id}/quality/dismiss` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/api/systems/{application_id}/responses` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
@@ -151,27 +148,25 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/ai-governance/api/systems/{application_id}/restore` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/systems/{application_id}/retire` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/systems/{application_id}/reviewed` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/systems/{application_id}/tabs/{tab}` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/systems/{application_id}/tabs/{tab}` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | POST | `/ai-governance/api/systems/{application_id}/tier` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/api/vocabulary` | capability | ai_use.submit<br>ai_use.view | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin<br>ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/api/vocabulary` | capability | ai_use.submit<br>ai_use.view | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin<br>ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/assessments` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/assessments/new` | capability | ai_assessment.manage | ai_assessment.manage: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/assessments/{assessment_id}` | capability | ai_assessment.view | ai_assessment.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/decisions` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/decisions` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/import` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/literacy` | capability | ai_literacy.take<br>ai_literacy.manage<br>ai_literacy.report | ai_literacy.take: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin<br>ai_literacy.manage: compliance_manager, dpo, grc_officer, org_admin, super_admin<br>ai_literacy.report: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/literacy/{course_id}` | capability | ai_literacy.take | ai_literacy.take: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/monitoring` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/monitoring` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/packs` | capability | ai_pack.manage<br>ai_pack.receive | ai_pack.manage: compliance_manager, dpo, grc_officer, risk_owner, super_admin<br>ai_pack.receive: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/packs/{pack_id}` | capability | ai_pack.manage<br>ai_pack.receive | ai_pack.manage: compliance_manager, dpo, grc_officer, risk_owner, super_admin<br>ai_pack.receive: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/platform-features` | capability | ai_governance.platform.manage | ai_governance.platform.manage: super_admin | - |  |
-| GET | `/ai-governance/register` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/regulatory` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/requests` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/requests/{intake_id}` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/register` | capability | ai_use.intake_create | ai_use.intake_create: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/regulatory` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/requests` | capability | ai_use.submit | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/requests/{intake_id}` | capability | ai_use.submit<br>ai_use.review | ai_use.submit: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin<br>ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/ai-governance/review` | capability | ai_use.review | ai_use.review: compliance_manager, dpo, grc_officer, org_admin, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/systems` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
-| GET | `/ai-governance/systems/{application_id}` | capability | ai_use.view | ai_use.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/systems` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
+| GET | `/ai-governance/systems/{application_id}` | capability | ai_use.view | ai_use.view: compliance_manager, dpo, grc_officer, org_admin, privacy_analyst, risk_owner, super_admin | - |  |
 
 ## `modules.aria.routes`
 
@@ -188,6 +183,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/aria/api/control-mappings/frameworks/{fw_id}/controls` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
 | GET | `/aria/api/control-mappings/ims-status` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
 | DELETE | `/aria/api/control-mappings/{mapping_id}` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/control-mappings/{mapping_id}/review` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
+| POST | `/aria/api/controls/bulk-update` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
 | GET | `/aria/api/controls/{fw_id}` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
 | GET | `/aria/api/dashboard` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
 | GET | `/aria/api/debug/controls-status` | capability | module.aria.access | module.aria.access: audit_lead, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, policy_approver, policy_author, risk_owner, super_admin | aria |  |
@@ -286,6 +283,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | PUT | `/bcm/api/comms/{tid}` | capability | bcm.plan.manage | bcm.plan.manage: bcm_manager, super_admin | - |  |
 | GET | `/bcm/api/compliance` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | POST | `/bcm/api/compliance` | capability | bcm.compliance.manage | bcm.compliance.manage: bcm_manager, compliance_manager, super_admin | - |  |
+| GET | `/bcm/api/compliance-evidence/legacy` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
+| POST | `/bcm/api/compliance-evidence/legacy/{eid}/reconcile` | capability | bcm.compliance.manage | bcm.compliance.manage: bcm_manager, compliance_manager, super_admin | - |  |
 | DELETE | `/bcm/api/compliance/{cid}` | capability | bcm.compliance.manage | bcm.compliance.manage: bcm_manager, compliance_manager, super_admin | - |  |
 | GET | `/bcm/api/compliance/{cid}` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | PUT | `/bcm/api/compliance/{cid}` | capability | bcm.compliance.manage | bcm.compliance.manage: bcm_manager, compliance_manager, super_admin | - |  |
@@ -328,6 +327,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/bcm/api/incidents/{inc_id}` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
 | GET | `/bcm/api/incidents/{inc_id}` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | PUT | `/bcm/api/incidents/{inc_id}` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
+| POST | `/bcm/api/incidents/{inc_id}/acknowledge` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | GET | `/bcm/api/incidents/{inc_id}/actions` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | POST | `/bcm/api/incidents/{inc_id}/actions` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
 | DELETE | `/bcm/api/incidents/{inc_id}/actions/{action_id}` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
@@ -347,6 +347,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/bcm/api/incidents/{inc_id}/vault-evidence` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | POST | `/bcm/api/incidents/{inc_id}/vault-evidence` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
 | DELETE | `/bcm/api/incidents/{inc_id}/vault-evidence/{link_id}` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
+| GET | `/bcm/api/people` | capability | bcm.incident.manage | bcm.incident.manage: bcm_manager, incident_commander, super_admin | - |  |
 | GET | `/bcm/api/plans` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
 | POST | `/bcm/api/plans` | capability | bcm.plan.manage | bcm.plan.manage: bcm_manager, super_admin | - |  |
 | GET | `/bcm/api/plans/active` | capability | module.bcm.access | module.bcm.access: bcm_manager, bcm_responder, compliance_manager, employee, grc_officer, incident_commander, risk_owner, super_admin | bcm |  |
@@ -409,6 +410,9 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | Method | Path | Gate | Capability | Roles | License | Maturity / notes |
 |---|---|---|---|---|---|---|
 | GET | `/erm/` | capability | module.erm.access | module.erm.access: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | erm |  |
+| GET | `/erm/api/acceptances/{acceptance_id}` | capability | erm.risk.view | erm.risk.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
+| POST | `/erm/api/acceptances/{acceptance_id}/decision` | capability | erm.acceptance.decide | erm.acceptance.decide: compliance_manager, grc_officer, super_admin | - |  |
+| POST | `/erm/api/acceptances/{acceptance_id}/revoke` | capability | erm.acceptance.decide | erm.acceptance.decide: compliance_manager, grc_officer, super_admin | - |  |
 | POST | `/erm/api/ai/board-report` | capability | erm.report.generate | erm.report.generate: compliance_manager, risk_owner, super_admin | - |  |
 | POST | `/erm/api/ai/generate-statement` | capability | erm.ai.use | erm.ai.use: compliance_manager, risk_owner, super_admin | - |  |
 | POST | `/erm/api/ai/remediation-plan/{risk_id}` | capability | erm.ai.use | erm.ai.use: compliance_manager, risk_owner, super_admin | - |  |
@@ -490,6 +494,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/erm/api/risks/{risk_id}` | capability | erm.risk.manage | erm.risk.manage: risk_owner, super_admin | - |  |
 | GET | `/erm/api/risks/{risk_id}` | capability | erm.risk.view | erm.risk.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | PUT | `/erm/api/risks/{risk_id}` | capability | erm.risk.manage | erm.risk.manage: risk_owner, super_admin | - |  |
+| GET | `/erm/api/risks/{risk_id}/acceptances` | capability | erm.risk.view | erm.risk.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
+| POST | `/erm/api/risks/{risk_id}/acceptances` | capability | erm.acceptance.propose | erm.acceptance.propose: risk_owner, super_admin | - |  |
 | GET | `/erm/api/risks/{risk_id}/cfs` | capability | erm.risk.view | erm.risk.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
 | POST | `/erm/api/risks/{risk_id}/cfs` | capability | erm.risk.manage | erm.risk.manage: risk_owner, super_admin | - |  |
 | GET | `/erm/api/risks/{risk_id}/controls` | capability | erm.risk.view | erm.risk.view: audit_lead, bcm_manager, compliance_manager, dpo, grc_officer, risk_owner, super_admin | - |  |
@@ -560,6 +566,10 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/evidence/api/items/{eid}/suggest-links` | authenticated | - | - | - |  |
 | GET | `/evidence/api/items/{eid}/verify` | authenticated | - | - | - |  |
 | GET | `/evidence/api/items/{eid}/versions` | authenticated | - | - | - |  |
+| GET | `/evidence/api/legacy-files` | authenticated | - | - | - |  |
+| POST | `/evidence/api/legacy-files/bcm/{source_id}/reconcile` | authenticated | - | - | - |  |
+| POST | `/evidence/api/legacy-files/grid-versions/{version_id}/migrate` | authenticated | - | - | - |  |
+| POST | `/evidence/api/legacy-files/grid/{source_id}/migrate` | authenticated | - | - | - |  |
 | GET | `/evidence/api/linked` | authenticated | - | - | - |  |
 | DELETE | `/evidence/api/links/{lid}` | authenticated | - | - | - |  |
 | POST | `/evidence/api/links/{lid}/review` | authenticated | - | - | - |  |
@@ -627,6 +637,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/governance/api/regulatory-updates/run-drift` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | DELETE | `/governance/api/regulatory-updates/{rid}` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | PUT | `/governance/api/regulatory-updates/{rid}` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
+| POST | `/governance/api/regulatory-updates/{rid}/ai-review` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | POST | `/governance/api/regulatory-updates/{rid}/dismiss` | capability | governance.entities.manage | governance.entities.manage: compliance_manager, grc_officer, org_admin, risk_owner, super_admin | - |  |
 | GET | `/governance/api/summary` | capability | governance.entities.view | governance.entities.view: audit_lead, auditor, bcm_manager, bcm_responder, compliance_manager, control_owner, dpo, employee, external_auditor, grc_officer, incident_commander, org_admin, policy_approver, policy_author, privacy_analyst, risk_owner, super_admin | - |  |
 | GET | `/governance/api/users` | capability | governance.bu.assign | governance.bu.assign: compliance_manager, grc_officer, org_admin, super_admin | - |  |
@@ -696,6 +707,9 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/grid/api/frameworks` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |
 | POST | `/grid/api/frameworks` | capability | grid.audit.create | grid.audit.create: audit_lead, super_admin | - |  |
 | DELETE | `/grid/api/frameworks/{fid}` | capability | grid.audit.delete | grid.audit.delete: super_admin | - |  |
+| GET | `/grid/api/legacy-evidence` | capability | module.grid.access | module.grid.access: audit_lead, auditor, compliance_manager, dpo, external_auditor, grc_officer, super_admin | grid |  |
+| POST | `/grid/api/legacy-evidence/versions/{version_id}/migrate` | capability | grid.evidence.upload | grid.evidence.upload: audit_lead, auditor, super_admin | - |  |
+| POST | `/grid/api/legacy-evidence/{eid}/migrate` | capability | grid.evidence.upload | grid.evidence.upload: audit_lead, auditor, super_admin | - |  |
 | POST | `/grid/api/mappings` | capability | grid.cross_mapping.manage | grid.cross_mapping.manage: audit_lead, auditor, super_admin | - |  |
 | POST | `/grid/api/mappings/bulk` | capability | grid.cross_mapping.manage | grid.cross_mapping.manage: audit_lead, auditor, super_admin | - |  |
 | GET | `/grid/api/mappings/{audit_id}` | capability | grid.cross_mapping.manage | grid.cross_mapping.manage: audit_lead, auditor, super_admin | - |  |
@@ -798,7 +812,12 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/api/admin/connectors/whatsapp` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | GET | `/api/admin/email-config` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | POST | `/api/admin/email-config` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
+| POST | `/api/admin/email-config/clear-secrets` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
+| GET | `/api/admin/email-outbox` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
+| POST | `/api/admin/email-outbox/pause` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
+| POST | `/api/admin/email-outbox/{outbox_id}/requeue` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | POST | `/api/admin/email-test` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
+| POST | `/api/admin/email-test/receipt` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | GET | `/api/admin/security-settings` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | PUT | `/api/admin/security-settings` | capability | platform.manage_users | platform.manage_users: super_admin | - |  |
 | PATCH | `/api/admin/users/{uid}` | capability | platform.manage_users<br>platform.manage_org_users | platform.manage_users: super_admin<br>platform.manage_org_users: org_admin, super_admin | - |  |
@@ -826,6 +845,8 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | Method | Path | Gate | Capability | Roles | License | Maturity / notes |
 |---|---|---|---|---|---|---|
 | GET | `/api/auth/me` | authenticated | - | - | - |  |
+| GET | `/api/my-email-preferences` | authenticated | - | - | - |  |
+| PUT | `/api/my-email-preferences` | authenticated | - | - | - |  |
 | GET | `/change-password` | authenticated | - | - | - |  |
 | POST | `/change-password` | authenticated | - | - | - |  |
 | GET | `/login` | public | - | - | - |  |
@@ -864,15 +885,21 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/` | authenticated | - | - | - |  |
 | GET | `/api/advisories/today` | authenticated | - | - | - |  |
 | POST | `/api/advisories/{aid}/ack` | authenticated | - | - | - |  |
+| GET | `/api/command-centre/first-screen` | authenticated | - | - | - |  |
 | GET | `/api/command-centre/layout` | authenticated | - | - | - |  |
 | PUT | `/api/command-centre/layout` | authenticated | - | - | - |  |
 | GET | `/api/command-centre/personal` | authenticated | - | - | - |  |
 | GET | `/api/command-centre/stats` | authenticated | - | - | - |  |
+| GET | `/api/metrics/definitions` | authenticated | - | - | - |  |
+| GET | `/api/module-home/{module}` | authenticated | - | - | - |  |
 | GET | `/api/my-dashboard/data` | authenticated | - | - | - |  |
 | GET | `/api/my-dashboard/preferences` | authenticated | - | - | - |  |
 | PUT | `/api/my-dashboard/preferences` | authenticated | - | - | - |  |
 | GET | `/api/predictive-risk` | authenticated | - | - | - |  |
 | POST | `/api/predictive-risk/acknowledge` | authenticated | - | - | - |  |
+| GET | `/api/predictive-risk/trace` | authenticated | - | - | - |  |
+| POST | `/api/predictive-risk/{prediction_id}/disputes` | authenticated | - | - | - |  |
+| GET | `/metrics` | authenticated | - | - | - |  |
 | GET | `/my-dashboard` | authenticated | - | - | - |  |
 
 ## `modules.launcher.routes_diagnostics`
@@ -894,12 +921,12 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | GET | `/api/frameworks/active` | authenticated | - | - | - |  |
 | GET | `/api/frameworks/stats/summary` | authenticated | - | - | - |  |
 | GET | `/api/frameworks/{fid}` | authenticated | - | - | - |  |
-| POST | `/api/frameworks/{fid}/activate` | authenticated | - | - | - |  |
+| POST | `/api/frameworks/{fid}/activate` | capability | manage_frameworks | manage_frameworks: audit_lead, compliance_manager, grc_officer, super_admin | - |  |
 | GET | `/api/frameworks/{fid}/controls` | authenticated | - | - | - |  |
-| POST | `/api/frameworks/{fid}/controls` | authenticated | - | - | - |  |
-| POST | `/api/frameworks/{fid}/controls/ai-generate` | authenticated | - | - | - |  |
-| POST | `/api/frameworks/{fid}/controls/bulk` | authenticated | - | - | - |  |
-| POST | `/api/frameworks/{fid}/deactivate` | authenticated | - | - | - |  |
+| POST | `/api/frameworks/{fid}/controls` | capability | manage_frameworks | manage_frameworks: audit_lead, compliance_manager, grc_officer, super_admin | - |  |
+| POST | `/api/frameworks/{fid}/controls/ai-generate` | capability | manage_frameworks | manage_frameworks: audit_lead, compliance_manager, grc_officer, super_admin | - |  |
+| POST | `/api/frameworks/{fid}/controls/bulk` | capability | manage_frameworks | manage_frameworks: audit_lead, compliance_manager, grc_officer, super_admin | - |  |
+| POST | `/api/frameworks/{fid}/deactivate` | capability | manage_frameworks | manage_frameworks: audit_lead, compliance_manager, grc_officer, super_admin | - |  |
 | GET | `/projects` | authenticated | - | - | - |  |
 
 ## `modules.launcher.routes_my_work`
@@ -907,6 +934,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | Method | Path | Gate | Capability | Roles | License | Maturity / notes |
 |---|---|---|---|---|---|---|
 | GET | `/api/my-work` | authenticated | - | - | - | gated: Scoped federated My Work feed with bounded keyset paging; source caps are reported. Build awaiting final regression validation. |
+| GET | `/api/my-work/team` | authenticated | - | - | - |  |
 | GET | `/my-work` | authenticated | - | - | - | gated: My Work page. Federated source state and filters are built. Build awaiting final regression validation. |
 
 ## `modules.launcher.routes_people`
@@ -969,8 +997,16 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/api/reports/definitions/{rid}` | authenticated | - | - | - |  |
 | PUT | `/api/reports/definitions/{rid}` | authenticated | - | - | - |  |
 | POST | `/api/reports/executive-summary` | authenticated | - | - | - |  |
+| POST | `/api/reports/quick-run` | authenticated | - | - | - |  |
 | GET | `/api/reports/runs` | authenticated | - | - | - |  |
 | GET | `/api/reports/runs/{run_id}` | authenticated | - | - | - |  |
+| GET | `/api/reports/runs/{run_id}/export` | authenticated | - | - | - |  |
+| POST | `/api/reports/runs/{run_id}/notes` | authenticated | - | - | - |  |
+| POST | `/api/reports/runs/{run_id}/rerun` | authenticated | - | - | - |  |
+| POST | `/api/reports/runs/{run_id}/retention` | authenticated | - | - | - |  |
+| POST | `/api/reports/runs/{run_id}/shares` | authenticated | - | - | - |  |
+| DELETE | `/api/reports/runs/{run_id}/shares/{recipient_id}` | authenticated | - | - | - |  |
+| POST | `/api/reports/runs/{run_id}/signoff` | authenticated | - | - | - |  |
 | POST | `/api/reports/{rid}/run` | authenticated | - | - | - |  |
 | GET | `/reports` | authenticated | - | - | - |  |
 
@@ -1156,11 +1192,15 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | POST | `/sentinel/api/ai/vendor-check/{vendor_id}` | capability | sentinel.ai.assess | sentinel.ai.assess: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/audit` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | GET | `/sentinel/api/audit-export` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
+| POST | `/sentinel/api/breach-obligations/{obligation_id}/decision` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
+| PUT | `/sentinel/api/breach-obligations/{obligation_id}/facts` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
 | GET | `/sentinel/api/breaches` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
 | POST | `/sentinel/api/breaches` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
 | DELETE | `/sentinel/api/breaches/{breach_id}` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
 | GET | `/sentinel/api/breaches/{breach_id}` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
 | PUT | `/sentinel/api/breaches/{breach_id}` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
+| GET | `/sentinel/api/breaches/{breach_id}/obligations` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
+| POST | `/sentinel/api/breaches/{breach_id}/obligations` | capability | sentinel.breach.manage | sentinel.breach.manage: dpo, super_admin | - |  |
 | GET | `/sentinel/api/compliance-score` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | GET | `/sentinel/api/consent` | capability | sentinel.consent.manage | sentinel.consent.manage: dpo, privacy_analyst, super_admin | - |  |
 | POST | `/sentinel/api/consent` | capability | sentinel.consent.manage | sentinel.consent.manage: dpo, privacy_analyst, super_admin | - |  |
@@ -1172,6 +1212,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/sentinel/api/controllers/{ctrl_id}` | capability | sentinel.controller.manage | sentinel.controller.manage: dpo, super_admin | - |  |
 | GET | `/sentinel/api/controllers/{ctrl_id}` | capability | sentinel.controller.manage | sentinel.controller.manage: dpo, super_admin | - |  |
 | PUT | `/sentinel/api/controllers/{ctrl_id}` | capability | sentinel.controller.manage | sentinel.controller.manage: dpo, super_admin | - |  |
+| GET | `/sentinel/api/dashboard` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | GET | `/sentinel/api/dataflows` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | POST | `/sentinel/api/dataflows` | capability | sentinel.ropa.manage | sentinel.ropa.manage: dpo, privacy_analyst, super_admin | - |  |
 | DELETE | `/sentinel/api/dataflows/{flow_id}` | capability | sentinel.ropa.manage | sentinel.ropa.manage: dpo, privacy_analyst, super_admin | - |  |
@@ -1188,6 +1229,9 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | DELETE | `/sentinel/api/dsrs/{dsr_id}` | capability | sentinel.dsr.manage | sentinel.dsr.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/dsrs/{dsr_id}` | capability | sentinel.dsr.manage | sentinel.dsr.manage: dpo, privacy_analyst, super_admin | - |  |
 | PUT | `/sentinel/api/dsrs/{dsr_id}` | capability | sentinel.dsr.manage | sentinel.dsr.manage: dpo, privacy_analyst, super_admin | - |  |
+| GET | `/sentinel/api/jurisdiction-cards` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
+| POST | `/sentinel/api/jurisdiction-cards` | capability | sentinel.jurisdiction.draft | sentinel.jurisdiction.draft: dpo, privacy_analyst, super_admin | - |  |
+| POST | `/sentinel/api/jurisdiction-cards/{card_id}/approve` | capability | sentinel.jurisdiction.approve | sentinel.jurisdiction.approve: dpo | - |  |
 | GET | `/sentinel/api/jurisdiction-stats` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | GET | `/sentinel/api/jurisdictions/active` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | POST | `/sentinel/api/jurisdictions/active` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
@@ -1218,6 +1262,7 @@ The `Maturity / notes` column comes from the human-reviewed `docs/capability_ann
 | PUT | `/sentinel/api/retention/{rid}` | capability | sentinel.retention.manage | sentinel.retention.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/ropa` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | POST | `/sentinel/api/ropa` | capability | sentinel.ropa.manage | sentinel.ropa.manage: dpo, privacy_analyst, super_admin | - |  |
+| GET | `/sentinel/api/ropa/coverage-gaps` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | DELETE | `/sentinel/api/ropa/{ropa_id}` | capability | sentinel.ropa.manage | sentinel.ropa.manage: dpo, privacy_analyst, super_admin | - |  |
 | GET | `/sentinel/api/ropa/{ropa_id}` | capability | module.sentinel.access | module.sentinel.access: compliance_manager, dpo, grc_officer, privacy_analyst, super_admin | sentinel |  |
 | PUT | `/sentinel/api/ropa/{ropa_id}` | capability | sentinel.ropa.manage | sentinel.ropa.manage: dpo, privacy_analyst, super_admin | - |  |

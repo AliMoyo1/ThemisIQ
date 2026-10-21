@@ -8,8 +8,8 @@ import json
 import logging
 
 from core.ai_client import (
-    create_message, create_message_web_search, is_configured, provider_name,
-    safe_json_parse, wrap_user_input as _u,
+    AIUnavailable, UNREADABLE_MESSAGE, answer_json, create_message, create_message_web_search,
+    is_configured, must_answer, provider_name, safe_json_parse, wrap_user_input as _u,
 )
 from config import settings
 from modules.erm.data_service import create_emerging, emerging_title_exists, build_org_context
@@ -17,33 +17,33 @@ from modules.erm.data_service import create_emerging, emerging_title_exists, bui
 log = logging.getLogger(__name__)
 
 
-def score_risk(title: str, description: str, category: str = "") -> dict:
-    if not is_configured():
-        return _stub_score(title)
-    prompt = (
-        f"You are an enterprise risk manager. Score this risk:\n\n"
-        f"Title: {_u(title)}\n"
-        f"Description: {_u(description)}\n"
-        f"Category hint: {_u(category) if category else 'unknown'}\n\n"
-        "Return JSON only:\n"
-        '{"likelihood": <1-5>, "impact": <1-5>, "category": "<strategic|operational|compliance|financial|reputational|technology|third_party|environmental>", '
-        '"treatment": "<mitigate|accept|avoid|transfer>", "rationale": "<1 sentence>"}'
-    )
+def _scale(value, low: int = 1, high: int = 5) -> int:
+    """A score the assistant gave, as a whole number inside the scale, or AIUnavailable."""
     try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise AIUnavailable(UNREADABLE_MESSAGE, "unreadable") from None
+    if not low <= number <= high:
+        raise AIUnavailable(UNREADABLE_MESSAGE, "unreadable")
+    return number
+
+
+def score_risk(title: str, description: str, category: str = "") -> dict:
+    """A suggested likelihood and impact for one risk. Raises AIUnavailable rather than return a default score."""
+    with must_answer():
+        prompt = (
+            f"You are an enterprise risk manager. Score this risk:\n\n"
+            f"Title: {_u(title)}\n"
+            f"Description: {_u(description)}\n"
+            f"Category hint: {_u(category) if category else 'unknown'}\n\n"
+            "Return JSON only:\n"
+            '{"likelihood": <1-5>, "impact": <1-5>, "category": "<strategic|operational|compliance|financial|reputational|technology|third_party|environmental>", '
+            '"treatment": "<mitigate|accept|avoid|transfer>", "rationale": "<1 sentence>"}'
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=512, feature="erm.score_risk")
-        return safe_json_parse(text, _stub_score(title))
-    except Exception as exc:
-        log.error("ERM AI score failed: %s", exc)
-        return _stub_score(title)
-
-
-def _stub_score(title: str) -> dict:
-    return {
-        "likelihood": 3, "impact": 3,
-        "category": "operational",
-        "treatment": "mitigate",
-        "rationale": f"Stub scoring for '{title}'. Configure {provider_name()} API key for real AI scoring.",
-    }
+        got = answer_json(text, "likelihood", "impact")
+        got["likelihood"], got["impact"] = _scale(got["likelihood"]), _scale(got["impact"])
+        return got
 
 
 def suggest_scores(title: str, description: str, category: str, framework_context: dict) -> dict:
@@ -52,91 +52,61 @@ def suggest_scores(title: str, description: str, category: str, framework_contex
     likelihood_scale = framework_context.get("likelihood") or []
     dim_names = [d["name"] for d in dims]
 
-    if not is_configured():
-        return _stub_scores(title, dim_names)
+    with must_answer():
+        dim_descriptions = []
+        for d in dims:
+            levels_text = "; ".join(
+                f"{lv['level']}={lv.get('description', '')}" for lv in sorted(d.get("levels", []), key=lambda x: x["level"])
+            )
+            dim_descriptions.append(f"  - {d['name']}: [{levels_text}]")
 
-    dim_descriptions = []
-    for d in dims:
-        levels_text = "; ".join(
-            f"{lv['level']}={lv.get('description', '')}" for lv in sorted(d.get("levels", []), key=lambda x: x["level"])
+        likelihood_text = "; ".join(
+            f"{lv['level']}={lv.get('label', '')} ({lv.get('description', '')})"
+            for lv in sorted(likelihood_scale, key=lambda x: x["level"])
         )
-        dim_descriptions.append(f"  - {d['name']}: [{levels_text}]")
 
-    likelihood_text = "; ".join(
-        f"{lv['level']}={lv.get('label', '')} ({lv.get('description', '')})"
-        for lv in sorted(likelihood_scale, key=lambda x: x["level"])
-    )
-
-    prompt = (
-        "You are an enterprise risk scoring expert. Based on the risk details and the "
-        "organisation's rating framework below, suggest a likelihood score and an impact "
-        "score for each dimension.\n\n"
-        f"Risk Title: {_u(title)}\n"
-        f"Description: {_u(description)}\n"
-        f"Category: {_u(category)}\n\n"
-        "LIKELIHOOD SCALE:\n"
-        f"  {likelihood_text}\n\n"
-        "IMPACT DIMENSIONS (score each 1-5 using the level descriptions):\n"
-        + "\n".join(dim_descriptions) + "\n\n"
-        "Return JSON only:\n"
-        '{"likelihood": <1-5>, "dimension_scores": [{"dimension_name": "<name>", "score": <1-5>}], '
-        '"rationale": "<2-3 sentences explaining your scoring reasoning>"}'
-    )
-    try:
+        prompt = (
+            "You are an enterprise risk scoring expert. Based on the risk details and the "
+            "organisation's rating framework below, suggest a likelihood score and an impact "
+            "score for each dimension.\n\n"
+            f"Risk Title: {_u(title)}\n"
+            f"Description: {_u(description)}\n"
+            f"Category: {_u(category)}\n\n"
+            "LIKELIHOOD SCALE:\n"
+            f"  {likelihood_text}\n\n"
+            "IMPACT DIMENSIONS (score each 1-5 using the level descriptions):\n"
+            + "\n".join(dim_descriptions) + "\n\n"
+            "Return JSON only:\n"
+            '{"likelihood": <1-5>, "dimension_scores": [{"dimension_name": "<name>", "score": <1-5>}], '
+            '"rationale": "<2-3 sentences explaining your scoring reasoning>"}'
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=1024, feature="erm.suggest_scores")
-        result = safe_json_parse(text, _stub_scores(title, dim_names))
-        if "dimension_scores" in result:
-            valid = []
-            for ds in result["dimension_scores"]:
-                if ds.get("dimension_name") in dim_names and isinstance(ds.get("score"), (int, float)):
-                    ds["score"] = max(1, min(5, int(ds["score"])))
-                    valid.append(ds)
-            result["dimension_scores"] = valid
-        if "likelihood" in result:
-            result["likelihood"] = max(1, min(5, int(result["likelihood"])))
+        result = answer_json(text, "likelihood")
+        valid = []
+        for ds in result.get("dimension_scores") or []:
+            if isinstance(ds, dict) and ds.get("dimension_name") in dim_names and isinstance(ds.get("score"), (int, float)):
+                ds["score"] = max(1, min(5, int(ds["score"])))
+                valid.append(ds)
+        result["dimension_scores"] = valid
+        result["likelihood"] = _scale(result["likelihood"])
         return result
-    except Exception as exc:
-        log.error("ERM AI suggest_scores failed: %s", exc)
-        return _stub_scores(title, dim_names)
-
-
-def _stub_scores(title: str, dim_names: list) -> dict:
-    return {
-        "likelihood": 3,
-        "dimension_scores": [{"dimension_name": n, "score": 3} for n in dim_names],
-        "rationale": f"Default scores for '{title}'. Configure {provider_name()} API key for AI-powered scoring.",
-    }
 
 
 def suggest_treatment(title: str, description: str, category: str, likelihood: int, impact: int) -> dict:
-    if not is_configured():
-        return _stub_treatment(title)
-    score = likelihood * impact
-    prompt = (
-        f"Enterprise risk treatment request:\n\n"
-        f"Risk: {_u(title)}\nDescription: {_u(description)}\n"
-        f"Category: {_u(category)}\nScore: {score} (Likelihood {likelihood}/5, Impact {impact}/5)\n\n"
-        "Suggest a treatment plan. Return JSON:\n"
-        '{"treatment": "<mitigate|accept|avoid|transfer>", '
-        '"treatment_plan": "<detailed 2-3 sentence plan>", '
-        '"suggested_controls": "<comma-separated control measures>", '
-        '"recommended_owner": "<job title best suited to own this risk>"}'
-    )
-    try:
+    with must_answer():
+        score = likelihood * impact
+        prompt = (
+            f"Enterprise risk treatment request:\n\n"
+            f"Risk: {_u(title)}\nDescription: {_u(description)}\n"
+            f"Category: {_u(category)}\nScore: {score} (Likelihood {likelihood}/5, Impact {impact}/5)\n\n"
+            "Suggest a treatment plan. Return JSON:\n"
+            '{"treatment": "<mitigate|accept|avoid|transfer>", '
+            '"treatment_plan": "<detailed 2-3 sentence plan>", '
+            '"suggested_controls": "<comma-separated control measures>", '
+            '"recommended_owner": "<job title best suited to own this risk>"}'
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=800, feature="erm.suggest_treatment")
-        return safe_json_parse(text, _stub_treatment(title))
-    except Exception as exc:
-        log.error("ERM treatment suggestion failed: %s", exc)
-        return _stub_treatment(title)
-
-
-def _stub_treatment(title: str) -> dict:
-    return {
-        "treatment": "mitigate",
-        "treatment_plan": f"Implement controls to reduce the likelihood and impact of '{title}'. Monitor quarterly.",
-        "suggested_controls": "Risk assessment, management oversight, staff training",
-        "recommended_owner": "Risk Manager",
-    }
+        return answer_json(text, "treatment")
 
 
 def suggest_ice_rationale(control_title: str, control_description: str, ice_suggested: int, factors: dict) -> str:
@@ -226,99 +196,59 @@ def _stub_chat(history: list) -> str:
 
 
 def generate_risk_statement(category: str, description: str) -> dict:
-    if not is_configured():
-        return {
-            "cause": "inadequate controls",
-            "event": "an adverse risk event materialises",
-            "consequence": "financial or reputational harm to the organisation",
-            "full_statement": f"Due to inadequate controls, there is a risk that an adverse {category} event materialises, resulting in financial or reputational harm to the organisation."
-        }
-    prompt = (
-        f"You are an enterprise risk manager writing a structured risk statement.\n\n"
-        f"Category: {_u(category)}\n"
-        f"Description: {_u(description)}\n\n"
-        "Write a structured risk statement in three parts. Return JSON only:\n"
-        '{"cause":"Due to [root cause / failure]","event":"there is a risk that [risk event]","consequence":"resulting in [impact/consequence]","full_statement":"[complete sentence combining all three]"}'
-    )
-    try:
+    with must_answer():
+        prompt = (
+            f"You are an enterprise risk manager writing a structured risk statement.\n\n"
+            f"Category: {_u(category)}\n"
+            f"Description: {_u(description)}\n\n"
+            "Write a structured risk statement in three parts. Return JSON only:\n"
+            '{"cause":"Due to [root cause / failure]","event":"there is a risk that [risk event]","consequence":"resulting in [impact/consequence]","full_statement":"[complete sentence combining all three]"}'
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=300, feature="erm.generate_risk_statement")
-        return safe_json_parse(text, {"full_statement": description})
-    except Exception as exc:
-        log.error("ERM generate_risk_statement failed: %s", exc)
-        return {"full_statement": description}
+        return answer_json(text, "full_statement")
 
 
 def suggest_assessment_questions(assessment_type: str, linked_risk_titles: list, existing_questions: list) -> list:
-    if not is_configured():
-        return [
-            {"question": "How effectively are current controls mitigating identified risks?", "question_type": "scale", "weight": 1.0},
-            {"question": "Are risk owners clearly assigned and accountable?", "question_type": "yes_no", "weight": 1.0},
-            {"question": "What gaps exist in the current risk treatment plan?", "question_type": "text", "weight": 0.5},
-        ]
-    existing_q_text = "\n".join(f"- {q}" for q in existing_questions) if existing_questions else "None yet"
-    risk_context = ", ".join(linked_risk_titles[:5]) if linked_risk_titles else "general enterprise risks"
-    prompt = (
-        f"You are an enterprise risk management expert designing a self-assessment questionnaire.\n\n"
-        f"Assessment type: {_u(assessment_type)}\n"
-        f"Linked risks: {_u(risk_context)}\n"
-        f"Existing questions (do not repeat):\n{_u(existing_q_text)}\n\n"
-        "Suggest up to 8 new assessment questions. For each, specify the most appropriate response type.\n"
-        "Return JSON array only:\n"
-        '[{"question":"...","question_type":"scale|yes_no|text|multiple_choice","weight":1.0}]'
-    )
-    try:
+    with must_answer():
+        existing_q_text = "\n".join(f"- {q}" for q in existing_questions) if existing_questions else "None yet"
+        risk_context = ", ".join(linked_risk_titles[:5]) if linked_risk_titles else "general enterprise risks"
+        prompt = (
+            f"You are an enterprise risk management expert designing a self-assessment questionnaire.\n\n"
+            f"Assessment type: {_u(assessment_type)}\n"
+            f"Linked risks: {_u(risk_context)}\n"
+            f"Existing questions (do not repeat):\n{_u(existing_q_text)}\n\n"
+            "Suggest up to 8 new assessment questions. For each, specify the most appropriate response type.\n"
+            "Return JSON array only:\n"
+            '[{"question":"...","question_type":"scale|yes_no|text|multiple_choice","weight":1.0}]'
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=600, feature="erm.suggest_assessment_questions")
-        return safe_json_parse(text, [])
-    except Exception as exc:
-        log.error("ERM suggest_assessment_questions failed: %s", exc)
-        return []
+        return answer_json(text, kind=list)
 
 
 def identify_risks_from_responses(responses_text: str, assessment_title: str) -> list:
-    if not is_configured():
-        return [{"title": "Risk identified from assessment", "description": "Review assessment responses for details.",
-                 "category": "operational", "likelihood": 3, "impact": 3, "treatment": "mitigate"}]
-    prompt = (
-        f"You are an enterprise risk manager reviewing assessment responses for '{_u(assessment_title)}'.\n\n"
-        f"Assessment responses:\n{_u(responses_text[:3000])}\n\n"
-        "Identify up to 5 specific risks indicated by these responses. "
-        "For each, provide a risk title, description, category, likelihood (1-5), impact (1-5), and suggested treatment.\n"
-        "Return JSON array only:\n"
-        '[{"title":"...","description":"...","category":"strategic|operational|compliance|financial|reputational|technology|third_party|environmental","likelihood":3,"impact":3,"treatment":"mitigate|accept|avoid|transfer"}]'
-    )
-    try:
+    with must_answer():
+        prompt = (
+            f"You are an enterprise risk manager reviewing assessment responses for '{_u(assessment_title)}'.\n\n"
+            f"Assessment responses:\n{_u(responses_text[:3000])}\n\n"
+            "Identify up to 5 specific risks indicated by these responses. "
+            "For each, provide a risk title, description, category, likelihood (1-5), impact (1-5), and suggested treatment.\n"
+            "Return JSON array only:\n"
+            '[{"title":"...","description":"...","category":"strategic|operational|compliance|financial|reputational|technology|third_party|environmental","likelihood":3,"impact":3,"treatment":"mitigate|accept|avoid|transfer"}]'
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=800, feature="erm.identify_risks_from_responses")
-        return safe_json_parse(text, [])
-    except Exception as exc:
-        log.error("ERM identify_risks_from_responses failed: %s", exc)
-        return []
+        return answer_json(text, kind=list)
 
 
 def smart_remediation_plan(title: str, description: str, category: str, score: int) -> dict:
-    if not is_configured():
-        return {
-            "summary": "Implement standard risk controls for this category.",
-            "steps": [
-                {"step": 1, "action": "Assign risk owner and define accountability", "timeline": "Week 1", "responsible": "Risk Manager"},
-                {"step": 2, "action": "Conduct detailed risk assessment", "timeline": "Week 2", "responsible": "Risk Owner"},
-                {"step": 3, "action": "Implement primary controls", "timeline": "Month 1", "responsible": "Risk Owner"},
-                {"step": 4, "action": "Monitor and report on effectiveness", "timeline": "Ongoing", "responsible": "Risk Manager"},
-            ],
-            "cost_tier": "medium",
-            "success_criteria": "Risk score reduced below appetite threshold"
-        }
-    prompt = (
-        f"You are a GRC expert creating a remediation plan.\n\n"
-        f"Risk: {_u(title)}\nDescription: {_u(description)}\nCategory: {_u(category)}\nScore: {score}/25\n\n"
-        "Create a practical step-by-step remediation plan. Return JSON only:\n"
-        '{"summary":"...","steps":[{"step":1,"action":"...","timeline":"...","responsible":"..."}],"cost_tier":"low|medium|high","success_criteria":"..."}'
-    )
-    try:
+    with must_answer():
+        prompt = (
+            f"You are a GRC expert creating a remediation plan.\n\n"
+            f"Risk: {_u(title)}\nDescription: {_u(description)}\nCategory: {_u(category)}\nScore: {score}/25\n\n"
+            "Create a practical step-by-step remediation plan. Return JSON only:\n"
+            '{"summary":"...","steps":[{"step":1,"action":"...","timeline":"...","responsible":"..."}],"cost_tier":"low|medium|high","success_criteria":"..."}'
+        )
         text = create_message([{"role": "user", "content": prompt}], max_tokens=800, feature="erm.smart_remediation_plan")
-        return safe_json_parse(text, {"summary": "Unable to generate plan."})
-    except Exception as exc:
-        log.error("ERM smart_remediation_plan failed: %s", exc)
-        return {"summary": "Unable to generate plan. Please configure AI provider."}
+        return answer_json(text, "summary", "steps")
 
 
 # ── PLAN-28: External context horizon scan ────────────────────────────────────

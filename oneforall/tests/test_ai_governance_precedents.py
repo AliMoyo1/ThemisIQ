@@ -10,7 +10,8 @@ from modules.ai_governance import precedents as pr
 from modules.ai_governance import service
 from tests.test_ai_governance_decisions import ask, decide, resolve_provider_review
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, draft, fail, roles, submitted, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 def subject(**changes):
@@ -93,7 +94,8 @@ def test_a_prior_approval_is_reported_as_that_uses_and_never_applied(system):
     system.app, original = other, system.app
     resolve_provider_review(system)
     row = ask(system, "dpo_a")
-    decide(system, row, "approve", rationale="Fine.")
+    decide(system, row, "approve", rationale="Fine.",
+           override_reason="The remaining reviews are scheduled and documented for this pilot.")
     system.app = original
     got = pr.for_use(system.db, user(system, "dpo_a"), original)
     candidate = got["bands"]["possible_match"][0]
@@ -134,7 +136,7 @@ def test_a_verdict_needs_the_right_and_both_records_to_be_open_to_the_caller(sys
     other = another(system, "Ticket summarizer 2")
     hidden = approve_new(system, submitted(system, name="owner_b", answers={**FULL, "name": "Ticket summarizer 3"}),
                          reviewer="dpo_b")["application_id"]
-    fail(lambda: pr.set_verdict(system.db, user(system, "employee_a"), "application", system.app, other, "same_use"), 403)
+    fail(lambda: pr.set_verdict(system.db, user(system, "staff_a"), "application", system.app, other, "same_use"), 403)
     fail(lambda: pr.set_verdict(system.db, user(system, "dpo_a"), "application", system.app, hidden, "same_use"), 404)
     fail(lambda: pr.set_verdict(system.db, user(system, "dpo_b"), "application", system.app, other, "same_use"), 404)
     fail(lambda: pr.set_verdict(system.db, user(system, "dpo_a"), "application", system.app, system.app, "same_use"), 404)
@@ -163,7 +165,7 @@ def test_a_request_is_compared_the_same_way_and_a_verdict_on_it_is_its_own(syste
 def test_a_request_the_caller_may_not_review_does_not_exist_for_them(system):
     pending = submitted(system, name="employee_a", answers={**FULL, "name": "Another"})
     fail(lambda: pr.for_request(system.db, user(system, "dpo_b"), pending["id"]), 404)
-    fail(lambda: pr.for_request(system.db, user(system, "employee_a"), pending["id"]), 403)
+    fail(lambda: pr.for_request(system.db, user(system, "staff_a"), pending["id"]), 403)
     assert pr.for_use(system.db, user(system, "dpo_b"), system.app) is None
 
 

@@ -66,6 +66,11 @@
     <!-- Step 2: Connection details -->
     <div class="panel-card" style="margin-bottom:16px">
       <div class="panel-title" style="margin-bottom:16px">2 · Connection Details</div>
+      <div class="info-box" id="secretsNote" hidden>
+        <strong>Passwords are deployment secrets.</strong> Set <code>SMTP_PASS</code> (or <code>MS_CLIENT_SECRET</code>)
+        in the service environment and restart the service. A password typed here is not stored, because the copy in
+        the database is only obscured, not encrypted.
+      </div>
 
       <!-- Google SMTP -->
       <div class="ef-section" id="sec-google">
@@ -209,6 +214,12 @@
     </div>
 
     <!-- Step 3: Test -->
+    <div class="panel-card" style="margin-bottom:16px">
+      <div class="panel-title">Privacy deadline backup</div>
+      <label class="ef-label" for="fPrivacyBackup">Alternate privacy contact</label>
+      <input class="ef-input" id="fPrivacyBackup" type="email" autocomplete="off" placeholder="privacy-backup@yourdomain.com">
+      <div class="ef-hint">Must be an active DPO or Privacy Analyst in this organization. This person receives the same case reference and deadline alerts as the DPO. Leave blank to remove the backup.</div>
+    </div>
     <div class="panel-card">
       <div class="panel-title" style="margin-bottom:6px">3 · Test Connection</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
@@ -219,6 +230,11 @@
         Send Test Email
       </button>
       <div class="test-result" id="testResult"></div>
+      <div id="receiptRow" style="display:none;margin-top:10px">
+        <span style="font-size:12px;color:var(--muted)">Did the message reach your mailbox?</span>
+        <button type="button" class="btn btn-secondary" onclick="confirmReceipt(true)">I received it</button>
+        <button type="button" class="btn btn-secondary" onclick="confirmReceipt(false)">I did not receive it</button>
+      </div>
       <div style="font-size:11px;color:var(--muted);margin-top:10px" id="lastTestInfo"></div>
     </div>
 
@@ -232,17 +248,35 @@
     </div>
 
     <div class="panel-card" style="margin-bottom:14px">
-      <div class="panel-title">What Gets Emailed</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.8">
-        <div>📋 Task assignments</div>
-        <div>⏰ Evidence expiry alerts (30/7/1 day)</div>
-        <div>🔴 Data breach 72h notifications</div>
-        <div>📊 DSR response deadlines</div>
-        <div>📅 Scheduled reminders</div>
-        <div>⚡ SLA escalations</div>
-        <div>✅ Workflow approvals &amp; decisions</div>
-        <div>📧 BCM plan &amp; training alerts</div>
+      <div class="panel-title">Sender health</div>
+      <ul id="healthWarnings" style="font-size:12px;color:var(--muted);line-height:1.6;margin:0;padding-left:18px"></ul>
+      <div style="margin-top:10px" id="clearSecretsRow" hidden>
+        <button type="button" class="btn btn-secondary" id="clearSecretsBtn" onclick="clearStoredSecrets()">Clear stored secrets</button>
+        <div class="ef-hint">Use this after the password is set in the service environment and rotated.</div>
       </div>
+    </div>
+
+    <div class="panel-card" style="margin-bottom:14px">
+      <div class="panel-title">Delivery queue</div>
+      <div id="queueCounts" style="font-size:12px;color:var(--muted)">Loading...</div>
+      <div id="queuePaused" role="status" style="font-size:12px;margin-top:6px" hidden></div>
+      <div style="margin-top:8px">
+        <button type="button" class="btn btn-secondary" id="pauseBtn" onclick="togglePause()">Pause sending</button>
+      </div>
+      <div id="queueProviders" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+      <ul id="queueAttention" style="font-size:12px;line-height:1.6;margin:8px 0 0;padding-left:0;list-style:none"></ul>
+    </div>
+
+    <div class="panel-card" style="margin-bottom:14px">
+      <div class="panel-title">What gets emailed</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.8">
+        <div>An action assigned to a named person</div>
+        <div>A finding assigned to you, and its response deadline</div>
+        <div>Evidence that is about to expire</div>
+        <div>A privacy breach or request deadline, to the named privacy officers</div>
+        <div>A weekly audit summary, to subscribers who can open the audits</div>
+      </div>
+      <div class="ef-hint">A message carries a reference, a date and a link, never a title or a name. Everything else is shown in the app only.</div>
     </div>
 
     <div class="panel-card">
@@ -326,7 +360,7 @@ window.selectProvider = function(id) {
 // Reset button actually needs, so it always resolved even before this fix.
 const DIRTY_FIELD_IDS = ['fSmtpUser','fSmtpPass','fSmtpFrom','fSmtpUserMs','fSmtpPassMs','fSmtpFromMs',
   'fSmtpHostCustom','fSmtpPortCustom','fSmtpUserCustom','fSmtpPassCustom','fSmtpFromCustom',
-  'fTenantId','fClientId','fClientSecret','fGraphFrom'];
+  'fTenantId','fClientId','fClientSecret','fGraphFrom','fPrivacyBackup'];
 let lastLoadedSnapshot = null;
 
 function snapshotForm() {
@@ -370,27 +404,53 @@ async function loadConfig(throwOnError) {
     set('fClientId',      cfg.ms_client_id);
     set('fClientSecret',  cfg.ms_client_secret);
     set('fGraphFrom',     cfg.smtp_from);
+    document.getElementById('fPrivacyBackup').value = cfg.privacy_backup_email || '';
 
-    // Sidebar status
+    // Sidebar status: what the sender really is, not which provider happens to be selected
+    const h = cfg.health || {};
     const sb = document.getElementById('sidebarStatus');
     const badge = document.getElementById('statusBadge');
-    const resolvedLabel = PROVIDERS.find(p=>p.id===cfg.resolved_provider)?.name || cfg.resolved_provider;
-    if (cfg.resolved_provider && cfg.resolved_provider !== 'console') {
-      sb.innerHTML = `<span style="color:var(--green-status);font-weight:700">● Configured</span><br>
-        <span style="font-size:11px;color:var(--muted)">Provider: ${resolvedLabel}</span>`;
-      badge.innerHTML = `<span class="status-badge configured">● Configured — ${resolvedLabel}</span>`;
-    } else if (cfg.resolved_provider === 'console') {
-      sb.innerHTML = `<span style="color:var(--muted);font-weight:700">● Console mode</span><br>
-        <span style="font-size:11px;color:var(--muted)">Emails logged, not sent</span>`;
-      badge.innerHTML = `<span class="status-badge unconfigured">● Console only</span>`;
-    } else {
-      sb.innerHTML = `<span style="color:var(--muted)">Not configured</span>`;
-      badge.innerHTML = `<span class="status-badge unconfigured">● Not configured</span>`;
+    const label = (PROVIDERS.find(p => p.id === cfg.resolved_provider) || {}).name || cfg.resolved_provider || 'none';
+    let tone = 'unconfigured', word = 'Not configured', sub = 'No mail provider is set up. Nothing is sent.';
+    if (cfg.resolved_provider === 'console') {
+      word = 'Console only'; sub = 'Messages are logged, not sent.';
+    } else if (h.configured) {
+      tone = 'configured'; word = 'Configured: ' + label;
+      sub = 'Credentials are present. The test below shows whether the provider accepts mail.';
+    } else if (cfg.resolved_provider) {
+      tone = 'error'; word = 'Incomplete: ' + label;
+      sub = 'A provider is selected but a host, user or password is missing. Nothing is sent.';
     }
+    sb.textContent = '';
+    const head = document.createElement('div');
+    head.style.fontWeight = '700';
+    head.textContent = '\u25CF ' + word;
+    const detail = document.createElement('div');
+    detail.style.fontSize = '11px';
+    detail.textContent = sub;
+    sb.appendChild(head);
+    sb.appendChild(detail);
+    badge.textContent = '';
+    const pill = document.createElement('span');
+    pill.className = 'status-badge ' + tone;
+    pill.textContent = '\u25CF ' + word;
+    badge.appendChild(pill);
+
+    const warn = document.getElementById('healthWarnings');
+    warn.textContent = '';
+    const notes = (h.warnings && h.warnings.length) ? h.warnings : ['No problems found in the sender configuration.'];
+    notes.forEach(text => { const li = document.createElement('li'); li.textContent = text; warn.appendChild(li); });
+    document.getElementById('clearSecretsRow').hidden = h.credential_source !== 'stored_obscured';
+    document.getElementById('secretsNote').hidden = !!cfg.secrets_in_database_allowed;
+    ['fSmtpPass', 'fSmtpPassMs', 'fSmtpPassCustom', 'fClientSecret'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !cfg.secrets_in_database_allowed;
+    });
 
     if (cfg.last_test_result) {
       document.getElementById('lastTestInfo').textContent =
-        `Last test: ${cfg.last_test_result}  (${cfg.last_test_at})`;
+        'Last test: ' + cfg.last_test_result + '  (' + cfg.last_test_at + ')' +
+        (cfg.last_receipt ? '. Receipt: ' + cfg.last_receipt : '');
     }
 
     lastLoadedSnapshot = snapshotForm();
@@ -422,7 +482,7 @@ window.saveConfig = async function() {
   const prov = currentProvider;
   const get  = id => { const el=document.getElementById(id); return el ? el.value.trim() : ''; };
 
-  let body = { provider: prov };
+  let body = { provider: prov, privacy_backup_email: get('fPrivacyBackup') };
 
   if (prov === 'google') {
     body.smtp_host  = 'smtp.gmail.com';
@@ -451,8 +511,11 @@ window.saveConfig = async function() {
   // console: just saves provider=console
 
   try {
-    await ApiClient.request('/api/admin/email-config', { method: 'POST', body, actionId: 'email.config.save' });
-    if (typeof showToast === 'function') showToast('Email configuration saved', 'success');
+    const out = await ApiClient.request('/api/admin/email-config', { method: 'POST', body, actionId: 'email.config.save' });
+    if (typeof showToast === 'function') {
+      showToast('Email configuration saved', 'success');
+      if (out && out.notice) showToast(out.notice, 'error');
+    }
     loadConfig();
   } catch (e) {
     if (typeof showToast === 'function') showToast(e.detail || 'Save failed', 'error');
@@ -478,7 +541,9 @@ window.runTest = async function() {
       res.className = 'test-result fail';
       res.textContent = `✗ ${data.detail || 'Failed'}`;
     }
+    document.getElementById('receiptRow').style.display = data.confirm_receipt ? 'block' : 'none';
     loadConfig(); // refresh last-test info
+    loadQueue();
   } catch(e) {
     res.style.display = 'block';
     res.className = 'test-result fail';
@@ -489,10 +554,99 @@ window.runTest = async function() {
   }
 };
 
+// ── Delivery queue ───────────────────────────────────────────────────────────
+let queuePaused = false;
+
+window.togglePause = async function() {
+  try {
+    await ApiClient.request('/api/admin/email-outbox/pause', { method: 'POST', body: { paused: !queuePaused }, actionId: 'email.outbox.pause' });
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.detail || 'Sending could not be paused or resumed', 'error');
+  }
+  loadQueue();
+};
+
+async function loadQueue() {
+  const box = document.getElementById('queueCounts');
+  const list = document.getElementById('queueAttention');
+  try {
+    const data = await ApiClient.request('/api/admin/email-outbox', { actionId: 'email.outbox.load' });
+    const c = data.counts || {};
+    const order = ['queued', 'retry_due', 'provider_accepted', 'logged_only', 'suppressed', 'permanent_failure'];
+    box.textContent = order.map(k => k.replace(/_/g, ' ') + ': ' + (c[k] || 0)).join('  \u00B7  ');
+    queuePaused = !!data.paused;
+    const note = document.getElementById('queuePaused');
+    note.hidden = !queuePaused;
+    note.textContent = queuePaused
+      ? 'Sending is paused. Critical messages still go; everything else waits until you resume.' : '';
+    document.getElementById('pauseBtn').textContent = queuePaused ? 'Resume sending' : 'Pause sending';
+    const names = Object.keys(data.by_provider || {});
+    document.getElementById('queueProviders').textContent = names.length
+      ? 'Last 30 days by provider: ' + names.map(n => n + ' (' + Object.entries(data.by_provider[n])
+          .map(([k, v]) => k.replace(/_/g, ' ') + ' ' + v).join(', ') + ')').join('; ')
+      : '';
+    list.textContent = '';
+    (data.attention || []).forEach(item => {
+      const li = document.createElement('li');
+      li.style.padding = '6px 0';
+      li.style.borderTop = '1px solid var(--border)';
+      const title = document.createElement('div');
+      title.style.fontWeight = '600';
+      title.textContent = item.template_key + ' (' + String(item.status).replace(/_/g, ' ') + ')';
+      const why = document.createElement('div');
+      why.style.color = 'var(--muted)';
+      why.textContent = (item.last_error || item.suppress_reason || 'waiting') + '. Attempts: ' + (item.attempts || 0);
+      const again = document.createElement('button');
+      again.type = 'button';
+      again.className = 'btn btn-secondary';
+      again.textContent = 'Send again';
+      again.onclick = () => requeueMessage(item.id);
+      li.appendChild(title);
+      li.appendChild(why);
+      li.appendChild(again);
+      list.appendChild(li);
+    });
+  } catch (e) {
+    box.textContent = 'The delivery queue could not be loaded.';
+  }
+}
+
+async function requeueMessage(id) {
+  try {
+    await ApiClient.request('/api/admin/email-outbox/' + encodeURIComponent(id) + '/requeue', { method: 'POST', actionId: 'email.outbox.requeue' });
+    if (typeof showToast === 'function') showToast('The message is queued again', 'success');
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.detail || 'The message could not be queued again', 'error');
+  }
+  loadQueue();
+}
+
+window.clearStoredSecrets = async function() {
+  if (!confirm('Clear the stored password? Do this only after it is set in the service environment: mail stops if it is not.')) return;
+  try {
+    await ApiClient.request('/api/admin/email-config/clear-secrets', { method: 'POST', body: { confirm: true }, actionId: 'email.secrets.clear' });
+    if (typeof showToast === 'function') showToast('Stored secrets cleared', 'success');
+    loadConfig();
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.detail || 'The stored secrets could not be cleared', 'error');
+  }
+};
+
+window.confirmReceipt = async function(received) {
+  try {
+    const out = await ApiClient.request('/api/admin/email-test/receipt', { method: 'POST', body: { received: received }, actionId: 'email.test.receipt' });
+    document.getElementById('receiptRow').style.display = 'none';
+    document.getElementById('lastTestInfo').textContent = 'Receipt: ' + out.last_receipt;
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.detail || 'Your answer could not be saved', 'error');
+  }
+};
+
 // ── Init ────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   renderProviders('');
   loadConfig();
+  loadQueue();
 
   // Show admin's email in test section
   fetch('/api/notifications').then(r=>r.json()).then(d=>{

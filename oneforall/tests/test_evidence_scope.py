@@ -137,6 +137,7 @@ def test_search_term_length_is_capped():
 def test_search_sql_lowercases_both_sides_and_declares_its_escape():
     # Case-insensitivity must not depend on the engine's default LIKE (case sensitive on PostgreSQL).
     sql, params = evidence_search_sql("Abc")
-    assert sql.count("LOWER(") == 8
+    assert sql.count("LOWER(") == 10
     assert "ESCAPE '!'" in sql
-    assert params == ["%Abc%"] * 4
+    assert "ti.status = 'indexed'" in sql and "ti.file_hash = e.file_hash" in sql
+    assert params == ["%Abc%"] * 5

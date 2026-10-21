@@ -44,6 +44,12 @@ def _compose_advisories() -> None:
         db.close()
 
 
+def _purge_saved_reports() -> None:
+    from core.email_outbox import for_each_tenant
+    from modules.launcher.report_retention import purge_due
+    for_each_tenant(purge_due, "Saved report retention")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Scheduler start / stop
 # ─────────────────────────────────────────────────────────────────────────────
@@ -59,6 +65,14 @@ def start_scheduler() -> None:
         _compose_advisories,
         CronTrigger(hour=5, minute=30, timezone=TZ),
         id="advisory_composer",
+        replace_existing=True,
+        misfire_grace_time=300,
+    )
+
+    _scheduler.add_job(
+        _purge_saved_reports,
+        CronTrigger(hour=4, minute=30, timezone=TZ),
+        id="saved_report_retention",
         replace_existing=True,
         misfire_grace_time=300,
     )

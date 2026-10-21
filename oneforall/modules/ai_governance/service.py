@@ -33,11 +33,11 @@ _KEY_RE = re.compile(r"[A-Za-z0-9_.:-]{1,80}")
 
 # What a decision covers: when any of these changes, an earlier approval no longer describes the use.
 MATERIAL_FIELDS = ("purpose", "capability_type", "deployment", "provider_note", "data_categories", "affected_people",
-                   "autonomy", "jurisdictions", "external_access", "affects_decisions")
+                   "autonomy", "jurisdictions", "external_access", "affects_decisions", "sponsor_user_id")
 
 _PROFILE_FIELDS = ("purpose", "capability_type", "intended_users", "affected_people", "autonomy", "deployment",
                    "provider_note", "data_categories", "jurisdictions", "external_access", "affects_decisions",
-                   "human_oversight", "target_launch")
+                   "human_oversight", "target_launch", "sponsor_user_id")
 _JSON_FIELDS = ("affected_people", "data_categories", "jurisdictions")
 _BOOL_FIELDS = ("external_access", "affects_decisions")
 # The profile calls the provider's name `provider_note`; the intake form asks for `provider_name`.
@@ -94,6 +94,8 @@ def _reason(text, what: str, minimum: int = 3) -> str:
 def fingerprint(answers: dict) -> str:
     """A short hash of the facts a decision covers, so a later change can be told from an edit that changes nothing."""
     covered = {f: (sorted(answers.get(f) or []) if f in _JSON_FIELDS else answers.get(f)) for f in MATERIAL_FIELDS}
+    if covered["sponsor_user_id"] is None:
+        covered.pop("sponsor_user_id")  # Existing profiles keep their pre-sponsor fingerprint until a fact changes.
     return hashlib.sha256(json.dumps(covered, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
@@ -122,12 +124,15 @@ def _intake(row) -> dict:
         # where a request came from: typed in by the author, or read from an external form's export
         "source_kind": row["source_kind"] or "manual", "requester": _json_object(row["requester"]),
         "revision": row["revision"] or 1, "supersedes_id": row["supersedes_id"], "import_batch_id": row["import_batch_id"],
+        "assigned_reviewer_id": row["assigned_reviewer_id"] if "assigned_reviewer_id" in row.keys() else None,
+        "closed_at": _text(row["closed_at"]) if "closed_at" in row.keys() else None,
     }
 
 
 def _with_names(db, intakes: list) -> list:
     """Add the author's and the owner's name to requests that are about to be shown."""
-    ids = sorted({i for item in intakes for i in (item["submitted_by"], item["answers"].get("owner_user_id")) if i})
+    ids = sorted({i for item in intakes for i in (item["submitted_by"], item["answers"].get("owner_user_id"),
+                                                   item.get("assigned_reviewer_id")) if i})
     names = {}
     if ids:
         rows = db.execute(f"SELECT id, full_name FROM users WHERE id IN ({','.join(['%s'] * len(ids))})", ids).fetchall()
@@ -135,6 +140,7 @@ def _with_names(db, intakes: list) -> list:
     for item in intakes:
         item["author_name"] = names.get(item["submitted_by"])
         item["owner_name"] = names.get(item["answers"].get("owner_user_id"))
+        item["assigned_reviewer_name"] = names.get(item.get("assigned_reviewer_id"))
     return intakes
 
 
@@ -154,6 +160,16 @@ def _visible_to_reviewer(user, row) -> bool:
 def _own_intake(db, user, intake_id: int):
     row = _load(db, intake_id)
     if not _visible_to_author(user, row):
+        raise ServiceError(404, "Request not found.")
+    return row
+
+
+def _editable_intake(db, user, intake_id: int):
+    row = _load(db, intake_id)
+    author = has_capability(user, "ai_use.intake_create") and _visible_to_author(user, row)
+    imported_reviewer = (row is not None and row["source_kind"] == "import"
+                         and _visible_to_reviewer(user, row))
+    if not (author or imported_reviewer):
         raise ServiceError(404, "Request not found.")
     return row
 
@@ -194,6 +210,28 @@ def _check_owner(db, user, owner_id) -> None:
         raise ServiceError(400, "Choose the owner from the people in your organization.")
 
 
+def _application_org(db, application_id):
+    row = db.execute(
+        "SELECT COALESCE(owner.org_id, head.org_id) AS org_id "
+        "FROM applications a LEFT JOIN business_units bu ON bu.id = a.business_unit_id "
+        "LEFT JOIN users owner ON owner.id = a.owner_user_id "
+        "LEFT JOIN users head ON head.id = bu.head_user_id WHERE a.id = %s", (application_id,)).fetchone()
+    return row["org_id"] if row else None
+
+
+def _sponsor(db, user, application_id, raw) -> "int | None":
+    if raw in (None, ""):
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1:
+        raise ServiceError(422, "Choose a sponsor from the people in your organization.")
+    row = db.execute("SELECT org_id, is_active, deleted_at FROM users WHERE id = %s", (raw,)).fetchone()
+    app_org = _application_org(db, application_id) or user.get("org_id")
+    if (not row or not row["is_active"] or row["deleted_at"] or app_org is None
+            or row["org_id"] != app_org or not _same_org(user, row["org_id"])):
+        raise ServiceError(422, "Choose a sponsor from the people in your organization.")
+    return raw
+
+
 def _clean_answers(db, user, raw) -> dict:
     answers, errors = rules.clean(raw)
     if errors:
@@ -207,7 +245,7 @@ def _clean_answers(db, user, raw) -> dict:
 
 def create_draft(db, user, raw_answers, idempotency_key=None, source_ref=None) -> dict:
     """Start a draft. The same idempotency key from the same person returns the draft already made."""
-    _require(user, "ai_use.submit")
+    _require(user, "ai_use.intake_create")
     if idempotency_key is not None and not _KEY_RE.fullmatch(str(idempotency_key)):
         raise ServiceError(400, "The idempotency key must be 1 to 80 letters, digits or . _ : -.")
     if source_ref is not None and not re.fullmatch(r"(vendor|process):\d{1,9}", str(source_ref)):
@@ -270,23 +308,22 @@ def _stale(db, intake_id: int) -> ServiceError:
 
 
 def save_draft(db, user, intake_id: int, raw_answers, expected_version) -> dict:
-    """Replace the answers of the author's own draft or returned request."""
-    _require(user, "ai_use.submit")
-    row = _own_intake(db, user, intake_id)
+    """Edit an author's request, or an imported request in the specialist's scope."""
+    row = _editable_intake(db, user, intake_id)
     if row["status"] not in ("draft", "returned"):
         raise ServiceError(409, "Only a draft or a returned request can be edited.")
     changed = _clean_answers(db, user, raw_answers or {})
     answers = {**json.loads(row["payload"] or "{}"), **changed}
+    unit = changed["business_unit_id"] if "business_unit_id" in changed else row["business_unit_id"]
     if not _compare_and_set(db, intake_id, expected_version, ("draft", "returned"),
-                            payload=json.dumps(answers), business_unit_id=answers.get("business_unit_id")):
+                            payload=json.dumps(answers), business_unit_id=unit):
         raise _stale(db, intake_id)
     return {"intake": _intake(_load(db, intake_id)), "audit": [], "events": []}
 
 
 def submit(db, user, intake_id: int, expected_version) -> dict:
     """Hand a complete draft to the reviewers. Submitting again changes nothing."""
-    _require(user, "ai_use.submit")
-    row = _own_intake(db, user, intake_id)
+    row = _editable_intake(db, user, intake_id)
     if row["status"] == "submitted":
         return {"intake": _intake(row), "audit": [], "events": [], "already": True}
     if row["status"] not in ("draft", "returned"):
@@ -316,18 +353,22 @@ def list_mine(db, user, status=None) -> list:
     return _with_names(db, [_intake(r) for r in db.execute(sql + " ORDER BY updated_at DESC, id DESC LIMIT 200", params).fetchall()])
 
 
-def _review_scope(user, status=None) -> tuple:
+def _review_scope(user, status=None, alias="") -> tuple:
     """The WHERE clause and parameters of the requests (in `status`, or in any) a reviewer may see: their organization's,
     inside their business-unit scope. One place, so a queue and the count of it cannot disagree."""
-    sql, params = (" WHERE status = %s", [status]) if status not in (None, "waiting") else (" WHERE 1 = 1", [])
+    if alias and not alias.isidentifier():
+        raise ValueError("alias must be a plain SQL identifier")
+    prefix = f"{alias}." if alias else ""
+    sql, params = (f" WHERE {prefix}status = %s", [status]) if status not in (None, "waiting") else (" WHERE 1 = 1", [])
     if user.get("org_id") is not None:
-        sql, params = sql + " AND org_id = %s", [*params, user["org_id"]]
+        sql, params = sql + f" AND {prefix}org_id = %s", [*params, user["org_id"]]
     scope = bu_scope_ids(user)
     if scope is not None:
-        sql += f" AND (business_unit_id IS NULL OR business_unit_id IN ({','.join(['%s'] * len(scope))}))"
+        unit = f"{prefix}business_unit_id"
+        sql += f" AND ({unit} IS NULL OR {unit} IN ({','.join(['%s'] * len(scope))}))"
         params += list(scope)
     if status == "waiting":  # sent back to the requester, or carrying a question nobody has answered yet
-        sql += (" AND (status = 'returned' OR (status IN ('draft', 'submitted') AND id IN "
+        sql += (f" AND ({prefix}status = 'returned' OR ({prefix}status IN ('draft', 'submitted') AND {prefix}id IN "
                 "(SELECT intake_id FROM ai_request_questions WHERE status = 'open')))")
     return sql, params
 
@@ -339,6 +380,121 @@ def review_queue(db, user, status="submitted", limit=100) -> list:
     rows = db.execute("SELECT * FROM ai_use_intake_requests" + where + " ORDER BY submitted_at, id LIMIT %s",
                       [*params, max(1, min(int(limit), 200))]).fetchall()
     return _with_names(db, [_intake(r) for r in rows])
+
+
+WORKLIST_STAGES = ("new", "needs_clarification", "in_assessment", "awaiting_decision",
+                   "ready_to_respond", "responded", "closed")
+
+
+def review_worklist(db, user, *, stage=None, page=1, counts_only=False) -> dict:
+    """One scoped specialist queue across intake, decision and external-response records.
+
+    These are derived work states, not approvals. A response is counted as sent only when the latest
+    response for this exact intake was explicitly marked sent. Closing records a separate human action.
+    """
+    _require(user, "ai_use.review")
+    if stage not in (None, "", *WORKLIST_STAGES):
+        raise ServiceError(400, "Unknown request stage.")
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        raise ServiceError(400, "Page must be a positive number.")
+    if page < 1 or page > 10000:
+        raise ServiceError(400, "Page must be a positive number.")
+    where, params = _review_scope(user, alias="r")
+    app_scope, app_params = entity_scope_sql(APP, user, "a")
+    # Submitted staff drafts do not enter a review queue. An imported draft does, so a specialist
+    # can check the form response before submitting it for formal review.
+    where += " AND r.status != 'superseded' AND (r.status != 'draft' OR r.source_kind = 'import')"
+    stage_sql = (
+        "CASE "
+        "WHEN r.closed_at IS NOT NULL THEN 'closed' "
+        "WHEN r.status = 'returned' OR (r.status IN ('draft','submitted') AND EXISTS "
+        "(SELECT 1 FROM ai_request_questions q WHERE q.intake_id = r.id AND q.status = 'open')) "
+        "THEN 'needs_clarification' "
+        "WHEN r.status IN ('draft','submitted') THEN 'new' "
+        "WHEN r.status = 'rejected' THEN 'ready_to_respond' "
+        "WHEN r.status = 'approved' AND NOT EXISTS (SELECT 1 FROM applications a "
+        f"WHERE a.id = r.application_id AND {app_scope}) THEN 'in_assessment' "
+        "WHEN r.status = 'approved' AND EXISTS (SELECT 1 FROM ai_external_responses e "
+        "WHERE e.intake_id = r.id AND e.status = 'sent' AND e.id = "
+        "(SELECT MAX(latest.id) FROM ai_external_responses latest WHERE latest.intake_id = r.id)) "
+        "THEN 'responded' "
+        "WHEN r.status = 'approved' AND EXISTS (SELECT 1 FROM ai_use_decisions d "
+        "WHERE d.application_id = r.application_id AND d.status = 'proposed') THEN 'awaiting_decision' "
+        "WHEN r.status = 'approved' AND EXISTS (SELECT 1 FROM ai_use_decisions d "
+        "WHERE d.application_id = r.application_id AND d.status IN "
+        "('approved','approved_with_conditions','rejected') AND d.revoked_at IS NULL) "
+        "THEN 'ready_to_respond' ELSE 'in_assessment' END"
+    )
+    base = ("SELECT r.id,r.status,r.version,r.payload,r.source_kind,r.application_id,r.updated_at,"
+            "r.closed_at,r.closure_channel,r.closure_reference,r.closure_note,"
+            + stage_sql + " AS stage FROM ai_use_intake_requests r" + where)
+    base_params = [*app_params, *params]
+    grouped = db.execute("SELECT stage,COUNT(*) AS n FROM (" + base + ") scoped GROUP BY stage", base_params).fetchall()
+    counts = {key: 0 for key in WORKLIST_STAGES}
+    counts.update({row["stage"]: int(row["n"]) for row in grouped})
+    if counts_only:
+        return {"counts": counts}
+    total = sum(counts.values()) if not stage else counts[stage]
+    filter_sql = " WHERE stage = %s" if stage else ""
+    size = 25
+    rows = db.execute("SELECT * FROM (" + base + ") scoped" + filter_sql +
+                      " ORDER BY updated_at DESC,id DESC LIMIT %s OFFSET %s",
+                      [*base_params, *([stage] if stage else []), size, (page - 1) * size]).fetchall()
+    items = []
+    for row in rows:
+        answers = _json_object(row["payload"]) or {}
+        app_id = row["application_id"]
+        visible_app = app_id and describe_record(db, APP, app_id, user)
+        items.append({"id": row["id"], "name": str(answers.get("name") or "Untitled request")[:160],
+                      "version": row["version"],
+                      "source_kind": row["source_kind"] or "manual", "stage": row["stage"],
+                      "status": row["status"], "updated_at": _text(row["updated_at"]),
+                      "closure": ({"at": _text(row["closed_at"]), "channel": row["closure_channel"],
+                                   "reference": row["closure_reference"], "note": row["closure_note"]}
+                                  if row["closed_at"] else None),
+                      "url": (f"/ai-governance/systems/{app_id}?request_id={row['id']}#review_desk" if visible_app else
+                              f"/ai-governance/requests/{row['id']}")})
+    return {"items": items, "counts": counts, "total": total, "page": page, "page_size": size,
+            "pages": max(1, (total + size - 1) // size), "stage": stage or "all"}
+
+
+def close_request(db, user, intake_id: int, *, expected_version, note, channel=None, reference=None) -> dict:
+    """Close only after an external response was recorded as sent, or after a triage rejection was communicated."""
+    row = _review_intake(db, user, intake_id)
+    if row["closed_at"]:
+        raise ServiceError(409, "This request is already closed.")
+    note = _reason(note, "why this request is complete")
+    if row["status"] == "approved":
+        if not row["application_id"] or not describe_record(db, APP, row["application_id"], user):
+            raise ServiceError(409, "The linked AI system is not available for this review.")
+        from modules.ai_governance import decisions
+        current = decisions.get_decisions(db, user, row["application_id"])
+        if (not current or not current["latest"] or
+                current["state"]["state"] not in ("approved", "approved_with_conditions", "rejected")):
+            raise ServiceError(409, "The AI decision changed. Review it before closing this request.")
+        response = db.execute(
+            "SELECT status,decision_id,sent_channel,sent_reference FROM ai_external_responses "
+            "WHERE intake_id = %s AND application_id = %s ORDER BY id DESC LIMIT 1",
+            (intake_id, row["application_id"])).fetchone()
+        if not response or response["status"] != "sent" or response["decision_id"] != current["latest"]["id"]:
+            raise ServiceError(409, "Record that the approved response was sent before closing this request.")
+        channel, reference = response["sent_channel"], response["sent_reference"]
+    elif row["status"] == "rejected":
+        if channel not in ("email", "phone", "meeting", "ticket", "other"):
+            raise ServiceError(422, "Choose how the rejection was communicated.")
+        reference = (reference or "").strip() if isinstance(reference, str) else ""
+        if not 3 <= len(reference) <= 160:
+            raise ServiceError(422, "Record a 3 to 160 character reference for the external communication.")
+    else:
+        raise ServiceError(409, "Finish the review and response before closing this request.")
+    if not _compare_and_set(db, intake_id, expected_version, ("approved", "rejected"),
+                            closed_at=_now(), closed_by=user["id"], closure_note=note,
+                            closure_channel=channel, closure_reference=reference):
+        raise _stale(db, intake_id)
+    return {"intake": _intake(_load(db, intake_id)), "events": [],
+            "audit": [("ai_request_closed", "ai_use_intake", intake_id, "request closed after response")]}
 
 
 def review_count(db, user, status="submitted") -> int:
@@ -359,22 +515,32 @@ def review_submitted_at(db, user, status="submitted") -> list:
 def funnel_counts(db, user, since: str) -> dict:
     """How the requests submitted since `since` (a timestamp string) moved on, inside the reviewer's scope: submitted,
     triaged (a reviewer acted), accepted into the inventory, accepted with a completed impact assessment, accepted with a
-    standing decision. Each is read from the records, never inferred."""
+    standing decision, externally responded to, and closed. Each is read from recorded actions."""
     _require(user, "ai_use.review")
-    where, params = _review_scope(user)
-    accepted = "r.status = 'approved' AND r.application_id IS NOT NULL"
+    where, params = _review_scope(user, alias="r")
+    app_scope, app_params = entity_scope_sql(APP, user, "a")
+    accepted = "r.status = 'approved' AND r.app_visible = 1"
     row = db.execute(
+        "WITH cohort AS (SELECT r.*, CASE WHEN r.application_id IS NOT NULL AND EXISTS "
+        f"(SELECT 1 FROM applications a WHERE a.id = r.application_id AND {app_scope}) "
+        "THEN 1 ELSE 0 END AS app_visible FROM ai_use_intake_requests r" + where + ") "
         "SELECT COUNT(*) AS submitted, "
         "SUM(CASE WHEN r.reviewed_at IS NOT NULL THEN 1 ELSE 0 END) AS triaged, "
         f"SUM(CASE WHEN {accepted} THEN 1 ELSE 0 END) AS accepted, "
         f"SUM(CASE WHEN {accepted} AND EXISTS (SELECT 1 FROM sentinel_aiia i WHERE i.application_id = r.application_id "
         "AND i.status IN ('completed', 'approved')) THEN 1 ELSE 0 END) AS assessed, "
         f"SUM(CASE WHEN {accepted} AND EXISTS (SELECT 1 FROM ai_use_decisions d WHERE d.application_id = r.application_id "
-        "AND d.status IN ('approved', 'approved_with_conditions', 'rejected')) THEN 1 ELSE 0 END) AS decided "
-        "FROM ai_use_intake_requests r" + where + " AND r.status != 'superseded' AND r.submitted_at IS NOT NULL "
+        "AND d.status IN ('approved', 'approved_with_conditions', 'rejected')) THEN 1 ELSE 0 END) AS decided, "
+        f"SUM(CASE WHEN {accepted} AND (r.closed_at IS NOT NULL OR EXISTS "
+        "(SELECT 1 FROM ai_external_responses e WHERE e.intake_id = r.id AND e.status = 'sent' "
+        "AND e.id = (SELECT MAX(latest.id) FROM ai_external_responses latest WHERE latest.intake_id = r.id))) "
+        "THEN 1 ELSE 0 END) AS responded, "
+        f"SUM(CASE WHEN {accepted} AND r.closed_at IS NOT NULL THEN 1 ELSE 0 END) AS closed "
+        "FROM cohort r WHERE r.status != 'superseded' AND r.submitted_at IS NOT NULL "
         "AND r.submitted_at >= %s",
-        [*params, since]).fetchone()
-    return {k: int(row[k] or 0) for k in ("submitted", "triaged", "accepted", "assessed", "decided")}
+        [*app_params, *params, since]).fetchone()
+    return {k: int(row[k] or 0) for k in ("submitted", "triaged", "accepted", "assessed", "decided",
+                                           "responded", "closed")}
 
 
 def mine_counts(db, user) -> dict:
@@ -522,12 +688,12 @@ def _insert_profile(db, user, application_id: int, answers: dict, adopted_tier=N
     now = _now()
     cadence = answers.get("review_cadence_months")
     db.execute(
-        "INSERT INTO ai_use_profiles (application_id, purpose, capability_type, intended_users, affected_people, "
+        "INSERT INTO ai_use_profiles (application_id, sponsor_user_id, purpose, capability_type, intended_users, affected_people, "
         "autonomy, deployment, provider_note, data_categories, jurisdictions, external_access, affects_decisions, "
         "human_oversight, target_launch, last_reviewed_at, next_review_at, provisional_tier, tier_rule_version, "
         "tier_reasons, adopted_tier, adopted_tier_reason, adopted_by, adopted_at, fingerprint, created_by, updated_by) "
-        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-        (application_id, values.get("purpose"), values.get("capability_type"), values.get("intended_users"),
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        (application_id, values.get("sponsor_user_id"), values.get("purpose"), values.get("capability_type"), values.get("intended_users"),
          json.dumps(values.get("affected_people") or []), values.get("autonomy"), values.get("deployment"),
          values.get("provider_note"), json.dumps(values.get("data_categories") or []),
          json.dumps(values.get("jurisdictions") or []), _bit(values.get("external_access")),
@@ -569,7 +735,20 @@ def get_profile(db, user, application_id: int) -> "dict | None":
     _require(user, "ai_use.view")
     if not describe_record(db, APP, application_id, user):
         return None
-    return _profile(db.execute("SELECT * FROM ai_use_profiles WHERE application_id = %s", (application_id,)).fetchone())
+    profile = _profile(db.execute("SELECT * FROM ai_use_profiles WHERE application_id = %s", (application_id,)).fetchone())
+    if profile is None:
+        return None
+    profile["sponsor_name"] = None
+    if profile["sponsor_user_id"] is not None:
+        person = db.execute("SELECT full_name, org_id, is_active, deleted_at FROM users WHERE id = %s",
+                            (profile["sponsor_user_id"],)).fetchone()
+        app_org = _application_org(db, application_id) or user.get("org_id")
+        if (person and person["is_active"] and not person["deleted_at"] and app_org is not None
+                and person["org_id"] == app_org and _same_org(user, person["org_id"])):
+            profile["sponsor_name"] = person["full_name"]
+        else:
+            profile["sponsor_user_id"] = None
+    return profile
 
 
 def update_profile(db, user, application_id: int, raw_answers, expected_version) -> dict:
@@ -584,6 +763,8 @@ def update_profile(db, user, application_id: int, raw_answers, expected_version)
     if isinstance(expected_version, bool) or not isinstance(expected_version, int):
         raise ServiceError(400, "Send the version of the profile you are changing.")
     answers = _clean_answers(db, user, raw_answers or {})
+    if isinstance(raw_answers, dict) and "sponsor_user_id" in raw_answers:
+        answers["sponsor_user_id"] = _sponsor(db, user, application_id, raw_answers["sponsor_user_id"])
     answers.pop("business_unit_id", None)
     answers.pop("owner_user_id", None)
     current = _profile(row)
@@ -608,7 +789,7 @@ def update_profile(db, user, application_id: int, raw_answers, expected_version)
     if done != 1:
         raise ServiceError(409, "This profile was changed by someone else. Reload it and try again.")
     material = fingerprint(merged) != row["fingerprint"]
-    out = {"profile": _profile(db.execute("SELECT * FROM ai_use_profiles WHERE id = %s", (row["id"],)).fetchone()),
+    out = {"profile": get_profile(db, user, application_id),
            "events": [], "audit": [("ai_profile_updated", "application", application_id,
                                     "a fact the decision covers changed" if material else "edited")]}
     if material:
@@ -627,9 +808,10 @@ def create_profile(db, user, application_id: int, raw_answers) -> dict:
     if db.execute("SELECT 1 FROM ai_use_profiles WHERE application_id = %s", (application_id,)).fetchone():
         raise ServiceError(409, "This application already has an AI profile.", application_id=application_id)
     answers = _clean_answers(db, user, raw_answers or {})
+    if isinstance(raw_answers, dict) and "sponsor_user_id" in raw_answers:
+        answers["sponsor_user_id"] = _sponsor(db, user, application_id, raw_answers["sponsor_user_id"])
     profile = _insert_profile(db, user, application_id, answers)
-    return {"profile": _profile(db.execute("SELECT * FROM ai_use_profiles WHERE application_id = %s",
-                                           (application_id,)).fetchone()),
+    return {"profile": get_profile(db, user, application_id),
             "events": [], "audit": [("ai_profile_created", "application", application_id,
                                      f"provisional tier {profile['provisional_tier']}")]}
 
@@ -684,6 +866,11 @@ def retire(db, user, application_id: int, reason) -> dict:
         "WHERE id = %s AND is_active = 1", (reason, _now(), user["id"], _now(), application_id)).rowcount
     if done != 1:
         raise ServiceError(409, "This application is already retired.")
+    from modules.governance import change_signals
+    change_signals.publish(
+        db, source=("governance", "application", application_id), kind="application_changed",
+        before={"is_active": 1}, after={"is_active": 0}, fields={"is_active": "In use"},
+        actor_id=user["id"], org_id=user.get("org_id"))
     event = events.enqueue(db, events.AI_USE_RETIRED, "ai_governance", "application", application_id,
                            {"application_id": application_id}, user_id=user["id"], org_id=user.get("org_id"),
                            dedup_key=f"ai_use.retired:{application_id}")
@@ -700,6 +887,11 @@ def restore(db, user, application_id: int) -> dict:
         "updated_at = %s WHERE id = %s AND is_active = 0", (_now(), application_id)).rowcount
     if done != 1:
         raise ServiceError(409, "This application is not retired.")
+    from modules.governance import change_signals
+    change_signals.publish(
+        db, source=("governance", "application", application_id), kind="application_changed",
+        before={"is_active": 0}, after={"is_active": 1}, fields={"is_active": "In use"},
+        actor_id=user["id"], org_id=user.get("org_id"))
     return {"application_id": application_id, "events": [],
             "audit": [("ai_use_restored", "application", application_id, "restored")]}
 
@@ -729,7 +921,7 @@ def _normal(name: str) -> str:
 def find_duplicates(db, user, name, provider=None, limit=5) -> list:
     """Applications the user may open that this use may already be, with the reason each matched. Hidden applications
     never appear: a reviewer matches those from their own, wider, view."""
-    _require(user, "ai_use.submit")
+    _require(user, "ai_use.intake_create")
     want, vendor = _normal(name), _normal(provider)
     if len(want) < 3 and len(vendor) < 3:
         return []

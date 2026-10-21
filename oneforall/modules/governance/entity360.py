@@ -76,19 +76,20 @@ def _header(db, user, key, record_id, shown) -> dict:
 
 
 def _connections(db, user, key, record_id) -> list:
-    links = relationships.list_links(db, user, key, record_id, include_candidates=True)
+    links = relationships.list_links(db, user, key, record_id, include_candidates=True, include_rejected=True)
     grouped = {}
     for link in links:
         grouped.setdefault(link["module"], []).append({
             "title": link["title"], "url": link["url"], "entity_type": link["entity_type"], "entity_id": link["entity_id"],
             "kind_label": KIND_LABELS.get(canonical_key(link["module"], link["entity_type"]), link["entity_type"].replace("_", " ")),
-            "relationship": link["label"], "confirmed": link["status"] == "confirmed",
+            "relationship": link["label"], "confirmed": link["status"] == "confirmed", "state": link["state"],
             "provenance": link["provenance"]})
     sections = []
     for module in sorted(grouped, key=lambda m: _ORDER.index(m) if m in _ORDER else 99):
         items = grouped[module]
         sections.append({"key": module, "title": MODULE_TITLES.get(module, module), "state": "ok", "items": items,
-                         "proposed": sum(1 for i in items if not i["confirmed"])})
+                         "proposed": sum(1 for i in items if i["state"] == "suggested"),
+                         "disputed": sum(1 for i in items if i["state"] == "disputed")})
     return sections
 
 
@@ -140,6 +141,6 @@ def get_connected(db, user: dict, module, entity_type, record_id) -> "dict | Non
         "unavailable": [connections] if isinstance(connections, dict) else [],
         "proof": _guarded("Proof held in the Evidence Vault", lambda: _proof(db, user, key, record_id)),
         "changes": _guarded("Changes to look at", lambda: _signals(db, user, key, record_id)),
-        "note": ("Read just now through your own access. A connected record you cannot open is not shown or counted, and a "
-                 "connection nobody has confirmed is marked as proposed."),
+        "note": ("Read just now through your own access. A connected record you cannot open is not shown or counted. A "
+                 "connection nobody has confirmed is marked as proposed, and one somebody declined is marked as disputed."),
     }

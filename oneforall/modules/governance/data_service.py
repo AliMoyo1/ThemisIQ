@@ -1092,18 +1092,30 @@ _TASK_TITLE_MAX = 255
 
 
 def list_regulatory_updates(status: str | None = None) -> list:
+    import hashlib
     db = get_db()
     try:
         if status:
             rows = db.execute(
-                "SELECT * FROM regulatory_updates WHERE status=%s ORDER BY created_at DESC",
+                "SELECT r.*,v.summary_hash,v.decision AS review_decision,v.reviewed_by,v.reviewed_at "
+                "FROM regulatory_updates r LEFT JOIN regulatory_ai_reviews v ON v.update_id=r.id "
+                "WHERE r.status=%s ORDER BY r.created_at DESC",
                 (status,)
             ).fetchall()
         else:
             rows = db.execute(
-                "SELECT * FROM regulatory_updates ORDER BY created_at DESC"
+                "SELECT r.*,v.summary_hash,v.decision AS review_decision,v.reviewed_by,v.reviewed_at "
+                "FROM regulatory_updates r LEFT JOIN regulatory_ai_reviews v ON v.update_id=r.id "
+                "ORDER BY r.created_at DESC"
             ).fetchall()
-        return _dicts(rows)
+        items = _dicts(rows)
+        for item in items:
+            digest = hashlib.sha256((item["ai_summary"] or "").encode("utf-8")).hexdigest()
+            reviewed = bool(item["ai_summary"] and item["summary_hash"] == digest)
+            item["ai_review_state"] = item["review_decision"] if reviewed else "pending"
+            if not item["ai_summary"]:
+                item["ai_review_state"] = "none"
+        return items
     finally:
         db.close()
 
@@ -1143,7 +1155,8 @@ def update_regulatory_update(rid: int, data: dict) -> bool:
             severity = "info"
         db.execute(
             "UPDATE regulatory_updates SET framework_name=%s, title=%s, summary=%s, "
-            "source_url=%s, effective_date=%s, affected_refs=%s, severity=%s, updated_at=%s "
+            "source_url=%s, effective_date=%s, affected_refs=%s, severity=%s, updated_at=%s, "
+            "status='open',ai_summary=NULL,matched_count=NULL,processed_at=NULL "
             "WHERE id=%s",
             (data.get("framework_name", "").strip(),
              data.get("title", "").strip(),

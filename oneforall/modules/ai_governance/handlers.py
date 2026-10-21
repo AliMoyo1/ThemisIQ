@@ -34,6 +34,14 @@ def _notify(db, event_id, user_id, title, message, link) -> None:
         (user_id, title, message, link, event_id))
 
 
+def _ask_email(db, template, person, org_id, route, fields, source, purpose, threshold="") -> None:
+    """Ask the email outbox to tell a named person (best effort: the in-app notice is the record that they were told).
+    The outbox checks again at the moment of sending that they are active, may open the record and still have it."""
+    from core import email_outbox
+    email_outbox.enqueue_safely(db, template, recipient_user_id=person, org_id=org_id, route=route, fields=fields,
+                                source=source, purpose=purpose, threshold=threshold)
+
+
 def _reviewers(db, row, org_id) -> list:
     """People who hold the review capability and may see this request: its organization, and its business unit or one
     above it (an organization-wide request reaches every reviewer). The author is not told about their own request."""
@@ -61,9 +69,54 @@ def tell_reviewers(*, payload=None, event_id=None, org_id=None, **kw):
         row = _intake(db, (payload or {}).get("intake_id"))
         if row is None or row["status"] != "submitted":
             return  # withdrawn or already decided since: nobody is waiting on it any more
+        if row["assigned_reviewer_id"] is not None:
+            return  # a named reviewer was told when they were named; the others are not nagged about it
         for reviewer in _reviewers(db, row, org_id):
             _notify(db, event_id, reviewer, "AI use waiting for review", f"{_name(row)} was submitted for review.",
                     "/ai-governance/review")
+        db.commit()
+    finally:
+        db.close()
+
+
+@events.on(events.AI_REVIEWER_ASSIGNED)
+def tell_assigned_reviewer(*, payload=None, event_id=None, org_id=None, **kw):
+    """The named reviewer hears in the app and by email. Skipped if the request moved on or the name was changed again."""
+    db = get_db()
+    try:
+        data = payload or {}
+        row = _intake(db, data.get("intake_id"))
+        if row is None or row["status"] != "submitted" or row["assigned_reviewer_id"] != data.get("assignee_id"):
+            return
+        person = row["assigned_reviewer_id"]
+        _notify(db, event_id, person, "An AI use request was assigned to you for review",
+                f"{_name(row)} is waiting for your review.", "/ai-governance/review")
+        db.commit()
+        _ask_email(db, "action.assigned", person, org_id, "/ai-governance/review",
+                   {"kind": "ai_use_review", "reference": f"AIR-{row['id']}"}, ("ai_governance", "intake", row["id"]),
+                   "assigned", threshold=str(person))
+        db.commit()
+    finally:
+        db.close()
+
+
+@events.on(events.AI_DECIDER_ASSIGNED)
+def tell_assigned_decider(*, payload=None, event_id=None, org_id=None, **kw):
+    """The named decider hears in the app and by email that a decision is asked of them (not that anything is approved)."""
+    db = get_db()
+    try:
+        data = payload or {}
+        row = _decision(db, data.get("decision_id"))
+        if row is None or row["status"] != "proposed" or row["assigned_decider_id"] != data.get("assignee_id"):
+            return
+        app = _application(db, row["application_id"])
+        person = row["assigned_decider_id"]
+        _notify(db, event_id, person, "A decision on an AI use was asked of you", f"{app['name']} is waiting for your decision.",
+                _system_link(app))
+        db.commit()
+        _ask_email(db, "decision.ready", person, org_id, f"/ai-governance/systems/{app['id']}",
+                   {"reference": f"AID-{row['id']}"}, ("ai_governance", "decision", row["id"]), "assigned",
+                   threshold=str(person))
         db.commit()
     finally:
         db.close()
@@ -143,6 +196,8 @@ def tell_deciders(*, payload=None, event_id=None, org_id=None, **kw):
         row = _decision(db, (payload or {}).get("decision_id"))
         if row is None or row["status"] != "proposed":
             return  # withdrawn or decided since: nobody is waiting on it any more
+        if row["assigned_decider_id"] is not None:
+            return  # a named decider was told when they were named
         app = _application(db, row["application_id"])
         skip = {row["requested_by"]}
         if ai_rollout.separation_required(org_id):
@@ -321,7 +376,7 @@ def tell_owner_about_regulatory_change(*, payload=None, event_id=None, user_id=N
         db.close()
 
 
-# ── Review packs and AI literacy ────────────────────────────────────────────
+# ── Review packs ─────────────────────────────────────────────────────────────
 
 @events.on(events.AI_PACK_ISSUED)
 def tell_recipient_of_pack(*, payload=None, event_id=None, user_id=None, **kw):
@@ -334,23 +389,6 @@ def tell_recipient_of_pack(*, payload=None, event_id=None, user_id=None, **kw):
             return
         _notify(db, event_id, data["recipient_id"], "A review pack was shared with you",
                 f"{row['name']}: {row['application_name']}.", f"/ai-governance/packs/{row['id']}")
-        db.commit()
-    finally:
-        db.close()
-
-
-@events.on(events.AI_LITERACY_PUBLISHED)
-def tell_assignees_of_course(*, payload=None, event_id=None, org_id=None, user_id=None, **kw):
-    """People a published course applies to hear once that it is theirs to complete, whoever published it excepted."""
-    from modules.ai_governance import literacy
-    db = get_db()
-    try:
-        data = payload or {}
-        for person in literacy.assignees_of(db, data.get("course_id"), org_id):
-            if person != user_id:
-                _notify(db, event_id, person, "An AI literacy course was assigned to you",
-                        f"{data.get('title') or 'A course'} is due within {data.get('due_days') or 30} days.",
-                        f"/ai-governance/literacy/{data.get('course_id')}")
         db.commit()
     finally:
         db.close()

@@ -69,6 +69,74 @@ def _headers(batch) -> list:
     return json.loads(batch["headers"] or "[]")
 
 
+def list_saved_mappings(db, user) -> dict:
+    service._require(user, "ai_use.review")
+    org_id = user.get("org_id")
+    if not org_id:
+        return {"mappings": []}
+    rows = db.execute(
+        "SELECT id, name, source_system, form_name, mapping, mapping_version, "
+        "date_order, headers, created_at FROM ai_import_saved_mappings "
+        "WHERE org_id=%s AND archived_at IS NULL ORDER BY name, id",
+        (org_id,),
+    ).fetchall()
+    return {"mappings": [
+        {"id": row["id"], "name": row["name"], "source_system": row["source_system"],
+         "form_name": row["form_name"], "mapping": json.loads(row["mapping"]),
+         "mapping_version": row["mapping_version"], "date_order": row["date_order"],
+         "headers": json.loads(row["headers"]), "created_at": service._text(row["created_at"])}
+        for row in rows
+    ]}
+
+
+def save_mapping(db, user, batch_id, name) -> dict:
+    if type(batch_id) is not int or batch_id <= 0:
+        raise ServiceError(422, "Choose a previewed import before saving a mapping.")
+    batch = _load(db, user, batch_id)
+    if batch["status"] == "discarded" or batch["org_id"] != user.get("org_id"):
+        raise ServiceError(404, "Import not found.")
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 120:
+        raise ServiceError(422, "Give the mapping a name of at most 120 characters.")
+    if batch["mapping_version"] != ir.GUIDE_VERSION:
+        raise ServiceError(409, "The form guide changed. Preview the file again before saving this mapping.")
+    mapping = json.loads(batch["mapping"] or "{}")
+    headers = _headers(batch)
+    if ir.validate_mapping(mapping, headers):
+        raise ServiceError(409, "The previewed mapping is no longer valid. Read the file again.")
+    mapping_id = insert_returning_id(
+        db,
+        "INSERT INTO ai_import_saved_mappings "
+        "(org_id, name, source_system, form_name, mapping, mapping_version, "
+        "date_order, headers, saved_from_batch_id, created_by) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+        (batch["org_id"], name.strip(), batch["source_system"], batch["form_name"],
+         batch["mapping"], batch["mapping_version"], batch["date_order"],
+         batch["headers"], batch_id, user["id"]),
+    )
+    if mapping_id is None:
+        raise ServiceError(409, "A saved mapping with that name already exists.")
+    return {"id": mapping_id, "audit": [
+        ("ai_import_mapping_saved", "ai_import_mapping", mapping_id, "Form mapping saved")
+    ]}
+
+
+def archive_mapping(db, user, mapping_id) -> dict:
+    service._require(user, "ai_use.review")
+    org_id = user.get("org_id")
+    if not org_id:
+        raise ServiceError(404, "Saved mapping not found.")
+    updated = db.execute(
+        "UPDATE ai_import_saved_mappings SET archived_at=%s "
+        "WHERE id=%s AND org_id=%s AND archived_at IS NULL",
+        (utcnow().strftime("%Y-%m-%d %H:%M:%S"), mapping_id, org_id),
+    )
+    if updated.rowcount != 1:
+        raise ServiceError(404, "Saved mapping not found.")
+    return {"ok": True, "audit": [
+        ("ai_import_mapping_archived", "ai_import_mapping", mapping_id, "Form mapping archived")
+    ]}
+
+
 # ── People and applications a response might refer to ───────────────────────
 
 def owner_candidates(db, user, hint) -> list:

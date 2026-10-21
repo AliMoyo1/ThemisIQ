@@ -21,11 +21,97 @@ from core.shell_context import shell_ctx
 from core.sql_like import ci_like, like_pattern
 from database import get_db, insert_returning_id, sql_date_offset, sql_date_ts, sql_current_date
 from modules.evidence import find as finder, inspector, proof
+from modules.evidence.indexer import indexing_enabled, snippets_for_page
 from modules.evidence.scope import current_library_sql, evidence_scope_sql, evidence_search_sql
-from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql
+from modules.governance.entity_scope import _KINDS, canonical_key, describe_record, describe_records, entity_scope_sql, record_unit
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 log = logging.getLogger("oneforall.evidence")
+
+
+@router.get("/api/legacy-files")
+@require_auth
+async def legacy_files(request: Request):
+    """Migration inventory for a tenant administrator. No historical paths leave the server."""
+    user = request.state.user
+    if not user.get("org_id") or not has_capability(user, "platform.manage_users"):
+        raise HTTPException(403, "Forbidden")
+    from modules.evidence import legacy_migration as migration
+    can_grid = has_capability(user, "module.grid.access")
+    can_bcm = has_capability(user, "module.bcm.access")
+    return JSONResponse({"grid_files": migration.grid_inventory(user) if can_grid else [],
+                         "grid_versions": migration.grid_version_inventory(user) if can_grid else [],
+                         "bcm_files": migration.bcm_inventory(user) if can_bcm else [],
+                         "grid_access": can_grid, "bcm_access": can_bcm,
+                         "grid_migrate": has_capability(user, "grid.evidence.upload"),
+                         "bcm_reconcile": has_capability(user, "bcm.compliance.manage")})
+
+
+@router.post("/api/legacy-files/grid/{source_id}/migrate")
+@require_auth
+async def migrate_legacy_grid(request: Request, source_id: int):
+    user = request.state.user
+    if not user.get("org_id") or not has_capability(user, "platform.manage_users"):
+        raise HTTPException(403, "Forbidden")
+    from modules.evidence import legacy_migration as migration
+    try:
+        vault_id = migration.migrate_grid_file(source_id, user)
+    except LookupError:
+        raise HTTPException(404, "File not found") from None
+    except PermissionError:
+        raise HTTPException(403, "Forbidden") from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    from core.middleware import log_audit
+    log_audit(user, "evidence", "Migrated historical GRID file", "grid_evidence_files", source_id,
+              details=f"Vault item {vault_id}")
+    return JSONResponse({"vault_evidence_id": vault_id})
+
+
+@router.post("/api/legacy-files/grid-versions/{version_id}/migrate")
+@require_auth
+async def migrate_legacy_grid_version(request: Request, version_id: int):
+    user = request.state.user
+    if not user.get("org_id") or not has_capability(user, "platform.manage_users"):
+        raise HTTPException(403, "Forbidden")
+    from modules.evidence import legacy_migration as migration
+    try:
+        vault_id = migration.migrate_grid_version(version_id, user)
+    except LookupError:
+        raise HTTPException(404, "Version not found") from None
+    except PermissionError:
+        raise HTTPException(403, "Forbidden") from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    from core.middleware import log_audit
+    log_audit(user, "evidence", "Migrated historical GRID version", "grid_evidence_versions", version_id,
+              details=f"Vault item {vault_id}")
+    return JSONResponse({"vault_evidence_id": vault_id})
+
+
+@router.post("/api/legacy-files/bcm/{source_id}/reconcile")
+@require_auth
+async def reconcile_legacy_bcm(request: Request, source_id: int):
+    user = request.state.user
+    if not user.get("org_id") or not has_capability(user, "platform.manage_users"):
+        raise HTTPException(403, "Forbidden")
+    body = await _json_body(request)
+    vault_id = body.get("vault_evidence_id")
+    if type(vault_id) is not int or vault_id < 1:
+        raise HTTPException(400, "Choose a Vault artifact")
+    from modules.evidence import legacy_migration as migration
+    try:
+        linked_id = migration.reconcile_bcm_file(source_id, vault_id, user)
+    except LookupError:
+        raise HTTPException(404, "BCM reference or artifact not found") from None
+    except PermissionError:
+        raise HTTPException(403, "Forbidden") from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    from core.middleware import log_audit
+    log_audit(user, "evidence", "Reconciled historical BCM reference", "bcm_compliance_evidence", source_id,
+              details=f"Vault item {linked_id}")
+    return JSONResponse({"vault_evidence_id": linked_id})
 
 # PLAN-36 P06: registers this list's exact query-param names (matching
 # GET /api/items below) as the allowlist a saved view may store for this
@@ -232,6 +318,9 @@ async def evidence_page(request: Request):
     """Evidence repository SPA page."""
     ctx = shell_ctx(request, active_module="evidence", active_section="evidence")
     ctx["can_bulk_archive"] = has_capability(request.state.user, "evidence.delete")
+    ctx["can_manage_legacy"] = bool(
+        request.state.user.get("org_id") and
+        has_capability(request.state.user, "platform.manage_users"))
     return shell_templates.TemplateResponse(request, "evidence_index.html", ctx)
 
 
@@ -328,6 +417,8 @@ def _library_page(user: dict, qp, size: int = None) -> dict:
             [*params, page_size, (page - 1) * page_size],
         ).fetchall()
         claims = _claims_for(db, user, [r["id"] for r in rows])
+        terms = [str(qp.get("q") or "").strip(), *str(qp.get("words") or "").split()[:finder.WORDS_MAX]]
+        snippets = snippets_for_page(db, rows, terms)
     finally:
         db.close()
     today = proof.today()
@@ -341,6 +432,7 @@ def _library_page(user: dict, qp, size: int = None) -> dict:
         item["review_due"] = proof.due(item.get("review_due_date"), today, within_days=30)
         shown = claims.get(item["id"], {"claims": [], "more": 0, "hidden": 0})
         item["claims"], item["claims_more"], item["claims_hidden"] = shown["claims"], shown["more"], shown["hidden"]
+        item["text_match"] = snippets.get(item["id"])
         items.append(item)
     return {"items": items, "total": total, "page": page, "page_size": page_size, "pages": pages}
 
@@ -399,7 +491,8 @@ async def api_evidence_find(request: Request):
     results = [{"id": r["id"], "title": r["title"], "version": r["version"], "state": r["state"],
                 "expiry_date": r.get("expiry_date"), "review_due_date": r.get("review_due_date"),
                 "owner_name": r.get("owner_name"), "claims": r["claims"], "claims_hidden": r["claims_hidden"],
-                "url": f"/evidence/?open=item:{r['id']}", "why": finder.reasons(r, filters)} for r in page["items"]]
+                "url": f"/evidence/?open=item:{r['id']}", "why": finder.reasons(r, filters),
+                "text_match": r.get("text_match")} for r in page["items"]]
     return JSONResponse({"filters": filters, "mode": mode, "note": note, "total": page["total"], "results": results,
                          "message": None if results else "No accessible match. Nothing you may open fits those filters.",
                          "vocabulary": finder.vocabulary()})
@@ -441,8 +534,11 @@ async def api_evidence_upload(
     review_due_date: str = Form(""),
     period_start: str = Form(""),
     period_end: str = Form(""),
+    link_module: str = Form(""),
+    link_entity_type: str = Form(""),
+    link_entity_id: str = Form(""),
 ):
-    """Upload a new evidence file."""
+    """Upload a file and optionally create a pending link in one transaction."""
     user = request.state.user
     if not user.get("is_super_admin") and not user.get("org_id"):
         raise HTTPException(403, "Your account has no organization to upload evidence for")
@@ -464,8 +560,25 @@ async def api_evidence_upload(
     if file.size and file.size > MAX_FILE_SIZE:
         raise HTTPException(413, "File too large (max 100MB)")
 
-    EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
-    content = await file.read()
+    # Direct callers in the route tests omit the optional Form fields.
+    link_module = _s(link_module) if isinstance(link_module, str) else ""
+    link_entity_type = _s(link_entity_type) if isinstance(link_entity_type, str) else ""
+    link_entity_id = _s(link_entity_id) if isinstance(link_entity_id, str) else ""
+    selected_target = bool(link_module or link_entity_type or link_entity_id)
+    if selected_target and not all((link_module, link_entity_type, link_entity_id)):
+        return JSONResponse({"error": "Choose a complete claim to link."}, status_code=422)
+    target_id = None
+    if selected_target:
+        try:
+            target_id = int(link_entity_id)
+        except ValueError:
+            return JSONResponse({"error": "Choose a valid claim."}, status_code=422)
+        if target_id <= 0:
+            return JSONResponse({"error": "Choose a valid claim."}, status_code=422)
+
+    content = await file.read(MAX_FILE_SIZE + 1)
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(413, "File too large (max 100MB)")
 
     # Magic-byte check: verify content matches declared extension
     original_ext_check = Path(file.filename or "file").suffix.lower()
@@ -483,7 +596,43 @@ async def api_evidence_upload(
     # ── Duplicate detection (scoped to the caller's own org -- a hash match
     # in another org must never confirm that org's document exists) ────────
     db = get_db()
+    dest = None
     try:
+        if selected_target and not _visible_target(db, (link_module, link_entity_type), target_id, user):
+            raise HTTPException(404, "Link target not found")
+        target_unit = None
+        if selected_target:
+            _, target_unit = record_unit(db, link_module, link_entity_type, target_id, user=user)
+
+        parent_id = None
+        parent_row = None
+        version_num = 1
+        replacement = replace_id.strip() if isinstance(replace_id, str) else ""
+        if replacement:
+            try:
+                rid = int(replacement)
+            except ValueError:
+                return JSONResponse({"error": "Choose a valid version to replace."}, status_code=422)
+            if rid <= 0:
+                return JSONResponse({"error": "Choose a valid version to replace."}, status_code=422)
+            parent_row = _scoped_evidence_item(db, rid, user)
+            if not parent_row:
+                raise HTTPException(404, "Evidence not found")
+            if parent_row["status"] != "current":
+                return JSONResponse({"error": "Only the current version can be replaced."}, status_code=409)
+            parent_id = rid
+            version_num = parent_row["version"] + 1
+            if selected_target and target_unit is not None and parent_row["business_unit_id"] != target_unit:
+                return JSONResponse({"error": "The selected claim belongs to a different business unit."}, status_code=422)
+
+        owner, owner_problem = _clean_owner(db, user, owner_user_id) if str(owner_user_id).strip() else (None, None)
+        if owner_problem:
+            return JSONResponse({"error": owner_problem}, status_code=422)
+        if owner is None and parent_row is not None:
+            owner = parent_row["owner_user_id"]
+        if owner is None:
+            owner = _uid(request)
+
         dupe_scope, dupe_params = evidence_scope_sql(user)
         existing = db.execute(
             "SELECT e.id, e.title, e.status FROM evidence_items e "
@@ -551,52 +700,33 @@ async def api_evidence_upload(
         stored_name = f"{uuid.uuid4().hex}{ext}"
         dest = EVIDENCE_DIR / stored_name
 
+        EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
         with open(dest, "wb") as f:
             f.write(content)
 
         display_title = title or original_name or "Untitled"
 
-        # ── Version chain: check if this is a new version of existing item ──
-        parent_id = None
-        version_num = 1
-        if replace_id.strip():
-            try:
-                rid = int(replace_id.strip())
-            except (ValueError, TypeError):
-                rid = None
-            if rid:
-                parent_row = _scoped_evidence_item(db, rid, user)
-                if parent_row and parent_row["status"] == "archived":
-                    parent_row = None
-                if parent_row:
-                    parent_id = parent_row["id"]
-                    version_num = parent_row["version"] + 1
-                    # Mark old version as superseded
-                    db.execute(
-                        "UPDATE evidence_items SET status = 'superseded', updated_at = CURRENT_TIMESTAMP WHERE id = %s",
-                        (rid,),
-                    )
-
+        if parent_id is not None:
+            changed = db.execute(
+                "UPDATE evidence_items SET status = 'superseded', updated_at = CURRENT_TIMESTAMP "
+                "WHERE id = %s AND status = 'current'", (parent_id,),
+            )
+            if changed.rowcount != 1:
+                raise HTTPException(409, "The current version changed. Reload and try again.")
         exp = days["expiry_date"]
-        owner, owner_problem = _clean_owner(db, user, owner_user_id) if str(owner_user_id).strip() else (None, None)
-        if owner_problem:
-            return JSONResponse({"error": owner_problem}, status_code=422)
-        if owner is None and parent_id is not None:
-            owner = parent_row["owner_user_id"]  # a new version keeps who answers for the file
-        if owner is None:
-            owner = _uid(request)
 
         eid = insert_returning_id(
             db,
             "INSERT INTO evidence_items (title, description, file_path, file_name, file_size, "
             "file_hash, mime_type, category, tags, version, parent_id, uploaded_by, expiry_date, org_id, "
-            "owner_user_id, review_due_date, period_start, period_end) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "owner_user_id, review_due_date, period_start, period_end, business_unit_id) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 display_title, description, str(stored_name), original_name,
                 len(content), file_hash, declared_mime,
                 category, tags, version_num, parent_id, _uid(request), exp, org_id,
                 owner, days["review_due_date"], days["period_start"], days["period_end"],
+                (parent_row["business_unit_id"] if parent_row is not None else target_unit),
             )
         )
         impact = None
@@ -613,14 +743,37 @@ async def api_evidence_upload(
                 extra_targets=[(r["module"], r["entity_type"], r["entity_id"]) for r in db.execute(
                     "SELECT module, entity_type, entity_id FROM evidence_links WHERE evidence_id = %s AND deleted_at IS NULL",
                     (parent_id,)).fetchall()])
+        link = None
+        if selected_target:
+            # A replacement may already have proposed this link through carry_forward.
+            present = db.execute(
+                "SELECT id FROM evidence_links WHERE evidence_id = %s AND module = %s AND entity_type = %s "
+                "AND entity_id = %s AND deleted_at IS NULL",
+                (eid, link_module, link_entity_type, target_id),
+            ).fetchone()
+            lid = present["id"] if present else insert_returning_id(
+                db,
+                "INSERT INTO evidence_links (evidence_id, module, entity_type, entity_id, linked_by) "
+                "VALUES (%s,%s,%s,%s,%s)",
+                (eid, link_module, link_entity_type, target_id, _uid(request)),
+            )
+            link = {"id": lid, "module": link_module, "entity_type": link_entity_type,
+                    "entity_id": target_id, "review_status": "pending"}
+        if selected_target or (impact and impact["carried"]):
+            recompute_confidence(db, eid)
         db.commit()
+    except Exception:
+        db.rollback()
+        if dest is not None:
+            dest.unlink(missing_ok=True)
+        raise
     finally:
         db.close()
     _rescore_controls(touched_controls)
 
     return JSONResponse({
         "id": eid, "title": display_title, "version": version_num,
-        "file_hash": file_hash, "duplicate": False, "impact": impact,
+        "file_hash": file_hash, "duplicate": False, "impact": impact, "link": link,
     }, status_code=201)
 
 
@@ -640,6 +793,16 @@ async def api_evidence_get(request: Request, eid: int):
         if not item:
             raise HTTPException(404, "Evidence not found")
         result = dict(item)
+        index_row = db.execute(
+            "SELECT status,error_code FROM evidence_text_index "
+            "WHERE evidence_id=%s AND file_hash=%s AND COALESCE(org_id,-1)=COALESCE(%s,-1) "
+            "AND COALESCE(business_unit_id,-1)=COALESCE(%s,-1)",
+            (eid, result["file_hash"] or "", result["org_id"], result["business_unit_id"]),
+        ).fetchone()
+        result["text_index"] = (dict(index_row) if index_row else
+                                {"status": ("pending" if indexing_enabled() else "disabled")
+                                 if result["file_path"] else "not_applicable",
+                                 "error_code": None})
         links = []
         for r in db.execute(
             "SELECT el.*, u.full_name as linked_by_name, ru.full_name as reviewed_by_name FROM evidence_links el "
@@ -873,7 +1036,7 @@ async def api_evidence_permanent_delete(request: Request, eid: int):
     if item["file_path"]:
         try:
             fp = (EVIDENCE_DIR / item["file_path"]).resolve()
-            if str(fp).startswith(str(EVIDENCE_DIR.resolve())) and fp.exists():
+            if fp.is_relative_to(EVIDENCE_DIR.resolve()) and fp.exists():
                 fp.unlink()
         except Exception:
             pass
@@ -917,7 +1080,7 @@ async def api_evidence_download(request: Request, eid: int):
         # Primary: look in the evidence directory
         if fp_rel:
             candidate = (EVIDENCE_DIR / fp_rel).resolve()
-            if (str(candidate).startswith(str(EVIDENCE_DIR.resolve()))
+            if (candidate.is_relative_to(EVIDENCE_DIR.resolve())
                     and candidate.exists()):
                 return FileResponse(str(candidate), filename=fname, media_type=mime)
 
@@ -939,7 +1102,7 @@ async def api_evidence_download(request: Request, eid: int):
                 src_rel = aria_doc["branded_file_path"] or aria_doc["file_path"]
                 if src_rel:
                     src_abs = (aria_dir / src_rel).resolve()
-                    if (str(src_abs).startswith(str(aria_dir.resolve()))
+                    if (src_abs.is_relative_to(aria_dir.resolve())
                             and src_abs.exists()):
                         dl_name = aria_doc["file_name"] or fname
                         dl_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -980,7 +1143,7 @@ async def api_evidence_download_pdf(request: Request, eid: int):
         file_path = None
         if fp_rel:
             candidate = (EVIDENCE_DIR / fp_rel).resolve()
-            if str(candidate).startswith(str(EVIDENCE_DIR.resolve())) and candidate.exists():
+            if candidate.is_relative_to(EVIDENCE_DIR.resolve()) and candidate.exists():
                 file_path = candidate
 
         if not file_path:
@@ -1001,7 +1164,7 @@ async def api_evidence_download_pdf(request: Request, eid: int):
                     src_rel = aria_doc["branded_file_path"] or aria_doc["file_path"]
                     if src_rel:
                         src_abs = (aria_dir / src_rel).resolve()
-                        if str(src_abs).startswith(str(aria_dir.resolve())) and src_abs.exists():
+                        if src_abs.is_relative_to(aria_dir.resolve()) and src_abs.exists():
                             file_path = src_abs
                             if not item["file_name"]:
                                 item = dict(item)
@@ -1086,47 +1249,46 @@ async def api_evidence_download_pdf(request: Request, eid: int):
 @router.get("/api/items/{eid}/versions")
 @require_auth
 async def api_evidence_versions(request: Request, eid: int):
-    """Get the full version chain for an evidence item (newest first)."""
+    """Get only versions this viewer can open (newest first)."""
     db = get_db()
     try:
-        if not _scoped_evidence_item(db, eid, request.state.user):
+        user = request.state.user
+        if not _scoped_evidence_item(db, eid, user):
             raise HTTPException(404, "Evidence not found")
-        # Walk up to find the root
+        # Walk only through versions the viewer may open. A hidden ancestor
+        # does not disclose siblings or the shape of its private branch.
         root_id = eid
         seen = {root_id}
         while True:
-            row = db.execute(
-                "SELECT parent_id FROM evidence_items WHERE id = %s", (root_id,)
-            ).fetchone()
+            row = _scoped_evidence_item(db, root_id, user)
             if not row or not row["parent_id"]:
                 break
             if row["parent_id"] in seen:
                 break  # safety: prevent infinite loop on corrupt data
+            if not _scoped_evidence_item(db, row["parent_id"], user):
+                break
             seen.add(row["parent_id"])
             root_id = row["parent_id"]
 
-        # Walk down from root collecting all versions
+        # Walk down from the visible root, excluding hidden branches at SQL level.
         versions = []
         queue = [root_id]
         visited = set()
+        child_scope, child_params = evidence_scope_sql(user)
         while queue:
             current = queue.pop(0)
             if current in visited:
                 continue
             visited.add(current)
-            item = db.execute(
-                "SELECT id, title, version, status, file_hash, file_size, file_name, "
-                "parent_id, uploaded_by, created_at FROM evidence_items WHERE id = %s",
-                (current,),
-            ).fetchone()
+            item = _scoped_evidence_item(db, current, user)
             if item:
-                versions.append(dict(item))
-                # Find children (newer versions pointing to this as parent)
-                children = db.execute(
-                    "SELECT id FROM evidence_items WHERE parent_id = %s", (current,)
-                ).fetchall()
-                for c in children:
-                    queue.append(c["id"])
+                versions.append({"id": item["id"], "title": item["title"], "version": item["version"],
+                                 "status": item["status"], "created_at": str(item["created_at"])})
+            children = db.execute(
+                f"SELECT e.id FROM evidence_items e WHERE e.parent_id = %s AND {child_scope}",
+                [current, *child_params],
+            ).fetchall()
+            queue.extend(c["id"] for c in children)
 
         versions.sort(key=lambda v: v["version"], reverse=True)
     finally:
@@ -1157,7 +1319,7 @@ async def api_evidence_verify(request: Request, eid: int):
         })
 
     file_on_disk = (EVIDENCE_DIR / item["file_path"]).resolve()
-    if not str(file_on_disk).startswith(str(EVIDENCE_DIR.resolve())):
+    if not file_on_disk.is_relative_to(EVIDENCE_DIR.resolve()):
         return JSONResponse({
             "verified": False,
             "reason": "path_violation",
@@ -1790,7 +1952,7 @@ async def api_search_entities(request: Request):
     entity_type = request.query_params.get("entity_type", "")
     q = request.query_params.get("q", "")
 
-    valid_modules = frozenset({"aria", "grid", "bcm", "sentinel", "erm"})
+    valid_modules = frozenset({"aria", "grid", "bcm", "sentinel", "erm", "governance"})
     if module not in valid_modules:
         return JSONResponse({"error": "Invalid module"}, 400)
 
@@ -1826,6 +1988,7 @@ async def api_evidence_coverage_definitions(request: Request):
     return JSONResponse({
         "as_of": proof.today(),
         "denominator": "Records of this kind that you may open in the owning module. A record you cannot open is not counted.",
+        "empty_denominator": "Not measured means there are no eligible records in this scope. It is not zero coverage.",
         "measures": {
             "linked": {
                 "label": "Has a live link",
@@ -1849,7 +2012,12 @@ async def api_evidence_coverage_definitions(request: Request):
 async def api_evidence_coverage(request: Request):
     """For each module and kind of record the caller may open: how many have a live link, current proof, and an accepted
     link. `with_evidence` and `pct` keep their old meaning (a live link); see /api/coverage/definitions."""
-    user = request.state.user
+    return JSONResponse(coverage_for(request.state.user))
+
+
+def coverage_for(user) -> dict:
+    """The coverage of one person's scope: per module, how many records they may open and how many of those have a
+    live link, current proof and an accepted link. Read by the Evidence Vault and by the Command Centre."""
     allowed_modules = set(user_modules(user))
     checks = [
         ("aria", "control", ("control",)),
@@ -1873,7 +2041,7 @@ async def api_evidence_coverage(request: Request):
     ]
 
     def pct(part, whole):
-        return round(part / whole * 100) if whole else 0
+        return round(part / whole * 100) if whole else None
 
     coverage = {}
     scope_sql, scope_params = evidence_scope_sql(user)
@@ -1928,7 +2096,7 @@ async def api_evidence_coverage(request: Request):
             data["pct_accepted"] = pct(data["accepted"], data["total"])
     finally:
         db.close()
-    return JSONResponse(coverage)
+    return coverage
 
 
 @router.get("/api/stats")

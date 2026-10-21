@@ -12,7 +12,8 @@ from modules.ai_governance import questions as q
 from modules.ai_governance import service
 from tests.test_ai_governance_routes import _submit, http  # noqa: F401
 from tests.test_ai_governance_service import FULL, approve_new, commit, count, fail, roles, submitted, user  # noqa: F401
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 @pytest.fixture
@@ -34,15 +35,15 @@ def test_a_reviewer_asks_and_the_questions_are_numbered_in_order(world, request_
     assert [x["position"] for x in more["questions"]] == [1, 2, 3]
 
 
-def test_only_a_reviewer_in_the_unit_may_ask_or_answer_and_the_author_may_read(world, request_):
-    fail(lambda: q.ask(world.db, user(world, "employee_a"), request_["id"], ["Is this fine for you?"]), 403)
+def test_only_a_specialist_in_the_unit_may_ask_or_answer_and_the_author_may_read(world, request_):
+    fail(lambda: q.ask(world.db, user(world, "staff_a"), request_["id"], ["Is this fine for you?"]), 403)
     fail(lambda: q.ask(world.db, user(world, "dpo_b"), request_["id"], ["Is this fine for you?"]), 404)
     done = ask(world, request_)
     qid = done["questions"][0]["id"]
     fail(lambda: q.answer(world.db, user(world, "dpo_b"), qid, "Yes", "email", 1), 404)
-    fail(lambda: q.answer(world.db, user(world, "employee_a"), qid, "Yes", "email", 1), 403)
+    fail(lambda: q.answer(world.db, user(world, "staff_a"), qid, "Yes", "email", 1), 403)
     seen = q.list_questions(world.db, user(world, "employee_a"), request_["id"])
-    assert [x["text"] for x in seen["questions"]] == ["Which vendor contract covers this?"] and seen["can_ask"] is False
+    assert [x["text"] for x in seen["questions"]] == ["Which vendor contract covers this?"] and seen["can_ask"] is True
     fail(lambda: q.list_questions(world.db, user(world, "dpo_b"), request_["id"]), 404)
     fail(lambda: q.list_questions(world.db, user(world, "owner_b"), request_["id"]), 404)
 
@@ -105,7 +106,7 @@ def test_an_open_question_makes_the_request_waiting_and_the_overview_counts_it_f
     assert [r["id"] for r in service.review_queue(world.db, user(world, "dpo_a"), "waiting")] == [request_["id"]]
     assert q.waiting_ids(world.db, user(world, "dpo_a")) == [request_["id"]]
     card = {c["key"]: c for c in overview.get_overview(world.db, user(world, "dpo_a"))["cards"]}["waiting_for_information"]
-    assert card["value"] == 1 and card["drilldown"] == "/ai-governance/review?status=waiting"
+    assert card["value"] == 1 and card["drilldown"] == "/ai-governance/review?stage=needs_clarification"
     assert service.review_count(world.db, user(world, "dpo_b"), "waiting") == 0
     commit(world, q.answer(world.db, user(world, "dpo_a"), done["questions"][0]["id"], "Yes", "email", 1), user(world, "dpo_a"))
     assert service.review_count(world.db, user(world, "dpo_a"), "waiting") == 0, "answered means no longer waiting"
@@ -118,7 +119,7 @@ def test_the_workspace_names_the_request_a_use_came_from_for_a_reviewer_only(wor
     app = done["application_id"]
     shown = workspace.get_system(world.db, user(world, "dpo_a"), app)
     assert shown["source_request"] == {"id": request_["id"], "revision": 1, "imported": False}
-    assert workspace.get_system(world.db, user(world, "employee_a"), app)["source_request"] is None, "not a reviewer"
+    assert workspace.get_system(world.db, user(world, "viewer_a"), app)["source_request"] is None, "not a reviewer"
     plain = _insert(world.db, "applications", name="Plain", business_unit_id=world.unit["A"], is_active=1)
     assert workspace.get_system(world.db, user(world, "dpo_a"), plain)["source_request"] is None, "never came from a request"
 
@@ -126,13 +127,13 @@ def test_the_workspace_names_the_request_a_use_came_from_for_a_reviewer_only(wor
 def test_questions_through_http(http):
     row = _submit(http, "employee_a")
     base = f"/ai-governance/api/requests/{row['id']}/questions"
-    assert http("post", base, name="employee_a", json={"questions": ["Is this fine?"]}).status_code == 403
+    assert http("post", base, name="staff_a", json={"questions": ["Is this fine?"]}).status_code == 403
     assert http("post", base, name="dpo_b", json={"questions": ["Is this fine?"]}).status_code == 404
     made = http("post", base, name="dpo_a", json={"questions": ["Which vendor contract covers this?"]})
     assert made.status_code == 201 and made.json()["open"] == 1
     assert http("post", base, name="dpo_a", content=b"[1]", headers={"content-type": "application/json"}).status_code == 400
     listed = http("get", base, name="employee_a").json()
-    assert listed["ok"] is True and listed["questions"][0]["status"] == "open" and listed["can_ask"] is False
+    assert listed["ok"] is True and listed["questions"][0]["status"] == "open" and listed["can_ask"] is True
     assert http("get", base, name="auditor").status_code == 403
     exported = http("post", base + "/export", name="dpo_a", json={})
     assert exported.status_code == 200 and "1. Which vendor contract covers this?" in exported.json()["text"]

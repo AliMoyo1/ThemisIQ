@@ -7,7 +7,8 @@ from modules.ai_governance import decisions, monitoring, oversight
 from modules.ai_governance.service import ServiceError
 from modules.governance.data_service import bu_scope_ids
 from modules.launcher.my_work_service import _ai_governance_work
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert  # noqa: F401
+from tests.test_ai_governance_service import platform_world, world  # noqa: F401
 
 
 COMPLETE = {
@@ -21,7 +22,8 @@ COMPLETE = {
 @pytest.fixture
 def system(world):
     for name, (role, _) in PERSONAS.items():
-        world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (world.users[name]["id"], role))
+        world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                         (world.users[name]["id"], role))
     world.app = _insert(world.db, "applications", name="AI A", business_unit_id=world.unit["A"], is_active=1)
     world.hidden = _insert(world.db, "applications", name="AI B", business_unit_id=world.unit["B"], is_active=1)
     _insert(world.db, "ai_use_profiles", application_id=world.app, version=1)

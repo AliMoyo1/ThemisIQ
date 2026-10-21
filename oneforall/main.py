@@ -16,6 +16,8 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from config import settings
 from database import init_db, get_db, get_db_bypass_rls, OperationalError
+from core.ai_client import AIUnavailable
+from core.ai_policy import AIPolicyError
 from core.middleware import (
     security_headers_middleware, csrf_origin_middleware, tenant_context_middleware,
     cors_block_middleware, body_size_limit_middleware, SanitizeJsonMiddleware,
@@ -447,22 +449,27 @@ async def demo_request(request: Request):
         log.error("Demo request DB insert failed: %s", exc)
 
     try:
+        import html as _html
         from core.email import send_email
         admin_to = settings.ADMIN_EMAIL or settings.SMTP_USER
         if admin_to:
-            plan_line = f"<p><strong>Plan interested in:</strong> {plan}</p>" if plan else ""
-            send_email(
+            esc = _html.escape
+            plan_line = f"<p><strong>Plan interested in:</strong> {esc(plan)}</p>" if plan else ""
+            outcome = send_email(
                 to=admin_to,
                 subject=f"Demo Request: {name} ({company or 'no company'})",
                 body_html=(
                     f"<h2>New Demo Request</h2>"
-                    f"<p><strong>Name:</strong> {name}</p>"
-                    f"<p><strong>Email:</strong> {email}</p>"
-                    f"<p><strong>Company:</strong> {company or 'Not provided'}</p>"
+                    f"<p><strong>Name:</strong> {esc(name)}</p>"
+                    f"<p><strong>Email:</strong> {esc(email)}</p>"
+                    f"<p><strong>Company:</strong> {esc(company or 'Not provided')}</p>"
                     f"{plan_line}"
                 ),
                 body_text=f"Demo request\nName: {name}\nEmail: {email}\nCompany: {company}\nPlan: {plan}",
             )
+            if not outcome.get("ok"):
+                log.warning("Demo request email was not accepted by a provider (%s); the request is saved",
+                            outcome.get("status"))
     except Exception as exc:
         log.warning("Demo request email failed (request still logged): %s", exc)
 
@@ -586,6 +593,20 @@ def _wants_json(request: Request) -> bool:
         return True
     xhr = request.headers.get("x-requested-with", "").lower()
     return xhr == "xmlhttprequest"
+
+@app.exception_handler(AIUnavailable)
+async def ai_unavailable_handler(request: Request, exc: AIUnavailable):
+    """A feature that needs the AI assistant and cannot have it says so, in words, and saves nothing."""
+    return JSONResponse({"detail": str(exc), "error": str(exc), "ai_unavailable": True, "reason": exc.reason},
+                        status_code=503)
+
+
+@app.exception_handler(AIPolicyError)
+async def ai_policy_handler(request: Request, exc: AIPolicyError):
+    """The organization's AI policy refused the call. The sentence is safe to show: it names no setting."""
+    return JSONResponse({"detail": str(exc), "error": str(exc), "ai_unavailable": True, "reason": exc.reason},
+                        status_code=403)
+
 
 @app.exception_handler(OperationalError)
 async def db_lock_handler(request: Request, exc: OperationalError):

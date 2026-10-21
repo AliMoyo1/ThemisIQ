@@ -1,5 +1,5 @@
 """
-Sentinel — Multi-Jurisdiction Registry.
+Sentinel multi-jurisdiction registry of indicative internal review targets.
 
 Machine-readable rules consumed by:
   - data_service.py  (breach/DSR deadline calculation)
@@ -8,8 +8,8 @@ Machine-readable rules consumed by:
   - templates        (dynamic UI — authority, deadlines, legal bases)
 
 Keys match the ``regulation`` field stored on every sentinel table.
-breach_hours=None means the law says "immediately" / "ASAP".
-get_breach_deadline_hours() converts that to 24h (conservative floor).
+These legacy values are not approved legal advice. A separately approved rule
+card and case facts are required for an operational legal deadline.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ JURISDICTION_RULES: dict[str, dict] = {
         "authority_short": "National DPA",
         "breach_hours": 72,
         "breach_asap": False,
-        "breach_note": "Notify lead supervisory authority within 72 hours of awareness",
+        "breach_note": "Article 33 provides for notice without undue delay and, where feasible, within 72 hours of awareness unless unlikely to risk individuals' rights and freedoms. Confirm applicability.",
         "dsr_days": 30,
         "dsr_extension_days": 60,
         "dpo_required": True,
@@ -38,7 +38,7 @@ JURISDICTION_RULES: dict[str, dict] = {
         "authority_short": "ICO",
         "breach_hours": 72,
         "breach_asap": False,
-        "breach_note": "Notify the ICO within 72 hours of awareness",
+        "breach_note": "Article 33 provides for notice without undue delay and, where feasible, within 72 hours of awareness unless unlikely to risk individuals' rights and freedoms. Confirm applicability.",
         "dsr_days": 30,
         "dsr_extension_days": 60,
         "dpo_required": True,
@@ -52,9 +52,9 @@ JURISDICTION_RULES: dict[str, dict] = {
         "flag": "🇿🇼",
         "authority": "Postal and Telecommunications Regulatory Authority (POTRAZ)",
         "authority_short": "POTRAZ",
-        "breach_hours": 72,
+        "breach_hours": 24,
         "breach_asap": False,
-        "breach_note": "Notify POTRAZ within 72 hours of discovery",
+        "breach_note": "Section 19 provides a 24-hour authority notice period for a security breach affecting processed data. The statutory trigger needs specialist interpretation.",
         "dsr_days": 30,
         "dsr_extension_days": 0,
         "dpo_required": False,
@@ -70,7 +70,7 @@ JURISDICTION_RULES: dict[str, dict] = {
         "authority_short": "Information Regulator",
         "breach_hours": None,
         "breach_asap": True,
-        "breach_note": "Notify Information Regulator and data subjects immediately upon discovery",
+        "breach_note": "Section 22 requires notification to the Regulator and affected subjects as soon as reasonably possible after discovery, subject to its conditions.",
         "dsr_days": 30,
         "dsr_extension_days": 0,
         "dpo_required": True,
@@ -86,8 +86,8 @@ JURISDICTION_RULES: dict[str, dict] = {
         "authority_short": "ODPC",
         "breach_hours": 72,
         "breach_asap": False,
-        "breach_note": "Notify ODPC within 72 hours of awareness",
-        "dsr_days": 21,
+        "breach_note": "Section 43 requires controller notification within 72 hours of awareness where the breach presents a real risk of harm.",
+        "dsr_days": 7,
         "dsr_extension_days": 0,
         "dpo_required": True,
         "registration_required": True,
@@ -352,6 +352,18 @@ JURISDICTION_RULES: dict[str, dict] = {
     },
 }
 
+# Research identifies a source and a draft interpretation, not an approved rule.
+# Other legacy entries have no validated source in this review and their numeric
+# values are only internal triage targets.
+_BREACH_RESEARCHED = {"GDPR", "UK GDPR", "Zimbabwe CDPA", "South Africa POPIA", "Kenya DPA"}
+_DSR_RESEARCHED = {"GDPR", "UK GDPR", "Kenya DPA", "USA CCPA/CPRA"}
+for _key, _rule in JURISDICTION_RULES.items():
+    _rule["breach_source_status"] = "researched_unapproved" if _key in _BREACH_RESEARCHED else "unverified"
+    _rule["dsr_source_status"] = "researched_unapproved" if _key in _DSR_RESEARCHED else "unverified"
+    if _rule["breach_source_status"] == "unverified":
+        _rule["breach_note"] = ("No validated legal notification period is recorded for this jurisdiction. "
+                                "The legacy countdown is an internal review target only.")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper functions
@@ -369,9 +381,8 @@ def list_jurisdictions() -> list[dict]:
 
 def get_breach_deadline_hours(regulation: str) -> int:
     """
-    Hours from discovery to authority notification deadline.
-    ASAP jurisdictions return 24 (conservative floor for scheduler use).
-    Unknown regulations default to 72.
+    Indicative internal review hours after the recorded discovery date.
+    ASAP entries use a 24-hour internal triage target, not a statutory period.
     """
     j = JURISDICTION_RULES.get(regulation, {})
     if j.get("breach_asap"):
@@ -396,6 +407,11 @@ def breach_clock(regulation, discovery_date) -> dict:
     if rule is None:
         return {"state": "no_rule", "hours": None, "basis": None,
                 "label": f"No rule is configured for {regulation or 'this regulation'}, so no deadline is calculated."}
+    if rule.get("breach_source_status") == "unverified":
+        hours = get_breach_deadline_hours(regulation)
+        return {"state": "unverified", "hours": hours, "basis": "Legacy internal review target",
+                "label": f"No legal notification period has been verified for {regulation}. "
+                         f"The {hours}-hour countdown is an internal review target only."}
     if rule.get("breach_asap"):
         return {"state": "asap", "hours": None, "basis": f"{regulation}: as soon as practicable",
                 "label": f"{regulation} sets no fixed hours (as soon as practicable). Any countdown is an internal target, not a legal deadline."}
@@ -409,7 +425,7 @@ def breach_clock(regulation, discovery_date) -> dict:
 
 
 def get_dsr_deadline_days(regulation: str) -> int:
-    """Days from receipt to DSR response deadline. Defaults to 30."""
+    """Legacy internal DSR review target. Request-specific legal periods need approval."""
     j = JURISDICTION_RULES.get(regulation, {})
     return j.get("dsr_days") or 30
 
@@ -433,7 +449,7 @@ def lia_applies(regulation: str) -> bool:
 
 
 def is_asap_jurisdiction(regulation: str) -> bool:
-    """True when the law requires notification 'immediately' rather than a fixed window."""
+    """True when the legacy registry uses an ASAP internal review target."""
     j = JURISDICTION_RULES.get(regulation, {})
     return bool(j.get("breach_asap", False))
 

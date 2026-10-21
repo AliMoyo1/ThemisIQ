@@ -451,11 +451,24 @@ def test_report_definitions_and_runs_are_owner_and_scope_bound(world):
     world.db.execute("UPDATE sentinel_ropa SET business_unit_id = %s WHERE id = %s",
                      (world.unit["B"], world.rows[("sentinel", "ropa")]["A"]))
     world.db.commit()
-    assert _call(reports.api_report_run_get(_request(a), run_id))[1]["result"]["ropa_count"] == 2
-    assert world.db.execute("SELECT result_json FROM report_runs WHERE id = %s", (run_id,)).fetchone()[0] is None
+    # a saved run is the document that was generated: the source changed, the run did not
+    reopened = _call(reports.api_report_run_get(_request(a), run_id))[1]
+    assert reopened["result"]["ropa_count"] == 3 and reopened["frozen"] is True
+    stored = world.db.execute("SELECT result_json, snapshot_hash FROM report_runs WHERE id = %s", (run_id,)).fetchone()
+    assert stored[0] and stored[1] and stored[1] == reopened["hash"]
     moved = {**a, "business_unit_id": world.unit["B"]}
-    assert _call(reports.api_report_run_get(_request(moved), run_id))[0] == 404
+    status, refused = _call(reports.api_report_run_get(_request(moved), run_id))
+    assert status == 403 and refused["reason"] == "access_changed" and "result" not in refused
     assert all(r["id"] != run_id for r in _call(reports.api_report_runs(_request(moved)))[1])
+    denial = world.db.execute(
+        "SELECT user_id, details FROM audit_log WHERE action = 'report_run_denied' AND entity_id = %s", (run_id,)).fetchall()
+    assert [(d["user_id"], d["details"]) for d in denial][:2] == [
+        (b["id"], "open: not_found"), (moved["id"], "open: access_changed")]
+    # running it again is a new run that sees today's rows, linked to the first with what changed
+    status, again = _call(reports.api_report_run(_request(a), rid))
+    assert status == 200 and again["result"]["ropa_count"] == 2 and again["previous_run_id"] == run_id
+    assert any(c["path"] == "ropa_count" and (c["was"], c["now"]) == (3, 2) for c in again["snapshot"]["changes"]["changes"])
+    assert _call(reports.api_report_run_get(_request(a), run_id))[1]["result"]["ropa_count"] == 3
     assert _call(reports.api_report_definition_update(
         _request(b, payload={"name": "Stolen"}), rid))[0] == 404
 

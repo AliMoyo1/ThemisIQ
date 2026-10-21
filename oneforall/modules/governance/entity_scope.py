@@ -79,6 +79,10 @@ _KINDS = {
                                          title="title", url="/bcm/compliance"),
     ("erm", "risk"):          _Kind("erm", "erm.risk.view", "business_unit_id", table="erm_enterprise_risks",
                                     title="title", url="/erm/register?open=risk:{id}"),
+    ("erm", "pillar"):        _Kind("erm", "erm.risk.view", "business_unit_id", table="erm_pillars",
+                                    title="name", url="/erm/objectives"),
+    ("erm", "objective"):     _Kind("erm", "erm.risk.view", "business_unit_id", table="erm_objectives",
+                                    title="title", url="/erm/objectives"),
     ("erm", "obligation"):    _Kind("erm", "module.erm.access", table="erm_regulatory_obligations",
                                     title="regulation_name", url="/erm/"),
     # The register behind ERM and ORM, and the SLA clocks and workflow instances: all three store the unit
@@ -134,6 +138,20 @@ def entity_scope_sql(key: tuple, user: dict, alias: str = "") -> tuple[str, list
         return scope, params
     if key == ("evidence", "item"):
         return evidence_scope_sql(user, alias or "evidence_items")
+    if key == ("erm", "obligation"):
+        # Obligations with no linked risk are organization-wide. A linked
+        # obligation follows the risk's unit, including in search and links.
+        units = bu_scope_ids(user)
+        if units is None:
+            return "(1 = 1)", []
+        prefix = f"{alias}." if alias else ""
+        marks = ",".join(["%s"] * len(units))
+        return (
+            f"({prefix}linked_erm_risk_id IS NULL OR {prefix}linked_erm_risk_id IN "
+            "(SELECT id FROM erm_enterprise_risks WHERE business_unit_id IS NULL "
+            f"OR business_unit_id IN ({marks})))",
+            list(units),
+        )
     if not (kind.bu or kind.via_audit):
         return "(1 = 1)", []
     scope = bu_scope_ids(user)

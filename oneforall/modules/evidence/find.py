@@ -12,7 +12,7 @@ How a question is read:
   never a title, a file name or any text from a file, and whatever it answers is cut down to that vocabulary. If the model is
   off, not configured, refused by the policy or answers badly, the rules read the question and the note says so.
 
-Search words are matched the way the library search matches them (title, file name, tags, description), and every word must
+Search words are matched the way the library search matches them (metadata or indexed file text), and every word must
 match. The words and the filters are shown to the person, who can change them before trusting the list.
 """
 import logging
@@ -167,7 +167,12 @@ def reasons(item: dict, filters: dict) -> list:
     for word in filters.get("words", []):
         places = [label for label, column in (("title", "title"), ("file name", "file_name"), ("tags", "tags"),
                                               ("description", "description")) if word in str(item.get(column) or "").lower()]
-        out.append(f"\"{word}\" is in the {places[0]}" if places else f"\"{word}\" matches")
+        if places:
+            out.append(f"\"{word}\" is in the {places[0]}")
+        elif item.get("text_match"):
+            out.append(f"\"{word}\" matches indexed file text")
+        else:
+            out.append(f"\"{word}\" matches")
     if filters.get("state"):
         out.append("State: " + STATE_LABELS[filters["state"]].lower())
     if filters.get("module"):

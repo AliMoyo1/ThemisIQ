@@ -1,5 +1,5 @@
 {
-  "route_count": 1075,
+  "route_count": 1120,
   "entries": [
     {
       "path": "/openapi.json",
@@ -184,19 +184,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -456,7 +447,6 @@
           "compliance_manager",
           "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
           "incident_commander",
           "org_admin",
@@ -584,19 +574,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -619,19 +600,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -654,19 +626,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -674,6 +637,58 @@
       },
       "license_modules_required": [],
       "name": "api_decision",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/decisions/{decision_id}/assign",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.view"
+      ],
+      "roles_by_capability": {
+        "ai_use.view": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_decision_assign",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/decisions/{decision_id}/assignees",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.view"
+      ],
+      "roles_by_capability": {
+        "ai_use.view": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_decision_assignees",
       "maturity": "",
       "notes": ""
     },
@@ -713,19 +728,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -772,19 +778,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -803,24 +800,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -842,19 +829,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -1089,6 +1067,81 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/import/mappings",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_import_mappings",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/import/mappings",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_import_mapping_save",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/import/mappings/{mapping_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_import_mapping_archive",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/ai-governance/api/import/preview",
       "methods": [
         "POST"
@@ -1150,19 +1203,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -1170,329 +1214,6 @@
       },
       "license_modules_required": [],
       "name": "api_link_kinds",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/courses",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.manage"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.manage": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_courses",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/courses",
-      "methods": [
-        "POST"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.manage"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.manage": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_create",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/courses/{course_id}",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.manage"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.manage": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_course",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/courses/{course_id}",
-      "methods": [
-        "PUT"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.manage"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.manage": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_update",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/courses/{course_id}/publish",
-      "methods": [
-        "POST"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.manage"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.manage": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_publish",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/courses/{course_id}/retire",
-      "methods": [
-        "POST"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.manage"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.manage": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_retire",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/coverage",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.report"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.report": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "risk_owner",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_coverage",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/coverage/{course_id}",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.report"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.report": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "risk_owner",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_course_coverage",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/mine",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.take"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.take": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
-          "compliance_manager",
-          "control_owner",
-          "dpo",
-          "employee",
-          "grc_officer",
-          "incident_commander",
-          "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
-          "risk_owner",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_mine",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/units",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.manage"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.manage": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_units",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/{course_id}/complete",
-      "methods": [
-        "POST"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.take"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.take": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
-          "compliance_manager",
-          "control_owner",
-          "dpo",
-          "employee",
-          "grc_officer",
-          "incident_commander",
-          "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
-          "risk_owner",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_complete",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/api/literacy/{course_id}/learn",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.take"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.take": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
-          "compliance_manager",
-          "control_owner",
-          "dpo",
-          "employee",
-          "grc_officer",
-          "incident_commander",
-          "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
-          "risk_owner",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "api_literacy_learn",
       "maturity": "",
       "notes": ""
     },
@@ -1508,19 +1229,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -1732,24 +1444,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -1831,19 +1533,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -1941,19 +1634,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2033,7 +1717,6 @@
           "compliance_manager",
           "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
           "incident_commander",
           "org_admin",
@@ -2057,24 +1740,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -2104,7 +1777,6 @@
           "compliance_manager",
           "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
           "incident_commander",
           "org_admin",
@@ -2136,24 +1808,23 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create",
+        "ai_use.review"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ],
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
           "risk_owner",
           "super_admin"
         ]
@@ -2200,19 +1871,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2281,24 +1943,23 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create",
+        "ai_use.review"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ],
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
           "risk_owner",
           "super_admin"
         ]
@@ -2508,6 +2169,81 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/review/requests/{intake_id}/assign",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_review_assign",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/review/requests/{intake_id}/assignees",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_review_assignees",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/ai-governance/api/review/requests/{intake_id}/close",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_close_request",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/ai-governance/api/review/requests/{intake_id}/duplicates",
       "methods": [
         "GET"
@@ -2583,6 +2319,31 @@
       "notes": ""
     },
     {
+      "path": "/ai-governance/api/review/worklist",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.ai_governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "ai_use.review"
+      ],
+      "roles_by_capability": {
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_review_worklist",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/ai-governance/api/systems",
       "methods": [
         "GET"
@@ -2594,19 +2355,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2629,19 +2381,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2664,19 +2407,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2699,19 +2433,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2734,19 +2459,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2819,19 +2535,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2854,19 +2561,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2889,19 +2587,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2924,19 +2613,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -2959,19 +2639,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3019,19 +2690,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3054,19 +2716,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3089,19 +2742,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3124,19 +2768,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3184,19 +2819,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3415,19 +3041,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3625,19 +3242,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3693,7 +3301,6 @@
           "compliance_manager",
           "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
           "incident_commander",
           "org_admin",
@@ -3704,19 +3311,10 @@
           "super_admin"
         ],
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3817,19 +3415,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -3866,93 +3455,6 @@
       "notes": ""
     },
     {
-      "path": "/ai-governance/literacy",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.take",
-        "ai_literacy.manage",
-        "ai_literacy.report"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.take": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
-          "compliance_manager",
-          "control_owner",
-          "dpo",
-          "employee",
-          "grc_officer",
-          "incident_commander",
-          "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
-          "risk_owner",
-          "super_admin"
-        ],
-        "ai_literacy.manage": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "super_admin"
-        ],
-        "ai_literacy.report": [
-          "compliance_manager",
-          "dpo",
-          "grc_officer",
-          "org_admin",
-          "risk_owner",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "literacy_page",
-      "maturity": "",
-      "notes": ""
-    },
-    {
-      "path": "/ai-governance/literacy/{course_id}",
-      "methods": [
-        "GET"
-      ],
-      "module": "modules.ai_governance.routes",
-      "gate": "capability",
-      "capabilities": [
-        "ai_literacy.take"
-      ],
-      "roles_by_capability": {
-        "ai_literacy.take": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
-          "compliance_manager",
-          "control_owner",
-          "dpo",
-          "employee",
-          "grc_officer",
-          "incident_commander",
-          "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
-          "risk_owner",
-          "super_admin"
-        ]
-      },
-      "license_modules_required": [],
-      "name": "literacy_course_page",
-      "maturity": "",
-      "notes": ""
-    },
-    {
       "path": "/ai-governance/monitoring",
       "methods": [
         "GET"
@@ -3964,19 +3466,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -4085,24 +3578,14 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.intake_create"
       ],
       "roles_by_capability": {
-        "ai_use.submit": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
+        "ai_use.intake_create": [
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
-          "privacy_analyst",
           "risk_owner",
           "super_admin"
         ]
@@ -4124,19 +3607,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -4166,7 +3640,6 @@
           "compliance_manager",
           "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
           "incident_commander",
           "org_admin",
@@ -4190,7 +3663,8 @@
       "module": "modules.ai_governance.routes",
       "gate": "capability",
       "capabilities": [
-        "ai_use.submit"
+        "ai_use.submit",
+        "ai_use.review"
       ],
       "roles_by_capability": {
         "ai_use.submit": [
@@ -4201,13 +3675,20 @@
           "compliance_manager",
           "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
           "incident_commander",
           "org_admin",
           "policy_approver",
           "policy_author",
           "privacy_analyst",
+          "risk_owner",
+          "super_admin"
+        ],
+        "ai_use.review": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "org_admin",
           "risk_owner",
           "super_admin"
         ]
@@ -4254,19 +3735,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -4289,19 +3761,10 @@
       ],
       "roles_by_capability": {
         "ai_use.view": [
-          "audit_lead",
-          "auditor",
-          "bcm_manager",
-          "bcm_responder",
           "compliance_manager",
-          "control_owner",
           "dpo",
-          "employee",
           "grc_officer",
-          "incident_commander",
           "org_admin",
-          "policy_approver",
-          "policy_author",
           "privacy_analyst",
           "risk_owner",
           "super_admin"
@@ -4661,6 +4124,70 @@
         "aria"
       ],
       "name": "api_delete_control_mapping",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/control-mappings/{mapping_id}/review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "api_review_control_mapping",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/aria/api/controls/bulk-update",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.aria.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.aria.access"
+      ],
+      "roles_by_capability": {
+        "module.aria.access": [
+          "audit_lead",
+          "compliance_manager",
+          "control_owner",
+          "dpo",
+          "employee",
+          "external_auditor",
+          "grc_officer",
+          "policy_approver",
+          "policy_author",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "aria"
+      ],
+      "name": "bulk_update_controls",
       "maturity": "",
       "notes": ""
     },
@@ -7089,6 +6616,57 @@
       "notes": ""
     },
     {
+      "path": "/bcm/api/compliance-evidence/legacy",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.bcm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.bcm.access"
+      ],
+      "roles_by_capability": {
+        "module.bcm.access": [
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "bcm"
+      ],
+      "name": "api_compliance_legacy_inventory",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/bcm/api/compliance-evidence/legacy/{eid}/reconcile",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.bcm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "bcm.compliance.manage"
+      ],
+      "roles_by_capability": {
+        "bcm.compliance.manage": [
+          "bcm_manager",
+          "compliance_manager",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_compliance_legacy_reconcile",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/bcm/api/compliance/{cid}",
       "methods": [
         "DELETE"
@@ -8124,6 +7702,35 @@
       "notes": ""
     },
     {
+      "path": "/bcm/api/incidents/{inc_id}/acknowledge",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.bcm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.bcm.access"
+      ],
+      "roles_by_capability": {
+        "module.bcm.access": [
+          "bcm_manager",
+          "bcm_responder",
+          "compliance_manager",
+          "employee",
+          "grc_officer",
+          "incident_commander",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "bcm"
+      ],
+      "name": "api_incident_acknowledge",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/bcm/api/incidents/{inc_id}/actions",
       "methods": [
         "GET"
@@ -8581,6 +8188,28 @@
       },
       "license_modules_required": [],
       "name": "api_incident_vault_evidence_unlink",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/bcm/api/people",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.bcm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "bcm.incident.manage"
+      ],
+      "roles_by_capability": {
+        "bcm.incident.manage": [
+          "bcm_manager",
+          "incident_commander",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_people",
       "maturity": "",
       "notes": ""
     },
@@ -9851,6 +9480,76 @@
         "erm"
       ],
       "name": "erm_spa",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/acceptances/{acceptance_id}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.risk.view"
+      ],
+      "roles_by_capability": {
+        "erm.risk.view": [
+          "audit_lead",
+          "bcm_manager",
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptance_detail",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/acceptances/{acceptance_id}/decision",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.acceptance.decide"
+      ],
+      "roles_by_capability": {
+        "erm.acceptance.decide": [
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptance_decide",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/acceptances/{acceptance_id}/revoke",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.acceptance.decide"
+      ],
+      "roles_by_capability": {
+        "erm.acceptance.decide": [
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptance_revoke",
       "maturity": "",
       "notes": ""
     },
@@ -11745,6 +11444,53 @@
       "notes": ""
     },
     {
+      "path": "/erm/api/risks/{risk_id}/acceptances",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.risk.view"
+      ],
+      "roles_by_capability": {
+        "erm.risk.view": [
+          "audit_lead",
+          "bcm_manager",
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptances",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/erm/api/risks/{risk_id}/acceptances",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.erm.routes",
+      "gate": "capability",
+      "capabilities": [
+        "erm.acceptance.propose"
+      ],
+      "roles_by_capability": {
+        "erm.acceptance.propose": [
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_risk_acceptance_propose",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/erm/api/risks/{risk_id}/cfs",
       "methods": [
         "GET"
@@ -12922,6 +12668,62 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_evidence_versions",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/legacy-files",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "legacy_files",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/legacy-files/bcm/{source_id}/reconcile",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "reconcile_legacy_bcm",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/legacy-files/grid-versions/{version_id}/migrate",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "migrate_legacy_grid_version",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/evidence/api/legacy-files/grid/{source_id}/migrate",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.evidence.routes",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "migrate_legacy_grid",
       "maturity": "",
       "notes": ""
     },
@@ -14255,6 +14057,30 @@
       },
       "license_modules_required": [],
       "name": "api_reg_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/governance/api/regulatory-updates/{rid}/ai-review",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.governance.routes",
+      "gate": "capability",
+      "capabilities": [
+        "governance.entities.manage"
+      ],
+      "roles_by_capability": {
+        "governance.entities.manage": [
+          "compliance_manager",
+          "grc_officer",
+          "org_admin",
+          "risk_owner",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_regulatory_ai_review",
       "maturity": "",
       "notes": ""
     },
@@ -15775,6 +15601,78 @@
       },
       "license_modules_required": [],
       "name": "api_frameworks_delete",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/legacy-evidence",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.grid.access"
+      ],
+      "roles_by_capability": {
+        "module.grid.access": [
+          "audit_lead",
+          "auditor",
+          "compliance_manager",
+          "dpo",
+          "external_auditor",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "grid"
+      ],
+      "name": "api_legacy_evidence_inventory",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/legacy-evidence/versions/{version_id}/migrate",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "capability",
+      "capabilities": [
+        "grid.evidence.upload"
+      ],
+      "roles_by_capability": {
+        "grid.evidence.upload": [
+          "audit_lead",
+          "auditor",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_legacy_evidence_version_migrate",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/grid/api/legacy-evidence/{eid}/migrate",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.grid.routes",
+      "gate": "capability",
+      "capabilities": [
+        "grid.evidence.upload"
+      ],
+      "roles_by_capability": {
+        "grid.evidence.upload": [
+          "audit_lead",
+          "auditor",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_legacy_evidence_migrate",
       "maturity": "",
       "notes": ""
     },
@@ -17911,6 +17809,86 @@
       "notes": ""
     },
     {
+      "path": "/api/admin/email-config/clear-secrets",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_admin",
+      "gate": "capability",
+      "capabilities": [
+        "platform.manage_users"
+      ],
+      "roles_by_capability": {
+        "platform.manage_users": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_email_clear_secrets",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/admin/email-outbox",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_admin",
+      "gate": "capability",
+      "capabilities": [
+        "platform.manage_users"
+      ],
+      "roles_by_capability": {
+        "platform.manage_users": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_email_outbox",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/admin/email-outbox/pause",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_admin",
+      "gate": "capability",
+      "capabilities": [
+        "platform.manage_users"
+      ],
+      "roles_by_capability": {
+        "platform.manage_users": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_email_outbox_pause",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/admin/email-outbox/{outbox_id}/requeue",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_admin",
+      "gate": "capability",
+      "capabilities": [
+        "platform.manage_users"
+      ],
+      "roles_by_capability": {
+        "platform.manage_users": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_email_outbox_requeue",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/api/admin/email-test",
       "methods": [
         "POST"
@@ -17927,6 +17905,26 @@
       },
       "license_modules_required": [],
       "name": "api_email_test",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/admin/email-test/receipt",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_admin",
+      "gate": "capability",
+      "capabilities": [
+        "platform.manage_users"
+      ],
+      "roles_by_capability": {
+        "platform.manage_users": [
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_email_test_receipt",
       "maturity": "",
       "notes": ""
     },
@@ -18246,6 +18244,34 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_auth_me",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/my-email-preferences",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_auth",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_my_email_preferences",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/my-email-preferences",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.launcher.routes_auth",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_my_email_preferences_put",
       "maturity": "",
       "notes": ""
     },
@@ -18572,6 +18598,20 @@
       "notes": ""
     },
     {
+      "path": "/api/command-centre/first-screen",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_command_centre_first_screen",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/api/command-centre/layout",
       "methods": [
         "GET"
@@ -18624,6 +18664,34 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_command_centre_stats",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/metrics/definitions",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_metric_definitions",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/module-home/{module}",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_module_home",
       "maturity": "",
       "notes": ""
     },
@@ -18694,6 +18762,48 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_predictive_risk_acknowledge",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/predictive-risk/trace",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_predictive_risk_trace",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/predictive-risk/{prediction_id}/disputes",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_predictive_risk_dispute",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/metrics",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_dashboard",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "metrics_page",
       "maturity": "",
       "notes": ""
     },
@@ -18879,9 +18989,18 @@
         "POST"
       ],
       "module": "modules.launcher.routes_frameworks",
-      "gate": "authenticated",
-      "capabilities": [],
-      "roles_by_capability": {},
+      "gate": "capability",
+      "capabilities": [
+        "manage_frameworks"
+      ],
+      "roles_by_capability": {
+        "manage_frameworks": [
+          "audit_lead",
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
       "license_modules_required": [],
       "name": "api_framework_activate",
       "maturity": "",
@@ -18907,9 +19026,18 @@
         "POST"
       ],
       "module": "modules.launcher.routes_frameworks",
-      "gate": "authenticated",
-      "capabilities": [],
-      "roles_by_capability": {},
+      "gate": "capability",
+      "capabilities": [
+        "manage_frameworks"
+      ],
+      "roles_by_capability": {
+        "manage_frameworks": [
+          "audit_lead",
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
       "license_modules_required": [],
       "name": "api_framework_create_control",
       "maturity": "",
@@ -18921,9 +19049,18 @@
         "POST"
       ],
       "module": "modules.launcher.routes_frameworks",
-      "gate": "authenticated",
-      "capabilities": [],
-      "roles_by_capability": {},
+      "gate": "capability",
+      "capabilities": [
+        "manage_frameworks"
+      ],
+      "roles_by_capability": {
+        "manage_frameworks": [
+          "audit_lead",
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
       "license_modules_required": [],
       "name": "api_framework_ai_generate_controls",
       "maturity": "",
@@ -18935,9 +19072,18 @@
         "POST"
       ],
       "module": "modules.launcher.routes_frameworks",
-      "gate": "authenticated",
-      "capabilities": [],
-      "roles_by_capability": {},
+      "gate": "capability",
+      "capabilities": [
+        "manage_frameworks"
+      ],
+      "roles_by_capability": {
+        "manage_frameworks": [
+          "audit_lead",
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
       "license_modules_required": [],
       "name": "api_framework_bulk_controls",
       "maturity": "",
@@ -18949,9 +19095,18 @@
         "POST"
       ],
       "module": "modules.launcher.routes_frameworks",
-      "gate": "authenticated",
-      "capabilities": [],
-      "roles_by_capability": {},
+      "gate": "capability",
+      "capabilities": [
+        "manage_frameworks"
+      ],
+      "roles_by_capability": {
+        "manage_frameworks": [
+          "audit_lead",
+          "compliance_manager",
+          "grc_officer",
+          "super_admin"
+        ]
+      },
       "license_modules_required": [],
       "name": "api_framework_deactivate",
       "maturity": "",
@@ -18984,6 +19139,20 @@
       "name": "api_my_work",
       "maturity": "gated",
       "notes": "Scoped federated My Work feed with bounded keyset paging; source caps are reported. Build awaiting final regression validation."
+    },
+    {
+      "path": "/api/my-work/team",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_my_work",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_my_work_team",
+      "maturity": "",
+      "notes": ""
     },
     {
       "path": "/my-work",
@@ -19778,6 +19947,20 @@
       "notes": ""
     },
     {
+      "path": "/api/reports/quick-run",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_quick_run",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/api/reports/runs",
       "methods": [
         "GET"
@@ -19802,6 +19985,104 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_report_run_get",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/reports/runs/{run_id}/export",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_run_export",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/reports/runs/{run_id}/notes",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_run_note",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/reports/runs/{run_id}/rerun",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_run_again",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/reports/runs/{run_id}/retention",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_retention",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/reports/runs/{run_id}/shares",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_share",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/reports/runs/{run_id}/shares/{recipient_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_share_revoke",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/reports/runs/{run_id}/signoff",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.launcher.routes_reports",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_report_signoff",
       "maturity": "",
       "notes": ""
     },
@@ -22678,6 +22959,48 @@
       "notes": ""
     },
     {
+      "path": "/sentinel/api/breach-obligations/{obligation_id}/decision",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.breach.manage"
+      ],
+      "roles_by_capability": {
+        "sentinel.breach.manage": [
+          "dpo",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_breach_obligation_decide",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/breach-obligations/{obligation_id}/facts",
+      "methods": [
+        "PUT"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.breach.manage"
+      ],
+      "roles_by_capability": {
+        "sentinel.breach.manage": [
+          "dpo",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_breach_obligation_facts",
+      "maturity": "",
+      "notes": ""
+    },
+    {
       "path": "/sentinel/api/breaches",
       "methods": [
         "GET"
@@ -22779,6 +23102,53 @@
       },
       "license_modules_required": [],
       "name": "api_breach_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/breaches/{breach_id}/obligations",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_breach_obligations",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/breaches/{breach_id}/obligations",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.breach.manage"
+      ],
+      "roles_by_capability": {
+        "sentinel.breach.manage": [
+          "dpo",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_breach_obligation_create",
       "maturity": "",
       "notes": ""
     },
@@ -23020,6 +23390,32 @@
       },
       "license_modules_required": [],
       "name": "api_controller_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_dashboard",
       "maturity": "",
       "notes": ""
     },
@@ -23380,6 +23776,74 @@
       },
       "license_modules_required": [],
       "name": "api_dsr_update",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/jurisdiction-cards",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_jurisdiction_cards",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/jurisdiction-cards",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.jurisdiction.draft"
+      ],
+      "roles_by_capability": {
+        "sentinel.jurisdiction.draft": [
+          "dpo",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_jurisdiction_card_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/jurisdiction-cards/{card_id}/approve",
+      "methods": [
+        "POST"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "sentinel.jurisdiction.approve"
+      ],
+      "roles_by_capability": {
+        "sentinel.jurisdiction.approve": [
+          "dpo"
+        ]
+      },
+      "license_modules_required": [],
+      "name": "api_jurisdiction_card_approve",
       "maturity": "",
       "notes": ""
     },
@@ -24092,6 +24556,32 @@
       },
       "license_modules_required": [],
       "name": "api_ropa_create",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/sentinel/api/ropa/coverage-gaps",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.sentinel.routes",
+      "gate": "capability",
+      "capabilities": [
+        "module.sentinel.access"
+      ],
+      "roles_by_capability": {
+        "module.sentinel.access": [
+          "compliance_manager",
+          "dpo",
+          "grc_officer",
+          "privacy_analyst",
+          "super_admin"
+        ]
+      },
+      "license_modules_required": [
+        "sentinel"
+      ],
+      "name": "api_ropa_coverage_gaps",
       "maturity": "",
       "notes": ""
     },

@@ -20,12 +20,41 @@ from core import events, rbac
 from modules.ai_governance import rules, service, workspace
 from modules.ai_governance.service import ServiceError
 from modules.governance import relationships
-from tests.test_platform_ownership import PERSONAS, _insert, world  # noqa: F401
+from tests.test_platform_ownership import PERSONAS, _insert, world as platform_world  # noqa: F401
 
 APP = ("governance", "application")
 GOOD = {"name": "Ticket summarizer", "purpose": "Summarize support tickets", "deployment": "vendor_service",
         "provider_name": "Acme AI", "data_categories": ["internal"], "intended_users": "Support agents"}
 FULL = {**GOOD, "affected_people": ["none"], "autonomy": "assist_only", "affects_decisions": False, "external_access": False}
+
+
+@pytest.fixture
+def world(platform_world):
+    """The specialist handling internal AI intake has the intake capability."""
+    platform_world.users["employee_a"]["roles"] = [rbac.COMPLIANCE_MGR, rbac.RISK_OWNER, rbac.DPO]
+    for role in (rbac.COMPLIANCE_MGR, rbac.RISK_OWNER, rbac.DPO):
+        platform_world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+                                  (platform_world.users["employee_a"]["id"], role))
+    platform_world.users["dpo_a"]["roles"].append(rbac.RISK_OWNER)
+    platform_world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+                              (platform_world.users["dpo_a"]["id"], rbac.RISK_OWNER))
+    platform_world.users["owner_a"]["roles"].extend((rbac.COMPLIANCE_MGR, rbac.DPO))
+    for role in (rbac.RISK_OWNER, rbac.COMPLIANCE_MGR, rbac.DPO):
+        platform_world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+                                  (platform_world.users["owner_a"]["id"], role))
+    for offset, (name, role) in enumerate((("staff_a", rbac.EMPLOYEE),
+                                           ("viewer_a", rbac.PRIVACY_ANALYST),
+                                           ("risk_only_a", rbac.RISK_OWNER)), start=1):
+        user_id = len(PERSONAS) + offset
+        _insert(platform_world.db, "users", id=user_id, username=name, email=f"{name}@example.test",
+                full_name=name, password_hash="x", org_id=1, business_unit_id=platform_world.unit["A"])
+        platform_world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)",
+                                  (user_id, role))
+        platform_world.users[name] = {"id": user_id, "username": name, "org_id": 1,
+                                      "business_unit_id": platform_world.unit["A"],
+                                      "is_super_admin": 0, "roles": [role]}
+    platform_world.db.commit()
+    return platform_world
 
 
 def commit(world, result=None, user=None):
@@ -81,7 +110,8 @@ def fail(call, status):
 def roles(world):
     """The personas' roles in the table the notification handler reads."""
     for index, (name, (role, _)) in enumerate(PERSONAS.items(), start=1):
-        world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (index, role))
+        if name not in ("employee_a", "owner_a"):
+            world.db.execute("INSERT INTO user_roles (user_id, role_key) VALUES (%s, %s)", (index, role))
     world.db.commit()
     return world
 
@@ -216,8 +246,8 @@ def test_an_organization_wide_request_reaches_every_reviewer_of_the_organization
 
 
 def test_the_queue_needs_the_review_capability(world):
-    fail(lambda: service.review_queue(world.db, user(world, "employee_a")), 403)
-    fail(lambda: service.approve(world.db, user(world, "employee_a"), 1, 1, new_application={}), 403)
+    fail(lambda: service.review_queue(world.db, user(world, "staff_a")), 403)
+    fail(lambda: service.approve(world.db, user(world, "staff_a"), 1, 1, new_application={}), 403)
 
 
 def test_my_requests_lists_only_my_own(world):
@@ -409,8 +439,8 @@ def test_the_review_cadence_sets_the_next_review_and_marking_reviewed_moves_it(s
 
 def test_only_a_reviewer_may_change_a_profile_and_a_hidden_one_does_not_exist(system):
     profile = service.get_profile(system.db, user(system, "dpo_a"), system.app)
-    fail(lambda: service.update_profile(system.db, user(system, "employee_a"), system.app, {"purpose": "x"}, profile["version"]), 403)
-    fail(lambda: service.adopt_tier(system.db, user(system, "employee_a"), system.app, "lower", "because", profile["version"]), 403)
+    fail(lambda: service.update_profile(system.db, user(system, "staff_a"), system.app, {"purpose": "x"}, profile["version"]), 403)
+    fail(lambda: service.adopt_tier(system.db, user(system, "staff_a"), system.app, "lower", "because", profile["version"]), 403)
     fail(lambda: service.update_profile(system.db, user(system, "dpo_b"), system.app, {"purpose": "x"}, profile["version"]), 404)
     fail(lambda: service.mark_reviewed(system.db, user(system, "dpo_b"), system.app), 404)
     fail(lambda: service.retire(system.db, user(system, "dpo_b"), system.app, "because"), 404)
@@ -468,7 +498,7 @@ def test_the_reviewers_search_for_an_application_to_link_is_scoped_and_skips_ai_
     world.db.commit()
     assert [a["name"] for a in service.search_applications(world.db, user(world, "dpo_a"), "payroll")] == ["Payroll system"]
     assert service.search_applications(world.db, user(world, "dpo_a"), "p") == []
-    fail(lambda: service.search_applications(world.db, user(world, "employee_a"), "payroll"), 403)
+    fail(lambda: service.search_applications(world.db, user(world, "staff_a"), "payroll"), 403)
     assert visible
 
 
@@ -483,7 +513,7 @@ def _notified(world, event_type=None):
 def test_a_submission_tells_the_reviewers_who_may_see_it_and_nobody_else(roles):
     submitted(roles)
     told = {name for name, _, _ in _notified(roles)}
-    assert told == {"dpo_a", "owner_a"}, "reviewers of unit A; not the author, not other units, not a reviewer with no unit"
+    assert told == {"dpo_a", "owner_a", "risk_only_a"}, "reviewers of unit A; not the author, not other units, not a reviewer with no unit"
 
 
 def test_delivering_the_same_event_twice_tells_nobody_twice(roles):
@@ -587,7 +617,7 @@ def test_the_workspace_opens_for_a_visible_use_and_not_for_a_hidden_one(inventor
     assert workspace.get_system(inventory.db, user(inventory, "dpo_a"), 987654) is None
     assert workspace.get_tab(inventory.db, user(inventory, "dpo_a"), inventory.apps["B"], "assessments") is None
     fail(lambda: workspace.get_tab(inventory.db, user(inventory, "dpo_a"), inventory.apps["A"], "secrets"), 404)
-    assert workspace.get_system(inventory.db, user(inventory, "employee_a"), inventory.apps["A"])["can"]["review"] is False
+    assert workspace.get_system(inventory.db, user(inventory, "viewer_a"), inventory.apps["A"])["can"]["review"] is False
 
 
 def test_an_application_with_no_profile_still_opens_and_offers_to_add_one(world):
@@ -641,16 +671,17 @@ def test_the_assessments_tab_shows_linked_assessments_the_viewer_may_open(tabs):
     assert "Hidden impact" not in json.dumps(tab)
 
 
-def test_the_assessments_tab_says_so_when_the_viewer_has_no_right_to_privacy_records(tabs):
-    tab = workspace.get_tab(tabs.db, user(tabs, "employee_a"), tabs.app, "assessments")
-    assert [s["state"] for s in tab["sections"]] == ["no_access"] and "AIIA-1" not in json.dumps(tab) and "Impact of Use A" not in json.dumps(tab)
+def test_the_assessments_tab_shows_records_to_a_risk_owner_with_assessment_access(tabs):
+    tab = workspace.get_tab(tabs.db, user(tabs, "risk_only_a"), tabs.app, "assessments")
+    assert [s["state"] for s in tab["sections"]] == ["ok", "empty"]
+    assert "Impact of Use A" in json.dumps(tab)
 
 
 def test_the_risks_tab_shows_management_assessments_and_says_no_access_to_those_without_the_module(tabs):
     owner = workspace.get_tab(tabs.db, user(tabs, "owner_a"), tabs.app, "risks_controls")
     assert _items(owner, "AI management assessments") == ("ok", ["AIMS-1: AI management A"])
-    dpo = workspace.get_tab(tabs.db, user(tabs, "dpo_a"), tabs.app, "risks_controls")
-    assert dpo["sections"][0]["state"] == "no_access"
+    viewer = workspace.get_tab(tabs.db, user(tabs, "viewer_a"), tabs.app, "risks_controls")
+    assert viewer["sections"][0]["state"] == "no_access"
 
 
 def test_the_data_and_vendors_tab_shows_provider_assets_and_processes_in_scope(tabs):
@@ -718,4 +749,6 @@ def test_link_candidates_are_the_records_of_that_kind_the_viewer_may_open(tabs):
     assert [c["title"] for c in workspace.link_candidates(tabs.db, user(tabs, "dpo_b"), tabs.apps["org"], "assesses", "sentinel", "aiia")] == ["Hidden impact"]
     fail(lambda: workspace.link_candidates(tabs.db, user(tabs, "dpo_a"), tabs.app, "assesses", "grid", "audit"), 400)
     fail(lambda: workspace.link_candidates(tabs.db, user(tabs, "dpo_a"), tabs.apps["B"], "assesses", "sentinel", "aiia"), 404)
-    assert workspace.link_candidates(tabs.db, user(tabs, "employee_a"), tabs.app, "assesses", "sentinel", "aiia") == [],         "someone with no right to privacy records is offered none"
+    assert [c["title"] for c in workspace.link_candidates(
+        tabs.db, user(tabs, "owner_a"), tabs.app, "assesses", "sentinel", "aiia"
+    )] == ["Impact of Use A"]

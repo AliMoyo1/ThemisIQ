@@ -14,6 +14,10 @@ Jobs:
          - Checks bcm_training_modules with next_due within 7 days
          - Creates notifications + tasks for training owners
 
+  Job 4  Incident acknowledgement monitor  (every minute)
+         - Tells the BCM managers once about an incident whose commander did not acknowledge it in time
+           (modules/bcm/escalation.py: 15 minutes critical, 30 high, 60 medium)
+
 All jobs are safe to run repeatedly (idempotent: checks existing tasks before creating).
 """
 from __future__ import annotations
@@ -23,6 +27,7 @@ from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from database import get_db_background as get_db, sql_date_offset, list_active_tenants, tenant_context  # scheduler: fail-fast, never block UI
 from core.email import send_email as _core_send_email
@@ -151,6 +156,26 @@ def _exercise_alert_check() -> None:
             _exercise_alert_check_tenant(org_id)
 
 
+def _ask_exercise_mail(db, org_id: int, owners: list) -> None:
+    """Ask the email outbox to tell the owner of each exercise a reminder was just made for (template bcm.exercise: a
+    reference, the date and a link). After the tasks are committed; a mail problem is recorded and goes no further."""
+    from core import email_outbox
+    from core.email_templates import iso_or_none
+    try:
+        for exercise_id, owner_id, scheduled in owners:
+            due = iso_or_none(scheduled)
+            if due:
+                email_outbox.enqueue_safely(
+                    db, "bcm.exercise", recipient_user_id=owner_id, org_id=org_id,
+                    route=f"/bcm/?open=exercise:{exercise_id}",
+                    fields={"reference": f"EX-{exercise_id}", "due": due},
+                    source=("bcm", "exercise", exercise_id), purpose="upcoming", threshold=due)
+        db.commit()
+    except Exception:
+        log.warning("BCM exercise mail was not asked for in organization %s", org_id, exc_info=True)
+        db.rollback()
+
+
 def _exercise_alert_check_tenant(org_id: int) -> None:
     db = get_db()
     try:
@@ -163,6 +188,7 @@ def _exercise_alert_check_tenant(org_id: int) -> None:
             (org_id,),
         ).fetchall()
         created = 0
+        owners = []
         for ex in rows:
             eid = ex["id"]
             if _task_exists(db, "EXERCISE UPCOMING:", "exercise", eid, include_done=True):
@@ -188,8 +214,10 @@ def _exercise_alert_check_tenant(org_id: int) -> None:
                     "VALUES (%s,'bcm',%s,%s,%s)",
                     (ex["owner_id"], "BCM exercise upcoming", name, f"/bcm/?open=exercise:{eid}"),
                 )
+                owners.append((eid, ex["owner_id"], ex["scheduled_date"]))
             created += 1
         db.commit()
+        _ask_exercise_mail(db, org_id, owners)
         log.info("BCM exercise reminders: org=%s created=%s", org_id, created)
     except Exception as exc:
         db.rollback()
@@ -260,6 +288,21 @@ def _training_due_check() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Job 4 — Incident acknowledgement
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _incident_escalation_check() -> None:
+    """Every minute: escalate the incidents whose acknowledgement window ended, in each organization."""
+    try:
+        from modules.bcm import escalation
+        escalated = escalation.run_all_tenants()
+        if escalated:
+            log.info("BCM incident escalation: %d incident(s) escalated", escalated)
+    except Exception as exc:
+        log.warning("BCM incident escalation check failed: %s", exc)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Scheduler start / stop
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -297,10 +340,21 @@ def start_scheduler() -> None:
         misfire_grace_time=300,
     )
 
+    # Incident acknowledgement: every minute, so an escalation is at most a minute late
+    _scheduler.add_job(
+        _incident_escalation_check,
+        IntervalTrigger(minutes=1),
+        id="bcm_incident_escalation",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=60,
+    )
+
     _scheduler.start()
     log.info(
         "BCM scheduler started — jobs: plan_review (Mon 07:00), "
-        "exercise_alert (Mon 08:00), training_due (daily 08:30)"
+        "exercise_alert (Mon 08:00), training_due (daily 08:30), incident_escalation (every minute)"
     )
 
 

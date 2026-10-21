@@ -214,6 +214,104 @@ async def profile_page(request: Request):
     return shell_templates.TemplateResponse(request, "profile.html", ctx)
 
 
+# ── Email preference ────────────────────────────────────────────────────────
+
+_EMAIL_PREFS = {"action": "email.action", "mode": "email.mode", "weekly": "email.weekly", "quiet": "email.quiet",
+                "utc_offset": "email.utc_offset"}
+
+
+def _email_preferences(uid: int) -> dict:
+    from core import email_outbox
+    db = get_db()
+    try:
+        prefs = email_outbox.preferences(db, uid)
+    finally:
+        db.close()
+    quiet = prefs["quiet"]
+    return {"action": prefs["action"], "mode": prefs["mode"], "weekly": prefs["weekly"],
+            "quiet": {"start": f"{quiet[0] // 60:02d}:{quiet[0] % 60:02d}", "end": f"{quiet[1] // 60:02d}:{quiet[1] % 60:02d}"}
+            if quiet else None, "utc_offset": prefs["utc_offset"]}
+
+
+@router.get("/api/my-email-preferences")
+@require_auth
+async def api_my_email_preferences(request: Request):
+    """What this person chose about their mail. Critical deadline alerts for the people named to receive them, and
+    delivery problems for administrators, are not affected by any of it (06 section 3). Everything stays in the app."""
+    return _JSONResp(_email_preferences(request.state.user["id"]))
+
+
+def _clean_time(value) -> str:
+    text = str(value or "").strip()
+    try:
+        hour, minute = text.split(":", 1)
+        hour, minute = int(hour), int(minute)
+    except ValueError:
+        raise ValueError("Times are written as HH:MM.") from None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError("Times are written as HH:MM.")
+    return f"{hour:02d}:{minute:02d}"
+
+
+@router.put("/api/my-email-preferences")
+@require_auth
+async def api_my_email_preferences_put(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return _JSONResp({"error": "Invalid JSON body"}, status_code=400)
+    if not isinstance(body, dict) or not body:
+        return _JSONResp({"error": "Send the choices to change"}, status_code=400)
+    unknown = sorted(set(body) - set(_EMAIL_PREFS))
+    if unknown:
+        return _JSONResp({"error": f"Unknown choice: {', '.join(unknown)}"}, status_code=400)
+    values = {}
+    try:
+        if "action" in body:
+            if not isinstance(body["action"], bool):
+                raise ValueError("action must be true or false")
+            values["email.action"] = "on" if body["action"] else "off"
+        if "weekly" in body:
+            if not isinstance(body["weekly"], bool):
+                raise ValueError("weekly must be true or false")
+            values["email.weekly"] = "on" if body["weekly"] else "off"
+        if "mode" in body:
+            if body["mode"] not in ("immediate", "daily"):
+                raise ValueError("mode must be immediate or daily")
+            values["email.mode"] = body["mode"]
+        if "utc_offset" in body:
+            offset = body["utc_offset"]
+            if isinstance(offset, bool) or not isinstance(offset, int) or offset % 15 or not -720 <= offset <= 840:
+                raise ValueError("utc_offset is minutes from UTC, in steps of 15, between -720 and 840")
+            values["email.utc_offset"] = str(offset)
+        if "quiet" in body:
+            quiet = body["quiet"]
+            if quiet is None:
+                values["email.quiet"] = ""
+            elif isinstance(quiet, dict) and set(quiet) == {"start", "end"}:
+                start, end = _clean_time(quiet["start"]), _clean_time(quiet["end"])
+                if start == end:
+                    raise ValueError("Quiet hours must start and end at different times.")
+                values["email.quiet"] = f"{start}-{end}"
+            else:
+                raise ValueError("quiet is null or {start, end}")
+    except ValueError as exc:
+        return _JSONResp({"error": str(exc)}, status_code=400)
+    uid = request.state.user["id"]
+    db = get_db()
+    try:
+        for key, value in values.items():
+            db.execute(
+                "INSERT INTO user_preferences (user_id, pref_key, pref_value, updated_at) "
+                "VALUES (%s, %s, %s, CURRENT_TIMESTAMP) "
+                "ON CONFLICT(user_id, pref_key) DO UPDATE SET pref_value = excluded.pref_value, "
+                "updated_at = excluded.updated_at", (uid, key, value))
+        db.commit()
+    finally:
+        db.close()
+    return _JSONResp(_email_preferences(uid))
+
+
 # ── Change Password ─────────────────────────────────────────────────────────
 
 @router.get("/change-password", response_class=HTMLResponse)

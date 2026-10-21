@@ -11,11 +11,23 @@ from database import insert_returning_id, sql_now_offset, sql_now_ts, sql_date_o
 from modules.launcher._route_helpers import (
     _JSONResp, require_auth, has_capability, user_modules, user_capabilities,
     ROLE_LABELS, shell_ctx, templates, shell_templates, get_db,
-    _json_body,)
+    _json_body, log_audit,)
 from core.best_effort import swallowed
+from modules.launcher import command_metrics
 from modules.launcher.scoped_metrics import scoped_count, table_scope
 
 router = APIRouter()
+
+
+@router.get("/api/module-home/{module}")
+@require_auth
+async def api_module_home(request: Request, module: str):
+    from fastapi import HTTPException
+    from modules.launcher.module_home import build
+    try:
+        return JSONResponse(build(module, request.state.user))
+    except LookupError:
+        raise HTTPException(404, "Module not found") from None
 
 
 # ── Module info for launcher tiles ──────────────────────────────────────────
@@ -116,7 +128,7 @@ def _appetite_breaches(db, user):
     return db.execute(
         "SELECT COUNT(*) FROM erm_risk_appetite a "
         "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
-        f"       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted') AND {scope}) > a.max_score",
+        f"       WHERE e.category=a.category AND e.status != 'closed' AND {scope}) > a.max_score",
         params,
     ).fetchone()[0]
 
@@ -125,7 +137,7 @@ def _scoped_command_stats(db, user):
     """BU-visible signals for callers who cannot see the organization-wide view."""
     count = lambda table, condition="": scoped_count(db, user, table, condition)
     controls = count("controls")
-    compliant = count("controls", "status IN ('Implemented','Approved')")
+    compliant = count("controls", "status = 'Implemented'")
     evidence = count("evidence_items")
     expiring = count("evidence_items", "status = 'current' AND expiry_date IS NOT NULL "
                      f"AND expiry_date <= {sql_date_offset('+30 days')} "
@@ -181,8 +193,11 @@ def _scoped_command_stats(db, user):
             "authority_notified": bool(r["authority_notified"]),
         })
     health = []
+    meanings = {"aria": "Controls recorded as implemented", "grid": "Audits recorded as complete",
+                "bcm": "Plans recorded as approved", "sentinel": "Breaches recorded as closed",
+                "erm": "Enterprise risks recorded as closed", "orm": "Events recorded as resolved or closed"}
     for key, name, table, ok in (
-        ("aria", "Governance", "controls", "status IN ('Implemented','Approved')"),
+        ("aria", "Governance", "controls", "status = 'Implemented'"),
         ("grid", "Audit", "grid_audits", "status IN ('Completed','Complete')"),
         ("bcm", "Resilience", "bcm_plans", "status = 'approved'"),
         ("sentinel", "Privacy", "sentinel_breaches", "status = 'closed'"),
@@ -194,9 +209,9 @@ def _scoped_command_stats(db, user):
             continue
         total = count(table)
         healthy = count(table, ok)
-        health.append({"key": key, "name": name,
-                       "pct": round(healthy / total * 100) if total else
-                              (100 if key in {"sentinel", "erm", "orm"} else 0)})
+        # Nothing recorded is "not measured" (null), never 0 and never 100.
+        health.append({"key": key, "name": name, "pct": round(healthy / total * 100) if total else None,
+                       "definition": meanings[key], "numerator": healthy, "denominator": total})
     activity = [dict(r) for r in db.execute(
         "SELECT action AS text, module, created_at FROM audit_log "
         "WHERE user_id = %s ORDER BY created_at DESC LIMIT 6", (user["id"],)
@@ -228,8 +243,10 @@ def _scoped_command_stats(db, user):
                               "AND severity = 'critical'")
     high_breaches = count("sentinel_breaches", "status NOT IN ('closed','resolved') "
                           "AND severity = 'high'")
+    block = command_metrics.build(db, user)
     return {
-        "compliance_pct": round(compliant / controls * 100) if controls else 0,
+        **block,
+        "compliance_pct": round(compliant / controls * 100) if controls else None,
         "compliance_trend": "Current visible records", "active_projects": len(frameworks),
         "projects_list": " · ".join(r["name"] for r in frameworks[:5]),
         "overdue_count": count("task_board", "status != 'done' AND due_date IS NOT NULL "
@@ -238,7 +255,7 @@ def _scoped_command_stats(db, user):
         "overdue_trend": "Current visible records", "evidence_count": evidence,
         "evidence_trend": "Current visible records", "evidence_target": max(evidence, 1),
         "evidence_expiring": expiring, "module_health": health,
-        "sla": {"pct": round(sla_met / sla_resolved * 100) if sla_resolved else 100, "met": sla_met,
+        "sla": {"pct": round(sla_met / sla_resolved * 100) if sla_resolved else None, "met": sla_met,
                 "at_risk": sla_at_risk, "breached": sla_breached},
         "activity": activity, "overdue_items": overdue_items, "risk_counts": risk_counts,
         "workflow_active": count("workflow_instances", "status = 'active'"),
@@ -249,12 +266,12 @@ def _scoped_command_stats(db, user):
                                  f"AND created_at >= {sql_date_ts('-30 days')}"),
         "bcm_active_incidents": count("bcm_incidents", "status NOT IN ('closed','resolved')"),
         "erm_critical_high": count("erm_enterprise_risks", "qualitative_score IN ('critical','high') "
-                                   "AND status NOT IN ('closed','accepted')"),
+                                   "AND status != 'closed'"),
         "grid_open_findings": count("grid_controls", "status NOT IN "
                                     "('compliant','not_applicable','closed')"),
         "upcoming_reviews": count("erm_enterprise_risks", "review_date IS NOT NULL "
                                    f"AND review_date <= {sql_date_offset('+30 days')} "
-                                   "AND status NOT IN ('closed','accepted')")
+                                   "AND status != 'closed'")
                             + count("bcm_plans", "last_reviewed IS NOT NULL "
                                     f"AND last_reviewed <= {sql_date_offset('-335 days')}"),
         "ims_active_frameworks": len(frameworks),
@@ -276,7 +293,7 @@ async def api_command_centre_stats(request: Request):
         # ── Overall compliance (ARIA controls) ──
         total_controls = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
         compliant_controls = db.execute(
-            "SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Approved')"
+            "SELECT COUNT(*) FROM controls WHERE status = 'Implemented'"
         ).fetchone()[0]
         compliance_pct = round((compliant_controls / total_controls) * 100) if total_controls else 0
 
@@ -304,32 +321,40 @@ async def api_command_centre_stats(request: Request):
         # ARIA
         aria_total = total_controls
         aria_ok = compliant_controls
-        aria_pct = round((aria_ok / aria_total) * 100) if aria_total else 0
-        module_health.append({"key": "aria", "name": "Governance", "pct": aria_pct})
+        aria_pct = round((aria_ok / aria_total) * 100) if aria_total else None  # null: nothing recorded, not measured
+        module_health.append({"key": "aria", "name": "Governance", "pct": aria_pct,
+                              "definition": "Controls recorded as implemented", "numerator": aria_ok,
+                              "denominator": aria_total})
 
         # GRID — audit completion
         grid_total = db.execute("SELECT COUNT(*) FROM grid_audits").fetchone()[0]
         grid_done = db.execute(
             "SELECT COUNT(*) FROM grid_audits WHERE status IN ('Completed','Complete')"
         ).fetchone()[0]
-        grid_pct = round((grid_done / grid_total) * 100) if grid_total else 0
-        module_health.append({"key": "grid", "name": "Audit", "pct": grid_pct})
+        grid_pct = round((grid_done / grid_total) * 100) if grid_total else None
+        module_health.append({"key": "grid", "name": "Audit", "pct": grid_pct,
+                              "definition": "Audits recorded as complete", "numerator": grid_done,
+                              "denominator": grid_total})
 
         # BCM — plan coverage
         bcm_total = db.execute("SELECT COUNT(*) FROM bcm_plans").fetchone()[0]
         bcm_approved = db.execute(
             "SELECT COUNT(*) FROM bcm_plans WHERE status = 'approved'"
         ).fetchone()[0]
-        bcm_pct = round((bcm_approved / bcm_total) * 100) if bcm_total else 0
-        module_health.append({"key": "bcm", "name": "Resilience", "pct": bcm_pct})
+        bcm_pct = round((bcm_approved / bcm_total) * 100) if bcm_total else None
+        module_health.append({"key": "bcm", "name": "Resilience", "pct": bcm_pct,
+                              "definition": "Plans recorded as approved", "numerator": bcm_approved,
+                              "denominator": bcm_total})
 
-        # Sentinel — open breach rate (inverted: 0 open = 100%, no breaches = 100%)
+        # Sentinel: the share recorded as closed.
         sent_total = db.execute("SELECT COUNT(*) FROM sentinel_breaches").fetchone()[0]
-        sent_open = db.execute(
-            "SELECT COUNT(*) FROM sentinel_breaches WHERE status != 'closed'"
+        sent_closed = db.execute(
+            "SELECT COUNT(*) FROM sentinel_breaches WHERE status = 'closed'"
         ).fetchone()[0]
-        sent_pct = round((1 - sent_open / max(1, sent_total)) * 100) if sent_total else 100
-        module_health.append({"key": "sentinel", "name": "Privacy", "pct": sent_pct})
+        sent_pct = round(sent_closed / sent_total * 100) if sent_total else None
+        module_health.append({"key": "sentinel", "name": "Privacy", "pct": sent_pct,
+                              "definition": "Breaches recorded as closed", "numerator": sent_closed,
+                              "denominator": sent_total})
 
         # ERM — % of appetite categories within threshold (no breach)
         try:
@@ -340,9 +365,11 @@ async def api_command_centre_stats(request: Request):
                 erm_breach = db.execute(
                     "SELECT COUNT(*) FROM erm_risk_appetite a "
                     "WHERE (SELECT MAX(e.likelihood*e.impact) FROM erm_enterprise_risks e "
-                    "       WHERE e.category=a.category AND e.status NOT IN ('closed','accepted')) > a.max_score"
+                    "       WHERE e.category=a.category AND e.status != 'closed') > a.max_score"
                 ).fetchone()[0]
                 erm_pct = round((1 - erm_breach / max(1, erm_cats)) * 100)
+                erm_numerator, erm_denominator = erm_cats - erm_breach, erm_cats
+                erm_definition = "Appetite categories within threshold"
             else:
                 # No appetite defined yet — use risk mitigation rate instead
                 erm_total_r = db.execute(
@@ -350,11 +377,15 @@ async def api_command_centre_stats(request: Request):
                 ).fetchone()[0]
                 erm_treated = db.execute(
                     "SELECT COUNT(*) FROM erm_enterprise_risks "
-                    "WHERE status IN ('mitigated','accepted') OR treatment != 'mitigate'"
+                    "WHERE status='mitigated'"
                 ).fetchone()[0]
-                erm_pct = round((erm_treated / max(1, erm_total_r)) * 100) if erm_total_r else 100
+                erm_pct = round((erm_treated / max(1, erm_total_r)) * 100) if erm_total_r else None
+                erm_numerator, erm_denominator = erm_treated, erm_total_r
+                erm_definition = "Open enterprise risks recorded as mitigated"
             # Only include if user has erm access (always include in stats, visibility filtered by template)
-            module_health.append({"key": "erm", "name": "Enterprise Risk", "pct": erm_pct})
+            module_health.append({"key": "erm", "name": "Enterprise Risk", "pct": erm_pct,
+                                  "definition": erm_definition, "numerator": erm_numerator,
+                                  "denominator": erm_denominator})
         except Exception:
             swallowed("api_command_centre_stats (erm_risk_appetite)")  # ERM tables may not exist in all deployments
 
@@ -364,8 +395,10 @@ async def api_command_centre_stats(request: Request):
             orm_closed = db.execute(
                 "SELECT COUNT(*) FROM orm_events WHERE status IN ('resolved','closed')"
             ).fetchone()[0]
-            orm_pct = round((orm_closed / max(1, orm_total)) * 100) if orm_total else 100
-            module_health.append({"key": "orm", "name": "Operations Risk", "pct": orm_pct})
+            orm_pct = round((orm_closed / max(1, orm_total)) * 100) if orm_total else None
+            module_health.append({"key": "orm", "name": "Operations Risk", "pct": orm_pct,
+                                  "definition": "Events recorded as resolved or closed", "numerator": orm_closed,
+                                  "denominator": orm_total})
         except Exception:
             swallowed("api_command_centre_stats (orm_events)")  # ORM tables may not exist in all deployments
 
@@ -380,7 +413,7 @@ async def api_command_centre_stats(request: Request):
             "SELECT COUNT(*) FROM sla_instances WHERE status = 'active' AND breached = 0"
         ).fetchone()[0]
         sla_total_resolved = sla_met + sla_breached
-        sla_pct = round((sla_met / sla_total_resolved) * 100) if sla_total_resolved else 100
+        sla_pct = round((sla_met / sla_total_resolved) * 100) if sla_total_resolved else None
 
         # ── Recent activity (from audit log) ──
         # Org isolation: non-super-admins only see their own org's activity.
@@ -522,10 +555,12 @@ async def api_command_centre_stats(request: Request):
         # Persist today's snapshot (ON CONFLICT DO NOTHING — write once per day)
         try:
             for metric, val in (
-                ("compliance_pct", compliance_pct),
+                ("compliance_pct", compliance_pct if total_controls else None),
                 ("overdue_count",  overdue_count),
                 ("evidence_count", evidence_count),
             ):
+                if val is None:
+                    continue  # nothing recorded: no snapshot is better than a snapshot of zero
                 db.execute(
                     "INSERT INTO analytics_snapshots "
                     "(snapshot_date, metric_name, metric_value, module) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
@@ -652,7 +687,7 @@ async def api_command_centre_stats(request: Request):
             erm_critical_high = db.execute(
                 "SELECT COUNT(*) FROM erm_enterprise_risks "
                 "WHERE qualitative_score IN ('critical','high') "
-                "AND status NOT IN ('closed','accepted')"
+                "AND status != 'closed'"
             ).fetchone()[0]
         except Exception:
             swallowed("api_command_centre_stats (erm_enterprise_risks)")
@@ -673,7 +708,7 @@ async def api_command_centre_stats(request: Request):
             upcoming_reviews += db.execute(
                 "SELECT COUNT(*) FROM erm_enterprise_risks "
                 f"WHERE review_date IS NOT NULL AND review_date <= {sql_date_offset('+30 days')} "
-                "AND status NOT IN ('closed','accepted')"
+                "AND status != 'closed'"
             ).fetchone()[0]
         except Exception:
             swallowed("api_command_centre_stats (erm_enterprise_risks)")
@@ -685,11 +720,15 @@ async def api_command_centre_stats(request: Request):
         except Exception:
             swallowed("api_command_centre_stats (bcm_plans)")
 
+        # The cards read these: each number with its state, so a source that failed is not shown as a zero
+        command_block = command_metrics.build(db, user)
+
     finally:
         db.close()
 
     return _JSONResp({
-        "compliance_pct":    compliance_pct,
+        **command_block,
+        "compliance_pct":    compliance_pct if total_controls else None,
         "compliance_trend":  compliance_trend,
         "active_projects":   active_projects,
         "projects_list":     projects_list,
@@ -790,7 +829,7 @@ async def api_my_dashboard_data(request: Request):
             # Overview of all modules
             data["aria_controls_total"] = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
             data["aria_controls_compliant"] = db.execute(
-                "SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Approved')"
+                "SELECT COUNT(*) FROM controls WHERE status = 'Implemented'"
             ).fetchone()[0]
             data["grid_audits_active"] = db.execute(
                 "SELECT COUNT(*) FROM grid_audits WHERE status IN ('Planning','Active')"
@@ -851,7 +890,7 @@ async def api_my_dashboard_data(request: Request):
                 _scope_params
             ).fetchall()]
             data["controls_needing_review"] = db.execute(
-                "SELECT COUNT(*) FROM controls WHERE status NOT IN ('Implemented','Approved')"
+                "SELECT COUNT(*) FROM controls WHERE status != 'Implemented'"
             ).fetchone()[0]
 
     finally:
@@ -947,6 +986,36 @@ _CC_WIDGETS = frozenset({
     "predictive", "pending_actions", "unread_alerts",
 })
 _CC_LAYOUT_KEY = "command_centre_layout_v1"
+
+
+@router.get("/metrics", response_class=HTMLResponse)
+@require_auth
+async def metrics_page(request: Request):
+    """What every number on a dashboard means: its definition, rows, denominator, window, scope and exclusions."""
+    ctx = shell_ctx(request, active_module="platform", active_section="metrics")
+    return shell_templates.TemplateResponse(request, "metrics.html", ctx)
+
+
+@router.get("/api/metrics/definitions")
+@require_auth
+async def api_metric_definitions(request: Request):
+    """The registered metrics the person may see. A metric of a module they may not open is not listed, so its
+    existence is not announced."""
+    from core import metric_registry
+    return _JSONResp({"definitions": [d.as_dict() for d in metric_registry.visible_to(request.state.user)]})
+
+
+@router.get("/api/command-centre/first-screen")
+@require_auth
+async def api_command_centre_first_screen(request: Request):
+    """What needs action today, what changed, what lacks proof and what can be reported, for this person. Each panel is
+    read on its own and says so when it could not be."""
+    from modules.launcher import first_screen
+    db = get_db()
+    try:
+        return _JSONResp(first_screen.build(db, request.state.user))
+    finally:
+        db.close()
 
 
 @router.get("/api/command-centre/layout")
@@ -1114,10 +1183,10 @@ async def api_predictive_risk(request: Request, background_tasks: BackgroundTask
 
         db.commit()
 
-        # ── Auto-escalate to ERM in background if critical ──
+        # ── Propose to the ERM inbox in the background if critical (a person decides) ──
         if result["risk_level"] == "critical" and result["delta_p"] >= ESCALATION_THRESHOLD:
             background_tasks.add_task(
-                _auto_escalate_to_erm, prediction_id, result, metrics, advisory
+                _propose_to_erm_inbox, prediction_id, result, metrics, advisory
             )
 
         history = _prediction_history(db)
@@ -1152,6 +1221,56 @@ async def api_predictive_risk_acknowledge(request: Request):
         return _JSONResp({"ok": True})
     finally:
         db.close()
+
+
+@router.get("/api/predictive-risk/trace")
+@require_auth
+async def api_predictive_risk_trace(request: Request):
+    """What a prediction was made from, for a reviewer (super administrators, as for the panel itself): for each signal
+    its rule, period, weight and figure, the records behind it that the viewer may open, and the disputes beside it."""
+    if not request.state.user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
+    raw = request.query_params.get("prediction_id")
+    try:
+        prediction_id = int(raw) if raw not in (None, "") else None
+    except ValueError:
+        return _JSONResp({"error": "prediction_id must be a number."}, status_code=400)
+    from modules.launcher import predictive_trace
+    db = get_db()
+    try:
+        out = predictive_trace.build(db, request.state.user, prediction_id)
+    finally:
+        db.close()
+    if out is None:
+        return _JSONResp({"error": "There is no prediction yet."}, status_code=404)
+    return _JSONResp(out)
+
+
+@router.post("/api/predictive-risk/{prediction_id}/disputes")
+@require_auth
+async def api_predictive_risk_dispute(request: Request, prediction_id: int):
+    """Record that a reviewer disputes one signal of a prediction. A note beside the number: nothing is edited."""
+    user = request.state.user
+    if not user.get("is_super_admin"):
+        return _JSONResp({"error": "Forbidden"}, status_code=403)
+    data = await _json_body(request)
+    from modules.launcher import predictive_trace
+    db = get_db()
+    try:
+        try:
+            result = predictive_trace.add_dispute(db, user, prediction_id, str(data.get("signal") or ""), data.get("body"))
+        except ValueError as exc:
+            db.rollback()
+            return _JSONResp({"error": str(exc)}, status_code=422)
+        except LookupError as exc:
+            db.rollback()
+            return _JSONResp({"error": str(exc)}, status_code=404)
+        db.commit()
+    finally:
+        db.close()
+    log_audit(user, "platform", "predictive_risk_dispute", "ai_risk_prediction", prediction_id,
+              details=f"Disputed the {result['signal']} signal")
+    return _JSONResp({"ok": True, **result}, status_code=201)
 
 
 # ── Governance Advisories (daily briefing) ─────────────────────────────────
@@ -1227,50 +1346,40 @@ def _prediction_history(db, limit: int = 7) -> list:
     return [dict(r) for r in reversed(rows)]
 
 
-def _auto_escalate_to_erm(prediction_id: int, result: dict, metrics: dict, advisory: str | None):
+def _propose_to_erm_inbox(prediction_id: int, result: dict, metrics: dict, advisory: "str | None"):
     """
-    Background task: create an ERM enterprise risk for a critical prediction.
-    Runs outside the request lifecycle.
+    Background task: put a critical prediction in the ERM emerging-risk inbox, where a person reviews it and either adds
+    it to the register or dismisses it. It does not create a risk: a prediction is not a decision, and a risk the board
+    can see is a person's decision. Runs outside the request lifecycle.
     """
     try:
-        from modules.erm.data_service import create_enterprise_risk
+        from modules.erm.data_service import create_emerging
         from database import get_db_background
-        db = get_db_background()  # background task — fail fast, never block UI writes
+        db = get_db_background()  # background task: fail fast, never block UI writes
         try:
-            # Check not already escalated
             existing = db.execute(
-                "SELECT erm_risk_id FROM ai_risk_predictions WHERE id = %s", (prediction_id,)
+                "SELECT emerging_id FROM ai_risk_predictions WHERE id = %s", (prediction_id,)
             ).fetchone()
-            if existing and existing["erm_risk_id"]:
+            if existing and existing["emerging_id"]:
                 return
-
-            risk_data = {
-                "title": f"AI Predictive Alert — Platform Risk ΔP +{result['delta_p']}%",
-                "description": (
-                    f"Auto-escalated from Predictive AI Risk Analytics.\n\n"
-                    f"Global ΔP_risk: +{result['delta_p']}%\n"
-                    f"Cyber: {result['delta_cyber']}%  |  Operational: {result['delta_operational']}%  |  Compliance: {result['delta_compliance']}%\n\n"
-                    + (advisory or "No advisory generated.")
-                ),
-                "category": "operational",
-                "likelihood": 4,
-                "impact": 4,
-                "treatment": "mitigate",
-                "status": "open",
-                "board_visibility": 1,
-                "source_module": "platform",
-                "created_by": None,
-            }
-            erm_risk_id = create_enterprise_risk(risk_data)
-            db.execute(
-                "UPDATE ai_risk_predictions SET erm_risk_id = %s WHERE id = %s",
-                (erm_risk_id, prediction_id),
+            summary = (
+                f"Raised by the predictive risk engine, not reviewed by a person.\n\n"
+                f"Global change in risk probability: +{result['delta_p']}%\n"
+                f"Cyber: {result['delta_cyber']}%  |  Operational: {result['delta_operational']}%  |  "
+                f"Compliance: {result['delta_compliance']}%\n\n"
+                + (advisory or "No advisory was generated.")
             )
+            inbox_id = create_emerging({
+                "title": f"Predictive alert: platform risk probability +{result['delta_p']}%",
+                "summary": summary,
+                "source_note": "Predictive risk engine. A person decides whether this becomes a risk.",
+            }, origin="predictive")
+            db.execute("UPDATE ai_risk_predictions SET emerging_id = %s WHERE id = %s", (inbox_id, prediction_id))
             db.commit()
         finally:
             db.close()
     except Exception as exc:
         import logging
         logging.getLogger("oneforall.predictive_risk").error(
-            "ERM auto-escalation failed: %s", exc
+            "ERM inbox proposal failed: %s", exc
         )

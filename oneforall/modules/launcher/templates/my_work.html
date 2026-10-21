@@ -6,7 +6,7 @@
 .mywork-title{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.02em}
 .mywork-title span{font-weight:400;color:var(--muted);font-size:14px;display:block;margin-top:2px}
 .mywork-section{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border:1px solid var(--border);margin-bottom:18px;overflow:hidden}
-.mywork-section-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
+.mywork-section-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;padding:14px 20px;border-bottom:1px solid var(--border)}
 .mywork-section-title{font-size:13px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.04em}
 .mywork-section-count{font-size:12px;color:var(--muted);background:var(--surface2,var(--surface3));border-radius:100px;padding:2px 10px}
 .mywork-item{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit}
@@ -20,7 +20,18 @@
 .mywork-controls input:focus-visible,.mywork-controls select:focus-visible,.mywork-controls button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .mywork-controls input{min-width:180px;flex:1}
 .mywork-more{display:block;margin:8px auto 18px}
+.mywork-group{padding:8px 20px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface2,var(--surface3));border-bottom:1px solid var(--border)}
+.mywork-item-why{font-size:11px;color:var(--muted);margin-top:2px}
+.mywork-item-title,.mywork-item-meta,.mywork-item-why{display:block}
 .mywork-pending-note{font-size:12px;color:var(--muted);margin-top:24px;padding:12px 16px;border:1px dashed var(--border);border-radius:var(--radius);background:var(--surface2,var(--surface3))}
+.mywork-views{display:flex;gap:8px;margin-bottom:18px}
+.mywork-controls[hidden],.mywork-views[hidden],.mywork-more[hidden],#myTeam[hidden]{display:none}
+.mywork-views button:focus-visible,.mywork-team-controls select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.mywork-team-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.mywork-team-controls select{padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--text)}
+.mywork-team-note{font-size:13px;color:var(--muted);margin:0 0 14px}
+.mywork-person-counts{font-size:12px;color:var(--muted)}
+.mywork-person-note{padding:8px 20px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)}
 {% endblock %}
 
 {% block content %}
@@ -29,6 +40,11 @@
     My Work
     <span>Everything across ThemisIQ that needs your attention, in one place.</span>
   </div>
+</div>
+
+<div class="mywork-views" id="myWorkViews" role="group" aria-label="Whose work to show" hidden>
+  <button type="button" class="btn btn-primary" id="myWorkViewMine" aria-pressed="true">My work</button>
+  <button type="button" class="btn btn-secondary" id="myWorkViewTeam" aria-pressed="false">My team's</button>
 </div>
 
 <div class="mywork-controls" role="search" aria-label="Filter My Work" data-user-id="{{ user.id }}">
@@ -42,15 +58,29 @@
   <label for="myWorkSection">Section</label><select id="myWorkSection"><option value="">All sections</option>
     <option value="needs_my_action">Needs my action</option><option value="waiting_on_others">Waiting on others</option>
     <option value="due_soon">Due soon</option><option value="overdue">Overdue</option>
+    <option value="recently_changed">Recently changed</option>
     <option value="recently_completed">Recently completed</option>
+  </select>
+  <label for="myWorkGroup">Group by</label><select id="myWorkGroup"><option value="">No grouping</option>
+    <option value="source">Source module</option><option value="business_unit">Business unit</option>
+    <option value="parent">AI use or audit</option><option value="vendor">Vendor</option>
+    <option value="process">Business process</option>
   </select>
   <button type="button" class="btn btn-secondary" id="myWorkApply">Apply</button>
   <label for="myWorkSaved">Saved filters</label><select id="myWorkSaved"><option value="">Choose a filter</option></select>
   <button type="button" class="btn btn-secondary" id="myWorkSave">Save current</button>
   <button type="button" class="btn btn-secondary" id="myWorkDelete">Delete selected</button>
 </div>
+<p class="mywork-team-note" id="myWorkGroupingNote" hidden>Vendor groups use the provider of AI uses and confirmed vendor links from source records you can open. Process groups use confirmed links to business processes. An action linked to several vendors or processes appears in each relevant group.</p>
+<div id="myTeam" hidden>
+  <p class="mywork-team-note" id="myTeamNote" role="status"></p>
+  <div class="mywork-team-controls">
+    <label for="myTeamUnit">Unit</label><select id="myTeamUnit"><option value="">All the units I head</option></select>
+  </div>
+  <div id="myTeamList" aria-live="polite"></div>
+</div>
 <div id="myWorkSections" aria-live="polite"></div>
 <button type="button" class="btn btn-secondary mywork-more" id="myWorkMore" hidden>Load more</button>
 <div id="myWorkPendingNote" class="mywork-pending-note" style="display:none" role="status"></div>
-<script src="/static/js/my_work.js?v=1" defer></script>
+<script src="/static/js/my_work.js?v=3" defer></script>
 {% endblock %}

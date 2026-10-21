@@ -13,7 +13,8 @@ def test_my_work_page_loads_with_no_console_errors(login_as, live_app):
     page.wait_for_selector("#myWorkSections .mywork-section", timeout=10000)
 
     sections = page.locator("#myWorkSections .mywork-section")
-    assert sections.count() == 5, "all 5 sections (needs action/waiting/due soon/overdue/completed) must render"
+    assert sections.count() == 6, (
+        "all 6 sections (overdue/needs action/due soon/waiting/recently changed/recently completed) must render")
 
     # The live source-status note names disabled/degraded/truncated sources,
     # rather than claiming the five now-wired sources are still pending.

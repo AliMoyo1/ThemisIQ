@@ -37,7 +37,7 @@ import database
 from core.auth import hash_password
 from core.rbac import (
     SUPER_ADMIN, ORG_ADMIN, POLICY_AUTHOR, POLICY_APPROVER, COMPLIANCE_MGR,
-    RISK_OWNER, AUDIT_LEAD, BCM_MANAGER, DPO, EMPLOYEE, EXTERNAL_AUDITOR,
+    RISK_OWNER, AUDIT_LEAD, BCM_MANAGER, DPO, PRIVACY_ANALYST, EMPLOYEE, EXTERNAL_AUDITOR,
 )
 
 PERSONA_PASSWORD = "Synthetic-Test-Pass-1!"
@@ -53,6 +53,7 @@ PERSONAS = {
     "audit_lead":         (AUDIT_LEAD, False),
     "bcm_manager":        (BCM_MANAGER, False),
     "dpo":                (DPO, False),
+    "privacy_analyst":    (PRIVACY_ANALYST, False),  # sees AI Governance, cannot review
     "employee":           (EMPLOYEE, False),
     "viewer":             (EXTERNAL_AUDITOR, False),
 }

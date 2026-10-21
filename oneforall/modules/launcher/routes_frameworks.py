@@ -133,7 +133,7 @@ async def projects_page(request: Request):
             ).fetchone()[0]
             compliant = db.execute(
                 "SELECT COUNT(*) FROM controls "
-                "WHERE framework_id=%s AND status IN ('Implemented','Compliant','Complete')",
+                "WHERE framework_id=%s AND status = 'Implemented'",
                 (fid,),
             ).fetchone()[0]
             fw["compliance_pct"] = round(compliant / total * 100) if total else 0

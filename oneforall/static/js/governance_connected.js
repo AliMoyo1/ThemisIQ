@@ -120,7 +120,8 @@
             ul.appendChild(el('li', {}, [el('div', { class: 'gc-row' }, [
               el('strong', {}, [link(item.url, item.title)]), el('span', { class: 'gc-muted', text: item.kind_label }),
               el('span', { class: 'gc-muted', text: item.relationship }),
-              item.confirmed ? null : chip('Proposed, not confirmed', 'warn')])]));
+              item.state === 'disputed' ? chip('Disputed: somebody declined this connection', 'bad')
+                : item.confirmed ? null : chip('Proposed, not confirmed', 'warn')])]));
           });
           return ul;
         }));

@@ -35,9 +35,15 @@ def current_library_sql(alias: str = "e") -> str:
 
 
 def evidence_search_sql(term: str, alias: str = "e") -> tuple[str, list]:
-    """Case-insensitive substring match over title, filename, tags and description. A blank term adds no constraint."""
+    """Match metadata or text from the exact indexed version of a visible evidence row."""
     a = _alias(alias)
     if not term or not term.strip():
         return "(1 = 1)", []
     clause = " OR ".join(ci_like(f"{a}.{col}") for col in _SEARCH_COLUMNS)
-    return f"({clause})", [like_pattern(term)] * len(_SEARCH_COLUMNS)
+    text_match = ci_like("ti.content_text")
+    clause += (f" OR EXISTS (SELECT 1 FROM evidence_text_index ti WHERE ti.evidence_id = {a}.id "
+               f"AND ti.status = 'indexed' AND ti.file_hash = {a}.file_hash "
+               f"AND COALESCE(ti.org_id,-1) = COALESCE({a}.org_id,-1) "
+               f"AND COALESCE(ti.business_unit_id,-1) = COALESCE({a}.business_unit_id,-1) "
+               f"AND {text_match})")
+    return f"({clause})", [like_pattern(term)] * (len(_SEARCH_COLUMNS) + 1)

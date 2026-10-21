@@ -23,7 +23,9 @@ from modules.governance.data_service import bu_scope_ids
 from core.links import RELATIONSHIP_LABELS
 from modules.governance import relationships
 from modules.governance.entity_scope import entity_scope_sql
-from modules.launcher.task_service import create_task_with_assignment_notification, validate_task_assignee
+from modules.launcher import search_service
+from modules.launcher.task_service import (
+    create_task_with_assignment_notification, tell_new_assignee, validate_task_assignee)
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -40,12 +42,16 @@ async def api_notifications_list(request: Request):
     uid = request.state.user["id"]
     db = get_db()
     try:
+        # Historical literacy notices stay stored, but their destination has been removed.
         rows = db.execute(
-            "SELECT * FROM notifications WHERE user_id = %s ORDER BY created_at DESC LIMIT 50",
+            "SELECT * FROM notifications WHERE user_id = %s "
+            "AND (link IS NULL OR link NOT LIKE '/ai-governance/literacy%') "
+            "ORDER BY created_at DESC LIMIT 50",
             (uid,)
         ).fetchall()
         unread = db.execute(
-            "SELECT COUNT(*) FROM notifications WHERE user_id = %s AND is_read = 0",
+            "SELECT COUNT(*) FROM notifications WHERE user_id = %s AND is_read = 0 "
+            "AND (link IS NULL OR link NOT LIKE '/ai-governance/literacy%')",
             (uid,)
         ).fetchone()[0]
     finally:
@@ -102,8 +108,11 @@ async def api_notification_dismiss(request: Request, nid: int):
 @router.get("/api/search")
 @require_auth
 async def api_global_search(request: Request):
-    """Search across all modules, showing only what the caller could open in each module."""
+    """Search across all modules, showing only what the caller could open in each module.
+
+    `case=module:type:id` searches only the records connected to that record."""
     q = sanitize_short(request.query_params.get("q", ""), 200)
+    case = request.query_params.get("case", "")
     if not q or len(q) < 2:
         return _JSONResp({"results": []})
 
@@ -111,6 +120,16 @@ async def api_global_search(request: Request):
     db = get_db()
     results = []
     like_term = like_pattern(q)
+
+    if case:
+        try:
+            found = search_service.case_results(db, user, case, q)
+            if found is None:
+                return _JSONResp({"error": "Not found", "results": []}, status_code=404)
+            search_service.enrich(db, user, found, q)
+        finally:
+            db.close()
+        return _JSONResp({"results": found[:30], "total": len(found), "case": case})
 
     def scope(key, alias=""):
         """(" AND <scope>", params) for one kind; a kind the caller may not open matches nothing."""
@@ -272,10 +291,70 @@ async def api_global_search(request: Request):
         ).fetchall():
             results.append({"module": "orm", "type": "kri", "id": r["id"],
                             "title": r["name"], "subtitle": "Key Risk Indicator", "link": f"/orm/?open=kri:{r['id']}"})
+        # GRID findings and BCM incidents: both are registered with their own scope rules
+        sc, sp = scope(("grid", "nc"))
+        for r in db.execute(
+            f"SELECT id, title, severity FROM grid_non_conformances WHERE {ci_like('title')}{sc} LIMIT 10",
+            (like_term, *sp)
+        ).fetchall():
+            results.append({"module": "grid", "type": "nc", "id": r["id"],
+                            "title": r["title"], "subtitle": ("Audit finding, " + (r["severity"] or "")).rstrip(" ,"),
+                            "link": f"/grid/?open=nc:{r['id']}"})
+
+        sc, sp = scope(("bcm", "incident"))
+        for r in db.execute(
+            f"SELECT id, title, severity FROM bcm_incidents WHERE {ci_like('title')}{sc} LIMIT 10",
+            (like_term, *sp)
+        ).fetchall():
+            results.append({"module": "bcm", "type": "incident", "id": r["id"],
+                            "title": r["title"], "subtitle": ("Incident, " + (r["severity"] or "")).rstrip(" ,"),
+                            "link": f"/bcm/?open=incident:{r['id']}"})
+
+        # AI uses, and the Governance structure they sit in: applications, business processes and data assets.
+        sc, sp = scope(("governance", "application"), "a")
+        for r in db.execute(
+            "SELECT a.id, a.name, a.application_type, "
+            "EXISTS (SELECT 1 FROM ai_use_profiles p WHERE p.application_id = a.id) AS ai_use "
+            f"FROM applications a WHERE {ci_like('a.name')}{sc} LIMIT 10",
+            (like_term, *sp)
+        ).fetchall():
+            results.append({"module": "governance", "type": "application", "id": r["id"], "title": r["name"],
+                            "subtitle": "AI use" if r["ai_use"] else (r["application_type"] or "Application"),
+                            "link": f"/ai-governance/systems/{r['id']}"})
+
+        sc, sp = scope(("governance", "process"))
+        for r in db.execute(
+            f"SELECT id, name, code FROM business_processes WHERE {ci_like('name')}{sc} LIMIT 10",
+            (like_term, *sp)
+        ).fetchall():
+            results.append({"module": "governance", "type": "process", "id": r["id"], "title": r["name"],
+                            "subtitle": r["code"] or "Business process", "link": "/governance/"})
+
+        sc, sp = scope(("governance", "data_asset"))
+        for r in db.execute(
+            f"SELECT id, name, category FROM data_assets WHERE {ci_like('name')}{sc} LIMIT 10",
+            (like_term, *sp)
+        ).fetchall():
+            results.append({"module": "governance", "type": "data_asset", "id": r["id"], "title": r["name"],
+                            "subtitle": r["category"] or "Data asset", "link": "/governance/"})
+
+        # AI impact assessments (AI Governance's own capability)
+        sc, sp = scope(("sentinel", "aiia"))
+        for r in db.execute(
+            "SELECT id, ref_number, title FROM sentinel_aiia "
+            f"WHERE ({ci_like('title')} OR {ci_like('ref_number')}){sc} LIMIT 10",
+            (like_term, like_term, *sp)
+        ).fetchall():
+            results.append({"module": "sentinel", "type": "aiia", "id": r["id"], "title": r["title"],
+                            "subtitle": r["ref_number"] or "AI impact assessment",
+                            "link": f"/ai-governance/assessments/{r['id']}"})
+
+        shown = results[:30]
+        search_service.enrich(db, user, shown, q)
     finally:
         db.close()
 
-    return _JSONResp({"results": results[:30], "total": len(results)})
+    return _JSONResp({"results": shown, "total": len(results)})
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -306,7 +385,7 @@ async def api_analytics_capture_snapshot(request: Request):
 
         # Compliance metrics
         total_controls = db.execute("SELECT COUNT(*) FROM controls").fetchone()[0]
-        compliant = db.execute("SELECT COUNT(*) FROM controls WHERE status IN ('Implemented','Approved')").fetchone()[0]
+        compliant = db.execute("SELECT COUNT(*) FROM controls WHERE status = 'Implemented'").fetchone()[0]
         pct = round((compliant / total_controls * 100), 1) if total_controls else 0
         metrics.append(("compliance_pct", pct, "aria"))
         metrics.append(("controls_total", total_controls, "aria"))
@@ -485,13 +564,16 @@ async def api_bulk_import(request: Request, entity_type: str):
                 imp = int(rec.get("impact", 3))
                 score = lh * imp
                 level = "critical" if score >= 20 else "high" if score >= 12 else "medium" if score >= 6 else "low"
+                # An imported risk belongs to the importer's business unit, as a risk created by hand does. Without it
+                # the row would be organization wide and visible to every unit.
                 db.execute(
                     "INSERT INTO risk_register (title, description, source_module, category, "
-                    "likelihood, impact, risk_level, treatment, status, created_by) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    "likelihood, impact, risk_level, treatment, status, created_by, business_unit_id) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     (rec.get("title", ""), rec.get("description", ""), rec.get("source_module", ""),
                      rec.get("category", "operational"), lh, imp, level,
-                     rec.get("treatment", "mitigate"), rec.get("status", "open"), request.state.user["id"])
+                     rec.get("treatment", "mitigate"), rec.get("status", "open"), request.state.user["id"],
+                     request.state.user.get("business_unit_id"))
                 )
         elif entity_type == "evidence":
             for rec in records:
@@ -774,6 +856,10 @@ async def api_tasks_bulk_update(request: Request):
         if not ids:
             return _JSONResp({"error": "No accessible tasks."}, 403)
         placeholders = ", ".join(["%s"] * len(ids))
+        # who each task belonged to, so that only the tasks that really change hands are told about
+        new_assignee = validate_int(updates.get("assigned_to")) if "assigned_to" in updates else None
+        before = {r["id"]: r["assigned_to"] for r in db.execute(
+            f"SELECT id, assigned_to FROM task_board WHERE id IN ({placeholders})", ids).fetchall()}
         params.extend(ids)
         sql = f"UPDATE task_board SET {', '.join(fields)} WHERE id IN ({placeholders})"
         if not is_admin:
@@ -781,6 +867,8 @@ async def api_tasks_bulk_update(request: Request):
             params.extend([uid, uid])
         db.execute(sql, params)
         db.commit()
+        if new_assignee is not None:
+            tell_new_assignee(db, [t for t, owner in before.items() if owner != new_assignee], new_assignee, uid)
     finally:
         db.close()
     return _JSONResp({"updated": len(ids)})
@@ -833,6 +921,9 @@ async def api_task_update(request: Request, tid: int):
             db.commit()
             if cur.rowcount == 0:
                 return _JSONResp({"error": "Task changed or was removed; refresh and retry."}, 409)
+            handed_to = validate_int(data.get("assigned_to")) if "assigned_to" in data else None
+            if handed_to is not None and handed_to != row["assigned_to"]:
+                tell_new_assignee(db, [tid], handed_to, uid)
     finally:
         db.close()
     return _JSONResp({"success": True})

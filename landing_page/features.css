@@ -22,7 +22,7 @@ html[data-theme="dusk"] .signal-token:hover::after,html[data-theme="dusk"] .sign
 .framework-ribbon{position:relative;overflow:hidden;margin:34px 0 0;padding:26px 0 22px;border-radius:25px;background:linear-gradient(108deg,rgba(248,251,246,.94),rgba(223,235,227,.82) 54%,rgba(239,245,237,.93));box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 13px 35px rgba(43,78,54,.045)}
 html[data-theme="dusk"] .framework-ribbon{background:linear-gradient(108deg,#142535,#1a2f3c 52%,#142537);box-shadow:inset 0 1px 0 rgba(255,255,255,.09)}
 .ribbon-top{display:flex;align-items:center;justify-content:center;gap:10px;padding:0 24px;color:var(--accent);font:600 10px/1.2 var(--mono);letter-spacing:.16em}
-.ribbon-led{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 5px rgba(71,131,98,.1)}
+
 .ribbon-top-note{margin-left:14px;color:var(--muted);font-family:var(--font);font-size:11px;font-weight:500;letter-spacing:0;text-transform:none}
 .ribbon-viewport{overflow:hidden;margin-top:18px;mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
 .ribbon-track{display:flex;align-items:center;width:max-content;animation:framework-move 52s linear infinite;animation-play-state:paused}
@@ -57,7 +57,7 @@ html[data-theme="dusk"] .feature-panel{border-color:var(--line)}
 @keyframes scene-arrive{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .feature-story{padding:22px 0 18px 8px}
 .feature-story-tag{display:inline-flex;align-items:center;gap:7px;color:var(--active-accent);font:600 10px/1.2 var(--mono);letter-spacing:.1em}
-.feature-story-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 5px var(--active-soft)}
+.feature-story-tag::before{content:none}
 .feature-story h3{margin:25px 0 18px;font-size:clamp(32px,3.3vw,56px);line-height:1.05;letter-spacing:-.055em;font-weight:600}
 .feature-story h3 em{color:var(--active-accent)}
 .feature-story p{max-width:350px;color:var(--muted);font-size:14px;line-height:1.68}
@@ -147,7 +147,7 @@ html[data-theme="dusk"] .feature-panel{border-color:var(--line)}
 @media(max-width:420px){.feature-tab{min-height:80px}.feature-tab strong{font-size:11px}.privacy-rule-grid{grid-template-columns:repeat(3,1fr);gap:4px}.privacy-rule-grid>div{padding:9px 5px}.privacy-rule-grid strong{font-size:9px}.jurisdiction-options button{font-size:9px}.timer-orbit{width:65px;height:65px}.timer-orbit::before{width:52px;height:52px}.timer-orbit span{font-size:15px}.demo-topline{font-size:8px}.demo-topline span:last-child{display:none}.evidence-file-status{display:none}}
 @media(prefers-reduced-motion:reduce){.hero-invite>span,.signal-token,.signal-token .token-dot::after,.ribbon-track,.feature-scene,.response-demo.is-replaying .response-target{animation:none!important}.ribbon-viewport{overflow-x:auto;mask-image:none}.ribbon-track{width:max-content}.ribbon-set[aria-hidden="true"]{display:none}.motion-ready [data-reveal]{opacity:1;transform:none;transition:none}}
 
-html[data-theme="dusk"] .token-aria{--token-color:#e5cb82!important}html[data-theme="dusk"] .token-grid{--token-color:#6ee7b7!important}html[data-theme="dusk"] .token-bcm{--token-color:#aab6d1!important}html[data-theme="dusk"] .token-sentinel{--token-color:#a1b6ff!important}html[data-theme="dusk"] .token-erm{--token-color:#f19ab4!important}html[data-theme="dusk"] .token-orm{--token-color:#efb17c!important}
+html[data-theme="dusk"] .token-aria{--token-color:#e5cb82!important}html[data-theme="dusk"] .token-grid{--token-color:#6ee7b7!important}html[data-theme="dusk"] .token-bcm{--token-color:#aab6d1!important}html[data-theme="dusk"] .token-sentinel{--token-color:#a1b6ff!important}html[data-theme="dusk"] .token-erm{--token-color:#f87171!important}html[data-theme="dusk"] .token-orm{--token-color:#efb17c!important}
 .scenario-visual{position:absolute;top:79px;right:34px;width:min(230px,43%);display:grid;gap:14px;transform:rotate(-4deg)}
 .scenario-visual>div{display:grid;gap:6px}.scenario-visual small{font:600 9px var(--mono);color:var(--muted)}
 .scenario-track{height:13px;border-radius:999px;background:rgba(91,115,96,.11);overflow:hidden}.scenario-track i{display:block;height:100%;width:38%;border-radius:inherit;background:linear-gradient(90deg,#7c9e81,#b4d0ab);animation:scenario-grow 1.2s ease both}.scenario-visual>div:last-child .scenario-track i{width:73%;background:linear-gradient(90deg,#a8666e,#881337);animation-delay:.28s}

@@ -1,0 +1,83 @@
+/* The connected line hero (connected-line.js). Colours come from the page's Sage and Dusk tokens. */
+.connected-line{position:relative;min-height:0;height:min(700px,calc(100vh - 150px));min-height:560px;border-radius:28px;overflow:hidden;isolation:isolate;
+  background:radial-gradient(ellipse at 50% 42%,var(--hero-glow),transparent 62%),linear-gradient(160deg,color-mix(in srgb,var(--glass-strong) 55%,transparent),transparent 70%);
+  border:1px solid var(--line);box-shadow:var(--shadow)}
+.connected-line::before{display:none}
+.connected-line .cl-scene{position:absolute;inset:0;touch-action:pan-y;outline:none}
+.connected-line.is-engaged .cl-scene{touch-action:none}
+.connected-line .cl-scene canvas{display:block;width:100%;height:100%;cursor:grab}
+.connected-line .cl-scene canvas:active{cursor:grabbing}
+
+/* The incident readout, top left. */
+.cl-readout{position:absolute;left:18px;right:18px;top:16px;z-index:4;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:4px 12px;
+  padding:11px 14px;border-radius:14px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  font-size:13px;color:var(--ink);max-width:470px;pointer-events:none}
+.connected-line{--cl-ink:var(--cl-stage-ink,var(--accent))}
+html[data-theme="dusk"] .connected-line{--cl-ink:var(--cl-stage-light,var(--accent))}
+.cl-step{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--cl-ink);grid-row:span 2}
+.cl-stage-text strong{font-weight:600}
+.cl-stage-text span{color:var(--muted)}
+.cl-stage-text #cl-module{color:var(--ink);font-weight:500}
+.cl-silo-note{display:none;color:var(--accent);font-weight:600}
+.connected-line.is-siloed .cl-stage-text{display:none}
+.connected-line.is-siloed .cl-silo-note{display:block}
+.cl-track{height:3px;border-radius:3px;background:var(--line);overflow:hidden}
+.cl-track i{display:block;height:100%;width:0;background:var(--cl-ink);transition:width .2s linear}
+
+/* Mode and camera controls, bottom centre. */
+.cl-controls{position:absolute;left:12px;right:12px;bottom:46px;z-index:5;display:flex;flex-direction:column;align-items:center;gap:10px}
+.cl-modes{display:flex;flex-wrap:wrap;justify-content:center;gap:3px;padding:5px;border-radius:14px;background:var(--glass);border:1px solid var(--line);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 30px rgba(0,0,0,.08)}
+.cl-modes button{border:0;background:none;color:var(--muted);font:500 12px/1 var(--font);padding:10px 14px;border-radius:10px;cursor:pointer;transition:background .2s,color .2s}
+.cl-modes button:hover{color:var(--ink);background:var(--active-soft)}
+.cl-modes button[aria-pressed="true"]{background:var(--accent);color:var(--glass-strong)}
+.cl-cameras{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px;padding:3px 8px;border-radius:999px;background:var(--glass);border:1px solid var(--line);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.cl-caption{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--quiet);margin-right:6px}
+.cl-cameras button{border:0;background:none;color:var(--muted);font:500 11px/1 var(--font);padding:7px 9px;border-radius:999px;cursor:pointer;min-width:30px}
+.cl-cameras button:hover,.cl-cameras button[aria-pressed="true"]{color:var(--ink)}
+.cl-cameras button[data-cl-camera][aria-pressed="true"]{background:var(--active-soft)}
+.cl-divider{width:1px;height:14px;background:var(--line);margin:0 6px}
+.connected-line button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.cl-hint{position:absolute;left:0;right:0;bottom:14px;z-index:4;margin:0;text-align:center;font-size:11px;color:var(--muted);pointer-events:none}
+
+/* Station labels (Stations mode) and the hover tooltip. */
+.cl-labels{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.cl-label{position:absolute;left:0;top:0;opacity:0;transition:opacity .3s;will-change:transform}
+.cl-label.visible{opacity:1}
+.cl-stem{display:none}
+.cl-label-card{display:flex;align-items:center;gap:7px;padding:5px 10px 5px 7px;border-radius:999px;background:var(--glass-strong);
+  border:1px solid color-mix(in srgb,var(--station-ink) 60%,transparent);box-shadow:0 3px 12px rgba(0,0,0,.12);white-space:nowrap}
+.cl-label-title{font-weight:600;font-size:11px;color:var(--ink);display:flex;gap:6px;align-items:center}
+.cl-label-title span{font-family:var(--mono);font-size:9px;background:var(--station-ink);border-radius:999px;padding:2px 5px}
+.cl-label-title span{color:#fff}
+.cl-label-meta{display:none}
+.cl-tooltip{position:absolute;z-index:6;pointer-events:none;opacity:0;transition:opacity .15s;max-width:240px;padding:10px 13px;border-radius:10px;
+  background:var(--glass-strong);border:1px solid var(--line);box-shadow:var(--shadow)}
+.cl-tooltip.visible{opacity:1}
+.cl-tooltip strong{font-size:13px;font-weight:600;color:var(--ink)}
+.cl-tooltip strong span{font-family:var(--mono);font-size:10px;color:var(--accent);margin-right:8px}
+.cl-tooltip p{margin:5px 0 0;font-size:12px;line-height:1.45;color:var(--muted)}
+
+/* Loading and fallback. */
+.cl-loading{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:13px;transition:opacity .4s}
+.cl-loading i{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:cl-spin 1s linear infinite}
+.cl-loading.done{opacity:0;pointer-events:none}
+@keyframes cl-spin{to{transform:rotate(360deg)}}
+.cl-fallback{position:absolute;inset:auto 6% 18% 6%;width:88%;height:auto;border-radius:14px;box-shadow:var(--shadow)}
+.connected-line.is-fallback .cl-controls,.connected-line.is-fallback .cl-hint,.connected-line.is-fallback .cl-readout{display:none}
+
+@media(max-width:1100px){.connected-line{height:600px;min-height:520px}}
+@media(max-width:700px){
+  .connected-line{height:560px;min-height:0;border-radius:20px}
+  .cl-readout{left:10px;right:10px;top:10px;font-size:12px}
+  .cl-controls{bottom:40px;left:6px;right:6px;gap:8px}
+  .cl-modes,.cl-cameras{flex-wrap:nowrap;justify-content:flex-start;max-width:100%;overflow-x:auto;scrollbar-width:none}
+  .cl-modes::-webkit-scrollbar,.cl-cameras::-webkit-scrollbar{display:none}
+  .cl-modes button{padding:9px 10px;font-size:11px;flex:none}
+  .cl-cameras{padding:2px 4px;border-radius:14px}
+  .cl-cameras button{flex:none}
+  .cl-cameras button{padding:6px 6px;font-size:10px}
+  .cl-caption{display:none}
+}
+@media(prefers-reduced-motion:reduce){.cl-loading i{animation:none}.cl-track i,.cl-label,.cl-tooltip{transition:none}}

@@ -9,9 +9,19 @@
   <div class="aig-head">
     <div>
       <h1 class="aig-h1">Review requests</h1>
-      <p class="aig-lede">AI uses that staff have described and sent for review. Accepting one adds it to the inventory, either as a new application or linked to one that already exists. You see the requests from your business unit and the ones for the whole organization.</p>
+      <p class="aig-lede">Review imported form responses and requests entered in ThemisIQ. Accepting one adds it to the inventory, either as a new application or linked to one that already exists. You see requests in your business-unit scope and those for the whole organization.</p>
     </div>
     <div class="aig-head-actions"><a class="btn btn-secondary" href="/ai-governance/import">Import form responses</a></div>
+  </div>
+  <section class="aig-panel" aria-labelledby="aigWorklistH">
+    <span class="aig-eyebrow">01 / REQUEST PIPELINE</span>
+    <h2 id="aigWorklistH" class="aig-h3">All request work</h2>
+    <p class="aig-muted">Follow an intake from triage through assessment, decision and an explicitly sent response. Each row opens the request or its AI system.</p>
+    <div id="aigWorklist"></div>
+  </section>
+  <div class="aig-section-heading aig-section-heading-spaced">
+    <div><span class="aig-eyebrow">02 / TRIAGE DESK</span><h2>Triage desk</h2></div>
+    <p class="aig-muted">Review the request and record the next action.</p>
   </div>
   <div id="aigReview"></div>
 </div>
@@ -20,6 +30,6 @@
 {% block extra_scripts %}
 <script src="/static/js/ai_governance_common.js?v=1"></script>
 <script src="/static/js/ai_governance_review_desk.js?v=1"></script>
-<script src="/static/js/ai_governance_lists.js?v=6"></script>
-<script>AIGov.review(document.getElementById('aigReview'));</script>
+<script src="/static/js/ai_governance_lists.js?v=7"></script>
+<script>AIGov.worklist(document.getElementById('aigWorklist')); AIGov.review(document.getElementById('aigReview'));</script>
 {% endblock %}

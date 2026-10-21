@@ -305,6 +305,18 @@
 </div>
 <div id="ccDashboardCanvas" class="cc-dashboard-canvas" data-modules="{{ user_modules|join(',') }}" aria-label="Customizable Command Centre cards"></div>
 
+<div id="ccUnavailable" class="card" role="alert" style="display:none;border-left:4px solid var(--red);padding:12px 16px;margin-bottom:12px;gap:12px;align-items:center;justify-content:space-between">
+  <span><strong>The figures could not be read just now.</strong> A dash below means "not read", not zero.</span>
+  <button type="button" class="btn btn-secondary btn-sm" id="ccRetry">Try again</button>
+</div>
+<section id="ccFirstScreen" class="cc-first-screen" aria-labelledby="ccFirstScreenTitle" style="margin:0 0 20px">
+  <div class="dash-section-heading"><h2 id="ccFirstScreenTitle">Your day</h2><span><span id="ccFirstScreenAsOf">Read when the page opened</span> &middot; <a href="/metrics">How each figure is defined</a></span></div>
+  <div id="ccFirstScreenFailed" role="alert" style="display:none;border-left:4px solid var(--red);padding:10px 14px;margin-bottom:10px">
+    <strong>Your day could not be read just now.</strong> Nothing below is a count of zero.
+    <button type="button" class="btn btn-secondary btn-sm" id="ccFirstScreenRetry" style="margin-left:10px">Try again</button>
+  </div>
+  <div id="ccFirstScreenGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"></div>
+</section>
 <div class="dash-section-heading"><h2>At a glance</h2><span>Enterprise position today</span></div>
 <div class="stats-row premium-kpi-grid cc-primary-metrics animate-fade-up anim-1">
   <!-- Hero: Overall Compliance — click to open ARIA -->
@@ -623,40 +635,35 @@
     el.textContent = isoTs ? timeAgoShort(isoTs) : 'just now';
   }
 
-  // ── Placeholder / fallback data (shown until real API endpoints are created) ──
-  const fallback = {
-    compliance_pct: 78,
-    compliance_trend: '+6% from last quarter',
-    active_projects: 3,
-    projects_list: 'ISO 27001 · ISO 9001 · PCI DSS',
-    overdue_count: 7,
-    overdue_trend: '▲ 2 since last week',
-    evidence_count: 156,
-    evidence_trend: '▲ 12 this week',
-    evidence_target: 200,
-    module_health: [
-      {key:'aria', name:'ARIA',     pct:82, color:modColors.aria},
-      {key:'grid', name:'GRID',     pct:64, color:modColors.grid},
-      {key:'bcm',  name:'BCM',      pct:91, color:modColors.bcm},
-      {key:'sentinel', name:'Sentinel', pct:45, color:modColors.sentinel}
-    ],
-    sla: {pct:87, met:142, at_risk:14, breached:7},
-    activity: [
-      {text:'Policy approved',   time:'10 min ago',   module:'aria'},
-      {text:'Evidence uploaded',  time:'1 hour ago',   module:'grid'},
-      {text:'Incident resolved',  time:'3 hours ago',  module:'bcm'},
-      {text:'DPIA submitted',     time:'Yesterday',    module:'sentinel'}
-    ],
-    overdue_items: [
-      {id:'ACT-001',item:'Update access control policy',    module:'aria',     assigned:'Sarah Chen',    due:'2026-05-12', sla:'breached',  priority:'critical'},
-      {id:'ACT-002',item:'Complete SOC 2 evidence upload',  module:'grid',     assigned:'James Wilson',  due:'2026-05-14', sla:'breached',  priority:'high'},
-      {id:'ACT-003',item:'Review BCP for HQ',               module:'bcm',      assigned:'Maria Lopez',   due:'2026-05-15', sla:'at_risk',   priority:'high'},
-      {id:'ACT-004',item:'Vendor DPA renewal — Acme Corp',  module:'sentinel', assigned:'Tom Harris',    due:'2026-05-16', sla:'at_risk',   priority:'medium'},
-      {id:'ACT-005',item:'Patch management evidence',       module:'grid',     assigned:'Sarah Chen',    due:'2026-05-10', sla:'breached',  priority:'critical'},
-      {id:'ACT-006',item:'Annual DPIA — Marketing platform',module:'sentinel', assigned:'Amy Nguyen',    due:'2026-05-17', sla:'at_risk',   priority:'medium'},
-      {id:'ACT-007',item:'Risk register quarterly review',   module:'aria',     assigned:'James Wilson',  due:'2026-05-13', sla:'breached',  priority:'high'}
-    ]
-  };
+  // ── What a number says when it has no value ──
+  // A figure is shown only when the server measured it. When it could not be read, or there is nothing to measure, the card
+  // shows a dash and says which: it never shows a zero or a sample in its place.
+  let readFailed = false;
+  function metricOf(d, key){ return (d && d.metrics && d.metrics[key]) || null; }
+  function hasValue(m){ return !!m && (m.state === 'measured' || m.state === 'partial' || m.state === 'stale') && m.value !== null && m.value !== undefined; }
+  function stateWords(m){
+    if(!m) return readFailed ? 'Unavailable just now. This is not a count of zero.' : 'Not available to you.';
+    if(m.state === 'unavailable') return 'Unavailable just now. This is not a count of zero.';
+    if(m.state === 'not_measured') return 'Not measured. ' + (m.note || '');
+    if(m.state === 'partial') return 'Partial: ' + ((m.sources && m.sources.missing) || ['a source']).join(', ') + ' could not be read, so it is not counted.';
+    if(m.state === 'stale') return 'Out of date: as of ' + (m.as_of || 'an earlier time') + '.';
+    return '';
+  }
+  function put(id, m, suffix){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.textContent = hasValue(m) ? String(m.value) + (suffix || '') : '\u2014';
+    el.setAttribute('data-state', m ? m.state : (readFailed ? 'unavailable' : 'hidden'));
+    const words = ((m && m.definition) ? m.definition + ' ' : '') + stateWords(m);
+    if(m && m.state === 'measured') el.setAttribute('title', (m.definition || '').trim()); else el.setAttribute('title', words.trim());
+    if(!hasValue(m)) el.style.color = 'var(--muted)';
+  }
+  function colour(id, cardId, value, c){
+    const el = document.getElementById(id);
+    if(el) el.style.color = c;
+    const card = document.getElementById(cardId);
+    if(card) card.style.setProperty('--status-color', c);
+  }
 
   // ── Greeting: daypart + date (client-side -- the server is UTC and
   // would greet half the world with the wrong daypart) ──
@@ -672,124 +679,99 @@
 
   // ── Populate stats ──
   function populateStats(d){
-    document.getElementById('ccCompliancePct').textContent = d.compliance_pct + '%';
-    document.getElementById('ccComplianceTrend').querySelector('span').textContent = d.compliance_trend;
-    document.getElementById('ccComplianceBar').style.width = d.compliance_pct + '%';
+    const compliance = metricOf(d, 'cc.controls_implemented');
+    put('ccCompliancePct', compliance, '%');
+    document.getElementById('ccCompliancePct').style.color = '';
+    const pct = hasValue(compliance) ? Math.max(0, Math.min(100, Number(compliance.value) || 0)) : 0;
+    document.getElementById('ccComplianceBar').style.width = pct + '%';
     const complianceCard = document.getElementById('ccComplianceCard');
-    if(complianceCard) complianceCard.style.setProperty('--compliance-pct', Math.max(0, Math.min(100, Number(d.compliance_pct) || 0)) + '%');
-    document.getElementById('ccHeroRingPct').textContent = Math.max(0, Math.min(100, Number(d.compliance_pct) || 0)) + '%';
+    if(complianceCard) complianceCard.style.setProperty('--compliance-pct', pct + '%');
+    const ring = document.getElementById('ccHeroRingPct');
+    if(ring) ring.textContent = hasValue(compliance) ? pct + '%' : 'n/a';
+    const trend = document.getElementById('ccComplianceTrend');
+    if(trend){
+      const x = compliance && compliance.detail;
+      trend.querySelector('span').textContent = (hasValue(compliance) && x)
+        ? x.implemented + ' of ' + x.total + ' controls implemented' + (x.approved_not_implemented ? ', ' + x.approved_not_implemented + ' approved and not yet implemented' : '')
+        : stateWords(compliance);
+    }
 
-    document.getElementById('ccActiveProjects').textContent = d.active_projects;
-    document.getElementById('ccProjectsList').textContent = d.projects_list;
+    const fw = metricOf(d, 'cc.active_frameworks');
+    put('ccActiveProjects', fw);
+    put('ccActiveFrameworks', fw);
+    const names = document.getElementById('ccProjectsList');
+    if(names) names.textContent = hasValue(fw) ? (((fw.detail && fw.detail.names) || []).join(' · ') || 'No framework is active') : stateWords(fw);
     const navProj = document.getElementById('sideNavProjects');
-    if(navProj) navProj.textContent = d.active_projects;
+    if(navProj) navProj.textContent = hasValue(fw) ? fw.value : '';
 
-    document.getElementById('ccOverdueCount').textContent = d.overdue_count;
-    document.getElementById('ccOverdueTrend').querySelector('span').textContent = d.overdue_trend;
+    const overdue = metricOf(d, 'cc.overdue_actions');
+    put('ccOverdueCount', overdue);
+    const overdueTrend = document.getElementById('ccOverdueTrend');
+    if(overdueTrend) overdueTrend.querySelector('span').textContent = (overdue && overdue.state === 'measured') ? 'Tasks past due and breached service clocks' : stateWords(overdue);
 
-    // Critical/High ERM Risks (row 1, position 4)
-    var ermCrit = d.erm_critical_high || 0;
-    var ermCritEl = document.getElementById('ccErmCritHigh');
-    var ermCritCard = document.getElementById('ccErmCritCard');
-    if(ermCritEl){
-      ermCritEl.textContent = ermCrit;
-      ermCritEl.style.color = ermCrit > 0 ? 'var(--red)' : 'var(--green-status)';
-      if(ermCritCard) ermCritCard.style.setProperty('--status-color', ermCrit > 0 ? 'var(--red)' : 'var(--green-status)');
-    }
+    const crit = metricOf(d, 'cc.critical_high_risks');
+    put('ccErmCritHigh', crit);
+    if(hasValue(crit)) colour('ccErmCritHigh', 'ccErmCritCard', crit.value, crit.value > 0 ? 'var(--red)' : 'var(--green-status)');
 
-    // Sidebar evidence count
-    var navEv = document.getElementById('sideNavEvidence');
-    if(navEv) navEv.textContent = d.evidence_count;
+    const evidence = metricOf(d, 'cc.evidence_files');
+    put('ccEvidenceCount', evidence);
+    const navEv = document.getElementById('sideNavEvidence');
+    if(navEv) navEv.textContent = hasValue(evidence) ? evidence.value : '';
 
-    // ── Module headline stats (row 2) ──
     // Sentinel open breaches
-    var sentBreaches = d.sentinel_open_breaches || 0;
-    var sentEl = document.getElementById('ccSentinelBreaches');
-    var sentCard = document.getElementById('ccSentinelCard');
-    if(sentEl){
-      sentEl.textContent = sentBreaches;
-      var sentSub = document.getElementById('ccSentinelSub');
-      if(sentBreaches > 0){
-        sentEl.style.color = d.sentinel_breach_severity === 'critical' ? 'var(--red)' : 'var(--amber)';
-        if(sentSub) sentSub.textContent = sentBreaches === 1 ? '1 active breach' : sentBreaches + ' active breaches';
-        if(sentCard) sentCard.style.setProperty('--status-color', d.sentinel_breach_severity === 'critical' ? 'var(--red)' : 'var(--amber)');
-      } else {
-        sentEl.style.color = 'var(--green-status)';
-        if(sentSub) sentSub.textContent = 'No active breaches';
-        if(sentCard) sentCard.style.setProperty('--status-color', 'var(--green-status)');
-      }
+    const breaches = metricOf(d, 'cc.open_breaches');
+    put('ccSentinelBreaches', breaches);
+    const sentSub = document.getElementById('ccSentinelSub');
+    if(hasValue(breaches)){
+      const worst = breaches.detail && breaches.detail.worst;
+      const c = breaches.value > 0 ? (worst === 'critical' ? 'var(--red)' : 'var(--amber)') : 'var(--green-status)';
+      colour('ccSentinelBreaches', 'ccSentinelCard', breaches.value, c);
+      if(sentSub) sentSub.textContent = breaches.value === 0 ? 'No high or critical breaches open' : (breaches.value === 1 ? '1 active breach' : breaches.value + ' active breaches');
+    } else if(sentSub){
+      sentSub.textContent = stateWords(breaches);
     }
 
-    // ERM appetite breaches
-    var ermB = d.erm_appetite_breaches || 0;
-    var ermEl = document.getElementById('ccErmBreaches');
-    var ermCard = document.getElementById('ccErmCard');
-    if(ermEl){
-      ermEl.textContent = ermB;
-      ermEl.style.color = ermB > 0 ? 'var(--red)' : 'var(--green-status)';
-      if(ermCard) ermCard.style.setProperty('--status-color', ermB > 0 ? 'var(--red)' : 'var(--green-status)');
-    }
+    const appetite = metricOf(d, 'cc.appetite_breaches');
+    put('ccErmBreaches', appetite);
+    if(hasValue(appetite)) colour('ccErmBreaches', 'ccErmCard', appetite.value, appetite.value > 0 ? 'var(--red)' : 'var(--green-status)');
 
-    // ORM open events
-    var ormEvts = d.orm_open_events || 0;
-    var ormEl = document.getElementById('ccOrmEvents');
-    var ormCard = document.getElementById('ccOrmCard');
-    if(ormEl){
-      ormEl.textContent = ormEvts;
-      ormEl.style.color = ormEvts > 5 ? 'var(--amber)' : ormEvts > 0 ? 'var(--muted)' : 'var(--green-status)';
-      if(ormCard) ormCard.style.setProperty('--status-color', ormEvts > 5 ? 'var(--amber)' : 'var(--green-status)');
-    }
+    const orm = metricOf(d, 'cc.orm_open_events');
+    put('ccOrmEvents', orm);
+    if(hasValue(orm)) colour('ccOrmEvents', 'ccOrmCard', orm.value, orm.value > 5 ? 'var(--amber)' : (orm.value > 0 ? 'var(--muted)' : 'var(--green-status)'));
 
-    // BCM active incidents
-    var bcmInc = d.bcm_active_incidents || 0;
-    var bcmEl = document.getElementById('ccBcmIncidents');
-    var bcmCard = document.getElementById('ccBcmCard');
-    if(bcmEl){
-      bcmEl.textContent = bcmInc;
-      bcmEl.style.color = bcmInc > 0 ? 'var(--red)' : 'var(--green-status)';
-      if(bcmCard) bcmCard.style.setProperty('--status-color', bcmInc > 0 ? 'var(--red)' : 'var(--green-status)');
-    }
+    const bcm = metricOf(d, 'cc.bcm_active_incidents');
+    put('ccBcmIncidents', bcm);
+    if(hasValue(bcm)) colour('ccBcmIncidents', 'ccBcmCard', bcm.value, bcm.value > 0 ? 'var(--red)' : 'var(--green-status)');
 
-    // Row 3: action-oriented stats
-    var gridFindings = d.grid_open_findings || 0;
-    var gridEl = document.getElementById('ccGridFindings');
-    var gridCard = document.getElementById('ccGridFindCard');
-    if(gridEl){
-      gridEl.textContent = gridFindings;
-      gridEl.style.color = gridFindings > 10 ? 'var(--red)' : gridFindings > 0 ? 'var(--amber)' : 'var(--green-status)';
-      if(gridCard) gridCard.style.setProperty('--status-color', gridFindings > 10 ? 'var(--red)' : gridFindings > 0 ? 'var(--amber)' : 'var(--green-status)');
-    }
+    const grid = metricOf(d, 'cc.grid_open_audit_controls');
+    put('ccGridFindings', grid);
+    if(hasValue(grid)) colour('ccGridFindings', 'ccGridFindCard', grid.value, grid.value > 10 ? 'var(--red)' : (grid.value > 0 ? 'var(--amber)' : 'var(--green-status)'));
 
-    var reviews = d.upcoming_reviews || 0;
-    var revEl = document.getElementById('ccUpcomingReviews');
-    var revCard = document.getElementById('ccReviewsCard');
-    if(revEl){
-      revEl.textContent = reviews;
-      revEl.style.color = reviews > 0 ? 'var(--amber)' : 'var(--green-status)';
-      if(revCard) revCard.style.setProperty('--status-color', reviews > 0 ? 'var(--amber)' : 'var(--green-status)');
-    }
-
-    var fws = d.ims_active_frameworks || 0;
-    var fwEl = document.getElementById('ccActiveFrameworks');
-    if(fwEl) fwEl.textContent = fws;
-
-    var evEl = document.getElementById('ccEvidenceCount');
-    if(evEl) evEl.textContent = d.evidence_count || 0;
+    const reviews = metricOf(d, 'cc.upcoming_reviews');
+    put('ccUpcomingReviews', reviews);
+    if(hasValue(reviews)) colour('ccUpcomingReviews', 'ccReviewsCard', reviews.value, reviews.value > 0 ? 'var(--amber)' : 'var(--green-status)');
 
     // Breach notification countdown alerts
     populateBreachAlerts(d.breach_alerts || []);
 
-    // ── Attention summary (greeting row) -- bound to fields this same
-    // payload already carries, no new fetch ──
-    var critHigh = d.erm_critical_high || 0;
-    var overdue = d.overdue_count || 0;
-    var attBits = [];
-    if(critHigh > 0) attBits.push(critHigh + ' critical/high risk' + (critHigh > 1 ? 's' : ''));
-    if(overdue > 0) attBits.push(overdue + ' overdue item' + (overdue > 1 ? 's' : ''));
-    var att = document.getElementById('ccAttention');
-    if(att) att.textContent = attBits.length
-      ? attBits.join(' and ') + ' need' + (critHigh + overdue === 1 ? 's' : '') + ' your attention'
-      : 'All clear. Nothing urgent today.';
+    // ── Attention summary: only claims "all clear" when everything it rests on was read ──
+    const att = document.getElementById('ccAttention');
+    if(att){
+      const parts = [crit, overdue];
+      const unread = parts.filter(m => !hasValue(m) || (m && m.state === 'partial'));
+      const critHigh = hasValue(crit) ? crit.value : 0;
+      const late = hasValue(overdue) ? overdue.value : 0;
+      const bits = [];
+      if(critHigh > 0) bits.push(critHigh + ' critical/high risk' + (critHigh > 1 ? 's' : ''));
+      if(late > 0) bits.push(late + ' overdue item' + (late > 1 ? 's' : ''));
+      if(bits.length){
+        att.textContent = bits.join(' and ') + ' need' + (critHigh + late === 1 ? 's' : '') + ' your attention' + (unread.length ? ', and some figures could not be read' : '');
+      } else if(unread.length){
+        att.textContent = 'Some figures could not be read just now, so this is not an all clear.';
+      } else {
+        att.textContent = 'All clear. Nothing urgent today.';
+      }
+    }
   }
 
   // ── Breach Notification Countdown ──
@@ -888,48 +870,55 @@
   function populateModuleHealth(items){
     const el = document.getElementById('ccModuleHealth');
     if(!items || !items.length){
-      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">No module data</div>';
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">' + (readFailed ? 'Not read just now' : 'No module data') + '</div>';
       return;
     }
     el.innerHTML = items.map(m => {
-      const pct = parseInt(m.pct, 10) || 0;
-      const pctColor = pct >= 80 ? 'var(--green-status)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
-      const safeColor = modColors[m.key] || 'var(--muted)';
-      const link = MODULE_LINKS[m.key] || '#';
-      return `<div class="module-health-item" style="cursor:pointer" title="Open ${esc(m.name)}"
+      const detail = m.detail || {};
+      const key = detail.module;
+      const name = detail.name || key || '';
+      const safeColor = modColors[key] || 'var(--muted)';
+      const link = MODULE_LINKS[key] || '#';
+      const measured = hasValue(m);
+      const pct = measured ? (parseInt(m.value, 10) || 0) : 0;
+      const pctColor = !measured ? 'var(--muted)' : pct >= 80 ? 'var(--green-status)' : pct >= 60 ? 'var(--amber)' : 'var(--red)';
+      const words = measured ? esc(name) + ': ' + pct + '% of ' + (detail.of || '') + ' records are in their good state' : esc(name) + ': ' + esc(stateWords(m));
+      return `<div class="module-health-item" style="cursor:pointer" title="${words}"
                    onclick="window.location.href='${link}'">
         <div class="mh-dot" style="background:${safeColor}"></div>
-        <div class="mh-name">${esc(m.name)}</div>
-        <div class="mh-pct" style="color:${pctColor}">${pct}%</div>
+        <div class="mh-name">${esc(name)}</div>
+        <div class="mh-pct" style="color:${pctColor}">${measured ? pct + '%' : 'n/a'}</div>
         <div class="mh-bar"><div class="mh-bar-fill" style="width:${pct}%;background:${safeColor}"></div></div>
+        ${measured ? '' : '<span class="sr-only">' + esc(stateWords(m)) + '</span>'}
       </div>`;
     }).join('');
   }
 
   // ── Risk Register Widget ──
-  function populateRiskWidget(risk_counts, workflow_active){
-    const crit = risk_counts && risk_counts['critical'] ? risk_counts['critical'] : 0;
-    const high = risk_counts && risk_counts['high']     ? risk_counts['high']     : 0;
-    const med  = risk_counts && risk_counts['medium']   ? risk_counts['medium']   : 0;
-    const rEl = document.getElementById('ccRiskCrit'); if(rEl) rEl.textContent = crit + ' Critical';
-    const hEl = document.getElementById('ccRiskHigh'); if(hEl) hEl.textContent = high + ' High';
-    const mEl = document.getElementById('ccRiskMed');  if(mEl) mEl.textContent = med  + ' Medium';
-    const wEl = document.getElementById('ccWorkflowActive'); if(wEl) wEl.textContent = workflow_active || 0;
+  function populateRiskWidget(risks, workflows){
+    const levels = (risks && risks.detail) || {};
+    const known = hasValue(risks);
+    const text = (n, word) => (known ? (n || 0) : 'n/a') + ' ' + word;
+    const rEl = document.getElementById('ccRiskCrit'); if(rEl) rEl.textContent = text(levels.critical, 'Critical');
+    const hEl = document.getElementById('ccRiskHigh'); if(hEl) hEl.textContent = text(levels.high, 'High');
+    const mEl = document.getElementById('ccRiskMed');  if(mEl) mEl.textContent = text(levels.medium, 'Medium');
+    put('ccWorkflowActive', workflows);
   }
 
   // ── SLA Donut ──
-  function populateSLA(sla){
-    sla = sla || {};
-    const met = Math.max(0, Number(sla.met) || 0);
-    const breached = Math.max(0, Number(sla.breached) || 0);
-    const atRisk = Math.max(0, Number(sla.at_risk) || 0);
+  function populateSLA(m){
+    const detail = (m && m.detail) || {};
+    const known = !!m && (m.state === 'measured' || m.state === 'not_measured');
+    const met = known ? Math.max(0, Number(detail.met) || 0) : 0;
+    const breached = known ? Math.max(0, Number(detail.breached) || 0) : 0;
+    const atRisk = known ? Math.max(0, Number(detail.at_risk) || 0) : 0;
     const resolved = met + breached;
     const pct = resolved ? Math.round(met / resolved * 100) : 0;
     const circ = 2 * Math.PI * 56;
     const onTimeArc = document.getElementById('ccSlaArc');
     const breachedArc = document.getElementById('ccSlaBreachArc');
-    onTimeArc.querySelector('title').textContent = 'Met SLA: ' + met;
-    breachedArc.querySelector('title').textContent = 'Breached SLA: ' + breached;
+    onTimeArc.querySelector('title').textContent = 'Met SLA: ' + (known ? met : 'not read');
+    breachedArc.querySelector('title').textContent = 'Breached SLA: ' + (known ? breached : 'not read');
     const caption = document.getElementById('ccSlaCaption');
     const pctEl = document.getElementById('ccSlaPct');
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -942,7 +931,7 @@
     }
     if(reduceMotion) paint();
     else requestAnimationFrame(() => requestAnimationFrame(paint));
-    caption.textContent = resolved ? 'RESOLVED ON TIME' : 'NO RESOLVED SLAs';
+    caption.textContent = !known ? (m ? 'NOT READ' : 'NOT AVAILABLE') : (resolved ? 'RESOLVED ON TIME' : 'NO RESOLVED SLAs');
     if(pctEl._frame) cancelAnimationFrame(pctEl._frame);
     if(!resolved || reduceMotion){
       pctEl.textContent = resolved ? pct + '%' : String.fromCharCode(8212);
@@ -957,16 +946,16 @@
       }
       pctEl._frame = requestAnimationFrame(tick);
     }
-    document.getElementById('ccSlaMet').textContent = met;
-    document.getElementById('ccSlaRisk').textContent = atRisk;
-    document.getElementById('ccSlaBreach').textContent = breached;
+    document.getElementById('ccSlaMet').textContent = known ? met : 'n/a';
+    document.getElementById('ccSlaRisk').textContent = known ? atRisk : 'n/a';
+    document.getElementById('ccSlaBreach').textContent = known ? breached : 'n/a';
   }
 
   // ── Recent Activity Timeline ──
   function populateActivity(items){
     const el = document.getElementById('ccRecentActivity');
     if(!items || !items.length){
-      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">No recent activity</div>';
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">' + (readFailed ? 'Not read just now' : 'No recent activity') + '</div>';
       return;
     }
     el.innerHTML = items.map((a, i) => {
@@ -987,11 +976,14 @@
 
   // ── Overdue Table ──
   let allOverdueItems = [];
+  let overdueMetric = null;
 
   function renderOverdueTable(items){
     const body = document.getElementById('ccOverdueBody');
     if(!items || !items.length){
-      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">No overdue items</td></tr>';
+      const unread = readFailed || (overdueMetric && !hasValue(overdueMetric));
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted)">' +
+        (unread ? 'The overdue items could not be read just now. This is not an empty list.' : 'No overdue items') + '</td></tr>';
       return;
     }
     body.innerHTML = items.map(row => {
@@ -1019,27 +1011,51 @@
     }
   };
 
-  // ── Fetch data from API or fall back to static ──
+  // ── Fetch data from the API; when it fails, say so (never a sample) ──
+  function showUnavailable(on){
+    const banner = document.getElementById('ccUnavailable');
+    if(banner) banner.style.display = on ? 'flex' : 'none';
+  }
   async function loadDashboard(){
     let data = null;
+    readFailed = false;
     try {
       const resp = await fetch('/api/command-centre/stats');
       if(resp.ok) data = await resp.json();
     } catch(e){}
-
-    // Use real data if available, otherwise fallback
-    const d = data || fallback;
-
+    if(!data || !data.metrics){
+      readFailed = true;
+      showUnavailable(true);
+      overdueMetric = null;
+      populateStats({metrics: {}});
+      populateModuleHealth([]);
+      populateSLA(null);
+      populateActivity(null);
+      populateRiskWidget(null, null);
+      allOverdueItems = [];
+      renderOverdueTable([]);
+      const att = document.getElementById('ccAttention');
+      if(att) att.textContent = 'The figures could not be read just now. This is not an all clear.';
+      const updated = document.getElementById('ccLastUpdated');
+      if(updated) updated.textContent = 'not read';
+      loadBriefing();
+      return;
+    }
+    showUnavailable(false);
+    const d = data;
+    overdueMetric = metricOf(d, 'cc.overdue_actions');
     populateStats(d);
-    populateModuleHealth(d.module_health);
-    populateSLA(d.sla);
+    populateModuleHealth(d.health);
+    populateSLA(metricOf(d, 'cc.sla_on_time'));
     populateActivity(d.activity);
-    populateRiskWidget(d.risk_counts, d.workflow_active);
+    populateRiskWidget(metricOf(d, 'cc.open_risks'), metricOf(d, 'cc.workflows_active'));
     allOverdueItems = d.overdue_items || [];
     renderOverdueTable(allOverdueItems);
     setLastUpdated(d.fetched_at);
     loadBriefing();
   }
+  const retry = document.getElementById('ccRetry');
+  if(retry) retry.addEventListener('click', loadDashboard);
 
   // ── Today's Briefing ──
   async function loadBriefing(){
@@ -1255,13 +1271,15 @@ function _renderPredictivePanel(d, col) {
   }
 
   // ── Telemetry snapshot chips ──
+  // A figure the engine did not supply is a dash. It is not 0 (no breaches) and not 100 per cent.
+  var telVal = function(v, fmt){ return (v === null || v === undefined || isNaN(Number(v))) ? 'n/a' : (fmt ? fmt(Number(v)) : String(v)); };
   var telChips = [
-    {icon:'&#128737;', label:'Breaches',    val:tel.breach_raw_count||0, link:'/sentinel/'},
-    {icon:'&#9881;',   label:'Open NCs',    val:tel.nc_count||0,         link:'/grid/'},
-    {icon:'&#9200;',   label:'BCM (days)',  val:Math.round(tel.days_since_exercise||0), link:'/bcm/'},
-    {icon:'&#9888;',   label:'Recurring Ops',val:tel.orm_recurring||0,   link:'/orm/'},
-    {icon:'&#128202;', label:'ARIA %',      val:(tel.compliance_pct||100).toFixed(0)+'%', link:'/aria/'},
-    {icon:'&#128308;', label:'Appetite',    val:tel.appetite_breaches||0, link:'/erm/'},
+    {icon:'&#128737;', label:'Breaches',    val:telVal(tel.breach_raw_count), link:'/sentinel/'},
+    {icon:'&#9881;',   label:'Open NCs',    val:telVal(tel.nc_count),         link:'/grid/'},
+    {icon:'&#9200;',   label:'BCM (days)',  val:telVal(tel.days_since_exercise, function(n){return String(Math.round(n));}), link:'/bcm/'},
+    {icon:'&#9888;',   label:'Recurring Ops',val:telVal(tel.orm_recurring),   link:'/orm/'},
+    {icon:'&#128202;', label:'ARIA %',      val:telVal(tel.compliance_pct, function(n){return n.toFixed(0)+'%';}), link:'/aria/'},
+    {icon:'&#128308;', label:'Appetite',    val:telVal(tel.appetite_breaches), link:'/erm/'},
   ];
   var chipHtml = telChips.map(function(c){
     return '<a href="' + c.link + '" style="display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:100px;background:var(--surface2);border:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text);text-decoration:none;transition:all .15s" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\'">' +
@@ -1310,7 +1328,105 @@ function _renderPredictivePanel(d, col) {
     chipHtml +
   '</div>' +
   sparkHtml +
-  advHtml;
+  advHtml +
+  // Why this number: the records behind each signal, and a place to dispute one (loaded on demand)
+  '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">' +
+    '<button type="button" class="btn btn-secondary" id="prTraceBtn" onclick="loadPredictiveTrace()">Why this number?</button>' +
+    '<div id="prTrace" role="region" aria-label="What this prediction was made from" aria-live="polite" style="margin-top:10px"></div>' +
+  '</div>';
+}
+
+// ── Why this number ──
+function _prEl(tag, props, kids){
+  var node = document.createElement(tag);
+  Object.keys(props || {}).forEach(function(k){
+    if(k === 'text') node.textContent = props[k];
+    else node.setAttribute(k, props[k]);
+  });
+  (kids || []).forEach(function(c){ if(c) node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+  return node;
+}
+
+async function loadPredictiveTrace() {
+  var host = document.getElementById('prTrace');
+  var btn = document.getElementById('prTraceBtn');
+  if(!host) return;
+  host.textContent = 'Loading...';
+  if(btn) btn.disabled = true;
+  try {
+    var id = _prData && (_prData.prediction_id || _prData.id);
+    var t = await ApiClient.request('/api/predictive-risk/trace' + (id ? '?prediction_id=' + encodeURIComponent(id) : ''),
+                                    { actionId: 'command_centre.predictive_risk.trace' });
+    host.textContent = '';
+    host.appendChild(_prEl('p', { style: 'font-size:12px;color:var(--muted);margin:0 0 8px', text:
+      'Computed ' + t.freshness.computed_at + ' from the records as they were then. ' +
+      'The number is a weighted formula, not a decision: ' + t.formula + '. ' + (t.note || '') }));
+    t.signals.forEach(function(s){
+      var box = _prEl('section', { style: 'border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px' });
+      var share = s.direction === 'lowers' ? ' (lowers the score)' :
+        (s.share_pct !== null && s.share_pct !== undefined ? ' (' + s.share_pct + '% of the score)' : '');
+      box.appendChild(_prEl('div', { style: 'font-weight:700;font-size:13px', text: s.label + share }));
+      box.appendChild(_prEl('p', { style: 'font-size:12px;margin:4px 0;color:var(--muted)', text: s.rule }));
+      box.appendChild(_prEl('p', { style: 'font-size:12px;margin:2px 0;color:var(--muted)', text: 'Period: ' + s.window +
+        '. Figure: ' + (s.figure === null || s.figure === undefined ? 'not supplied' : s.figure) +
+        ', weight ' + s.weight + ', term ' + (s.term === null || s.term === undefined ? 'n/a' : s.term) + '.' }));
+      if(t.traceable){
+        var weighted = s.records.some(function(r){ return r.weight !== null && r.weight !== undefined; });
+        var counted = s.none_found ? 'No completed exercise is on record, so this reads as 365 days.' :
+          (s.count === null || s.count === undefined) ? 'The engine did not supply the records.' :
+          s.count + (s.of ? ' of ' + s.of : '') + ' record(s) counted' +
+            (s.truncated ? '; ' + s.records.length + ' are listed' + (weighted ? ', heaviest first.' : '.') : '.');
+        box.appendChild(_prEl('p', { style: 'font-size:12px;margin:2px 0', text: counted }));
+        if(s.categories && s.categories.length){
+          box.appendChild(_prEl('p', { style: 'font-size:12px;margin:2px 0', text: 'Categories above appetite: ' + s.categories.join(', ') + '.' }));
+        }
+        if(s.records.length){
+          var list = _prEl('ul', { style: 'margin:4px 0 4px 18px;padding:0;font-size:12px' });
+          s.records.forEach(function(r){
+            var href = (typeof r.url === 'string' && r.url.charAt(0) === '/' && r.url.charAt(1) !== '/') ? r.url : '/';
+            var a = _prEl('a', { href: href, text: r.title });
+            list.appendChild(_prEl('li', {}, [a, r.weight !== null && r.weight !== undefined ? ' (weight ' + r.weight + ')' : '']));
+          });
+          box.appendChild(list);
+        }
+        if(s.not_shown){
+          box.appendChild(_prEl('p', { style: 'font-size:11px;color:var(--muted);margin:2px 0',
+            text: s.not_shown + ' listed record(s) no longer exist or are not open to you.' }));
+        }
+      }
+      (s.disputes || []).forEach(function(d){
+        box.appendChild(_prEl('p', { style: 'font-size:12px;margin:4px 0;padding:6px 8px;background:var(--surface2);border-radius:6px',
+          text: 'Disputed by ' + (d.author || 'a reviewer') + ' (' + d.created_at + '): ' + d.body }));
+      });
+      var field = _prEl('input', { type: 'text', maxlength: '1000', class: 'form-input', 'aria-label': 'Dispute the ' + s.label + ' signal',
+        placeholder: 'What is wrong with this signal?', style: 'font-size:12px;padding:7px 10px' });
+      var send = _prEl('button', { type: 'button', class: 'btn btn-secondary btn-sm', style: 'margin-top:6px', text: 'Record the dispute' });
+      send.addEventListener('click', async function(){
+        var body = field.value.trim();
+        if(!body) return;
+        send.disabled = true;
+        try {
+          await ApiClient.request('/api/predictive-risk/' + encodeURIComponent(t.prediction_id) + '/disputes',
+            { method: 'POST', body: { signal: s.key, body: body }, actionId: 'command_centre.predictive_risk.dispute' });
+          loadPredictiveTrace();
+        } catch(e){
+          send.disabled = false;
+          if(typeof showToast === 'function') showToast((e && e.detail) || 'The dispute could not be recorded', 'error');
+        }
+      });
+      var dispute = _prEl('details', { style: 'margin-top:6px' }, [
+        _prEl('summary', { style: 'cursor:pointer;font-size:12px;color:var(--muted)', text: 'Dispute this signal' }),
+        _prEl('div', { style: 'margin-top:6px' }, [field, send])]);
+      box.appendChild(dispute);
+      host.appendChild(box);
+    });
+    host.appendChild(_prEl('p', { style: 'font-size:11px;color:var(--muted)', text:
+      'A dispute is a note beside the number. It does not change the prediction, the records or the formula.' }));
+  } catch(e){
+    host.textContent = (e && e.detail) || 'The trace could not be loaded.';
+  } finally {
+    if(btn) btn.disabled = false;
+  }
 }
 
 function _hexToRgb(hex) {
@@ -1340,25 +1456,99 @@ async function acknowledgePrediction() {
   }
 }
 
+// ── The first screen: what needs action, what changed, what lacks proof, what can be reported ──
+(function(){
+  var grid = document.getElementById('ccFirstScreenGrid');
+  var failed = document.getElementById('ccFirstScreenFailed');
+  if(!grid) return;
+  function el(tag, props, children){
+    var node = document.createElement(tag);
+    Object.keys(props || {}).forEach(function(k){
+      if(k === 'text') node.textContent = props[k];
+      else if(k === 'style') node.setAttribute('style', props[k]);
+      else node.setAttribute(k, props[k]);
+    });
+    (children || []).forEach(function(c){ if(c) node.appendChild(c); });
+    return node;
+  }
+  function figure(value, label){
+    var shown = (value === null || value === undefined) ? 'n/a' : String(value);
+    return el('div', {style:'min-width:70px'}, [
+      el('div', {text: shown, style:'font-size:24px;font-weight:800;line-height:1.1'}),
+      el('div', {text: label, style:'font-size:11px;color:var(--muted)'})]);
+  }
+  function safeLink(url){ return (typeof url === 'string' && url.charAt(0) === '/' && url.charAt(1) !== '/') ? url : '/'; }
+  var FIGURES = {
+    action: [['overdue','Overdue'], ['needs_you','Needs you'], ['due_soon','Due soon'], ['waiting','Waiting on others']],
+    changed: [['to_look_at','To look at again'], ['unread','Unread changes']],
+    proof: [['without_proof','Without current proof'], ['waiting_review','Waiting for a reviewer']]
+  };
+  function card(p){
+    var box = el('div', {class:'panel-card', style:'padding:14px'});
+    box.appendChild(el('div', {text:p.title, style:'font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:8px'}));
+    if(p.state === 'unavailable'){
+      box.appendChild(el('div', {text:'n/a', style:'font-size:24px;font-weight:800;color:var(--muted)'}));
+      box.appendChild(el('div', {text:p.note || 'This could not be read just now. That is not a count of zero.', style:'font-size:12px;color:var(--muted);margin-top:4px'}));
+      return box;
+    }
+    if(p.state === 'not_measured'){
+      box.appendChild(el('div', {text:'Not measured', style:'font-size:16px;font-weight:700;color:var(--muted)'}));
+      box.appendChild(el('div', {text:p.note || '', style:'font-size:12px;color:var(--muted);margin-top:4px'}));
+      return box;
+    }
+    if(p.key === 'report'){
+      (p.presets || []).forEach(function(r){
+        var line = el('div', {style:'margin-bottom:6px;font-size:13px'});
+        line.appendChild(el('strong', {text:r.label}));
+        line.appendChild(el('span', {text:' - ' + r.sections_open + ' of ' + r.sections_total + ' sections open to you', style:'color:var(--muted)'}));
+        box.appendChild(line);
+      });
+      box.appendChild(el('a', {href:'/reports', text:'Open Reports', class:'btn btn-secondary btn-sm'}));
+      if(p.last_run) box.appendChild(el('div', {text:'Last saved run: ' + p.last_run.name + ', ' + p.last_run.at, style:'font-size:11px;color:var(--muted);margin-top:8px'}));
+      return box;
+    }
+    var row = el('div', {style:'display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px'});
+    (FIGURES[p.key] || []).forEach(function(f){ row.appendChild(figure((p.counts || {})[f[0]], f[1])); });
+    box.appendChild(row);
+    (p.items || []).forEach(function(it){
+      box.appendChild(el('div', {style:'font-size:12px;margin-top:3px'}, [
+        el('a', {href:safeLink(it.link), text:it.title}),
+        it.label ? el('span', {text:' (' + it.label + (it.due ? ', due ' + String(it.due).slice(0, 10) : '') + ')', style:'color:var(--muted)'}) : null]));
+    });
+    if(p.state === 'partial' && p.note) box.appendChild(el('div', {text:p.note, style:'font-size:11px;color:var(--muted);margin-top:6px'}));
+    if(p.definition) box.appendChild(el('div', {text:p.definition, style:'font-size:11px;color:var(--muted);margin-top:6px'}));
+    box.appendChild(el('a', {href:safeLink(p.link), text:'Open the list', style:'display:inline-block;font-size:12px;margin-top:8px'}));
+    return box;
+  }
+  async function load(){
+    failed.style.display = 'none';
+    try{
+      var data = await ApiClient.request('/api/command-centre/first-screen', {actionId: 'command_centre.first_screen'});
+      grid.textContent = '';
+      (data.panels || []).forEach(function(p){ grid.appendChild(card(p)); });
+      var asOf = document.getElementById('ccFirstScreenAsOf');
+      if(asOf && data.as_of) asOf.textContent = 'Read ' + String(data.as_of).slice(0, 16) + ' UTC';
+    }catch(e){
+      grid.textContent = '';
+      failed.style.display = 'block';
+    }
+  }
+  var retry = document.getElementById('ccFirstScreenRetry');
+  if(retry) retry.addEventListener('click', load);
+  load();
+})();
+
 // ── Button handlers ──
 async function exportReport(){
   {% if is_admin %}
   showToast('Generating compliance export...', 'info');
   try {
-    const def = await ApiClient.request('/api/reports/definitions', {
-      method: 'POST',
-      body: {
-        name: 'Compliance Export ' + new Date().toLocaleDateString('en-GB'),
-        description: 'Auto-generated full compliance export',
-        report_type: 'compliance_summary',
-        modules: 'aria,grid,bcm,sentinel',
-        parameters: {}
-      },
-      actionId: 'command_centre.export_report.create',
+    const run = await ApiClient.request('/api/reports/quick-run', {
+      method: 'POST', body: { report_type: 'compliance_summary' }, actionId: 'command_centre.export_report.run',
     });
-    await ApiClient.request('/api/reports/' + def.id + '/run', { method: 'POST', actionId: 'command_centre.export_report.run' });
+    if (!run || !run.run_id) throw new Error('No saved run came back');
     showToast('Export ready, opening Reports', 'success');
-    setTimeout(() => window.location.href = '/reports', 1500);
+    window.location.href = '/reports?run=' + encodeURIComponent(run.run_id);
   } catch(e) {
     showToast(e.detail || 'Export failed, try again', 'error');
   }
@@ -1370,20 +1560,12 @@ async function exportReport(){
 async function generateBoardReport(){
   showToast('Generating executive brief...', 'info');
   try {
-    const defData = await ApiClient.request('/api/reports/definitions', {
-      method: 'POST',
-      body: {
-        name: 'Board Report ' + new Date().toLocaleDateString('en-GB'),
-        description: 'Auto-generated executive compliance brief',
-        report_type: 'executive_brief',
-        modules: 'aria,grid,bcm,sentinel',
-        parameters: {}
-      },
-      actionId: 'command_centre.board_report.create',
+    const run = await ApiClient.request('/api/reports/quick-run', {
+      method: 'POST', body: { report_type: 'preset_board' }, actionId: 'command_centre.board_report.run',
     });
-    await ApiClient.request('/api/reports/' + defData.id + '/run', { method: 'POST', actionId: 'command_centre.board_report.run' });
+    if (!run || !run.run_id) throw new Error('No saved run came back');
     showToast('Board report ready, opening Reports', 'success');
-    setTimeout(() => window.location.href = '/reports', 1500);
+    window.location.href = '/reports?run=' + encodeURIComponent(run.run_id);
   } catch(e) {
     console.error('Board report error:', e);
     showToast(e.detail || 'Failed to generate board report', 'error');
