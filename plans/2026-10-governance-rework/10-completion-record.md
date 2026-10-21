@@ -1,6 +1,6 @@
 # 10. Completion record (plan 05)
 
-**2026-10-21 source correction:** Pull request 11 merged `claude/plan-04-platform-truth` into `master` at `790ce1cd`. Statements below saying that branch is unmerged describe the 2026-10-15 snapshot. The specialist pilot, phase-owner sign-off, live tenant migration and production release still have no evidence in this record. The current AI Governance completion branch retires AI literacy application surfaces but retains historical rows, and labels bounded decision and monitoring counts as partial when needed. Neither this note nor a code merge records operational acceptance.
+**2026-10-21 source correction:** Pull request 11 merged `claude/plan-04-platform-truth` into `master` at `790ce1cd`; pull request 14 merged the AI Governance follow-up at `3bee4106`. Statements below saying that branch is unmerged, or that learner routes are kept, describe the 2026-10-15 snapshot. The follow-up removed AI literacy application surfaces while retaining historical rows, and labels bounded decision and monitoring counts as partial when needed. The specialist pilot, phase-owner sign-off, live tenant migration and production release still have no evidence in this record. Neither this note nor a code merge records operational acceptance.
 
 **Status:** Written 2026-10-15 on the branch `claude/plan-04-platform-truth` and brought up to date the same day for follow-ups
 11 to 13. It is the record that
