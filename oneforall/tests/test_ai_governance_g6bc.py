@@ -102,3 +102,18 @@ def test_platform_feature_http_access_cache_and_malformed_payloads(http):
     assert http("get", "/ai-governance/api/platform-features", name="dpo_a").status_code == 403
     assert http("get", "/ai-governance/api/platform-features", name="super").headers["cache-control"] == "private, no-store"
     assert http("put", f"/ai-governance/api/platform-features/{key}", name="super", json=[]).status_code == 400
+
+
+def test_nothing_in_ai_governance_opens_for_a_general_employee():
+    """Owner decision, 2026-10-20: AI Governance is for specialists. Every capability a route asks for refuses an employee."""
+    import pathlib
+    import re
+    from core.rbac import EMPLOYEE, has_capability
+    folder = pathlib.Path(__file__).resolve().parent.parent / "modules" / "ai_governance"
+    caps = set()
+    for path in folder.rglob("*.py"):
+        for gate in re.finditer(r"require_capability\(([^)]*)\)", path.read_text(encoding="utf-8")):
+            caps |= set(re.findall(r'"([^"]+)"', gate.group(1)))
+    assert "ai_use.submit" in caps
+    employee = {"id": 1, "roles": [EMPLOYEE], "is_super_admin": 0}
+    assert [cap for cap in sorted(caps) if has_capability(employee, cap)] == []

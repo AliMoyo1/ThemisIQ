@@ -53,7 +53,7 @@ PERSONAS = {
     "audit_lead":         (AUDIT_LEAD, False),
     "bcm_manager":        (BCM_MANAGER, False),
     "dpo":                (DPO, False),
-    "privacy_analyst":    (PRIVACY_ANALYST, False),
+    "privacy_analyst":    (PRIVACY_ANALYST, False),  # sees AI Governance, cannot review
     "employee":           (EMPLOYEE, False),
     "viewer":             (EXTERNAL_AUDITOR, False),
 }

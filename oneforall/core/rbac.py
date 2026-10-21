@@ -282,12 +282,12 @@ CAPABILITIES: dict[str, set[str]] = {
     "orm.ai.use":                {SUPER_ADMIN, RISK_OWNER, COMPLIANCE_MGR},
 
     # ── AI Governance (plans/ai-governance, ledger 05) ────────────────
-    # Anyone on staff may declare an AI use and see AI systems inside their own business unit scope; only a
-    # narrow set reviews, links and decides. Review is the five governance.entities.manage roles plus the DPO.
-    # Decide excludes the org admin: a decision is a compliance judgement, not a tenant administration task.
-    # Existing authors keep access to their own historical requests through
+    # AI Governance is for specialist roles (owner decision, 2026-10-20): nothing in it opens for a general employee or
+    # an outside auditor. Only a narrow set reviews, links and decides. Review is the five governance.entities.manage
+    # roles plus the DPO. Decide excludes the org admin: a decision is a compliance judgement, not a tenant
+    # administration task. Existing specialist authors keep access to their own historical requests through
     # ai_use.submit. New requests and edits use a separate specialist gate.
-    "ai_use.submit":             set(ALL_ROLES) - {EXTERNAL_AUDITOR},
+    "ai_use.submit":             set(ALL_ROLES) - {EXTERNAL_AUDITOR, EMPLOYEE},
     "ai_use.intake_create":      {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},
     "ai_use.view":               {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO, PRIVACY_ANALYST},
     "ai_use.review":             {SUPER_ADMIN, GRC_OFFICER, COMPLIANCE_MGR, RISK_OWNER, ORG_ADMIN, DPO},

@@ -11,8 +11,8 @@ def test_oversight_draft_and_independent_review(login_as, live_app, page, run_ax
     design.locator("button:has-text('Create draft')").wait_for()
     assert run_axe() == []
     design.locator("button:has-text('Create draft')").click()
-    page.fill("#aigOversightPerson", "Employee")
-    page.locator(".aig-dialog .aig-queue-item:has-text('Employee')").first.click()
+    page.fill("#aigOversightPerson", "Compliance")  # the oversight person must be able to open the use
+    page.locator(".aig-dialog .aig-queue-item:has-text('Compliance')").first.click()
     page.fill("#aigOversight_monitoring_method", "A team lead reviews outputs each day.")
     page.fill("#aigOversight_intervention_method", "A reviewer can reject an output.")
     page.fill("#aigOversight_stop_procedure", "Disable the AI use and switch to manual review.")

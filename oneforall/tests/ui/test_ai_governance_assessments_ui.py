@@ -193,9 +193,7 @@ def test_staff_do_not_see_the_assessments_or_the_way_in(login_as, live_app, page
     login_as("employee")
     assert page.goto(f"{live_app}/ai-governance/assessments").status == 403
     assert page.goto(f"{live_app}/ai-governance/assessments/new").status == 403
-    page.goto(f"{live_app}/ai-governance/systems")
-    page.wait_for_selector("h1:has-text('AI Systems')")
-    assert page.locator("a[href='/ai-governance/assessments']").count() == 0
+    assert page.goto(f"{live_app}/ai-governance/systems").status == 403, "AI Governance is for specialists"
 
 
 def test_the_privacy_navigation_points_to_the_new_home(login_as, live_app, page):

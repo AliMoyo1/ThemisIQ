@@ -90,6 +90,22 @@ def _proposal_source_hash(row) -> "str | None":
     return frozen.get("source_hash") if isinstance(frozen, dict) and frozen.get("source_hash") else row["manifest_hash"]
 
 
+def _hash_as_asked(row, current: dict) -> str:
+    """The current brief's digest over what the asker could see. A step the asker could not open was not part of what
+    they put forward, so a decider who can open it is not refused for seeing more; any other moved fact still counts."""
+    try:
+        frozen = json.loads(row["manifest"] or "{}") if row is not None else {}
+    except (TypeError, ValueError):
+        frozen = {}
+    steps = (frozen.get("checklist") or {}).get("steps") if isinstance(frozen, dict) else None
+    hidden = {s["key"]: s for s in steps or [] if isinstance(s, dict) and s.get("state") == "no_access" and "key" in s}
+    if not hidden:
+        return brief_hash(current)
+    view = {**current, "checklist": {**current["checklist"],
+                                     "steps": [hidden.get(s["key"], s) for s in current["checklist"]["steps"]]}}
+    return brief_hash(view)
+
+
 def _proposal_intact(row) -> bool:
     if row is None or not row["manifest_hash"] or not row["manifest"]:
         return True  # Legacy requests may have no captured brief.
@@ -592,7 +608,8 @@ def get_brief(db, user, application_id: int) -> "dict | None":
         "proposal_access_limited": _proposal_access_gap(open_request, manifest, user),
         "proposal_changed": bool(open_request is not None and (
             not _proposal_intact(open_request) or
-            (_proposal_source_hash(open_request) and _proposal_source_hash(open_request) != brief_hash(manifest)))),
+            (_proposal_source_hash(open_request)
+             and _proposal_source_hash(open_request) != _hash_as_asked(open_request, manifest)))),
         "changed_since_standing": changes_since(present_manifest(db, user, old),
                                                  present_manifest(db, user, manifest)) if old else [],
         "open_request_id": open_request["id"] if open_request is not None else None}
@@ -785,7 +802,7 @@ def decide(db, user, decision_id: int, outcome, *, rationale=None, conditions=No
                            brief_changed=True)
     if approving and _proposal_access_gap(row, manifest, user):
         raise ServiceError(403, "This account cannot verify all sources in the proposed brief. Assign a decider with source access.")
-    if approving and _proposal_source_hash(row) and _proposal_source_hash(row) != digest:
+    if approving and _proposal_source_hash(row) and _proposal_source_hash(row) != _hash_as_asked(row, manifest):
         raise ServiceError(409, "The brief changed after the decision was requested. Withdraw and request a new decision.",
                            brief_changed=True)
     override = None
