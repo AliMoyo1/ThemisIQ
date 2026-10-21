@@ -13,7 +13,6 @@ import json
 import logging
 from datetime import datetime
 
-from core.rbac import has_capability
 from core.timeutils import utcnow
 from modules.ai_governance import controls, guidance, service
 from modules.ai_governance.service import APP, ServiceError
@@ -49,21 +48,6 @@ def evaluate(db, user, application_id: int) -> "dict | None":
     if app and app["is_active"] and app["owner_user_id"] is None:
         findings.append(_finding("owner_missing", "warning", "application", application_id, "This use has no owner",
                                  "Nobody is named as answerable for this use.", "Name an owner", base + "#overview", {"owner": None}))
-
-    if (app and app["is_active"] and app["owner_user_id"] is not None
-            and (app["owner_user_id"] == user["id"] or has_capability(user, "ai_literacy.report"))):
-        try:
-            from modules.ai_governance import literacy
-            gaps = literacy.owner_gap(db, user, app["owner_user_id"])
-            if gaps:
-                findings.append(_finding("owner_literacy", "warning", "application", application_id,
-                                         "The owner has AI literacy to complete",
-                                         "At least one active AI literacy course assigned to this use's owner is not current.",
-                                         "Open AI literacy", "/ai-governance/literacy",
-                                         {"owner": app["owner_user_id"], "courses": gaps}))
-        except Exception:
-            log.warning("AI governance quality: owner literacy could not be read", exc_info=True)
-            unchecked.append("Owner AI literacy")
 
     profile = service.get_profile(db, user, application_id)
     if profile and profile["next_review_at"] and profile["next_review_at"][:10] <= today and app and app["is_active"]:
