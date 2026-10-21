@@ -83,7 +83,7 @@ intelTabs.forEach((tab, index) => {
 
 const draftTypes = {
   dpia: {module:'SENTINEL / PRIVACY',title:'Data protection impact assessment',summary:'An assisted starting point for processing scope, data flows, risks, safeguards, and reviewer decisions.',sections:['Processing overview','Risk and impact','Mitigations'],source:'Uses assessment context and existing records',badge:'REVIEWABLE DRAFT',note:'Illustrative document outline. Generated material requires verification and approval.'},
-  aiia: {module:'SENTINEL / AI IMPACT',title:'AI impact assessment',summary:'A proposed assisted outline for system purpose, affected people, potential harm, controls, and review.',sections:['Use case and purpose','Impact on people','Safeguards'],source:'Structured AIIA workflow exists in the platform',badge:'DESIGN CONCEPT',note:'Design concept: AI drafting for AIIAs is not a current platform capability. Structured AIIA assessment is available.'},
+  aiuse: {module:'AI GOVERNANCE',title:'AI use summary for reviewers',summary:'A plain-language explanation of an AI use: what it does, the data it touches and what its reviewers should check.',sections:['What it does','Data it touches','What to check'],source:'Uses the AI use intake and profile',badge:'REVIEWABLE DRAFT',note:'Illustrative outline. Reviewers decide; the summary only explains.'},
   bcp: {module:'BCM / RESILIENCE',title:'Business continuity plan',summary:'A reviewable starting point for recovery priorities, critical dependencies, contacts, and response actions.',sections:['Critical services','Recovery steps','Exercise plan'],source:'Uses continuity and impact context',badge:'REVIEWABLE DRAFT',note:'Illustrative document outline. A plan owner must verify assumptions and approve the result.'},
   policy: {module:'ARIA / GOVERNANCE',title:'Tailored AI policy',summary:'A draft shaped by the organisation context, framework requirements, controls, and intended use.',sections:['Purpose and scope','Required controls','Ownership'],source:'Policy generator supports tailored drafts',badge:'REVIEWABLE DRAFT',note:'Illustrative document outline. Generated policy text requires verification and approval.'},
   procedure: {module:'ARIA / GOVERNANCE',title:'Operating procedure',summary:'A practical draft of roles, triggers, steps, escalation, and evidence to keep.',sections:['Trigger','Action steps','Records'],source:'ARIA generator supports procedures',badge:'REVIEWABLE DRAFT',note:'Illustrative document outline. Generated procedure text requires verification and approval.'},
@@ -102,7 +102,6 @@ function selectDraft(key) {
   document.getElementById('draft-disclosure').textContent = item.note;
   const badge = document.getElementById('draft-badge');
   badge.textContent = item.badge;
-  badge.classList.toggle('is-concept', key === 'aiia');
   const sections = document.getElementById('draft-sections');
   sections.replaceChildren(...item.sections.map(label => {
     const chip = document.createElement('span');

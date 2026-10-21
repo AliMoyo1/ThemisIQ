@@ -20,7 +20,7 @@
   {"@context":"https://schema.org","@type":"Organization","name":"ThemisIQ","url":"https://themisiq.net/","logo":"https://themisiq.net/themis-logo.webp"}
   </script>
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"ThemisIQ","applicationCategory":"BusinessApplication","applicationSubCategory":"Governance, Risk and Compliance Software","operatingSystem":"Web","url":"https://themisiq.net/","description":"A connected governance, risk and compliance platform across six disciplines."}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"ThemisIQ","applicationCategory":"BusinessApplication","applicationSubCategory":"Governance, Risk and Compliance Software","operatingSystem":"Web","url":"https://themisiq.net/","description":"A connected governance, risk and compliance platform for governance, audit, privacy, resilience, enterprise and operations risk, and AI governance."}
   </script>
 
   <title>ThemisIQ | Every signal. One clear view.</title>
@@ -31,13 +31,15 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="features.css">
   <link rel="stylesheet" href="intelligence.css">
-  <link rel="stylesheet" href="site-extras.css?v=labels-2">
+  <link rel="stylesheet" href="site-extras.css?v=labels-4">
   <link rel="stylesheet" href="connected-line.css">
+  <link rel="stylesheet" href="pricing.css?v=7">
   <script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js","three/addons/":"./vendor/three/addons/"}}</script>
   <script type="module" src="connected-line-ui.js"></script>
-  <script defer src="app.js"></script>
+  <script defer src="app.js?v=4"></script>
   <script defer src="features.js"></script>
-  <script defer src="intelligence.js"></script>
+  <script defer src="intelligence.js?v=2"></script>
+  <script defer src="pricing.js?v=9"></script>
   <script defer src="site.js"></script>
 </head>
 <body>
@@ -57,6 +59,7 @@
           <a href="#modules">Modules</a>
           <a href="features.html">Features</a>
           <a href="#intelligence">Intelligence</a>
+          <a href="#pricing">Pricing</a>
           <a class="mobile-signin" href="https://app.themisiq.net/login">Sign in</a>
           <a class="mobile-cta" href="#demo">Request a demo</a>
         </nav>
@@ -159,7 +162,7 @@
           <h2 id="intro-title">Clarity moves<br><em>with the work.</em></h2>
           <div class="intro-body">
             <p>Policies, findings, incidents, requests, and risks are easier to understand when their context stays connected.</p>
-            <p>ThemisIQ brings six disciplines into one considered workspace, with a Command Centre shaped around what each person needs to see.</p>
+            <p>ThemisIQ brings every discipline into one considered workspace, with a Command Centre shaped around what each person needs to see.</p>
             <a class="text-link" href="#flow">Follow a signal <span aria-hidden="true">&#8599;</span></a>
           </div>
         </div>
@@ -313,7 +316,7 @@
                 <div class="intel-workspace-bar"><span><i></i> DRAFT WORKSPACE</span><span id="draft-counter">01 / 06</span></div>
                 <div class="draft-options" role="group" aria-label="Choose an illustrative draft type">
                   <button type="button" data-draft="dpia" aria-pressed="true">DPIA</button>
-                  <button type="button" data-draft="aiia" aria-pressed="false">AIIA</button>
+                  <button type="button" data-draft="aiuse" aria-pressed="false">AI use summary</button>
                   <button type="button" data-draft="bcp" aria-pressed="false">BCP plan</button>
                   <button type="button" data-draft="policy" aria-pressed="false">AI policy</button>
                   <button type="button" data-draft="procedure" aria-pressed="false">Procedure</button>
@@ -382,7 +385,7 @@
         </div>
       </section>
       <section class="modules-section section-wrap" id="modules" aria-labelledby="modules-title">
-        <div class="section-kicker">SIX DISCIPLINES, ONE SYSTEM</div>
+        <div class="section-kicker">EVERY DISCIPLINE, ONE SYSTEM</div>
         <div class="modules-heading"><h2 id="modules-title">Explore each lens.</h2><p>Choose a discipline to see its current dashboard and the work it brings into focus.</p></div>
         <div class="modules-layout">
           <div class="module-list" role="tablist" aria-label="ThemisIQ modules">
@@ -392,9 +395,10 @@
             <button type="button" id="module-tab-sentinel" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="sentinel"><span class="module-num">04</span><span class="module-name">Privacy <small>SENTINEL</small></span><span aria-hidden="true">&#8599;</span></button>
             <button type="button" id="module-tab-erm" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="erm"><span class="module-num">05</span><span class="module-name">Enterprise risk <small>ERM</small></span><span aria-hidden="true">&#8599;</span></button>
             <button type="button" id="module-tab-orm" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="orm"><span class="module-num">06</span><span class="module-name">Operations risk <small>ORM</small></span><span aria-hidden="true">&#8599;</span></button>
+            <button type="button" id="module-tab-aig" role="tab" aria-selected="false" aria-controls="module-panel" data-select-module="aig"><span class="module-num">07</span><span class="module-name">AI Governance <small>SPECIALISTS</small></span><span aria-hidden="true">&#8599;</span></button>
           </div>
           <article class="module-panel" id="module-panel" role="tabpanel" aria-labelledby="module-tab-aria">
-            <div class="module-panel-header"><span id="module-eyebrow">GOVERNANCE / ARIA</span><span id="module-counter">01 / 06</span></div>
+            <div class="module-panel-header"><span id="module-eyebrow">GOVERNANCE / ARIA</span><span id="module-counter">01 / 07</span></div>
             <div class="module-panel-copy"><h3 id="module-title">Give every control its context.</h3><p id="module-description">Bring frameworks, policies, documents, and control work into one clear governance view.</p></div>
             <div class="module-image-frame"><div class="module-image-bar"><span class="module-image-pip"></span><span id="module-url">app.themisiq.net/aria</span><span>PRODUCT VIEW</span></div><img id="module-image" src="screenshot-aria.webp" width="1916" height="997" alt="ARIA governance dashboard"></div>
             <div class="module-capabilities" id="module-capabilities"><span>Frameworks</span><span>Policies &amp; documents</span><span>Control mapping</span></div>
@@ -414,6 +418,33 @@
           <div class="approach-stack">
             <div class="approach-card approach-card-ai"><div class="approach-card-top"><span>02 / ASSISTED INTELLIGENCE</span><span class="approach-arrow" aria-hidden="true">&#8599;</span></div><div class="ai-glyph" aria-hidden="true">&#10022;</div><h3>AI with the record in view.</h3><p>Move from a question to a useful starting point, with relevant context close at hand.</p></div>
             <div class="approach-card approach-card-role"><div class="approach-card-top"><span>03 / SCENARIO STUDIO</span><span class="approach-arrow" aria-hidden="true">&#8599;</span></div><div class="scenario-visual" aria-hidden="true"><div><small>BASELINE</small><span class="scenario-track"><i></i></span></div><div><small>WHAT IF</small><span class="scenario-track"><i></i></span></div></div><h3>Test the what-if before it happens.</h3><p>Compare baseline and scenario impact, link the affected risks and controls, and capture a board-pack snapshot.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pricing-section section-wrap" id="pricing" aria-labelledby="pricing-title">
+        <div class="section-kicker">PRICING</div>
+        <div class="approach-heading"><h2 id="pricing-title">Pay for the work.<br><em>Not the viewers.</em></h2><p>Choose the modules you need and name the specialists who use them. The shared platform, every framework and every privacy jurisdiction come with every package.</p></div>
+        <div class="pc-wrap">
+          <header class="pc-top">
+            <div><p class="pc-eyebrow">From one team to the whole organisation</p><p class="pc-title">Find your room to grow.</p></div>
+            <span class="pc-badge">Proposed</span>
+          </header>
+          <div class="pc" id="pricing-calculator">
+            <p class="pc-noscript">Three packages: Essentials, Professional and Enterprise. Ask us for a quote at hello@themisiq.net.</p>
+          </div>
+          <footer class="pc-foot">
+            <p id="pc-status" role="status">Prices in USD. Annual billing includes two months free.</p>
+            <button type="button" class="pc-replay" id="pc-replay" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Replay</button>
+          </footer>
+          <div class="pc-faq">
+            <h3>Questions about pricing</h3>
+            <details><summary>How is AI priced?</summary><p>It is included. Every package comes with the AI assistants and generous usage that grows with your named users, at no extra cost per request. Your AI policy sets a monthly budget, so usage never runs away. If your organisation regularly needs far more, we agree a top-up with you in advance. Nothing is charged automatically.</p></details>
+            <details><summary>What is included in every package?</summary><p>The Evidence Vault, Command Centre, My Work, reports, connected records, the API, every framework in the catalogue and every privacy jurisdiction. You never pay per framework or per jurisdiction.</p></details>
+            <details><summary>Who counts as a named user?</summary><p>A person who signs in to do the work, such as a compliance, risk, privacy, continuity or audit specialist. External auditors use expiring read only links at no charge.</p></details>
+            <details><summary>Can we add a module later?</summary><p>Yes. Add a module to Essentials or Professional for $500 a month, or $5,000 a year on annual billing. Move up a package whenever it costs less. Enterprise includes every module.</p></details>
+            <details><summary>Can we buy AI Governance on its own?</summary><p>Yes. AI Governance Starter is $1,000 a month, or $10,000 a year, for up to 10 specialists. As an add-on to Essentials or Professional it is $800 a month, and it is included in Enterprise.</p></details>
+            <details><summary>How does billing work?</summary><p>Prices are in US dollars. Pay monthly, or annually and get two months free. Enterprise is priced on a quote for your organisation. Onboarding is quoted once, up front. Ask us about multi-year terms and regional pricing.</p></details>
           </div>
         </div>
       </section>

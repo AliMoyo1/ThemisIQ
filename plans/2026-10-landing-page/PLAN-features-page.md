@@ -179,3 +179,17 @@ The section by section content is in [features-page-content.md](features-page-co
   - A collapsed capability index with search.
   - The role filter and three studies dropped.
   - About 920 visible words, down from about 3,600.
+- 2026-10-21: open landing page fixes done.
+  - "Six disciplines" removed. Counts are on hold, so it now reads "every discipline"; the search-engine description
+    names the seven areas instead.
+  - The Modules section has a seventh tab, AI Governance. There is no product screenshot yet, so the frame shows an
+    illustration of one AI use moving to an independent decision, captioned "ILLUSTRATION" instead of "PRODUCT VIEW".
+    The counters come from the number of modules instead of a fixed "06".
+  - The false "AIIA" drafting tab (a design concept that the platform does not do) is replaced by "AI use summary", a
+    real capability: AI Governance explains an AI use in plain words for its reviewers.
+  - The ERM accent in the Dusk theme was still pink (`#f19ab4`). It is now `#f87171`, as on the features page.
+  - Checked in the browser: the tab, the counter, the illustration and image swap, the caption, the drafting tab, the
+    Dusk ERM accent, and no console errors.
+- 2026-10-21: the owner supplied an AI Governance screenshot (`landing_page/screenshot-ai-governance.webp`, 1916 by
+  1049). The seventh module tab now shows it like the other six. The illustration (its HTML, CSS and script) is
+  removed. Checked in the browser.

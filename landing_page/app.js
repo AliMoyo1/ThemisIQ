@@ -37,7 +37,7 @@
     description: 'Explore risk posture, appetite, obligations, and the signals that need attention.',
     image: 'screenshot-erm.webp', alt: 'ERM enterprise risk dashboard',
     tags: ['Risk register', 'Risk appetite', 'Obligations'],
-    light: '#881337', dusk: '#f19ab4'
+    light: '#881337', dusk: '#f87171'
   },
   orm: {
     index: '06', name: 'Operations risk', code: 'ORM', path: '/orm',
@@ -46,8 +46,17 @@
     image: 'screenshot-orm.webp', alt: 'ORM operations risk dashboard',
     tags: ['Events', 'KRIs', 'Control assessments'],
     light: '#7c3a0a', dusk: '#efb17c'
+  },
+  aig: {
+    index: '07', name: 'AI Governance', code: 'SPECIALISTS', path: '/ai-governance',
+    title: 'Govern every AI use.',
+    description: 'Register each AI use, assess its impact, have someone other than the requester decide, then keep watching it.',
+    image: 'screenshot-ai-governance.webp', alt: 'AI Governance overview dashboard',
+    tags: ['AI inventory', 'Impact assessments', 'Independent decisions'],
+    light: '#0f766e', dusk: '#5eead4'
   }
 };
+const moduleTotal = String(Object.keys(modules).length).padStart(2, '0');
 
 const flowSteps = [
   {
@@ -116,12 +125,12 @@ function selectModule(key) {
     heroImage.alt = module.alt;
     document.getElementById('hero-url').textContent = `app.themisiq.net${module.path}`;
     document.getElementById('hero-caption').textContent = `${module.name} / ${module.code}`;
-    document.getElementById('hero-index').textContent = `${module.index} / 06`;
+    document.getElementById('hero-index').textContent = `${module.index} / ${moduleTotal}`;
     animateFrame(heroPreview);
   }
 
   document.getElementById('module-eyebrow').textContent = `${module.name.toUpperCase()} / ${module.code}`;
-  document.getElementById('module-counter').textContent = `${module.index} / 06`;
+  document.getElementById('module-counter').textContent = `${module.index} / ${moduleTotal}`;
   document.getElementById('module-title').textContent = module.title;
   document.getElementById('module-description').textContent = module.description;
   document.getElementById('module-url').textContent = `app.themisiq.net${module.path}`;
