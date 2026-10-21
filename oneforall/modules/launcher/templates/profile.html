@@ -1,5 +1,5 @@
 {% extends "platform_base.html" %}
-{% block title %}My Profile — ThemisIQ{% endblock %}
+{% block title %}My Profile: ThemisIQ{% endblock %}
 {% block content %}
 
 <div class="topbar">
@@ -57,17 +57,19 @@
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead>
           <tr style="border-bottom:1px solid var(--border)">
-            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Session ID</th>
             <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Created</th>
-            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Last Active</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Expires</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">IP Address</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Device</th>
           </tr>
         </thead>
         <tbody>
           {% for s in sessions %}
           <tr style="border-bottom:1px solid var(--border-soft)">
-            <td style="padding:8px 10px;font-family:monospace;color:var(--muted)">...{{ (s.id|string)[-8:] }}</td>
             <td style="padding:8px 10px;color:var(--text)">{{ s.created_at | format_dt("datetime") }}</td>
-            <td style="padding:8px 10px;color:var(--text)">{{ s.last_active | format_dt("datetime") }}</td>
+            <td style="padding:8px 10px;color:var(--text)">{{ s.expires_at | format_dt("datetime") }}</td>
+            <td style="padding:8px 10px;font-family:monospace;color:var(--muted)">{{ s.ip_address or "Unknown" }}</td>
+            <td style="padding:8px 10px;color:var(--muted)" title="{{ s.user_agent or '' }}">{{ (s.user_agent or "Unknown") | truncate(80) }}</td>
           </tr>
           {% endfor %}
         </tbody>
