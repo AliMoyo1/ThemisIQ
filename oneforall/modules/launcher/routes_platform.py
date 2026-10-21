@@ -42,12 +42,16 @@ async def api_notifications_list(request: Request):
     uid = request.state.user["id"]
     db = get_db()
     try:
+        # Historical literacy notices stay stored, but their destination has been removed.
         rows = db.execute(
-            "SELECT * FROM notifications WHERE user_id = %s ORDER BY created_at DESC LIMIT 50",
+            "SELECT * FROM notifications WHERE user_id = %s "
+            "AND (link IS NULL OR link NOT LIKE '/ai-governance/literacy%') "
+            "ORDER BY created_at DESC LIMIT 50",
             (uid,)
         ).fetchall()
         unread = db.execute(
-            "SELECT COUNT(*) FROM notifications WHERE user_id = %s AND is_read = 0",
+            "SELECT COUNT(*) FROM notifications WHERE user_id = %s AND is_read = 0 "
+            "AND (link IS NULL OR link NOT LIKE '/ai-governance/literacy%')",
             (uid,)
         ).fetchone()[0]
     finally:

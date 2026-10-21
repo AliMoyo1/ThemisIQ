@@ -1942,7 +1942,7 @@ CREATE TABLE IF NOT EXISTS ai_regulatory_impacts (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_regulatory_queue ON ai_regulatory_impacts(status, business_unit_id);
 
--- ── AI governance (G6): review packs and AI literacy ────────────────────────
+-- ── AI governance (G6): review packs and retained literacy history ──────────
 -- A frozen, named, read-only account of one AI use, issued to one signed-in person with an expiry. The manifest is the
 -- account; its hash is checked on every open. People's names and free text are in it only when the author chose so.
 CREATE TABLE IF NOT EXISTS ai_review_packs (
@@ -1982,7 +1982,8 @@ CREATE TABLE IF NOT EXISTS ai_review_pack_events (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_pack_events ON ai_review_pack_events(pack_id, created_at);
 
--- A course in AI literacy. The working copy (body, questions, pass mark) is edited freely; publishing copies it into an
+-- Retained historical AI literacy records. No application routes write these tables; do not drop old completions.
+-- A course working copy (body, questions, pass mark) was edited freely; publishing copied it into an
 -- immutable version row, and a completion belongs to one version.
 CREATE TABLE IF NOT EXISTS ai_literacy_courses (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3169,7 +3170,7 @@ CREATE TABLE IF NOT EXISTS ai_regulatory_impacts (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_regulatory_queue ON ai_regulatory_impacts(status, business_unit_id);
 
--- ── AI governance (G6): review packs and AI literacy ────────────────────────
+-- ── AI governance (G6): review packs and retained literacy history ──────────
 -- A frozen, named, read-only account of one AI use, issued to one signed-in person with an expiry. The manifest is the
 -- account; its hash is checked on every open. People's names and free text are in it only when the author chose so.
 CREATE TABLE IF NOT EXISTS ai_review_packs (
@@ -3209,7 +3210,8 @@ CREATE TABLE IF NOT EXISTS ai_review_pack_events (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_pack_events ON ai_review_pack_events(pack_id, created_at);
 
--- A course in AI literacy. The working copy (body, questions, pass mark) is edited freely; publishing copies it into an
+-- Retained historical AI literacy records. No application routes write these tables; do not drop old completions.
+-- A course working copy (body, questions, pass mark) was edited freely; publishing copied it into an
 -- immutable version row, and a completion belongs to one version.
 CREATE TABLE IF NOT EXISTS ai_literacy_courses (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,

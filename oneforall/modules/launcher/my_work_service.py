@@ -129,9 +129,12 @@ def _my_tasks(db, user: dict) -> list[dict]:
 
 
 def _unread_notifications(db, user: dict) -> list[dict]:
+    # A retired literacy notice has no live page to open; keep it in history, not in My Work.
     rows = db.execute(
         "SELECT id, module, title, message, link, created_at FROM notifications "
-        "WHERE user_id = %s AND is_read = 0 ORDER BY created_at DESC LIMIT 50",
+        "WHERE user_id = %s AND is_read = 0 "
+        "AND (link IS NULL OR link NOT LIKE '/ai-governance/literacy%') "
+        "ORDER BY created_at DESC LIMIT 50",
         (user["id"],),
     ).fetchall()
     items = []
@@ -376,16 +379,6 @@ def _ai_governance_work(db, user: dict, scope) -> list[dict]:
             "title": title, "due_date": due, "priority": priority, "org_id": org, "business_unit_id": unit,
             "link": link, "section": _section_for(bucket, due), "assigned": assigned,
             "context": {"kind": "ai_use", "id": use[0], "title": use[1]} if use else None})
-
-    if has_capability(user, "ai_literacy.take"):
-        from modules.ai_governance import literacy
-        for course in literacy.my_courses(db, user)["items"]:
-            if course["state"] in ("to_do", "overdue", "expired"):
-                add("ai_literacy_course", course["id"], "complete_ai_literacy",
-                    f"Complete AI literacy: {course['title']}",
-                    f"/ai-governance/literacy/{course['id']}", "open",
-                    due=course["due_at"][:10] if course["due_at"] else None,
-                    priority="high" if course["state"] in ("overdue", "expired") else "medium")
 
     if not has_capability(user, "ai_use.view"):
         # Former authors may open only their own requests. They cannot open a
@@ -918,7 +911,7 @@ TEAM_TOP = 5      # overdue items named for each person
 # so the same shared item is not charged to everyone on the team.
 _ASSIGNED_SOURCES = ("aria_approvals", "task_board", "workflow_actions", "grid_non_conformances", "erm_reviews",
                      "orm_reviews", "change_reviews", "ai_governance")
-_ASSIGNED_AI = ("ai_literacy_course", "ai_condition", "ai_intake_returned", "ai_decision_waiting")
+_ASSIGNED_AI = ("ai_condition", "ai_intake_returned", "ai_decision_waiting")
 _TEAM_SECTIONS = ("overdue", "due_soon", "needs_my_action", "waiting_on_others")
 _LICENSED_MODULES = ("aria", "grid", "bcm", "sentinel", "erm", "orm")
 

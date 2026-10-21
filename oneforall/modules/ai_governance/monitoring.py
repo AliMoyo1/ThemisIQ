@@ -211,6 +211,7 @@ def get_portfolio(db, user, *, focus=None) -> dict:
                 f"AND v.version = h.content_version WHERE h.application_id IN ({marks})", ids).fetchall():
             tracks.setdefault(t["application_id"], []).append(t)
     queue = decisions.list_queue(db, user)
+    queue_truncated = queue.get("partial", {}).get("standing", False)
     changed = {r["application_id"] for r in queue["re_reviews"]}
     overdue_conditions = {c["application_id"] for c in queue["conditions"] if c["overdue"]}
 
@@ -258,6 +259,12 @@ def get_portfolio(db, user, *, focus=None) -> dict:
     else:
         shown = uses if wanted is None else [u for u in uses if wanted & {f["key"] for f in (*u["flags"], *u["not_measured"])}]
     shown.sort(key=lambda u: (-len(u["flags"]), u["name"].lower(), u["application_id"]))
-    return {"as_of": utcnow().strftime("%Y-%m-%d %H:%M:%S"), "state": "partial" if truncated else "measured",
+    partial_reasons = []
+    if truncated:
+        partial_reasons.append(f"AI uses beyond the first {PORTFOLIO_LIMIT}")
+    if queue_truncated:
+        partial_reasons.append(f"decision records beyond the first {decisions.QUEUE_LIMIT}")
+    return {"as_of": utcnow().strftime("%Y-%m-%d %H:%M:%S"), "state": "partial" if partial_reasons else "measured",
+            "partial_reasons": partial_reasons,
             "limit": PORTFOLIO_LIMIT, "total_uses": len(uses), "with_gaps": with_gaps, "evaluation_oversight": in_focus,
             "counts": counts, "uses": shown, "focus": focus or "all"}

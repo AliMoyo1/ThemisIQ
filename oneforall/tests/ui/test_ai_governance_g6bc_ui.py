@@ -1,37 +1,5 @@
-"""Focused browser journeys for literacy and platform AI feature oversight."""
+"""Focused browser journey for platform AI feature oversight."""
 from datetime import date, timedelta
-
-from tests.ui.test_ai_governance_pages import unique  # noqa: F401
-
-
-def test_literacy_manager_publishes_and_learner_completes(login_as, live_app, page, run_axe, unique):
-    title = "Responsible AI " + unique
-    login_as("dpo")
-    page.goto(f"{live_app}/ai-governance/literacy")
-    page.get_by_role("tab", name="Manage courses").click()
-    page.get_by_role("button", name="New course").click()
-    page.get_by_label("Course title").fill(title)
-    page.get_by_label("Course content").fill("A person checks important AI output.")
-    page.locator(".aig-literacy-roles label", has_text="employee").locator("input").check()
-    page.get_by_role("button", name="Save working copy").click()
-    page.get_by_role("button", name="Publish and require retake").wait_for()
-    page.get_by_role("button", name="Publish and require retake").click()
-    page.locator(".aig-dialog").get_by_role("button", name="Continue").click()
-    page.wait_for_timeout(1500)
-    assert "active" in page.locator(".aig-literacy-card", has_text=title).first.inner_text().lower(), page.locator("#aigLiteracy").inner_text()[:1500]
-    assert run_axe() == []
-
-    page.context.clear_cookies()
-    login_as("employee")
-    page.goto(f"{live_app}/ai-governance/literacy")
-    page.get_by_role("link", name=title).wait_for()
-    page.get_by_role("link", name=title).click()
-    page.get_by_text("A person checks important AI output.").wait_for()
-    page.get_by_label("I have read and understood this AI literacy course.").check()
-    page.get_by_role("button", name="Complete course").click()
-    page.get_by_text("Completed. Your next renewal is", exact=False).wait_for()
-    assert run_axe() == []
-
 
 def test_platform_operator_can_find_record_and_review_feature(login_as, live_app, page, run_axe):
     login_as("super_admin")
