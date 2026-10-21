@@ -54,3 +54,18 @@ Deploying is the owner's step: the live site at themisiq.net changes only when `
 ## Log
 
 - 2026-10-21: plan written; findings 1 to 4 recorded.
+- 2026-10-21: steps 1 to 4 done.
+  - Work committed as `b87bb9e`. PR 13's branch and `origin/master` (PR 17) are merged in; both merged cleanly
+    because PR 13's branch already carried the reconciled AI Governance tests.
+  - Security headers added to the landing server block in `setup_nginx.py`. `nginx -t` runs before any restart, so a
+    bad config cannot take the site down.
+  - Audit results:
+    - A script check finds every local link, asset and anchor resolves on index, features, privacy and terms.
+    - The sitemap lists `features.html`.
+    - No em dashes.
+    - The claims checker against `origin/master` finds 145 lines and none missing; the regenerated sheet only
+      refreshes test counts. The pricing FAQ and the AI use summary are backed by sheet lines 13, 56, 64, 128 and
+      150.
+    - Browser: both pages in Sage and Dusk at 1024 px and 375 px. No console errors and no horizontal scroll. The
+      hero's view buttons scroll sideways on a phone by design.
+  - Fixed during the audit: the last pink, the Dusk ERM token in `features.css` (`#f19ab4` to `#f87171`).

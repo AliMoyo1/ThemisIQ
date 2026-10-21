@@ -14,6 +14,13 @@ NGINX_CONF = """server {
     server_name themisiq.net www.themisiq.net;
     root /var/www/themisiq;
     index index.html;
+    # Cloudflare adds HSTS and injects inline scripts, so the policy below leaves scripts unrestricted
+    # (plans/2026-10-landing-page/release-readiness.md, finding 3).
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
     location / {
         try_files $uri $uri/ =404;
     }
