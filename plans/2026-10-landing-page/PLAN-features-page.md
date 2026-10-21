@@ -172,3 +172,10 @@ The section by section content is in [features-page-content.md](features-page-co
 - 2026-10-21: owner asked to start the features page build (step 5), high spec and premium, with full visibility in the browser.
 - 2026-10-21: step 5 built: landing_page/features.html with features-page.css and features-page.js. Every section of the copy file, a sticky section bar that follows the reader, search and role filters with highlighted matches, and eleven interactive studies (AI assistants with the policy refusal, policy authoring studio, integrated controls, integrated audit, privacy rule cards with live obligation clocks, escalation, scenarios, events, the AI use journey, Evidence links and expiry, Command Centre cards and report sign-off, connected vendor change signal). Module colours are the app's; Dusk ERM uses #f87171 instead of the pink #f19ab4. The landing nav Features link now opens the page; sitemap updated. Checked in the browser at desktop, 1440 px and phone width, Sage and Dusk, every study driven by script, no horizontal overflow.
 - 2026-10-21: owner feedback: guardrails rewritten as three groups (against hallucination, against drift, for control and privacy), each backed by code (Ask ARIA grounding and NOT_COVERED, the shared guardrail prompt, trusted-domain citations, refusal of cut-off answers, the pinned model with drift rejection, zero-retention gateway routing, evaluations and re-review). Coloured top borders and the document's top strip removed for good. AI literacy claims removed: PR 14 retired the feature on master, which the capability sheet caught.
+- 2026-10-21: owner feedback, "a lot of text, not interactive and cluttered". Competitor research and redesign in
+  [features-page-redesign.md](features-page-redesign.md):
+  - A seven-tab module switcher, each tab with one study.
+  - Six guardrail cards.
+  - A collapsed capability index with search.
+  - The role filter and three studies dropped.
+  - About 920 visible words, down from about 3,600.

@@ -48,41 +48,43 @@
   // Sections ease in.
   if (!reduced) {
     const reveal = new IntersectionObserver(entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-in'); reveal.unobserve(e.target); } }), { threshold: 0.12 });
-    $$('.fp-head, .fp-study, .fp-caps, .fp-why-tile, .fp-table-wrap').forEach(el => { el.classList.add('fp-reveal'); reveal.observe(el); });
+    $$('.fp-head, .fp-modtabs, .fp-study, .fp-why-tile, .fp-guards, .fp-tile, .fp-fw-col, .fp-index').forEach(el => { el.classList.add('fp-reveal'); reveal.observe(el); });
   }
 
-  // Search and role filter.
+  // Search the capability index: areas with a match open, the rest step aside.
   const query = $('#fp-query'), count = $('#fp-search-count'), noResults = $('#fp-noresults');
-  const items = $$('.fp-caps li');
+  const areas = $$('.fp-area');
+  const items = $$('.fp-index li');
   items.forEach(li => { li.dataset.text = li.textContent; });
-  let role = 'all';
   function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   function filter() {
     const q = query.value.trim().toLowerCase();
     let shown = 0;
     items.forEach(li => {
-      const roles = (li.dataset.roles || '').split(' ');
-      const match = (role === 'all' || roles.includes(role)) && (!q || li.dataset.text.toLowerCase().includes(q));
+      const match = !q || li.dataset.text.toLowerCase().includes(q);
       li.hidden = !match;
       if (match) shown++;
       // Highlight the match with text nodes only; the source text never becomes markup.
       li.textContent = '';
       const text = li.dataset.text;
       if (match && q) {
-        const parts = text.split(new RegExp('(' + escapeRe(q) + ')', 'ig'));
-        parts.forEach(p => { if (p.toLowerCase() === q) { const m = document.createElement('mark'); m.className = 'fp-hit'; m.textContent = p; li.append(m); } else li.append(p); });
+        text.split(new RegExp('(' + escapeRe(q) + ')', 'ig')).forEach(p => {
+          if (p.toLowerCase() === q) { const m = document.createElement('mark'); m.className = 'fp-hit'; m.textContent = p; li.append(m); } else li.append(p);
+        });
       } else li.append(text);
     });
-    $$('.fp-cap-group').forEach(g => { g.hidden = !$$('li', g).some(li => !li.hidden); });
-    const filtering = q || role !== 'all';
-    $$('.fp-module').forEach(sec => sec.classList.toggle('is-empty', filtering && !$$('.fp-caps li', sec).some(li => !li.hidden)));
-    $$('#why, #frameworks').forEach(sec => sec.classList.toggle('is-empty', !!filtering));
-    count.textContent = filtering ? `${shown} feature${shown === 1 ? '' : 's'}` : '';
-    noResults.hidden = !(filtering && shown === 0);
+    $$('.fp-index .fp-cap-group').forEach(g => { g.hidden = !$$('li', g).some(li => !li.hidden); });
+    areas.forEach(a => {
+      const hit = $$('li', a).some(li => !li.hidden);
+      a.hidden = !!q && !hit;
+      if (q && hit && !a.open) { a.open = true; a.dataset.auto = '1'; }
+      if (!q && a.dataset.auto) { a.open = false; delete a.dataset.auto; }
+    });
+    count.textContent = q ? `${shown} match${shown === 1 ? '' : 'es'}` : '';
+    noResults.hidden = !(q && shown === 0);
   }
   query.addEventListener('input', filter);
-  $$('.fp-roles button').forEach(b => b.addEventListener('click', () => { role = b.dataset.role; pressOne(b.parentElement, b); filter(); }));
-  $('#fp-clear').addEventListener('click', () => { query.value = ''; role = 'all'; pressOne($('.fp-roles'), $('.fp-roles [data-role="all"]')); filter(); query.focus(); });
+  $('#fp-clear').addEventListener('click', () => { query.value = ''; filter(); query.focus(); });
 
   // Tabs with arrow keys.
   function tabs(list, onSelect) {
@@ -120,6 +122,34 @@
     if (replayBtn) replayBtn.addEventListener('click', play);
     if (autoplay && !reduced) onView(listEl.closest('.fp-study'), play);
   }
+
+  // Module switcher. Links such as #privacy open their tab; #all-privacy opens that area of the index.
+  const panels = $$('.fp-panel');
+  const modtabs = $('.fp-modtabs');
+  const showModule = tabs(modtabs, t => {
+    panels.forEach(p => { p.hidden = p.id !== t.dataset.tab; });
+    modtabs.scrollTo({ left: t.offsetLeft - 12, behavior: reduced ? 'auto' : 'smooth' }); // keeps the chosen tab in view on a phone
+  });
+  function follow(id, smooth) {
+    const panel = panels.find(p => p.id === id);
+    if (panel) {
+      showModule(panels.indexOf(panel));
+      $('.fp-modtabs').scrollIntoView({ block: 'start', behavior: smooth && !reduced ? 'smooth' : 'auto' });
+      return true;
+    }
+    const area = areas.find(a => a.id === id);
+    if (area) area.open = true;
+    return false;
+  }
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href^="#"]');
+    if (a && a.getAttribute('href').length > 1 && follow(a.getAttribute('href').slice(1), true)) {
+      e.preventDefault();
+      history.replaceState(null, '', a.getAttribute('href'));
+    }
+  });
+  if (location.hash) follow(location.hash.slice(1), false);
+  addEventListener('hashchange', () => follow(location.hash.slice(1), true));
 
   // AI across the platform.
   const AI = {
@@ -198,18 +228,6 @@
   }
   $$('.fp-standards button').forEach(b => b.addEventListener('click', () => { b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); renderIMS(); }));
   renderIMS();
-
-  // Integrated audit.
-  const AU = [
-    ['Create', 'Switch on "Integrated audit" and pick the standards. One audit covers them all, with scope, objective, criteria and method.'],
-    ['Checklist', 'Every selected standard’s controls arrive in one checklist. Equivalent controls are linked from your approved matches and badged integrated, partly matched or unique.'],
-    ['Finding', 'A nonconformity is raised on a shared control, with its evidence and a due date.'],
-    ['Corrective action', 'The owner plans the corrective action; reminders and approvals keep it moving.'],
-    ['Sign-off', 'The finding closes and the audit is signed off, all on one timeline.'],
-    ['Share', 'Give an external auditor an expiring, read only link to the audit.'],
-  ];
-  const board = $('.fp-audit-board');
-  stepper($('[data-study="audit"] .fp-steps'), AU.length, i => { $('#fp-au-title').textContent = AU[i][0]; $('#fp-au-text').textContent = AU[i][1]; board.dataset.step = String(i); }, null);
 
   // Privacy: rule library, obligations and clocks.
   const RULES = {
@@ -313,39 +331,6 @@
     $('#fp-aig-title').textContent = AG[i][0]; $('#fp-aig-text').textContent = AG[i][1];
     $$('#fp-aig-check li').forEach(li => li.classList.toggle('is-done', Number(li.dataset.k) <= i));
   }, $('[data-replay="aig"]'));
-
-  // Evidence Vault.
-  const USE = [
-    'Reviewers open the file from the control they are assessing, and the control is rescored if it is removed or expires.',
-    'The auditor sees the same file on the checklist item it proves, with its version history.',
-    'The continuity team finds the proof beside the incident it supports, without a second copy.',
-  ];
-  $$('.fp-evlinks button').forEach(b => b.addEventListener('click', () => { pressOne(b.parentElement, b); $('#fp-evdetail').textContent = USE[Number(b.dataset.use)]; }));
-  $$('.fp-expiry button').forEach(b => b.addEventListener('click', () => {
-    pressOne(b.parentElement, b);
-    $('#fp-expiry-note').textContent = `Reminder sent to the owner ${b.dataset.days} day${b.dataset.days === '1' ? '' : 's'} before expiry.`;
-  }));
-
-  // Work: arrange cards, sign off a report.
-  const cards = $('#fp-board-cards');
-  function animate(change) {
-    const els = $$('.fp-bcard', cards); const first = new Map(els.map(el => [el, el.getBoundingClientRect()]));
-    change();
-    if (reduced) return;
-    els.forEach(el => { const a = first.get(el), b = el.getBoundingClientRect(); if (!b.width) return; el.animate([{ transform: `translate(${a.left - b.left}px,${a.top - b.top}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.2,.7,.2,1)' }); });
-  }
-  $('#fp-move').addEventListener('click', () => animate(() => {
-    const audit = $('[data-card="audit"]', cards);
-    if (cards.firstElementChild === audit) { cards.append(audit); $('#fp-move').textContent = 'Move audit first'; } else { cards.prepend(audit); $('#fp-move').textContent = 'Move audit back'; }
-  }));
-  $('#fp-hide').addEventListener('click', () => animate(() => {
-    const brief = $('[data-card="brief"]', cards); brief.hidden = !brief.hidden; $('#fp-hide').textContent = brief.hidden ? 'Bring back briefing' : 'Hide briefing';
-  }));
-  $('#fp-signoff').addEventListener('click', () => {
-    const state = $('#fp-report-state'), signed = !state.classList.contains('is-signed');
-    state.classList.toggle('is-signed', signed); state.textContent = signed ? 'Signed off' : 'Draft';
-    $('#fp-share').hidden = !signed; $('#fp-signoff').textContent = signed ? 'Withdraw sign-off' : 'Sign off as an independent reviewer';
-  });
 
   // Connected governance.
   const map = $('.fp-map'), vendor = $('#fp-vendor'), note = $('#fp-signal-note');
