@@ -5,11 +5,12 @@
 {% block extra_styles %}{% include "_ai_styles.html" %}{% endblock %}
 
 {% block content %}
-<div class="aig-page">
+<div class="aig-page aig-overview-page">
   <div class="aig-head">
     <div>
+      <span class="aig-eyebrow">THEMISIQ / AI GOVERNANCE</span>
       <h1 class="aig-h1">AI Governance</h1>
-      <p class="aig-lede">What needs action today, what changed since a decision, and what has nothing measured yet. Every number says what it counts and opens the list it came from.</p>
+      <p class="aig-lede">One clear view of requests, decisions and the AI systems you oversee. See what needs action, what changed and where assurance is still missing.</p>
     </div>
     <div class="aig-head-actions">
       {% if can_register %}<a class="btn btn-primary" href="/ai-governance/register">Register an AI use</a>{% endif %}
@@ -22,6 +23,6 @@
 
 {% block extra_scripts %}
 <script src="/static/js/ai_governance_common.js?v=1"></script>
-<script src="/static/js/ai_governance_overview.js?v=2"></script>
+<script src="/static/js/ai_governance_overview.js?v=3"></script>
 <script>AIGov.overview(document.getElementById('aigOverview'));</script>
 {% endblock %}

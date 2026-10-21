@@ -1,5 +1,5 @@
 """
-AI governance G2 in a real browser: a staff member describes an AI use and resumes it, a reviewer accepts it, and
+AI governance G2 in a real browser: an authorized specialist describes an AI use and resumes it, a reviewer accepts it, and
 the accepted use opens as a workspace whose tabs work from the keyboard. Every page is checked for serious
 accessibility violations and for sideways scroll on a phone.
 """
@@ -24,7 +24,7 @@ def _fill_essentials(page, name):
 
 
 def _register_and_submit(login_as, live_app, page, name):
-    login_as("employee")
+    login_as("org_admin")
     page.goto(f"{live_app}/ai-governance/register")
     page.wait_for_selector("#q_name")
     _fill_essentials(page, name)
@@ -39,7 +39,7 @@ def _register_and_submit(login_as, live_app, page, name):
 
 
 def test_the_first_screen_starts_with_the_author_as_owner_and_asks_only_the_essentials(login_as, live_app, page):
-    login_as("employee")
+    login_as("org_admin")
     page.goto(f"{live_app}/ai-governance/register")
     page.wait_for_selector("#q_name")
     assert "Chosen:" in page.locator("#q_owner_user_id_shown").inner_text()
@@ -49,7 +49,7 @@ def test_the_first_screen_starts_with_the_author_as_owner_and_asks_only_the_esse
 
 
 def test_a_required_answer_missing_is_named_and_nothing_is_lost(login_as, live_app, page, unique):
-    login_as("employee")
+    login_as("org_admin")
     page.goto(f"{live_app}/ai-governance/register")
     page.wait_for_selector("#q_name")
     page.fill("#q_name", unique)
@@ -68,7 +68,7 @@ def test_a_required_answer_missing_is_named_and_nothing_is_lost(login_as, live_a
 
 
 def test_a_draft_saved_at_the_first_step_is_there_when_the_person_comes_back(login_as, live_app, page, unique):
-    login_as("employee")
+    login_as("org_admin")
     page.goto(f"{live_app}/ai-governance/register")
     page.wait_for_selector("#q_name")
     _fill_essentials(page, unique)
@@ -84,7 +84,7 @@ def test_a_draft_saved_at_the_first_step_is_there_when_the_person_comes_back(log
     assert page.locator("#q_data_categories input[value='internal']").is_checked()
 
 
-def test_the_journey_from_a_staff_draft_to_an_accepted_ai_system(login_as, live_app, page, unique):
+def test_the_journey_from_a_specialist_draft_to_an_accepted_ai_system(login_as, live_app, page, unique):
     _register_and_submit(login_as, live_app, page, unique)
     page.goto(f"{live_app}/ai-governance/requests")
     row = page.locator("tr", has=page.locator(f"a:has-text('{unique}')"))
@@ -172,14 +172,11 @@ def test_a_reviewer_adopts_a_tier_and_retires_the_use_from_its_workspace(login_a
     page.keyboard.press("Escape")
 
 
-def test_staff_do_not_see_the_reviewers_page_or_its_buttons(login_as, live_app, page, unique):
+def test_staff_cannot_open_specialist_ai_pages(login_as, live_app, page, unique):
     login_as("employee")
-    response = page.goto(f"{live_app}/ai-governance/review")
-    assert response.status == 403
-    page.goto(f"{live_app}/ai-governance/systems")
-    page.wait_for_selector("h1:has-text('AI Systems')")
-    assert page.locator("a[href='/ai-governance/review']").count() == 0
-    assert page.locator("a[href='/ai-governance/register']").count() >= 1
+    for path in ("review", "systems", "register"):
+        assert page.goto(f"{live_app}/ai-governance/{path}").status == 403
+    assert page.goto(f"{live_app}/ai-governance/requests").status == 200
 
 
 def test_the_inventory_filters_survive_a_reload_and_an_empty_result_offers_a_way_out(login_as, live_app, page):
@@ -195,7 +192,7 @@ def test_the_inventory_filters_survive_a_reload_and_an_empty_result_offers_a_way
     ("/ai-governance/", "dpo", ".aig-card"),
     ("/ai-governance/systems", "dpo", "h1:has-text('AI Systems')"),
     ("/ai-governance/monitoring", "dpo", "h1:has-text('Monitoring')"),
-    ("/ai-governance/register", "employee", "#q_name"),
+    ("/ai-governance/register", "org_admin", "#q_name"),
     ("/ai-governance/requests", "employee", "h1:has-text('My requests')"),
     ("/ai-governance/review", "dpo", "h1:has-text('Review requests')"),
 ])
@@ -208,7 +205,7 @@ def test_each_page_has_no_serious_accessibility_violations(login_as, live_app, p
 
 
 @pytest.mark.parametrize("path, who", [("/ai-governance/", "dpo"), ("/ai-governance/systems", "dpo"), ("/ai-governance/monitoring", "dpo"),
-                                       ("/ai-governance/register", "employee"), ("/ai-governance/review", "dpo")])
+                                       ("/ai-governance/register", "org_admin"), ("/ai-governance/review", "dpo")])
 def test_each_page_fits_a_phone_without_sideways_scroll(login_as, live_app, page, path, who):
     login_as(who)
     page.set_viewport_size({"width": 375, "height": 812})
