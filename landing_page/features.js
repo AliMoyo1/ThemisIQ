@@ -10,13 +10,13 @@ if (ribbonTrack) {
 }
 
 const invite = document.getElementById('hero-invite');
-document.querySelectorAll('[data-select-module]').forEach(button => {
+document.querySelectorAll('#hero-visual [data-select-module]').forEach(button => {
   button.addEventListener('click', () => {
     const name = {aria:'Governance',grid:'Audit',bcm:'Resilience',sentinel:'Privacy',erm:'Enterprise risk',orm:'Operations risk'}[button.dataset.selectModule] || 'this module';
     if (invite) invite.lastChild.textContent = ' Previewing ' + name + ' in the product window';
   });
 });
-document.getElementById('reset-view').addEventListener('click', () => {
+document.getElementById('reset-view')?.addEventListener('click', () => {
   if (invite) invite.lastChild.textContent = ' Select a module to preview its dashboard';
 });
 

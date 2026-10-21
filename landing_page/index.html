@@ -27,11 +27,14 @@
   <meta name="description" content="ThemisIQ connects governance, audit, resilience, privacy, and risk in one clear view. Explore AI assisted work and the context behind every decision.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="features.css">
   <link rel="stylesheet" href="intelligence.css">
-  <link rel="stylesheet" href="site-extras.css?v=brand-logo-1">
+  <link rel="stylesheet" href="site-extras.css?v=labels-2">
+  <link rel="stylesheet" href="connected-line.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js","three/addons/":"./vendor/three/addons/"}}</script>
+  <script type="module" src="connected-line-ui.js"></script>
   <script defer src="app.js"></script>
   <script defer src="features.js"></script>
   <script defer src="intelligence.js"></script>
@@ -69,44 +72,52 @@
 
       <div class="hero-main">
         <div class="hero-copy">
-          <div class="eyebrow"><span class="live-pip" aria-hidden="true"></span> ThemisIQ / Connected GRC</div>
+          <div class="eyebrow">ThemisIQ / Connected GRC</div>
           <h1 id="hero-title">Every signal.<br><span>One clear view.</span></h1>
-          <p class="hero-description">A connected home for governance, audit, resilience, privacy, and risk. Keep the right context close to every decision.</p>
+          <p class="hero-description">A connected home for governance, audit, resilience, privacy, risk and AI governance. One incident moves through every module, so nothing waits in a silo.</p>
           <div class="hero-actions">
             <a class="button button-primary" href="#system">Explore the platform <span aria-hidden="true">&#8599;</span></a>
             <a class="button button-secondary" href="#flow">See how it connects <span aria-hidden="true">&#8594;</span></a>
           </div>
-          <div class="hero-note">Six disciplines. One connected picture.</div>
-          <p class="hero-invite" id="hero-invite"><span aria-hidden="true">↗</span> Select a module to preview its dashboard</p>
+          <div class="hero-note">Every module. One connected line.</div>
+          <p class="hero-invite" id="hero-invite"><span aria-hidden="true">↗</span> Turn the line, look inside, or show the silos</p>
         </div>
 
-        <div class="hero-visual" id="hero-visual" aria-label="Interactive ThemisIQ product preview">
-          <div class="orb orb-one" aria-hidden="true"></div>
-          <div class="orb orb-two" aria-hidden="true"></div>
-          <svg class="signal-lines" viewBox="0 0 720 630" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M104 98 C230 105 200 246 355 315"></path>
-            <path d="M603 76 C465 108 500 255 355 315"></path>
-            <path d="M664 284 C535 270 493 302 355 315"></path>
-            <path d="M586 555 C485 502 480 379 355 315"></path>
-            <path d="M122 542 C260 480 230 373 355 315"></path>
-            <path d="M66 312 C213 301 228 323 355 315"></path>
-          </svg>
-          <div class="preview-window" id="hero-preview">
-            <div class="preview-bar">
-              <div class="preview-dots" aria-hidden="true"><i></i><i></i><i></i></div>
-              <span id="hero-url">app.themisiq.net/command-centre</span>
-              <span class="preview-status"><i aria-hidden="true"></i> PRODUCT VIEW</span>
-            </div>
-            <img id="hero-image" src="screenshot-command-centre.webp" width="1916" height="993" alt="ThemisIQ Command Centre dashboard">
-            <div class="preview-caption"><span id="hero-caption">Command Centre</span><span id="hero-index">00 / 06</span></div>
+        <div class="hero-visual connected-line" id="hero-visual">
+          <div class="cl-scene" role="img" aria-label="Interactive 3D production line. Eight stations, the seven ThemisIQ modules and Reports, are joined by one conveyor belt. An incident travels through every station: a breach confirmed in Privacy, an incident opened in Resilience, an obligation tracked in Enterprise risk, an event logged in Operations risk, an audit review, controls rechecked in Governance, an AI use re-review in AI Governance, and the cycle completed in Reports. Drag to rotate; click the scene, then scroll or pinch to zoom."></div>
+          <div class="cl-labels" aria-hidden="true"></div>
+          <div class="cl-tooltip" role="tooltip"><strong></strong><p></p></div>
+          <div class="cl-readout" aria-live="polite">
+            <span class="cl-step" id="cl-step">01 / 08</span>
+            <span class="cl-stage-text"><strong id="cl-stage">Breach confirmed</strong> <span>in</span> <span id="cl-module">Privacy</span></span>
+            <span class="cl-silo-note">Siloed: nothing reaches the next module.</span>
+            <span class="cl-track" aria-hidden="true"><i></i></span>
           </div>
-          <button class="signal-token token-aria" type="button" data-select-module="aria" aria-pressed="false" style="--token-color:#7d6527"><span class="token-dot"></span> Governance</button>
-          <button class="signal-token token-grid" type="button" data-select-module="grid" aria-pressed="false" style="--token-color:#059669"><span class="token-dot"></span> Audit</button>
-          <button class="signal-token token-bcm" type="button" data-select-module="bcm" aria-pressed="false" style="--token-color:#3d4660"><span class="token-dot"></span> Resilience</button>
-          <button class="signal-token token-sentinel" type="button" data-select-module="sentinel" aria-pressed="false" style="--token-color:#3b5bdb"><span class="token-dot"></span> Privacy</button>
-          <button class="signal-token token-erm" type="button" data-select-module="erm" aria-pressed="false" style="--token-color:#881337"><span class="token-dot"></span> Enterprise risk</button>
-          <button class="signal-token token-orm" type="button" data-select-module="orm" aria-pressed="false" style="--token-color:#7c3a0a"><span class="token-dot"></span> Operations risk</button>
-          <button class="reset-view" id="reset-view" type="button">Return to Command Centre <span aria-hidden="true">&#8634;</span></button>
+          <div class="cl-controls">
+            <div class="cl-modes" role="group" aria-label="Machine view">
+              <button type="button" data-cl-mode="assembled" aria-pressed="true">Assembled</button>
+              <button type="button" data-cl-mode="cutaway" aria-pressed="false">Cutaway</button>
+              <button type="button" data-cl-mode="stations" aria-pressed="false">Stations</button>
+              <button type="button" data-cl-mode="incident" aria-pressed="false">One incident</button>
+              <button type="button" data-cl-mode="silos" aria-pressed="false" class="cl-silo-button">Show the silos</button>
+            </div>
+            <div class="cl-cameras" role="group" aria-label="Camera">
+              <span class="cl-caption" aria-hidden="true">VIEW</span>
+              <button type="button" data-cl-camera="overview" aria-pressed="true">Overview</button>
+              <button type="button" data-cl-camera="side" aria-pressed="false">Side</button>
+              <button type="button" data-cl-camera="top" aria-pressed="false">Top</button>
+              <button type="button" data-cl-camera="station" aria-pressed="false">Station</button>
+              <button type="button" data-cl-camera="flight" aria-pressed="false">Flight</button>
+              <span class="cl-divider" aria-hidden="true"></span>
+              <button type="button" id="cl-zoom-out" aria-label="Zoom out">&minus;</button>
+              <button type="button" id="cl-zoom-in" aria-label="Zoom in">+</button>
+              <button type="button" id="cl-play" aria-pressed="false" aria-label="Pause the line"><span class="cl-pause" aria-hidden="true">&#10074;&#10074;</span><span class="cl-resume" aria-hidden="true" hidden>&#9654;</span></button>
+            </div>
+          </div>
+          <p class="cl-hint">Drag to rotate · Click the scene, then scroll to zoom</p>
+          <div class="cl-loading"><i aria-hidden="true"></i><span>Assembling the line</span></div>
+          <img class="cl-fallback" src="screenshot-command-centre.webp" width="1916" height="993" alt="ThemisIQ Command Centre dashboard" hidden>
+          <noscript><img class="cl-fallback" src="screenshot-command-centre.webp" width="1916" height="993" alt="ThemisIQ Command Centre dashboard"></noscript>
         </div>
       </div>
       <div class="hero-bottom">
@@ -117,7 +128,7 @@
 
     <main>
       <section class="framework-ribbon" aria-label="Frameworks represented in the platform">
-        <div class="ribbon-top"><span class="ribbon-led" aria-hidden="true"></span><span>FRAMEWORK CATALOGUE</span><span class="ribbon-top-note">Standards, connected to the work</span></div>
+        <div class="ribbon-top"><span>FRAMEWORK CATALOGUE</span><span class="ribbon-top-note">Standards, connected to the work</span></div>
         <div class="ribbon-viewport">
           <div class="ribbon-track" id="framework-track">
             <div class="ribbon-set" role="list" aria-label="Framework examples">
@@ -143,7 +154,7 @@
         </div>
       </section>
       <section class="intro-section section-wrap" id="system" aria-labelledby="intro-title">
-        <div class="section-kicker"><span class="kicker-dot"></span> THE SYSTEM</div>
+        <div class="section-kicker">THE SYSTEM</div>
         <div class="intro-grid">
           <h2 id="intro-title">Clarity moves<br><em>with the work.</em></h2>
           <div class="intro-body">
@@ -161,7 +172,7 @@
 
       <section class="flow-section" id="flow" aria-labelledby="flow-title">
         <div class="section-wrap flow-inner">
-          <div class="section-kicker section-kicker-light"><span class="kicker-dot"></span> HOW IT CONNECTS</div>
+          <div class="section-kicker section-kicker-light">HOW IT CONNECTS</div>
           <div class="flow-header">
             <h2 id="flow-title">A signal becomes<br><em>shared understanding.</em></h2>
             <p>Explore an illustrative journey from an operational event to a clearer decision. Select each stage to see the context that matters.</p>
@@ -201,7 +212,7 @@
       </section>
 
       <section class="feature-section section-wrap" id="features" aria-labelledby="features-title">
-        <div class="section-kicker"><span class="kicker-dot"></span> THE PLATFORM IN MOTION</div>
+        <div class="section-kicker">THE PLATFORM IN MOTION</div>
         <div class="feature-heading">
           <h2 id="features-title">See the work.<br><em>See what connects.</em></h2>
           <p>Choose a story to explore how ThemisIQ brings context, timing, and ownership into the same view.</p>
@@ -281,7 +292,7 @@
         </div>
       </section>
       <section class="intelligence-section section-wrap" id="intelligence" aria-labelledby="intelligence-title">
-        <div class="section-kicker"><span class="kicker-dot"></span> INTELLIGENCE WITH CONTEXT</div>
+        <div class="section-kicker">INTELLIGENCE WITH CONTEXT</div>
         <div class="intelligence-heading">
           <h2 id="intelligence-title">A clearer first draft.<br><em>A stronger next decision.</em></h2>
           <p>Explore how assistance, grounded answers, external signals, and predictive risk can work with the records your teams already manage.</p>
@@ -371,7 +382,7 @@
         </div>
       </section>
       <section class="modules-section section-wrap" id="modules" aria-labelledby="modules-title">
-        <div class="section-kicker"><span class="kicker-dot"></span> SIX DISCIPLINES, ONE SYSTEM</div>
+        <div class="section-kicker">SIX DISCIPLINES, ONE SYSTEM</div>
         <div class="modules-heading"><h2 id="modules-title">Explore each lens.</h2><p>Choose a discipline to see its current dashboard and the work it brings into focus.</p></div>
         <div class="modules-layout">
           <div class="module-list" role="tablist" aria-label="ThemisIQ modules">
@@ -392,7 +403,7 @@
       </section>
 
       <section class="approach-section section-wrap" id="approach" aria-labelledby="approach-title">
-        <div class="section-kicker"><span class="kicker-dot"></span> MADE FOR THE ACTUAL WORK</div>
+        <div class="section-kicker">MADE FOR THE ACTUAL WORK</div>
         <div class="approach-heading"><h2 id="approach-title">Depth where it matters.<br><em>Calm everywhere else.</em></h2><p>A considered system gives the work room to breathe while keeping its evidence, ownership, and history close.</p></div>
         <div class="approach-grid">
           <div class="approach-card approach-card-featured">
@@ -410,7 +421,7 @@
       <section class="contact-section" id="contact" aria-labelledby="contact-title">
         <div class="contact-inner contact-layout">
           <div class="contact-copy">
-            <span class="section-kicker section-kicker-light"><span class="kicker-dot"></span> SEE THE SYSTEM</span>
+            <span class="section-kicker section-kicker-light">SEE THE SYSTEM</span>
             <h2 id="contact-title">Bring the whole picture<br><em>into focus.</em></h2>
             <p>Tell us what your team needs to connect. We will show you how ThemisIQ can support the work behind your next decision.</p>
             <a class="contact-email" href="mailto:hello@themisiq.net">hello@themisiq.net <span aria-hidden="true">↗</span></a>

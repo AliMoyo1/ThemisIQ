@@ -22,7 +22,7 @@ html[data-theme="dusk"] .signal-token:hover::after,html[data-theme="dusk"] .sign
 .framework-ribbon{position:relative;overflow:hidden;margin:34px 0 0;padding:26px 0 22px;border-radius:25px;background:linear-gradient(108deg,rgba(248,251,246,.94),rgba(223,235,227,.82) 54%,rgba(239,245,237,.93));box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 13px 35px rgba(43,78,54,.045)}
 html[data-theme="dusk"] .framework-ribbon{background:linear-gradient(108deg,#142535,#1a2f3c 52%,#142537);box-shadow:inset 0 1px 0 rgba(255,255,255,.09)}
 .ribbon-top{display:flex;align-items:center;justify-content:center;gap:10px;padding:0 24px;color:var(--accent);font:600 10px/1.2 var(--mono);letter-spacing:.16em}
-.ribbon-led{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 5px rgba(71,131,98,.1)}
+
 .ribbon-top-note{margin-left:14px;color:var(--muted);font-family:var(--font);font-size:11px;font-weight:500;letter-spacing:0;text-transform:none}
 .ribbon-viewport{overflow:hidden;margin-top:18px;mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
 .ribbon-track{display:flex;align-items:center;width:max-content;animation:framework-move 52s linear infinite;animation-play-state:paused}
@@ -57,7 +57,7 @@ html[data-theme="dusk"] .feature-panel{border-color:var(--line)}
 @keyframes scene-arrive{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .feature-story{padding:22px 0 18px 8px}
 .feature-story-tag{display:inline-flex;align-items:center;gap:7px;color:var(--active-accent);font:600 10px/1.2 var(--mono);letter-spacing:.1em}
-.feature-story-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 5px var(--active-soft)}
+.feature-story-tag::before{content:none}
 .feature-story h3{margin:25px 0 18px;font-size:clamp(32px,3.3vw,56px);line-height:1.05;letter-spacing:-.055em;font-weight:600}
 .feature-story h3 em{color:var(--active-accent)}
 .feature-story p{max-width:350px;color:var(--muted);font-size:14px;line-height:1.68}

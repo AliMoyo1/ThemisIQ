@@ -49,3 +49,6 @@
 @media(max-width:940px){.signin-link{display:none}.nav-links .mobile-signin{display:block}.contact-layout{grid-template-columns:minmax(0,1fr) minmax(315px,.8fr)}}
 @media(max-width:700px){.nav-links .mobile-cta{display:block}.contact-layout{grid-template-columns:minmax(0,1fr);gap:33px}.contact-copy h2{font-size:clamp(42px,10vw,64px)}.demo-panel{padding:24px}.site-footer .footer-links{width:100%;order:2}.site-footer p{order:3}.cookie-banner{bottom:8px;align-items:stretch;flex-direction:column;gap:12px}.cookie-banner>div{justify-content:stretch}.cookie-banner button{flex:1}}
 @media(max-width:390px){.cookie-banner>div{flex-wrap:wrap}.cookie-banner button{min-width:125px}}
+
+/* No bullet dots before labels anywhere on the landing page (owner request). */
+.preview-status i,.module-image-pip,.demo-live-dot,.flow-network-readout i,.intelligence-stage-top i,.intel-workspace-bar i,.ask-answer span i{display:none!important}

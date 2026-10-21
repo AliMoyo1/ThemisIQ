@@ -77,6 +77,12 @@ def main():
         if os.path.isfile(src) and not fname.endswith(".docx"):
             shutil.copy2(src, os.path.join(web_root, fname))
             print("    Copied:", fname)
+    # Self-hosted libraries the page loads (three.js for the hero). Build tooling stays behind.
+    for dname in ("vendor",):
+        src = os.path.join(src_dir, dname)
+        if os.path.isdir(src):
+            shutil.copytree(src, os.path.join(web_root, dname), dirs_exist_ok=True)
+            print("    Copied folder:", dname)
 
     print("[5] Testing Nginx config...")
     rc = run("nginx -t")

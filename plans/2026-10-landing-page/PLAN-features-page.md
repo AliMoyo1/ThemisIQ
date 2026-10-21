@@ -168,3 +168,5 @@ The section by section content is in [features-page-content.md](features-page-co
   The input wrapping line is held until security finding M3 is fixed.
 - 2026-10-20: page copy drafted in features-page-copy.md from the capability sheet; brief corrected (no count in the header, AI tile points to 1a, integrated audit links and badges equivalents but does not copy results).
 - 2026-10-21: owner asked for an interactive features page reusing the landing page's click interactions; interaction design written in features-page-interactions.md and step 5 updated.
+- 2026-10-21: landing hero rebuilt as the connected line (eight stations, one incident, silos toggle), label font and dots changed across the landing page, deploy copy fixed for vendor/; full record in hero-connected-line.md.
+- 2026-10-21: owner asked to start the features page build (step 5), high spec and premium, with full visibility in the browser.

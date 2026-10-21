@@ -111,12 +111,14 @@ function selectModule(key) {
   selectedModule = key;
   applyModuleAccent();
 
-  heroImage.src = module.image;
-  heroImage.alt = module.alt;
-  document.getElementById('hero-url').textContent = `app.themisiq.net${module.path}`;
-  document.getElementById('hero-caption').textContent = `${module.name} / ${module.code}`;
-  document.getElementById('hero-index').textContent = `${module.index} / 06`;
-  animateFrame(heroPreview);
+  if (heroImage) {
+    heroImage.src = module.image;
+    heroImage.alt = module.alt;
+    document.getElementById('hero-url').textContent = `app.themisiq.net${module.path}`;
+    document.getElementById('hero-caption').textContent = `${module.name} / ${module.code}`;
+    document.getElementById('hero-index').textContent = `${module.index} / 06`;
+    animateFrame(heroPreview);
+  }
 
   document.getElementById('module-eyebrow').textContent = `${module.name.toUpperCase()} / ${module.code}`;
   document.getElementById('module-counter').textContent = `${module.index} / 06`;
@@ -156,7 +158,7 @@ moduleTabs.forEach((button, index) => button.addEventListener('keydown', event =
   target.focus();
 }));
 
-document.getElementById('reset-view').addEventListener('click', () => {
+document.getElementById('reset-view')?.addEventListener('click', () => {
   heroImage.src = 'screenshot-command-centre.webp';
   heroImage.alt = 'ThemisIQ Command Centre dashboard';
   document.getElementById('hero-url').textContent = 'app.themisiq.net/command-centre';
