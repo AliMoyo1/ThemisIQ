@@ -1,5 +1,5 @@
 {
-  "route_count": 1120,
+  "route_count": 1121,
   "entries": [
     {
       "path": "/openapi.json",
@@ -19615,6 +19615,20 @@
       "roles_by_capability": {},
       "license_modules_required": [],
       "name": "api_notification_mark_read",
+      "maturity": "",
+      "notes": ""
+    },
+    {
+      "path": "/api/onboarding",
+      "methods": [
+        "GET"
+      ],
+      "module": "modules.launcher.routes_platform",
+      "gate": "authenticated",
+      "capabilities": [],
+      "roles_by_capability": {},
+      "license_modules_required": [],
+      "name": "api_onboarding",
       "maturity": "",
       "notes": ""
     },

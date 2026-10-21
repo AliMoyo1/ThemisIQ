@@ -20,9 +20,17 @@
         <button class="trainer-close" onclick="toggleTrainer()" aria-label="Close">&times;</button>
       </div>
     </div>
+    <div class="trainer-tabs" role="tablist" aria-label="Themis">
+      <button type="button" role="tab" id="trainerTabAsk" aria-selected="true" aria-controls="trainerAskView" data-view="ask">Ask</button>
+      <button type="button" role="tab" id="trainerTabStart" aria-selected="false" aria-controls="trainerStartView" data-view="start" tabindex="-1">Get started</button>
+    </div>
+    <div class="trainer-start" id="trainerStartView" role="tabpanel" aria-labelledby="trainerTabStart" hidden>
+      <p class="trainer-start-loading">Loading your tours...</p>
+    </div>
+    <div class="trainer-ask" id="trainerAskView" role="tabpanel" aria-labelledby="trainerTabAsk">
     <div class="trainer-messages" id="trainerMessages">
       <div class="trainer-msg bot">
-        <div class="trainer-msg-content">Hi! I'm Themis, your platform guide. Ask me <strong>how to do anything</strong> in ThemisGRC. For example:<br><br>&bull; "How do I create an audit?"<br>&bull; "How do I log a data breach?"<br>&bull; "How do I set up a workflow?"<br>&bull; "What is the Risk Register?"<br><br>I cover all 6 modules: ARIA, GRID, BCM, Sentinel, ERM, and ORM. You can also turn on <strong>Tooltip Mode</strong> to see explanations when you hover over elements.</div>
+        <div class="trainer-msg-content">Hi! I'm Themis, your platform guide. Ask me <strong>how to do anything</strong> in ThemisIQ. For example:<br><br>&bull; "How do I create an audit?"<br>&bull; "How do I log a data breach?"<br>&bull; "How do I register an AI use?"<br>&bull; "What is the Risk Register?"<br><br>New here? Open <strong>Get started</strong> for guided tours. You can also turn on <strong>Tooltip Mode</strong> to see explanations when you hover over elements.</div>
       </div>
     </div>
     <div class="trainer-input-wrap">
@@ -31,6 +39,7 @@
       <button onclick="sendTrainerMsg()" class="trainer-send" aria-label="Send">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
+    </div>
     </div>
   </div>
 </div>
@@ -76,6 +85,9 @@
 .trainer-send{width:34px;height:34px;border-radius:8px;background:var(--accent,#1e293b);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity 0.15s;}
 .trainer-send:hover{opacity:0.85;}
 
+.trainer-go{display:block;margin-top:8px;border:1px solid var(--accent,#1e293b);background:var(--accent,#1e293b);color:#fff;border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;}
+.trainer-go:disabled{background:none;color:var(--muted,#6b7280);border-color:var(--border2,rgba(0,0,0,.15));cursor:default;}
+.trainer-go:focus-visible{outline:2px solid var(--accent,#1e293b);outline-offset:2px;}
 .ai-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:1px 5px;border-radius:3px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;margin-left:6px;vertical-align:middle;}
 
 /* ── Tooltip Mode Banner ── */
@@ -126,8 +138,46 @@ body.tooltip-mode [data-trainer-tip]:hover{
 @media (prefers-reduced-motion:reduce){
   .trainer-pulse,body.tooltip-mode [data-trainer-tip]{animation:none}
 }
+
+.trainer-tabs{display:flex;gap:4px;padding:8px 12px 0;border-bottom:1px solid var(--border,rgba(0,0,0,0.06));}
+.trainer-tabs button{border:none;background:none;padding:8px 10px;font:inherit;font-size:13px;font-weight:600;color:var(--muted,#6b7280);border-bottom:2px solid transparent;cursor:pointer;}
+.trainer-tabs button[aria-selected="true"]{color:var(--text,#111);border-bottom-color:var(--accent,#1e293b);}
+.trainer-tabs button:focus-visible{outline:2px solid var(--accent,#1e293b);outline-offset:-2px;border-radius:4px;}
+.trainer-ask{display:flex;flex-direction:column;min-height:0;}
+.trainer-ask[hidden],.trainer-start[hidden]{display:none;}
+.trainer-start{overflow-y:auto;max-height:400px;padding:14px 16px;font-size:13px;color:var(--text,#111);}
+.trainer-start h3{margin:4px 0 8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#6b7280);}
+.trainer-start ul{list-style:none;margin:0 0 16px;padding:0;display:grid;gap:6px;}
+.trainer-start li{display:flex;align-items:center;gap:10px;}
+.trainer-start .ts-check{flex:none;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border2,rgba(0,0,0,.2));display:grid;place-items:center;font-size:12px;color:#fff;}
+.trainer-start .is-done .ts-check{background:var(--accent,#1e293b);border-color:var(--accent,#1e293b);}
+.trainer-start .is-done .ts-label{color:var(--muted,#6b7280);}
+.trainer-start .ts-label{flex:1;}
+.trainer-start .ts-tour{display:grid;gap:2px;padding:10px 12px;border:1px solid var(--border,rgba(0,0,0,.08));border-radius:10px;background:var(--surface,#fff);}
+.trainer-start .ts-tour strong{font-size:13px;}
+.trainer-start .ts-tour span{font-size:12px;color:var(--muted,#6b7280);}
+.trainer-start .ts-btn{justify-self:start;margin-top:6px;border:1px solid var(--accent,#1e293b);background:var(--accent,#1e293b);color:#fff;border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;}
+.trainer-start .ts-btn.is-again{background:none;color:var(--accent,#1e293b);}
+.trainer-start a.ts-btn{text-decoration:none;}
+.trainer-start .ts-btn:focus-visible{outline:2px solid var(--accent,#1e293b);outline-offset:2px;}
+
+/* ── Guided tour ── */
+.tour-spot{position:fixed;z-index:99990;border-radius:10px;pointer-events:none;box-shadow:0 0 0 3px var(--accent,#1e293b),0 0 0 9999px rgba(15,23,42,.45);transition:all .25s ease;}
+.tour-pop{position:fixed;z-index:99991;width:min(320px,calc(100vw - 24px));background:var(--surface,#fff);color:var(--text,#111);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:16px 16px 12px;font-size:13px;line-height:1.5;}
+.tour-pop .tp-count{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted,#6b7280);}
+.tour-pop h2{margin:4px 0 6px;font-size:15px;}
+.tour-pop p{margin:0;}
+.tour-pop .tp-note{margin-top:8px;font-size:12px;color:var(--muted,#6b7280);}
+.tour-pop .tp-actions{display:flex;align-items:center;gap:8px;margin-top:14px;}
+.tour-pop .tp-actions button{border:1px solid var(--border2,rgba(0,0,0,.15));background:var(--surface,#fff);color:var(--text,#111);border-radius:8px;padding:6px 12px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;}
+.tour-pop .tp-actions .tp-next{background:var(--accent,#1e293b);border-color:var(--accent,#1e293b);color:#fff;margin-left:auto;}
+.tour-pop .tp-actions button:disabled{opacity:.4;cursor:default;}
+.tour-pop .tp-actions button:focus-visible{outline:2px solid var(--accent,#1e293b);outline-offset:2px;}
+.tour-pop .tp-end{position:absolute;top:8px;right:10px;border:none;background:none;font-size:18px;color:var(--muted,#6b7280);cursor:pointer;line-height:1;padding:2px 6px;}
+@media (prefers-reduced-motion:reduce){.tour-spot{transition:none}}
 </style>
 
+<script src="/static/js/onboarding_tours.js?v=3" defer></script>
 <script>
 function escTrainer(s){if(!s&&s!==0)return '';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
 
@@ -176,7 +226,7 @@ function sendTrainerMsg() {
   .then(function(data) {
     var typing = document.getElementById('trainerTyping');
     if (typing) typing.remove();
-    appendMsg('bot', data.answer || 'Sorry, I could not find an answer for that.', data.source === 'ai');
+    appendMsg('bot', data.answer || 'Sorry, I could not find an answer for that.', data.source === 'ai', data.go);
   })
   .catch(function() {
     var typing = document.getElementById('trainerTyping');
@@ -185,7 +235,7 @@ function sendTrainerMsg() {
   });
 }
 
-function appendMsg(type, content, isAI) {
+function appendMsg(type, content, isAI, go) {
   var msgs = document.getElementById('trainerMessages');
   var div = document.createElement('div');
   div.className = 'trainer-msg ' + type;
@@ -193,6 +243,17 @@ function appendMsg(type, content, isAI) {
   safe = safe.replace(/\n- /g, '<br>&bull; ').replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
   var badge = (type === 'bot' && isAI) ? '<span class="ai-badge">AI</span>' : '';
   div.innerHTML = '<div class="trainer-msg-content">' + safe + badge + '</div>';
+  if (type === 'bot' && go && go.path && window.ThemisTours) {
+    var here = window.location.pathname === go.path;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'trainer-go';
+    btn.textContent = here ? (go.show ? 'Show me' : 'You are on this page') : 'Take me there';
+    btn.disabled = here && !go.show;
+    btn.setAttribute('aria-label', (here ? 'Show me: ' : 'Take me there: ') + go.title);
+    btn.addEventListener('click', function () { window.ThemisTours.point(go); });
+    div.firstChild.appendChild(btn);
+  }
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
@@ -302,13 +363,14 @@ function injectTrainerTips() {
 
   // ── 1. Platform-wide: icon sidebar ──
   _tipSel('.icon-sidebar-logo', 'Home', 'Click to return to the Command Centre dashboard.');
-  _tipSel('.icon-nav-item[title="Command Centre"]', 'Command Centre', 'Cross-module dashboard showing overall compliance percentage, open risks, breaches, and overdue tasks across all six modules.');
+  _tipSel('.icon-nav-item[title="Command Centre"]', 'Command Centre', 'Cross-module dashboard showing overall compliance percentage, open risks, breaches, and overdue tasks across your modules.');
   _tipSel('.icon-nav-item[title="Governance"]', 'ARIA: Governance', 'Manage compliance frameworks (ISO 27001, SOC 2, NIST), map controls, create policies, and track governance risks.');
   _tipSel('.icon-nav-item[title="Audit"]', 'GRID: Audit', 'Plan and execute internal/external audits, track findings and non-conformances, manage evidence collection.');
   _tipSel('.icon-nav-item[title="Resilience"]', 'BCM: Business Continuity', 'Business Impact Analysis, recovery plans, exercises, and incident response. Ensures your organisation can recover from disruptions.');
   _tipSel('.icon-nav-item[title="Privacy"]', 'Sentinel: Data Protection', 'GDPR compliance: Records of Processing (RoPA), Data Protection Impact Assessments (DPIA), breach management, and subject access requests.');
   _tipSel('.icon-nav-item[title="Enterprise Risk"]', 'ERM: Enterprise Risk', 'Organisation-wide risk register with risk appetite thresholds, Key Risk Indicators (KRIs), and structured risk assessments.');
   _tipSel('.icon-nav-item[title="Operations Risk"]', 'ORM: Operational Risk', 'Track operational loss events with Basel II categories, monitor Key Risk Indicators, and run Risk Control Self-Assessments (RCSA).');
+  _tipSel('.icon-nav-item[title="AI Governance"]', 'AI Governance', 'Register AI uses, assess their impact, decide on them independently and keep monitoring them. For governance, risk, privacy and compliance specialists.');
   _tipSel('.icon-nav-item[title="Admin"]', 'Administration', 'Manage users, roles, framework activation, audit logs, API keys, webhooks, and email settings.');
   _tipSel('.icon-nav-item[title="Super Admin"]', 'Super Admin', 'Multi-tenant management: create organisations, manage subscriptions, and configure global platform settings.');
 
@@ -340,7 +402,7 @@ function injectTrainerTips() {
     _tipByLabel('Unique Controls', 'Unique Controls', 'Controls that are framework-specific and not shared. High counts may indicate opportunities for control mapping.');
     _tipByLabel('Active Frameworks', 'Frameworks', 'Number of compliance frameworks currently active in ARIA (e.g. ISO 27001, SOC 2, GDPR, NIST CSF).');
     _tipByLabel('Testing Effort Saved', 'Efficiency Gain', 'Percentage of testing effort saved through integrated control mapping. Shared controls only need testing once.');
-    _tipSel('.nav-item[href="/"]', 'Overview', 'Main dashboard with compliance metrics aggregated from all six modules.');
+    _tipSel('.nav-item[href="/"]', 'Overview', 'Main dashboard with compliance metrics aggregated from your modules.');
     _tipSel('.nav-item[href="/"]', 'Command Centre', 'Arrange your cards around actions, alerts, risks, and module activity.');
     _tipSel('.nav-item[href*="projects"]', 'Compliance Projects', 'Track certification projects (ISO 27001, SOC 2) with milestones, evidence collection, and team assignments.');
     _tipSel('.nav-item[href*="evidence"]', 'Evidence Repository', 'Central vault for all compliance evidence. Upload documents, tag them, and link to controls and audit findings.');
